@@ -37,14 +37,22 @@ export class MockDnsProvider implements DnsProvider {
   }
 }
 
+/**
+ * Client for the Plainphone DNS service in dns/ (`/v1/clients`, see dns/README.md).
+ *
+ * The DNS service knows two profiles (child, self) plus "block_adult" and per-client
+ * allow/block lists. It has no per-category switches yet, so only the "adult" category
+ * is passed on; see docs/server-dns-contract.md.
+ */
 export class HttpDnsProvider implements DnsProvider {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
   ) {}
 
-  private async call(method: string, path: string, body?: unknown) {
-    const res = await fetch(new URL(path, this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`), {
+  private async call(method: string, path: string, body?: unknown): Promise<Response> {
+    const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
+    return fetch(new URL(path, base), {
       method,
       headers: {
         authorization: `Bearer ${this.token}`,
@@ -53,17 +61,25 @@ export class HttpDnsProvider implements DnsProvider {
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok && !(method === "DELETE" && res.status === 404)) {
-      throw new Error(`DNS service ${method} ${path} failed: ${res.status}`);
+  }
+
+  async upsertClient(config: DnsClientConfig) {
+    const payload = {
+      profile: config.profile,
+      block_adult: config.blockedCategories.includes("adult"),
+      allow_domains: config.allowDomains,
+      block_domains: config.blockDomains,
+    };
+    const id = encodeURIComponent(config.clientId);
+    let res = await this.call("PATCH", `v1/clients/${id}`, payload);
+    if (res.status === 404) {
+      res = await this.call("POST", "v1/clients", { client_id: config.clientId, ...payload });
     }
+    if (!res.ok) throw new Error(`DNS service upsert ${config.clientId} failed: ${res.status}`);
   }
 
-  upsertClient(config: DnsClientConfig) {
-    const { clientId, ...rest } = config;
-    return this.call("PUT", `clients/${encodeURIComponent(clientId)}`, rest);
-  }
-
-  deleteClient(clientId: string) {
-    return this.call("DELETE", `clients/${encodeURIComponent(clientId)}`);
+  async deleteClient(clientId: string) {
+    const res = await this.call("DELETE", `v1/clients/${encodeURIComponent(clientId)}`);
+    if (!res.ok && res.status !== 404) throw new Error(`DNS service delete ${clientId} failed: ${res.status}`);
   }
 }
