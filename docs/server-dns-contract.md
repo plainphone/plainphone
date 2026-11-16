@@ -35,9 +35,13 @@ as synced.
 | Allowed / blocked domains | `allow_domains` / `block_domains` (full lists) |
 | Categories `social`, `gambling`, `games`, `dating`, `video` | **Not sent yet.** The DNS service's `child` profile always blocks these groups and `self` never does; there are no per-client switches. The PWA lets a parent switch them, and the server stores the choice, but it only takes effect once the DNS service supports per-client categories. |
 
-Open request to the DNS service (16/11-2026): accept `client_id` in `POST /v1/clients`. Until it
-does, the fallback `POST` creates a client with a random ID and the phone's hostname will not
-match. `DNS_PROVIDER=mock` (the default) is what the hosted test server runs until then.
+`POST /v1/clients` accepts the server's `client_id` (409 if it exists, 400 if invalid). The DNS
+resolver refuses unregistered ClientIDs, so a phone's private DNS only works once the first sync
+has succeeded; until then the PWA shows the filter as "not synced yet". Domain list changes take
+about 5 seconds to apply in AdGuard; profile and `block_adult` changes are immediate.
+
+The hosted service runs on a private address with a bearer token (Bitwarden: "Plainphone: ppdns
+API token (dns.plainphone.org)"). It is not reachable from the public internet.
 
 ## Testing
 
