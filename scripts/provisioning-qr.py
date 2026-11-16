@@ -221,7 +221,11 @@ def main() -> None:
     print(f"signature checksum: {checksum}")
     print(f"private DNS host: {args.dns_host}")
     if dns_id:
-        print(f"DNS ClientID: {dns_id} (register it on the DNS server before setting up the phone)")
+        print(f"DNS ClientID: {dns_id}")
+        print("  It must be registered on the DNS server BEFORE scanning, or the phone gets no DNS at all")
+        print("  (unknown IDs are refused). Easiest: run `docker compose exec api python -m ppdns create child`")
+        print("  on the DNS server and pass the printed client_id as --dns-id. Or register this ID with")
+        print('  POST /v1/clients {"client_id": "...", "profile": "child"}. See dns/README.md.')
     print(f"QR JSON:  {json_path}")
     if png_path:
         print(f"QR image: {png_path}")

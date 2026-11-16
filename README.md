@@ -81,7 +81,7 @@ The script reads the signing certificate checksum from the APK, asks for or gene
 
 Phase 2 options:
 
-- `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). Register the ClientID on the DNS server before setting up the phone. The default is still `family.adguard-dns.com` until the resolver is live.
+- `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
 
 ## Roadmap
