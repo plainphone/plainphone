@@ -204,7 +204,7 @@ export function parentRoutes(ctx: Ctx) {
     const hid = param(c, "hid");
     await requireMember(c, hid);
     const input = await body(c, z.object({ email: v.email, locale: v.locale.optional() }));
-    if (!inviteUserLimit.take(c.get("user").id) || !inviteRecipientLimit.take(input.email)) {
+    if (!inviteUserLimit.take(c.get("user").id) || !inviteRecipientLimit.take(`${hid}:${input.email}`)) {
       throw new HTTPException(429, { message: "too many invitations; try again tomorrow" });
     }
     const token = randomToken("pp_i_");

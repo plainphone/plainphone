@@ -117,7 +117,8 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "schedule.update": {
       const current = await loadSchedule(db, phone.id, op.scheduleId);
       if (!current) throw new ChangeError(404, "schedule not found");
-      return scheduleLoosens(current, op.schedule) || showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
+      // scheduleLoosens already counts every newly listed app as loosening.
+      return scheduleLoosens(current, op.schedule);
     }
     case "key.set": {
       const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));

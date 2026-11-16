@@ -107,7 +107,9 @@ export function deviceRoutes(ctx: Ctx) {
     let phone = c.get("phone");
     if (await applyDueChanges(ctx, phone.id)) {
       const [fresh] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
-      if (fresh) phone = fresh;
+      // A delayed removal just took effect: the phone is gone.
+      if (!fresh) throw new HTTPException(401, { message: "unknown device; pair again" });
+      phone = fresh;
     }
     // Throttle last-seen writes to one a minute.
     await ctx.db

@@ -109,9 +109,11 @@ describe("Self profile: ways around the key", () => {
     expect((await device.get("/api/device/rules")).status).toBe(200);
     expect(h.dns.clients.size).toBe(1);
     h.clock.advance(24 * 3_600_000);
-    await sweep(h.ctx);
+    // The phone polls before the sweeper runs: the removal applies and it is told so.
     expect((await device.get("/api/device/rules")).status).toBe(401);
     expect(h.dns.clients.size).toBe(0);
+    await sweep(h.ctx);
+    expect((await device.get("/api/device/rules")).status).toBe(401);
   });
 
   it("cannot show a hidden app through a school-time window", async () => {
