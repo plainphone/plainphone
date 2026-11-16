@@ -21,7 +21,7 @@ import urllib.request
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import backup, dot, lists
+from . import backup, dot, lists, profiles
 from .adguard import AdGuard, AdGuardError
 from .config import Settings
 from .service import Conflict, NotFound, Service
@@ -102,6 +102,8 @@ class Api(BaseHTTPRequestHandler):
                 return self._send(HTTPStatus.CREATED, created)
             if len(parts) == 2 and parts[0] == "clients":
                 client_id = parts[1]
+                if client_id.startswith(profiles.MONITOR_PREFIX):
+                    raise NotFound(client_id)  # the self-test's own ClientID is not part of the API
                 if method == "GET":
                     return self._send(HTTPStatus.OK, self.service.get(client_id))
                 if method == "PATCH":
@@ -260,7 +262,10 @@ class Jobs:
         on_disk = _cert_days(self.s.cert_file)
         if on_disk is not None and on_disk - served > 1:
             log.warning("AdGuard serves an older certificate than lego wrote; reloading")
-            self.reload_cert(force=True)
+            try:
+                self.reload_cert(force=True)
+            except Exception as exc:  # noqa: BLE001 - still report the served certificate below
+                log.error("certificate reload failed: %s", exc)
         if served < 10:
             return False, f"certificate expires in {served:.0f} days"
         return True, f"OK, certificate {served:.0f} days"

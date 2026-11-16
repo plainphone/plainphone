@@ -185,6 +185,13 @@ class Service:
             if block_adult is None:
                 block_adult = now["block_adult"] if profile == now["profile"] else profile == "child"
             payload = profiles.client_payload(client_id, profile, block_adult, self._services())
+            if allow_domains is not None or block_domains is not None:
+                # Check the overlap against the stored lists too, before anything is written.
+                stored_allow, stored_block = self._domains(self.adguard.user_rules(), client_id)
+                merged_allow = stored_allow if allow_domains is None else allow_domains
+                merged_block = stored_block if block_domains is None else block_domains
+                if set(merged_allow) & set(merged_block):
+                    raise ValueError("a domain cannot be both allowed and blocked")
             self.adguard.update_client(current["name"], payload)
             if allow_domains is not None or block_domains is not None:
                 self._set_domains(client_id, allow_domains, block_domains)

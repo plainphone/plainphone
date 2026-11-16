@@ -136,12 +136,12 @@ def run(conf_dir: str, data_dir: str, keep: int = 14, env=os.environ) -> str:
     if remote:
         s3, prefix = remote
         s3.put(prefix + name, data)
-        stored = [k for k in s3.list(prefix) if k.rsplit("/", 1)[-1].startswith("adguard-conf-")]
-        for stale in stored[:-keep] if keep > 0 else []:
-            s3.delete(stale)
         stamp = os.path.join(data_dir, "backups", ".last-upload")
         with open(stamp, "w", encoding="utf-8") as fh:
             fh.write(name + "\n")
+        stored = [k for k in s3.list(prefix) if k.rsplit("/", 1)[-1].startswith("adguard-conf-")]
+        for stale in stored[:-keep] if keep > 0 else []:
+            s3.delete(stale)
         log.info("backup %s uploaded (%d kept remotely)", name, min(len(stored), keep))
     else:
         log.info("backup %s kept locally only", name)

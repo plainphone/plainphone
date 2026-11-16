@@ -237,6 +237,10 @@ class ServiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.svc.update(a, profile="child", allow_domains=["bad domain"])
         self.assertEqual(self.svc.get(a)["profile"], "self")  # profile not half-applied
+        b = self.svc.create("self", block_domains=["x.example"])["client_id"]
+        with self.assertRaises(ValueError):  # overlaps the stored block list
+            self.svc.update(b, profile="child", allow_domains=["x.example"])
+        self.assertEqual(self.svc.get(b)["profile"], "self")
 
     def test_one_letter_tld_like_the_server(self):
         self.assertEqual(profiles.normalise_domain("x.y"), "x.y")
@@ -477,6 +481,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": "Bad.ID", "profile": "child"})[0], 400)
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": 7, "profile": "child"})[0], 400)
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": "monitor-abcd", "profile": "child"})[0], 400)
+        self.assertEqual(self.call("DELETE", "/v1/clients/monitor-abcd")[0], 404)
         self.assertEqual(
             self.call("POST", "/v1/clients", {"profile": "child", "block_domains": ["x y"]})[0], 400
         )
