@@ -210,10 +210,19 @@ class Jobs:
                 added.append(name)
         if added:
             log.info("added filter lists: %s", ", ".join(added))
-        # `init` may just have rewritten the lists (for example with new client tags after an
-        # upgrade), but AdGuard keeps the rules it loaded until it is told to read them again.
-        self.service.adguard.refresh_filters()
         return added
+
+    def reload_lists(self) -> bool:
+        """Make AdGuard read the lists again. Called at start, because `init` may just have
+        rewritten them (for example with new client tags after an upgrade) and AdGuard keeps the
+        rules it loaded until told otherwise. The refresh also re-downloads remote lists, so it
+        can fail; that must never stop the API, and the 12-hourly refresh tries again."""
+        try:
+            self.service.adguard.refresh_filters()
+            return True
+        except Exception:  # noqa: BLE001
+            log.exception("reloading the filter lists failed; the next list refresh tries again")
+            return False
 
     def backup(self) -> None:
         backup.run(self.s.conf_dir, self.s.data_dir, self.s.backup_keep)
@@ -350,6 +359,7 @@ def serve(settings: Settings) -> None:
     wait_for_adguard(adguard)
     jobs = Jobs(settings, service)
     jobs.ensure_filters()
+    jobs.reload_lists()
     jobs.monitor_id = service.ensure_monitor_client()
     try:
         service.upgrade_clients()
