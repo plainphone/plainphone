@@ -1,0 +1,13 @@
+{
+  "name": "@plainphone/site",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "The plainphone.org landing page. Static, no dependencies, no client JavaScript.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node scripts/check.mjs",
+    "check:external": "node scripts/check.mjs --external"
+  }
+}

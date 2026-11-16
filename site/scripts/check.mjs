@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+// Checks the built site: every internal link, asset and #anchor resolves, every
+// page has lang, title, description and one h1, and no page loads anything
+// from another origin. With --external, external links are fetched as well.
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+
+const dist = new URL("../dist/", import.meta.url).pathname;
+const external = process.argv.includes("--external");
+const errors = [];
+const externalLinks = new Set();
+
+const files = (dir) =>
+  readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f);
+    return statSync(p).isDirectory() ? files(p) : [p];
+  });
+const html = files(dist).filter((f) => f.endsWith(".html"));
+
+function resolve(from, url) {
+  const u = new URL(url, "https://plainphone.org/" + relative(dist, from));
+  return u;
+}
+function target(pathname) {
+  const p = join(dist, decodeURIComponent(pathname));
+  if (pathname.endsWith("/")) return join(p, "index.html");
+  return p;
+}
+
+for (const file of html) {
+  const src = readFileSync(file, "utf8");
+  const name = relative(dist, file);
+  const ids = new Set([...src.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  if (!/<html lang="[a-z]{2}">/.test(src)) errors.push(`${name}: missing <html lang>`);
+  if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
+  if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
+  if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
+  if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
+  const dupes = [...src.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]).filter((v, i, a) => a.indexOf(v) !== i);
+  if (dupes.length) errors.push(`${name}: duplicate ids ${dupes.join(", ")}`);
+
+  for (const [, attr, url] of src.matchAll(/\s(href|src|content)="([^"]+)"/g)) {
+    if (attr === "content" && !/^https?:\/\//.test(url)) continue;
+    if (url.startsWith("mailto:")) continue;
+    const u = resolve(file, url);
+    if (u.origin !== "https://plainphone.org") {
+      if (attr === "src") errors.push(`${name}: loads ${url} from another origin`);
+      externalLinks.add(u.href.replace(/#.*$/, ""));
+      continue;
+    }
+    if (attr === "content" && !/\.(png|svg)$/.test(u.pathname)) continue; // canonical URLs in meta
+    const t = target(u.pathname);
+    if (!existsSync(t)) {
+      errors.push(`${name}: broken link ${url}`);
+      continue;
+    }
+    if (u.hash) {
+      const tIds = t === file ? ids : new Set([...readFileSync(t, "utf8").matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+      if (!tIds.has(u.hash.slice(1))) errors.push(`${name}: missing anchor ${url}`);
+    }
+  }
+  // Every <link rel=canonical/alternate> must point at a page that exists.
+  for (const [, url] of src.matchAll(/<link rel="(?:canonical|alternate)"[^>]*href="([^"]+)"/g)) {
+    const u = new URL(url);
+    if (!existsSync(target(u.pathname))) errors.push(`${name}: canonical/alternate ${url} does not exist`);
+  }
+}
+
+if (external) {
+  for (const url of externalLinks) {
+    try {
+      let res = await fetch(url, { method: "HEAD", redirect: "follow" });
+      if (res.status === 405 || res.status === 403) res = await fetch(url, { redirect: "follow" });
+      if (!res.ok) errors.push(`external ${url}: ${res.status}`);
+    } catch (e) {
+      errors.push(`external ${url}: ${e.message}`);
+    }
+  }
+}
+
+if (errors.length) {
+  console.error(errors.join("\n"));
+  process.exit(1);
+}
+console.log(`OK: ${html.length} pages, ${externalLinks.size} external links${external ? " checked" : " (not fetched)"}`);
