@@ -1,0 +1,104 @@
+# How the phone follows the parent's dashboard
+
+The Plainphone app pairs with the server once and then keeps fetching the parent's rules:
+app list, approved contacts, school time and bedtime, the DNS address and location. This page
+describes the phone's side. The API contract is [sync-api.md](sync-api.md) and
+[`server/openapi.yaml`](../server/openapi.yaml); the code is in
+[`android/app/src/main/java/org/plainphone/app/sync/`](../android/app/src/main/java/org/plainphone/app/sync).
+
+## Pairing
+
+1. The QR code carries the server address (`plainphone.server_url`, default
+   `https://app.plainphone.org`; self-hosters pass `--server-url` to `scripts/provisioning-qr.py`).
+   Only `https://` is accepted, so the device token never travels in clear text.
+2. Right after setup the phone opens **Pair with a parent**: an 8-character code and a QR code.
+   The parent scans it with their phone's camera (it opens the dashboard with the code filled in)
+   or types the code under *Add phone*. Codes live 15 minutes; the phone fetches a fresh one when
+   a code runs out.
+3. The phone polls every 3 seconds while the screen is open and receives its device token once.
+   The token is sealed with an AES-256-GCM key in the Android Keystore before it is stored; the
+   stored copy is useless on any other phone.
+
+**Pairing needs the maintenance PIN except at setup.** A phone that has never been paired may
+show its pairing screen without the PIN during the first hour after the lock was first
+applied. After that, or once the phone has been paired, a new pairing only starts from the
+PIN-protected maintenance screen. Otherwise a child (or a Self user who wants out of their key)
+could pair the phone to an account of their own and open everything.
+
+## When the phone syncs
+
+| Trigger | How |
+|---|---|
+| Every 15 minutes | WorkManager periodic work, whenever there is a network (WorkManager's shortest period) |
+| Boot, app update, pairing | One-time work right away |
+| Network comes back | Default-network callback, at most once a minute |
+| Screen on | Sync right away, then every `pollSeconds` (60 s) for as long as the screen stays on |
+| Maintenance screen | *Sync with the server now* |
+
+So a parent's change, or "Find", reaches a phone that is in use within about a minute, and a
+phone lying in a pocket within 15 minutes (often later in deep Doze). Push via FCM is the planned
+way to close that gap; polling stays the guarantee, so phones without Google Play services work.
+
+One sync: report the installed apps if they changed, fetch the rules with `If-None-Match`, store
+them, re-apply the lock if the merged result changed (or every 15 minutes anyway, which heals
+changes made on the phone), answer "Find", report status.
+
+## Never looser because of an error
+
+- **Offline or server down:** the last rules stay in force. They are stored on the phone and
+  survive reboots. Schedules keep switching on time, because they are evaluated on the phone.
+- **A broken answer** (not JSON, missing fields, unknown time zone, bad weekday) is thrown away
+  before it is stored; the last good rules stay.
+- **Removed in the dashboard** (`401`): the phone keeps the last rules, stops polling and shows
+  "pair again from the maintenance screen". Only its DNS goes back to the QR code's host, because
+  the DNS service deletes a removed phone's ClientID (otherwise the phone would have no DNS).
+- **During a maintenance unlock** the sync stores new rules but does not re-apply the lock;
+  the unlock ends on its own timer as before.
+
+## What the rules change on the phone
+
+| Rule | On the phone |
+|---|---|
+| App list | The parent's list replaces the QR code's allowlist. Core apps found on the phone (dialer, messages, camera, clock, contacts, Settings, launcher, keyboard) always stay. The maker's own phone and SMS apps stay hidden whatever the list says, so approved contacts cannot be bypassed; they are reported to the server as normal, non-core apps. |
+| Approved contacts | Taken from the rules as soon as the first rules arrive. The maintenance screen then shows the list read-only. Emergency numbers always work. |
+| School time, bedtime | In a window every non-core app is hidden, except the window's own apps that the app list also allows. Core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay, as they always do. Calls and SMS work for approved contacts and emergency numbers, as always. Overlapping windows only allow what all of them allow. |
+| DNS | The phone switches private DNS to `<id>.dns.plainphone.org` only when the rules say `dns.ready`. Until then it keeps the QR code's host. Android itself also keeps the old host if the new one does not answer. |
+| Location | When the parent has location on: Device Owner grants the location permissions (no dialog), switches location on and blocks switching it off (`DISALLOW_CONFIG_LOCATION`). "Find" gets one precise fix; otherwise a coarse position every `intervalMinutes` while syncs run. When location is off, nothing is read or sent, and the restriction is lifted. |
+
+### Schedules and time
+
+Windows are evaluated in wall-clock time of the phone's time zone from the rules. `days` are
+the days a window **starts**; a window with `end` before `start` runs past midnight. On the
+nights the clocks change, a bedtime from 21:00 to 07:00 still starts at 21:00 and ends at 07:00
+(one hour shorter in spring, one hour longer in autumn), and a window that would start in the
+skipped spring hour starts when the clocks jump. Automatic date and time are forced by the lock,
+so the child cannot move the clock. The phone sets an alarm for the next start or end; alarms
+are inexact in deep sleep (exact alarms need a permission the user must grant), so the window
+is also re-checked whenever the screen turns on.
+
+## Location provider
+
+The platform's `fused` provider is used when the phone has one. On phones with Google Play
+services it is backed by Google's fused location; without them the phone falls back to GPS and
+the network provider via `LocationManager`. A "Find" counts as answered only by a fix taken
+after the parent pressed it; until then the phone keeps trying on every sync, for at most 30 minutes. The app does not include the Play services library.
+If no fresh fix comes within 30 seconds, the newest known position is sent with its real time,
+so the parent sees how old it is. Only the latest position is stored on the server (D7).
+
+## Status
+
+After a sync the phone sends battery level and charging, app version, whether it is Device
+Owner, whether a maintenance unlock is running, which lock steps failed, the ETag of the rules
+it applied and when, and the DNS host it actually uses. "Lock intact" means every lock step held
+and no maintenance unlock is running. The status goes out at once when anything about the lock
+changes, otherwise every 15 minutes. The dashboard shows it on the phone page.
+
+## Not done yet
+
+- Push (FCM). Polling covers it, more slowly with the screen off.
+- The phone does not yet show pending Self-profile changes with a countdown, or let the child
+  ask for a new app or contact.
+- Nothing here has run on a real phone yet. The chain is tested end to end against the real
+  server ([`scripts/e2e-phone-sync.sh`](../scripts/e2e-phone-sync.sh)), but the Android calls
+  themselves (WorkManager timing in Doze, location on Samsung and Xiaomi, `setLocationEnabled`)
+  need the test phone.

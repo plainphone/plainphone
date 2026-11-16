@@ -18,6 +18,23 @@ export interface Me {
   households: { id: string; name: string; role: "owner" | "parent" }[];
   mailEnabled: boolean;
 }
+/** What the phone last reported about itself (`PUT /device/status`). */
+export interface PhoneStatus {
+  appVersion: string;
+  batteryPct: number | null;
+  charging: boolean | null;
+  deviceOwner: boolean;
+  /** Every lock policy was applied and no maintenance unlock is running. */
+  lockIntact: boolean;
+  maintenance: boolean;
+  /** Names of the lock steps that failed. */
+  failedPolicies: string[];
+  rulesEtag: string | null;
+  rulesAppliedAt: string | null;
+  dnsHost: string | null;
+  /** When the server received the report. */
+  reportedAt: string;
+}
 export interface Phone {
   id: string;
   name: string;
@@ -29,7 +46,11 @@ export interface Phone {
   lastSeenAt: string | null;
   dnsHost: string;
   dnsSynced: boolean;
+  /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
+  dnsReady: boolean;
   hasLocation: boolean;
+  /** Null until the phone has reported once. */
+  status: PhoneStatus | null;
 }
 export interface App {
   packageName: string;

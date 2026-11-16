@@ -71,6 +71,9 @@ class FakeDevice(
         if (pkg == ownPackage) roles += SMS else roles -= SMS
     }
     override fun telephonyApps() = telephony
+    var locationOn = false
+    override fun setLocationEnabled(enabled: Boolean) { locationOn = enabled }
+
     override fun grantPermission(pkg: String, permission: String): Boolean {
         if (permission in refusedPermissions) return false
         granted += permission

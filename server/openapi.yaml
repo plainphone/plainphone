@@ -229,8 +229,11 @@ components:
           properties:
             host:
               type: string
-              description: Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost.
+              description: Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost, but only when `ready` is true.
               examples: [k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org]
+            ready:
+              type: boolean
+              description: The DNS service has accepted this phone's ClientID. Until it is true the phone keeps its current private DNS host, because the DNS service refuses unknown ClientIDs and the phone would lose DNS entirely. It never goes back to false.
             blockedCategories:
               type: array
               description: Informational; filtering happens in the DNS service.
@@ -266,7 +269,54 @@ components:
         lastSeenAt: { type: [string, "null"], format: date-time }
         dnsHost: { type: string }
         dnsSynced: { type: boolean }
+        dnsReady:
+          type: boolean
+          description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
         hasLocation: { type: boolean }
+        status:
+          description: The phone's last report from `PUT /device/status`; null when it has never reported.
+          oneOf:
+            - $ref: "#/components/schemas/PhoneStatus"
+            - type: "null"
+
+    DeviceStatusInput:
+      type: object
+      required: [appVersion, batteryPct, charging, deviceOwner, lockIntact, maintenance, failedPolicies, rulesEtag, rulesAppliedAt, dnsHost]
+      properties:
+        appVersion: { type: string, minLength: 1, maxLength: 40, examples: ["0.4.0"] }
+        batteryPct: { type: [integer, "null"], minimum: 0, maximum: 100 }
+        charging: { type: [boolean, "null"] }
+        deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
+        lockIntact:
+          type: boolean
+          description: Every lock policy was applied and no maintenance unlock is running.
+        maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
+        failedPolicies:
+          type: array
+          maxItems: 50
+          description: Names of the lock steps that failed.
+          items: { type: string, minLength: 1, maxLength: 200 }
+        rulesEtag:
+          type: [string, "null"]
+          maxLength: 100
+          description: ETag of the rules the phone last applied.
+        rulesAppliedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the phone applied those rules. Must carry a time zone and may be at most 5 minutes ahead of the server.
+        dnsHost:
+          type: [string, "null"]
+          maxLength: 253
+          description: The private DNS host the phone actually uses.
+
+    PhoneStatus:
+      description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
+      allOf:
+        - $ref: "#/components/schemas/DeviceStatusInput"
+        - type: object
+          required: [reportedAt]
+          properties:
+            reportedAt: { type: string, format: date-time }
 
     ScheduleInput:
       type: object
@@ -438,6 +488,22 @@ paths:
       responses:
         "204": { description: "Stored (or ignored if older than the stored one)" }
         "409": { description: "Location is off for this phone; stop reporting." }
+
+  /device/status:
+    put:
+      operationId: putDeviceStatus
+      tags: [device]
+      summary: Report battery, app version and lock state (phone)
+      description: The newest report replaces the one before; no history is kept. Parents see it on the phone's page. How often to send is up to the app; sending at once when the lock state or a maintenance unlock changes is useful.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceStatusInput" }
+      responses:
+        "204": { description: "Stored" }
+        "400": { $ref: "#/components/responses/Error" }
 
   /device/push-token:
     put:

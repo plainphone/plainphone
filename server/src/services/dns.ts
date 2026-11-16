@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsSettings, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
@@ -28,6 +28,12 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
       allowDomains: row.dns.allowDomains,
       blockDomains: row.dns.blockDomains,
     });
+    // The DNS service knows this ClientID now. Record that once and never take it back, so a
+    // later failed sync cannot make a phone that already uses its private DNS look unregistered.
+    await ctx.db
+      .update(phones)
+      .set({ dnsConfirmedAt: ctx.now() })
+      .where(and(eq(phones.id, phoneId), isNull(phones.dnsConfirmedAt)));
     await ctx.db
       .update(phones)
       .set({ dnsDirty: false })
@@ -39,11 +45,15 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
   }
 }
 
+/**
+ * Retries phones whose rules the DNS service has not received, and syncs phones that were
+ * last synced before `dnsConfirmedAt` existed so they too become ready.
+ */
 export async function syncDirtyDns(ctx: Ctx): Promise<number> {
   const dirty = await ctx.db
     .select({ id: phones.id })
     .from(phones)
-    .where(eq(phones.dnsDirty, true));
+    .where(or(eq(phones.dnsDirty, true), isNull(phones.dnsConfirmedAt)));
   let ok = 0;
   for (const p of dirty) if (await syncDns(ctx, p.id)) ok++;
   return ok;

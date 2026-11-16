@@ -213,6 +213,38 @@ export function deviceRoutes(ctx: Ctx) {
     return c.body(null, 204);
   });
 
+  app.put("/status", async (c) => {
+    const phone = c.get("phone");
+    const input = await body(
+      c,
+      z.object({
+        appVersion: z.string().min(1).max(40),
+        batteryPct: z.number().int().min(0).max(100).nullable(),
+        charging: z.boolean().nullable(),
+        deviceOwner: z.boolean(),
+        lockIntact: z.boolean(),
+        maintenance: z.boolean(),
+        failedPolicies: z.array(z.string().min(1).max(200)).max(50),
+        rulesEtag: z.string().max(100).nullable(),
+        rulesAppliedAt: z.iso.datetime({ offset: true }).nullable(),
+        dnsHost: z.string().max(253).nullable(),
+      }),
+    );
+    const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;
+    if (appliedAt && appliedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
+      return c.json({ error: "rulesAppliedAt is in the future" }, 400);
+    }
+    // The newest report replaces the one before; no history is kept. Times are stored in UTC.
+    await ctx.db
+      .update(phones)
+      .set({
+        deviceStatus: { ...input, rulesAppliedAt: appliedAt?.toISOString() ?? null },
+        statusReportedAt: ctx.now(),
+      })
+      .where(eq(phones.id, phone.id));
+    return c.body(null, 204);
+  });
+
   app.put("/push-token", async (c) => {
     const input = await body(c, z.object({ fcmToken: z.string().min(1).max(4096).nullable() }));
     await ctx.db.update(phones).set({ fcmToken: input.fcmToken }).where(eq(phones.id, c.get("phone").id));

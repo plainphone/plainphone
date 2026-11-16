@@ -23,8 +23,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 34
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
 
     signingConfigs {
@@ -79,9 +79,13 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Phase 4: rule sync in the background, and the pairing QR code (Apache-2.0, no network or Play services).
+    implementation("androidx.work:work-runtime:2.12.0")
+    implementation("com.google.zxing:core:3.5.4")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.18")
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("com.google.truth:truth:1.4.5")
+    testImplementation("androidx.work:work-testing:2.12.0")
 }

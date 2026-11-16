@@ -124,6 +124,9 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
     })),
     dns: {
       host: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      // The phone switches to `host` only when this is true: the DNS service refuses ClientIDs
+      // it has not accepted yet, and a phone on a refusing resolver has no DNS at all.
+      ready: phone.dnsConfirmedAt !== null,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
     location: {
@@ -156,6 +159,11 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
+    dnsReady: phone.dnsConfirmedAt !== null,
     hasLocation: Boolean(loc),
+    status:
+      phone.deviceStatus && phone.statusReportedAt
+        ? { ...phone.deviceStatus, reportedAt: phone.statusReportedAt.toISOString() }
+        : null,
   };
 }

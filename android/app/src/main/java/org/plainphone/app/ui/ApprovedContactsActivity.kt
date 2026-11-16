@@ -104,7 +104,9 @@ private fun ApprovedContactsScreen(onBack: () -> Unit) {
             item {
                 Text(stringResource(R.string.contacts_admin_intro), style = MaterialTheme.typography.bodyMedium)
             }
-            item {
+            if (source.managedRemotely) item {
+                Text(stringResource(R.string.contacts_admin_managed), style = MaterialTheme.typography.bodyMedium)
+            } else item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
@@ -137,8 +139,10 @@ private fun ApprovedContactsScreen(onBack: () -> Unit) {
                         Text(c.name, style = MaterialTheme.typography.titleMedium)
                         Text(c.number, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    IconButton(onClick = { source.remove(c.number); version++ }) {
-                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.contacts_admin_remove, c.name))
+                    if (!source.managedRemotely) {
+                        IconButton(onClick = { source.remove(c.number); version++ }) {
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.contacts_admin_remove, c.name))
+                        }
                     }
                 }
             }

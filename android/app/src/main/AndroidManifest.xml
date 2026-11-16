@@ -23,9 +23,17 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- Phase 4: sync with the parent's dashboard, and the last position for "Find". -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
 
     <application
+        android:name=".PlainphoneApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@drawable/ic_plainphone"
@@ -98,6 +106,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Phase 4: pairing code and QR code for the parent's dashboard. -->
+        <activity
+            android:name=".ui.PairingActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
 
         <activity
             android:name=".MaintenanceActivity"

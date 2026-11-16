@@ -503,6 +503,20 @@ main {
   border-color: var(--warn-line);
 }
 
+.tag-alert {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.status-list > li {
+  padding: 0.625rem 1rem;
+}
+
+.status-updated,
+.status-dns {
+  margin-top: 0.5rem;
+}
+
 /* Switches ----------------------------------------------------------------- */
 
 .switch-list > li {

@@ -38,6 +38,15 @@ class ProvisioningQrTest(unittest.TestCase):
         self.assertEqual(extras["plainphone.country_code"], "45")
         # Same format as ContactCodec.kt; separators in names are neutralised.
         self.assertEqual(extras["plainphone.contacts"], "Mum=+45 12 34 56 78;Gran Ole=87654321")
+        # Phase 4: without --server-url the phone pairs with the hosted service.
+        self.assertEqual(extras["plainphone.server_url"], "https://app.plainphone.org")
+
+    def test_server_url_must_be_https(self):
+        self.assertEqual(qr.check_server_url("https://pp.example.org/"), "https://pp.example.org")
+        self.assertEqual(qr.check_server_url("https://pp.example.org:8443/x"), "https://pp.example.org:8443/x")
+        for bad in ["http://pp.example.org", "https://u:p@pp.example.org", "https://pp.example.org/?a=1", "pp.example.org"]:
+            with self.assertRaises(ValueError, msg=bad):
+                qr.check_server_url(bad)
 
     def test_dns_host_template_gets_a_client_id(self):
         host, cid = qr.resolve_dns_host(qr.PLAINPHONE_DNS_TEMPLATE, None)

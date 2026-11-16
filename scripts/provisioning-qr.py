@@ -35,6 +35,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 
 PACKAGE = "org.plainphone.app"
@@ -52,6 +53,8 @@ CLIENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{3,62}$")
 CLIENT_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
 HOST_RE = re.compile(r"^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$")  # as PolicyConfig.kt
 CONTACT_RE = re.compile(r"^\+?[0-9 ()./-]{3,24}$")
+# Where the phone pairs and fetches its rules (phase 4). Self-hosters pass their own.
+DEFAULT_SERVER_URL = "https://app.plainphone.org"
 
 
 def new_client_id(length: int = 20) -> str:
@@ -73,6 +76,14 @@ def resolve_dns_host(template: str, client_id: str | None) -> tuple[str, str | N
     if not HOST_RE.match(host):
         raise ValueError(f"not a valid DNS host: {host}")
     return host, used
+
+
+def check_server_url(url: str) -> str:
+    """HTTPS only, no credentials, query or fragment (same rules as PolicyConfig.normalizeServerUrl)."""
+    parsed = urllib.parse.urlsplit(url.strip())
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("--server-url must be https://host[:port][/path] without credentials or query")
+    return url.strip().rstrip("/")
 
 
 def contacts_extra(contacts: list[str]) -> str:
@@ -123,6 +134,7 @@ def build_payload(args: argparse.Namespace, checksum: str, pin: str) -> dict:
         "plainphone.pin_hash": pin_hash(pin, salt),
         "plainphone.pin_salt": salt,
         "plainphone.relock_minutes": str(args.relock_minutes),
+        "plainphone.server_url": getattr(args, "server_url", None) or DEFAULT_SERVER_URL,
     }
     if args.allow:
         extras["plainphone.allowed_packages"] = ",".join(args.allow)
@@ -170,6 +182,8 @@ def main() -> None:
     p.add_argument("--frp-account", action="append", default=[], metavar="ID",
                    help="Google account ID (numeric People API id, not an email) allowed after a recovery reset")
     p.add_argument("--relock-minutes", type=int, default=30)
+    p.add_argument("--server-url", default=DEFAULT_SERVER_URL,
+                   help=f"server the phone pairs with and fetches rules from (default: {DEFAULT_SERVER_URL})")
     p.add_argument("--wifi-ssid")
     p.add_argument("--wifi-password")
     p.add_argument("--wifi-security", default="WPA", choices=["NONE", "WEP", "WPA", "SAE"])
@@ -193,6 +207,7 @@ def main() -> None:
         sys.exit("--country-code must be 1-3 digits, e.g. 45")
     try:
         args.dns_host, dns_id = resolve_dns_host(args.dns_host, args.dns_id)
+        args.server_url = check_server_url(args.server_url)
         contacts_extra(args.contact)
         if not args.country_code and any(not c.rpartition("=")[2].strip().startswith("+") for c in args.contact):
             raise ValueError("a --contact without +country code needs --country-code (e.g. 45)")
@@ -220,6 +235,9 @@ def main() -> None:
 
     print(f"signature checksum: {checksum}")
     print(f"private DNS host: {args.dns_host}")
+    print(f"server: {args.server_url}")
+    print("  After setup the phone shows a pairing code; claim it in the dashboard (Add phone).")
+    print("  The server then registers the phone's own DNS ClientID and the phone switches to it.")
     if dns_id:
         print(f"DNS ClientID: {dns_id}")
         print("  It must be registered on the DNS server BEFORE scanning, or the phone gets no DNS at all")

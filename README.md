@@ -2,8 +2,8 @@
 
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn. It is meant for a parent setting up a child's first phone, and for adults taking back their own attention.
 
-> **Status: phase 2, approved contacts and DNS filter. Not for real use yet.**
-> Phase 2 has not been tested on a real phone. The server and parent web app ([`server/`](server), [`web/`](web)) are built, but phones do not use them yet. Only install it on a spare test phone that you are ready to factory reset.
+> **Status: phase 4 core, the phone follows the parent's dashboard. Not for real use yet.**
+> Phases 2 and 4 have not been tested on a real phone. Only install it on a spare test phone that you are ready to factory reset.
 
 Plainphone is free and open source under the [Apache License 2.0](LICENSE). Maintained by Mahoje.
 
@@ -26,6 +26,15 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 - **DNS per phone.** The QR script can give each phone its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver (built in `dns/`).
 - **DNS bypass analysis.** Which allowed apps could get around private DNS, and why an always-on VPN is the later layer: [docs/dns-bypass.md](docs/dns-bypass.md).
 
+## What phase 4 adds
+
+- **Pairing.** After the QR setup the phone shows a pairing code and QR code; the parent claims it in the dashboard ([`web/`](web)). The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+- **Rules from the server.** The phone fetches the parent's rules (WorkManager every 15 minutes, at boot and on network changes, every minute while the screen is on) and applies the app list, approved contacts, school time and bedtime, its own DNS address (only once the DNS service has confirmed it) and location. Offline, the last rules keep applying; an error never loosens anything.
+- **Find.** When the parent presses Find, the phone sends one position (platform fused location, no Play services library). Only the latest position is kept.
+- **Status.** Battery, last sync, app version and whether the lock is intact are shown in the dashboard.
+
+See [docs/phone-sync.md](docs/phone-sync.md) for how it works and what is not done yet.
+
 See [docs/policies.md](docs/policies.md) for every policy, what Android does not let us block, and links to the Android documentation.
 
 ## Documents
@@ -38,6 +47,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [dns/](dns): the filtering DNS service (AdGuard Home + ppdns), its profiles and API; [docs/self-hosting-dns.md](docs/self-hosting-dns.md) runs your own, [docs/privacy.md](docs/privacy.md) says what it stores
 - [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [server/](server) and [web/](web): the API and the parent web app (PWA); [docs/self-hosting.md](docs/self-hosting.md) runs your own, [docs/sync-api.md](docs/sync-api.md) is the phone's side of the API
+- [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
 - [SECURITY.md](SECURITY.md): how to report a bypass
 
 ## Build
@@ -84,6 +94,10 @@ Phase 2 options:
 
 - `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
+
+Phase 4 option:
+
+- `--server-url https://your.server` points the phone at a self-hosted server (default `https://app.plainphone.org`). Once paired, the server registers the phone's own DNS ClientID and the phone switches to it by itself, so `--dns-host` can stay at the default.
 
 ## Roadmap
 

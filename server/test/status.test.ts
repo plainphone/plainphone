@@ -1,0 +1,215 @@
+// SPDX-License-Identifier: Apache-2.0
+import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { phones } from "../src/db/schema.js";
+import { sweep } from "../src/services/sweeper.js";
+import { Client, pairPhone, signIn, useHarness } from "./harness.js";
+
+const h = useHarness();
+
+const report = (over: Record<string, unknown> = {}) => ({
+  appVersion: "0.4.0",
+  batteryPct: 64,
+  charging: true,
+  deviceOwner: true,
+  lockIntact: true,
+  maintenance: false,
+  failedPolicies: [] as string[],
+  rulesEtag: '"abc123"',
+  rulesAppliedAt: "2026-11-16T11:59:00Z",
+  dnsHost: "k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org",
+  ...over,
+});
+
+describe("DNS readiness", () => {
+  it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    h.dns.failNext = 1; // the first sync, right after the phone is claimed
+    const { phoneId, device } = await pairPhone(h, parent);
+
+    const before = await device.get("/api/device/rules");
+    expect(before.json.dns.ready).toBe(false);
+    expect(before.json.dns.host).toMatch(/\.dns\.plainphone\.org$/);
+    const summary = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(summary.dnsReady).toBe(false);
+    expect(summary.dnsSynced).toBe(false);
+    expect(h.dns.clients.size).toBe(0);
+
+    // The sweeper retries, the mock accepts, and the phone is told it may switch.
+    await sweep(h.ctx);
+    const after = await device.get("/api/device/rules");
+    expect(after.json.dns.ready).toBe(true);
+    expect(after.headers.get("etag")).not.toBe(before.headers.get("etag"));
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsReady).toBe(true);
+
+    // A later failed sync leaves the phone dirty but still ready: it already uses its DNS.
+    h.dns.failNext = 1;
+    await parent.put(`/api/phones/${phoneId}/dns/categories/games`, { blocked: false });
+    const dirty = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(dirty.dnsSynced).toBe(false);
+    expect(dirty.dnsReady).toBe(true);
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+  });
+
+  it("is true at once when the first sync works", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsReady).toBe(true);
+  });
+
+  it("keeps the first confirmation time when later syncs succeed", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+    const first = (await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId)))[0]!.dnsConfirmedAt;
+    expect(first).toEqual(h.clock.now);
+
+    h.clock.advance(60 * 60_000);
+    await parent.put(`/api/phones/${phoneId}/dns/categories/games`, { blocked: false });
+    const later = (await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId)))[0]!.dnsConfirmedAt;
+    expect(later).toEqual(first);
+  });
+
+  it("syncs phones that were synced before the flag existed", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    await h.ctx.db.update(phones).set({ dnsDirty: false, dnsConfirmedAt: null }).where(eq(phones.id, phoneId));
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+
+    await sweep(h.ctx);
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsSynced).toBe(true);
+  });
+});
+
+describe("PUT /device/status", () => {
+  async function setup() {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    return { parent, phoneId, device };
+  }
+
+  it("needs a device token", async () => {
+    await setup();
+    const anon = new Client(h);
+    expect((await anon.put("/api/device/status", report())).status).toBe(401);
+    const wrong = new Client(h);
+    wrong.token = "pp_d_not-a-real-token";
+    expect((await wrong.put("/api/device/status", report())).status).toBe(401);
+    const parentToken = new Client(h);
+    parentToken.token = (await signIn(h, "other@example.org")).token;
+    expect((await parentToken.put("/api/device/status", report())).status).toBe(401);
+  });
+
+  it("rejects invalid bodies", async () => {
+    const { parent, phoneId, device } = await setup();
+    const bad: [string, Record<string, unknown>][] = [
+      ["battery over 100", report({ batteryPct: 101 })],
+      ["battery below 0", report({ batteryPct: -1 })],
+      ["battery not whole", report({ batteryPct: 50.5 })],
+      ["51 failed policies", report({ failedPolicies: Array.from({ length: 51 }, (_, i) => `policy-${i}`) })],
+      ["empty policy name", report({ failedPolicies: [""] })],
+      ["policy name over 200", report({ failedPolicies: ["x".repeat(201)] })],
+      ["empty app version", report({ appVersion: "" })],
+      ["app version over 40", report({ appVersion: "v".repeat(41) })],
+      ["etag over 100", report({ rulesEtag: "e".repeat(101) })],
+      ["dns host over 253", report({ dnsHost: "h".repeat(254) })],
+      ["applied 10 minutes ahead", report({ rulesAppliedAt: new Date(h.clock.now.getTime() + 10 * 60_000).toISOString() })],
+      ["applied time without a zone", report({ rulesAppliedAt: "2026-11-16T11:59:00" })],
+      ["lockIntact as text", report({ lockIntact: "yes" })],
+    ];
+    for (const [name, body] of bad) {
+      const r = await device.put("/api/device/status", body);
+      expect(r.status, name).toBe(400);
+    }
+    const { lockIntact: _l, ...missing } = report();
+    expect((await device.put("/api/device/status", missing)).status).toBe(400);
+
+    // Nothing was stored.
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status).toBeNull();
+  });
+
+  it("accepts a report and shows it to the parent", async () => {
+    const { parent, phoneId, device } = await setup();
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status).toBeNull();
+
+    const r = await device.put("/api/device/status", report());
+    expect(r.status).toBe(204);
+    expect(r.json).toBeNull();
+
+    const expected = {
+      appVersion: "0.4.0",
+      batteryPct: 64,
+      charging: true,
+      deviceOwner: true,
+      lockIntact: true,
+      maintenance: false,
+      failedPolicies: [],
+      rulesEtag: '"abc123"',
+      rulesAppliedAt: "2026-11-16T11:59:00.000Z",
+      dnsHost: "k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org",
+      reportedAt: "2026-11-16T12:00:00.000Z",
+    };
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status).toEqual(expected);
+    const list = await parent.get("/api/phones");
+    expect(list.json.phones[0].status).toEqual(expected);
+  });
+
+  it("takes the nullable fields as null and a time zone offset", async () => {
+    const { parent, phoneId, device } = await setup();
+    const r = await device.put(
+      "/api/device/status",
+      report({
+        batteryPct: null,
+        charging: null,
+        rulesEtag: null,
+        rulesAppliedAt: "2026-11-16T12:30:00+01:00", // 11:30 UTC
+        dnsHost: null,
+        lockIntact: false,
+        failedPolicies: ["DISALLOW_SAFE_BOOT", "setUserControlDisabledPackages"],
+        extra: "ignored",
+      }),
+    );
+    expect(r.status).toBe(204);
+    const status = (await parent.get(`/api/phones/${phoneId}`)).json.status;
+    expect(status).toMatchObject({
+      batteryPct: null,
+      charging: null,
+      rulesEtag: null,
+      rulesAppliedAt: "2026-11-16T11:30:00.000Z",
+      dnsHost: null,
+      lockIntact: false,
+      failedPolicies: ["DISALLOW_SAFE_BOOT", "setUserControlDisabledPackages"],
+    });
+    expect(status).not.toHaveProperty("extra");
+
+    // A time a few minutes ahead is clock skew, not an error.
+    const skew = new Date(h.clock.now.getTime() + 4 * 60_000).toISOString();
+    expect((await device.put("/api/device/status", report({ rulesAppliedAt: skew }))).status).toBe(204);
+  });
+
+  it("lets the second report replace the first", async () => {
+    const { parent, phoneId, device } = await setup();
+    await device.put("/api/device/status", report({ failedPolicies: ["a", "b"], lockIntact: false }));
+
+    h.clock.advance(5 * 60_000);
+    await device.put(
+      "/api/device/status",
+      report({ batteryPct: 12, charging: false, maintenance: true, failedPolicies: [], lockIntact: false }),
+    );
+    const status = (await parent.get(`/api/phones/${phoneId}`)).json.status;
+    expect(status.batteryPct).toBe(12);
+    expect(status.charging).toBe(false);
+    expect(status.maintenance).toBe(true);
+    expect(status.failedPolicies).toEqual([]);
+    expect(status.reportedAt).toBe("2026-11-16T12:05:00.000Z");
+  });
+
+  it("only touches the phone that owns the token", async () => {
+    const { parent, phoneId, device } = await setup();
+    const other = await pairPhone(h, parent, { name: "Bo" });
+    await device.put("/api/device/status", report());
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status).not.toBeNull();
+    expect((await parent.get(`/api/phones/${other.phoneId}`)).json.status).toBeNull();
+  });
+});
