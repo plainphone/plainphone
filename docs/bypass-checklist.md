@@ -68,6 +68,32 @@ Record each result in the table at the bottom of a copy of this file, with the p
 | N11 | Install a user CA certificate (for a filtering proxy) | Not allowed | Settings → Security → Encryption & credentials → Install a certificate |
 | N12 | Manual Wi-Fi proxy | Possible, but needs a proxy server; private DNS still applies to name lookups. Note result | Wi-Fi → Edit → Proxy → Manual |
 
+## Calls and messages (phase 2)
+
+Before you start: add one approved contact on the maintenance screen (for example your own phone), and have a second phone whose number is **not** approved. See [contacts.md](contacts.md) for how the rule works.
+
+| # | Attempt | Expected | How to test |
+|---|---|---|---|
+| C1 | Call the phone from a number that is not approved | The phone does not ring. The caller hears busy or is rejected. Nothing in the call log; the call shows under "Blocked" on the maintenance screen | Call from the second phone |
+| C2 | Call from a hidden number (`#31#` before the number, or "Show my caller ID: off") | Rejected like C1, logged as "hidden number" | Hide caller ID on the second phone and call |
+| C3 | Call from an approved number | Rings, can be answered, sound, mute, speaker and keypad work | Call from the approved phone |
+| C4 | Call a number that is not approved from Plainphone's keypad | Refused with "Only approved contacts can be called" | Type the second phone's number and press call |
+| C5 | Call a number that is not approved from the maker's dialer, a contact card, or a `tel:` link in Chrome or Maps | The call is ended at once; a "Call not allowed" notification appears | The system dialer stays visible on purpose (emergency fallback). Try it, and try a phone number shown on a web page and in Maps |
+| C6 | Call 112 (or the local emergency number) | **Do not actually place an emergency call.** Check instead that 112 is not refused by Plainphone's keypad (the call screen opens), then hang up before it connects, or use the emergency number test mode if the carrier has one. Also check the lock screen's emergency button opens the emergency dialer | Ideally in a place where a dropped emergency call is expected and harmless, or skip and note |
+| C7 | Emergency call-back | After an emergency call, incoming calls from any number ring for 60 minutes | Only test if C6 was done for real. Otherwise rely on the unit tests and note "not tested" |
+| C8 | SMS from a number that is not approved | No notification, not shown in Messages, logged on the maintenance screen | Text from the second phone |
+| C9 | SMS from an approved number | Shown with a notification; reply works | Text from the approved phone and reply |
+| C10 | SMS with a link from an approved contact | The link opens in Chrome and the DNS filter applies | Send `https://` link to a blocked site |
+| C11 | Messenger apps (WhatsApp, Signal, Telegram) | Hidden by default. If a parent allows one, calls and chats in it are **not** covered by the list (documented). Note whether its in-app browser is filtered | Look for them; if allowed, call through them |
+| C12 | Google Messages "Messages for web" / RCS | Google Messages is hidden once Plainphone is the SMS app and is not the SMS app, so it cannot send or pair with the web | Look for Messages; go to messages.google.com/web on a PC |
+| C13 | Make another app the default phone or SMS app | Not allowed (`DISALLOW_CONFIG_DEFAULT_APPS`): the setting is greyed out or says "blocked by your admin". If a phone ignores it, Plainphone takes the roles back at the next reboot or when it is opened | Settings → Apps → Default apps |
+| C14 | MMS / group message from an approved contact | Dropped in phase 2 (documented). Note what the sender sees | Send a picture or a group message |
+| C15 | Reply with a message from the incoming-call screen | Only sent if the caller is approved | Decline a call from an approved number with a quick reply |
+| C16 | Voicemail | The voicemail number is blocked unless added as a contact (documented). Note whether missed calls from unknown numbers still reach voicemail | Call from the second phone, check the carrier's voicemail |
+| C17 | Call or text from a contact written in another format (with/without +45, with spaces) | Matched as the same contact | Add `12 34 56 78`, call from `+4512345678` |
+| C18 | Send an SMS through another app (Google Assistant "send a message to …", a carrier app) | Note whether it goes out without Plainphone. Expected: refused or routed through Plainphone (documented gap if not) | Ask the assistant, if visible, to text the second phone |
+| C19 | Dial 114 and hang up at once, then call from the second phone | Still blocked: only a connected emergency call opens the call-back window | Dial 114, hang up before it connects, call from the second phone |
+
 ## Time
 
 | # | Attempt | Expected | How to test |
@@ -105,6 +131,13 @@ Record each result in the table at the bottom of a copy of this file, with the p
 | M3 | Lift the lock and wait | Lock returns after the set time | Lift for 30 minutes, check after 31 |
 | M4 | Lift the lock and reboot | Lock returns at boot | Lift, restart, check |
 | M5 | Release Device Owner | Everything is unlocked, Plainphone can be uninstalled | Do this last |
+
+## DNS bypass by allowed apps (phase 2)
+
+| # | Attempt | Expected | How to test |
+|---|---|---|---|
+| N13 | An allowed app with its own DNS-over-HTTPS | Only Chrome is allowed by default and its DoH is off. For any extra allowed app, note whether it reaches a blocked site. See [dns-bypass.md](dns-bypass.md) | Open a blocked site from inside each allowed app that can show web pages |
+| N14 | A DoH resolver by hostname (`https://cloudflare-dns.com/dns-query`) | Blocked by the Plainphone resolver once phase 2's DNS is live (with the AdGuard placeholder: note the result) | Open the URL in Chrome |
 
 ## Result log
 

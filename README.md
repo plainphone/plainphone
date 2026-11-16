@@ -2,8 +2,8 @@
 
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn. It is meant for a parent setting up a child's first phone, and for adults taking back their own attention.
 
-> **Status: phase 1, proof of lock. Not for real use yet.**
-> This phase only proves that the lock holds on a real phone. There is no server, no parent app and no contact filter yet. Only install it on a spare test phone that you are ready to factory reset.
+> **Status: phase 2, approved contacts and DNS filter. Not for real use yet.**
+> There is no server and no parent app yet, and phase 2 has not been tested on a real phone. Only install it on a spare test phone that you are ready to factory reset.
 
 Plainphone is free and open source under the [Apache License 2.0](LICENSE). Maintained by Mahoje.
 
@@ -20,6 +20,12 @@ The Android app in [`android/`](android) is a Device Policy Controller. It is se
 
 A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away.
 
+## What phase 2 adds
+
+- **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. A calm phone and messages app (Jetpack Compose, English and Danish) shows the approved contacts, recent calls, conversations and a keypad. Contacts come from the QR code and the maintenance screen. See [docs/contacts.md](docs/contacts.md).
+- **DNS per phone.** The QR script can give each phone its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver (built in `dns/`).
+- **DNS bypass analysis.** Which allowed apps could get around private DNS, and why an always-on VPN is the later layer: [docs/dns-bypass.md](docs/dns-bypass.md).
+
 See [docs/policies.md](docs/policies.md) for every policy, what Android does not let us block, and links to the Android documentation.
 
 ## Documents
@@ -27,6 +33,8 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/setup-test-phone.md](docs/setup-test-phone.md): set up a test phone step by step, and how to get out again
 - [docs/bypass-checklist.md](docs/bypass-checklist.md): every bypass attempt to test on a real phone, with the expected result
 - [docs/policies.md](docs/policies.md): the policies and their known limits
+- [docs/contacts.md](docs/contacts.md): approved contacts, emergency calls and what is not covered
+- [docs/dns-bypass.md](docs/dns-bypass.md): how apps could get around the DNS filter
 - [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [SECURITY.md](SECURITY.md): how to report a bypass
 
@@ -70,10 +78,15 @@ scripts/provisioning-qr.py \
 
 The script reads the signing certificate checksum from the APK, asks for or generates the maintenance PIN (6+ digits), hashes it (PBKDF2; the PIN itself never goes into the QR code) and writes `dist/provisioning-qr.json` and `.png`. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps and FRP accounts. A QR code with a Wi-Fi password in it must not be published.
 
+Phase 2 options:
+
+- `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). Register the ClientID on the DNS server before setting up the phone. The default is still `family.adguard-dns.com` until the resolver is live.
+- `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
+
 ## Roadmap
 
-1. **Proof of lock** (this phase)
-2. Contacts and DNS: dialer/SMS role with an allowlist, own AdGuard Home with a DNS address per phone
+1. Proof of lock
+2. **Contacts and DNS** (this phase): dialer/SMS role with an allowlist, own AdGuard Home with a DNS address per phone
 3. Server and parent web app: accounts, pairing, rules, app list, location, school time
 4. Light mode: a Play Store app for phones already in use
 5. Native parent apps

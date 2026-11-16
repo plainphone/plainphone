@@ -4,6 +4,7 @@ package org.plainphone.app
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.InputType
@@ -12,6 +13,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.plainphone.app.ui.ApprovedContactsActivity
 
 /**
  * Hidden parent screen for phase 1 testing, so a test phone can always be
@@ -90,6 +92,12 @@ class MaintenanceActivity : Activity() {
         column.addView(Button(this).apply {
             text = getString(R.string.maintenance_reapply)
             setOnClickListener { Lock.applyAsync(this@MaintenanceActivity, "maintenance screen", ::show) }
+        })
+        column.addView(Button(this).apply {
+            text = getString(R.string.maintenance_contacts)
+            setOnClickListener {
+                startActivity(Intent(this@MaintenanceActivity, ApprovedContactsActivity::class.java))
+            }
         })
         column.addView(Button(this).apply {
             text = getString(R.string.maintenance_release)

@@ -45,4 +45,21 @@ class PolicyConfigTest {
         assertThat(config.dnsHost).isEqualTo(PolicyConfig.DEFAULT_DNS_HOST)
         assertThat(config.relockMinutes).isEqualTo(24 * 60)
     }
+
+    @Test
+    fun `country code and approved contacts come from the QR code`() {
+        val extras = PersistableBundle().apply {
+            putString(PolicyConfig.KEY_COUNTRY, "+45")
+            putString(PolicyConfig.KEY_CONTACTS, "Mum=+4512345678;Dad=87654321")
+        }
+        val config = PolicyConfig.fromExtras(extras)
+        assertThat(config.countryCallingCode).isEqualTo("45")
+        assertThat(config.seedContacts.map { it.name }).containsExactly("Mum", "Dad").inOrder()
+    }
+
+    @Test
+    fun `a bad country code is ignored`() {
+        val extras = PersistableBundle().apply { putString(PolicyConfig.KEY_COUNTRY, "DK") }
+        assertThat(PolicyConfig.fromExtras(extras).countryCallingCode).isNull()
+    }
 }

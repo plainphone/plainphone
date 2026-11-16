@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.PersistableBundle
+import org.plainphone.app.contacts.LocalContactPolicySource
 
 /** The Device Policy Controller entry point that makes Plainphone Device Owner. */
 class PlainphoneAdminReceiver : DeviceAdminReceiver() {
@@ -34,7 +35,9 @@ class PlainphoneAdminReceiver : DeviceAdminReceiver() {
                 DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
                 PersistableBundle::class.java,
             ) ?: return
-            ConfigStore(context).save(PolicyConfig.fromExtras(extras))
+            val config = PolicyConfig.fromExtras(extras)
+            ConfigStore(context).save(config)
+            LocalContactPolicySource(context).seedIfEmpty(config.seedContacts)
         }
     }
 }

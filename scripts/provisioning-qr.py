@@ -15,6 +15,10 @@ Examples:
   # Wi-Fi in the QR code (keep that PNG private: it contains the password)
   scripts/provisioning-qr.py ... --wifi-ssid Home --wifi-password secret
 
+  # Plainphone's own filter DNS with a ClientID per phone, plus approved contacts
+  scripts/provisioning-qr.py ... --dns-host '{id}.dns.plainphone.org' \
+      --country-code 45 --contact 'Mum=+45 12 34 56 78' --contact 'Dad=87654321'
+
 Needs Python 3.9+, `apksigner` (Android build-tools; found via ANDROID_HOME)
 and `qrencode` for the PNG (apt install qrencode). Use --checksum to skip apksigner.
 """
@@ -37,6 +41,51 @@ PACKAGE = "org.plainphone.app"
 ADMIN_COMPONENT = f"{PACKAGE}/.PlainphoneAdminReceiver"
 PBKDF2_ITERATIONS = 120_000  # must match MaintenancePin.kt
 PREFIX = "android.app.extra."
+
+# Forced private DNS. Until dns.plainphone.org serves, the default is AdGuard's
+# public family resolver. The template gives every phone its own ClientID, which
+# selects the phone's filter profile on the Plainphone DNS server (see dns/).
+DEFAULT_DNS_HOST = "family.adguard-dns.com"
+PLAINPHONE_DNS_TEMPLATE = "{id}.dns.plainphone.org"
+# Same rules as the DNS server's ClientIDs (dns/ppdns/profiles.py).
+CLIENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{3,62}$")
+CLIENT_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+HOST_RE = re.compile(r"^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$")  # as PolicyConfig.kt
+CONTACT_RE = re.compile(r"^\+?[0-9 ()./-]{3,24}$")
+
+
+def new_client_id(length: int = 20) -> str:
+    """Random, unguessable ClientID (about 103 bits), like the DNS server makes."""
+    return "".join(secrets.choice(CLIENT_ID_ALPHABET) for _ in range(length))
+
+
+def resolve_dns_host(template: str, client_id: str | None) -> tuple[str, str | None]:
+    """Fills in {id}. Returns the host and the ClientID used (None if the host has no {id})."""
+    if "{id}" not in template:
+        if client_id:
+            raise ValueError("--dns-id needs a --dns-host with {id} in it")
+        host, used = template, None
+    else:
+        used = client_id or new_client_id()
+        if not CLIENT_ID_RE.match(used):
+            raise ValueError("--dns-id must be 4-63 characters a-z, 0-9 and '-', starting with a letter or digit")
+        host = template.replace("{id}", used)
+    if not HOST_RE.match(host):
+        raise ValueError(f"not a valid DNS host: {host}")
+    return host, used
+
+
+def contacts_extra(contacts: list[str]) -> str:
+    """'Name=number' entries joined the way the app reads them (ContactCodec.kt)."""
+    out = []
+    for raw in contacts:
+        name, sep, number = raw.rpartition("=")
+        number = number.strip()
+        if not sep or not CONTACT_RE.match(number):
+            raise ValueError(f"--contact must be NAME=NUMBER, got {raw!r}")
+        name = re.sub(r" +", " ", re.sub(r"[;=\n\r\t]", " ", name)).strip() or number
+        out.append(f"{name}={number}")
+    return ";".join(out)
 
 
 def find_apksigner() -> str:
@@ -70,7 +119,7 @@ def pin_hash(pin: str, salt_hex: str) -> str:
 def build_payload(args: argparse.Namespace, checksum: str, pin: str) -> dict:
     salt = secrets.token_hex(16)
     extras = {
-        "plainphone.dns_host": args.dns_host,
+        "plainphone.dns_host": args.dns_host,  # already resolved from the {id} template
         "plainphone.pin_hash": pin_hash(pin, salt),
         "plainphone.pin_salt": salt,
         "plainphone.relock_minutes": str(args.relock_minutes),
@@ -79,6 +128,10 @@ def build_payload(args: argparse.Namespace, checksum: str, pin: str) -> dict:
         extras["plainphone.allowed_packages"] = ",".join(args.allow)
     if args.frp_account:
         extras["plainphone.frp_account_ids"] = ",".join(args.frp_account)
+    if getattr(args, "country_code", None):
+        extras["plainphone.country_code"] = args.country_code.lstrip("+")
+    if getattr(args, "contact", None):
+        extras["plainphone.contacts"] = contacts_extra(args.contact)
 
     payload = {
         PREFIX + "PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": ADMIN_COMPONENT,
@@ -106,7 +159,13 @@ def main() -> None:
     src.add_argument("--checksum", help="signature checksum, if you already have it")
     p.add_argument("--pin", help="maintenance PIN, 6+ digits (ends up in shell history; prefer --ask-pin)")
     p.add_argument("--ask-pin", action="store_true", help="prompt for the PIN without echo")
-    p.add_argument("--dns-host", default="family.adguard-dns.com", help="forced private DNS host")
+    p.add_argument("--dns-host", default=DEFAULT_DNS_HOST,
+                   help=f"forced private DNS host; {{id}} is replaced by the phone's ClientID, "
+                        f"e.g. '{PLAINPHONE_DNS_TEMPLATE}' (default: {DEFAULT_DNS_HOST})")
+    p.add_argument("--dns-id", help="ClientID for {id} in --dns-host (default: a new random one)")
+    p.add_argument("--country-code", help="calling code of the phone's country, e.g. 45; default: read from the SIM")
+    p.add_argument("--contact", action="append", default=[], metavar="NAME=NUMBER",
+                   help="approved contact (repeatable); more can be added on the phone's maintenance screen")
     p.add_argument("--allow", action="append", default=[], metavar="PACKAGE", help="extra visible app (repeatable)")
     p.add_argument("--frp-account", action="append", default=[], metavar="ID",
                    help="Google account ID (numeric People API id, not an email) allowed after a recovery reset")
@@ -130,6 +189,16 @@ def main() -> None:
     if not pin.isdigit() or len(pin) < 6:
         sys.exit("the PIN must be at least 6 digits")
 
+    if args.country_code and not re.fullmatch(r"\+?[0-9]{1,3}", args.country_code):
+        sys.exit("--country-code must be 1-3 digits, e.g. 45")
+    try:
+        args.dns_host, dns_id = resolve_dns_host(args.dns_host, args.dns_id)
+        contacts_extra(args.contact)
+        if not args.country_code and any(not c.rpartition("=")[2].strip().startswith("+") for c in args.contact):
+            raise ValueError("a --contact without +country code needs --country-code (e.g. 45)")
+    except ValueError as e:
+        sys.exit(str(e))
+
     checksum = args.checksum or signature_checksum(args.apk)
     payload = build_payload(args, checksum, pin)
     text = json.dumps(payload, separators=(",", ":"))
@@ -150,6 +219,9 @@ def main() -> None:
         print("qrencode not found: wrote JSON only (apt install qrencode)", file=sys.stderr)
 
     print(f"signature checksum: {checksum}")
+    print(f"private DNS host: {args.dns_host}")
+    if dns_id:
+        print(f"DNS ClientID: {dns_id} (register it on the DNS server before setting up the phone)")
     print(f"QR JSON:  {json_path}")
     if png_path:
         print(f"QR image: {png_path}")
