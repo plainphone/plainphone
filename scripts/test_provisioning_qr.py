@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Plainphone authors
+"""Checks that the QR script and the app agree on the PIN hash and the QR keys."""
+import argparse
+import importlib.util
+import unittest
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("qr", Path(__file__).with_name("provisioning-qr.py"))
+qr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(qr)
+
+
+class ProvisioningQrTest(unittest.TestCase):
+    def test_pin_hash_matches_app_test_vector(self):
+        # Same vector as MaintenancePinTest.kt
+        self.assertEqual(
+            qr.pin_hash("123456", "00112233445566778899aabbccddeeff"),
+            "99b17387ba3d03187c4246371f9763757d6d27c0587d564fcbe5a5e326a94ac5",
+        )
+
+    def test_payload_has_required_provisioning_keys(self):
+        args = argparse.Namespace(
+            apk_url="https://example.org/a.apk", dns_host="family.adguard-dns.com", relock_minutes=30,
+            allow=["com.spotify.music"], frp_account=[], wifi_ssid="Home", wifi_password="pw",
+            wifi_security="WPA", wifi_hidden=False,
+        )
+        p = qr.build_payload(args, "abc", "1234")
+        pre = "android.app.extra."
+        self.assertEqual(p[pre + "PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME"], "org.plainphone.app/.PlainphoneAdminReceiver")
+        self.assertEqual(p[pre + "PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"], "abc")
+        self.assertTrue(p[pre + "PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED"])
+        extras = p[pre + "PROVISIONING_ADMIN_EXTRAS_BUNDLE"]
+        self.assertNotIn("1234", extras.values(), "the PIN itself must never be in the QR code")
+        self.assertEqual(extras["plainphone.allowed_packages"], "com.spotify.music")
+        self.assertEqual(p[pre + "PROVISIONING_WIFI_SSID"], "Home")
+
+
+if __name__ == "__main__":
+    unittest.main()
