@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plainphone filtering DNS: AdGuard Home with one ClientID per phone over DNS-over-TLS.
+# Settings come from .env (see .env.example). Guide: docs/self-hosting-dns.md
+name: plainphone-dns
+
+services:
+  # Wildcard certificate for PPDNS_DOMAIN and *.PPDNS_DOMAIN via Let's Encrypt DNS-01 (Cloudflare).
+  certs:
+    image: goacme/lego:v5.6.0
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN:?set CLOUDFLARE_DNS_API_TOKEN}
+      LEGO_SERVER: ${LEGO_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+      DOMAIN: ${PPDNS_DOMAIN:?set PPDNS_DOMAIN}
+      EMAIL: ${LEGO_EMAIL:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          /lego run --accept-tos --dns cloudflare --path /certs \
+            $${EMAIL:+--email "$$EMAIL"} -d "$$DOMAIN" -d "*.$$DOMAIN" \
+            || echo "lego failed, retrying in 15 minutes"
+          if [ -s "/certs/certificates/$$DOMAIN.crt" ]; then sleep 43200; else sleep 900; fi
+        done
+    volumes:
+      - certs:/certs
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /certs/certificates/$$DOMAIN.crt"]
+      interval: 30s
+      start_period: 10m
+
+  # One-shot: first AdGuardHome.yaml (never overwritten) and the per-profile lists.
+  init:
+    build: .
+    command: ["init"]
+    env_file: .env
+    volumes:
+      - conf:/opt/adguardhome/conf
+      - work:/opt/adguardhome/work
+      - data:/data
+
+  adguard:
+    image: adguard/adguardhome:v0.107.80
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      certs:
+        condition: service_healthy
+    ports:
+      # DNS-over-TLS is the only public port. Plain DNS (53) is never published,
+      # so the server is not an open resolver.
+      - "853:853/tcp"
+      # Admin UI: keep it on a private interface (Tailscale IP), never 0.0.0.0.
+      - "${PPDNS_ADMIN_BIND:-127.0.0.1}:${PPDNS_ADMIN_PORT:-3000}:3000"
+    volumes:
+      - conf:/opt/adguardhome/conf
+      - work:/opt/adguardhome/work
+      - certs:/certs:ro
+
+  # Management API for the Plainphone server, self-test and monitoring push.
+  api:
+    build: .
+    command: ["serve"]
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - adguard
+    ports:
+      - "${PPDNS_API_BIND:-127.0.0.1}:${PPDNS_API_PORT:-8053}:8053"
+    volumes:
+      - conf:/opt/adguardhome/conf:ro
+      - work:/opt/adguardhome/work
+      - data:/data
+      - certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8053/healthz', timeout=5)"]
+      interval: 30s
+      start_period: 2m
+
+volumes:
+  conf:
+  work:
+  data:
+  certs:

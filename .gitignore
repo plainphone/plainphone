@@ -21,3 +21,6 @@ node_modules/
 .env.*
 !.env.example
 coverage/
+
+# DNS stack test certificates
+dns/tests/.certs/
