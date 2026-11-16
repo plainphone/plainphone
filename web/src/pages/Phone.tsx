@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useParams } from "react-router";
 import { ErrorState, errorMessage, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "../i18n/translate";
 import { api, ApiError, type App, type ChangeResult, type Locale, type PendingChange, type Phone } from "../lib/api";
-import { formatDateTime, formatDuration, formatRelative } from "../lib/format";
+import { formatDateTime, formatDuration, formatList, formatRelative } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 
@@ -279,11 +279,74 @@ export function PendingList() {
   );
 }
 
+/** What the phone reported about its battery, app and lock, and whether the web filter is live. */
+function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
+  const { t, locale } = useI18n();
+  const s = phone.status;
+  const when = (iso: string) => formatRelative(iso, now, locale);
+  // Last time the phone fetched its rules (the server sees every poll); rulesAppliedAt is only the last lock run.
+  const syncedAt = phone.lastSeenAt;
+  return (
+    <section className="section" aria-labelledby="status-h">
+      <h2 id="status-h">{t("phone.status")}</h2>
+      {s ? (
+        <>
+          {!s.lockIntact && (
+            <div className="notice notice-error" role="status">
+              <div>
+                <p className="row-title">{t("phone.lockBroken")}</p>
+                {s.failedPolicies.length > 0 && (
+                  <p>{t("phone.lockFailed", { steps: formatList(s.failedPolicies, locale) })}</p>
+                )}
+              </div>
+            </div>
+          )}
+          {s.maintenance && (
+            <p className="notice notice-warn" role="status">
+              {t("phone.maintenance")}
+            </p>
+          )}
+          <ul className="list status-list">
+            {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
+            {s.batteryPct !== null && (
+              <li>
+                {t("phone.battery", { pct: s.batteryPct })}
+                {s.charging ? `, ${t("phone.charging")}` : ""}
+              </li>
+            )}
+            <li>{syncedAt ? t("phone.synced", { when: when(syncedAt) }) : t("phones.neverSeen")}</li>
+            <li>{t("phone.appVersion", { version: s.appVersion })}</li>
+          </ul>
+          <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
+        </>
+      ) : (
+        <p className="muted">{t("phone.statusNone")}</p>
+      )}
+      {!phone.dnsReady && <p className="notice notice-info status-dns">{t("phone.dnsWaiting")}</p>}
+    </section>
+  );
+}
+
 export function PhoneOverview() {
   const { t, locale } = useI18n();
-  const { phone, pending } = usePhone();
+  const { phone, pending, setPhone } = usePhone();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
+
+  // The phone reports in the background: fetch it again while this page is open, so the
+  // battery and the lock state are not as old as the moment the parent opened the app.
+  const setPhoneRef = useRef(setPhone);
+  setPhoneRef.current = setPhone;
+  useEffect(() => {
+    const refresh = () =>
+      api
+        .get<Phone>(`/phones/${phone.id}`)
+        .then((p) => setPhoneRef.current(p))
+        .catch(() => undefined);
+    void refresh();
+    const id = window.setInterval(() => void refresh(), 60_000);
+    return () => window.clearInterval(id);
+  }, [phone.id]);
   const items: { to: string; label: string; hint: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
     { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
@@ -315,6 +378,8 @@ export function PhoneOverview() {
         {phone.name}
       </PageTitle>
       {phone.mode === "light" && <p className="notice notice-info">{t("mode.lightNote")}</p>}
+
+      <PhoneStatusBlock phone={phone} now={now} />
 
       {(phone.profile === "self" || pending.length > 0) && (
         <section className="section" aria-labelledby="pending-h">

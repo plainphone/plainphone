@@ -42,7 +42,8 @@ If the phone says "Can't set up device" or "The app couldn't be downloaded", see
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.
 3. The home screen should only show phone, messages, camera, clock, contacts, settings, Chrome, Maps and a few small apps. Play Store, YouTube, Gmail and games are gone.
 4. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
-5. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log".
+5. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 6), the list comes from the dashboard and is read-only here.
+6. Phase 4: right after setup the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), choose *Add phone* and scan the code. The phone says "Paired" and the status screen shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If you missed the pairing screen, use the button on the status screen (first hour) or the maintenance screen.
 
 Then work through [bypass-checklist.md](bypass-checklist.md).
 

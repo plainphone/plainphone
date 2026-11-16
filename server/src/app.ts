@@ -46,10 +46,21 @@ export function createApp(ctx: Ctx) {
     return c.json({ error: "internal error" }, 500);
   });
 
+  // The login page also calls /api/health, so the DNS check is cached briefly: a slow or
+  // down DNS service then costs one 3-second wait per 30 seconds, not one per request.
+  let dnsCheck: { at: number; ok: Promise<boolean> } | undefined;
+  const dnsHealthy = () => {
+    const now = Date.now();
+    if (!dnsCheck || now - dnsCheck.at > 30_000) dnsCheck = { at: now, ok: ctx.dns.healthy().catch(() => false) };
+    return dnsCheck.ok;
+  };
+
   app.get("/api/health", async (c) => {
     try {
       await ctx.db.execute(sql`select 1`);
-      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns: ctx.cfg.DNS_PROVIDER });
+      // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
+      const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await dnsHealthy()) ? "ok" : "down";
+      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

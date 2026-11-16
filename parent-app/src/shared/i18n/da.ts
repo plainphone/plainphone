@@ -26,6 +26,7 @@ export const da: Messages = {
   "nav.approvals": "Godkendelser",
   "nav.logout": "Log ud",
   "nav.language": "Sprog",
+  "nav.privacy": "Privatliv",
 
   "error.generic": "Noget gik galt. Prøv igen.",
   "error.network": "Kunne ikke få forbindelse til serveren. Tjek din forbindelse, og prøv igen.",
@@ -71,6 +72,7 @@ export const da: Messages = {
   "phones.emptyBody": "Åbn Plainphone på telefonen. Den viser en kode på otte bogstaver og tal og en QR-kode. Scan QR-koden med dit kamera, eller vælg Tilføj telefon og skriv koden.",
   "phones.lastSeen": "Sidst set {when}",
   "phones.neverSeen": "Ikke set endnu",
+  "phones.lockBroken": "Låsen er ikke intakt",
   "phones.pendingCount": "{n} ændring venter",
   "phones.pendingCountMany": "{n} ændringer venter",
 
@@ -116,6 +118,18 @@ export const da: Messages = {
   "phone.pendingTitle": "Ændringer, der venter",
   "phone.pendingNone": "Ingen ændringer venter.",
   "phone.lastSeen": "Sidst set {when}",
+  "phone.status": "Telefonens status",
+  "phone.statusNone": "Ingen status fra telefonen endnu",
+  "phone.statusUpdated": "Status opdateret {when}",
+  "phone.lockIntact": "Lås intakt",
+  "phone.lockBroken": "Låsen er ikke intakt",
+  "phone.lockFailed": "Disse trin i låsen mislykkedes: {steps}",
+  "phone.maintenance": "Vedligeholdelsesoplåsning kører",
+  "phone.battery": "Batteri {pct}\u00a0%",
+  "phone.charging": "oplader",
+  "phone.synced": "Sidst synkroniseret {when}",
+  "phone.appVersion": "App-version {version}",
+  "phone.dnsWaiting": "Webfilter: venter på DNS-tjenesten",
 
   "pending.delayBanner": "Ændringen gælder fra {time} (om {left}).",
   "pending.delaySoon": "Ændringen gælder om et øjeblik, når telefonen melder sig.",
@@ -198,6 +212,7 @@ export const da: Messages = {
   "filter.noneBlocked": "Der er ingen hjemmesider på listen.",
   "filter.removeLabel": "Fjern {domain}",
   "filter.notSynced": "Filteret bliver opdateret. Det kan tage et minut.",
+  "filter.waitingDns": "Webfilter: venter på DNS-tjenesten. Det virker ikke på telefonen endnu.",
   "filter.technical": "Tekniske detaljer",
   "filter.host": "Telefonens private DNS-adresse",
 

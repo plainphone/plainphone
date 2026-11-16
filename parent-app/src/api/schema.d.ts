@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness and database check */
+        /**
+         * Liveness, database and DNS service check
+         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server.
+         */
         get: operations["getHealth"];
         put?: never;
         post?: never;
@@ -111,6 +114,26 @@ export interface paths {
          * @description Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Report battery, app version and lock state (phone)
+         * @description The newest report replaces the one before; no history is kept. Parents see it on the phone's page. How often to send is up to the app; sending at once when the lock state or a maintenance unlock changes is useful.
+         */
+        put: operations["putDeviceStatus"];
         post?: never;
         delete?: never;
         options?: never;
@@ -859,10 +882,12 @@ export interface components {
             }[];
             dns: {
                 /**
-                 * @description Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost.
+                 * @description Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost, but only when `ready` is true.
                  * @example k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org
                  */
                 host?: string;
+                /** @description The DNS service has accepted this phone's ClientID. Until it is true the phone keeps its current private DNS host, because the DNS service refuses unknown ClientIDs and the phone would lose DNS entirely. It never goes back to false. */
+                ready?: boolean;
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
@@ -900,7 +925,39 @@ export interface components {
             lastSeenAt?: string | null;
             dnsHost?: string;
             dnsSynced?: boolean;
+            /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
+            dnsReady?: boolean;
             hasLocation?: boolean;
+            /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
+            status?: components["schemas"]["PhoneStatus"] | null;
+        };
+        DeviceStatusInput: {
+            /** @example 0.4.0 */
+            appVersion: string;
+            batteryPct: number | null;
+            charging: boolean | null;
+            /** @description Plainphone is the device owner of this phone. */
+            deviceOwner: boolean;
+            /** @description Every lock policy was applied and no maintenance unlock is running. */
+            lockIntact: boolean;
+            /** @description A PIN maintenance unlock is running on the phone. */
+            maintenance: boolean;
+            /** @description Names of the lock steps that failed. */
+            failedPolicies: string[];
+            /** @description ETag of the rules the phone last applied. */
+            rulesEtag: string | null;
+            /**
+             * Format: date-time
+             * @description When the phone applied those rules. Must carry a time zone and may be at most 5 minutes ahead of the server.
+             */
+            rulesAppliedAt: string | null;
+            /** @description The private DNS host the phone actually uses. */
+            dnsHost: string | null;
+        };
+        /** @description What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC. */
+        PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
+            /** Format: date-time */
+            reportedAt: string;
         };
         ScheduleInput: {
             /** @enum {unknown} */
@@ -973,7 +1030,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}` */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1190,6 +1247,29 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    putDeviceStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceStatusInput"];
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
         };
     };
     putDevicePushToken: {

@@ -43,3 +43,38 @@ jobs:
             android/app/build/outputs/apk/
             android/app/build/reports/
           retention-days: 14
+
+  # The phone's sync code against the real server and PostgreSQL, without an emulator.
+  phone-sync-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: plainphone
+          POSTGRES_PASSWORD: plainphone
+          POSTGRES_DB: plainphone_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U plainphone -d plainphone_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://plainphone:plainphone@localhost:5432/plainphone_e2e
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-37.0 build-tools;36.1.0"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Pair, sync rules, Find and status against the real server
+        run: scripts/e2e-phone-sync.sh

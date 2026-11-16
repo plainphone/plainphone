@@ -8,9 +8,10 @@ import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.ContactCodec
 
 /**
- * Everything the lock needs to know. In phase 1 the values come from the
- * provisioning QR code (admin extras bundle) and fall back to [DEFAULT].
- * Phase 3 replaces this with rules from the server.
+ * Everything the lock needs to know. The values come from the provisioning QR
+ * code (admin extras bundle) and fall back to [DEFAULT]. Once the phone is paired,
+ * [org.plainphone.app.sync.EffectivePolicy] merges the parent's rules from the
+ * server on top (app list, DNS host, school time, location) and sets [server].
  */
 data class PolicyConfig(
     /** Host for forced private DNS (DNS-over-TLS). Phase 1 placeholder: AdGuard Family. */
@@ -31,12 +32,17 @@ data class PolicyConfig(
      * provisioning; afterwards the list lives in [org.plainphone.app.contacts.ContactPolicySource].
      */
     val seedContacts: List<ApprovedContact> = emptyList(),
+    /** Where the phone pairs and fetches rules. Self-hosters point their QR code at their own server. */
+    val serverUrl: String = DEFAULT_SERVER_URL,
+    /** Set when rules from the server apply; null means the QR code alone decides. */
+    val server: ServerOverlay? = null,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 
     companion object {
         const val DEFAULT_DNS_HOST = "family.adguard-dns.com"
         const val DEFAULT_RELOCK_MINUTES = 30
+        const val DEFAULT_SERVER_URL = "https://app.plainphone.org"
 
         // Extra apps that stay visible on top of phone, SMS, camera, clock,
         // contacts, launcher, settings and keyboard (resolved at runtime per maker).
@@ -69,6 +75,7 @@ data class PolicyConfig(
         const val KEY_RELOCK = "plainphone.relock_minutes"
         const val KEY_COUNTRY = "plainphone.country_code"
         const val KEY_CONTACTS = "plainphone.contacts"
+        const val KEY_SERVER_URL = "plainphone.server_url"
 
         /** Builds a config from the QR admin extras. Unknown or blank values keep the default. */
         @Suppress("DEPRECATION") // BaseBundle.get: QR values may arrive as String, Int or Long.
@@ -86,7 +93,20 @@ data class PolicyConfig(
                     ?: DEFAULT_RELOCK_MINUTES,
                 countryCallingCode = str(KEY_COUNTRY)?.removePrefix("+")?.takeIf { c -> c.length in 1..3 && c.all(Char::isDigit) },
                 seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
+                serverUrl = str(KEY_SERVER_URL)?.let(::normalizeServerUrl) ?: DEFAULT_SERVER_URL,
             )
+        }
+
+        /**
+         * Accepts `https://host[:port][/path]` only: the device token must never travel in clear text.
+         * Returns the URL without a trailing slash, or null if it is not acceptable.
+         */
+        fun normalizeServerUrl(raw: String): String? {
+            val uri = runCatching { java.net.URI(raw.trim()) }.getOrNull() ?: return null
+            if (uri.scheme?.lowercase() != "https" || uri.host.isNullOrEmpty()) return null
+            if (uri.rawQuery != null || uri.rawFragment != null || uri.rawUserInfo != null) return null
+            if (!isValidHost(uri.host) && uri.host != "localhost") return null
+            return uri.toString().trimEnd('/')
         }
 
         fun splitList(raw: String): Set<String> =
@@ -111,6 +131,7 @@ class ConfigStore(context: Context) {
             pinSaltHex = prefs.getString("pin_salt", null),
             relockMinutes = prefs.getInt("relock_minutes", PolicyConfig.DEFAULT_RELOCK_MINUTES),
             countryCallingCode = prefs.getString("country_code", null),
+            serverUrl = prefs.getString("server_url", null) ?: PolicyConfig.DEFAULT_SERVER_URL,
         )
     }
 
@@ -124,6 +145,18 @@ class ConfigStore(context: Context) {
             .putString("pin_salt", config.pinSaltHex)
             .putInt("relock_minutes", config.relockMinutes)
             .putString("country_code", config.countryCallingCode)
+            .putString("server_url", config.serverUrl)
             .apply()
     }
 }
+
+/**
+ * What the parent's rules from the server change in the lock, beyond the app list and DNS host
+ * (which are merged straight into [PolicyConfig]).
+ */
+data class ServerOverlay(
+    /** School time or bedtime is on: only core apps plus the window's allowed apps stay visible. */
+    val windowActive: Boolean = false,
+    /** The parent turned location on: Plainphone gets the location permission and location stays on. */
+    val locationRequired: Boolean = false,
+)

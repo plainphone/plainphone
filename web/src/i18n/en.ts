@@ -27,6 +27,7 @@ export const en = {
   "nav.approvals": "Approvals",
   "nav.logout": "Log out",
   "nav.language": "Language",
+  "nav.privacy": "Privacy",
 
   "error.generic": "Something went wrong. Please try again.",
   "error.network": "Could not reach the server. Check your connection and try again.",
@@ -72,6 +73,7 @@ export const en = {
   "phones.emptyBody": "Open Plainphone on the phone. It shows a code of eight letters and digits and a QR code. Scan the QR code with your camera, or choose Add phone and type the code.",
   "phones.lastSeen": "Last seen {when}",
   "phones.neverSeen": "Not seen yet",
+  "phones.lockBroken": "Lock not intact",
   "phones.pendingCount": "{n} change waiting",
   "phones.pendingCountMany": "{n} changes waiting",
 
@@ -117,6 +119,18 @@ export const en = {
   "phone.pendingTitle": "Waiting changes",
   "phone.pendingNone": "No changes are waiting.",
   "phone.lastSeen": "Last seen {when}",
+  "phone.status": "Phone status",
+  "phone.statusNone": "No status from the phone yet",
+  "phone.statusUpdated": "Status updated {when}",
+  "phone.lockIntact": "Lock intact",
+  "phone.lockBroken": "Lock not intact",
+  "phone.lockFailed": "These lock steps failed: {steps}",
+  "phone.maintenance": "Maintenance unlock running",
+  "phone.battery": "Battery {pct}\u00a0%",
+  "phone.charging": "charging",
+  "phone.synced": "Last synced {when}",
+  "phone.appVersion": "App version {version}",
+  "phone.dnsWaiting": "Web filter: waiting for the DNS service",
 
   "pending.delayBanner": "This takes effect {time} (in {left}).",
   "pending.delaySoon": "This takes effect in a moment, when the phone checks in.",
@@ -199,6 +213,7 @@ export const en = {
   "filter.noneBlocked": "No websites are on this list.",
   "filter.removeLabel": "Remove {domain}",
   "filter.notSynced": "The filter is being updated. It may take a minute.",
+  "filter.waitingDns": "Web filter: waiting for the DNS service. It is not active on the phone yet.",
   "filter.technical": "Technical details",
   "filter.host": "Private DNS address of this phone",
 

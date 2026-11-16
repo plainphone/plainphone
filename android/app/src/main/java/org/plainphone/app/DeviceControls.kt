@@ -51,6 +51,9 @@ interface DeviceControls {
     fun telephonyApps(): TelephonyApps
     /** Grants a runtime permission to [pkg]; returns false if Android refused. */
     fun grantPermission(pkg: String, permission: String): Boolean
+
+    // Phase 4: location for "Find".
+    fun setLocationEnabled(enabled: Boolean)
 }
 
 data class TelephonyApps(
@@ -206,4 +209,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
 
     override fun grantPermission(pkg: String, permission: String): Boolean =
         dpm.setPermissionGrantState(admin, pkg, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+
+    override fun setLocationEnabled(enabled: Boolean) =
+        dpm.setLocationEnabled(admin, enabled)
 }

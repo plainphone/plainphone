@@ -46,7 +46,11 @@ export function FilterPage() {
       <LoadGate res={res}>
         {(dns) => (
           <>
-            {!dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>}
+            {!phone.dnsReady ? (
+              <p className="notice notice-info">{t("filter.waitingDns")}</p>
+            ) : (
+              !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
+            )}
             <section className="section" aria-labelledby="cat-h">
               <h2 id="cat-h">{t("filter.categories")}</h2>
               <p className="help">{t("filter.categoriesHelp")}</p>
