@@ -84,6 +84,25 @@ export const householdInvites = pgTable("household_invites", {
   createdAt: createdAt(),
 });
 
+/** What the phone reports about itself and its lock (`PUT /device/status`). */
+export interface DeviceStatus {
+  appVersion: string;
+  batteryPct: number | null;
+  charging: boolean | null;
+  deviceOwner: boolean;
+  /** Every lock policy was applied and no maintenance unlock is running. */
+  lockIntact: boolean;
+  /** A PIN maintenance unlock is running on the phone. */
+  maintenance: boolean;
+  /** Names of the lock steps that failed. */
+  failedPolicies: string[];
+  /** ETag of the rules the phone last applied. */
+  rulesEtag: string | null;
+  rulesAppliedAt: string | null;
+  /** The private DNS host the phone actually uses. */
+  dnsHost: string | null;
+}
+
 export const phones = pgTable(
   "phones",
   {
@@ -102,12 +121,22 @@ export const phones = pgTable(
     dnsDirty: boolean("dns_dirty").notNull().default(true),
     /** Bumped on every sync attempt, so an older attempt cannot clear dnsDirty. */
     dnsVersion: integer("dns_version").notNull().default(0),
+    /**
+     * Set the first time the DNS service accepted this phone's ClientID, and never cleared.
+     * Until then the phone must not switch to its private DNS host: the DNS service answers
+     * REFUSED for ClientIDs it does not know, so the phone would lose DNS entirely.
+     */
+    dnsConfirmedAt: timestamp("dns_confirmed_at", { withTimezone: true }),
     locationEnabled: boolean("location_enabled").notNull(),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    /** The phone's own report from `PUT /device/status`; null until it has reported once. */
+    deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
+    /** Server time of that report. */
+    statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("phones_household_idx").on(t.householdId)],
