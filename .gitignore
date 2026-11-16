@@ -1,0 +1,15 @@
+# Build output and local machine files
+.gradle/
+build/
+local.properties
+dist/
+
+# Signing material never goes into this public repository
+*.jks
+*.keystore
+*.p12
+signing.properties
+
+# Python
+__pycache__/
+*.pyc
