@@ -75,7 +75,7 @@ phone                                      server                         parent
 |---|---|
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
-| `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows). `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
+| `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus what a phone cannot do without (launcher, keyboard, system dialer, clock, Settings). `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` turns `true` once, after the first successful sync, and never goes back to `false`, so the network never dies |
 | `location` | See above |
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |
@@ -88,154 +88,12 @@ The server has a push abstraction. FCM is the planned layer: the phone registers
 the phone poll at once. Polling stays the guarantee, so a phone without Google Play Services
 works, just slower. No Firebase project exists yet.
 
-## Kotlin client sketch
+## The phone's implementation
 
-No dependencies beyond the Android SDK (`HttpURLConnection`, `org.json`), like the rest of the
-app. Call it from a background thread or a `WorkManager` worker; never on the main thread.
-
-```kotlin
-// SPDX-License-Identifier: Apache-2.0
-package org.plainphone.app.sync
-
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-
-class PlainphoneApi(private val baseUrl: String, var deviceToken: String? = null) {
-
-    class Pairing(val id: String, val code: String, val pollSecret: String, val qrUrl: String)
-    sealed interface PairPoll {
-        object Waiting : PairPoll
-        object Expired : PairPoll
-        data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
-    }
-    sealed interface RulesResult {
-        object Unchanged : RulesResult
-        object Unpaired : RulesResult
-        data class Changed(val etag: String, val rules: JSONObject) : RulesResult
-    }
-    class HttpError(val status: Int, message: String) : Exception(message)
-
-    private class Response(val status: Int, val body: String, val etag: String?)
-
-    private fun call(
-        method: String,
-        path: String,
-        body: JSONObject? = null,
-        headers: Map<String, String> = emptyMap(),
-    ): Response {
-        val conn = URL(baseUrl.trimEnd('/') + "/api" + path).openConnection() as HttpURLConnection
-        try {
-            conn.requestMethod = method
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 30_000
-            conn.setRequestProperty("Accept", "application/json")
-            deviceToken?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
-            headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
-            if (body != null) {
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toString().toByteArray()) }
-            }
-            val status = conn.responseCode
-            val stream = if (status >= 400) conn.errorStream else conn.inputStream
-            val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
-            return Response(status, text, conn.getHeaderField("ETag"))
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing {
-        val r = call("POST", "/device/pairings", JSONObject().put("mode", mode).put("deviceInfo", JSONObject(deviceInfo)))
-        if (r.status != 201) throw HttpError(r.status, r.body)
-        val j = JSONObject(r.body)
-        return Pairing(j.getString("pairingId"), j.getString("code"), j.getString("pollSecret"), j.getString("qrUrl"))
-    }
-
-    fun pollPairing(p: Pairing): PairPoll {
-        val r = call("GET", "/device/pairings/${p.id}", headers = mapOf("X-Poll-Secret" to p.pollSecret))
-        return when (r.status) {
-            200 -> JSONObject(r.body).let { PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
-            202 -> PairPoll.Waiting
-            404, 410 -> PairPoll.Expired
-            else -> throw HttpError(r.status, r.body)
-        }
-    }
-
-    /** Pass the last stored ETag. Apply [RulesResult.Changed.rules] fully, then store its etag. */
-    fun fetchRules(etag: String?): RulesResult {
-        val r = call("GET", "/device/rules", headers = etag?.let { mapOf("If-None-Match" to it) } ?: emptyMap())
-        return when (r.status) {
-            200 -> RulesResult.Changed(r.etag ?: "", JSONObject(r.body))
-            304 -> RulesResult.Unchanged
-            401 -> RulesResult.Unpaired
-            else -> throw HttpError(r.status, r.body)
-        }
-    }
-
-    data class InstalledApp(val packageName: String, val label: String, val core: Boolean)
-
-    fun reportApps(apps: List<InstalledApp>) {
-        val arr = JSONArray()
-        apps.forEach { arr.put(JSONObject().put("packageName", it.packageName).put("label", it.label).put("core", it.core)) }
-        val r = call("PUT", "/device/apps", JSONObject().put("apps", arr))
-        if (r.status != 204) throw HttpError(r.status, r.body)
-    }
-
-    data class DeviceStatus(
-        val appVersion: String,
-        val batteryPct: Int?,
-        val charging: Boolean?,
-        val deviceOwner: Boolean,
-        val lockIntact: Boolean,
-        val maintenance: Boolean,
-        val failedPolicies: List<String>,
-        val rulesEtag: String?,
-        val rulesAppliedAtIso: String?,
-        val dnsHost: String?,
-    )
-
-    fun reportStatus(s: DeviceStatus) {
-        val body = JSONObject()
-            .put("appVersion", s.appVersion)
-            .put("batteryPct", s.batteryPct ?: JSONObject.NULL)
-            .put("charging", s.charging ?: JSONObject.NULL)
-            .put("deviceOwner", s.deviceOwner)
-            .put("lockIntact", s.lockIntact)
-            .put("maintenance", s.maintenance)
-            .put("failedPolicies", JSONArray(s.failedPolicies))
-            .put("rulesEtag", s.rulesEtag ?: JSONObject.NULL)
-            .put("rulesAppliedAt", s.rulesAppliedAtIso ?: JSONObject.NULL)
-            .put("dnsHost", s.dnsHost ?: JSONObject.NULL)
-        val r = call("PUT", "/device/status", body)
-        if (r.status != 204) throw HttpError(r.status, r.body)
-    }
-
-    /** Returns false when location is off for this phone (stop reporting). */
-    fun reportLocation(lat: Double, lon: Double, accuracyM: Float?, recordedAtIso: String): Boolean {
-        val body = JSONObject().put("lat", lat).put("lon", lon).put("recordedAt", recordedAtIso)
-        accuracyM?.let { body.put("accuracyM", it.toDouble()) }
-        val r = call("PUT", "/device/location", body)
-        return when (r.status) {
-            204 -> true
-            409 -> false
-            else -> throw HttpError(r.status, r.body)
-        }
-    }
-}
-```
-
-Suggested worker loop:
-
-```kotlin
-// Every rules.pollSeconds (WorkManager has a 15-minute floor for periodic work, so use a
-// foreground-free alarm or a self-rescheduling OneTimeWorkRequest for the 60 s cadence).
-when (val r = api.fetchRules(store.etag)) {
-    // RulesApplier switches to dns.host only when rules.dns.ready is true.
-    is RulesResult.Changed -> { RulesApplier.apply(context, r.rules); store.etag = r.etag }
-    RulesResult.Unchanged -> Unit
-    RulesResult.Unpaired -> notifyPairAgain() // keep enforcing the last rules
-}
-```
+The Android app implements this API in
+[`android/app/src/main/java/org/plainphone/app/sync/`](../android/app/src/main/java/org/plainphone/app/sync):
+`PlainphoneApi.kt` is the HTTP client (no dependencies beyond the Android SDK), `SyncRunner.kt`
+one sync, `PairingController` in `Pairing.kt` the pairing, and `AndroidSync.kt` the WorkManager
+scheduling, location and status. How it behaves is described in [phone-sync.md](phone-sync.md).
+[`scripts/e2e-phone-sync.sh`](../scripts/e2e-phone-sync.sh) runs that code against the real
+server and PostgreSQL, also in CI.
