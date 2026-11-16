@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Plainphone authors
+package org.plainphone.app.sync
+
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.Instant
+import java.time.ZonedDateTime
+import org.json.JSONObject
+import org.junit.Assume.assumeTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.plainphone.app.PolicyConfig
+import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.SyncedContactPolicySource
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * End to end against the real server and PostgreSQL, without an emulator: the phone's own
+ * code (PlainphoneApi, PairingController, SyncRunner, SyncStore, ServerRules, EffectivePolicy)
+ * talks HTTP to the server while this test plays the parent through the parent API.
+ *
+ * Skipped unless PLAINPHONE_E2E points at the fixture file written by
+ * server/test/e2e/phone-sync-server.ts. Run it with scripts/e2e-phone-sync.sh.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class PhoneSyncContractTest {
+    private lateinit var url: String
+    private lateinit var parentToken: String
+
+    @Before
+    fun fixture() {
+        val path = System.getenv("PLAINPHONE_E2E")
+        assumeTrue("PLAINPHONE_E2E not set; run scripts/e2e-phone-sync.sh", !path.isNullOrEmpty())
+        val j = JSONObject(File(path!!).readText())
+        url = j.getString("url")
+        parentToken = j.getString("parentToken")
+    }
+
+    /** The parent's side, straight HTTP with the session token. */
+    private fun parent(method: String, path: String, body: JSONObject? = null): Pair<Int, JSONObject?> {
+        val conn = URL("$url/api$path").openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = method
+            conn.setRequestProperty("Authorization", "Bearer $parentToken")
+            conn.setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            }
+            val status = conn.responseCode
+            val text = (if (status >= 400) conn.errorStream else conn.inputStream)?.bufferedReader()?.readText().orEmpty()
+            return status to text.takeIf { it.startsWith("{") }?.let(::JSONObject)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    @Test
+    fun `pair, sync rules, answer Find, report status, survive removal`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
+        val device = FakeSyncDevice(
+            apps = listOf(
+                InstalledApp("com.android.dialer", "Phone", core = true),
+                InstalledApp("com.spotify.music", "Spotify", core = false),
+                InstalledApp("com.example.game", "Game", core = false),
+            ),
+        ).apply {
+            now = System.currentTimeMillis()
+            // The server rejects times in the future, so the fake lock must use the real clock too.
+            lock = lock.copy(appliedAtMs = now)
+        }
+
+        // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token once.
+        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        val code = pairing.start().code
+        assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
+        val (claimStatus, claimed) = parent(
+            "POST", "/phones/claim",
+            JSONObject().put("code", code).put("name", "Alma").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+        )
+        assertThat(claimStatus).isEqualTo(201)
+        val phoneId = claimed!!.getString("id")
+        assertThat(pairing.poll()).isInstanceOf(PairPoll.Paired::class.java)
+        assertThat(store.isPaired).isTrue()
+        assertThat(store.phoneId).isEqualTo(phoneId)
+
+        // 2. First sync: apps reported, rules fetched and applied, status reported.
+        val runner = SyncRunner(store, api, device)
+        val first = runner.run("first")
+        assertThat(first).isInstanceOf(SyncRunner.Outcome.Synced::class.java)
+        // The apps were reported before the rules, so they are already in them.
+        var rules = store.rules()!!
+        assertThat(rules.phoneId).isEqualTo(phoneId)
+        assertThat(rules.allowedApps).containsAtLeast("com.android.dialer", "com.spotify.music") // Danish starter pack
+        assertThat(rules.hiddenApps).contains("com.example.game")
+        assertThat(rules.dnsReady).isTrue() // mock DNS service accepts at once
+        assertThat(rules.dnsHost).endsWith(".dns.plainphone.org")
+        assertThat(rules.locationEnabled).isTrue()
+        assertThat(device.applies).isNotEmpty()
+        val (_, summary) = parent("GET", "/phones/$phoneId")
+        assertThat(summary!!.getBoolean("dnsReady")).isTrue()
+        val status = summary.getJSONObject("status")
+        assertThat(status.getString("appVersion")).isEqualTo("0.1.2")
+        assertThat(status.getBoolean("lockIntact")).isTrue()
+        assertThat(status.getInt("batteryPct")).isEqualTo(64)
+
+        // 3. The parent changes the rules; the next poll brings them, the one after is a 304.
+        assertThat(parent("POST", "/phones/$phoneId/contacts", JSONObject().put("name", "Mum").put("number", "+4512345678")).first).isAnyOf(200, 201)
+        assertThat(parent("PUT", "/phones/$phoneId/apps/com.example.game", JSONObject().put("allowed", true)).first).isAnyOf(200, 201, 204)
+        val bedtime = JSONObject().put("kind", "bedtime").put("days", org.json.JSONArray(listOf(1, 2, 3, 4, 5, 6, 7)))
+            .put("startMinute", 21 * 60).put("endMinute", 7 * 60).put("allowedPackages", org.json.JSONArray(listOf("com.spotify.music")))
+        assertThat(parent("POST", "/phones/$phoneId/schedules", bedtime).first).isAnyOf(200, 201)
+        assertThat(runner.run("changed")).isEqualTo(SyncRunner.Outcome.Synced(changed = true, pollSeconds = 60))
+        rules = store.rules()!!
+        assertThat(rules.allowedApps).contains("com.example.game")
+        assertThat(SyncedContactPolicySource(context) { store.rules()?.contacts }.rules().contacts)
+            .containsExactly(ApprovedContact("Mum", "+4512345678"))
+        val qr = PolicyConfig()
+        val tz = rules.timezone
+        val noon = ZonedDateTime.now(tz).withHour(12).withMinute(0).toInstant()
+        val night = ZonedDateTime.now(tz).withHour(23).withMinute(0).toInstant()
+        assertThat(EffectivePolicy.merge(qr, rules, noon).allowedPackages).contains("com.example.game")
+        val atNight = EffectivePolicy.merge(qr, rules, night)
+        assertThat(atNight.server!!.windowActive).isTrue()
+        assertThat(atNight.allowedPackages).containsExactly("com.spotify.music")
+        assertThat(atNight.dnsHost).isEqualTo(rules.dnsHost)
+        assertThat(runner.run("unchanged")).isEqualTo(SyncRunner.Outcome.Synced(changed = false, pollSeconds = 60))
+
+        // 4. Find: the parent presses it, the phone answers once with a precise position.
+        device.locationRequests.clear()
+        assertThat(parent("POST", "/phones/$phoneId/locate").first).isAnyOf(200, 202, 204)
+        device.now = System.currentTimeMillis()
+        runner.run("find")
+        assertThat(device.locationRequests).containsExactly(true)
+        val (_, location) = parent("GET", "/phones/$phoneId/location")
+        assertThat(location.toString()).contains("55.67")
+        assertThat(store.rules()!!.locateRequestedAt).isNotNull() // the rules fetched before the answer
+        runner.run("after find")
+        assertThat(store.rules()!!.locateRequestedAt).isNull() // the server cleared the request
+        assertThat(device.locationRequests).containsExactly(true)
+
+        // 5. Removed in the dashboard: the phone keeps its last rules and stops.
+        assertThat(parent("DELETE", "/phones/$phoneId").first).isAnyOf(200, 204)
+        assertThat(runner.run("removed")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(store.rules()!!.contacts).containsExactly(ApprovedContact("Mum", "+4512345678"))
+        assertThat(store.everPaired).isTrue()
+        assertThat(Instant.ofEpochMilli(store.lastSyncAtMs!!)).isLessThan(Instant.now().plusSeconds(1))
+    }
+}

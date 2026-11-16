@@ -4,6 +4,8 @@ package org.plainphone.app.sync
 
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -57,12 +59,21 @@ object Schedules {
                 if (date.dayOfWeek.value !in s.days) continue
                 // Ends that fall on the next day belong to a start on this date.
                 val endDate = if (s.start < s.end) date else date.plusDays(1)
-                for (candidate in listOf(ZonedDateTime.of(date, s.start, zone), ZonedDateTime.of(endDate, s.end, zone))) {
-                    val at = candidate.toInstant()
+                for (at in listOf(wallClock(date, s.start, zone), wallClock(endDate, s.end, zone))) {
                     if (at.isAfter(now) && (best == null || at.isBefore(best))) best = at
                 }
             }
         }
         return best
+    }
+
+    /**
+     * The first instant at which the wall clock shows [time] or later on [date]. For a time in the
+     * hour skipped in spring that is the moment the clocks jump, matching [active].
+     */
+    private fun wallClock(date: LocalDate, time: LocalTime, zone: ZoneId): Instant {
+        val local = LocalDateTime.of(date, time)
+        if (zone.rules.getValidOffsets(local).isEmpty()) return zone.rules.getTransition(local).instant
+        return ZonedDateTime.of(local, zone).toInstant()
     }
 }
