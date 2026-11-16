@@ -69,12 +69,14 @@ export function parentRoutes(ctx: Ctx) {
   const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
+  const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
+  const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
 
   // --- Auth -------------------------------------------------------------------
 
   app.post("/auth/request", async (c) => {
     const input = await body(c, z.object({ email: v.email, locale: v.locale.default("en") }));
-    if (!loginIpLimit.take(clientIp(c)) || !loginEmailLimit.take(input.email)) {
+    if (!loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !loginEmailLimit.take(input.email)) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
     await requestMagicLink(ctx, input.email, input.locale);
@@ -83,8 +85,16 @@ export function parentRoutes(ctx: Ctx) {
   });
 
   app.post("/auth/verify", async (c) => {
-    if (!verifyLimit.take(clientIp(c))) throw new HTTPException(429, { message: "slow down" });
-    const input = await body(c, z.object({ token: z.string().min(10).max(200), locale: v.locale.default("en") }));
+    if (!verifyLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "slow down" });
+    const input = await body(
+      c,
+      z.object({
+        token: z.string().min(10).max(200),
+        locale: v.locale.default("en"),
+        /** Native apps ask for the token; the PWA only gets the HttpOnly cookie. */
+        client: z.enum(["web", "native"]).default("web"),
+      }),
+    );
     const out = await verifyMagicLink(ctx, input.token, input.locale);
     if (!out) return c.json({ error: "this link is expired or already used" }, 400);
     setCookie(c, SESSION_COOKIE, out.sessionToken, {
@@ -94,8 +104,10 @@ export function parentRoutes(ctx: Ctx) {
       path: "/api",
       maxAge: SESSION_DAYS * 86_400,
     });
-    // Native apps use the token as a Bearer token; the PWA relies on the cookie.
-    return c.json({ user: userJson(out.user), sessionToken: out.sessionToken });
+    return c.json({
+      user: userJson(out.user),
+      ...(input.client === "native" ? { sessionToken: out.sessionToken } : {}),
+    });
   });
 
   // --- Everything below needs a session ---------------------------------------
@@ -192,6 +204,9 @@ export function parentRoutes(ctx: Ctx) {
     const hid = param(c, "hid");
     await requireMember(c, hid);
     const input = await body(c, z.object({ email: v.email, locale: v.locale.optional() }));
+    if (!inviteUserLimit.take(c.get("user").id) || !inviteRecipientLimit.take(input.email)) {
+      throw new HTTPException(429, { message: "too many invitations; try again tomorrow" });
+    }
     const token = randomToken("pp_i_");
     const expiresAt = new Date(ctx.now().getTime() + INVITE_DAYS * 86_400_000);
     const [invite] = await ctx.db
@@ -263,9 +278,26 @@ export function parentRoutes(ctx: Ctx) {
       .from(householdMembers)
       .where(eq(householdMembers.householdId, hid));
     if (n <= 1) throw new HTTPException(409, { message: "a household needs at least one member" });
-    await ctx.db
-      .delete(householdMembers)
-      .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, uid)));
+    await ctx.db.transaction(async (tx) => {
+      const [removed] = await tx
+        .delete(householdMembers)
+        .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, uid)))
+        .returning();
+      if (removed?.role !== "owner") return;
+      // The household always keeps an owner: the longest-standing parent takes over.
+      const [next] = await tx
+        .select()
+        .from(householdMembers)
+        .where(eq(householdMembers.householdId, hid))
+        .orderBy(householdMembers.createdAt)
+        .limit(1);
+      if (next) {
+        await tx
+          .update(householdMembers)
+          .set({ role: "owner" })
+          .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, next.userId)));
+      }
+    });
     return c.body(null, 204);
   });
 
@@ -311,7 +343,7 @@ export function parentRoutes(ctx: Ctx) {
   });
 
   app.post("/phones/claim", async (c) => {
-    if (!claimLimit.take(`${clientIp(c)}:${c.get("user").id}`)) {
+    if (!claimLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${c.get("user").id}`)) {
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
     }
     const input = await body(
@@ -332,7 +364,8 @@ export function parentRoutes(ctx: Ctx) {
     }
 
     const deviceToken = randomToken(DEVICE_PREFIX);
-    const claimed = await ctx.db.transaction(async (tx) => {
+    // One transaction: a phone polling meanwhile sees either "waiting" or its token.
+    const phone = await ctx.db.transaction(async (tx) => {
       const [p] = await tx
         .select()
         .from(pairings)
@@ -341,24 +374,22 @@ export function parentRoutes(ctx: Ctx) {
         )
         .for("update");
       if (!p) return null;
-      await tx.update(pairings).set({ claimedAt: ctx.now() }).where(eq(pairings.id, p.id));
-      return p;
+      const created = await createPhone(ctx, tx, {
+        householdId,
+        name: input.name,
+        profile: input.profile,
+        mode: p.mode,
+        deviceTokenHash: sha256(deviceToken),
+        deviceInfo: p.deviceInfo ?? null,
+        timezone: input.timezone,
+      });
+      await tx
+        .update(pairings)
+        .set({ claimedAt: ctx.now(), phoneId: created.id, pendingDeviceToken: deviceToken })
+        .where(eq(pairings.id, p.id));
+      return created;
     });
-    if (!claimed) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
-
-    const phone = await createPhone(ctx, {
-      householdId,
-      name: input.name,
-      profile: input.profile,
-      mode: claimed.mode,
-      deviceTokenHash: sha256(deviceToken),
-      deviceInfo: claimed.deviceInfo ?? null,
-      timezone: input.timezone,
-    });
-    await ctx.db
-      .update(pairings)
-      .set({ phoneId: phone.id, pendingDeviceToken: deviceToken })
-      .where(eq(pairings.id, claimed.id));
+    if (!phone) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
     await syncDns(ctx, phone.id);
     return c.json(await phoneSummary(ctx, phone), 201);
   });
@@ -387,15 +418,11 @@ export function parentRoutes(ctx: Ctx) {
     return c.json(await phoneSummary(ctx, updated!));
   });
 
+  // On a Self phone this goes through the key: otherwise the owner could remove the
+  // phone and pair it again as a Child phone, which has no key.
   app.delete("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
-    await ctx.db.delete(phones).where(eq(phones.id, phone.id));
-    try {
-      await ctx.dns.deleteClient(phone.dnsClientId);
-    } catch (err) {
-      console.error(`DNS delete failed for ${phone.dnsClientId}: ${(err as Error).message}`);
-    }
-    return c.body(null, 204);
+    return change(c, phone, { type: "phone.remove", dnsClientId: phone.dnsClientId });
   });
 
   // Apps

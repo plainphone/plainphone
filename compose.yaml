@@ -33,6 +33,7 @@ services:
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: ${DNS_HOST_SUFFIX:-dns.plainphone.org}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
     ports:
       - "${APP_PORT:-8080}:8080"
 

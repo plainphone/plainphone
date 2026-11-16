@@ -26,6 +26,14 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /**
+   * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
+   * Leave false when the server is reachable directly, or clients can fake their address.
+   */
+  TRUST_PROXY: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   /** Run database migrations on startup. */
   MIGRATE_ON_START: z
     .enum(["true", "false"])

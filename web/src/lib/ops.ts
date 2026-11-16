@@ -68,5 +68,7 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
       return op.key.keyType === "trusted"
         ? t("op.keyTrusted", { email: op.key.trustedEmail ?? "" })
         : t("op.keyDelay", { hours: op.key.delayHours });
+    case "phone.remove":
+      return t("op.phoneRemove");
   }
 }

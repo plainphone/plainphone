@@ -146,6 +146,7 @@ export const en = {
   "op.scheduleDelete": "Delete a school time or bedtime",
   "op.keyDelay": "Change the key to a delay of {hours} hours",
   "op.keyTrusted": "Change the key to the trusted person {email}",
+  "op.phoneRemove": "Remove this phone from Plainphone",
 
   "apps.title": "Apps",
   "apps.intro": "Hidden apps disappear from the phone within a minute. New apps are hidden until you show them.",

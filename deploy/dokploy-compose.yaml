@@ -41,6 +41,8 @@ services:
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: dns.plainphone.org
+      # Traefik sits in front, so X-Forwarded-For is trustworthy here.
+      TRUST_PROXY: "true"
     expose:
       - "8080"
     deploy:

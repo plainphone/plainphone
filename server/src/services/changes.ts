@@ -32,7 +32,8 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
-  | { type: "key.set"; key: KeyInput };
+  | { type: "key.set"; key: KeyInput }
+  | { type: "phone.remove"; dnsClientId: string };
 
 export class ChangeError extends Error {
   constructor(
@@ -81,6 +82,16 @@ async function loadSchedule(db: DbLike, phoneId: string, scheduleId: string) {
   return row;
 }
 
+/** A window that lists a hidden app would show it during the window. */
+async function showsHiddenApp(db: DbLike, phoneId: string, packages: string[]): Promise<boolean> {
+  if (packages.length === 0) return false;
+  const visible = await db
+    .select({ p: phoneApps.packageName })
+    .from(phoneApps)
+    .where(and(eq(phoneApps.phoneId, phoneId), inArray(phoneApps.packageName, packages), eq(phoneApps.allowed, true)));
+  return visible.length < new Set(packages).size;
+}
+
 /** Whether an op makes the rules less strict, judged against the current state. */
 export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boolean> {
   switch (op.type) {
@@ -97,13 +108,16 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "dns.blockDomain":
       return !op.present;
     case "schedule.create":
-      return false;
+      return showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
+    case "phone.remove":
+      // Removing a Self phone and pairing it again as a Child would drop the key.
+      return true;
     case "schedule.delete":
       return true;
     case "schedule.update": {
       const current = await loadSchedule(db, phone.id, op.scheduleId);
       if (!current) throw new ChangeError(404, "schedule not found");
-      return scheduleLoosens(current, op.schedule);
+      return scheduleLoosens(current, op.schedule) || showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
     }
     case "key.set": {
       const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
@@ -238,11 +252,22 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
       return { dns: false };
     }
+    case "phone.remove":
+      await db.delete(phones).where(eq(phones.id, phone.id));
+      return { dns: false };
   }
 }
 
 /** Side effects outside the database, after an op has been applied. */
 async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
+  if (op.type === "phone.remove") {
+    try {
+      await ctx.dns.deleteClient(op.dnsClientId);
+    } catch (err) {
+      console.error(`DNS delete failed for ${op.dnsClientId}: ${(err as Error).message}`);
+    }
+    return;
+  }
   if (op.type !== "key.set" || op.key.keyType !== "trusted" || !op.key.trustedEmail || !ctx.mail.canSend) return;
   const [requester] = requestedBy
     ? await ctx.db.select({ locale: users.locale }).from(users).where(eq(users.id, requestedBy))
@@ -271,7 +296,9 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
     await validateOp(tx, phone, op);
     if (phone.profile === "self" && (await isLoosening(tx, phone, op))) {
       const [key] = await tx.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
-      const keyType = key?.keyType ?? "delay";
+      // A trusted person who has never signed in cannot approve anything. Fall back to
+      // the delay, so a mistyped address never locks the owner in for good.
+      const keyType = key?.keyType === "trusted" && key.trustedUserId ? "trusted" : "delay";
       const delayHours = key?.delayHours ?? 24;
       const [change] = await tx
         .insert(pendingChanges)
@@ -315,16 +342,18 @@ export async function applyPending(
     const [phone] = await tx.select().from(phones).where(eq(phones.id, change.phoneId));
     if (!phone) return null;
     let dns = false;
+    let status: "applied" | "failed" = "applied";
     try {
       // A savepoint, so a failed op (e.g. its target was deleted meanwhile) does not
       // abort the outer transaction that marks the change as handled.
       dns = (await tx.transaction((sp) => applyOp(ctx, sp, phone, change.op as Op))).dns;
     } catch (err) {
       console.error(`pending change ${change.id} could not be applied`, err);
+      status = "failed";
     }
     await tx
       .update(pendingChanges)
-      .set({ status: "applied", decidedBy, decidedAt: ctx.now() })
+      .set({ status, decidedBy, decidedAt: ctx.now() })
       .where(eq(pendingChanges.id, change.id));
     return { phoneId: phone.id, dns, op: change.op as Op, requestedBy: change.requestedBy };
   });

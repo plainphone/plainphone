@@ -228,7 +228,7 @@ export const selfKeys = pgTable("self_keys", {
   payUnlockRecipient: text("pay_unlock_recipient").notNull().default("plainphone"),
 });
 
-export type ChangeStatus = "pending" | "applied" | "cancelled" | "rejected";
+export type ChangeStatus = "pending" | "applied" | "cancelled" | "rejected" | "failed";
 
 /** A loosening change on a Self-profile phone that waits for the key. */
 export const pendingChanges = pgTable(
@@ -241,7 +241,7 @@ export const pendingChanges = pgTable(
     requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
     op: jsonb("op").notNull(),
     keyType: text("key_type", { enum: ["delay", "trusted"] }).notNull(),
-    status: text("status", { enum: ["pending", "applied", "cancelled", "rejected"] })
+    status: text("status", { enum: ["pending", "applied", "cancelled", "rejected", "failed"] })
       .notNull()
       .default("pending"),
     /** For the delay key: when the change takes effect. Null for the trusted-person key. */

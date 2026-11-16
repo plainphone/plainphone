@@ -100,6 +100,44 @@ describe("Self profile with the delay key", () => {
   });
 });
 
+describe("Self profile: ways around the key", () => {
+  it("cannot remove a Self phone without the key (and re-pair it as a Child)", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const r = await me.del(`/api/phones/${phoneId}`);
+    expect(r.status).toBe(202);
+    expect(r.json.change.op.type).toBe("phone.remove");
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect(h.dns.clients.size).toBe(1);
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    expect((await device.get("/api/device/rules")).status).toBe(401);
+    expect(h.dns.clients.size).toBe(0);
+  });
+
+  it("cannot show a hidden app through a school-time window", async () => {
+    const { me, phoneId } = await selfPhone();
+    await me.put(`/api/phones/${phoneId}/apps/com.spotify.music`, { allowed: false });
+    const base = { kind: "school", days: [1], startMinute: 480, endMinute: 840 };
+    const hidden = await me.post(`/api/phones/${phoneId}/schedules`, { ...base, allowedPackages: ["com.instagram.android"] });
+    expect(hidden.json.status).toBe("pending");
+    const none = await me.post(`/api/phones/${phoneId}/schedules`, base);
+    expect(none.json.status).toBe("applied");
+  });
+
+  it("falls back to the delay while the trusted person has not signed in", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const key = { keyType: "trusted", delayHours: 24, trustedEmail: "typo@example.org", payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
+    await me.put(`/api/phones/${phoneId}/key`, key);
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    expect((await me.get(`/api/phones/${phoneId}/key`)).json.keyType).toBe("trusted");
+    const show = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
+    expect(show.json.change.keyType).toBe("delay");
+    h.clock.advance(24 * 3_600_000);
+    expect(await allowed(device)).toContain("com.instagram.android");
+  });
+});
+
 describe("Self profile with a trusted person", () => {
   it("waits for the trusted person's approval", async () => {
     const { me, phoneId, device } = await selfPhone();

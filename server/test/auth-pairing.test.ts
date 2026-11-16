@@ -17,10 +17,13 @@ describe("accounts", () => {
 
     const v = await c.post("/api/auth/verify", { token });
     expect(v.status).toBe(200);
-    expect(v.headers.get("set-cookie")).toMatch(/pp_session=.*HttpOnly.*Secure.*SameSite=Strict/i);
+    const cookie = v.headers.get("set-cookie")!;
+    expect(cookie).toMatch(/pp_session=.*HttpOnly.*Secure.*SameSite=Strict/i);
+    // The PWA never sees the token in JavaScript; only native apps ask for it.
+    expect(v.json.sessionToken).toBeUndefined();
     expect((await c.post("/api/auth/verify", { token })).status).toBe(400); // single use
 
-    c.token = v.json.sessionToken;
+    c.token = /pp_session=([^;]+)/.exec(cookie)![1];
     const me = await c.get("/api/me");
     expect(me.json.user.email).toBe("parent@example.org");
     expect(me.json.households).toHaveLength(1);
@@ -122,6 +125,43 @@ describe("pairing", () => {
     expect(dnsClient.blockedCategories).toHaveLength(6);
   });
 
+  it("never shows a claimed pairing as expired to the polling phone", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const device = new Client(h);
+    const start = await device.post("/api/device/pairings", {});
+    const poll = () =>
+      device.get(`/api/device/pairings/${start.json.pairingId}`, { "x-poll-secret": start.json.pollSecret });
+    const [claim, first] = await Promise.all([
+      parent.post("/api/phones/claim", { code: start.json.code, name: "A", profile: "child" }),
+      poll(),
+    ]);
+    expect(claim.status).toBe(201);
+    expect([200, 202]).toContain(first.status);
+    if (first.status === 202) expect((await poll()).status).toBe(200);
+  });
+
+  it("limits invitations per recipient", async () => {
+    const a = await signIn(h, "a@example.org");
+    const hid = (await a.get("/api/me")).json.households[0].id;
+    for (let i = 0; i < 3; i++) {
+      expect((await a.post(`/api/households/${hid}/invites`, { email: "x@example.org" })).status).toBe(201);
+    }
+    expect((await a.post(`/api/households/${hid}/invites`, { email: "x@example.org" })).status).toBe(429);
+  });
+
+  it("keeps an owner when the owner leaves", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    const hid = (await mum.get("/api/me")).json.households[0].id;
+    await mum.post(`/api/households/${hid}/invites`, { email: "dad@example.org" });
+    const token = decodeURIComponent(/invite#token=(\S+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
+    const dad = await signIn(h, "dad@example.org");
+    await dad.post("/api/invites/accept", { token });
+    const mumId = (await mum.get("/api/me")).json.user.id;
+    expect((await mum.del(`/api/households/${hid}/members/${mumId}`)).status).toBe(204);
+    const members = await dad.get(`/api/households/${hid}/members`);
+    expect(members.json.members).toEqual([expect.objectContaining({ email: "dad@example.org", role: "owner" })]);
+  });
+
   it("expires codes after 15 minutes", async () => {
     const parent = await signIn(h, "p@example.org");
     const device = new Client(h);
@@ -150,7 +190,7 @@ describe("pairing", () => {
     const a = await signIn(h, "a@example.org");
     const { phoneId, device } = await pairPhone(h, a);
     expect(h.dns.clients.size).toBe(1);
-    expect((await a.del(`/api/phones/${phoneId}`)).status).toBe(204);
+    expect((await a.del(`/api/phones/${phoneId}`)).json).toEqual({ status: "applied" });
     expect(h.dns.clients.size).toBe(0);
     expect((await device.get("/api/device/rules")).status).toBe(401);
   });

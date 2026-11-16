@@ -145,6 +145,7 @@ export const da: Messages = {
   "op.scheduleDelete": "Slet en skoletid eller sengetid",
   "op.keyDelay": "Skift nøglen til en ventetid på {hours} timer",
   "op.keyTrusted": "Skift nøglen til personen {email}",
+  "op.phoneRemove": "Fjern telefonen fra Plainphone",
 
   "apps.title": "Apps",
   "apps.intro": "Skjulte apps forsvinder fra telefonen inden for et minut. Nye apps er skjult, til du viser dem.",

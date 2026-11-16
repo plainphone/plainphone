@@ -20,7 +20,7 @@ export function createApp(ctx: Ctx) {
     secureHeaders({
       contentSecurityPolicy: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https://tile.openstreetmap.org"],
+        imgSrc: ["'self'", "data:"],
         styleSrc: ["'self'"],
         scriptSrc: ["'self'"],
         connectSrc: ["'self'"],

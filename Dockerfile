@@ -13,7 +13,6 @@ COPY web web
 RUN pnpm --filter @plainphone/web build \
  && pnpm --filter @plainphone/server build \
  && pnpm --filter @plainphone/server deploy --prod --legacy /out \
- && cp -r server/dist server/drizzle /out/ \
  && cp -r web/dist /out/web
 
 FROM node:24-slim

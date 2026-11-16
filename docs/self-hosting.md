@@ -32,6 +32,7 @@ pairing QR code.
 | `MAIL_FROM` | `Plainphone <no-reply@plainphone.org>` | Sender |
 | `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`) |
 | `DNS_HOST_SUFFIX` | `dns.plainphone.org` | Phones use `<clientId>.<suffix>` as private DNS |
+| `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `PAYMENTS_ENABLED` | `false` | Pay to unlock (not implemented yet) |
 

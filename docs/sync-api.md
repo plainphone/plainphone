@@ -42,8 +42,10 @@ phone                                      server                         parent
 4. **Location.** When `location.enabled`, report every `intervalMinutes`, and at once when
    `location.requestedAt` is set (a parent pressed Find). When it is off, the server answers
    `409` and the phone should stop.
-5. **Removed.** `401` on rules means a parent removed the phone. Keep enforcing the last rules
-   and show "pair again"; never loosen on an error.
+5. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
+   allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
+   A paired phone must not start a new pairing on its own, or a Self user could pair it again
+   as a Child phone and leave the key behind.
 
 ### Rules the phone enforces
 
@@ -51,7 +53,7 @@ phone                                      server                         parent
 |---|---|
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
-| `schedules` | In a window (phone's `timezone`), only dialer, messages and `allowedPackages` are visible. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
+| `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows). `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host` | `setGlobalPrivateDnsModeSpecifiedHost(host)` |
 | `location` | See above |
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |

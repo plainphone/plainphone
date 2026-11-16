@@ -40,9 +40,6 @@ resolver refuses unregistered ClientIDs, so a phone's private DNS only works onc
 has succeeded; until then the PWA shows the filter as "not synced yet". Domain list changes take
 about 5 seconds to apply in AdGuard; profile and `block_adult` changes are immediate.
 
-The hosted service runs on a private address with a bearer token (Bitwarden: "Plainphone: ppdns
-API token (dns.plainphone.org)"). It is not reachable from the public internet.
-
 ## Testing
 
 - `server/test/dns-provider.test.ts` runs the HTTP adapter against a stand-in for `/v1/clients`.

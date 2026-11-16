@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -60,9 +61,17 @@ export class RateLimiter {
   }
 }
 
-export function clientIp(c: Context): string {
-  // Behind one reverse proxy (Traefik in Dokploy) the last X-Forwarded-For entry is the
-  // address the proxy saw; earlier entries are whatever the client claimed.
-  const xff = c.req.header("x-forwarded-for")?.split(",");
-  return xff?.[xff.length - 1]?.trim() || c.req.header("x-real-ip") || "unknown";
+export function clientIp(c: Context, trustProxy: boolean): string {
+  if (trustProxy) {
+    // Behind one reverse proxy the last X-Forwarded-For entry is the address the proxy
+    // saw; earlier entries are whatever the client claimed.
+    const xff = c.req.header("x-forwarded-for")?.split(",");
+    const ip = xff?.[xff.length - 1]?.trim();
+    if (ip) return ip;
+  }
+  try {
+    return getConnInfo(c).remote.address ?? "unknown";
+  } catch {
+    return "unknown"; // no socket, e.g. in tests
+  }
 }

@@ -106,7 +106,7 @@ export async function signIn(h: Harness, email: string, locale: "en" | "da" = "e
   if (r.status !== 202) throw new Error(`login request failed: ${r.status}`);
   const mail = h.mail.outbox.at(-1)!;
   const token = decodeURIComponent(/#token=([^\s"&<]+)/.exec(mail.text)![1]!);
-  const v = await c.post("/api/auth/verify", { token, locale });
+  const v = await c.post("/api/auth/verify", { token, locale, client: "native" });
   if (v.status !== 200) throw new Error(`verify failed: ${v.status} ${JSON.stringify(v.json)}`);
   c.token = v.json.sessionToken;
   return c;

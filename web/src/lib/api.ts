@@ -88,7 +88,8 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
-  | { type: "key.set"; key: KeyInput };
+  | { type: "key.set"; key: KeyInput }
+  | { type: "phone.remove"; dnsClientId: string };
 
 export interface PendingChange {
   id: string;

@@ -16,6 +16,7 @@ import { dnsClientId } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
 
 type Phone = typeof phones.$inferSelect;
+type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 /** How often the phone polls for rules when push is not available. */
 export const POLL_SECONDS = 60;
@@ -40,6 +41,7 @@ export const STARTER_PACKS: Record<string, string[]> = {
 
 export async function createPhone(
   ctx: Ctx,
+  tx: Tx,
   input: {
     householdId: string;
     name: string;
@@ -50,28 +52,27 @@ export async function createPhone(
     timezone?: string;
   },
 ): Promise<Phone> {
-  return ctx.db.transaction(async (tx) => {
-    const [phone] = await tx
-      .insert(phones)
-      .values({
-        householdId: input.householdId,
-        name: input.name,
-        profile: input.profile,
-        mode: input.mode,
-        deviceTokenHash: input.deviceTokenHash,
-        deviceInfo: input.deviceInfo,
-        dnsClientId: dnsClientId(),
-        // D7 and spec 11: location is on for a child, off by default for an adult.
-        locationEnabled: input.profile === "child",
-        timezone: input.timezone ?? "Europe/Copenhagen",
-        pairedAt: ctx.now(),
-      })
-      .returning();
-    // Spec 6: every category is blocked by default.
-    await tx.insert(dnsSettings).values({ phoneId: phone!.id, blockedCategories: [...DNS_CATEGORIES] });
-    if (input.profile === "self") await tx.insert(selfKeys).values({ phoneId: phone!.id });
-    return phone!;
-  });
+  // Runs inside the caller's transaction, together with the pairing it claims.
+  const [phone] = await tx
+    .insert(phones)
+    .values({
+      householdId: input.householdId,
+      name: input.name,
+      profile: input.profile,
+      mode: input.mode,
+      deviceTokenHash: input.deviceTokenHash,
+      deviceInfo: input.deviceInfo,
+      dnsClientId: dnsClientId(),
+      // D7 and spec 11: location is on for a child, off by default for an adult.
+      locationEnabled: input.profile === "child",
+      timezone: input.timezone ?? "Europe/Copenhagen",
+      pairedAt: ctx.now(),
+    })
+    .returning();
+  // Spec 6: every category is blocked by default.
+  await tx.insert(dnsSettings).values({ phoneId: phone!.id, blockedCategories: [...DNS_CATEGORIES] });
+  if (input.profile === "self") await tx.insert(selfKeys).values({ phoneId: phone!.id });
+  return phone!;
 }
 
 /** Asks the phone to fetch rules (or report its position) now. Polling is the fallback. */

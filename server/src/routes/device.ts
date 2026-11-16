@@ -35,7 +35,7 @@ export function deviceRoutes(ctx: Ctx) {
   // --- Pairing (no device token yet) -------------------------------------------
 
   app.post("/pairings", async (c) => {
-    if (!pairStartLimit.take(clientIp(c))) throw new HTTPException(429, { message: "too many pairings" });
+    if (!pairStartLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many pairings" });
     const input = await body(
       c,
       z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional() }),
@@ -69,7 +69,7 @@ export function deviceRoutes(ctx: Ctx) {
   app.get("/pairings/:id", async (c) => {
     const id = c.req.param("id");
     const secret = c.req.header("x-poll-secret") ?? "";
-    if (!pairPollLimit.take(`${clientIp(c)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
+    if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
     if (!z.uuid().safeParse(id).success) throw new HTTPException(404, { message: "not found" });
     const result = await ctx.db.transaction(async (tx) => {
       const [p] = await tx.select().from(pairings).where(eq(pairings.id, id)).for("update");
