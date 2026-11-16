@@ -35,6 +35,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/policies.md](docs/policies.md): the policies and their known limits
 - [docs/contacts.md](docs/contacts.md): approved contacts, emergency calls and what is not covered
 - [docs/dns-bypass.md](docs/dns-bypass.md): how apps could get around the DNS filter
+- [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [SECURITY.md](SECURITY.md): how to report a bypass
 
 ## Build
