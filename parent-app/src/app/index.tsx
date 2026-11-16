@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Stack, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useRef } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
@@ -34,6 +35,16 @@ function PhonesList() {
       }),
     );
   }, []);
+
+  // Back from adding, renaming or removing a phone: show the current list.
+  const firstFocus = useRef(true);
+  const { reload } = res;
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) firstFocus.current = false; // useLoad already loads on mount
+      else void reload();
+    }, [reload]),
+  );
 
   return (
     <Screen testID="phones" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>

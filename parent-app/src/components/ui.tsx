@@ -189,6 +189,7 @@ export function Button({
   kind = "primary",
   disabled,
   busy,
+  accessibilityLabel,
   accessibilityHint,
   testID,
 }: {
@@ -197,6 +198,8 @@ export function Button({
   kind?: ButtonKind;
   disabled?: boolean;
   busy?: boolean;
+  /** When the spoken name needs more than the visible title, e.g. "Remove Anna" for "Remove". */
+  accessibilityLabel?: string;
   accessibilityHint?: string;
   testID?: string;
 }) {
@@ -210,7 +213,7 @@ export function Button({
       onPress={onPress}
       disabled={off}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!off, busy: !!busy }}
       style={({ pressed }) => [

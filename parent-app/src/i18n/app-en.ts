@@ -27,6 +27,16 @@ export const appEn = {
   "native.mapLabel": "Map showing the phone's last position.",
   "native.mapCredit": "Map data © OpenStreetMap contributors",
   "native.more": "More",
+  "native.shareLink": "Share link",
+  "native.timeHelp": "24-hour clock, like 08:00 or 21:30.",
+  "native.manage": "Manage this phone",
+  "native.renameTitle": "Rename",
+  "native.renamed": "The phone is now called {name}.",
+  "native.removePhone": "Remove this phone",
+  "native.removeBody": "Remove {name} from Plainphone? Its rules and web filter are deleted. The lock on the phone stays until it is released on the phone itself.",
+  "native.removeSelfNote": "This is your own phone, so removing it waits for your key like any loosening.",
+  "native.removeYes": "Yes, remove",
+  "native.removed": "{name} was removed.",
 } as const;
 
 export type AppMessageKey = keyof typeof appEn;
