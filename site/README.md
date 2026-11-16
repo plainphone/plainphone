@@ -44,8 +44,26 @@ The site is a Cloudflare Pages project called `plainphone`, served at
 plainphone.org. `www.plainphone.org`, `plainphone.dk` and `plainphone.eu`
 redirect to it with a 301.
 
+**Automatic.** A push to `main` that touches `site/` runs
+[`.github/workflows/site-deploy.yml`](../.github/workflows/site-deploy.yml): build, run
+`scripts/check.mjs`, then `wrangler pages deploy`. Pull requests are built and checked by
+`site.yml` but never deployed. The workflow can also be started by hand from the Actions
+tab (`workflow_dispatch`), but only on `main`, and it only runs in the
+`plainphone/plainphone` repository, so forks do not try to deploy.
+
+The repository needs two Actions secrets (names only, values live in Cloudflare):
+
+| Secret | What |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | A token that may edit Cloudflare Pages on the account, nothing else |
+| `CLOUDFLARE_ACCOUNT_ID` | The account that owns the `plainphone` project |
+
+Wrangler is pinned in the workflow (`wrangler@4.x.y`). Raise it on purpose, in a pull request.
+
+**By hand**, if Actions is unavailable:
+
 ```sh
 cd site && node build.mjs && node scripts/check.mjs
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
-  npx wrangler pages deploy dist --project-name plainphone --branch main
+  npx wrangler@4.163.0 pages deploy dist --project-name plainphone --branch main
 ```
