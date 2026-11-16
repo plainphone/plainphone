@@ -30,18 +30,29 @@ if (!wordmark.includes('aria-hidden="true"') || wordmark.includes("<title")) thr
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const slug = (s) => s.toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a").normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-function head(t, { path, noindex = false }) {
-  const alt = pages
-    .map((p) => `<link rel="alternate" hreflang="${p.lang}" href="${ORIGIN}${p.path}">`)
+function head(
+  t,
+  {
+    path,
+    noindex = false,
+    title = t.title,
+    description = t.description,
+    ogTitle = t.hero.title,
+    alternates = pages.map((p) => ({ lang: p.lang, path: p.path })),
+    xDefault = "/",
+  },
+) {
+  const alt = alternates
+    .map((a) => `<link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${a.path}">`)
     .join("");
   return `<!doctype html>
 <html lang="${t.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(t.title)}</title>
-<meta name="description" content="${esc(t.description)}">
-${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${ORIGIN}${path}">${alt}<link rel="alternate" hreflang="x-default" href="${ORIGIN}/">`}
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(description)}">
+${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${ORIGIN}${path}">${alt}<link rel="alternate" hreflang="x-default" href="${ORIGIN}${xDefault}">`}
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f3f5f2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#172025" media="(prefers-color-scheme: dark)">
@@ -51,8 +62,8 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <link rel="preload" href="/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Plainphone">
-<meta property="og:title" content="${esc(t.hero.title)}">
-<meta property="og:description" content="${esc(t.description)}">
+<meta property="og:title" content="${esc(ogTitle)}">
+<meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${ORIGIN}${path}">
 <meta property="og:image" content="${ORIGIN}/og-${t.lang}.png">
 <meta property="og:image:width" content="1200">
@@ -65,13 +76,13 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 </head>`;
 }
 
-function header(t) {
+function header(t, switchHref) {
   const other = pages.find((p) => p.lang === t.nav.switchLang);
   return `<a class="skip" href="#main">${t.skip}</a>
 <header class="top">
 <a class="brand" href="${t.path}">${wordmark}<span class="sr">Plainphone</span></a>
 <nav aria-label="${t.nav.label}">
-<a href="${other.path}" hreflang="${other.lang}" lang="${other.lang}">${t.nav.switchLabel}</a>
+<a href="${switchHref ?? other.path}" hreflang="${other.lang}" lang="${other.lang}">${t.nav.switchLabel}</a>
 <a href="${GITHUB}">${t.nav.source}</a>
 </nav>
 </header>`;
@@ -187,10 +198,55 @@ ${footer(t)}
 `;
 }
 
+// The privacy policy: long-form text in content/*.mjs under `privacy`.
+// A block is a string (paragraph), { list: [...] } or { table: { caption, cols, rows } }.
+function privacyPage(t) {
+  const p = t.privacy;
+  const other = pages.find((x) => x.lang === t.nav.switchLang);
+  const block = (b) => {
+    if (typeof b === "string") return `<p>${b}</p>`;
+    if (b.list) return `<ul>${b.list.map((li) => `<li>${li}</li>`).join("")}</ul>`;
+    const { caption, cols, rows } = b.table;
+    return `<div class="table-wrap" role="region" aria-label="${esc(caption)}" tabindex="0"><table>
+<caption class="sr">${caption}</caption>
+<thead><tr>${cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
+<tbody>${rows.map(([what, how]) => `<tr><th scope="row">${what}</th><td>${how}</td></tr>`).join("")}</tbody></table></div>`;
+  };
+  const section = (s) =>
+    `<section aria-labelledby="${s.id}"><h2 id="${s.id}">${s.title}</h2>${s.body.map(block).join("")}</section>`;
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.description,
+    ogTitle: p.h1,
+    alternates: pages.map((x) => ({ lang: x.lang, path: x.privacy.path })),
+    xDefault: pages[0].privacy.path,
+  })}
+<body>
+${header(t, other.privacy.path)}
+<main id="main" class="doc">
+<h1>${p.h1}</h1>
+<p class="updated">${p.updated}</p>
+<p class="lead">${p.lead}</p>
+<p class="note">${p.status}</p>
+<nav class="toc" aria-label="${p.tocLabel}"><ul>${p.sections.map((s) => `<li><a href="#${s.id}">${s.title}</a></li>`).join("")}</ul></nav>
+<section class="short" aria-labelledby="short"><h2 id="short">${p.short.title}</h2>${block({ list: p.short.list })}</section>
+${p.sections.map(section).join("\n")}
+</main>
+${footer(t)}
+</body>
+</html>
+`;
+}
+
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(join(dist, "da"), { recursive: true });
 writeFileSync(join(dist, "index.html"), page(en));
 writeFileSync(join(dist, "da", "index.html"), page(da));
+for (const t of pages) {
+  mkdirSync(join(dist, t.privacy.path), { recursive: true });
+  writeFileSync(join(dist, t.privacy.path, "index.html"), privacyPage(t));
+}
 writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", "og-en.png", "og-da.png"]) {
@@ -201,12 +257,14 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${pages
-  .map(
-    (p) =>
-      `<url><loc>${ORIGIN}${p.path}</loc>${pages
-        .map((a) => `<xhtml:link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${a.path}"/>`)
-        .join("")}</url>`,
+${[(p) => p.path, (p) => p.privacy.path]
+  .flatMap((route) =>
+    pages.map(
+      (p) =>
+        `<url><loc>${ORIGIN}${route(p)}</loc>${pages
+          .map((a) => `<xhtml:link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${route(a)}"/>`)
+          .join("")}</url>`,
+    ),
   )
   .join("\n")}
 </urlset>
@@ -227,4 +285,4 @@ writeFileSync(
   Cache-Control: public, max-age=604800
 `,
 );
-console.log(`Built ${pages.length} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 2} pages + 404 into dist/ (css ${css.length} bytes)`);
