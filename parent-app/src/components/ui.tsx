@@ -58,7 +58,9 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const fnRef = useRef(fn);
-  fnRef.current = fn;
+  useEffect(() => {
+    fnRef.current = fn;
+  });
   const alive = useRef(true);
   const reload = useCallback(async () => {
     setLoading(true);
@@ -76,6 +78,8 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
   }, []);
   useEffect(() => {
     alive.current = true;
+    // Loading data is what this effect is for; the spinner state is part of it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
     return () => {
       alive.current = false;
