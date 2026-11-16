@@ -131,6 +131,23 @@ describe("login links in other situations", () => {
     (SecureStore.getItemAsync as jest.Mock).mockImplementation(real);
   });
 
+  it("sends a second login link to the start screen, not to the last destination again", async () => {
+    await SecureStore.setItemAsync("pp.next", "/pair?code=K7MP4QXR");
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_firstlink123");
+    let n = 0;
+    fakeApi({
+      "POST /auth/verify": () => ({ body: { user: ME.user, sessionToken: `pp_s_${++n}` } }),
+      "GET /me": { body: ME },
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    await waitFor(() => expect(screen).toHavePathname("/pair"));
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_secondlink12");
+    await act(() => router.push("/auth/app"));
+    await waitFor(() => expect(screen).toHavePathname("/"));
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
+  });
+
   it("opens on top of the login screen and leaves no login screen behind", async () => {
     const api = fakeApi({
       "GET /health": { body: { ok: true, mail: "smtp" } },

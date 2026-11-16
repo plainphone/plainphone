@@ -121,6 +121,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const verify = useCallback(
     async (linkToken: string) => {
       linkSignIn.current = true;
+      // A new sign-in gets a fresh answer from takeNext(), also without passing through anon.
+      taking.current = null;
       let p = inflight.get(linkToken);
       if (!p) {
         p = unwrap<{ sessionToken?: string }>(
