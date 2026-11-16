@@ -104,6 +104,16 @@ object LockPolicy {
         android.Manifest.permission.POST_NOTIFICATIONS,
     )
 
+    /** Only set while the parent has location on, so the child cannot switch it off. */
+    const val LOCATION_RESTRICTION = UserManager.DISALLOW_CONFIG_LOCATION
+
+    /** Granted by Device Owner when the parent turns location on; background so "Find" works from a worker. */
+    val LOCATION_PERMISSIONS = listOf(
+        android.Manifest.permission.ACCESS_FINE_LOCATION,
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+    )
+
     /** Chrome managed configuration: no DNS-over-HTTPS bypass, no incognito, SafeSearch on. */
     const val CHROME_PACKAGE = "com.android.chrome"
     val chromeRestrictions: Map<String, Any> = mapOf(

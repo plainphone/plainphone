@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name" translatable="false">Plainphone</string>
     <string name="admin_description">Keeps this phone calm: blocks app installs, factory reset, safe mode and DNS changes.</string>
-    <string name="phase_notice">Phase 2: approved contacts and DNS filter. Not for real use yet.</string>
+    <string name="phase_notice">Phase 4: rules from the parent\'s dashboard. Not for real use yet.</string>
     <string name="status_owner">Locked: Plainphone is Device Owner.</string>
     <string name="status_not_owner">Not locked: Plainphone is not Device Owner. Set the phone up with the QR code.</string>
     <string name="status_maintenance">Maintenance unlock is active. The lock returns automatically.</string>
@@ -106,4 +106,22 @@
     <string name="blocked_call_out">Outgoing call</string>
     <string name="blocked_sms_in">Incoming message</string>
     <string name="blocked_sms_out">Outgoing message</string>
+    <string name="pair_button">Pair with a parent</string>
+    <string name="pairing_title">Pair with a parent</string>
+    <string name="pairing_loading">Getting a pairing code…</string>
+    <string name="pairing_instructions">On the parent\'s phone, open app.plainphone.org, choose Add phone and scan this code, or type the code below.</string>
+    <string name="pairing_waiting">Waiting for the parent… The code is valid for 15 minutes.</string>
+    <string name="pairing_done">Paired. The parent\'s rules now apply.</string>
+    <string name="pairing_failed">Could not reach the server. Check the Wi-Fi or mobile data and try again.</string>
+    <string name="pairing_retry">Try again</string>
+    <string name="pairing_qr_description">QR code for pairing</string>
+    <string name="status_sync_unpaired">Not paired with a parent yet.</string>
+    <string name="status_sync_never">Paired. Waiting for the first rules from the server.</string>
+    <string name="status_sync_ok">Paired. Last sync: %1$s</string>
+    <string name="status_sync_removed">Removed in the parent\'s dashboard. The last rules still apply. Pair again from the maintenance screen.</string>
+    <string name="status_sync_no_rules">No rules from the server yet: the QR code\'s rules apply.</string>
+    <string name="maintenance_pair">Pair with a parent</string>
+    <string name="maintenance_sync_now">Sync with the server now</string>
+    <string name="maintenance_sync_started">Sync started.</string>
+    <string name="contacts_admin_managed">This list is managed in the parent\'s dashboard (app.plainphone.org). Change it there.</string>
 </resources>

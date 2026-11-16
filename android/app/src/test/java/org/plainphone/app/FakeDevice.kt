@@ -26,6 +26,8 @@ class FakeDevice(
     // Like Android: hidden apps disappear from the launcher query.
     override fun launchablePackages() = launchable - hidden
     override fun corePackages() = core
+    var essential: Set<String> = emptySet()
+    override fun essentialPackages() = essential
     override fun isInstalled(pkg: String) = pkg in launchable
     override fun setHidden(pkg: String, hidden: Boolean): Boolean {
         if (pkg in unhideable) return false
@@ -71,6 +73,9 @@ class FakeDevice(
         if (pkg == ownPackage) roles += SMS else roles -= SMS
     }
     override fun telephonyApps() = telephony
+    var locationOn = false
+    override fun setLocationEnabled(enabled: Boolean) { locationOn = enabled }
+
     override fun grantPermission(pkg: String, permission: String): Boolean {
         if (permission in refusedPermissions) return false
         granted += permission

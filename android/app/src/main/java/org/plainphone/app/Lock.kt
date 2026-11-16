@@ -10,12 +10,18 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import java.text.DateFormat
+import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
+import org.plainphone.app.sync.EffectivePolicy
+import org.plainphone.app.sync.LockState
+import org.plainphone.app.sync.Schedules
+import org.plainphone.app.sync.SyncStore
 
 /** Glue between Android entry points and [PolicyApplier]. */
 object Lock {
     private const val TAG = "Plainphone"
+    private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
 
     fun applier(context: Context) = PolicyApplier(
@@ -34,13 +40,98 @@ object Lock {
         }
     }
 
+    /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
+    fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig =
+        EffectivePolicy.merge(ConfigStore(context).load(), SyncStore(context).rules(), now)
+
     /** Blocking. Never call on the main thread. */
-    fun applyNow(context: Context, reason: String): List<StepResult> {
-        val config = ConfigStore(context).load()
+    fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
+        val config = effectiveConfig(context)
         val results = applier(context).apply(config)
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
+        saveApplied(context, config, results)
+        scheduleNextWindowChange(context)
         return results
+    }
+
+    /**
+     * Applies the lock if the merged config differs from the last applied one (new rules, a
+     * school-time window starting or ending) or the last run is older than [maxAgeMs].
+     * Does nothing during a maintenance unlock. Blocking.
+     */
+    fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? {
+        if (isInMaintenanceWindow(context)) return null
+        val p = prefs(context)
+        val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
+        if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) return null
+        return applyNow(context, reason)
+    }
+
+    /** When the lock was first applied on this phone (the setup moment). Null before that. */
+    fun firstAppliedAtMs(context: Context): Long? = prefs(context).getLong("first_applied_at", 0L).takeIf { it > 0 }
+
+    /** What the parent's dashboard shows about the lock. */
+    fun lockState(context: Context): LockState {
+        val p = prefs(context)
+        val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
+        return LockState(
+            deviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true,
+            maintenance = isInMaintenanceWindow(context),
+            failedPolicies = p.getString("applied_failed", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty(),
+            appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
+            dnsHost = p.getString("dns_in_use", null),
+        )
+    }
+
+    private fun saveApplied(context: Context, config: PolicyConfig, results: List<StepResult>) {
+        val now = System.currentTimeMillis()
+        val edit = prefs(context).edit()
+            .putLong("applied_at", now)
+            .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
+            .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") { it.name })
+        // Android keeps the old host when the new one does not answer, so only a success changes it.
+        if (results.any { it.name == "private DNS" && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        val wasOwner = results.none { it.name == "device owner" && !it.ok }
+        if (wasOwner && !prefs(context).contains("first_applied_at")) {
+            edit.putLong("first_applied_at", now)
+        }
+        edit.apply()
+    }
+
+    /** School time and bedtime start and end on time even if nothing else wakes the app. */
+    private fun scheduleNextWindowChange(context: Context) {
+        val am = context.getSystemService(AlarmManager::class.java)
+        val rules = SyncStore(context).rules()
+        val next = rules?.let { Schedules.nextBoundary(it.schedules, Instant.now(), it.timezone) }
+        if (next == null) {
+            am.cancel(windowIntent(context))
+            return
+        }
+        // Inexact but allowed while idle: exact alarms need a permission the user must grant.
+        // The window is also re-checked whenever the screen turns on and on every sync.
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli() + 1_000L, windowIntent(context))
+    }
+
+    private fun windowIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        1,
+        Intent(context, RelockReceiver::class.java).setAction(RelockReceiver.ACTION_WINDOW),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /** For alarms: re-applies only if the merged config changed; never during maintenance. */
+    fun applyIfNeededAsync(context: Context, reason: String, done: () -> Unit) {
+        val app = context.applicationContext
+        executor.execute {
+            try {
+                applyIfNeeded(app, reason, maxAgeMs = 0L)
+            } catch (e: Exception) {
+                Log.e(TAG, "apply crashed", e)
+            } finally {
+                done()
+            }
+        }
     }
 
     fun liftAsync(context: Context, done: (List<StepResult>) -> Unit) {

@@ -8,11 +8,17 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
+import android.view.View
+import java.text.DateFormat
+import java.util.Date
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.LocalContactPolicySource
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.ui.PairingActivity
 
 /**
  * Status screen. Tapping the version line [TAPS_TO_MAINTENANCE] times opens the
@@ -21,6 +27,7 @@ import org.plainphone.app.contacts.LocalContactPolicySource
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
+    private lateinit var pairButton: Button
     private var taps = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +49,11 @@ class MainActivity : Activity() {
         })
         status = TextView(this).apply { textSize = 17f }
         column.addView(status)
+        pairButton = Button(this).apply {
+            text = getString(R.string.pair_button)
+            setOnClickListener { startActivity(PairingActivity.intent(this@MainActivity, authorized = false)) }
+        }
+        column.addView(pairButton)
         report = TextView(this).apply {
             typeface = Typeface.MONOSPACE
             textSize = 12f
@@ -65,9 +77,17 @@ class MainActivity : Activity() {
         refresh()
         // Self-healing: every time the app is opened the lock is re-applied,
         // unless a parent has lifted it for maintenance.
+        val justProvisioned = intent?.action == DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL
         if (isDeviceOwner() && !Lock.isInMaintenanceWindow(this)) {
-            Lock.applyAsync(this, if (intent?.action == DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) "provisioning successful" else "app opened") {
-                runOnUiThread { refresh() }
+            Lock.applyAsync(this, if (justProvisioned) "provisioning successful" else "app opened") {
+                runOnUiThread {
+                    refresh()
+                    // Straight after setup: pair with the parent's dashboard (once).
+                    if (justProvisioned && PairingActivity.canPairWithoutPin(this)) {
+                        intent = Intent(this, MainActivity::class.java)
+                        startActivity(PairingActivity.intent(this, authorized = false))
+                    }
+                }
             }
         }
     }
@@ -77,7 +97,18 @@ class MainActivity : Activity() {
         status.text = buildString {
             appendLine(if (isDeviceOwner()) getString(R.string.status_owner) else getString(R.string.status_not_owner))
             if (Lock.isInMaintenanceWindow(this@MainActivity)) appendLine(getString(R.string.status_maintenance))
-            appendLine(getString(R.string.status_dns, config.dnsHost))
+            appendLine(getString(R.string.status_dns, Lock.lockState(this@MainActivity).dnsHost ?: config.dnsHost))
+            val sync = SyncStore(this@MainActivity)
+            appendLine(
+                when {
+                    sync.removed -> getString(R.string.status_sync_removed)
+                    sync.isPaired -> sync.lastSyncAtMs
+                        ?.let { getString(R.string.status_sync_ok, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))) }
+                        ?: getString(R.string.status_sync_never)
+                    else -> getString(R.string.status_sync_unpaired)
+                },
+            )
+            if (sync.isPaired && sync.rules() == null) appendLine(getString(R.string.status_sync_no_rules))
             val roles = getSystemService(RoleManager::class.java)
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true) R.string.status_phone_role_ok else R.string.status_phone_role_missing))
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
@@ -89,6 +120,7 @@ class MainActivity : Activity() {
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
         }
         report.text = Lock.lastReport(this)
+        pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE
     }
 
     private fun onVersionTapped() {

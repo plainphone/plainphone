@@ -5,19 +5,29 @@ package org.plainphone.app
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import org.plainphone.app.sync.SyncScheduler
 
-/** Puts the lock back after a reboot, an app update or the end of a maintenance unlock. */
+/**
+ * Puts the lock back after a reboot, an app update or the end of a maintenance unlock, and
+ * switches school time and bedtime on and off. Boot and updates also start a sync.
+ */
 class RelockReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED, ACTION_RELOCK -> {
                 val pending = goAsync()
                 Lock.applyAsync(context, intent.action ?: "relock") { pending.finish() }
+                if (intent.action != ACTION_RELOCK) SyncScheduler.onBoot(context)
+            }
+            ACTION_WINDOW -> {
+                val pending = goAsync()
+                Lock.applyIfNeededAsync(context, "school time or bedtime starts or ends") { pending.finish() }
             }
         }
     }
 
     companion object {
         const val ACTION_RELOCK = "org.plainphone.app.RELOCK"
+        const val ACTION_WINDOW = "org.plainphone.app.WINDOW"
     }
 }

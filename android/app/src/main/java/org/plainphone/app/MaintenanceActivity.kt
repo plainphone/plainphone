@@ -13,7 +13,10 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.plainphone.app.sync.SyncScheduler
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
+import org.plainphone.app.ui.PairingActivity
 
 /**
  * Hidden parent screen for phase 1 testing, so a test phone can always be
@@ -99,6 +102,23 @@ class MaintenanceActivity : Activity() {
                 startActivity(Intent(this@MaintenanceActivity, ApprovedContactsActivity::class.java))
             }
         })
+        if (!SyncStore(this).isPaired) {
+            column.addView(Button(this).apply {
+                text = getString(R.string.maintenance_pair)
+                setOnClickListener {
+                    startActivity(PairingActivity.intent(this@MaintenanceActivity, authorized = true))
+                    finish()
+                }
+            })
+        } else {
+            column.addView(Button(this).apply {
+                text = getString(R.string.maintenance_sync_now)
+                setOnClickListener {
+                    SyncScheduler.now(this@MaintenanceActivity, "maintenance screen")
+                    output.text = getString(R.string.maintenance_sync_started)
+                }
+            })
+        }
         column.addView(Button(this).apply {
             text = getString(R.string.maintenance_release)
             setOnClickListener {

@@ -8,11 +8,12 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
+import org.plainphone.app.sync.SyncStore
 
 /**
- * Where the approved-contacts list comes from. Phase 2 keeps it on the phone
- * (QR code + maintenance screen); phase 3 adds a source that syncs it from the
- * parent's dashboard. Callers only ever read [rules].
+ * Where the approved-contacts list comes from. Before pairing it lives on the phone
+ * (QR code + maintenance screen); once the phone has rules from the parent's
+ * dashboard, [SyncedContactPolicySource] takes the list from there. Callers only ever read [rules].
  */
 interface ContactPolicySource {
     /** The current rules. Must be cheap: it runs for every call and message. */
@@ -23,6 +24,8 @@ interface ContactPolicySource {
 interface EditableContactPolicySource : ContactPolicySource {
     fun add(contact: ApprovedContact): Result<ApprovedContact>
     fun remove(number: String)
+    /** True when the list is managed in the parent's dashboard and cannot be edited on the phone. */
+    val managedRemotely: Boolean get() = false
 }
 
 /** Text form of the list, used in SharedPreferences and in the QR code extra. */
@@ -158,7 +161,33 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
     }
 }
 
-/** The one source the app uses. Phase 3 swaps this for the server-backed source. */
+/**
+ * Phase 4: once the phone has rules from the server, the parent's list from the dashboard
+ * applies (also offline: the last rules are stored). Until then, the local list.
+ */
+class SyncedContactPolicySource(
+    context: Context,
+    private val serverContacts: () -> List<ApprovedContact>? = { SyncStore(context).rules()?.contacts },
+) : EditableContactPolicySource {
+    private val local = LocalContactPolicySource(context)
+
+    override fun rules(): ContactRules {
+        val base = local.rules()
+        val fromServer = serverContacts() ?: return base
+        return base.copy(contacts = fromServer)
+    }
+
+    override val managedRemotely: Boolean get() = serverContacts() != null
+
+    override fun add(contact: ApprovedContact): Result<ApprovedContact> =
+        if (managedRemotely) Result.failure(IllegalStateException("managed in the parent's dashboard")) else local.add(contact)
+
+    override fun remove(number: String) {
+        if (!managedRemotely) local.remove(number)
+    }
+}
+
+/** The one source the app uses. */
 object ContactPolicySources {
-    fun get(context: Context): EditableContactPolicySource = LocalContactPolicySource(context)
+    fun get(context: Context): EditableContactPolicySource = SyncedContactPolicySource(context)
 }

@@ -39,6 +39,7 @@ class PolicyApplier(
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
         results += grantTelephonyPermissions()
+        results += location(config)
         // After the roles: the maker's phone and SMS apps are only hidden once Plainphone holds the role.
         results += hideApps(config)
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
@@ -60,7 +61,7 @@ class PolicyApplier(
     fun lift(): List<StepResult> {
         if (!device.isDeviceOwner()) return listOf(StepResult("device owner", false, "not Device Owner"))
         val results = mutableListOf<StepResult>()
-        for (key in LockPolicy.restrictions(sdkInt)) {
+        for (key in LockPolicy.restrictions(sdkInt) + LockPolicy.LOCATION_RESTRICTION) {
             results += step("clear $key") { device.clearRestriction(key) }
         }
         results += showAllHidden()
@@ -115,6 +116,26 @@ class PolicyApplier(
         return notes.joinToString().ifEmpty { "nothing to give back" }
     }
 
+    /**
+     * Location for "Find" (spec 7). Only when the parent turned it on: then the permission is
+     * granted by Device Owner (no dialog for the child), location is switched on and stays on.
+     */
+    private fun location(config: PolicyConfig): List<StepResult> {
+        if (config.server?.locationRequired != true) {
+            return listOf(step("location setting free") { device.clearRestriction(LockPolicy.LOCATION_RESTRICTION) })
+        }
+        return listOf(
+            step("location permission") {
+                val refused = LockPolicy.LOCATION_PERMISSIONS.filterNot { perm ->
+                    runCatching { device.grantPermission(device.ownPackage, perm) }.getOrDefault(false)
+                }
+                check(refused.isEmpty()) { "refused: ${refused.joinToString { it.substringAfterLast('.') }}" }
+            },
+            step("location on") { device.setLocationEnabled(true) },
+            step("restriction ${LockPolicy.LOCATION_RESTRICTION}") { device.addRestriction(LockPolicy.LOCATION_RESTRICTION) },
+        )
+    }
+
     private fun hideApps(config: PolicyConfig): List<StepResult> = try {
         hideAppsUnguarded(config)
     } catch (e: Exception) {
@@ -124,11 +145,15 @@ class PolicyApplier(
     private fun hideAppsUnguarded(config: PolicyConfig): List<StepResult> {
         val previously = hiddenStore.load().filter(device::isInstalled).toSet()
         // Apps the parent explicitly allowed in the QR code stay visible, even if they can be a phone or SMS app.
-        val parentAllowed = config.allowedPackages - PolicyConfig.DEFAULT_ALLOWED_PACKAGES
+        // With rules from the server the maker's phone and SMS apps are always hidden: the dashboard
+        // must not be able to open a way around approved contacts by showing one of them.
+        val parentAllowed = if (config.server != null) emptySet() else config.allowedPackages - PolicyConfig.DEFAULT_ALLOWED_PACKAGES
         val telephony = LockPolicy.telephonyAppsToHide(
             device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS),
         ) - parentAllowed
-        val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony
+        // School time and bedtime: only what a phone cannot do without, plus the window's own list.
+        val base = if (config.server?.windowActive == true) device.essentialPackages() else device.corePackages()
+        val keep = base + config.allowedPackages + device.ownPackage - telephony
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()
@@ -146,7 +171,7 @@ class PolicyApplier(
         hiddenStore.save(nowHidden)
         return listOf(
             StepResult(
-                "hide apps outside the allowlist",
+                if (config.server?.windowActive == true) "hide apps outside the allowlist (school time or bedtime)" else "hide apps outside the allowlist",
                 failed.isEmpty(),
                 "${nowHidden.size} hidden" + if (failed.isEmpty()) "" else "; failed: ${failed.joinToString()}",
             ),
