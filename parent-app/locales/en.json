@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Plainphone",
+    "NSCameraUsageDescription": "Plainphone uses the camera to scan the pairing code shown on a phone."
+  }
+}

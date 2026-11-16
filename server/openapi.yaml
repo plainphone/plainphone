@@ -540,6 +540,10 @@ paths:
               properties:
                 email: { type: string, format: email }
                 locale: { enum: [en, da] }
+                client:
+                  enum: [web, native]
+                  default: web
+                  description: "`native` mails a link to /auth/app, which the native parent app opens (universal/app link)."
       responses:
         "202": { description: "Accepted" }
         "429": { $ref: "#/components/responses/Error" }

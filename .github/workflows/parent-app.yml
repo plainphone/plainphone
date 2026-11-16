@@ -1,0 +1,61 @@
+name: Parent app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "parent-app/**"
+      - "server/openapi.yaml"
+      - "web/src/i18n/**"
+      - "web/src/lib/format.ts"
+      - "web/src/lib/ops.ts"
+      - ".github/workflows/parent-app.yml"
+  pull_request:
+    paths:
+      - "parent-app/**"
+      - "server/openapi.yaml"
+      - "web/src/i18n/**"
+      - "web/src/lib/format.ts"
+      - "web/src/lib/ops.ts"
+      - ".github/workflows/parent-app.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: parent-app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: parent-app/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: parent-app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Same idea for the copy and formatting shared with the PWA: test the app with the
+      # PWA's current files, and warn when the committed copy is behind (pnpm sync:shared).
+      - name: Shared copy and formatting match the PWA
+        run: pnpm check:shared || echo "::warning::parent-app/src/shared is behind web/src; run pnpm --dir parent-app sync:shared"
+      - name: Use the PWA's current shared files
+        run: pnpm sync:shared
+      # Typecheck against the API as it is now, so a breaking change in openapi.yaml
+      # fails here. A stale committed schema only warns; refresh it with pnpm gen:api.
+      - name: Typed API client matches server/openapi.yaml
+        run: pnpm check:api || echo "::warning file=parent-app/src/api/schema.d.ts::out of date with server/openapi.yaml; run pnpm --dir parent-app gen:api"
+      - name: Regenerate the API types from server/openapi.yaml
+        run: pnpm gen:api
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Tests (Jest + React Native Testing Library)
+        run: pnpm test --ci
+      - name: Export the JS bundles (iOS, Android, web)
+        run: pnpm exec expo export --platform all --output-dir dist

@@ -55,6 +55,10 @@ export const en = {
   "callback.failed": "This login link is expired or already used. Ask for a new one.",
   "callback.missing": "This page needs a login link from your mail.",
   "callback.toLogin": "Go to log in",
+  "callback.appTitle": "Open Plainphone",
+  "callback.appBody": "This link was asked for in the Plainphone app. Open it in the app, or log in here in the browser instead. The link works once.",
+  "callback.openApp": "Open in the app",
+  "callback.here": "Log in here",
 
   "invite.title": "Invitation",
   "invite.accepting": "Joining the household…",

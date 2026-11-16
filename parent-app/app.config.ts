@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Expo config for the Plainphone parent app (iOS and Android).
+// Self-hosting: build with PLAINPHONE_SERVER_URL=https://your.server and your own
+// bundle id/team (PLAINPHONE_BUNDLE_ID, PLAINPHONE_APPLE_TEAM_ID); then set the
+// matching APPLE_APP_IDS and ANDROID_APP_* on the server (docs/parent-app.md).
+import type { ConfigContext, ExpoConfig } from "expo/config";
+
+const SERVER_URL = (process.env.PLAINPHONE_SERVER_URL ?? "https://app.plainphone.org").replace(/\/+$/, "");
+const HOST = new URL(SERVER_URL).host;
+const BUNDLE_ID = process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.parent";
+const APPLE_TEAM_ID = process.env.PLAINPHONE_APPLE_TEAM_ID ?? "P7698GU4AV";
+/** Paths the app opens. Keep in sync with APP_LINK_PATHS in server/src/app.ts. */
+const LINK_PATHS = ["/auth/app", "/pair", "/invite"];
+
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
+  name: "Plainphone",
+  slug: "plainphone-parent",
+  scheme: "plainphone",
+  version: "0.1.0",
+  orientation: "portrait",
+  icon: "./assets/icon.png",
+  userInterfaceStyle: "automatic",
+  backgroundColor: "#f2f3ef",
+  locales: { en: "./locales/en.json", da: "./locales/da.json" },
+  ios: {
+    bundleIdentifier: BUNDLE_ID,
+    appleTeamId: APPLE_TEAM_ID,
+    buildNumber: "1",
+    supportsTablet: true,
+    associatedDomains: [`applinks:${HOST}`],
+    infoPlist: {
+      CFBundleAllowMixedLocalizations: true,
+      CFBundleLocalizations: ["en", "da"],
+      CFBundleDevelopmentRegion: "en",
+      ITSAppUsesNonExemptEncryption: false,
+    },
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyTrackingDomains: [],
+      NSPrivacyCollectedDataTypes: [],
+    },
+  },
+  android: {
+    package: BUNDLE_ID,
+    versionCode: 1,
+    adaptiveIcon: {
+      backgroundColor: "#24604a",
+      foregroundImage: "./assets/android-icon-foreground.png",
+      backgroundImage: "./assets/android-icon-background.png",
+      monochromeImage: "./assets/android-icon-monochrome.png",
+    },
+    // Only what the app uses: the camera for the pairing QR code and notifications.
+    permissions: ["android.permission.CAMERA", "android.permission.POST_NOTIFICATIONS"],
+    // Pulled in by libraries, not used by the app.
+    blockedPermissions: [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+    ],
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: LINK_PATHS.map((pathPrefix) => ({ scheme: "https", host: HOST, pathPrefix })),
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
+    predictiveBackGestureEnabled: true,
+  },
+  web: {
+    favicon: "./assets/favicon.png",
+    output: "single",
+  },
+  plugins: [
+    "expo-router",
+    "expo-localization",
+    "expo-secure-store",
+    "expo-font",
+    [
+      "expo-splash-screen",
+      {
+        image: "./assets/splash-icon.png",
+        imageWidth: 120,
+        backgroundColor: "#f2f3ef",
+        dark: { image: "./assets/splash-icon.png", backgroundColor: "#121816" },
+      },
+    ],
+    [
+      "expo-camera",
+      {
+        cameraPermission: "Plainphone uses the camera to scan the pairing code shown on a phone.",
+        microphonePermission: false,
+        recordAudioAndroid: false,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    [
+      "expo-notifications",
+      {
+        color: "#24604a",
+        defaultChannel: "approval",
+      },
+    ],
+  ],
+  experiments: { typedRoutes: true },
+  extra: { serverUrl: SERVER_URL },
+});

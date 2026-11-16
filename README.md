@@ -47,6 +47,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [dns/](dns): the filtering DNS service (AdGuard Home + ppdns), its profiles and API; [docs/self-hosting-dns.md](docs/self-hosting-dns.md) runs your own, [docs/privacy.md](docs/privacy.md) says what it stores
 - [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [server/](server) and [web/](web): the API and the parent web app (PWA); [docs/self-hosting.md](docs/self-hosting.md) runs your own, [docs/sync-api.md](docs/sync-api.md) is the phone's side of the API
+- [parent-app/](parent-app): the native parent app for iOS and Android (Expo) on the same API; [docs/parent-app.md](docs/parent-app.md) covers builds, app links and push
 - [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
 - [SECURITY.md](SECURITY.md): how to report a bypass
 

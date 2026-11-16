@@ -13,7 +13,12 @@ export const SESSION_PREFIX = "pp_s_";
  * Sends a login link. Answers the same whether or not the address has an account,
  * so the endpoint cannot be used to find out who uses Plainphone.
  */
-export async function requestMagicLink(ctx: Ctx, email: string, locale: Locale): Promise<void> {
+export async function requestMagicLink(
+  ctx: Ctx,
+  email: string,
+  locale: Locale,
+  client: "web" | "native" = "web",
+): Promise<void> {
   const token = randomToken("pp_m_");
   await ctx.db.insert(magicLinks).values({
     email,
@@ -21,8 +26,10 @@ export async function requestMagicLink(ctx: Ctx, email: string, locale: Locale):
     expiresAt: new Date(ctx.now().getTime() + MAGIC_LINK_MINUTES * 60_000),
   });
   // The link opens a page that POSTs the token, so mail scanners that follow
-  // links cannot use it up.
-  const url = `${ctx.cfg.PUBLIC_URL}/auth/callback#token=${encodeURIComponent(token)}`;
+  // links cannot use it up. Native apps get /auth/app, which the app claims as a
+  // universal/app link; without the app installed it opens the PWA like /auth/callback.
+  const path = client === "native" ? "/auth/app" : "/auth/callback";
+  const url = `${ctx.cfg.PUBLIC_URL}${path}#token=${encodeURIComponent(token)}`;
   if (!ctx.mail.canSend) {
     console.warn("login link requested, but no mail provider is configured (MAIL_PROVIDER=none)");
     return;

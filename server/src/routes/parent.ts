@@ -75,11 +75,19 @@ export function parentRoutes(ctx: Ctx) {
   // --- Auth -------------------------------------------------------------------
 
   app.post("/auth/request", async (c) => {
-    const input = await body(c, z.object({ email: v.email, locale: v.locale.default("en") }));
+    const input = await body(
+      c,
+      z.object({
+        email: v.email,
+        locale: v.locale.default("en"),
+        /** Native apps get a link the app opens (/auth/app) instead of the PWA's. */
+        client: z.enum(["web", "native"]).default("web"),
+      }),
+    );
     if (!loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !loginEmailLimit.take(input.email)) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
-    await requestMagicLink(ctx, input.email, input.locale);
+    await requestMagicLink(ctx, input.email, input.locale, input.client);
     // Same answer whether or not the address is known.
     return c.json({ ok: true, mailEnabled: ctx.mail.canSend }, 202);
   });

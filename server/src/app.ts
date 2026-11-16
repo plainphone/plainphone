@@ -10,6 +10,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
 import { deviceRoutes } from "./routes/device.js";
 import { parentRoutes } from "./routes/parent.js";
+import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 
 export function createApp(ctx: Ctx) {
@@ -65,6 +66,17 @@ export function createApp(ctx: Ctx) {
     }
   });
 
+  // Universal links (iOS) and app links (Android): login, pairing and invite links open
+  // the native parent app when it is installed. /auth/callback stays with the PWA.
+  app.get("/.well-known/apple-app-site-association", (c) => {
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.json(appleAppSiteAssociation(ctx.cfg));
+  });
+  app.get("/.well-known/assetlinks.json", (c) => {
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.json(assetLinks(ctx.cfg));
+  });
+
   app.route("/api/device", deviceRoutes(ctx));
   app.route("/api", parentRoutes(ctx));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
@@ -87,4 +99,34 @@ export function createApp(ctx: Ctx) {
   }
 
   return app;
+}
+
+/** Paths the native parent app opens. Keep in sync with parent-app/app.config.ts. */
+export const APP_LINK_PATHS = ["/auth/app", "/pair", "/invite"];
+
+function list(v: string): string[] {
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function appleAppSiteAssociation(cfg: Pick<Config, "APPLE_APP_IDS">) {
+  const appIDs = list(cfg.APPLE_APP_IDS);
+  return {
+    applinks: {
+      details: appIDs.length ? [{ appIDs, components: APP_LINK_PATHS.map((p) => ({ "/": p })) }] : [],
+    },
+  };
+}
+
+export function assetLinks(cfg: Pick<Config, "ANDROID_APP_PACKAGE" | "ANDROID_APP_CERT_SHA256">) {
+  const fingerprints = list(cfg.ANDROID_APP_CERT_SHA256).map((f) => f.toUpperCase());
+  if (!cfg.ANDROID_APP_PACKAGE || !fingerprints.length) return [];
+  return [
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: { namespace: "android_app", package_name: cfg.ANDROID_APP_PACKAGE, sha256_cert_fingerprints: fingerprints },
+    },
+  ];
 }

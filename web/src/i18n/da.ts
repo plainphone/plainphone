@@ -54,6 +54,10 @@ export const da: Messages = {
   "callback.failed": "Linket er udløbet eller allerede brugt. Bed om et nyt.",
   "callback.missing": "Denne side kræver et link fra din mail.",
   "callback.toLogin": "Gå til log ind",
+  "callback.appTitle": "Åbn Plainphone",
+  "callback.appBody": "Linket blev bestilt i Plainphone-appen. Åbn det i appen, eller log ind her i browseren i stedet. Linket virker én gang.",
+  "callback.openApp": "Åbn i appen",
+  "callback.here": "Log ind her",
 
   "invite.title": "Invitation",
   "invite.accepting": "Melder dig ind i husstanden…",

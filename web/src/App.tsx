@@ -37,6 +37,8 @@ function AppRoutes() {
       <Route element={<Shell />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        {/* Links mailed to the native app; without the app installed they log in here. */}
+        <Route path="/auth/app" element={<AuthCallbackPage />} />
         <Route path="/invite" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
