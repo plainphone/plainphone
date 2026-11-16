@@ -47,7 +47,13 @@ export default function AuthLinkScreen() {
   }, [token, initial]);
 
   useEffect(() => {
-    if (done) void takeNext().then((to) => router.replace(to as never));
+    if (!done) return;
+    void takeNext().then((to) => {
+      // Opened on top of the login screen (warm start): clear the stack so back never
+      // returns to a login screen for someone who is signed in.
+      if (router.canDismiss()) router.dismissAll();
+      router.replace(to as never);
+    });
   }, [done, takeNext, router]);
 
   return (

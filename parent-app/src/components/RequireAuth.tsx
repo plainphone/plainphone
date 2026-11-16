@@ -11,7 +11,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const params = useGlobalSearchParams<{ code?: string }>();
   const anon = state.status === "anon";
   useEffect(() => {
-    if (anon && path !== "/") setNext(params.code ? `${path}?code=${encodeURIComponent(params.code)}` : path);
+    // Only a pairing link is worth coming back to after logging in; a screen the user was
+    // on when signed out (logout, an expired session) is not.
+    if (anon && path === "/pair" && params.code) setNext(`/pair?code=${encodeURIComponent(params.code)}`);
   }, [anon, path, params.code, setNext]);
   if (state.status === "loading") {
     return (

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, client, unwrap } from "../api/client";
 import { Mark } from "../components/Mark";
-import { Button, errorMessage, Field, LiveStatus, Notice, PageTitle, Screen, Text } from "../components/ui";
+import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useSession } from "../lib/session";
 import { space } from "../lib/theme";
@@ -31,10 +31,19 @@ export default function LoginScreen() {
   }, []);
 
   const signedIn = state.status === "in";
-  useEffect(() => {
-    if (signedIn) void takeNext().then((to) => router.replace(to as never));
-  }, [signedIn, takeNext, router]);
-  if (signedIn) return null;
+  // Only while this screen is in front: a login link may have opened on top of it.
+  useFocusEffect(
+    useCallback(() => {
+      if (signedIn) void takeNext().then((to) => router.replace(to as never));
+    }, [signedIn, takeNext, router]),
+  );
+  if (signedIn) {
+    return (
+      <Screen>
+        <Loading />
+      </Screen>
+    );
+  }
 
   async function submit() {
     setFieldError(undefined);

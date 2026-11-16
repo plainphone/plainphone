@@ -3,7 +3,8 @@
 // Core flows through the real router and screens, against a fake API.
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
-import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { router } from "expo-router";
+import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -105,6 +106,47 @@ describe("coming back after the app was closed during login", () => {
     signedInApi();
     await renderRouter(routes, { initialUrl: "/auth/app" });
     await waitFor(() => expect(screen).toHavePathname("/"));
+  });
+});
+
+describe("login links in other situations", () => {
+  it("keeps the saved session when an old link fails at start-up", async () => {
+    await SecureStore.setItemAsync("pp.session", "pp_s_saved");
+    // A slow keychain: the link is checked before the saved session has been read.
+    const real = (SecureStore.getItemAsync as jest.Mock).getMockImplementation()!;
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+      await new Promise((r) => setTimeout(r, 100));
+      return real(k);
+    });
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_oldlink12345");
+    fakeApi({
+      "POST /auth/verify": { status: 400, body: { error: "this link is expired or already used" } },
+      "GET /me": (c) => (c.auth === "Bearer pp_s_saved" ? { body: ME } : { status: 401, body: { error: "sign in first" } }),
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    expect(await screen.findByText("This login link is expired or already used. Ask for a new one.")).toBeTruthy();
+    await testRouter.replace("/");
+    expect(await screen.findByText("Alma")).toBeTruthy();
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(real);
+  });
+
+  it("opens on top of the login screen and leaves no login screen behind", async () => {
+    const api = fakeApi({
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_session" } },
+      "GET /me": { body: ME },
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+    await renderRouter(routes, { initialUrl: "/login" });
+    expect(await screen.findByTestId("login")).toBeTruthy();
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_warmlink1234");
+    await act(() => router.push("/auth/app"));
+    expect(await screen.findByText("Alma")).toBeTruthy();
+    expect(screen).toHavePathname("/");
+    expect(testRouter.canGoBack()).toBe(false);
+    expect(api.calls.filter((c) => c.path === "/auth/verify")).toHaveLength(1);
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });
 });
 

@@ -47,13 +47,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setNextState(p);
     void (p ? setItem(NEXT_KEY, p) : removeItem(NEXT_KEY)).catch(() => undefined);
   }, []);
-  const takeNext = useCallback(async () => {
-    const saved = safePath(await getItem(NEXT_KEY).catch(() => null));
-    setNextState(null);
-    await removeItem(NEXT_KEY).catch(() => undefined);
-    if (await loadPendingInvite()) return "/invite";
-    return saved ?? "/";
+  // One answer per sign-in, shared by every screen that asks (login and the link screen
+  // can both be mounted), so the stored path is read once and never lost to a race.
+  const taking = useRef<Promise<string> | null>(null);
+  const takeNext = useCallback(() => {
+    taking.current ??= (async () => {
+      const saved = safePath(await getItem(NEXT_KEY).catch(() => null));
+      setNextState(null);
+      await removeItem(NEXT_KEY).catch(() => undefined);
+      if (await loadPendingInvite()) return "/invite";
+      return saved ?? "/";
+    })();
+    return taking.current;
   }, []);
+  useEffect(() => {
+    if (state.status === "anon") taking.current = null;
+  }, [state.status]);
   const linkSignIn = useRef(false);
   const localeRef = useRef(locale);
   useEffect(() => {
@@ -83,26 +92,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [setLocale, signOutLocally]);
 
+  /** Signs in with the token saved in the keychain, if any. */
+  const restore = useCallback(async () => {
+    const remembered = safePath(await getItem(NEXT_KEY).catch(() => null));
+    if (remembered) setNextState(remembered);
+    const saved = await getItem(TOKEN_KEY).catch(() => null);
+    // A login link may already be signing in while the keychain was read.
+    if (linkSignIn.current) return;
+    if (!saved) {
+      setSessionToken(null);
+      setState({ status: "anon" });
+      return;
+    }
+    setSessionToken(saved);
+    await refresh();
+  }, [refresh]);
+
   useEffect(() => {
     setUnauthorizedHandler((rejected) => {
       if (rejected === getSessionToken()) void signOutLocally();
     });
-    void (async () => {
-      const remembered = safePath(await getItem(NEXT_KEY).catch(() => null));
-      if (remembered) setNextState(remembered);
-      const saved = await getItem(TOKEN_KEY).catch(() => null);
-      // A login link may already be signing in while the keychain was read.
-      if (linkSignIn.current) return;
-      if (!saved) {
-        setSessionToken(null);
-        setState({ status: "anon" });
-        return;
-      }
-      setSessionToken(saved);
-      await refresh();
-    })();
+    // Reading the keychain at start-up is what this effect is for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void restore();
     return () => setUnauthorizedHandler(null);
-  }, [refresh, signOutLocally]);
+  }, [restore, signOutLocally]);
 
   const verify = useCallback(
     async (linkToken: string) => {
@@ -116,13 +130,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // A failed attempt (offline, say) can be retried with the same link.
         p.catch(() => inflight.delete(linkToken));
       }
-      const out = await p;
-      if (!out.sessionToken) throw new ApiError(500, "no session token");
-      setSessionToken(out.sessionToken);
+      let out: { sessionToken?: string };
+      try {
+        out = await p;
+        if (!out.sessionToken) throw new ApiError(500, "no session token");
+      } catch (err) {
+        // A used or expired link: carry on with the saved session, if there is one.
+        linkSignIn.current = false;
+        if (!getSessionToken()) await restore();
+        throw err;
+      }
+      setSessionToken(out.sessionToken!);
       await setItem(TOKEN_KEY, out.sessionToken);
       return refresh();
     },
-    [refresh],
+    [refresh, restore],
   );
 
   const logout = useCallback(async () => {
