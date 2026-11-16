@@ -9,8 +9,9 @@ import { Button, errorMessage, Field, LiveStatus, Notice, PageTitle, Screen, Tex
 import { useI18n } from "../i18n/I18n";
 import { useSession } from "../lib/session";
 import { space } from "../lib/theme";
+import { EMAIL_RE } from "../lib/validate";
 
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export { EMAIL_RE };
 
 export default function LoginScreen() {
   const { t, locale } = useI18n();
