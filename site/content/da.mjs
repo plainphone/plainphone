@@ -156,8 +156,8 @@ export default {
           {
             list: [
               "din e-mailadresse og dit sprog (dansk eller engelsk)",
-              "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et hash af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
-              "din session: et hash af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
+              "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et fingeraftryk (hash) af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
+              "din session: et fingeraftryk (hash) af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
               "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato",
             ],
           },
@@ -208,7 +208,7 @@ export default {
             list: [
               "Ingen log over opslag. Den er slået fra, og telefonerne er desuden holdt ude af den, hvis den ved en fejl skulle blive slået til.",
               "Ingen IP-adresser. Telefonens adresse bliver afkortet, før den når filterets statistik.",
-              "Kun tællere: antal opslag og blokeringer, de mest slåede domæner og de travleste ClientID’er, som totaler. De bliver slettet efter 24 timer.",
+              "Kun tællere: antal opslag og blokeringer, de mest opslåede domæner og de travleste ClientID’er, som totaler. De bliver slettet efter 24 timer.",
               "Filterets indstillinger for hver telefon (ClientID, profil, tilladte og blokerede domæner) gemmes, til telefonen fjernes.",
             ],
           },
