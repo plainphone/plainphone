@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Plainphone authors
+package org.plainphone.app
+
+import android.annotation.SuppressLint
+import android.os.UserManager
+
+/**
+ * The pure part of the lock: which restrictions to set and which apps to hide.
+ * No Android services are touched here, so it is unit-tested on the JVM.
+ */
+object LockPolicy {
+    /** UserManager.DISALLOW_ADD_CLONE_PROFILE (API 34), not exposed in the public SDK. */
+    const val DISALLOW_ADD_CLONE_PROFILE = "no_add_clone_profile"
+
+
+    /** User restrictions for strong mode, filtered to what [sdkInt] knows about. */
+    @SuppressLint("InlinedApi") // API 35 constant is a plain string and only added when sdkInt >= 35.
+    @Suppress("DEPRECATION") // DISALLOW_ADD_MANAGED_PROFILE is deprecated in API 37 but still enforced.
+    fun restrictions(sdkInt: Int): List<String> = buildList {
+        // Installing and removing software.
+        add(UserManager.DISALLOW_INSTALL_APPS)
+        add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+        add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
+        // Ways out: reset, safe mode, other users and profiles.
+        add(UserManager.DISALLOW_FACTORY_RESET)
+        add(UserManager.DISALLOW_SAFE_BOOT)
+        add(UserManager.DISALLOW_ADD_USER)
+        add(UserManager.DISALLOW_USER_SWITCH)
+        add(UserManager.DISALLOW_ADD_MANAGED_PROFILE)
+        // App cloning (Samsung Dual Messenger, Xiaomi Dual apps). The constant is hidden in the SDK.
+        add(DISALLOW_ADD_CLONE_PROFILE)
+        if (sdkInt >= 35) add(UserManager.DISALLOW_ADD_PRIVATE_PROFILE)
+        // adb and developer options.
+        add(UserManager.DISALLOW_DEBUGGING_FEATURES)
+        // Network filter: private DNS, VPN apps, network reset, user CA certificates.
+        add(UserManager.DISALLOW_CONFIG_PRIVATE_DNS)
+        add(UserManager.DISALLOW_CONFIG_VPN)
+        add(UserManager.DISALLOW_NETWORK_RESET)
+        add(UserManager.DISALLOW_CONFIG_CREDENTIALS)
+        // Getting APKs onto the phone over USB or an SD card.
+        add(UserManager.DISALLOW_USB_FILE_TRANSFER)
+        add(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+        // Date/time tricks against schedules (phase 3) and certificate checks.
+        add(UserManager.DISALLOW_CONFIG_DATE_TIME)
+    }
+
+    /**
+     * Decides which launchable apps are hidden.
+     *
+     * @param launchable packages that currently have a launcher icon, including ones we hid earlier
+     * @param keep packages that must stay visible (core apps resolved on the device, allowlist, ourselves)
+     * @param previouslyHidden packages we hid in an earlier run
+     */
+    fun hidePlan(
+        launchable: Set<String>,
+        keep: Set<String>,
+        previouslyHidden: Set<String>,
+    ): HidePlan {
+        val shouldBeHidden = launchable - keep
+        return HidePlan(
+            hide = shouldBeHidden,
+            // Apps we hid before that are now allowed, or that we no longer see at all.
+            unhide = previouslyHidden - shouldBeHidden,
+        )
+    }
+
+    data class HidePlan(val hide: Set<String>, val unhide: Set<String>)
+
+    /** Chrome managed configuration: no DNS-over-HTTPS bypass, no incognito, SafeSearch on. */
+    const val CHROME_PACKAGE = "com.android.chrome"
+    val chromeRestrictions: Map<String, Any> = mapOf(
+        "DnsOverHttpsMode" to "off",
+        "IncognitoModeAvailability" to 1,
+        "ForceGoogleSafeSearch" to true,
+        "ForceYouTubeRestrict" to 2,
+    )
+}
