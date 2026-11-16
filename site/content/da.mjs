@@ -94,7 +94,7 @@ export default {
       },
       {
         q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag er der ingen server, så der bliver slet ikke indsamlet noget.",
+        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag sender appen på telefonen ikke noget til en server. Logger du ind i forældreappen, gemmer den din e-mailadresse og de regler, du sætter. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
       },
       {
         q: "Hvad koster det?",
@@ -110,9 +110,227 @@ export default {
       },
     ],
   },
+  privacy: {
+    path: "/da/privacy/",
+    title: "Privatlivspolitik: Plainphone",
+    description:
+      "Hvad Plainphone gemmer om dig og de telefoner, du styrer, hvor længe, hvem der ellers er involveret, og hvordan du beder os rette eller slette det.",
+    h1: "Privatlivspolitik",
+    updated: "Sidst opdateret 17. november 2026",
+    lead:
+      "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
+    status:
+      "Plainphone er i en tidlig udgave. Forældreappen og serveren findes, men Plainphone-appen på telefonen forbinder endnu ikke til dem, så i dag sender den ikke noget til serveren. Hvor noget først gælder, når telefonerne er koblet på, står det her. En telefon kan allerede sættes op til at bruge webfilteret, som er beskrevet nedenfor.",
+    tocLabel: "På denne side",
+    short: {
+      title: "Kort fortalt",
+      list: [
+        "Denne side sætter ingen cookies, bruger ingen statistik og henter ikke noget fra andre sider.",
+        "Forældreappen gemmer din e-mailadresse og de regler, du sætter for hver telefon. Når en telefon fjernes, bliver alt, der er gemt om den, slettet.",
+        "Placering er, når den er slået til, kun telefonens seneste kendte position. Der er ingen historik.",
+        "Webfilteret gemmer ikke en liste over de sider, en telefon besøger.",
+        "Vi sælger ikke oplysninger, viser ikke reklamer og laver ikke profiler.",
+      ],
+    },
+    sections: [
+      {
+        id: "ansvarlig",
+        title: "Hvem er ansvarlig",
+        body: [
+          `Plainphone er et open source-projekt, som <a href="https://mahoje.dk">Mahoje</a> vedligeholder i Danmark. Vi er dataansvarlige for den tjeneste, vi driver: forældreappen på app.plainphone.org og webfilteret på dns.plainphone.org.`,
+          `Du kan kontakte os ved at oprette en sag (issue) på <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>. Sager er offentlige, så skriv ikke personoplysninger som din e-mailadresse i dem. Skal din henvendelse indeholde oplysninger, der skal være private, så brug den private indberetning, der er beskrevet i <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a> (Security, derefter Report a vulnerability), og skriv, at det er en henvendelse om privatliv. Den er lavet til sikkerhedsfejl, men den når vedligeholderne privat, og vi svarer dér.`,
+        ],
+      },
+      {
+        id: "hvorfor",
+        title: "Hvorfor vi bruger dine oplysninger",
+        body: [
+          "Vi bruger dem til at køre Plainphone for dig: at logge dig ind, at lade reglerne gælde på de telefoner, du styrer, og at holde tjenesten i gang og sikker. Retsgrundlaget er aftalen mellem dig og tjenesten (databeskyttelsesforordningens artikel 6, stk. 1, litra b) og vores legitime interesse i sikkerhed og forebyggelse af misbrug (litra f). For en person, som en anden har inviteret, er grundlaget den andens ønske sammen med vores interesse i at få invitationen frem (litra f). Vi bruger oplysningerne til intet andet.",
+        ],
+      },
+      {
+        id: "konto",
+        title: "Din konto",
+        body: [
+          "Du logger ind med din e-mailadresse og et link, vi sender dig. Der er ingen adgangskode. Vi gemmer:",
+          {
+            list: [
+              "din e-mailadresse og dit sprog (dansk eller engelsk)",
+              "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et fingeraftryk (hash) af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
+              "din session: et fingeraftryk (hash) af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
+              "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato",
+            ],
+          },
+          "Alle i en husstand kan se hinandens e-mailadresser og styre alle husstandens telefoner. Links til at logge ind, sessioner og de nøgler, telefonerne bruger, gemmes som hashes.",
+        ],
+      },
+      {
+        id: "telefoner",
+        title: "Telefoner og regler",
+        body: [
+          "En forælder, eller en voksen til sin egen telefon, tilføjer en telefon ved at skrive den kode, telefonen viser. Børn får ikke en konto og bliver aldrig bedt om en e-mailadresse. Om hver telefon gemmer vi det, den voksne sætter op:",
+          {
+            list: [
+              "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
+              "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion",
+              "de apps, der er på telefonen (navn og pakkenavn), og hvilke af dem der er tilladt",
+              "godkendte kontakter: de navne og numre, en forælder selv skriver ind i forældreappen. Serveren har ikke andet fra telefonens kontakter",
+              "webfilterets indstillinger: hvilke kategorier der er blokeret, og de domæner, forælderen tillader eller blokerer",
+              "skoletid og sengetid og de apps, der er tilladt i dem",
+              "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og en oversigt over de ændringer, der har ventet på nøglen",
+            ],
+          },
+          "En betroet person, du udpeger, får en mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
+        ],
+      },
+      {
+        id: "born",
+        title: "Børn",
+        body: [
+          "Børn laver ikke konti. Det gør en forælder, og forælderen bestemmer, hvad der bliver gemt om barnets telefon. Vi indsamler ikke bevidst oplysninger direkte fra børn, vi viser ingen reklamer, og vi laver ikke profiler af børn. De mest følsomme oplysninger om et barns telefon er dens seneste kendte position og listen over godkendte kontakter. Vi anbefaler, at du fortæller dit barn, hvad telefonen deler, og hvorfor.",
+        ],
+      },
+      {
+        id: "placering",
+        title: "Placering",
+        body: [
+          "Placering er en indstilling for hver telefon. Den er slået til fra start på et barns telefon og slået fra på en voksens egen telefon, og en forælder kan ændre det når som helst. Når den er slået til, sender telefonen sin position med få minutters mellemrum (som standard fem), og en forælder kan bede om en ny.",
+          "Serveren gemmer kun den seneste position: koordinater, nøjagtighed og tidspunkt. Hver ny position erstatter den gamle, og der gemmes ingen historik. Slår du placering fra, eller fjerner du telefonen, bliver den gemte position slettet.",
+          "Vælger en forælder »Åbn i OpenStreetMap«, står koordinaterne i det link, der åbnes, og så gælder OpenStreetMaps egen politik.",
+        ],
+      },
+      {
+        id: "webfilter",
+        title: "Webfilteret",
+        body: [
+          "Hver telefon får sin egen adresse hos vores filtrerende DNS-tjeneste (dns.plainphone.org). Sådan virker webfilteret i alle apps. Adressen indeholder et tilfældigt ClientID, ikke dit navn, dit nummer eller et enheds-id. For at kunne svare ser filteret, hvilke domæner telefonen slår op. Det gemmer dem ikke:",
+          {
+            list: [
+              "Ingen log over opslag. Den er slået fra, og telefonerne er desuden holdt ude af den, hvis den ved en fejl skulle blive slået til.",
+              "Ingen IP-adresser. Telefonens adresse bliver afkortet, før den når filterets statistik.",
+              "Kun tællere: antal opslag og blokeringer, de mest opslåede domæner og de travleste ClientID’er, som totaler. De bliver slettet efter 24 timer.",
+              "Filterets indstillinger for hver telefon (ClientID, profil, tilladte og blokerede domæner) gemmes, til telefonen fjernes.",
+            ],
+          },
+          `Tilladte opslag sendes videre over krypterede forbindelser til Quad9 (Schweiz) og Mullvad, med Cloudflare som reserve. De ser domænet og vores servers adresse, aldrig telefonens, og ingen del af telefonens IP-adresse bliver sendt med. De tekniske detaljer står i <a href="https://github.com/plainphone/plainphone/blob/main/docs/privacy.md">docs/privacy.md</a>.`,
+        ],
+      },
+      {
+        id: "mail",
+        title: "Mail",
+        body: [
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og den besked, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra app.plainphone.org og har ingen identifikator i adressen. Adressen er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+        ],
+      },
+      {
+        id: "cookies",
+        title: "Denne side, cookies og lagring i din browser",
+        body: [
+          "plainphone.org sætter ingen cookies, bruger ingen statistik og indlæser hverken scripts, skrifter eller billeder fra andre sider. Siden ligger hos Cloudflare Pages, så Cloudflare behandler, som enhver webhost, din IP-adresse og den adresse, du beder om, når en side leveres. Links til andre sider, fx GitHub, er almindelige links. Når du følger et, gælder den anden sides politik.",
+          "Forældreappen på app.plainphone.org sætter én cookie, pp_session. Den holder dig logget ind, sendes kun til vores egen server, kan ikke læses af scripts på siden (HttpOnly), sendes kun ved forespørgsler fra samme side (SameSite=Strict) og varer højst 60 dage. Du har brug for den for at kunne logge ind, så der er intet cookiebanner.",
+          "Appen husker desuden i din browser dit valg af sprog (lokal lagring) og, kun mens du logger ind, hvor du skal hen bagefter samt en invitations- eller parringskode (sessionslagring, som bliver ryddet, når fanen lukkes). En service worker gemmer en kopi af appens egne filer, så den kan åbnes uden net. Den gemmer aldrig dine oplysninger.",
+        ],
+      },
+      {
+        id: "andre",
+        title: "Hvem andre er involveret",
+        body: [
+          "Vi sælger ikke oplysninger, deler dem ikke til reklamer og bruger dem ikke til at lave profiler. Disse hjælper os med at drive tjenesten:",
+          {
+            list: [
+              "Hetzner (Tyskland) udlejer de servere, hvor forældreappen, dens database og webfilteret kører. Sikkerhedskopier ligger i objektlager i EU.",
+              "Vores egen mailserver i EU sender mails. Det er ikke en mailtjeneste fra en tredjepart.",
+              "Cloudflare hoster denne hjemmeside (plainphone.org).",
+              "Quad9 og Mullvad, med Cloudflare som reserve, besvarer tilladte opslag i webfilteret, som beskrevet ovenfor.",
+            ],
+          },
+          "Konto- og telefonoplysninger ligger på servere i EU.",
+        ],
+      },
+      {
+        id: "opbevaring",
+        title: "Hvor længe vi gemmer tingene",
+        body: [
+          {
+            table: {
+              caption: "Hvor længe hver slags oplysninger gemmes",
+              cols: ["Hvad", "Hvor længe"],
+              rows: [
+                ["Links til at logge ind", "Omkring et døgn efter, at de er udløbet (de udløber efter 15 minutter)"],
+                ["Sessioner", "Til de udløber (60 dage), eller du logger ud"],
+                [
+                  "Parringskoder",
+                  "Slettes inden for et døgn. Det gælder også den nøgle, telefonen henter én gang. Indtil da ligger den i læselig form",
+                ],
+                [
+                  "Din konto (e-mailadresse, sprog)",
+                  "Til kontoen bliver slettet. Der er endnu ingen knap til at slette den, så bed os om det (se Dine rettigheder)",
+                ],
+                [
+                  "Husstand, telefoner, apps, kontakter, skoletid, filterindstillinger",
+                  "Til telefonen eller husstanden fjernes. Der er endnu ingen knap til nogen af delene i appen, så bed os om det. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
+                ],
+                [
+                  "Seneste position",
+                  "Kun den seneste. Den bliver slettet, når du slår placering fra eller fjerner telefonen",
+                ],
+                [
+                  "Ændringer, der har ventet på nøglen på en voksens egen telefon",
+                  "Til telefonen fjernes",
+                ],
+                [
+                  "Invitationer",
+                  "De holder op med at virke efter 7 dage. Posten bliver endnu ikke slettet automatisk. Du kan trække en åben invitation tilbage, og vi kan fjerne resten, når du beder om det",
+                ],
+                ["Webfilterets tællere", "24 timer"],
+                [
+                  "Sikkerhedskopier af databasen",
+                  "Tages hver nat og gemmes i op til 30 dage. Slettede oplysninger kan ligge i en sikkerhedskopi, til den udløber",
+                ],
+                ["Sikkerhedskopier af webfilterets indstillinger", "De seneste 14 daglige kopier"],
+              ],
+            },
+          },
+          "Som enhver webtjeneste skriver den webserver, der står foran appen, almindelige tekniske logs (IP-adresse, tidspunkt, den adresse der bedes om). Vi bruger dem kun til at holde tjenesten kørende og til at stoppe misbrug. Selve appen har kun IP-adresser i hukommelsen, til grænser for hyppighed, og skriver dem aldrig i sin database.",
+        ],
+      },
+      {
+        id: "rettigheder",
+        title: "Dine rettigheder",
+        body: [
+          "Du kan, uden beregning, bede os om en kopi af de oplysninger, vi har om dig, om at rette dem, om at slette dem, om at begrænse brugen af dem, om at få dem udleveret i et almindeligt format eller om at stoppe en brug, du er imod. Du kan også klage til <a href=\"https://www.datatilsynet.dk/\">Datatilsynet</a> eller til tilsynsmyndigheden i dit eget land.",
+          "I forældreappen kan du allerede selv gøre noget af det:",
+          {
+            list: [
+              "ændre en telefons kontakter, apps, webfilter og tidsplaner",
+              "slå placering fra, så den gemte position bliver slettet",
+              "trække en åben invitation tilbage",
+              "forlade en husstand (det sidste medlem kan ikke forlade den)",
+              "logge ud, så sessionen slutter",
+            ],
+          },
+          "Der er endnu ingen knap til at omdøbe eller fjerne en telefon, slette din konto, hente dine oplysninger eller fjerne en udløbet invitation. Bed os om det (se Hvem er ansvarlig). Når en telefon fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID. Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
+        ],
+      },
+      {
+        id: "egen-server",
+        title: "Din egen server",
+        body: [
+          `Plainphone kan køre på din egen server. Gør du det, er du selv ansvarlig for serveren og dens oplysninger, og denne politik gælder ikke for den. Softwaren gemmer det, der står her, men du vælger, hvor den kører, hvor længe sikkerhedskopier gemmes (eksemplet i opsætningen gemmer 14 daglige og 8 ugentlige kopier), og hvilke mail- og DNS-tjenester den bruger. Vejledningerne er <a href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">self-hosting.md</a> og <a href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting-dns.md">self-hosting-dns.md</a> (på engelsk).`,
+        ],
+      },
+      {
+        id: "aendringer",
+        title: "Ændringer i politikken",
+        body: [
+          `Ændrer vi, hvad vi gør, ændrer vi denne side og datoen øverst, før ændringen træder i kraft. Siden er en del af det offentlige projekt, så hver ændring kan ses i dens <a href="https://github.com/plainphone/plainphone/commits/main/site/content">historik på GitHub</a>.`,
+        ],
+      },
+    ],
+  },
   footer: {
     maintained: "Plainphone vedligeholdes af <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
-    privacy: "Siden sætter ingen cookies og bruger ingen statistik.",
+    privacy: "Siden sætter ingen cookies og bruger ingen statistik. <a href=\"/da/privacy/\">Privatlivspolitik</a>.",
     license: "Koden er under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrift: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {

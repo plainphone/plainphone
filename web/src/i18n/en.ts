@@ -27,6 +27,7 @@ export const en = {
   "nav.approvals": "Approvals",
   "nav.logout": "Log out",
   "nav.language": "Language",
+  "nav.privacy": "Privacy",
 
   "error.generic": "Something went wrong. Please try again.",
   "error.network": "Could not reach the server. Check your connection and try again.",
