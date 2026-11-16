@@ -21,6 +21,15 @@ const schema = z.object({
   DNS_HOST_SUFFIX: z.string().default("dns.plainphone.org"),
   /** Only "none" today: phones poll. FCM is the planned next layer (docs/sync-api.md). */
   PUSH_PROVIDER: z.enum(["none"]).default("none"),
+  /**
+   * Native parent apps that may open this server's links (universal links / app links),
+   * served at /.well-known/apple-app-site-association and /.well-known/assetlinks.json.
+   * Self-hosters with their own app builds put their own ids here.
+   */
+  APPLE_APP_IDS: z.string().default("P7698GU4AV.org.plainphone.parent"),
+  ANDROID_APP_PACKAGE: z.string().default("org.plainphone.parent"),
+  /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
+  ANDROID_APP_CERT_SHA256: z.string().default(""),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
   PAYMENTS_ENABLED: z
     .enum(["true", "false"])

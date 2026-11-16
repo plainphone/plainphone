@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
+import { appleAppSiteAssociation, assetLinks } from "../src/app.js";
+import { loadConfig } from "../src/config.js";
 import { Client, PUBLIC_URL, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -28,6 +30,21 @@ describe("accounts", () => {
     expect(me.json.user.email).toBe("parent@example.org");
     expect(me.json.households).toHaveLength(1);
     expect(me.json.households[0].role).toBe("owner");
+  });
+
+  it("gives native apps a link the app opens, and still a token only on request", async () => {
+    const c = new Client(h);
+    await c.post("/api/auth/request", { email: "app@example.org", client: "native" });
+    const text = h.mail.outbox[0]!.text;
+    expect(text).toContain(`${PUBLIC_URL}/auth/app#token=`);
+    expect(text).not.toContain("/auth/callback");
+    const token = decodeURIComponent(/#token=(\S+)/.exec(text)![1]!);
+    const v = await c.post("/api/auth/verify", { token, client: "native" });
+    expect(v.status).toBe(200);
+    expect(v.json.sessionToken).toMatch(/^pp_s_/);
+    const app = new Client(h);
+    app.token = v.json.sessionToken;
+    expect((await app.get("/api/me")).json.user.email).toBe("app@example.org");
   });
 
   it("rejects expired links", async () => {
@@ -193,5 +210,29 @@ describe("pairing", () => {
     expect((await a.del(`/api/phones/${phoneId}`)).json).toEqual({ status: "applied" });
     expect(h.dns.clients.size).toBe(0);
     expect((await device.get("/api/device/rules")).status).toBe(401);
+  });
+});
+
+describe("app links", () => {
+  it("serves the iOS association for the parent app's paths", async () => {
+    const res = await new Client(h).get("/.well-known/apple-app-site-association");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    expect(res.json.applinks.details[0].appIDs).toEqual(["P7698GU4AV.org.plainphone.parent"]);
+    expect(res.json.applinks.details[0].components.map((c: { "/": string }) => c["/"])).toEqual(["/auth/app", "/pair", "/invite"]);
+  });
+
+  it("serves no Android statement until a certificate fingerprint is configured", async () => {
+    const res = await new Client(h).get("/.well-known/assetlinks.json");
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual([]);
+    const cfg = loadConfig({ DATABASE_URL: "x", ANDROID_APP_CERT_SHA256: "aa:bb, CC:DD" });
+    expect(assetLinks(cfg)).toEqual([
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: { namespace: "android_app", package_name: "org.plainphone.parent", sha256_cert_fingerprints: ["AA:BB", "CC:DD"] },
+      },
+    ]);
+    expect(appleAppSiteAssociation({ APPLE_APP_IDS: "" }).applinks.details).toEqual([]);
   });
 });
