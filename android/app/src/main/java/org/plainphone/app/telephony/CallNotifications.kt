@@ -58,6 +58,7 @@ object CallNotifications {
             .setContentIntent(screen)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_CALL)
+            .setOnlyAlertOnce(true)
         if (call.details.state == Call.STATE_RINGING) {
             builder.setFullScreenIntent(screen, true)
                 .setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))

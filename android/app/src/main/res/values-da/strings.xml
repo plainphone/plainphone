@@ -32,6 +32,10 @@
         <item quantity="one">%1$d godkendt kontakt.</item>
         <item quantity="other">%1$d godkendte kontakter.</item>
     </plurals>
+    <plurals name="status_contacts_pending">
+        <item quantity="one">%1$d kontakt fra QR-koden venter på telefonens land (sæt SIM-kortet i).</item>
+        <item quantity="other">%1$d kontakter fra QR-koden venter på telefonens land (sæt SIM-kortet i).</item>
+    </plurals>
     <string name="status_contacts_not_enforced">Godkendte kontakter håndhæves ikke lige nu (ikke låst, eller vedligeholdsoplåsning).</string>
 
     <string name="phone_app_name">Telefon</string>

@@ -33,6 +33,10 @@
         <item quantity="one">%1$d approved contact.</item>
         <item quantity="other">%1$d approved contacts.</item>
     </plurals>
+    <plurals name="status_contacts_pending">
+        <item quantity="one">%1$d contact from the QR code waits for the phone\'s country (insert the SIM).</item>
+        <item quantity="other">%1$d contacts from the QR code wait for the phone\'s country (insert the SIM).</item>
+    </plurals>
     <string name="status_contacts_not_enforced">Approved contacts are not enforced right now (not locked, or maintenance unlock).</string>
 
     <!-- Phone and messages -->

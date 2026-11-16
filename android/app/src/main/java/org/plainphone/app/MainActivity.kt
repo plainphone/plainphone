@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import org.plainphone.app.contacts.ContactPolicySources
+import org.plainphone.app.contacts.LocalContactPolicySource
 
 /**
  * Status screen. Tapping the version line [TAPS_TO_MAINTENANCE] times opens the
@@ -83,6 +84,8 @@ class MainActivity : Activity() {
             val contacts = ContactPolicySources.get(this@MainActivity).rules()
             appendLine(resources.getQuantityString(R.plurals.status_contacts, contacts.contacts.size, contacts.contacts.size))
             if (!contacts.enforced) appendLine(getString(R.string.status_contacts_not_enforced))
+            val pending = LocalContactPolicySource(this@MainActivity).pending().size
+            if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
         }
         report.text = Lock.lastReport(this)

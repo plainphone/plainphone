@@ -86,7 +86,7 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
         )
     }
 
-    override fun add(contact: ApprovedContact): Result<ApprovedContact> {
+    override fun add(contact: ApprovedContact): Result<ApprovedContact> = synchronized(LOCK) {
         val country = country()
         return ContactList.add(rules().contacts, contact, country).map { list ->
             save(list)
@@ -94,7 +94,9 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
         }
     }
 
-    override fun remove(number: String) = save(ContactList.remove(rules().contacts, number, country()))
+    override fun remove(number: String) = synchronized(LOCK) {
+        save(ContactList.remove(rules().contacts, number, country()))
+    }
 
     /**
      * Seeds the list from the QR code. Only on first provisioning, so a re-scan never wipes edits.
@@ -116,8 +118,7 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
     /** Contacts from the QR code still waiting for the phone's country. */
     fun pending(): List<ApprovedContact> = ContactCodec.decode(prefs.getString(KEY_PENDING, null))
 
-    @Synchronized
-    private fun resolvePending(country: PhoneNumbers.Country?) {
+    private fun resolvePending(country: PhoneNumbers.Country?): Unit = synchronized(LOCK) {
         if (country == null) return
         val pending = pending()
         if (pending.isEmpty()) return
@@ -152,6 +153,8 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
         private const val PREFS = "plainphone_contacts"
         private const val KEY_CONTACTS = "approved"
         private const val KEY_PENDING = "pending_seed"
+        /** Instances are cheap and short-lived; one process-wide lock keeps read-change-save atomic. */
+        private val LOCK = Any()
     }
 }
 
