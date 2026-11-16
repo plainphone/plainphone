@@ -19,9 +19,22 @@ import urllib.request
 
 log = logging.getLogger("ppdns.lists")
 
-# AdGuard Home has a fixed set of client tags. Plainphone uses two of them as flags.
-TAG_CHILD = "user_child"  # child profile: gambling and bypass lists, social media services
-TAG_ADULT = "device_other"  # adult content is blocked for this client (child, or self by choice)
+# AdGuard Home has a fixed set of client tags (a client cannot have any other). Plainphone uses
+# three of them as flags; the names mean nothing here. Which list each one switches on:
+#
+#   tag            switches on                                    set when
+#   user_child     HaGeZi bypass (VPN/proxy/Tor), YouTube strict  profile is `child`, always
+#   device_other   OISD NSFW (adult content)                      category `adult` is blocked
+#   os_other       HaGeZi gambling                                category `gambling` is blocked
+#
+# Older ppdns versions tagged the gambling list `user_child`. build() retags such a file, and
+# Service.upgrade_clients() adds `os_other` to the clients that had gambling blocked that way.
+TAG_CHILD = "user_child"
+TAG_ADULT = "device_other"
+TAG_GAMBLING = "os_other"
+
+# First line of every list we rewrite; it also says which tag the rules carry.
+_HEADER = "! Rewritten by Plainphone ppdns: every rule applies only to clients tagged "
 
 HAGEZI = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock"
 
@@ -39,10 +52,10 @@ SOURCES: tuple[Source, ...] = (
     Source("hagezi-pro", "HaGeZi Multi PRO", f"{HAGEZI}/pro.txt", None),
     Source("oisd-big", "OISD big", "https://big.oisd.nl/", None),
     Source("hagezi-doh", "HaGeZi encrypted DNS (DoH/DoT/DoQ) bypass", f"{HAGEZI}/doh.txt", None),
-    # Adult content: child always, self when the owner chooses it.
+    # Per category: applies to the phones that block that category.
     Source("oisd-nsfw", "OISD NSFW (adult content)", "https://nsfw.oisd.nl/", TAG_ADULT),
-    # Child only.
-    Source("hagezi-gambling", "HaGeZi gambling (medium)", f"{HAGEZI}/gambling.medium.txt", TAG_CHILD),
+    Source("hagezi-gambling", "HaGeZi gambling (medium)", f"{HAGEZI}/gambling.medium.txt", TAG_GAMBLING),
+    # Child profile only, and a parent cannot switch it off.
     Source(
         "hagezi-bypass",
         "HaGeZi DoH/VPN/TOR/proxy bypass",
@@ -108,7 +121,7 @@ def tag_rules(lines, tag: str):
     tag appended (`,ctag=`); rules that already restrict clients are skipped,
     because combining two client restrictions would change their meaning.
     """
-    yield f"! Rewritten by Plainphone ppdns: every rule applies only to clients tagged {tag}\n"
+    yield f"{_HEADER}{tag}\n"
     for raw in lines:
         line = raw.strip()
         if not line or line[0] in "!#[":
@@ -129,6 +142,30 @@ def tag_rules(lines, tag: str):
             if domain in ("localhost", "0.0.0.0") or "." not in domain:
                 continue
             yield f"||{domain}^$ctag={tag}\n"
+
+
+def retag_file(path: str, tag: str) -> bool:
+    """Point a list we wrote earlier at `tag`. Returns True if the file was changed.
+
+    Used when a download fails and the old copy was written by a ppdns version that
+    used another tag for this list. Files without our header are left alone.
+    """
+    with open(path, encoding="utf-8") as fh:
+        first = fh.readline()
+        if not first.startswith(_HEADER):
+            return False
+        old = first[len(_HEADER):].strip()
+        if old == tag:
+            return False
+        rest = fh.readlines()
+    suffix = f"ctag={old}\n"
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".retag.")
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(f"{_HEADER}{tag}\n")
+        out.writelines(line[: -len(suffix)] + f"ctag={tag}\n" if line.endswith(suffix) else line for line in rest)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+    return True
 
 
 def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen) -> dict[str, str]:
@@ -163,6 +200,11 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
         except Exception as exc:  # noqa: BLE001 - keep serving with the old list
             log.warning("list %s: download failed (%s)", source.key, exc)
             if os.path.exists(target):
+                try:
+                    if retag_file(target, source.tag):
+                        log.warning("list %s: kept the old copy, now tagged %s", source.key, source.tag)
+                except OSError as err:
+                    log.warning("list %s: could not retag the old copy (%s)", source.key, err)
                 result[source.key] = "kept"
             else:
                 with open(target, "w", encoding="utf-8") as out:

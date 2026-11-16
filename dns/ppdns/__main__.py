@@ -4,7 +4,7 @@
 
   python -m ppdns init                 write the first AdGuardHome.yaml and build the tagged lists
   python -m ppdns serve                run the HTTP API and the background jobs
-  python -m ppdns create child|self [--block-adult|--allow-adult]
+  python -m ppdns create child|self [--block-adult|--allow-adult] [--categories social,gambling,...]
   python -m ppdns list
   python -m ppdns show <client-id>
   python -m ppdns delete <client-id>
@@ -36,6 +36,7 @@ def main(argv=None) -> int:
     adult = create.add_mutually_exclusive_group()
     adult.add_argument("--block-adult", dest="block_adult", action="store_true", default=None)
     adult.add_argument("--allow-adult", dest="block_adult", action="store_false")
+    create.add_argument("--categories", help="comma-separated blocked categories (default: all for child, none for self)")
     sub.add_parser("list")
     for name in ("show", "delete"):
         sub.add_parser(name).add_argument("client_id")
@@ -64,7 +65,8 @@ def main(argv=None) -> int:
         settings.data_dir,
     )
     if args.command == "create":
-        out = service.create(args.profile, args.block_adult)
+        categories = None if args.categories is None else [c for c in args.categories.split(",") if c]
+        out = service.create(args.profile, args.block_adult, blocked_categories=categories)
     elif args.command == "list":
         out = service.list()
     elif args.command == "show":

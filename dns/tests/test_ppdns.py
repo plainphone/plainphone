@@ -25,20 +25,45 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from ppdns import config, dot, lists, profiles  # noqa: E402
 from ppdns.server import Api  # noqa: E402
 from ppdns import service as service_mod  # noqa: E402
+from ppdns.adguard import AdGuardError  # noqa: E402
 from ppdns.service import NotFound, Service  # noqa: E402
 
+# A cut-down copy of AdGuard Home's /control/blocked_services/all. Like the real one, it puts
+# OnlyFans in `social_network` and Twitch, Vimeo, YouTube and the rest in `streaming`.
 CATALOGUE = [
     {"id": "instagram", "group_id": "social_network"},
     {"id": "tiktok", "group_id": "social_network"},
+    {"id": "onlyfans", "group_id": "social_network"},
     {"id": "steam", "group_id": "gaming"},
     {"id": "betway", "group_id": "gambling"},
     {"id": "tinder", "group_id": "dating"},
     {"id": "proton", "group_id": "privacy"},
+    {"id": "icloud_private_relay", "group_id": "privacy"},
     {"id": "youtube", "group_id": "streaming"},
     {"id": "twitch", "group_id": "streaming"},
+    {"id": "vimeo", "group_id": "streaming"},
+    {"id": "dailymotion", "group_id": "streaming"},
+    {"id": "bigo_live", "group_id": "streaming"},
     {"id": "spotify", "group_id": "streaming"},
     {"id": "whatsapp", "group_id": "messenger"},
 ]
+
+# What the first ppdns release (before categories) stored in AdGuard for each kind of phone:
+# the child got every service of five groups plus six single ones, and the tags user_child and
+# device_other. Written out by hand so it stays what old installs really contain.
+LEGACY_CHILD_SERVICES = [
+    "betway", "bigo_live", "dailymotion", "icloud_private_relay", "instagram", "onlyfans", "proton",
+    "steam", "tiktok", "tinder", "twitch", "vimeo",
+]
+
+
+def legacy_client(client_id, tags, services=()):
+    """An AdGuard client as the first ppdns release wrote it."""
+    return {
+        "name": "pp-" + client_id, "ids": [client_id], "tags": list(tags), "blocked_services": list(services),
+        "use_global_settings": False, "filtering_enabled": True,
+        "safe_search": {"enabled": "device_other" in tags, "youtube": True},
+    }
 
 
 class FakeAdGuard:
@@ -57,11 +82,11 @@ class FakeAdGuard:
 
     def add_client(self, client):
         assert client["name"] not in self._clients
-        self._clients[client["name"]] = dict(client)
+        self._clients[client["name"]] = dict(client, tags=sorted(client.get("tags") or []))  # AdGuard sorts tags
 
     def update_client(self, name, client):
         del self._clients[name]
-        self._clients[client["name"]] = dict(client)
+        self._clients[client["name"]] = dict(client, tags=sorted(client.get("tags") or []))
 
     def delete_client(self, name):
         del self._clients[name]
@@ -144,26 +169,109 @@ class TagRulesTest(unittest.TestCase):
 
 class ProfilesTest(unittest.TestCase):
     def test_child_profile(self):
-        payload = profiles.client_payload("abcd1234", "child", False, CATALOGUE)
+        payload = profiles.client_payload("abcd1234", "child", set(profiles.CATEGORIES), CATALOGUE)
         self.assertEqual(payload["name"], "pp-abcd1234")
         self.assertEqual(payload["ids"], ["abcd1234"])
-        self.assertEqual(payload["tags"], [lists.TAG_CHILD, lists.TAG_ADULT])  # adult cannot be turned off
+        self.assertEqual(payload["tags"], [lists.TAG_CHILD, lists.TAG_ADULT, lists.TAG_GAMBLING])
         self.assertTrue(payload["safe_search"]["enabled"] and payload["safe_search"]["youtube"])
-        self.assertEqual(
-            payload["blocked_services"],
-            ["betway", "instagram", "proton", "steam", "tiktok", "tinder", "twitch"],
-        )
+        self.assertEqual(payload["blocked_services"], LEGACY_CHILD_SERVICES)  # exactly what it was before categories
         self.assertFalse(payload["use_global_settings"])
         self.assertTrue(payload["ignore_querylog"])
 
     def test_self_profile(self):
-        payload = profiles.client_payload("abcd1234", "self", False, CATALOGUE)
+        payload = profiles.client_payload("abcd1234", "self", set(), CATALOGUE)
         self.assertEqual(payload["tags"], [])
         self.assertFalse(payload["safe_search"]["enabled"])
         self.assertEqual(payload["blocked_services"], [])
-        adult = profiles.client_payload("abcd1234", "self", True, CATALOGUE)
+        adult = profiles.client_payload("abcd1234", "self", {"adult"}, CATALOGUE)
         self.assertEqual(adult["tags"], [lists.TAG_ADULT])
         self.assertTrue(adult["safe_search"]["enabled"])
+        self.assertEqual(adult["blocked_services"], ["onlyfans"])
+
+    def test_category_to_service_mapping(self):
+        expected = {
+            "social": {"instagram", "tiktok"},  # OnlyFans is in AdGuard's social group but belongs to adult
+            "adult": {"onlyfans"},
+            "gambling": {"betway"},
+            "games": {"steam"},
+            "dating": {"tinder"},
+            "video": {"twitch", "vimeo", "dailymotion", "bigo_live"},  # not YouTube
+        }
+        self.assertEqual(set(expected), set(profiles.CATEGORIES))
+        for category, services in expected.items():
+            self.assertEqual(profiles.category_services(category, CATALOGUE), services, category)
+            self.assertEqual(
+                profiles.client_payload("abcd1234", "self", {category}, CATALOGUE)["blocked_services"],
+                sorted(services),
+                category,
+            )
+
+    def test_category_to_tag_mapping(self):
+        tags = {c: profiles.client_payload("abcd1234", "self", {c}, CATALOGUE)["tags"] for c in profiles.CATEGORIES}
+        self.assertEqual(
+            tags,
+            {"adult": ["device_other"], "gambling": ["os_other"], "social": [], "games": [], "dating": [], "video": []},
+        )
+
+    def test_server_category_names(self):
+        self.assertEqual(profiles.CATEGORIES, ("adult", "dating", "gambling", "games", "social", "video"))
+
+    def test_child_keeps_bypass_and_safesearch_with_every_category_unblocked(self):
+        payload = profiles.client_payload("abcd1234", "child", set(), CATALOGUE)
+        self.assertEqual(payload["tags"], [lists.TAG_CHILD])  # bypass list and YouTube strict ride on this
+        self.assertEqual(payload["blocked_services"], ["icloud_private_relay", "proton"])
+        self.assertTrue(payload["safe_search"]["enabled"])
+
+    def test_safesearch_for_self_only_with_adult(self):
+        for category in profiles.CATEGORIES:
+            enabled = profiles.client_payload("abcd1234", "self", {category}, CATALOGUE)["safe_search"]["enabled"]
+            self.assertEqual(enabled, category == "adult", category)
+
+    def test_youtube_is_never_blocked(self):
+        everything = set(profiles.CATEGORIES)
+        for profile in profiles.PROFILES:
+            self.assertNotIn("youtube", profiles.client_payload("abcd1234", profile, everything, CATALOGUE)["blocked_services"])
+
+    def test_categories_read_back_for_every_combination(self):
+        import itertools
+
+        for profile in profiles.PROFILES:
+            for size in range(len(profiles.CATEGORIES) + 1):
+                for combo in itertools.combinations(profiles.CATEGORIES, size):
+                    stored = profiles.client_payload("abcd1234", profile, set(combo), CATALOGUE)
+                    self.assertEqual(profiles.categories_of(stored, CATALOGUE), set(combo), (profile, combo))
+                    out = profiles.describe(stored, "dns.example.org", CATALOGUE)
+                    self.assertEqual(out["blocked_categories"], sorted(combo))
+                    self.assertEqual(out["block_adult"], "adult" in combo)
+                    self.assertEqual(out["profile"], profile)
+
+    def test_clients_from_before_categories_read_back_unchanged(self):
+        child = legacy_client("abcd1234", ["user_child", "device_other"], LEGACY_CHILD_SERVICES)
+        self.assertEqual(profiles.categories_of(child, CATALOGUE), set(profiles.CATEGORIES))
+        self.assertEqual(profiles.describe(child, "d", CATALOGUE)["profile"], "child")
+        self.assertEqual(profiles.categories_of(legacy_client("abcd1234", []), CATALOGUE), set())
+        self.assertEqual(profiles.categories_of(legacy_client("abcd1234", ["device_other"]), CATALOGUE), {"adult"})
+
+    def test_resolve_categories(self):
+        resolve = profiles.resolve_categories
+        self.assertEqual(resolve({"social"}), {"social"})  # nothing said: unchanged
+        self.assertEqual(resolve({"social"}, None, True), {"social", "adult"})
+        self.assertEqual(resolve({"social", "adult"}, None, False), {"social"})
+        self.assertEqual(resolve({"social"}, ["games", "games"]), {"games"})  # replaces, duplicates collapse
+        self.assertEqual(resolve({"social"}, []), set())
+        self.assertEqual(resolve(set(), ["adult"], True), {"adult"})  # both given and in agreement
+        self.assertEqual(resolve({"adult"}, ["social"], False), {"social"})
+        for blocked, adult in ((["social"], True), (["adult"], False)):
+            with self.assertRaises(ValueError, msg=(blocked, adult)):
+                resolve(set(), blocked, adult)
+        for bad in (["porn"], ["Social"], [""], "social", [1], {"a": 1}):
+            with self.assertRaises(ValueError, msg=bad):
+                resolve(set(), bad)
+
+    def test_catalogue_without_our_groups_is_noticed(self):
+        self.assertEqual(profiles.missing_groups(CATALOGUE), [])
+        self.assertEqual(profiles.missing_groups([s for s in CATALOGUE if s["group_id"] != "gaming"]), ["gaming"])
+        self.assertEqual(len(profiles.missing_groups([])), 5)
 
     def test_client_ids(self):
         ids = {profiles.new_client_id() for _ in range(200)}
