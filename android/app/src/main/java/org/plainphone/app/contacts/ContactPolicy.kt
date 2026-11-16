@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Plainphone authors
+package org.plainphone.app.contacts
+
+/** A person the phone may call and text, and who may call and text the phone. */
+data class ApprovedContact(val name: String, val number: String)
+
+/**
+ * The rules for calls and messages at one moment.
+ *
+ * @param enforced false while the phone is not locked (no Device Owner, or a
+ *   maintenance unlock). Then everything is allowed, like a normal phone.
+ * @param country the phone's home country, for numbers written without +code.
+ */
+data class ContactRules(
+    val enforced: Boolean,
+    val contacts: List<ApprovedContact>,
+    val country: PhoneNumbers.Country?,
+) {
+    /** The approved contact behind [number], if any. */
+    fun contactFor(number: String?): ApprovedContact? {
+        val key = PhoneNumbers.normalize(number, country) ?: return null
+        return contacts.firstOrNull { PhoneNumbers.normalize(it.number, country) == key }
+    }
+}
+
+enum class Direction { INCOMING, OUTGOING }
+enum class Channel { CALL, SMS }
+
+sealed interface Decision {
+    val allowed: Boolean
+
+    data class Allow(val why: String) : Decision {
+        override val allowed = true
+    }
+
+    data class Block(val why: String) : Decision {
+        override val allowed = false
+    }
+}
+
+/**
+ * The approved-contacts rule. Pure logic: Android services feed it numbers and
+ * act on the answer.
+ */
+class ContactPolicy(
+    private val emergency: EmergencyCheck,
+    /** Milliseconds since the last emergency call, or null if none is known. */
+    private val sinceLastEmergencyMs: () -> Long? = { null },
+) {
+    fun decide(rules: ContactRules, channel: Channel, direction: Direction, number: String?): Decision {
+        // Calling and texting emergency numbers always works, whatever the rules say. Only outgoing:
+        // an incoming "112" is just a caller ID, which is easy to spoof. Real call-backs are
+        // covered by the call-back window below.
+        if (direction == Direction.OUTGOING && number != null && emergency.isEmergency(number)) {
+            return Decision.Allow("emergency number")
+        }
+        if (!rules.enforced) return Decision.Allow("lock not active")
+
+        // After an emergency call, the emergency service must be able to call back,
+        // often from a number that is hidden or not on the list.
+        if (channel == Channel.CALL && direction == Direction.INCOMING) {
+            val since = sinceLastEmergencyMs()
+            if (since != null && since in 0..EMERGENCY_CALLBACK_WINDOW_MS) {
+                return Decision.Allow("emergency callback window")
+            }
+        }
+
+        if (number.isNullOrBlank()) return Decision.Block("hidden or unknown number")
+        if (PhoneNumbers.normalize(number, rules.country) == null) return Decision.Block("not a phone number")
+        val contact = rules.contactFor(number) ?: return Decision.Block("not an approved contact")
+        return Decision.Allow("approved contact ${contact.name}")
+    }
+
+    companion object {
+        /** How long incoming calls from anyone are let through after an emergency call. */
+        const val EMERGENCY_CALLBACK_WINDOW_MS = 60 * 60_000L
+    }
+}

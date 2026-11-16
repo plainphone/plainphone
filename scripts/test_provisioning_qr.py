@@ -23,7 +23,8 @@ class ProvisioningQrTest(unittest.TestCase):
         args = argparse.Namespace(
             apk_url="https://example.org/a.apk", dns_host="family.adguard-dns.com", relock_minutes=30,
             allow=["com.spotify.music"], frp_account=[], wifi_ssid="Home", wifi_password="pw",
-            wifi_security="WPA", wifi_hidden=False,
+            wifi_security="WPA", wifi_hidden=False, country_code="+45",
+            contact=["Mum=+45 12 34 56 78", "Gran; Ole=87654321"],
         )
         p = qr.build_payload(args, "abc", "1234")
         pre = "android.app.extra."
@@ -34,6 +35,30 @@ class ProvisioningQrTest(unittest.TestCase):
         self.assertNotIn("1234", extras.values(), "the PIN itself must never be in the QR code")
         self.assertEqual(extras["plainphone.allowed_packages"], "com.spotify.music")
         self.assertEqual(p[pre + "PROVISIONING_WIFI_SSID"], "Home")
+        self.assertEqual(extras["plainphone.country_code"], "45")
+        # Same format as ContactCodec.kt; separators in names are neutralised.
+        self.assertEqual(extras["plainphone.contacts"], "Mum=+45 12 34 56 78;Gran Ole=87654321")
+
+    def test_dns_host_template_gets_a_client_id(self):
+        host, cid = qr.resolve_dns_host(qr.PLAINPHONE_DNS_TEMPLATE, None)
+        self.assertRegex(cid, r"^[a-z0-9]{20}$")
+        self.assertEqual(host, f"{cid}.dns.plainphone.org")
+        host, cid = qr.resolve_dns_host("{id}.dns.example.org", "kid-1")
+        self.assertEqual((host, cid), ("kid-1.dns.example.org", "kid-1"))
+
+    def test_plain_dns_host_is_kept(self):
+        self.assertEqual(qr.resolve_dns_host(qr.DEFAULT_DNS_HOST, None), ("family.adguard-dns.com", None))
+
+    def test_bad_dns_values_are_refused(self):
+        for template, cid in [("{id}.dns.plainphone.org", "Bad_ID"), ("{id}.dns.plainphone.org", "ab"),
+                              ("family.adguard-dns.com", "kid-1"), ("not a host", None)]:
+            with self.assertRaises(ValueError):
+                qr.resolve_dns_host(template, cid)
+
+    def test_bad_contacts_are_refused(self):
+        for bad in ["Mum", "Mum=call me", "=", "Mum=+45 12 34 56 78; rm"]:
+            with self.assertRaises(ValueError):
+                qr.contacts_extra([bad])
 
 
 if __name__ == "__main__":

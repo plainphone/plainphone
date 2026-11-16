@@ -1,4 +1,4 @@
-# Policies in phase 1
+# Policies (phases 1 and 2)
 
 Plainphone sets these policies as Device Owner. The code is in [`LockPolicy.kt`](../android/app/src/main/java/org/plainphone/app/LockPolicy.kt) and [`PolicyApplier.kt`](../android/app/src/main/java/org/plainphone/app/PolicyApplier.kt). Each step runs on its own, so if one fails (for example private DNS while the phone is offline), the others still apply. The status screen shows `OK` or `FAIL` for every step.
 
@@ -27,7 +27,19 @@ The lock is applied:
 | `DISALLOW_NETWORK_RESET` | Resetting network settings | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_NETWORK_RESET) |
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
+| `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2) | Changing the default phone and SMS app (Plainphone) in Settings | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
+
+## Phone and SMS (phase 2)
+
+| Step | What it does | Android reference |
+|---|---|---|
+| `setDefaultDialerApplication` (Android 14+) | Makes Plainphone the default phone app, so its call screening and in-call service see every call | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setDefaultDialerApplication(java.lang.String)) |
+| `setDefaultSmsApplication` | Makes Plainphone the default SMS app, so only it receives and stores SMS | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setDefaultSmsApplication(android.content.ComponentName,%20java.lang.String)) |
+| `setPermissionGrantState` | Grants Plainphone's own phone, call log, SMS and notification permissions | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
+| Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback) | [contacts.md](contacts.md) |
+
+The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. Releasing Device Owner gives the roles back to the system dialer and the maker's SMS app. The approved-contacts rule itself is described in [contacts.md](contacts.md).
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
@@ -51,7 +63,8 @@ Found on the phone itself, so each maker keeps its own apps: the default dialer 
 
 - **Factory reset from recovery mode** (button combination at boot), and on Samsung also flashing in Download mode. No app can stop this. What protects the phone afterwards is Factory Reset Protection (FRP): the phone asks for a Google account that was on it before the reset. See below.
 - **FRP without a Google account.** `setFactoryResetProtectionPolicy` takes Google *account IDs* (the numeric ID from the People API, not an email address). If no account IDs are set, Android's normal FRP applies: it only protects the phone if a Google account was signed in on it. A phone without any Google account can be reset in recovery and is then free. This is risk R4 in the spec; the fallback must be documented for parents. The policy also throws `UnsupportedOperationException` on devices without FRP support, which the status screen shows.
-- **Apps with their own encrypted DNS.** Private DNS only covers apps that use the system resolver. An app that has its own DNS-over-HTTPS (Chrome is handled through managed configuration; Firefox and some others are not) can get around the filter. Phase 2 needs a blocklist of public DoH endpoints in the resolver, and possibly an always-on VPN.
+- **Apps with their own encrypted DNS.** Private DNS only covers apps that use the system resolver. An app that has its own DNS-over-HTTPS (Chrome is handled through managed configuration; Firefox and some others are not) can get around the filter. The Plainphone resolver blocks public DoH hosts; an always-on VPN is the later layer. See [dns-bypass.md](dns-bypass.md).
+- **Calls and chats inside messenger apps** (WhatsApp, Signal and similar) cannot be limited to approved contacts. Those apps are hidden unless a parent allows them. See [contacts.md](contacts.md).
 - **Apps the system will not hide.** Some system packages refuse `setApplicationHidden`. The status screen lists them under "hide apps ... failed".
 - **Emergency calls** can never be blocked, and that is on purpose.
 - **Clone profiles** use a hidden constant. If a maker ignores it, Dual Messenger and similar may still work. This must be tested.

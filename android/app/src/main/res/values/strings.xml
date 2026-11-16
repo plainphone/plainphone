@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Plainphone</string>
+    <string name="app_name" translatable="false">Plainphone</string>
     <string name="admin_description">Keeps this phone calm: blocks app installs, factory reset, safe mode and DNS changes.</string>
-    <string name="phase_notice">Phase 1: proof of lock. Not for real use yet.</string>
+    <string name="phase_notice">Phase 2: approved contacts and DNS filter. Not for real use yet.</string>
     <string name="status_owner">Locked: Plainphone is Device Owner.</string>
     <string name="status_not_owner">Not locked: Plainphone is not Device Owner. Set the phone up with the QR code.</string>
     <string name="status_maintenance">Maintenance unlock is active. The lock returns automatically.</string>
@@ -24,4 +24,86 @@
     <string name="maintenance_reapply">Apply the lock now</string>
     <string name="maintenance_release">Release Device Owner (test phones)</string>
     <string name="maintenance_release_confirm">This removes every restriction and gives up Device Owner. Plainphone can then be uninstalled and the phone reset normally. Continue?</string>
+    <string name="maintenance_contacts">Approved contacts and blocked log</string>
+    <string name="status_phone_role_ok">Phone app: Plainphone.</string>
+    <string name="status_phone_role_missing">Phone app: not Plainphone. Calls are not filtered.</string>
+    <string name="status_sms_role_ok">SMS app: Plainphone.</string>
+    <string name="status_sms_role_missing">SMS app: not Plainphone. Messages are not filtered.</string>
+    <plurals name="status_contacts">
+        <item quantity="one">%1$d approved contact.</item>
+        <item quantity="other">%1$d approved contacts.</item>
+    </plurals>
+    <plurals name="status_contacts_pending">
+        <item quantity="one">%1$d contact from the QR code waits for the phone\'s country (insert the SIM).</item>
+        <item quantity="other">%1$d contacts from the QR code wait for the phone\'s country (insert the SIM).</item>
+    </plurals>
+    <string name="status_contacts_not_enforced">Approved contacts are not enforced right now (not locked, or maintenance unlock).</string>
+
+    <!-- Phone and messages -->
+    <string name="phone_app_name">Phone</string>
+    <string name="messages_app_name">Messages</string>
+    <string name="tab_contacts">Contacts</string>
+    <string name="tab_recents">Recent</string>
+    <string name="tab_messages">Messages</string>
+    <string name="tab_keypad">Keypad</string>
+    <string name="action_call">Call %1$s</string>
+    <string name="action_message">Message %1$s</string>
+    <string name="action_back">Back</string>
+    <string name="action_send">Send</string>
+    <string name="action_done">Done</string>
+    <string name="role_banner_text">Make Plainphone the phone and SMS app, so calls and messages are limited to approved contacts.</string>
+    <string name="role_make_phone">Use as phone app</string>
+    <string name="role_make_sms">Use as SMS app</string>
+    <string name="contacts_empty">No approved contacts yet. A parent can add them on the maintenance screen.</string>
+    <string name="contacts_footnote">Only these people can call and text this phone. Emergency numbers such as 112 always work. Apps like WhatsApp and Signal are not covered by this list.</string>
+    <string name="recents_empty">No calls yet.</string>
+    <string name="recent_incoming">Incoming</string>
+    <string name="recent_outgoing">Outgoing</string>
+    <string name="recent_missed">Missed</string>
+    <string name="recent_other">Call</string>
+    <string name="messages_empty">No messages yet.</string>
+    <string name="messages_footnote">Messages from people who are not approved are not shown. Picture and group messages (MMS) are not supported yet.</string>
+    <string name="message_hint">Message</string>
+    <string name="message_failed">Not sent</string>
+    <string name="message_send_failed">The message could not be sent.</string>
+    <string name="message_not_approved">%1$s is not an approved contact, so messages cannot be sent.</string>
+    <string name="keypad_hint">Approved contacts and emergency numbers (112) only.</string>
+    <string name="call_not_allowed">Only approved contacts can be called. Emergency numbers always work.</string>
+    <string name="call_no_permission">Plainphone is not allowed to make calls yet.</string>
+    <string name="call_failed">The call could not be started.</string>
+    <string name="call_unknown">Unknown</string>
+    <string name="call_incoming">Incoming call</string>
+    <string name="call_dialing">Calling…</string>
+    <string name="call_on_hold">On hold</string>
+    <string name="call_ended">Call ended</string>
+    <string name="call_answer">Answer</string>
+    <string name="call_decline">Decline</string>
+    <string name="call_hang_up">Hang up</string>
+    <string name="call_ongoing">Call in progress</string>
+    <string name="call_mute">Mute</string>
+    <string name="call_keypad">Keypad</string>
+    <string name="call_speaker">Speaker</string>
+    <string name="call_blocked_title">Call not allowed</string>
+    <string name="call_blocked_text">%1$s is not an approved contact.</string>
+    <string name="channel_calls">Calls</string>
+    <string name="channel_messages">Messages</string>
+    <string name="channel_blocked">Blocked calls</string>
+
+    <!-- Parent screen: approved contacts -->
+    <string name="contacts_admin_title">Approved contacts</string>
+    <string name="contacts_admin_intro">Only these numbers can call and text this phone, and be called and texted from it. Emergency numbers always work.</string>
+    <string name="contacts_admin_name">Name</string>
+    <string name="contacts_admin_number">Phone number</string>
+    <string name="contacts_admin_number_help">With country code, for example +45 12 34 56 78</string>
+    <string name="contacts_admin_invalid">That is not a phone number. Use the country code, for example +45.</string>
+    <string name="contacts_admin_add">Add contact</string>
+    <string name="contacts_admin_list">Approved (%1$d)</string>
+    <string name="contacts_admin_remove">Remove %1$s</string>
+    <string name="blocked_title">Blocked (%1$d)</string>
+    <string name="blocked_empty">Nothing blocked yet.</string>
+    <string name="blocked_clear">Clear the blocked log</string>
+    <string name="blocked_call_in">Incoming call</string>
+    <string name="blocked_call_out">Outgoing call</string>
+    <string name="blocked_sms_in">Incoming message</string>
+    <string name="blocked_sms_out">Outgoing message</string>
 </resources>

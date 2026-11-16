@@ -4,6 +4,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // Release signing is read from a properties file OUTSIDE the repository.
@@ -22,8 +23,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 34
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     signingConfigs {
@@ -53,6 +54,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures {
+        compose = true
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -60,10 +65,21 @@ android {
     lint {
         abortOnError = true
         warningsAsErrors = false
+        // The app calls the platform APIs directly and does not use core-ktx (only Compose pulls it in).
+        disable += "UseKtx"
+        // androidx.lifecycle ships lint checks built against an older lint API; nothing to fix on our side.
+        disable += "ObsoleteLintCustomCheck"
     }
 }
 
 dependencies {
+    // Phone and messages UI (phase 2). Compose is the only runtime dependency.
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.activity:activity-compose:1.13.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.18")
     testImplementation("androidx.test:core:1.7.0")

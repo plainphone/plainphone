@@ -1,13 +1,16 @@
 # Set up a test phone
 
-This guide puts Plainphone phase 1 on a spare Android phone. **The phone is factory reset, and everything on it is erased.**
+This guide puts Plainphone (phases 1 and 2) on a spare Android phone. **The phone is factory reset, and everything on it is erased.**
 
 You need:
 
 - an Android 14 or newer phone (Settings → About phone → Android version);
 - Wi-Fi without a login page (hotel and school portals do not work during setup), or a SIM card with mobile data;
 - the QR code from `scripts/provisioning-qr.py`, shown on another screen or printed;
-- the maintenance PIN that belongs to that QR code.
+- the maintenance PIN that belongs to that QR code;
+- for phase 2: a SIM card, and a second phone to call and text from.
+
+For phase 2, build the QR code with your own number as an approved contact, for example `--country-code 45 --contact 'Me=+45 12 34 56 78'`. More contacts can be added on the phone later.
 
 Total time: 10 to 15 minutes.
 
@@ -38,6 +41,8 @@ If the phone says "Can't set up device" or "The app couldn't be downloaded", see
 1. Open the **Plainphone** app. It should say "Locked: Plainphone is Device Owner".
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.
 3. The home screen should only show phone, messages, camera, clock, contacts, settings, Chrome, Maps and a few small apps. Play Store, YouTube, Gmail and games are gone.
+4. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
+5. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log".
 
 Then work through [bypass-checklist.md](bypass-checklist.md).
 

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="admin_description">Holder telefonen rolig: blokerer app-installation, nulstilling, fejlsikret tilstand og ændring af DNS.</string>
+    <string name="phase_notice">Fase 2: godkendte kontakter og DNS-filter. Ikke til rigtig brug endnu.</string>
+    <string name="status_owner">Låst: Plainphone er Device Owner.</string>
+    <string name="status_not_owner">Ikke låst: Plainphone er ikke Device Owner. Sæt telefonen op med QR-koden.</string>
+    <string name="status_maintenance">Vedligeholdsoplåsning er aktiv. Låsen kommer automatisk igen.</string>
+    <string name="status_dns">Privat DNS: %1$s</string>
+    <string name="status_default_pin">Advarsel: vedligeholds-PIN\'en er standard-testkoden.</string>
+    <string name="version_line">Version %1$s</string>
+    <string name="maintenance_title">Vedligehold</string>
+    <string name="maintenance_pin_hint">Forælder-PIN</string>
+    <string name="maintenance_unlock">Åbn</string>
+    <string name="maintenance_wrong_pin">Forkert PIN.</string>
+    <plurals name="maintenance_wait">
+        <item quantity="one">For mange forsøg. Prøv igen om %1$d sekund.</item>
+        <item quantity="other">For mange forsøg. Prøv igen om %1$d sekunder.</item>
+    </plurals>
+    <plurals name="maintenance_lift">
+        <item quantity="one">Løft låsen i %1$d minut</item>
+        <item quantity="other">Løft låsen i %1$d minutter</item>
+    </plurals>
+    <string name="maintenance_reapply">Lås telefonen nu</string>
+    <string name="maintenance_release">Frigiv Device Owner (testtelefoner)</string>
+    <string name="maintenance_release_confirm">Det fjerner alle begrænsninger og opgiver Device Owner. Bagefter kan Plainphone afinstalleres, og telefonen kan nulstilles normalt. Fortsæt?</string>
+    <string name="maintenance_contacts">Godkendte kontakter og blokeringslog</string>
+    <string name="status_phone_role_ok">Telefon-app: Plainphone.</string>
+    <string name="status_phone_role_missing">Telefon-app: ikke Plainphone. Opkald filtreres ikke.</string>
+    <string name="status_sms_role_ok">Sms-app: Plainphone.</string>
+    <string name="status_sms_role_missing">Sms-app: ikke Plainphone. Beskeder filtreres ikke.</string>
+    <plurals name="status_contacts">
+        <item quantity="one">%1$d godkendt kontakt.</item>
+        <item quantity="other">%1$d godkendte kontakter.</item>
+    </plurals>
+    <plurals name="status_contacts_pending">
+        <item quantity="one">%1$d kontakt fra QR-koden venter på telefonens land (sæt SIM-kortet i).</item>
+        <item quantity="other">%1$d kontakter fra QR-koden venter på telefonens land (sæt SIM-kortet i).</item>
+    </plurals>
+    <string name="status_contacts_not_enforced">Godkendte kontakter håndhæves ikke lige nu (ikke låst, eller vedligeholdsoplåsning).</string>
+
+    <string name="phone_app_name">Telefon</string>
+    <string name="messages_app_name">Beskeder</string>
+    <string name="tab_contacts">Kontakter</string>
+    <string name="tab_recents">Seneste</string>
+    <string name="tab_messages">Beskeder</string>
+    <string name="tab_keypad">Tastatur</string>
+    <string name="action_call">Ring til %1$s</string>
+    <string name="action_message">Skriv til %1$s</string>
+    <string name="action_back">Tilbage</string>
+    <string name="action_send">Send</string>
+    <string name="action_done">Færdig</string>
+    <string name="role_banner_text">Gør Plainphone til telefon- og sms-app, så opkald og beskeder kun går til og fra godkendte kontakter.</string>
+    <string name="role_make_phone">Brug som telefon-app</string>
+    <string name="role_make_sms">Brug som sms-app</string>
+    <string name="contacts_empty">Ingen godkendte kontakter endnu. En forælder kan tilføje dem på vedligeholdsskærmen.</string>
+    <string name="contacts_footnote">Kun disse personer kan ringe og skrive til telefonen. Nødnumre som 112 virker altid. Apps som WhatsApp og Signal er ikke omfattet af listen.</string>
+    <string name="recents_empty">Ingen opkald endnu.</string>
+    <string name="recent_incoming">Indgående</string>
+    <string name="recent_outgoing">Udgående</string>
+    <string name="recent_missed">Ubesvaret</string>
+    <string name="recent_other">Opkald</string>
+    <string name="messages_empty">Ingen beskeder endnu.</string>
+    <string name="messages_footnote">Beskeder fra personer, der ikke er godkendt, vises ikke. Billed- og gruppebeskeder (MMS) understøttes ikke endnu.</string>
+    <string name="message_hint">Besked</string>
+    <string name="message_failed">Ikke sendt</string>
+    <string name="message_send_failed">Beskeden kunne ikke sendes.</string>
+    <string name="message_not_approved">%1$s er ikke en godkendt kontakt, så der kan ikke sendes beskeder.</string>
+    <string name="keypad_hint">Kun godkendte kontakter og nødnumre (112).</string>
+    <string name="call_not_allowed">Der kan kun ringes til godkendte kontakter. Nødnumre virker altid.</string>
+    <string name="call_no_permission">Plainphone har ikke lov til at ringe endnu.</string>
+    <string name="call_failed">Opkaldet kunne ikke startes.</string>
+    <string name="call_unknown">Ukendt</string>
+    <string name="call_incoming">Indgående opkald</string>
+    <string name="call_dialing">Ringer op…</string>
+    <string name="call_on_hold">Venter</string>
+    <string name="call_ended">Opkaldet er slut</string>
+    <string name="call_answer">Besvar</string>
+    <string name="call_decline">Afvis</string>
+    <string name="call_hang_up">Læg på</string>
+    <string name="call_ongoing">Opkald i gang</string>
+    <string name="call_mute">Lyd fra</string>
+    <string name="call_keypad">Tastatur</string>
+    <string name="call_speaker">Højttaler</string>
+    <string name="call_blocked_title">Opkaldet er ikke tilladt</string>
+    <string name="call_blocked_text">%1$s er ikke en godkendt kontakt.</string>
+    <string name="channel_calls">Opkald</string>
+    <string name="channel_messages">Beskeder</string>
+    <string name="channel_blocked">Blokerede opkald</string>
+
+    <string name="contacts_admin_title">Godkendte kontakter</string>
+    <string name="contacts_admin_intro">Kun disse numre kan ringe og skrive til telefonen, og kun dem kan der ringes og skrives til. Nødnumre virker altid.</string>
+    <string name="contacts_admin_name">Navn</string>
+    <string name="contacts_admin_number">Telefonnummer</string>
+    <string name="contacts_admin_number_help">Med landekode, fx +45 12 34 56 78</string>
+    <string name="contacts_admin_invalid">Det er ikke et telefonnummer. Brug landekoden, fx +45.</string>
+    <string name="contacts_admin_add">Tilføj kontakt</string>
+    <string name="contacts_admin_list">Godkendte (%1$d)</string>
+    <string name="contacts_admin_remove">Fjern %1$s</string>
+    <string name="blocked_title">Blokeret (%1$d)</string>
+    <string name="blocked_empty">Intet blokeret endnu.</string>
+    <string name="blocked_clear">Ryd blokeringsloggen</string>
+    <string name="blocked_call_in">Indgående opkald</string>
+    <string name="blocked_call_out">Udgående opkald</string>
+    <string name="blocked_sms_in">Indgående besked</string>
+    <string name="blocked_sms_out">Udgående besked</string>
+</resources>
