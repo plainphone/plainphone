@@ -36,6 +36,9 @@ pairing QR code.
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `PAYMENTS_ENABLED` | `false` | Pay to unlock (not implemented yet) |
+| `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
+| `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
+| `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |
 
 ## Backups
 

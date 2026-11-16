@@ -46,7 +46,7 @@
     "test": "jest",
     "export": "expo export --platform all",
     "gen:api": "openapi-typescript ../server/openapi.yaml -o src/api/schema.d.ts",
-    "check:api": "openapi-typescript ../server/openapi.yaml -o .expo/schema.check.d.ts && diff -q .expo/schema.check.d.ts src/api/schema.d.ts",
+    "check:api": "mkdir -p .expo && openapi-typescript ../server/openapi.yaml -o .expo/schema.check.d.ts && diff -q .expo/schema.check.d.ts src/api/schema.d.ts",
     "sync:shared": "node scripts/sync-shared.mjs",
     "check:shared": "node scripts/sync-shared.mjs --check",
     "icons": "node scripts/make-icons.mjs"
