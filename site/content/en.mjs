@@ -128,7 +128,7 @@ export default {
       title: "The short version",
       list: [
         "This website sets no cookies, runs no analytics and loads nothing from other sites.",
-        "The parent app stores your email address and the rules you set for each phone. Remove a phone and its data is deleted.",
+        "The parent app stores your email address and the rules you set for each phone. When a phone is removed, everything stored about it is deleted.",
         "Location, when it is on, is only the phone’s last known position. There is no history.",
         "The web filter does not keep a list of the sites a phone visits.",
         "We do not sell data, show ads or build profiles.",
@@ -182,7 +182,7 @@ export default {
               "on an adult’s own phone: the settings of the key (a delay, or the email address of a trusted person) and a record of the changes that waited for the key",
             ],
           },
-          "A trusted person you name gets one email. Once signed in, they can see the phone’s name, what is being asked for, and your email address.",
+          "A trusted person you name gets an email. Once signed in, they can see the phone’s name, what is being asked for, and your email address.",
         ],
       },
       {
@@ -221,7 +221,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations and the one message a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from app.plainphone.org and has no identifier in its address. It is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations and the message a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from app.plainphone.org and has no identifier in its address. It is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {
@@ -270,7 +270,7 @@ export default {
                 ],
                 [
                   "Household, phones, apps, contacts, school time, filter settings",
-                  "Until you remove the phone, or ask us to remove the household. Each contact and each schedule goes as soon as you remove it",
+                  "Until the phone or the household is removed. There is no button for either in the app yet, so ask us. A removed contact or schedule is deleted when the removal takes effect",
                 ],
                 [
                   "Latest position",
@@ -301,18 +301,17 @@ export default {
         title: "Your rights",
         body: [
           "You can ask us, free of charge, for a copy of the data we hold about you, to correct it, to delete it, to limit how we use it, to hand it over in a common format, or to stop a use you object to. You can also complain to <a href=\"https://www.datatilsynet.dk/\">Datatilsynet</a>, the Danish Data Protection Agency, or to the authority in your own country.",
-          "In the parent app you can do much of this yourself:",
+          "In the parent app you can already do some of this yourself:",
           {
             list: [
-              "change a phone’s name, contacts, apps, web filter and schedules",
+              "change a phone’s contacts, apps, web filter and schedules",
               "switch location off, which deletes the stored position",
-              "remove a phone, which deletes everything stored about it and asks the web filter to forget its ClientID. On an adult’s own phone, removal goes through the key, like any other loosening",
               "withdraw an open invitation",
               "leave a household (the last member cannot leave)",
               "log out, which ends the session",
             ],
           },
-          "There is no button yet to delete your account, to download your data or to remove an expired invitation. Ask us for these (see Who is responsible). We check that you control the email address before we change or delete anything, and we aim to answer within a month.",
+          "There is no button yet to rename or remove a phone, delete your account, download your data or remove an expired invitation. Ask us for these (see Who is responsible). Removing a phone deletes everything stored about it and asks the web filter to forget its ClientID. We check that you control the email address before we change or delete anything, and we aim to answer within a month.",
         ],
       },
       {

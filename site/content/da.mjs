@@ -126,7 +126,7 @@ export default {
       title: "Kort fortalt",
       list: [
         "Denne side sætter ingen cookies, bruger ingen statistik og henter ikke noget fra andre sider.",
-        "Forældreappen gemmer din e-mailadresse og de regler, du sætter for hver telefon. Fjerner du en telefon, bliver dens oplysninger slettet.",
+        "Forældreappen gemmer din e-mailadresse og de regler, du sætter for hver telefon. Når en telefon fjernes, bliver alt, der er gemt om den, slettet.",
         "Placering er, når den er slået til, kun telefonens seneste kendte position. Der er ingen historik.",
         "Webfilteret gemmer ikke en liste over de sider, en telefon besøger.",
         "Vi sælger ikke oplysninger, viser ikke reklamer og laver ikke profiler.",
@@ -180,7 +180,7 @@ export default {
               "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og en oversigt over de ændringer, der har ventet på nøglen",
             ],
           },
-          "En betroet person, du udpeger, får én mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
+          "En betroet person, du udpeger, får en mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
         ],
       },
       {
@@ -219,7 +219,7 @@ export default {
         id: "mail",
         title: "Mail",
         body: [
-          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og den ene besked, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra app.plainphone.org og har ingen identifikator i adressen. Adressen er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og den besked, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra app.plainphone.org og har ingen identifikator i adressen. Adressen er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
         ],
       },
       {
@@ -268,7 +268,7 @@ export default {
                 ],
                 [
                   "Husstand, telefoner, apps, kontakter, skoletid, filterindstillinger",
-                  "Til du fjerner telefonen, eller du beder os fjerne husstanden. Hver kontakt og hver tidsplan forsvinder, så snart du fjerner den",
+                  "Til telefonen eller husstanden fjernes. Der er endnu ingen knap til nogen af delene i appen, så bed os om det. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
                 ],
                 [
                   "Seneste position",
@@ -299,18 +299,17 @@ export default {
         title: "Dine rettigheder",
         body: [
           "Du kan, uden beregning, bede os om en kopi af de oplysninger, vi har om dig, om at rette dem, om at slette dem, om at begrænse brugen af dem, om at få dem udleveret i et almindeligt format eller om at stoppe en brug, du er imod. Du kan også klage til <a href=\"https://www.datatilsynet.dk/\">Datatilsynet</a> eller til tilsynsmyndigheden i dit eget land.",
-          "I forældreappen kan du selv gøre meget af det:",
+          "I forældreappen kan du allerede selv gøre noget af det:",
           {
             list: [
-              "ændre en telefons navn, kontakter, apps, webfilter og tidsplaner",
+              "ændre en telefons kontakter, apps, webfilter og tidsplaner",
               "slå placering fra, så den gemte position bliver slettet",
-              "fjerne en telefon, så alt, der er gemt om den, bliver slettet, og webfilteret bliver bedt om at glemme dens ClientID. På en voksens egen telefon går fjernelsen gennem nøglen, som alle andre lempelser",
               "trække en åben invitation tilbage",
               "forlade en husstand (det sidste medlem kan ikke forlade den)",
               "logge ud, så sessionen slutter",
             ],
           },
-          "Der er endnu ingen knap til at slette din konto, hente dine oplysninger eller fjerne en udløbet invitation. Bed os om det (se Hvem er ansvarlig). Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
+          "Der er endnu ingen knap til at omdøbe eller fjerne en telefon, slette din konto, hente dine oplysninger eller fjerne en udløbet invitation. Bed os om det (se Hvem er ansvarlig). Når en telefon fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID. Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
         ],
       },
       {
