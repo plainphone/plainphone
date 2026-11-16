@@ -9,13 +9,26 @@ import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, Pag
 import { useI18n } from "../../../i18n/I18n";
 import { answers, FIND_TIMEOUT_MS, POLL_MS } from "../../../lib/location";
 import { mapsUrl } from "../../../lib/maps";
+import { getItem, setItem } from "../../../lib/storage";
 import { formatCoord, formatDateTime, formatMeters, formatRelative, osmUrl } from "../../../shared/lib/format";
 
 type Fix = NonNullable<LocationState["location"]>;
 
+const MAP_KEY = "pp.showMap"; // a display preference, not a credential
+
 /** The last known position: map, when, how accurate, and a way to open it in a maps app. */
 function Position({ location, name, now, onError }: { location: Fix; name: string; now: number; onError: (text: string) => void }) {
   const { t, locale } = useI18n();
+  // Map tiles tell OpenStreetMap roughly where the phone is, so the map is opt-in.
+  const [showMap, setShowMap] = useState<boolean | null>(null);
+  useEffect(() => {
+    void getItem(MAP_KEY).then((v) => setShowMap(v === "1")).catch(() => setShowMap(false));
+  }, []);
+  function toggleMap() {
+    const next = !showMap;
+    setShowMap(next);
+    void setItem(MAP_KEY, next ? "1" : "0").catch(() => undefined);
+  }
 
   async function openInMaps() {
     try {
@@ -32,7 +45,11 @@ function Position({ location, name, now, onError }: { location: Fix; name: strin
 
   return (
     <VStack>
-      <MapTiles lat={location.lat} lon={location.lon} accuracyM={location.accuracyM} />
+      {showMap ? <MapTiles lat={location.lat} lon={location.lon} accuracyM={location.accuracyM} /> : null}
+      {showMap === false ? <Text variant="small">{t("native.mapPrivacy")}</Text> : null}
+      {showMap !== null ? (
+        <Button testID="toggle-map" kind="secondary" title={t(showMap ? "native.hideMap" : "native.showMap")} onPress={toggleMap} />
+      ) : null}
       <Text>
         {t("loc.at", { time: formatDateTime(location.recordedAt, locale), ago: formatRelative(location.recordedAt, now, locale) })}
       </Text>

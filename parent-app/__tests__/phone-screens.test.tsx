@@ -270,9 +270,17 @@ describe("location", () => {
     location: { lat: 55.6761, lon: 12.5683, accuracyM, recordedAt: new Date().toISOString() },
   });
 
+  it("loads no map tiles until the parent asks for the map", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(80) } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    expect(await screen.findByText(/whose servers then see roughly where the phone is/)).toBeTruthy();
+    expect(screen.queryByTestId("map-tile")).toBeNull();
+  });
+
   it("draws the position on nine tiles with an accuracy circle", async () => {
     phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(80) } });
     await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    await fireEvent.press(await screen.findByTestId("toggle-map"));
     expect(await screen.findByTestId("map")).toBeTruthy();
     const tiles = screen.getAllByTestId("map-tile");
     expect(tiles).toHaveLength(9);
@@ -286,6 +294,7 @@ describe("location", () => {
   it("leaves out a circle that is too small or too big to mean anything", async () => {
     phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(2000) } });
     await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    await fireEvent.press(await screen.findByTestId("toggle-map"));
     expect(await screen.findByTestId("map")).toBeTruthy();
     expect(screen.queryByTestId("map-accuracy")).toBeNull();
   });

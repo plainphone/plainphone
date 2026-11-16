@@ -43,7 +43,7 @@ Still missing before notifications arrive:
 
 ## Map
 
-The location screen draws the last position on OpenStreetMap raster tiles, fetched straight from `tile.openstreetmap.org`. No map SDK or API key is needed. Loading the tiles tells the OpenStreetMap servers roughly which area is being looked at, the same as opening the "Open in Maps" link. The app sends no other data to third parties.
+The location screen can draw the last position on OpenStreetMap raster tiles, fetched straight from `tile.openstreetmap.org`. The map is off until the parent taps Show map (the choice is kept on the device), and the screen says why. No map SDK or API key is needed. Loading the tiles tells the OpenStreetMap servers roughly which area is being looked at, the same as opening the "Open in Maps" link. The app sends no other data to third parties.
 
 ## Building
 
