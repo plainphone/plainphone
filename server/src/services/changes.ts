@@ -16,7 +16,7 @@ import {
   selfKeys,
   users,
 } from "../db/schema.js";
-import { inviteMail, toLocale } from "../lib/mail-templates.js";
+import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { syncDns } from "./dns.js";
@@ -311,7 +311,8 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
           effectiveAt: keyType === "delay" ? new Date(ctx.now().getTime() + delayHours * 3_600_000) : null,
         })
         .returning();
-      return { status: "pending" as const, op, change: change! };
+      const notify = keyType === "trusted" ? key!.trustedUserId : null;
+      return { status: "pending" as const, op, change: change!, notify };
     }
     const applied = await applyOp(ctx, tx, phone, op);
     return { status: "applied" as const, op, dns: applied.dns };
@@ -324,7 +325,24 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
   }
   // The phone shows pending changes with a countdown, so it should know at once.
   await wakePhone(ctx, phone.id, "rules");
-  return result;
+  const { notify, ...pending } = result;
+  if (notify) await mailTrustedPerson(ctx, notify, phone.name);
+  return pending;
+}
+
+/** Tells the trusted person that a request waits for them. A failed mail never fails the change. */
+async function mailTrustedPerson(ctx: Ctx, trustedUserId: string, phoneName: string) {
+  if (!ctx.mail.canSend) return;
+  const [person] = await ctx.db
+    .select({ email: users.email, locale: users.locale })
+    .from(users)
+    .where(eq(users.id, trustedUserId));
+  if (!person) return;
+  try {
+    await ctx.mail.send(approvalRequestMail(person.email, toLocale(person.locale), ctx.cfg.PUBLIC_URL, phoneName));
+  } catch (err) {
+    console.error(`could not mail the trusted person about a request: ${(err as Error).message}`);
+  }
 }
 
 /** Applies a pending change now (delay passed, trusted person approved, or paid). */

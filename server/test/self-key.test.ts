@@ -160,6 +160,12 @@ describe("Self profile with a trusted person", () => {
     const show = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
     expect(show.json.status).toBe("pending");
     expect(show.json.change.effectiveAt).toBeNull();
+    expect(show.json).not.toHaveProperty("notify");
+    const request = h.mail.outbox.at(-1)!;
+    expect(request.to).toBe("friend@example.org");
+    expect(request.subject).toBe("A request is waiting for your answer");
+    expect(request.text).toContain('"My phone"');
+    expect(request.text).toContain("/approvals");
     h.clock.advance(100 * 3_600_000);
     await sweep(h.ctx);
     expect(await allowed(device)).not.toContain("com.instagram.android");
