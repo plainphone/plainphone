@@ -2,7 +2,7 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, lte, notInArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -116,7 +116,7 @@ export function deviceRoutes(ctx: Ctx) {
       .where(
         and(
           eq(phones.id, phone.id),
-          sql`(${phones.lastSeenAt} is null or ${phones.lastSeenAt} < ${new Date(ctx.now().getTime() - 60_000)})`,
+          or(isNull(phones.lastSeenAt), lt(phones.lastSeenAt, new Date(ctx.now().getTime() - 60_000))),
         ),
       );
     const { doc, etag } = await rulesDocument(ctx, phone);
@@ -200,13 +200,13 @@ export function deviceRoutes(ctx: Ctx) {
       .onConflictDoUpdate({
         target: locations.phoneId,
         set: values,
-        setWhere: sql`${locations.recordedAt} <= ${recordedAt}`,
+        setWhere: lte(locations.recordedAt, recordedAt),
       });
     if (phone.locateRequestedAt) {
       await ctx.db
         .update(phones)
         .set({ locateRequestedAt: null })
-        .where(and(eq(phones.id, phone.id), sql`${phones.locateRequestedAt} <= ${recordedAt}`));
+        .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
     }
     return c.body(null, 204);
   });
