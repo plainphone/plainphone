@@ -48,7 +48,9 @@ export function createApp(ctx: Ctx) {
   app.get("/api/health", async (c) => {
     try {
       await ctx.db.execute(sql`select 1`);
-      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns: ctx.cfg.DNS_PROVIDER });
+      // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
+      const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await ctx.dns.healthy()) ? "ok" : "down";
+      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

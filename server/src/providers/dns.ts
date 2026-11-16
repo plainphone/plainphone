@@ -17,6 +17,8 @@ export interface DnsClientConfig {
 export interface DnsProvider {
   upsertClient(config: DnsClientConfig): Promise<void>;
   deleteClient(clientId: string): Promise<void>;
+  /** True when the DNS service answers. Used by /api/health. */
+  healthy(): Promise<boolean>;
 }
 
 /** Keeps the last config per client in memory. Used in tests and until the DNS service runs. */
@@ -34,6 +36,10 @@ export class MockDnsProvider implements DnsProvider {
 
   async deleteClient(clientId: string) {
     this.clients.delete(clientId);
+  }
+
+  async healthy() {
+    return true;
   }
 }
 
@@ -81,5 +87,15 @@ export class HttpDnsProvider implements DnsProvider {
   async deleteClient(clientId: string) {
     const res = await this.call("DELETE", `v1/clients/${encodeURIComponent(clientId)}`);
     if (!res.ok && res.status !== 404) throw new Error(`DNS service delete ${clientId} failed: ${res.status}`);
+  }
+
+  async healthy() {
+    try {
+      const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
+      const res = await fetch(new URL("healthz", base), { signal: AbortSignal.timeout(3_000) });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }
