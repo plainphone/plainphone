@@ -1,0 +1,64 @@
+{
+  "name": "@plainphone/parent-app",
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "expo": "~58.0.25",
+    "expo-camera": "~58.0.14",
+    "expo-constants": "~58.0.16",
+    "expo-device": "~58.0.5",
+    "expo-font": "~58.0.12",
+    "expo-linking": "~58.0.17",
+    "expo-localization": "~58.0.5",
+    "expo-notifications": "~58.1.9",
+    "expo-router": "~58.0.31",
+    "expo-secure-store": "~58.0.3",
+    "expo-splash-screen": "~58.0.14",
+    "expo-status-bar": "~58.0.5",
+    "expo-system-ui": "~58.0.7",
+    "openapi-fetch": "^0.17.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-screens": "~4.30.1",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "~19.3.0",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.14",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint",
+    "test": "jest",
+    "export": "expo export --platform all",
+    "gen:api": "openapi-typescript ../server/openapi.yaml -o src/api/schema.d.ts",
+    "check:api": "openapi-typescript ../server/openapi.yaml -o .expo/schema.check.d.ts && diff -q .expo/schema.check.d.ts src/api/schema.d.ts",
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "check:shared": "node scripts/sync-shared.mjs --check",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "private": true,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "./jest.setup.ts"
+    ]
+  }
+}
