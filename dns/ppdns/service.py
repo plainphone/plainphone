@@ -3,8 +3,9 @@
 """The ppdns operations: create, read, change and delete one phone's ClientID.
 
 AdGuard Home's own config is the only state. A phone is a persistent client
-named `pp-<ClientID>`; its profile is stored as client tags, and its extra
-allowed/blocked domains are user rules with `$client='pp-<ClientID>'`.
+named `pp-<ClientID>`; its profile and blocked categories are stored as client
+tags and blocked services (see profiles.py), and its extra allowed/blocked
+domains are user rules with `$client='pp-<ClientID>'`.
 Only registered ClientIDs may use the resolver (AdGuard's allowed_clients).
 """
 
@@ -44,7 +45,11 @@ class Service:
     # helpers --------------------------------------------------------------
     def _services(self) -> list[dict]:
         if self._catalogue is None:
-            self._catalogue = self.adguard.blocked_services_catalogue()
+            catalogue = self.adguard.blocked_services_catalogue()
+            missing = profiles.missing_groups(catalogue)
+            if missing:  # fail closed: a phone with no services blocked would look protected
+                raise AdGuardError(502, f"blocked-services catalogue has no group {', '.join(missing)}")
+            self._catalogue = catalogue
         return self._catalogue
 
     def _find(self, client_id: str) -> dict:
@@ -114,7 +119,7 @@ class Service:
         return len(ids)
 
     def view(self, client: dict) -> dict:
-        out = profiles.describe(client, self.domain)
+        out = profiles.describe(client, self.domain, self._services())
         out["allow_domains"], out["block_domains"] = self._domains(self.adguard.user_rules(), out["client_id"])
         return out
 
@@ -127,12 +132,12 @@ class Service:
         allow_domains: list[str] | None = None,
         block_domains: list[str] | None = None,
         *,
+        blocked_categories: list[str] | None = None,
         internal: bool = False,
     ) -> dict:
         if profile not in profiles.PROFILES:
             raise ValueError(f"profile must be one of {', '.join(profiles.PROFILES)}")
-        if block_adult is None:
-            block_adult = profile == "child"
+        categories = profiles.resolve_categories(profiles.default_categories(profile), blocked_categories, block_adult)
         client_id = client_id or profiles.new_client_id()
         if not profiles.valid_client_id(client_id) or client_id == ACCESS_SENTINEL:
             raise ValueError("invalid client_id: 4-63 characters a-z, 0-9 and '-', starting with a letter or digit")
@@ -143,7 +148,7 @@ class Service:
             block = []
         if block is not None and allow is None:
             allow = []
-        payload = profiles.client_payload(client_id, profile, block_adult, self._services())
+        payload = profiles.client_payload(client_id, profile, categories, self._services())
         with self._lock:
             if any(client_id in c.get("ids", []) or c.get("name") == payload["name"] for c in self.adguard.clients()):
                 raise Conflict(client_id)
@@ -158,11 +163,12 @@ class Service:
 
     def list(self) -> list[dict]:
         rules = self.adguard.user_rules()
+        services = self._services()
         result = []
         for client in self._ours():
             if client["name"].startswith(profiles.CLIENT_PREFIX + profiles.MONITOR_PREFIX):
                 continue  # the self-test's own ClientID
-            item = profiles.describe(client, self.domain)
+            item = profiles.describe(client, self.domain, services)
             item["allow_domains"], item["block_domains"] = self._domains(rules, item["client_id"])
             result.append(item)
         return sorted(result, key=lambda c: c["client_id"])
@@ -174,17 +180,20 @@ class Service:
         block_adult: bool | None = None,
         allow_domains: list[str] | None = None,
         block_domains: list[str] | None = None,
+        blocked_categories: list[str] | None = None,
     ) -> dict:
         allow_domains, block_domains = self._clean(allow_domains, block_domains)  # before any write
         with self._lock:
             current = self._find(client_id)
-            now = profiles.describe(current, self.domain)
+            services = self._services()
+            now = profiles.describe(current, self.domain, services)
             profile = profile or now["profile"]
             if profile not in profiles.PROFILES:
                 raise ValueError(f"profile must be one of {', '.join(profiles.PROFILES)}")
-            if block_adult is None:
-                block_adult = now["block_adult"] if profile == now["profile"] else profile == "child"
-            payload = profiles.client_payload(client_id, profile, block_adult, self._services())
+            # A new profile starts from its own defaults; otherwise the phone keeps what it blocks now.
+            base = set(now["blocked_categories"]) if profile == now["profile"] else profiles.default_categories(profile)
+            categories = profiles.resolve_categories(base, blocked_categories, block_adult)
+            payload = profiles.client_payload(client_id, profile, categories, services)
             if allow_domains is not None or block_domains is not None:
                 # Check the overlap against the stored lists too, before anything is written.
                 stored_allow, stored_block = self._domains(self.adguard.user_rules(), client_id)
@@ -203,6 +212,27 @@ class Service:
             self.adguard.delete_client(current["name"])
             self._set_domains(client_id, [], [])
             self.sync_access()
+
+    def upgrade_clients(self) -> int:
+        """Add the tags that clients written by an older ppdns lack. Returns how many were changed.
+
+        The gambling list used to apply through the child tag. It now has a tag of its own, and
+        a child from before that has the gambling services but not the tag. Reading such a client
+        already says "gambling blocked" (profiles.categories_of); this makes it true for the list.
+        """
+        changed = 0
+        with self._lock:
+            services = self._services()
+            for client in self._ours():
+                client_id = client["name"][len(profiles.CLIENT_PREFIX):]
+                profile = "child" if profiles.TAG_CHILD in (client.get("tags") or []) else "self"
+                payload = profiles.client_payload(client_id, profile, profiles.categories_of(client, services), services)
+                if set(payload["tags"]) - set(client.get("tags") or []):
+                    self.adguard.update_client(client["name"], payload)
+                    changed += 1
+        if changed:
+            log.info("added the new category tags to %d existing clients", changed)
+        return changed
 
     # monitoring client ----------------------------------------------------
     def ensure_monitor_client(self) -> str:

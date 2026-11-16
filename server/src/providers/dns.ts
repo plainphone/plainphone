@@ -46,9 +46,9 @@ export class MockDnsProvider implements DnsProvider {
 /**
  * Client for the Plainphone DNS service in dns/ (`/v1/clients`, see dns/README.md).
  *
- * The DNS service knows two profiles (child, self) plus "block_adult" and per-client
- * allow/block lists. It has no per-category switches yet, so only the "adult" category
- * is passed on; see docs/server-dns-contract.md.
+ * Sends the profile, the blocked categories and the per-client allow/block lists. It also
+ * sends `block_adult` (the same as "adult" being in the categories) for a DNS service from
+ * before categories existed, which ignores `blocked_categories`; see docs/server-dns-contract.md.
  */
 export class HttpDnsProvider implements DnsProvider {
   constructor(
@@ -72,6 +72,7 @@ export class HttpDnsProvider implements DnsProvider {
   async upsertClient(config: DnsClientConfig) {
     const payload = {
       profile: config.profile,
+      blocked_categories: [...config.blockedCategories].sort(),
       block_adult: config.blockedCategories.includes("adult"),
       allow_domains: config.allowDomains,
       block_domains: config.blockDomains,

@@ -135,7 +135,9 @@ git pull
 docker compose up -d --build
 ```
 
-A newer ppdns adds new lists to an existing install at start. AdGuard Home
+A newer ppdns adds new lists to an existing install at start, and gives phones
+that an older version created the tags they now need (see "Upgrading from the
+first release" in [dns/README.md](../dns/README.md)). AdGuard Home
 itself is pinned in `compose.yaml`; raise the version there after reading its
 release notes.
 
