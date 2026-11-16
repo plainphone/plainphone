@@ -3,12 +3,19 @@
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, client, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
+import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
+import { loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
 const TOKEN_KEY = "pp.session";
+const NEXT_KEY = "pp.next"; // where to go after login; survives the app being closed during the mail round trip
+
+/** Only paths inside the app. */
+function safePath(p: string | null): string | null {
+  return p && p.startsWith("/") && !p.startsWith("//") ? p : null;
+}
 
 type State = { status: "loading" } | { status: "anon"; error?: unknown } | { status: "in"; me: Me };
 
@@ -22,6 +29,8 @@ interface SessionValue {
   /** Where to go after login, e.g. a pairing link opened while signed out. */
   next: string | null;
   setNext: (path: string | null) => void;
+  /** Where to go now that the user is signed in: a pending invite first, then `next`. Clears `next`. */
+  takeNext: () => Promise<string>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -32,7 +41,20 @@ const inflight = new Map<string, Promise<{ sessionToken?: string }>>();
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { setLocale, locale } = useI18n();
   const [state, setState] = useState<State>({ status: "loading" });
-  const [next, setNext] = useState<string | null>(null);
+  const [next, setNextState] = useState<string | null>(null);
+  const setNext = useCallback((path: string | null) => {
+    const p = safePath(path);
+    setNextState(p);
+    void (p ? setItem(NEXT_KEY, p) : removeItem(NEXT_KEY)).catch(() => undefined);
+  }, []);
+  const takeNext = useCallback(async () => {
+    const saved = safePath(await getItem(NEXT_KEY).catch(() => null));
+    setNextState(null);
+    await removeItem(NEXT_KEY).catch(() => undefined);
+    if (await loadPendingInvite()) return "/invite";
+    return saved ?? "/";
+  }, []);
+  const linkSignIn = useRef(false);
   const localeRef = useRef(locale);
   useEffect(() => {
     localeRef.current = locale;
@@ -45,12 +67,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    const used = getSessionToken();
     try {
       const me = await unwrap<Me>(client.GET("/me"));
+      // A login link may have replaced the token while this was in flight.
+      if (getSessionToken() !== used) return null;
       setState({ status: "in", me });
       if (me.user.locale === "en" || me.user.locale === "da") setLocale(me.user.locale);
       return me;
     } catch (err) {
+      if (getSessionToken() !== used) return null;
       if (err instanceof ApiError && err.status === 401) await signOutLocally();
       else setState({ status: "anon", error: err });
       return null;
@@ -58,10 +84,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [setLocale, signOutLocally]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => void signOutLocally());
+    setUnauthorizedHandler((rejected) => {
+      if (rejected === getSessionToken()) void signOutLocally();
+    });
     void (async () => {
+      const remembered = safePath(await getItem(NEXT_KEY).catch(() => null));
+      if (remembered) setNextState(remembered);
       const saved = await getItem(TOKEN_KEY).catch(() => null);
+      // A login link may already be signing in while the keychain was read.
+      if (linkSignIn.current) return;
       if (!saved) {
+        setSessionToken(null);
         setState({ status: "anon" });
         return;
       }
@@ -73,12 +106,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const verify = useCallback(
     async (linkToken: string) => {
+      linkSignIn.current = true;
       let p = inflight.get(linkToken);
       if (!p) {
         p = unwrap<{ sessionToken?: string }>(
           client.POST("/auth/verify", { body: { token: linkToken, locale: localeRef.current, client: "native" } }),
         );
         inflight.set(linkToken, p);
+        // A failed attempt (offline, say) can be retried with the same link.
+        p.catch(() => inflight.delete(linkToken));
       }
       const out = await p;
       if (!out.sessionToken) throw new ApiError(500, "no session token");
@@ -111,8 +147,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, refresh, verify, logout, saveLocale, next, setNext }),
-    [state, refresh, verify, logout, saveLocale, next],
+    () => ({ state, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
+    [state, refresh, verify, logout, saveLocale, next, setNext, takeNext],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

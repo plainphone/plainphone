@@ -20,7 +20,7 @@ The app claims three paths on the server's host:
 - `/pair?code=…`: the QR code a phone shows while pairing, so scanning it with the system camera opens the app
 - `/invite#token=…`: invitations to a household
 
-If the app is not installed, the same links open the web app, which handles all three.
+If the app is not installed, the same links open the web app, which handles all three. A login link for the app that opens in a browser anyway (in a mail app's own browser, or on Android before `ANDROID_APP_CERT_SHA256` is set) is not used up there: the page offers "Open in the app" (`plainphone://auth/app#token=…`) or "Log in here".
 
 The server publishes the association files:
 
@@ -66,7 +66,7 @@ Needs JDK 21 and the Android SDK (`ANDROID_HOME`); Gradle downloads the NDK and 
 
 ### iOS (needs a Mac)
 
-On a Mac with Xcode (the self-hosted runner `mahope-mac` has one):
+On a Mac with Xcode:
 
 ```sh
 cd parent-app
@@ -80,7 +80,7 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-The Associated Domains capability (`applinks:app.plainphone.org`) must be enabled on the App ID in the Apple developer account, or signing fails.
+Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
 EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
 

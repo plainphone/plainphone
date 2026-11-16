@@ -3,7 +3,7 @@
 // Opened by the login link in the mail (https://<server>/auth/app#token=…), which the
 // app claims as a universal link (iOS) and app link (Android).
 import * as Linking from "expo-linking";
-import { Redirect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError } from "../../api/client";
@@ -20,7 +20,7 @@ function currentUrl(linking: string | null): string | null {
 export default function AuthLinkScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { verify, next, setNext } = useSession();
+  const { verify, takeNext } = useSession();
   const linking = Linking.useLinkingURL();
   const [initial, setInitial] = useState<string | null | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
@@ -46,11 +46,9 @@ export default function AuthLinkScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, initial]);
 
-  if (done) {
-    const to = next ?? "/";
-    if (next) setNext(null);
-    return <Redirect href={to as never} />;
-  }
+  useEffect(() => {
+    if (done) void takeNext().then((to) => router.replace(to as never));
+  }, [done, takeNext, router]);
 
   return (
     <Screen testID="auth-link">

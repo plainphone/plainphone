@@ -41,7 +41,7 @@ CI runs all of them in [`.github/workflows/parent-app.yml`](../.github/workflows
 ## Layout
 
 - `src/app/`: screens (Expo Router; every file is a route)
-- `src/api/`: the typed client (`client.ts`, generated `schema.d.ts`) and domain types
+- `src/api/`: the typed client (`client.ts`, generated `schema.d.ts`) and domain types. Paths, parameters and request bodies are checked against `openapi.yaml`; most responses are not described there yet, so their types are hand-written in `models.ts`
 - `src/components/`: building blocks (`ui.tsx`), the phone context, the map
 - `src/i18n/`: language handling and the app-only copy; shared copy is in `src/shared/i18n`
 - `src/lib/`: session, links, notifications, storage, theme

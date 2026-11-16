@@ -68,6 +68,46 @@ describe("logging in", () => {
   });
 });
 
+describe("coming back after the app was closed during login", () => {
+  const login = (token: string) =>
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(`https://app.plainphone.org/auth/app#token=${token}`);
+  const signedInApi = (extra = {}) =>
+    fakeApi({
+      "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_session" } },
+      "GET /me": { body: ME },
+      "GET /phones": { body: { phones: [] } },
+      ...extra,
+    });
+
+  it("accepts the invitation that was waiting", async () => {
+    await SecureStore.setItemAsync("pp.invite", "pp_i_invitetoken123");
+    login("pp_m_linktoken456");
+    const api = signedInApi({ "POST /invites/accept": { body: { householdId: ME.households[0].id } } });
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    await waitFor(() => expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(true));
+    expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_invitetoken123" });
+    await waitFor(() => expect(screen).toHavePathname("/invite"));
+  });
+
+  it("goes back to the pairing link that was opened", async () => {
+    await SecureStore.setItemAsync("pp.next", "/pair?code=K7MP4QXR");
+    login("pp_m_linktoken789");
+    signedInApi();
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    await waitFor(() => expect(screen).toHavePathname("/pair"));
+    expect(screen).toHaveSearchParams({ code: "K7MP4QXR" });
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.next");
+  });
+
+  it("never follows a stored path out of the app", async () => {
+    await SecureStore.setItemAsync("pp.next", "//evil.example/x");
+    login("pp_m_linktoken000");
+    signedInApi();
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    await waitFor(() => expect(screen).toHavePathname("/"));
+  });
+});
+
 describe("signed in", () => {
   beforeEach(async () => {
     await SecureStore.setItemAsync("pp.session", "pp_s_saved");

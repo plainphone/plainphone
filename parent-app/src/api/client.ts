@@ -29,12 +29,16 @@ export class ApiError extends Error {
 }
 
 let token: string | null = null;
-let onUnauthorized: (() => void) | null = null;
+let onUnauthorized: ((rejected: string | null) => void) | null = null;
 
 export function setSessionToken(t: string | null) {
   token = t;
 }
-export function setUnauthorizedHandler(fn: (() => void) | null) {
+export function getSessionToken(): string | null {
+  return token;
+}
+/** Called with the token the server refused, so a handler can ignore a token that was already replaced. */
+export function setUnauthorizedHandler(fn: ((rejected: string | null) => void) | null) {
   onUnauthorized = fn;
 }
 
@@ -47,6 +51,13 @@ const auth: Middleware = {
       request.headers.set("content-type", "application/json");
     }
     return request;
+  },
+  onResponse({ request, response }) {
+    if (response.status === 401 && !new URL(request.url).pathname.includes("/auth/")) {
+      const sent = request.headers.get("authorization");
+      onUnauthorized?.(sent?.startsWith("Bearer ") ? sent.slice(7) : null);
+    }
+    return response;
   },
 };
 
@@ -81,9 +92,6 @@ export async function unwrap<D = unknown>(p: Promise<Result>): Promise<D> {
   }
   if (!r.response.ok) {
     const e = (r.error ?? {}) as { error?: string; issues?: Issue[] };
-    if (r.response.status === 401 && !new URL(r.response.url || "http://x/").pathname.includes("/auth/")) {
-      onUnauthorized?.();
-    }
     throw new ApiError(r.response.status, e.error ?? r.response.statusText ?? "error", e.issues ?? []);
   }
   return r.data as D;

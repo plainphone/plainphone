@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Redirect } from "expo-router";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +15,8 @@ export { EMAIL_RE };
 
 export default function LoginScreen() {
   const { t, locale } = useI18n();
-  const { state, next, setNext } = useSession();
+  const { state, next, takeNext } = useSession();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -29,11 +30,11 @@ export default function LoginScreen() {
       .catch(() => setMail(null));
   }, []);
 
-  if (state.status === "in") {
-    const to = next ?? "/";
-    if (next) setNext(null);
-    return <Redirect href={to as never} />;
-  }
+  const signedIn = state.status === "in";
+  useEffect(() => {
+    if (signedIn) void takeNext().then((to) => router.replace(to as never));
+  }, [signedIn, takeNext, router]);
+  if (signedIn) return null;
 
   async function submit() {
     setFieldError(undefined);

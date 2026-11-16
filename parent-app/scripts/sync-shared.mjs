@@ -2,8 +2,8 @@
 //
 // The parent app shares its copy, formatting and change descriptions with the PWA.
 // These files are platform-free TypeScript, so they are copied verbatim from web/src
-// into src/shared. Run `pnpm sync:shared` after changing them in web/; CI runs
-// `pnpm check:shared` and fails when the copies have drifted.
+// into src/shared. Run `pnpm sync:shared` after changing them in web/. CI warns when the
+// committed copies have drifted, then tests the app with the PWA's current files.
 
 import { copyFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
