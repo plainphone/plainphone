@@ -9,31 +9,31 @@ export default {
   ogAlt: "Plainphone: din telefon, uden støjen.",
   skip: "Gå til indholdet",
   nav: { label: "Hovedmenu", source: "Kildekode", switchLabel: "English", switchLang: "en" },
-  status: "Tidligt stadie. Open source. Endnu ikke klar til daglig brug.",
+  status: "Tidlig udgave. Open source. Endnu ikke klar til daglig brug.",
   hero: {
     title: "Din telefon, uden støjen.",
     lead:
       "Plainphone gør en almindelig Android-telefon rolig. Den beholder det, du har brug for, og fjerner stille og roligt resten. Det er gratis, og koden er åben.",
-    staysLabel: "Det bliver",
+    staysLabel: "Det beholder du",
     stays: ["Opkald", "Sms", "Kamera", "Kort, musik og de apps, du vælger"],
-    goesLabel: "Det forsvinder",
-    goes: ["Feeds", "Reklamer", "Autoplay", "Porno- og spillesider", "App-butikker, medmindre du åbner dem"],
+    goesLabel: "Det ryger",
+    goes: ["Feeds fra sociale medier", "Reklamer", "Spil", "Porno og spil om penge", "App-butikker, medmindre du giver adgang"],
   },
   who: {
-    title: "Hvem er det til",
-    lead: "Alle, der vil have et roligere liv med en telefon i. Reglerne er de samme. Forskellen er, hvem der har nøglen.",
+    title: "Hvem det er til",
+    lead: "Alle, der vil have et roligere liv med en telefon i. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
     paths: [
       {
         id: "child",
         title: "Til mit barn",
         body:
-          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik, uden de dele, der sluger en eftermiddag. Du har nøglen: du vælger apps og kontakter, og du kan åbne mere op, efterhånden som barnet bliver ældre.",
+          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik, uden de dele, der sluger en eftermiddag. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
       },
       {
         id: "self",
         title: "Til mig selv",
         body:
-          "Mindre skærm, uden at give slip på kort, netbank eller kamera. Du har selv nøglen, med en forsinkelse: når du løsner en regel, træder den først i kraft efter fx 24 timer, så et svagt øjeblik når at gå over. Eller lad en, du stoler på, godkende det.",
+          "Mindre skærmtid, uden at give slip på kort, netbank eller kamera. Du får selv nøglen, med en forsinkelse: når du løsner en regel, træder den først i kraft efter fx 24 timer, så et svagt øjeblik når at gå over. Eller lad en, du stoler på, godkende det.",
       },
     ],
   },
@@ -42,7 +42,7 @@ export default {
     steps: [
       {
         title: "Nulstil telefonen",
-        body: "Enhver Android-telefon med Android 14 eller nyere. Opsætningen sletter den, så gem det, du vil beholde, først.",
+        body: "En Android-telefon med Android 14 eller nyere (se testede telefoner nedenfor). Opsætningen sletter den, så gem det, du vil beholde, først.",
       },
       {
         title: "Scan en QR-kode",
@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Vælg reglerne",
-        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel gælder med det samme.",
+        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel kommer til at gælde med det samme.",
       },
     ],
     note:
@@ -58,15 +58,15 @@ export default {
   },
   compare: {
     title: "Sammenlignet med de typiske alternativer",
-    lead: "Hver løsning er et fornuftigt valg for nogen. Her er, hvor Plainphone ligger.",
+    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone viser målet; i dag virker kun låsen.",
     caption: "Plainphone sammenlignet med en simpel telefon, et børneur og indbygget forældrekontrol",
     cols: ["Simpel telefon", "Børneur", "Indbygget forældrekontrol", "Plainphone"],
     rows: [
-      ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger"],
-      ["Webfilter, der også virker inde i apps", "Intet net", "Intet net", "Delvist", "Ja, for hele telefonen"],
-      ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms"],
+      ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger (planlagt)"],
+      ["Webfilter, der også virker inde i apps", "Intet internet", "Intet internet", "Delvist", "Ja, i de fleste apps (planlagt)"],
+      ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms (planlagt)"],
       ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 14+"],
-      ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja"],
+      ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja (planlagt)"],
       ["Pris", "En ny telefon", "Et nyt ur, ofte med abonnement", "Gratis", "Gratis"],
     ],
   },
@@ -79,11 +79,11 @@ export default {
     title: "Gratis og open source",
     body: [
       "Plainphone er gratis og bliver ved med at være det. Koden er offentlig under Apache-2.0-licensen, så alle kan læse den, tjekke den og bygge videre på den.",
-      "Du kan køre hele tjenesten på din egen server. Projektet driver også en fælles server, hostet i EU.",
+      "Den bliver bygget, så du kan køre hele tjenesten på din egen server. En fælles server, placeret i EU, er også planlagt.",
     ],
     follow: "Der er intet nyhedsbrev. Vil du følge med, så giv projektet en stjerne eller følg det på GitHub.",
     github: "Følg med på GitHub",
-    donate: "Donationer åbner senere. Der er ikke noget betalingslink endnu.",
+    donate: "Det bliver muligt at donere senere. Der er ikke noget betalingslink endnu.",
   },
   faq: {
     title: "Spørgsmål",
@@ -94,7 +94,7 @@ export default {
       },
       {
         q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Så lidt som muligt. Er placering slået til, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. I voksenprofilen er placering slået fra som standard.",
+        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag er der ingen server, så der bliver slet ikke indsamlet noget.",
       },
       {
         q: "Hvad koster det?",
@@ -102,11 +102,11 @@ export default {
       },
       {
         q: "Kan man komme uden om det?",
-        a: "En, der er fast besluttet og har tid og en computer, kan nulstille en Android-telefon fra recovery. Plainphone lægger modstand ind, ikke et fængsel. Er der en Google-konto på telefonen, beder den om kontoen efter en nulstilling, før telefonen virker igen.",
+        a: "En, der er fast besluttet og har tid og en computer, kan nulstille en Android-telefon fra gendannelsestilstand (recovery). Plainphone gør det besværligt, men er ikke et fængsel. Er der en Google-konto på telefonen, beder den om kontoen efter en nulstilling, før telefonen virker igen.",
       },
       {
-        q: "Hvad med WhatsApp, Snapchat og vennerne?",
-        a: "Chatapps er slået fra, medmindre du slår dem til, og godkendte kontakter dækker opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software ikke det. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
+        q: "Hvad med WhatsApp, Snapchat og de andre chatapps?",
+        a: "Chatapps er skjult, medmindre du giver adgang til dem, og godkendte kontakter kommer til at dække opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software det ikke. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
       },
     ],
   },

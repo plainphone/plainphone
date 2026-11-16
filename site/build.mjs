@@ -23,10 +23,12 @@ const cssHash = createHash("sha256").update(css).digest("base64");
 const wordmark = readFileSync(join(src, "wordmark.svg"), "utf8")
   .trim()
   .replace("<svg ", '<svg class="wordmark" ')
-  .replace(/aria-labelledby="t"><title id="t">Plainphone<\/title>/, 'aria-hidden="true">');
+  .replace(/\srole="img"/, "")
+  .replace(/\saria-labelledby="[^"]*"><title[^>]*>[^<]*<\/title>/, ' aria-hidden="true" focusable="false">');
+if (!wordmark.includes('aria-hidden="true"') || wordmark.includes("<title")) throw new Error("wordmark.svg: unexpected markup");
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const slug = (s) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slug = (s) => s.toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a").normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 function head(t, { path, noindex = false }) {
   const alt = pages
@@ -57,6 +59,7 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${esc(t.ogAlt)}">
 <meta property="og:locale" content="${t.lang === "da" ? "da_DK" : "en_GB"}">
+<meta property="og:locale:alternate" content="${t.lang === "da" ? "en_GB" : "da_DK"}">
 <meta name="twitter:card" content="summary_large_image">
 <style>${css}</style>
 </head>`;
@@ -216,7 +219,7 @@ writeFileSync(
   Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 

@@ -17,23 +17,23 @@ export default {
     staysLabel: "What stays",
     stays: ["Calls", "Messages", "Camera", "Maps, music and the apps you choose"],
     goesLabel: "What goes",
-    goes: ["Feeds", "Ads", "Autoplay", "Porn and gambling sites", "App stores, unless you open them"],
+    goes: ["Social media feeds", "Ads", "Games", "Porn and gambling sites", "App stores, unless you allow them"],
   },
   who: {
     title: "Who it is for",
-    lead: "Anyone who wants a quieter life with a phone in it. The rules are the same; what changes is who holds the key.",
+    lead: "Anyone who wants a quieter life with a phone in it. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
     paths: [
       {
         id: "child",
         title: "For my child",
         body:
-          "A first phone that can call, text, find the way home and play music, without the parts that swallow an afternoon. You hold the key: you choose the apps and the contacts, and you can open things up as your child grows.",
+          "A first phone that can call, text, find the way home and play music, without the parts that swallow an afternoon. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
       },
       {
         id: "self",
         title: "For myself",
         body:
-          "Less screen, without giving up maps, banking or your camera. You hold the key yourself, with a delay: loosening a rule takes effect after, say, 24 hours, so a weak moment passes. Or let a person you trust approve it.",
+          "Less screen, without giving up maps, banking or your camera. You will hold the key yourself, with a delay: loosening a rule takes effect after, say, 24 hours, so a weak moment passes. Or let a person you trust approve it.",
       },
     ],
   },
@@ -42,7 +42,7 @@ export default {
     steps: [
       {
         title: "Reset the phone",
-        body: "Any Android phone with Android 14 or newer. Setup erases it, so save what you want to keep first.",
+        body: "An Android phone with Android 14 or newer (see tested phones below). Setup erases it, so save what you want to keep first.",
       },
       {
         title: "Scan a QR code",
@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Choose the rules",
-        body: "Pick which apps show, who can call, and when school time or quiet hours start. Tightening a rule is instant.",
+        body: "Pick which apps show, who can call, and when school time or quiet hours start. A stricter rule will apply at once.",
       },
     ],
     note:
@@ -59,15 +59,15 @@ export default {
   compare: {
     title: "Compared with the usual options",
     lead:
-      "Each option is a fair choice for someone. This is where Plainphone sits among them.",
+      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column describes the goal; today only the lock works.",
     caption: "Plainphone compared with a basic phone, a kids’ smartwatch and built-in parental controls",
     cols: ["Basic phone", "Kids’ smartwatch", "Built-in parental controls", "Plainphone"],
     rows: [
-      ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick"],
-      ["Web filter that also works inside apps", "No web", "No web", "Partly", "Yes, for the whole phone"],
-      ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts"],
+      ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick (planned)"],
+      ["Web filter that also works inside apps", "No internet", "No internet", "Partly", "Yes, for most apps (planned)"],
+      ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts (planned)"],
       ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 14+"],
-      ["For adults too", "Yes", "No", "Mostly for children", "Yes"],
+      ["For adults too", "Yes", "No", "Mostly for children", "Yes (planned)"],
       ["Price", "A new phone", "A new device, often a subscription", "Free", "Free"],
     ],
   },
@@ -80,7 +80,7 @@ export default {
     title: "Free and open source",
     body: [
       "Plainphone is free and will stay free. The code is public under the Apache-2.0 license, so anyone can read it, check it and build on it.",
-      "You can run the whole service on your own server. The project runs a shared one too, hosted in the EU.",
+      "It is being built so you can run the whole service on your own server. A shared server, hosted in the EU, is planned too.",
     ],
     follow:
       "There is no mailing list. To follow along, star or watch the project on GitHub.",
@@ -96,7 +96,7 @@ export default {
       },
       {
         q: "What does Plainphone know about me or my child?",
-        a: "As little as it can. If location is on, only the phone’s last known position is kept, never a history. No tracking, no ads, nothing sold. In the adult profile, location is off by default.",
+        a: "As little as it can. When location arrives, only the phone’s last known position will be kept, never a history. No tracking, no ads, nothing sold. For adults managing their own phone, location will be off by default. Today there is no server, so nothing is collected at all.",
       },
       {
         q: "What does it cost?",
@@ -107,8 +107,8 @@ export default {
         a: "Someone determined, with time and a computer, can reset an Android phone from recovery mode. Plainphone adds friction, not a prison. If a Google account is on the phone, a reset asks for it before the phone works again.",
       },
       {
-        q: "What about WhatsApp, Snapchat and friends?",
-        a: "Chat apps stay off unless you turn them on, and approved contacts cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
+        q: "What about WhatsApp, Snapchat and other chat apps?",
+        a: "Chat apps stay hidden unless you allow them, and approved contacts will cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
       },
     ],
   },

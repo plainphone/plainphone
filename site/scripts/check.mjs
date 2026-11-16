@@ -3,9 +3,11 @@
 // page has lang, title, description and one h1, and no page loads anything
 // from another origin. With --external, external links are fetched as well.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const dist = new URL("../dist/", import.meta.url).pathname;
+const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const external = process.argv.includes("--external");
 const errors = [];
 const externalLinks = new Set();
@@ -16,6 +18,8 @@ const files = (dir) =>
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
+const headers = readFileSync(join(dist, "_headers"), "utf8");
+const cspHashes = new Set([...headers.matchAll(/'sha256-([^']+)'/g)].map((m) => m[1]));
 
 function resolve(from, url) {
   const u = new URL(url, "https://plainphone.org/" + relative(dist, from));
@@ -36,6 +40,11 @@ for (const file of html) {
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
   if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
+  // Every inline <style> must be allowed by a hash in the CSP, or the page renders unstyled.
+  for (const [, css] of src.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
+    const h = createHash("sha256").update(css).digest("base64");
+    if (!cspHashes.has(h)) errors.push(`${name}: inline <style> hash ${h} is not in the _headers CSP`);
+  }
   const dupes = [...src.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]).filter((v, i, a) => a.indexOf(v) !== i);
   if (dupes.length) errors.push(`${name}: duplicate ids ${dupes.join(", ")}`);
 

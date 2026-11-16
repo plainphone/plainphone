@@ -75,16 +75,15 @@ wordmark = (
 )
 (out_dir / "wordmark.svg").write_text(wordmark)
 
-# Standalone mark / favicon: ink circle, paper bar, adapts to dark mode.
+# Standalone mark / favicon: ink circle, paper bar. Fixed colours (no <style>),
+# so the site's strict CSP cannot strip them; it reads on light and dark tabs.
 m = 64
 r = 30
 bw, bh = r * 2 * 0.56, r * 2 * 0.16
 favicon = (
     f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {m} {m}">'
-    "<style>circle{fill:#1d2a30}rect{fill:#f3f5f2}"
-    "@media(prefers-color-scheme:dark){circle{fill:#e3e8e4}rect{fill:#172025}}</style>"
-    f'<circle cx="32" cy="32" r="{r}"/>'
-    f'<rect x="{32 - bw / 2:.1f}" y="{32 - bh / 2:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="1.5"/></svg>\n'
+    f'<circle cx="32" cy="32" r="{r}" fill="#1d2a30" stroke="#f3f5f2" stroke-width="2"/>'
+    f'<rect fill="#f3f5f2" x="{32 - bw / 2:.1f}" y="{32 - bh / 2:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="1.5"/></svg>\n'
 )
 (out_dir / "favicon.svg").write_text(favicon)
 print(f"wordmark {width:.0f}x{height:.0f} units, upm {upm}")
