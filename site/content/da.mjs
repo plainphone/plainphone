@@ -138,7 +138,7 @@ export default {
         title: "Hvem er ansvarlig",
         body: [
           `Plainphone er et open source-projekt, som <a href="https://mahoje.dk">Mahoje</a> vedligeholder i Danmark. Vi er dataansvarlige for den tjeneste, vi driver: forældreappen på app.plainphone.org og webfilteret på dns.plainphone.org.`,
-          `Du kan kontakte os ved at oprette en sag (issue) på <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>. Sager er offentlige, så skriv ikke personoplysninger som din e-mailadresse i dem. Skal din henvendelse indeholde oplysninger, der skal være private, så brug den private indberetning, der er beskrevet i <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a> (Security, derefter Report a vulnerability), og skriv, at det er en henvendelse om privatliv. Den er lavet til sikkerhedsfejl, men den når vedligeholderne privat, og vi svarer dér.`,
+          `Har du spørgsmål om dine oplysninger, fx hvis du vil have en kopi eller have dem slettet, så skriv til <a href="mailto:privacy@plainphone.org">privacy@plainphone.org</a>. Spørgsmål, der ikke er personlige, kan du også stille ved at oprette en sag (issue) på <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>, men sager er offentlige, så skriv ikke personoplysninger som din e-mailadresse i dem. Sikkerhedsfejl meldes privat som beskrevet i <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a>.`,
         ],
       },
       {

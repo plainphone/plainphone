@@ -140,7 +140,7 @@ export default {
         title: "Who is responsible",
         body: [
           `Plainphone is an open-source project maintained by <a href="https://mahoje.dk">Mahoje</a> in Denmark. We are responsible for the data in the hosted service: the parent app at app.plainphone.org and the web filter at dns.plainphone.org.`,
-          `To reach us, open an issue at <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>. Issues are public, so keep personal details, such as your email address, out of them. If your request needs details that must stay private, use the private report form described in <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a> (Security, then Report a vulnerability) and say that it is a privacy request. It is made for security reports, but it reaches the maintainers privately, and we reply there.`,
+          `For anything about your data, such as a copy of it or deleting it, write to <a href="mailto:privacy@plainphone.org">privacy@plainphone.org</a>. For questions that are not personal, you can also open an issue at <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>, but issues are public, so keep personal details such as your email address out of them. Security problems go through the private report form described in <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a>.`,
         ],
       },
       {
