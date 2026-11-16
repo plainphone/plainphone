@@ -194,6 +194,8 @@ def main() -> None:
     try:
         args.dns_host, dns_id = resolve_dns_host(args.dns_host, args.dns_id)
         contacts_extra(args.contact)
+        if not args.country_code and any(not c.rpartition("=")[2].strip().startswith("+") for c in args.contact):
+            raise ValueError("a --contact without +country code needs --country-code (e.g. 45)")
     except ValueError as e:
         sys.exit(str(e))
 

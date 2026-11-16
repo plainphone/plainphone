@@ -48,6 +48,26 @@ class TelephonyRolesTest {
     }
 
     @Test
+    fun `an SMS-capable app the parent allowed stays visible`() {
+        device.launchable += "com.example.messenger"
+        device.telephony = device.telephony.copy(smsApps = device.telephony.smsApps + "com.example.messenger")
+        applier.apply(config.copy(allowedPackages = PolicyConfig.DEFAULT_ALLOWED_PACKAGES + "com.example.messenger"))
+        assertThat(device.hidden).doesNotContain("com.example.messenger")
+        assertThat(device.hidden).contains("com.google.android.apps.messaging")
+    }
+
+    @Test
+    fun `release prefers the SMS app that came with the phone`() {
+        device.telephony = device.telephony.copy(
+            smsApps = setOf("com.google.android.apps.messaging", "com.samsung.android.messaging", own),
+            systemSmsApps = setOf("com.samsung.android.messaging"),
+        )
+        applier.apply(config)
+        applier.release()
+        assertThat(device.smsPackage).isEqualTo("com.samsung.android.messaging")
+    }
+
+    @Test
     fun `nothing telephony is hidden when Android refuses the roles`() {
         device.refuseRoles = true
         val results = applier.apply(config)

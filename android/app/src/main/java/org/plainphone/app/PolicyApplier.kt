@@ -107,7 +107,10 @@ class PolicyApplier(
             apps.systemDialer?.takeIf { it != device.ownPackage }?.let { device.setDefaultDialer(it); notes += "phone: $it" }
         }
         if (device.holdsRole(ROLE_SMS)) {
-            (apps.smsApps - device.ownPackage).minOrNull()?.let { device.setDefaultSms(it); notes += "SMS: $it" }
+            // Prefer the SMS app that came with the phone (Samsung Messages on a Samsung, and so on).
+            val candidates = apps.smsApps - device.ownPackage
+            ((apps.systemSmsApps intersect candidates).minOrNull() ?: candidates.minOrNull())
+                ?.let { device.setDefaultSms(it); notes += "SMS: $it" }
         }
         return notes.joinToString().ifEmpty { "nothing to give back" }
     }
@@ -120,9 +123,11 @@ class PolicyApplier(
 
     private fun hideAppsUnguarded(config: PolicyConfig): List<StepResult> {
         val previously = hiddenStore.load().filter(device::isInstalled).toSet()
+        // Apps the parent explicitly allowed in the QR code stay visible, even if they can be a phone or SMS app.
+        val parentAllowed = config.allowedPackages - PolicyConfig.DEFAULT_ALLOWED_PACKAGES
         val telephony = LockPolicy.telephonyAppsToHide(
             device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS),
-        )
+        ) - parentAllowed
         val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()

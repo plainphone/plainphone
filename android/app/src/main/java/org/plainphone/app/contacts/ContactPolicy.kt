@@ -49,8 +49,12 @@ class ContactPolicy(
     private val sinceLastEmergencyMs: () -> Long? = { null },
 ) {
     fun decide(rules: ContactRules, channel: Channel, direction: Direction, number: String?): Decision {
-        // Emergency numbers always work, whatever the rules say.
-        if (number != null && emergency.isEmergency(number)) return Decision.Allow("emergency number")
+        // Calling and texting emergency numbers always works, whatever the rules say. Only outgoing:
+        // an incoming "112" is just a caller ID, which is easy to spoof. Real call-backs are
+        // covered by the call-back window below.
+        if (direction == Direction.OUTGOING && number != null && emergency.isEmergency(number)) {
+            return Decision.Allow("emergency number")
+        }
         if (!rules.enforced) return Decision.Allow("lock not active")
 
         // After an emergency call, the emergency service must be able to call back,

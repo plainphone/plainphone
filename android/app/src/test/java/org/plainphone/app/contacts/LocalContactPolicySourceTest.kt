@@ -47,6 +47,20 @@ class LocalContactPolicySourceTest {
     }
 
     @Test
+    fun `seed numbers without a country wait until the country is known`() {
+        ConfigStore(context).save(PolicyConfig(countryCallingCode = null))
+        val s = LocalContactPolicySource(context)
+        s.seedIfEmpty(listOf(ApprovedContact("Mum", "+4512345678"), ApprovedContact("Dad", "87654321")))
+        // Robolectric has no SIM country, so Dad cannot be expanded yet.
+        assertThat(s.rules().contacts.map { it.name }).containsExactly("Mum")
+        assertThat(s.pending().map { it.name }).containsExactly("Dad")
+
+        ConfigStore(context).save(PolicyConfig(countryCallingCode = "45"))
+        assertThat(s.rules().contacts).contains(ApprovedContact("Dad", "+4587654321"))
+        assertThat(s.pending()).isEmpty()
+    }
+
+    @Test
     fun `rules are not enforced without Device Owner`() {
         assertThat(source().rules().enforced).isFalse()
     }

@@ -22,6 +22,7 @@ import org.plainphone.app.ui.InCallActivity
  * are not approved are ended, whoever started them.
  */
 class PlainphoneInCallService : InCallService() {
+    private val callbacks = mutableMapOf<Call, Call.Callback>()
 
     override fun onCreate() {
         super.onCreate()
@@ -41,11 +42,6 @@ class PlainphoneInCallService : InCallService() {
             // Outgoing calls always have a number; take it even if presentation says otherwise.
             ?: if (outgoing) details.handle?.schemeSpecificPart else null
 
-        if (outgoing && number != null && EmergencyNumbers.forContext(this).isEmergency(number)) {
-            // Opens the call-back window, so the emergency service can call back from any number.
-            TelephonyLog(this).recordEmergencyCall()
-        }
-
         // Calls Android itself flags as emergency (network-identified emergency, callback mode) are never touched.
         val flaggedEmergency = details.hasProperty(Call.Details.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL) ||
             details.hasProperty(Call.Details.PROPERTY_EMERGENCY_CALLBACK_MODE)
@@ -61,11 +57,19 @@ class PlainphoneInCallService : InCallService() {
             return
         }
 
+        val opensWindow = outgoing && number != null && EmergencyNumbers.forContext(this).opensCallBackWindow(number)
         CallManager.add(call, rules?.contactFor(number)?.name)
         CallNotifications.update(this)
-        call.registerCallback(object : Call.Callback() {
-            override fun onStateChanged(call: Call, state: Int) = CallNotifications.update(this@PlainphoneInCallService)
-        })
+        val callback = object : Call.Callback() {
+            override fun onStateChanged(call: Call, state: Int) {
+                // Only a connected emergency call opens the call-back window, so the emergency
+                // service can call back from any number. Dialling and hanging up does not.
+                if (opensWindow && state == Call.STATE_ACTIVE) TelephonyLog(this@PlainphoneInCallService).recordEmergencyCall()
+                CallNotifications.update(this@PlainphoneInCallService)
+            }
+        }
+        callbacks[call] = callback
+        call.registerCallback(callback)
         if (outgoing || details.state != Call.STATE_RINGING) {
             // The user just started this call, so Plainphone is in front and may open the screen.
             runCatching {
@@ -76,6 +80,7 @@ class PlainphoneInCallService : InCallService() {
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
+        callbacks.remove(call)?.let(call::unregisterCallback)
         CallManager.remove(call)
         CallNotifications.update(this)
     }

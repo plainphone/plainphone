@@ -5,6 +5,7 @@ package org.plainphone.app.contacts
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.telephony.TelephonyManager
+import android.util.Log
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 
@@ -75,11 +76,15 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    override fun rules(): ContactRules = ContactRules(
-        enforced = isLocked(),
-        contacts = ContactCodec.decode(prefs.getString(KEY_CONTACTS, null)),
-        country = country(),
-    )
+    override fun rules(): ContactRules {
+        val country = country()
+        resolvePending(country)
+        return ContactRules(
+            enforced = isLocked(),
+            contacts = ContactCodec.decode(prefs.getString(KEY_CONTACTS, null)),
+            country = country,
+        )
+    }
 
     override fun add(contact: ApprovedContact): Result<ApprovedContact> {
         val country = country()
@@ -91,11 +96,38 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
 
     override fun remove(number: String) = save(ContactList.remove(rules().contacts, number, country()))
 
-    /** Seeds the list from the QR code. Only on first provisioning, so a re-scan never wipes edits. */
+    /**
+     * Seeds the list from the QR code. Only on first provisioning, so a re-scan never wipes edits.
+     * Numbers written without +code that cannot be expanded yet (no SIM during setup) are kept
+     * as pending and added as soon as the phone's country is known.
+     */
     fun seedIfEmpty(contacts: List<ApprovedContact>) {
         if (prefs.contains(KEY_CONTACTS) || contacts.isEmpty()) return
+        val country = country()
         var list = emptyList<ApprovedContact>()
-        for (c in contacts) list = ContactList.add(list, c, country()).getOrDefault(list)
+        val pending = mutableListOf<ApprovedContact>()
+        for (c in contacts) {
+            ContactList.add(list, c, country).onSuccess { list = it }.onFailure { pending += c }
+        }
+        prefs.edit().putString(KEY_PENDING, ContactCodec.encode(pending)).apply()
+        save(list)
+    }
+
+    /** Contacts from the QR code still waiting for the phone's country. */
+    fun pending(): List<ApprovedContact> = ContactCodec.decode(prefs.getString(KEY_PENDING, null))
+
+    @Synchronized
+    private fun resolvePending(country: PhoneNumbers.Country?) {
+        if (country == null) return
+        val pending = pending()
+        if (pending.isEmpty()) return
+        var list = ContactCodec.decode(prefs.getString(KEY_CONTACTS, null))
+        for (c in pending) {
+            // A number that still fails with a known country is not a phone number: drop it.
+            ContactList.add(list, c, country).onSuccess { list = it }
+                .onFailure { Log.w("Plainphone", "dropped a QR contact that is not a phone number") }
+        }
+        prefs.edit().remove(KEY_PENDING).apply()
         save(list)
     }
 
@@ -119,6 +151,7 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
     companion object {
         private const val PREFS = "plainphone_contacts"
         private const val KEY_CONTACTS = "approved"
+        private const val KEY_PENDING = "pending_seed"
     }
 }
 

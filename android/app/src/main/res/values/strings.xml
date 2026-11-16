@@ -75,6 +75,7 @@
     <string name="call_answer">Answer</string>
     <string name="call_decline">Decline</string>
     <string name="call_hang_up">Hang up</string>
+    <string name="call_ongoing">Call in progress</string>
     <string name="call_mute">Mute</string>
     <string name="call_keypad">Keypad</string>
     <string name="call_speaker">Speaker</string>

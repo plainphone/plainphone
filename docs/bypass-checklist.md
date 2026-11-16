@@ -91,6 +91,8 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | C15 | Reply with a message from the incoming-call screen | Only sent if the caller is approved | Decline a call from an approved number with a quick reply |
 | C16 | Voicemail | The voicemail number is blocked unless added as a contact (documented). Note whether missed calls from unknown numbers still reach voicemail | Call from the second phone, check the carrier's voicemail |
 | C17 | Call or text from a contact written in another format (with/without +45, with spaces) | Matched as the same contact | Add `12 34 56 78`, call from `+4512345678` |
+| C18 | Send an SMS through another app (Google Assistant "send a message to …", a carrier app) | Note whether it goes out without Plainphone. Expected: refused or routed through Plainphone (documented gap if not) | Ask the assistant, if visible, to text the second phone |
+| C19 | Dial 114 and hang up at once, then call from the second phone | Still blocked: only a connected emergency call opens the call-back window | Dial 114, hang up before it connects, call from the second phone |
 
 ## Time
 

@@ -49,11 +49,27 @@ class ContactPolicyTest {
     }
 
     @Test
-    fun `112, 911 and 114 always work, even with an empty list`() {
+    fun `112, 911 and 114 can always be called and texted, even with an empty list`() {
         val empty = rules.copy(contacts = emptyList())
-        for (n in listOf("112", "911", "114")) {
-            assertThat(decide(Channel.CALL, Direction.OUTGOING, n, empty).allowed).isTrue()
+        for (n in listOf("112", "911", "114")) for (channel in Channel.entries) {
+            assertThat(decide(channel, Direction.OUTGOING, n, empty).allowed).isTrue()
         }
+    }
+
+    @Test
+    fun `an incoming caller ID of 112 is not trusted`() {
+        // Caller IDs are easy to spoof; real call-backs come through the call-back window.
+        for (channel in Channel.entries) {
+            assertThat(decide(channel, Direction.INCOMING, "112").allowed).isFalse()
+        }
+    }
+
+    @Test
+    fun `only real emergency numbers open the call-back window, not 114`() {
+        assertThat(emergency.opensCallBackWindow("112")).isTrue()
+        assertThat(emergency.opensCallBackWindow("911")).isTrue()
+        assertThat(emergency.opensCallBackWindow("114")).isFalse()
+        assertThat(emergency.opensCallBackWindow("+4512345678")).isFalse()
     }
 
     @Test

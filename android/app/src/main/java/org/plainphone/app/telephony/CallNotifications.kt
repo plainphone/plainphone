@@ -62,8 +62,11 @@ object CallNotifications {
             builder.setFullScreenIntent(screen, true)
                 .setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))
         } else {
-            builder.setFullScreenIntent(screen, false)
-                .setStyle(Notification.CallStyle.forOngoingCall(person, action(context, ACTION_HANG_UP)))
+            // No full-screen intent here: it would relaunch the call screen on every state change.
+            builder.setContentTitle(title)
+                .setContentText(context.getString(R.string.call_ongoing))
+                .setOnlyAlertOnce(true)
+                .addAction(Notification.Action.Builder(null, context.getString(R.string.call_hang_up), action(context, ACTION_HANG_UP)).build())
         }
         runCatching { nm.notify(ID_CALL, builder.build()) }
     }

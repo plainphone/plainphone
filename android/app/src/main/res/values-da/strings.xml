@@ -73,6 +73,7 @@
     <string name="call_answer">Besvar</string>
     <string name="call_decline">Afvis</string>
     <string name="call_hang_up">Læg på</string>
+    <string name="call_ongoing">Opkald i gang</string>
     <string name="call_mute">Lyd fra</string>
     <string name="call_keypad">Tastatur</string>
     <string name="call_speaker">Højttaler</string>
