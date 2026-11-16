@@ -35,6 +35,10 @@ class PolicyApplier(
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
+        // Roles before hiding: the maker's phone and SMS apps are only hidden once Plainphone holds the role.
+        results += step("default phone app") { takeRole(ROLE_DIALER) { device.setDefaultDialer(device.ownPackage) } }
+        results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
+        results += grantTelephonyPermissions()
         results += hideApps(config)
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)
@@ -74,8 +78,37 @@ class PolicyApplier(
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
         results += step("clear FRP policy") { device.setFrpAccounts(null) }
+        results += step("give phone and SMS roles back") { giveRolesBack() }
         results += step("give up Device Owner") { device.clearDeviceOwner() }
         return results
+    }
+
+    /** Returns a status text; throws if Android did not hand over the role. */
+    private fun takeRole(role: String, take: () -> Unit): String {
+        if (device.holdsRole(role)) return "already held"
+        take()
+        check(device.holdsRole(role)) { "Android did not grant $role" }
+        return "granted"
+    }
+
+    private fun grantTelephonyPermissions(): StepResult = step("phone and SMS permissions") {
+        val refused = LockPolicy.TELEPHONY_PERMISSIONS.filterNot { perm ->
+            runCatching { device.grantPermission(device.ownPackage, perm) }.getOrDefault(false)
+        }
+        check(refused.isEmpty()) { "refused: ${refused.joinToString { it.substringAfterLast('.') }}" }
+    }
+
+    /** On release the phone becomes a normal phone again: the system dialer and the maker's SMS app take over. */
+    private fun giveRolesBack(): String {
+        val apps = device.telephonyApps()
+        val notes = mutableListOf<String>()
+        if (device.holdsRole(ROLE_DIALER)) {
+            apps.systemDialer?.takeIf { it != device.ownPackage }?.let { device.setDefaultDialer(it); notes += "phone: $it" }
+        }
+        if (device.holdsRole(ROLE_SMS)) {
+            (apps.smsApps - device.ownPackage).minOrNull()?.let { device.setDefaultSms(it); notes += "SMS: $it" }
+        }
+        return notes.joinToString().ifEmpty { "nothing to give back" }
     }
 
     private fun hideApps(config: PolicyConfig): List<StepResult> = try {
@@ -86,7 +119,10 @@ class PolicyApplier(
 
     private fun hideAppsUnguarded(config: PolicyConfig): List<StepResult> {
         val previously = hiddenStore.load().filter(device::isInstalled).toSet()
-        val keep = device.corePackages() + config.allowedPackages + device.ownPackage
+        val telephony = LockPolicy.telephonyAppsToHide(
+            device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS),
+        )
+        val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()
@@ -128,6 +164,9 @@ class PolicyApplier(
 
     private companion object {
         const val SHOW_HIDDEN = "show hidden apps"
+        // RoleManager.ROLE_DIALER / ROLE_SMS, as plain strings so the class stays JVM-testable.
+        const val ROLE_DIALER = "android.app.role.DIALER"
+        const val ROLE_SMS = "android.app.role.SMS"
     }
 
     private inline fun step(name: String, block: () -> Any?): StepResult = try {

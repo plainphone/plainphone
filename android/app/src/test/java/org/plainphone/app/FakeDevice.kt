@@ -49,6 +49,38 @@ class FakeDevice(
     }
     override fun requireAutoTime(required: Boolean) { autoTime = required }
     override fun clearDeviceOwner() { owner = false }
+
+    // Phase 2: roles.
+    val roles = mutableSetOf<String>()
+    var dialerPackage: String? = null
+    var smsPackage: String? = null
+    var refuseRoles = false
+    var telephony = TelephonyApps(emptySet(), emptySet(), null)
+    val granted = mutableSetOf<String>()
+    val refusedPermissions = mutableSetOf<String>()
+
+    override fun holdsRole(role: String) = role in roles
+    override fun setDefaultDialer(pkg: String) {
+        if (refuseRoles) throw IllegalArgumentException("$pkg does not qualify")
+        dialerPackage = pkg
+        if (pkg == ownPackage) roles += DIALER else roles -= DIALER
+    }
+    override fun setDefaultSms(pkg: String) {
+        if (refuseRoles) throw IllegalArgumentException("$pkg does not qualify")
+        smsPackage = pkg
+        if (pkg == ownPackage) roles += SMS else roles -= SMS
+    }
+    override fun telephonyApps() = telephony
+    override fun grantPermission(pkg: String, permission: String): Boolean {
+        if (permission in refusedPermissions) return false
+        granted += permission
+        return true
+    }
+
+    companion object {
+        const val DIALER = "android.app.role.DIALER"
+        const val SMS = "android.app.role.SMS"
+    }
 }
 
 class MemoryHiddenStore : HiddenAppsStore {

@@ -4,12 +4,14 @@ package org.plainphone.app
 
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
+import android.app.role.RoleManager
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import org.plainphone.app.contacts.ContactPolicySources
 
 /**
  * Status screen. Tapping the version line [TAPS_TO_MAINTENANCE] times opens the
@@ -75,6 +77,12 @@ class MainActivity : Activity() {
             appendLine(if (isDeviceOwner()) getString(R.string.status_owner) else getString(R.string.status_not_owner))
             if (Lock.isInMaintenanceWindow(this@MainActivity)) appendLine(getString(R.string.status_maintenance))
             appendLine(getString(R.string.status_dns, config.dnsHost))
+            val roles = getSystemService(RoleManager::class.java)
+            appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true) R.string.status_phone_role_ok else R.string.status_phone_role_missing))
+            appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
+            val contacts = ContactPolicySources.get(this@MainActivity).rules()
+            appendLine(resources.getQuantityString(R.plurals.status_contacts, contacts.contacts.size, contacts.contacts.size))
+            if (!contacts.enforced) appendLine(getString(R.string.status_contacts_not_enforced))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
         }
         report.text = Lock.lastReport(this)

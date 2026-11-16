@@ -67,6 +67,41 @@ object LockPolicy {
 
     data class HidePlan(val hide: Set<String>, val unhide: Set<String>)
 
+    /**
+     * The maker's phone and SMS apps to hide once Plainphone holds the role,
+     * so approved contacts cannot be bypassed through them.
+     *
+     * The system dialer is never hidden: Android falls back to it for
+     * emergency calls if the default phone app fails, and lock-screen
+     * emergency calls depend on the telephony stack it ships with. Calls
+     * started from it still pass through Plainphone's call service, which
+     * ends calls to numbers that are not approved.
+     */
+    fun telephonyAppsToHide(apps: TelephonyApps, ownPackage: String, holdsDialer: Boolean, holdsSms: Boolean): Set<String> {
+        val hide = mutableSetOf<String>()
+        // Without a known system dialer we cannot tell which one Android falls back to: hide none.
+        if (holdsDialer && apps.systemDialer != null) hide += apps.dialers
+        if (holdsSms) hide += apps.smsApps
+        hide -= ownPackage
+        apps.systemDialer?.let { hide -= it }
+        return hide
+    }
+
+    /** Runtime permissions the phone and SMS app needs. The roles grant most of them; Device Owner makes sure. */
+    val TELEPHONY_PERMISSIONS = listOf(
+        android.Manifest.permission.CALL_PHONE,
+        android.Manifest.permission.READ_PHONE_STATE,
+        android.Manifest.permission.ANSWER_PHONE_CALLS,
+        android.Manifest.permission.READ_CALL_LOG,
+        android.Manifest.permission.WRITE_CALL_LOG,
+        android.Manifest.permission.SEND_SMS,
+        android.Manifest.permission.RECEIVE_SMS,
+        android.Manifest.permission.READ_SMS,
+        android.Manifest.permission.RECEIVE_MMS,
+        android.Manifest.permission.RECEIVE_WAP_PUSH,
+        android.Manifest.permission.POST_NOTIFICATIONS,
+    )
+
     /** Chrome managed configuration: no DNS-over-HTTPS bypass, no incognito, SafeSearch on. */
     const val CHROME_PACKAGE = "com.android.chrome"
     val chromeRestrictions: Map<String, Any> = mapOf(

@@ -4,6 +4,8 @@ package org.plainphone.app
 
 import android.content.Context
 import android.os.BaseBundle
+import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.ContactCodec
 
 /**
  * Everything the lock needs to know. In phase 1 the values come from the
@@ -22,6 +24,13 @@ data class PolicyConfig(
     val pinSaltHex: String? = null,
     /** A maintenance unlock re-locks automatically after this many minutes. */
     val relockMinutes: Int = DEFAULT_RELOCK_MINUTES,
+    /** Calling code of the phone's home country ("45"), for numbers written without +code. Null: use the SIM. */
+    val countryCallingCode: String? = null,
+    /**
+     * Approved contacts from the QR code. Only used to seed the contact list at
+     * provisioning; afterwards the list lives in [org.plainphone.app.contacts.ContactPolicySource].
+     */
+    val seedContacts: List<ApprovedContact> = emptyList(),
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 
@@ -58,6 +67,8 @@ data class PolicyConfig(
         const val KEY_PIN_HASH = "plainphone.pin_hash"
         const val KEY_PIN_SALT = "plainphone.pin_salt"
         const val KEY_RELOCK = "plainphone.relock_minutes"
+        const val KEY_COUNTRY = "plainphone.country_code"
+        const val KEY_CONTACTS = "plainphone.contacts"
 
         /** Builds a config from the QR admin extras. Unknown or blank values keep the default. */
         @Suppress("DEPRECATION") // BaseBundle.get: QR values may arrive as String, Int or Long.
@@ -73,6 +84,8 @@ data class PolicyConfig(
                 pinSaltHex = str(KEY_PIN_SALT),
                 relockMinutes = str(KEY_RELOCK)?.toIntOrNull()?.coerceIn(1, 24 * 60)
                     ?: DEFAULT_RELOCK_MINUTES,
+                countryCallingCode = str(KEY_COUNTRY)?.removePrefix("+")?.takeIf { c -> c.length in 1..3 && c.all(Char::isDigit) },
+                seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
             )
         }
 
@@ -97,6 +110,7 @@ class ConfigStore(context: Context) {
             pinHashHex = prefs.getString("pin_hash", null),
             pinSaltHex = prefs.getString("pin_salt", null),
             relockMinutes = prefs.getInt("relock_minutes", PolicyConfig.DEFAULT_RELOCK_MINUTES),
+            countryCallingCode = prefs.getString("country_code", null),
         )
     }
 
@@ -109,6 +123,7 @@ class ConfigStore(context: Context) {
             .putString("pin_hash", config.pinHashHex)
             .putString("pin_salt", config.pinSaltHex)
             .putInt("relock_minutes", config.relockMinutes)
+            .putString("country_code", config.countryCallingCode)
             .apply()
     }
 }

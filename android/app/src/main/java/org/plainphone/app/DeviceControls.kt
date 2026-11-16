@@ -3,6 +3,7 @@
 package org.plainphone.app
 
 import android.app.admin.DevicePolicyManager
+import android.app.role.RoleManager
 import android.app.admin.FactoryResetProtectionPolicy
 import android.content.ComponentName
 import android.content.Context
@@ -15,6 +16,7 @@ import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings
 import android.provider.Telephony
+import android.telecom.TelecomManager
 import android.view.inputmethod.InputMethodManager
 
 /** The device-facing side of the lock. Faked in unit tests. */
@@ -36,7 +38,25 @@ interface DeviceControls {
     fun setUninstallBlocked(pkg: String, blocked: Boolean)
     fun requireAutoTime(required: Boolean)
     fun clearDeviceOwner()
+
+    // Phase 2: phone and SMS roles.
+    fun holdsRole(role: String): Boolean
+    /** Makes [pkg] the default phone app (Device Owner, API 34+). Throws if Android refuses. */
+    fun setDefaultDialer(pkg: String)
+    /** Makes [pkg] the default SMS app (Device Owner). Throws if Android refuses. */
+    fun setDefaultSms(pkg: String)
+    /** Installed apps that can dial, can send SMS, and the system dialer that handles emergency fallback. */
+    fun telephonyApps(): TelephonyApps
+    /** Grants a runtime permission to [pkg]; returns false if Android refused. */
+    fun grantPermission(pkg: String, permission: String): Boolean
 }
+
+data class TelephonyApps(
+    val dialers: Set<String>,
+    val smsApps: Set<String>,
+    /** TelecomManager.getSystemDialerPackage(): never hidden, Android falls back to it for emergency calls. */
+    val systemDialer: String?,
+)
 
 class AndroidDeviceControls(private val context: Context) : DeviceControls {
     private val dpm = context.getSystemService(DevicePolicyManager::class.java)
@@ -144,4 +164,27 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
 
     @Suppress("DEPRECATION") // The documented way for a DPC to give up Device Owner on a test device.
     override fun clearDeviceOwner() = dpm.clearDeviceOwnerApp(context.packageName)
+
+    override fun holdsRole(role: String): Boolean =
+        context.getSystemService(RoleManager::class.java)?.isRoleHeld(role) == true
+
+    override fun setDefaultDialer(pkg: String) = dpm.setDefaultDialerApplication(pkg)
+
+    override fun setDefaultSms(pkg: String) = dpm.setDefaultSmsApplication(admin, pkg)
+
+    override fun telephonyApps(): TelephonyApps {
+        val flags = PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+        fun resolvers(vararg intents: Intent) = intents.flatMap { pm.queryIntentActivities(it, flags) }
+            .map { it.activityInfo.packageName }
+            .toSet()
+        return TelephonyApps(
+            dialers = resolvers(Intent(Intent.ACTION_DIAL), Intent(Intent.ACTION_DIAL, Uri.parse("tel:1"))),
+            smsApps = resolvers(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")), Intent(Intent.ACTION_SENDTO, Uri.parse("sms:1"))) +
+                listOfNotNull(Telephony.Sms.getDefaultSmsPackage(context)),
+            systemDialer = context.getSystemService(TelecomManager::class.java)?.systemDialerPackage,
+        )
+    }
+
+    override fun grantPermission(pkg: String, permission: String): Boolean =
+        dpm.setPermissionGrantState(admin, pkg, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
 }
