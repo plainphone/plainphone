@@ -53,7 +53,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     // Only what the app uses: the camera for the pairing QR code and notifications.
     permissions: ["android.permission.CAMERA", "android.permission.POST_NOTIFICATIONS"],
-    blockedPermissions: ["android.permission.RECORD_AUDIO", "android.permission.SYSTEM_ALERT_WINDOW"],
+    // Pulled in by libraries, not used by the app.
+    blockedPermissions: [
+      "android.permission.RECORD_AUDIO",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+    ],
     intentFilters: [
       {
         action: "VIEW",
