@@ -34,7 +34,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [next, setNext] = useState<string | null>(null);
   const localeRef = useRef(locale);
-  localeRef.current = locale;
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
 
   const signOutLocally = useCallback(async () => {
     setSessionToken(null);

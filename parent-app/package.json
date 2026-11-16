@@ -29,6 +29,8 @@
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
+    "eslint": "^10.15.0",
+    "eslint-config-expo": "~58.0.4",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.14",
     "openapi-typescript": "^7.13.0",
@@ -59,6 +61,9 @@
     "preset": "jest-expo",
     "setupFiles": [
       "./jest.setup.ts"
+    ],
+    "setupFilesAfterEnv": [
+      "./jest.after-env.ts"
     ]
   }
 }

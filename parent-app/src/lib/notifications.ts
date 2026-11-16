@@ -11,6 +11,7 @@
 // On Android, FCM also needs google-services.json at build time; without it the
 // token call fails and the app carries on without push.
 import * as Notifications from "expo-notifications";
+import { AndroidImportance } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
@@ -47,7 +48,7 @@ async function ensureChannels(locale: "en" | "da") {
   for (const ch of CHANNELS) {
     await Notifications.setNotificationChannelAsync(ch.id, {
       name: ch.name[locale],
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: AndroidImportance.DEFAULT,
     });
   }
 }

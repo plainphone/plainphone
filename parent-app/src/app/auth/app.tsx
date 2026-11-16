@@ -23,7 +23,7 @@ export default function AuthLinkScreen() {
   const { verify, next, setNext } = useSession();
   const linking = Linking.useLinkingURL();
   const [initial, setInitial] = useState<string | null | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
@@ -32,16 +32,16 @@ export default function AuthLinkScreen() {
 
   const token = tokenFromUrl(currentUrl(linking)) ?? tokenFromUrl(initial);
 
+  // Still reading the launch URL while `initial` is undefined.
+  const missing = initial !== undefined && !token;
+  const error = failure ?? (missing ? t("callback.missing") : null);
+
   useEffect(() => {
-    if (initial === undefined) return; // still reading the launch URL
-    if (!token) {
-      setError(t("callback.missing"));
-      return;
-    }
+    if (initial === undefined || !token) return;
     if (Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
     verify(token)
-      .then((me) => (me ? setDone(true) : setError(t("error.generic"))))
-      .catch((err) => setError(err instanceof ApiError && err.status === 400 ? t("callback.failed") : errorMessage(err, t)));
+      .then((me) => (me ? setDone(true) : setFailure(t("error.generic"))))
+      .catch((err) => setFailure(err instanceof ApiError && err.status === 400 ? t("callback.failed") : errorMessage(err, t)));
     // Verify each token once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, initial]);

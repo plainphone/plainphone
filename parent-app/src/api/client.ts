@@ -54,7 +54,8 @@ export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
   const c = createClient<paths>({
     baseUrl,
     credentials: "omit",
-    ...(fetchImpl ? { fetch: fetchImpl } : {}),
+    // Late-bound, so tests can swap globalThis.fetch.
+    fetch: fetchImpl ?? ((req: Request) => globalThis.fetch(req)),
   });
   c.use(auth);
   return c;
