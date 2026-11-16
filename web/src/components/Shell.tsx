@@ -6,6 +6,9 @@ import { api, type Approval } from "../lib/api";
 import { clearNextIf, useSession } from "../lib/session";
 import { Mark } from "./Mark";
 
+/** The privacy policy lives on the website, in the language of the app. */
+const privacyUrl = (locale: string) => (locale === "da" ? "https://plainphone.org/da/privacy/" : "https://plainphone.org/privacy/");
+
 export function Shell() {
   const { t, locale } = useI18n();
   const { state, logout, saveLocale } = useSession();
@@ -88,6 +91,11 @@ export function Shell() {
       <main id="main" className="wrap">
         <Outlet />
       </main>
+      <footer className="wrap site-footer">
+        <a href={privacyUrl(locale)} target="_blank" rel="noopener noreferrer">
+          {t("nav.privacy")}
+        </a>
+      </footer>
     </>
   );
 }

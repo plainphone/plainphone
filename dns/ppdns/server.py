@@ -98,6 +98,7 @@ class Api(BaseHTTPRequestHandler):
                     client_id,
                     allow_domains=_list(body, "allow_domains"),
                     block_domains=_list(body, "block_domains"),
+                    blocked_categories=_categories(body),
                 )
                 return self._send(HTTPStatus.CREATED, created)
             if len(parts) == 2 and parts[0] == "clients":
@@ -116,6 +117,7 @@ class Api(BaseHTTPRequestHandler):
                             block_adult=_bool(body, "block_adult"),
                             allow_domains=_list(body, "allow_domains"),
                             block_domains=_list(body, "block_domains"),
+                            blocked_categories=_categories(body),
                         ),
                     )
                 if method == "DELETE":
@@ -156,6 +158,13 @@ def _bool(body: dict, key: str):
     value = body.get(key)
     if value is not None and not isinstance(value, bool):
         raise ValueError(f"{key} must be true or false")
+    return value
+
+
+def _categories(body: dict):
+    value = body.get("blocked_categories")
+    if value is not None and not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+        raise ValueError("blocked_categories must be a list of category names")
     return value
 
 
@@ -219,6 +228,7 @@ class Jobs:
     def refresh_lists(self) -> None:
         lists.build(self.s.lists_dir)
         self.service.adguard.refresh_filters()
+        self.service.upgrade_clients()  # also catches a backup restored from an older version
 
     def reload_cert(self, force: bool = False) -> None:
         """Make AdGuard re-read the certificate after lego renewed it."""
@@ -338,6 +348,10 @@ def serve(settings: Settings) -> None:
     jobs = Jobs(settings, service)
     jobs.ensure_filters()
     jobs.monitor_id = service.ensure_monitor_client()
+    try:
+        service.upgrade_clients()
+    except Exception:  # noqa: BLE001 - the next list refresh tries again
+        log.exception("upgrading existing clients failed")
     log.info("registered ClientIDs: %d", service.sync_access())
     try:
         jobs.backup()  # one at every start, then daily

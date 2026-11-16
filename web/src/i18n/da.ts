@@ -26,6 +26,7 @@ export const da: Messages = {
   "nav.approvals": "Godkendelser",
   "nav.logout": "Log ud",
   "nav.language": "Sprog",
+  "nav.privacy": "Privatliv",
 
   "error.generic": "Noget gik galt. Prøv igen.",
   "error.network": "Kunne ikke få forbindelse til serveren. Tjek din forbindelse, og prøv igen.",

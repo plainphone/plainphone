@@ -58,6 +58,7 @@ describe("HttpDnsProvider", () => {
     expect(clients.get(cfg.clientId)).toEqual({
       client_id: cfg.clientId,
       profile: "child",
+      blocked_categories: ["adult", "social"],
       block_adult: true,
       allow_domains: ["example.com"],
       block_domains: [],
@@ -65,6 +66,9 @@ describe("HttpDnsProvider", () => {
     await dns.upsertClient({ ...cfg, blockedCategories: ["social"] });
     expect(seen.at(-1)).toBe("PATCH /v1/clients/abcdefghijklmnopqrst");
     expect(clients.get(cfg.clientId)!.block_adult).toBe(false);
+    expect(clients.get(cfg.clientId)!.blocked_categories).toEqual(["social"]);
+    await dns.upsertClient({ ...cfg, blockedCategories: [] }); // every switch off is sent as an empty list
+    expect(clients.get(cfg.clientId)!.blocked_categories).toEqual([]);
     await dns.deleteClient(cfg.clientId);
     await dns.deleteClient(cfg.clientId); // 404 is fine
     expect(clients.size).toBe(0);

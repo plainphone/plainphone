@@ -17,6 +17,8 @@ export interface DnsClientConfig {
 export interface DnsProvider {
   upsertClient(config: DnsClientConfig): Promise<void>;
   deleteClient(clientId: string): Promise<void>;
+  /** True when the DNS service answers. Used by /api/health. */
+  healthy(): Promise<boolean>;
 }
 
 /** Keeps the last config per client in memory. Used in tests and until the DNS service runs. */
@@ -35,14 +37,18 @@ export class MockDnsProvider implements DnsProvider {
   async deleteClient(clientId: string) {
     this.clients.delete(clientId);
   }
+
+  async healthy() {
+    return true;
+  }
 }
 
 /**
  * Client for the Plainphone DNS service in dns/ (`/v1/clients`, see dns/README.md).
  *
- * The DNS service knows two profiles (child, self) plus "block_adult" and per-client
- * allow/block lists. It has no per-category switches yet, so only the "adult" category
- * is passed on; see docs/server-dns-contract.md.
+ * Sends the profile, the blocked categories and the per-client allow/block lists. It also
+ * sends `block_adult` (the same as "adult" being in the categories) for a DNS service from
+ * before categories existed, which ignores `blocked_categories`; see docs/server-dns-contract.md.
  */
 export class HttpDnsProvider implements DnsProvider {
   constructor(
@@ -66,6 +72,7 @@ export class HttpDnsProvider implements DnsProvider {
   async upsertClient(config: DnsClientConfig) {
     const payload = {
       profile: config.profile,
+      blocked_categories: [...config.blockedCategories].sort(),
       block_adult: config.blockedCategories.includes("adult"),
       allow_domains: config.allowDomains,
       block_domains: config.blockDomains,
@@ -81,5 +88,15 @@ export class HttpDnsProvider implements DnsProvider {
   async deleteClient(clientId: string) {
     const res = await this.call("DELETE", `v1/clients/${encodeURIComponent(clientId)}`);
     if (!res.ok && res.status !== 404) throw new Error(`DNS service delete ${clientId} failed: ${res.status}`);
+  }
+
+  async healthy() {
+    try {
+      const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
+      const res = await fetch(new URL("healthz", base), { signal: AbortSignal.timeout(3_000) });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 }

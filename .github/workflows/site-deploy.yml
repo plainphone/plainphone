@@ -1,0 +1,52 @@
+name: Site deploy
+
+# Publishes plainphone.org (Cloudflare Pages project "plainphone") when site/ changes on main.
+# Pull requests are built and checked by site.yml and never deploy.
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/site-deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-deploy
+  # Let a running deploy finish; the next one waits for it.
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Forks have no Cloudflare secrets. The ref check stops a manual run from
+    # another branch from replacing the live site.
+    if: github.repository == 'plainphone/plainphone' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Build
+        run: node build.mjs
+
+      - name: Check pages, internal links, anchors and the CSP hash
+        run: node scripts/check.mjs
+
+      - name: Deploy to Cloudflare Pages
+        # The secrets are only visible to this step. Wrangler is pinned, so a new release
+        # cannot change the deploy by itself; raise the version on purpose.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+        run: npx --yes wrangler@4.163.0 pages deploy dist --project-name plainphone --branch main
