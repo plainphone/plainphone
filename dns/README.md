@@ -181,6 +181,10 @@ PPDNS_TEST_API=http://<private-ip>:8053 PPDNS_API_TOKEN=... PPDNS_TEST_VERIFY=1 
 python3 -m unittest discover -s dns/tests -p 'test_e2e.py' -v
 ```
 
+The end-to-end tests create a few dozen phones through the API, one per case, and delete them
+again at the end. They check every category switch with real domains over DoT, so run them
+against a live server only with a token you may use for that.
+
 By hand with `kdig` (from knot-dnsutils):
 
 ```sh
