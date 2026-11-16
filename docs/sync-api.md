@@ -26,6 +26,10 @@ phone                                      server                         parent
   |  304, or 200 + new ETag -> apply         |                                  |
   | PUT /device/location (every 5 min, or    |   POST /phones/{id}/locate       |
   |   at once when location.requestedAt set) |<---------------------------------|
+  | PUT /device/status {battery, lock,       |   GET /phones/{id}               |
+  |   failedPolicies, ...}                   |   -> status, dnsReady            |
+  |----------------------------------------->|                                  |
+  |                                          |<---------------------------------|
 ```
 
 1. **Pairing.** The phone starts a pairing and shows the 8-character code and a QR code of
@@ -42,7 +46,25 @@ phone                                      server                         parent
 4. **Location.** When `location.enabled`, report every `intervalMinutes`, and at once when
    `location.requestedAt` is set (a parent pressed Find). When it is off, the server answers
    `409` and the phone should stop.
-5. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
+5. **Status.** Report battery, app version and lock state with `PUT /device/status`. Send it
+   regularly and at once when the lock state or a maintenance unlock changes. The newest report
+   replaces the one before (no history), and the parent sees it on the phone's page: battery,
+   last sync, app version, and a warning listing `failedPolicies` when `lockIntact` is false.
+   Every field is required (use `null` where the type allows it):
+
+   | Field | Meaning |
+   |---|---|
+   | `appVersion` | App version name, 1 to 40 characters |
+   | `batteryPct`, `charging` | 0 to 100 and a boolean, or `null` when unknown |
+   | `deviceOwner` | Plainphone is the device owner |
+   | `lockIntact` | Every lock policy was applied **and** no maintenance unlock is running |
+   | `maintenance` | A PIN maintenance unlock is running on the phone |
+   | `failedPolicies` | Names of the lock steps that failed (at most 50, each 1 to 200 characters) |
+   | `rulesEtag`, `rulesAppliedAt` | ETag of the rules the phone last applied and when (ISO 8601 with a time zone; `400` if more than 5 minutes ahead of the server), or `null` |
+   | `dnsHost` | The private DNS host the phone actually uses, or `null` |
+
+   The answer is `204`. Invalid bodies get `400`. The parent API returns `rulesAppliedAt` in UTC.
+6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again
    as a Child phone and leave the key behind.
@@ -54,7 +76,7 @@ phone                                      server                         parent
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows). `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
-| `dns.host` | `setGlobalPrivateDnsModeSpecifiedHost(host)` |
+| `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` turns `true` once, after the first successful sync, and never goes back to `false`, so the network never dies |
 | `location` | See above |
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |
 | `pollSeconds` | Poll interval |
@@ -162,6 +184,35 @@ class PlainphoneApi(private val baseUrl: String, var deviceToken: String? = null
         if (r.status != 204) throw HttpError(r.status, r.body)
     }
 
+    data class DeviceStatus(
+        val appVersion: String,
+        val batteryPct: Int?,
+        val charging: Boolean?,
+        val deviceOwner: Boolean,
+        val lockIntact: Boolean,
+        val maintenance: Boolean,
+        val failedPolicies: List<String>,
+        val rulesEtag: String?,
+        val rulesAppliedAtIso: String?,
+        val dnsHost: String?,
+    )
+
+    fun reportStatus(s: DeviceStatus) {
+        val body = JSONObject()
+            .put("appVersion", s.appVersion)
+            .put("batteryPct", s.batteryPct ?: JSONObject.NULL)
+            .put("charging", s.charging ?: JSONObject.NULL)
+            .put("deviceOwner", s.deviceOwner)
+            .put("lockIntact", s.lockIntact)
+            .put("maintenance", s.maintenance)
+            .put("failedPolicies", JSONArray(s.failedPolicies))
+            .put("rulesEtag", s.rulesEtag ?: JSONObject.NULL)
+            .put("rulesAppliedAt", s.rulesAppliedAtIso ?: JSONObject.NULL)
+            .put("dnsHost", s.dnsHost ?: JSONObject.NULL)
+        val r = call("PUT", "/device/status", body)
+        if (r.status != 204) throw HttpError(r.status, r.body)
+    }
+
     /** Returns false when location is off for this phone (stop reporting). */
     fun reportLocation(lat: Double, lon: Double, accuracyM: Float?, recordedAtIso: String): Boolean {
         val body = JSONObject().put("lat", lat).put("lon", lon).put("recordedAt", recordedAtIso)
@@ -182,6 +233,7 @@ Suggested worker loop:
 // Every rules.pollSeconds (WorkManager has a 15-minute floor for periodic work, so use a
 // foreground-free alarm or a self-rescheduling OneTimeWorkRequest for the 60 s cadence).
 when (val r = api.fetchRules(store.etag)) {
+    // RulesApplier switches to dns.host only when rules.dns.ready is true.
     is RulesResult.Changed -> { RulesApplier.apply(context, r.rules); store.etag = r.etag }
     RulesResult.Unchanged -> Unit
     RulesResult.Unpaired -> notifyPairAgain() // keep enforcing the last rules
