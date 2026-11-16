@@ -46,15 +46,15 @@ write("icons/apple-touch-icon.png", png(mark({ size: 180, rounded: false, pad: 4
 // Mail logo: 264x64 (shown at 132x32), mark plus the word in ink on transparent.
 const font = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 if (!existsSync(font)) throw new Error(`missing font ${font}`);
-const logo = `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="64" viewBox="0 0 264 64">
+// Two variants: ink text for light mail clients, light text for dark mode.
+const logo = (text) => `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="64" viewBox="0 0 264 64">
   <g transform="translate(4 4) scale(0.875)">
     <rect width="64" height="64" rx="16" fill="${ACCENT}"/>
     <rect x="19" y="10" width="26" height="44" rx="7" fill="none" stroke="#fff" stroke-width="4"/>
     <path d="M24.5 33c2.5-2.6 5-2.6 7.5 0s5 2.6 7.5 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
   </g>
-  <text x="72" y="43" font-family="DejaVu Sans" font-weight="700" font-size="29" letter-spacing="-0.6" fill="${INK}">Plainphone</text>
+  <text x="72" y="43" font-family="DejaVu Sans" font-weight="700" font-size="29" letter-spacing="-0.6" fill="${text}">Plainphone</text>
 </svg>`;
-write(
-  "mail/logo@2x.png",
-  png(logo, { font: { fontFiles: [font], loadSystemFonts: false, defaultFontFamily: "DejaVu Sans" } }),
-);
+const fontOpts = { font: { fontFiles: [font], loadSystemFonts: false, defaultFontFamily: "DejaVu Sans" } };
+write("mail/logo@2x.png", png(logo(INK), fontOpts));
+write("mail/logo-dark@2x.png", png(logo("#e8ece9"), fontOpts));

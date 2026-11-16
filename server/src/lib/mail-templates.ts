@@ -33,6 +33,7 @@ interface LayoutInput {
  */
 export function layout(input: LayoutInput): string {
   const logo = `${input.publicUrl}/mail/logo@2x.png`;
+  const logoDark = `${input.publicUrl}/mail/logo-dark@2x.png`;
   const p = (text: string) =>
     `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1c2321;" class="pp-text">${esc(text)}</p>`;
   const small = (text: string) =>
@@ -55,6 +56,8 @@ export function layout(input: LayoutInput): string {
     .pp-button { background:#7fc4a2 !important; }
     .pp-button a { color:#0d1a14 !important; }
     .pp-link { color:#9fd6bb !important; }
+    .pp-logo-light { display:none !important; }
+    .pp-logo-dark { display:block !important; max-height:none !important; overflow:visible !important; }
   }
   @media (max-width:600px) { .pp-card { padding:28px 20px !important; } }
 </style>
@@ -65,7 +68,8 @@ export function layout(input: LayoutInput): string {
 <tr><td align="center" style="padding:32px 12px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
   <tr><td style="padding:0 4px 20px;">
-    <img src="${logo}" width="132" height="32" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:132px;">
+    <img src="${logo}" width="132" height="32" alt="Plainphone" class="pp-logo-light" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:132px;">
+    <!--[if !mso]><!--><div class="pp-logo-dark" style="display:none;max-height:0;overflow:hidden;"><img src="${logoDark}" width="132" height="32" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:132px;"></div><!--<![endif]-->
   </td></tr>
   <tr><td class="pp-card" style="background:#ffffff;border:1px solid #dfe3dd;border-radius:12px;padding:36px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
     <h1 class="pp-heading" style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:600;color:#1c2321;">${esc(input.heading)}</h1>
