@@ -14,7 +14,7 @@ hostname: `<clientId>.dns.plainphone.org`, which it forces as private DNS.
 
 ## Calls (DNS_PROVIDER=http)
 
-Configured with `DNS_API_URL` (e.g. `http://ppdns:8000/`) and `DNS_API_TOKEN` (bearer).
+Configured with `DNS_API_URL` (e.g. `http://<private-ip>:8053/`, see `PPDNS_API_BIND` in `dns/.env.example`) and `DNS_API_TOKEN` (bearer).
 
 | When | Call |
 |---|---|
