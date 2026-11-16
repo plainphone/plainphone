@@ -221,7 +221,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations and the message a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from app.plainphone.org and has no identifier in its address. It is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations and the messages a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. Its address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {
@@ -242,7 +242,7 @@ export default {
             list: [
               "Hetzner (Germany) rents us the servers where the parent app, its database and the web filter run. Backups are kept in object storage in the EU.",
               "Our own mail server in the EU sends the emails. It is not a third-party mail service.",
-              "Cloudflare hosts this website (plainphone.org).",
+              "Cloudflare hosts this website (plainphone.org) and the logo in our emails.",
               "Quad9 and Mullvad, with Cloudflare as a fallback, answer allowed web filter lookups, as described above.",
             ],
           },

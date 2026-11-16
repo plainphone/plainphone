@@ -333,12 +333,12 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
 /** Tells the trusted person that a request waits for them. A failed mail never fails the change. */
 async function mailTrustedPerson(ctx: Ctx, trustedUserId: string, phoneName: string) {
   if (!ctx.mail.canSend) return;
-  const [person] = await ctx.db
-    .select({ email: users.email, locale: users.locale })
-    .from(users)
-    .where(eq(users.id, trustedUserId));
-  if (!person) return;
   try {
+    const [person] = await ctx.db
+      .select({ email: users.email, locale: users.locale })
+      .from(users)
+      .where(eq(users.id, trustedUserId));
+    if (!person) return;
     await ctx.mail.send(approvalRequestMail(person.email, toLocale(person.locale), ctx.cfg.PUBLIC_URL, phoneName));
   } catch (err) {
     console.error(`could not mail the trusted person about a request: ${(err as Error).message}`);

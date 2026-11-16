@@ -41,6 +41,11 @@ AdGuard service groups and block lists per phone; the VPN/proxy/Tor bypass list,
 YouTube Restricted Mode stay on for a `child` phone. A parent may switch every category off for a
 child, including `adult`.
 
+The server always sends the full set, so the DNS service's own profile defaults (`self` blocks no
+category) only apply to clients created without it. A new phone on the server starts with every
+category blocked, also a `self` phone (spec: "all on by default"); the owner opens categories up
+through their key, like any other loosening.
+
 Old and new can be deployed in either order. A DNS service from before categories ignores
 `blocked_categories` and applies `block_adult` (and then keeps blocking the other categories for a
 child, as before). An older server sends only `block_adult`; the new DNS service reads that as
