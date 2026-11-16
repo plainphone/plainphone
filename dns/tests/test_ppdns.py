@@ -673,7 +673,10 @@ class JobsTest(unittest.TestCase):
             jobs = Jobs(settings, Service(ag, settings.domain, tmp))
             added = jobs.ensure_filters()
             self.assertEqual(len(added), len(lists.wanted_filters(tmp)) - 1)  # OISD big was there
+            # AdGuard re-reads the lists that init rewrote, also when no list was added.
+            self.assertEqual(ag.refreshed, 1)
             self.assertEqual(jobs.ensure_filters(), [])
+            self.assertEqual(ag.refreshed, 2)
             with open(os.path.join(tmp, "plainphone-child-youtube-strict.txt")) as fh:
                 text = fh.read()
             self.assertIn("|www.youtube.com^$dnsrewrite=NOERROR;CNAME;restrict.youtube.com,ctag=user_child", text)

@@ -210,6 +210,9 @@ class Jobs:
                 added.append(name)
         if added:
             log.info("added filter lists: %s", ", ".join(added))
+        # `init` may just have rewritten the lists (for example with new client tags after an
+        # upgrade), but AdGuard keeps the rules it loaded until it is told to read them again.
+        self.service.adguard.refresh_filters()
         return added
 
     def backup(self) -> None:
