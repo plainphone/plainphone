@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from ppdns import config, dot, lists, profiles  # noqa: E402
 from ppdns.server import Api  # noqa: E402
+from ppdns import service as service_mod  # noqa: E402
 from ppdns.service import NotFound, Service  # noqa: E402
 
 CATALOGUE = [
@@ -193,7 +194,9 @@ class ServiceTest(unittest.TestCase):
         self.assertEqual(out["profile"], "child")
         self.assertTrue(out["block_adult"])
         self.assertEqual(out["hostname"], out["client_id"] + ".dns.example.org")
-        self.assertEqual(self.ag.access_state["allowed_clients"], [out["client_id"]])
+        self.assertEqual(
+            self.ag.access_state["allowed_clients"], sorted([out["client_id"], service_mod.ACCESS_SENTINEL])
+        )
         self.assertEqual(self.ag.access_state["disallowed_clients"], ["1.2.3.4"])  # untouched
 
     def test_self_default_allows_adult(self):
@@ -220,6 +223,37 @@ class ServiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.svc.update(a, allow_domains=["x.example"], block_domains=["x.example"])
 
+    def test_access_list_is_never_empty(self):
+        a = self.svc.create("self")["client_id"]
+        self.svc.delete(a)
+        self.assertEqual(self.ag.access_state["allowed_clients"], [service_mod.ACCESS_SENTINEL])
+
+    def test_bad_domain_writes_nothing(self):
+        with self.assertRaises(ValueError):
+            self.svc.create("child", block_domains=["ok.example", "not a domain"])
+        self.assertEqual(self.ag.clients(), [])
+        self.assertEqual(self.ag.access_state["allowed_clients"], [])  # never touched
+        a = self.svc.create("self")["client_id"]
+        with self.assertRaises(ValueError):
+            self.svc.update(a, profile="child", allow_domains=["bad domain"])
+        self.assertEqual(self.svc.get(a)["profile"], "self")  # profile not half-applied
+
+    def test_one_letter_tld_like_the_server(self):
+        self.assertEqual(profiles.normalise_domain("x.y"), "x.y")
+        with self.assertRaises(ValueError):
+            profiles.normalise_domain("x.1")
+
+    def test_monitor_prefix_is_reserved(self):
+        with self.assertRaises(ValueError):
+            self.svc.create("child", client_id="monitor-abcd")
+
+    def test_unchanged_domains_do_not_rewrite_rules(self):
+        a = self.svc.create("self", block_domains=["bad.example"])["client_id"]
+        calls = []
+        self.ag.set_user_rules = lambda rules: calls.append(rules)
+        self.svc.update(a, block_domains=["bad.example"])
+        self.assertEqual(calls, [])
+
     def test_rule_injection_is_rejected(self):
         a = self.svc.create("self")["client_id"]
         with self.assertRaises(ValueError):
@@ -241,7 +275,7 @@ class ServiceTest(unittest.TestCase):
         self.svc.delete(a)
         with self.assertRaises(NotFound):
             self.svc.get(a)
-        self.assertEqual(self.ag.access_state["allowed_clients"], [b])
+        self.assertEqual(self.ag.access_state["allowed_clients"], sorted([b, service_mod.ACCESS_SENTINEL]))
         self.assertFalse(any(a in r for r in self.ag.rules))
 
     def test_monitor_client_is_stable_and_hidden(self):
@@ -257,7 +291,63 @@ class ServiceTest(unittest.TestCase):
                 self.svc.get(bad)
 
 
+class SigV4Test(unittest.TestCase):
+    """Known answers from the AWS S3 Signature Version 4 examples (header-based auth)."""
+
+    KEYS = ("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+
+    def sign(self, query):
+        import datetime as dt
+
+        from ppdns.backup import sign_v4
+
+        now = dt.datetime(2013, 5, 24, tzinfo=dt.timezone.utc)
+        headers, _ = sign_v4("GET", "examplebucket.s3.amazonaws.com", "/", query, b"", "us-east-1", *self.KEYS, now)
+        return headers["Authorization"].rsplit("Signature=", 1)[1]
+
+    def test_aws_examples(self):
+        self.assertEqual(self.sign({"lifecycle": ""}), "fea454ca298b7da1c68078a5d1bdbfbbe0d65c699e0f91ac7a200a0136783543")
+        self.assertEqual(
+            self.sign({"max-keys": "2", "prefix": "J"}), "34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7"
+        )
+
+    def test_blank_region_falls_back(self):
+        from ppdns.backup import s3_from_env
+
+        s3, prefix = s3_from_env({
+            "PPDNS_BACKUP_S3_BUCKET": "b", "PPDNS_BACKUP_S3_ENDPOINT": "https://s3.example",
+            "PPDNS_BACKUP_S3_REGION": "", "PPDNS_BACKUP_S3_ACCESS_KEY": "a", "PPDNS_BACKUP_S3_SECRET_KEY": "s",
+        })
+        self.assertEqual((s3.region, prefix), ("us-east-1", "plainphone-dns/"))
+
+
 class JobsTest(unittest.TestCase):
+    def test_reload_cert_only_when_the_file_changes_or_forced(self):
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            cert = os.path.join(tmp, "c.crt")
+            with open(cert, "w") as fh:
+                fh.write("x")
+            settings = ConfigTest().settings(tmp, PPDNS_CERT_FILE=cert)
+            ag = FakeAdGuard()
+            sent = []
+            ag.tls_status = lambda: {"enabled": True, "server_name": "dns.example.org", "certificate_path": cert,
+                                     "private_key_path": "/k", "port_dns_over_tls": 853, "valid_cert": True}
+            ag.tls_configure = lambda cfg: sent.append(cfg)
+            jobs = Jobs(settings, Service(ag, settings.domain, tmp))
+            jobs.reload_cert()
+            self.assertEqual(sent, [])  # unchanged since start
+            os.utime(cert, (time.time() + 60, time.time() + 60))
+            jobs.reload_cert()
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(sent[0]["certificate_path"], cert)
+            self.assertNotIn("valid_cert", sent[0])
+            jobs.reload_cert()
+            self.assertEqual(len(sent), 1)
+            jobs.reload_cert(force=True)
+            self.assertEqual(len(sent), 2)
+
     def test_missing_filters_are_added_once(self):
         from ppdns.server import Jobs
 
@@ -386,6 +476,10 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": "abcdefghij234567wxyz", "profile": "child"})[0], 409)
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": "Bad.ID", "profile": "child"})[0], 400)
         self.assertEqual(self.call("POST", "/v1/clients", {"client_id": 7, "profile": "child"})[0], 400)
+        self.assertEqual(self.call("POST", "/v1/clients", {"client_id": "monitor-abcd", "profile": "child"})[0], 400)
+        self.assertEqual(
+            self.call("POST", "/v1/clients", {"profile": "child", "block_domains": ["x y"]})[0], 400
+        )
         self.assertEqual(len(self.call("GET", "/v1/clients")[1]["clients"]), 1)
 
     def test_bad_input(self):

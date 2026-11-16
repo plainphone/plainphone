@@ -40,7 +40,9 @@ CHILD_BLOCKED_SERVICES = (
 CHILD_NEVER_BLOCKED = ("youtube",)
 
 CLIENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{3,62}$")
-DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z0-9-]{2,63}$")
+# Same TLD rule as the server (server/src/lib/validation.ts): a letter, then up to 62 of [a-z0-9-].
+DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z][a-z0-9-]{0,62}$")
+MONITOR_PREFIX = "monitor-"  # reserved for the self-test's own ClientID
 _ALPHABET = string.ascii_lowercase + string.digits
 
 

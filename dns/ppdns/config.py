@@ -123,7 +123,8 @@ dns:
     - https://cloudflare-dns.com/dns-query
   upstream_mode: load_balance
   fastest_timeout: 1s
-  allowed_clients: []
+  allowed_clients:
+    - plainphone-no-such-client
   disallowed_clients: []
   blocked_hosts:
     - version.bind

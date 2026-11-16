@@ -124,6 +124,31 @@ def cert_days_left(server: str, tls_name: str, port: int = 853, timeout: float =
     return (ssl.cert_time_to_seconds(cert["notAfter"]) - time.time()) / 86400
 
 
+def served_cert_days(server: str, tls_name: str, port: int = 853, timeout: float = 10.0) -> float:
+    """Days left on the certificate the server presents, without verifying it.
+
+    Used by the self-test, which connects to the container directly (by its
+    compose name, so hostname verification cannot work there).
+    """
+    import os
+    import tempfile
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with socket.create_connection((server, port), timeout=timeout) as raw:
+        with ctx.wrap_socket(raw, server_hostname=tls_name) as conn:
+            der = conn.getpeercert(binary_form=True)
+    fd, path = tempfile.mkstemp(suffix=".pem")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(ssl.DER_cert_to_PEM_cert(der))
+        info = ssl._ssl._test_decode_cert(path)  # noqa: SLF001 - stdlib PEM parser
+    finally:
+        os.unlink(path)
+    return (ssl.cert_time_to_seconds(info["notAfter"]) - time.time()) / 86400
+
+
 def _recv_exact(conn: ssl.SSLSocket, n: int) -> bytes:
     buf = b""
     while len(buf) < n:

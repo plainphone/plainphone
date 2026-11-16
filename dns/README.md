@@ -42,7 +42,8 @@ decide which of those rules apply: `user_child` for the child profile,
 
 Only registered ClientIDs can use the resolver (AdGuard's allowed clients). An
 unknown ClientID, or none, gets `REFUSED`, so the server is not an open
-resolver.
+resolver. The allowed list always holds a placeholder entry as well, because an
+empty list would mean "everyone".
 
 ## API
 
@@ -80,11 +81,12 @@ Errors are `{"error": "..."}` with `400` (bad input), `401` (token),
 Rules for the fields:
 
 - `client_id`: 4 to 63 characters, `a-z`, `0-9` and `-`, starting with a letter
-  or digit. Leave it out and ppdns makes a random 20-character one. The server
+  or digit, not starting with `monitor-` (reserved for the self-test). Leave it out and ppdns makes a random 20-character one. The server
   may choose its own (so it can store it before calling ppdns and retry safely):
   call `PATCH` first and `POST` with the same `client_id` on `404`.
 - `allow_domains` / `block_domains`: domain names; they also cover subdomains.
-  At most 1,000 each, and a domain cannot be in both. Allowed domains win over
+  At most 1,000 each, and a domain cannot be in both. The whole request is
+  checked before anything changes, so a `400` means nothing was applied. Allowed domains win over
   every blocklist.
 - Changes to `profile` and `block_adult` take effect at once. Changes to
   `allow_domains` / `block_domains` take effect after AdGuard Home has rebuilt
@@ -111,7 +113,7 @@ docker compose exec api python -m ppdns backup
 | Blocklists | every 12 h | download the profile lists, add the tags, tell AdGuard to reload |
 | New lists | at start | adds lists that a newer ppdns knows to an existing install |
 | Certificate | every 5 min | when lego has renewed the certificate, AdGuard re-reads it without a restart |
-| Self-test | every 5 min | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate must have 10+ days left and a backup must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
+| Self-test | every 5 min | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate AdGuard actually serves must have 10+ days left (if it is older than the file lego wrote, ppdns forces a reload), and the last backup (and, with S3, the last upload) must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
 | Backup | at start and every 24 h | `AdGuardHome.yaml` (all ClientIDs and rules) as `.tar.gz` in the data volume, last 14, and to S3 if `PPDNS_BACKUP_S3_*` is set |
 
 ## Tests

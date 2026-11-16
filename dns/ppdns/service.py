@@ -28,6 +28,11 @@ class Conflict(ValueError):
     """The ClientID is already registered."""
 
 
+# Always in AdGuard's allowed_clients. An empty list would mean "everyone may
+# query", so the list must never be empty, even with no phones registered.
+ACCESS_SENTINEL = "plainphone-no-such-client"
+
+
 class Service:
     def __init__(self, adguard: AdGuard, domain: str, data_dir: str):
         self.adguard = adguard
@@ -71,14 +76,25 @@ class Service:
                 block.append(body[2:-1])
         return sorted(allow), sorted(block)
 
+    @staticmethod
+    def _clean(allow, block):
+        """Normalise and check domain lists before anything is written. None means unchanged."""
+        allow = None if allow is None else sorted({profiles.normalise_domain(d) for d in allow})
+        block = None if block is None else sorted({profiles.normalise_domain(d) for d in block})
+        if allow is not None and block is not None and set(allow) & set(block):
+            raise ValueError("a domain cannot be both allowed and blocked")
+        return allow, block
+
     def _set_domains(self, client_id: str, allow: list[str] | None, block: list[str] | None) -> None:
         suffix = self._rule_suffix(client_id)
         rules = self.adguard.user_rules()
         old_allow, old_block = self._domains(rules, client_id)
-        allow = old_allow if allow is None else sorted({profiles.normalise_domain(d) for d in allow})
-        block = old_block if block is None else sorted({profiles.normalise_domain(d) for d in block})
+        allow = old_allow if allow is None else allow
+        block = old_block if block is None else block
         if set(allow) & set(block):
             raise ValueError("a domain cannot be both allowed and blocked")
+        if (allow, block) == (old_allow, old_block):
+            return  # nothing changed: skip AdGuard's filter rebuild
         kept = [r for r in rules if not r.endswith(suffix)]
         kept += [f"@@||{d}^{suffix}" for d in allow]
         kept += [f"||{d}^{suffix}" for d in block]
@@ -86,7 +102,7 @@ class Service:
 
     def sync_access(self) -> int:
         """Allow exactly the registered ClientIDs. Returns how many."""
-        ids = sorted({i for c in self._ours() for i in c.get("ids", [])})
+        ids = sorted({i for c in self._ours() for i in c.get("ids", [])} | {ACCESS_SENTINEL})
         access = self.adguard.access()
         wanted = {
             "allowed_clients": ids,
@@ -103,19 +119,37 @@ class Service:
         return out
 
     # operations -----------------------------------------------------------
-    def create(self, profile: str, block_adult: bool | None = None, client_id: str | None = None) -> dict:
+    def create(
+        self,
+        profile: str,
+        block_adult: bool | None = None,
+        client_id: str | None = None,
+        allow_domains: list[str] | None = None,
+        block_domains: list[str] | None = None,
+        *,
+        internal: bool = False,
+    ) -> dict:
         if profile not in profiles.PROFILES:
             raise ValueError(f"profile must be one of {', '.join(profiles.PROFILES)}")
         if block_adult is None:
             block_adult = profile == "child"
         client_id = client_id or profiles.new_client_id()
-        if not profiles.valid_client_id(client_id):
+        if not profiles.valid_client_id(client_id) or client_id == ACCESS_SENTINEL:
             raise ValueError("invalid client_id: 4-63 characters a-z, 0-9 and '-', starting with a letter or digit")
+        if client_id.startswith(profiles.MONITOR_PREFIX) and not internal:
+            raise ValueError(f"client_id may not start with {profiles.MONITOR_PREFIX!r}")
+        allow, block = self._clean(allow_domains, block_domains)  # validate before writing anything
+        if allow is not None and block is None:
+            block = []
+        if block is not None and allow is None:
+            allow = []
         payload = profiles.client_payload(client_id, profile, block_adult, self._services())
         with self._lock:
             if any(client_id in c.get("ids", []) or c.get("name") == payload["name"] for c in self.adguard.clients()):
                 raise Conflict(client_id)
             self.adguard.add_client(payload)
+            if allow is not None:
+                self._set_domains(client_id, allow, block)
             self.sync_access()
         return self.view(payload)
 
@@ -126,7 +160,7 @@ class Service:
         rules = self.adguard.user_rules()
         result = []
         for client in self._ours():
-            if client["name"].startswith(profiles.CLIENT_PREFIX + "monitor-"):
+            if client["name"].startswith(profiles.CLIENT_PREFIX + profiles.MONITOR_PREFIX):
                 continue  # the self-test's own ClientID
             item = profiles.describe(client, self.domain)
             item["allow_domains"], item["block_domains"] = self._domains(rules, item["client_id"])
@@ -141,6 +175,7 @@ class Service:
         allow_domains: list[str] | None = None,
         block_domains: list[str] | None = None,
     ) -> dict:
+        allow_domains, block_domains = self._clean(allow_domains, block_domains)  # before any write
         with self._lock:
             current = self._find(client_id)
             now = profiles.describe(current, self.domain)
@@ -170,7 +205,7 @@ class Service:
             with open(path, encoding="utf-8") as fh:
                 client_id = fh.read().strip()
         else:
-            client_id = "monitor-" + profiles.new_client_id(16)
+            client_id = profiles.MONITOR_PREFIX + profiles.new_client_id(16)
             os.makedirs(self.data_dir, exist_ok=True)
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(client_id + "\n")
@@ -178,7 +213,7 @@ class Service:
             self._find(client_id)
         except NotFound:
             try:
-                self.create("child", client_id=client_id)
+                self.create("child", client_id=client_id, internal=True)
             except AdGuardError as exc:
                 log.warning("could not create monitor client: %s", exc)
         return client_id

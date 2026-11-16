@@ -46,6 +46,35 @@ def keep_local(backup_dir: str, name: str, data: bytes, keep: int) -> None:
         os.unlink(os.path.join(backup_dir, stale))
 
 
+def sign_v4(method, host, path, query, body, region, access_key, secret_key, now):
+    """AWS Signature Version 4 for S3 (headers host, x-amz-content-sha256, x-amz-date).
+
+    Returns the headers to send (including Authorization) and the canonical query string.
+    """
+    amz_date, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
+    canonical_query = "&".join(
+        f"{urllib.parse.quote(k, safe='~')}={urllib.parse.quote(str(v), safe='~')}"
+        for k, v in sorted(query.items())
+    )
+    payload_hash = hashlib.sha256(body).hexdigest()
+    headers = {"host": host, "x-amz-content-sha256": payload_hash, "x-amz-date": amz_date}
+    signed = ";".join(sorted(headers))
+    canonical = "\n".join([
+        method, path, canonical_query,
+        "".join(f"{k}:{headers[k]}\n" for k in sorted(headers)), signed, payload_hash,
+    ])
+    scope = f"{day}/{region}/s3/aws4_request"
+    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
+    key = ("AWS4" + secret_key).encode()
+    for part in (day, region, "s3", "aws4_request"):
+        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
+    signature = hmac.new(key, to_sign.encode(), hashlib.sha256).hexdigest()
+    headers["Authorization"] = (
+        f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, SignedHeaders={signed}, Signature={signature}"
+    )
+    return headers, canonical_query
+
+
 class S3:
     """Just enough S3 for PUT, LIST and DELETE with path-style URLs."""
 
@@ -56,26 +85,11 @@ class S3:
         self.access_key, self.secret_key = access_key, secret_key
 
     def _request(self, method: str, key: str = "", query: dict | None = None, body: bytes = b""):
-        now = dt.datetime.now(dt.timezone.utc)
-        amz_date, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
         path = "/" + self.bucket + ("/" + urllib.parse.quote(key, safe="/~") if key else "")
-        canonical_query = "&".join(
-            f"{urllib.parse.quote(k, safe='~')}={urllib.parse.quote(str(v), safe='~')}"
-            for k, v in sorted((query or {}).items())
+        headers, canonical_query = sign_v4(
+            method, self.host, path, query or {}, body, self.region, self.access_key, self.secret_key,
+            dt.datetime.now(dt.timezone.utc),
         )
-        payload_hash = hashlib.sha256(body).hexdigest()
-        headers = {"host": self.host, "x-amz-content-sha256": payload_hash, "x-amz-date": amz_date}
-        signed = ";".join(sorted(headers))
-        canonical = "\n".join([
-            method, path, canonical_query,
-            "".join(f"{k}:{headers[k]}\n" for k in sorted(headers)), signed, payload_hash,
-        ])
-        scope = f"{day}/{self.region}/s3/aws4_request"
-        to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
-        key_bytes = ("AWS4" + self.secret_key).encode()
-        for part in (day, self.region, "s3", "aws4_request"):
-            key_bytes = hmac.new(key_bytes, part.encode(), hashlib.sha256).digest()
-        signature = hmac.new(key_bytes, to_sign.encode(), hashlib.sha256).hexdigest()
         request = urllib.request.Request(
             self.endpoint + path + ("?" + canonical_query if canonical_query else ""),
             data=body if method == "PUT" else None,
@@ -84,10 +98,6 @@ class S3:
         for name, value in headers.items():
             if name != "host":
                 request.add_header(name, value)
-        request.add_header(
-            "Authorization",
-            f"AWS4-HMAC-SHA256 Credential={self.access_key}/{scope}, SignedHeaders={signed}, Signature={signature}",
-        )
         with urllib.request.urlopen(request, timeout=60) as response:
             return response.read()
 
@@ -110,7 +120,7 @@ def s3_from_env(env=os.environ) -> tuple[S3, str] | None:
         return None
     s3 = S3(
         env["PPDNS_BACKUP_S3_ENDPOINT"],
-        env.get("PPDNS_BACKUP_S3_REGION", "us-east-1"),
+        env.get("PPDNS_BACKUP_S3_REGION") or "us-east-1",
         bucket,
         env["PPDNS_BACKUP_S3_ACCESS_KEY"],
         env["PPDNS_BACKUP_S3_SECRET_KEY"],
@@ -129,6 +139,9 @@ def run(conf_dir: str, data_dir: str, keep: int = 14, env=os.environ) -> str:
         stored = [k for k in s3.list(prefix) if k.rsplit("/", 1)[-1].startswith("adguard-conf-")]
         for stale in stored[:-keep] if keep > 0 else []:
             s3.delete(stale)
+        stamp = os.path.join(data_dir, "backups", ".last-upload")
+        with open(stamp, "w", encoding="utf-8") as fh:
+            fh.write(name + "\n")
         log.info("backup %s uploaded (%d kept remotely)", name, min(len(stored), keep))
     else:
         log.info("backup %s kept locally only", name)

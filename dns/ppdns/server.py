@@ -92,13 +92,13 @@ class Api(BaseHTTPRequestHandler):
                 client_id = body.get("client_id")
                 if client_id is not None and not isinstance(client_id, str):
                     raise ValueError("client_id must be a string")
-                created = self.service.create(body.get("profile", ""), _bool(body, "block_adult"), client_id)
-                if "allow_domains" in body or "block_domains" in body:
-                    created = self.service.update(
-                        created["client_id"],
-                        allow_domains=_list(body, "allow_domains"),
-                        block_domains=_list(body, "block_domains"),
-                    )
+                created = self.service.create(
+                    body.get("profile", ""),
+                    _bool(body, "block_adult"),
+                    client_id,
+                    allow_domains=_list(body, "allow_domains"),
+                    block_domains=_list(body, "block_domains"),
+                )
                 return self._send(HTTPStatus.CREATED, created)
             if len(parts) == 2 and parts[0] == "clients":
                 client_id = parts[1]
@@ -207,7 +207,9 @@ class Jobs:
     def backup_age_hours(self):
         folder = os.path.join(self.s.data_dir, "backups")
         try:
-            newest = max(os.stat(os.path.join(folder, f)).st_mtime for f in os.listdir(folder))
+            newest = max(
+                os.stat(os.path.join(folder, f)).st_mtime for f in os.listdir(folder) if f.startswith("adguard-conf-")
+            )
         except (OSError, ValueError):
             return None
         return (time.time() - newest) / 3600
@@ -216,10 +218,10 @@ class Jobs:
         lists.build(self.s.lists_dir)
         self.service.adguard.refresh_filters()
 
-    def reload_cert(self) -> None:
+    def reload_cert(self, force: bool = False) -> None:
         """Make AdGuard re-read the certificate after lego renewed it."""
         mtime = _mtime(self.s.cert_file)
-        if mtime is None or mtime == self._cert_mtime:
+        if mtime is None or (mtime == self._cert_mtime and not force):
             return
         current = self.service.adguard.tls_status()
         config = {k: current[k] for k in (
@@ -246,10 +248,28 @@ class Jobs:
         age = self.backup_age_hours()
         if age is None or age > 36:
             return False, "no configuration backup in the last 36 hours"
-        days = _cert_days(self.s.cert_file)
-        if days is not None and days < 10:
-            return False, f"certificate expires in {days:.0f} days"
-        return True, "OK" if days is None else f"OK, certificate {days:.0f} days"
+        if backup.s3_from_env() is not None:
+            uploaded = self.upload_age_hours()
+            if uploaded is None or uploaded > 36:
+                return False, "no off-site backup upload in the last 36 hours"
+        # The certificate AdGuard actually serves, not the file: a missed reload shows up here.
+        try:
+            served = dot.served_cert_days(self.s.dot_host, tls_name)
+        except Exception as exc:  # noqa: BLE001
+            return False, f"could not read the served certificate: {exc.__class__.__name__}"
+        on_disk = _cert_days(self.s.cert_file)
+        if on_disk is not None and on_disk - served > 1:
+            log.warning("AdGuard serves an older certificate than lego wrote; reloading")
+            self.reload_cert(force=True)
+        if served < 10:
+            return False, f"certificate expires in {served:.0f} days"
+        return True, f"OK, certificate {served:.0f} days"
+
+    def upload_age_hours(self):
+        try:
+            return (time.time() - os.stat(os.path.join(self.s.data_dir, "backups", ".last-upload")).st_mtime) / 3600
+        except OSError:
+            return None
 
     def push(self) -> None:
         ok, message = self.selftest()
