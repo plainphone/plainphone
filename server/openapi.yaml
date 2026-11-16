@@ -955,7 +955,7 @@ paths:
       summary: Requests waiting for me as a trusted person
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "approvals: id, phoneName, requestedBy, op, createdAt" }
+        "200": { description: "approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt" }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove

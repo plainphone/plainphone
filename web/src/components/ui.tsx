@@ -1,0 +1,235 @@
+// SPDX-License-Identifier: Apache-2.0
+import {
+  type DependencyList,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { useI18n } from "../i18n/I18n";
+import type { T } from "../i18n/translate";
+import { ApiError } from "../lib/api";
+
+/** Turns any error into a sentence for the user. */
+export function errorMessage(err: unknown, t: T): string {
+  if (err instanceof ApiError) {
+    if (err.status === 0) return t("error.network");
+    if (err.status === 429) return t("error.tooMany");
+    if (err.status === 404) return t("error.notFound");
+    if (err.status === 400 && err.issues.length) return t("error.form");
+  }
+  return t("error.generic");
+}
+
+export interface Loaded<D> {
+  data: D | undefined;
+  error: unknown;
+  loading: boolean;
+  reload: () => Promise<void>;
+  setData: (fn: (d: D | undefined) => D | undefined) => void;
+}
+
+/** Loads data on mount and when deps change. Keeps old data while reloading. */
+export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D> {
+  const [data, setDataState] = useState<D | undefined>(undefined);
+  const [error, setError] = useState<unknown>(null);
+  const [loading, setLoading] = useState(true);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  const alive = useRef(true);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await fnRef.current();
+      if (alive.current) {
+        setDataState(d);
+        setError(null);
+      }
+    } catch (err) {
+      if (alive.current) setError(err);
+    } finally {
+      if (alive.current) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    alive.current = true;
+    void reload();
+    return () => {
+      alive.current = false;
+    };
+  }, deps);
+  const setData = useCallback((f: (d: D | undefined) => D | undefined) => setDataState(f), []);
+  return { data, error, loading, reload, setData };
+}
+
+/** Re-renders every `ms` so countdowns stay current. */
+export function useNow(ms = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), ms);
+    return () => window.clearInterval(id);
+  }, [ms]);
+  return now;
+}
+
+export function Loading() {
+  const { t } = useI18n();
+  return (
+    <p className="state state-loading" role="status">
+      <span className="spinner" aria-hidden="true" />
+      {t("app.loading")}
+    </p>
+  );
+}
+
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="state state-error" role="alert">
+      <p>
+        <strong>{t("error.load")}</strong> {errorMessage(error, t)}
+      </p>
+      {onRetry && (
+        <button type="button" className="btn btn-secondary" onClick={onRetry}>
+          {t("app.retry")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Wraps a loaded resource: spinner first, error with retry, then the content. */
+export function LoadGate<D>({ res, children }: { res: Loaded<D>; children: (d: D) => ReactNode }) {
+  if (res.data === undefined) {
+    if (res.error) return <ErrorState error={res.error} onRetry={() => void res.reload()} />;
+    return <Loading />;
+  }
+  return <>{children(res.data)}</>;
+}
+
+export type Tone = "info" | "success" | "error";
+export interface Notice {
+  tone: Tone;
+  text: string;
+}
+
+/** Polite live region for async results. Always rendered, so screen readers pick up changes. */
+export function LiveStatus({ notice, onClose }: { notice: Notice | null; onClose?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="live" aria-live="polite" aria-atomic="true">
+      {notice && (
+        <div className={`notice notice-${notice.tone}`} role={notice.tone === "error" ? "alert" : undefined}>
+          <p>{notice.text}</p>
+          {onClose && (
+            <button type="button" className="btn-icon" onClick={onClose} aria-label={t("app.close")}>
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Field({
+  label,
+  help,
+  error,
+  children,
+  optional,
+}: {
+  label: string;
+  help?: string;
+  error?: string;
+  optional?: boolean;
+  children: (props: { id: string; "aria-describedby"?: string; "aria-invalid"?: boolean }) => ReactNode;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  const helpId = `${id}-help`;
+  const errId = `${id}-err`;
+  const describedBy = [help ? helpId : null, error ? errId : null].filter(Boolean).join(" ") || undefined;
+  return (
+    <div className={`field${error ? " field-invalid" : ""}`}>
+      <label htmlFor={id}>
+        {label}
+        {optional && <span className="muted"> ({t("app.optional")})</span>}
+      </label>
+      {help && (
+        <p className="help" id={helpId}>
+          {help}
+        </p>
+      )}
+      {children({ id, "aria-describedby": describedBy, "aria-invalid": error ? true : undefined })}
+      {error && (
+        <p className="field-error" id={errId}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled,
+  busy,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  description?: ReactNode;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div className="switch-row">
+      <div className="switch-text">
+        <span className="switch-label" id={`${id}-l`}>
+          {label}
+        </span>
+        {description && (
+          <span className="switch-desc" id={`${id}-d`}>
+            {description}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        className="switch"
+        aria-checked={checked}
+        aria-labelledby={`${id}-l`}
+        aria-describedby={description ? `${id}-d` : undefined}
+        aria-busy={busy || undefined}
+        disabled={disabled || busy}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="switch-thumb" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    // Move focus to the new page's heading so screen readers announce route changes.
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+  return (
+    <div className="page-title">
+      <h1 ref={ref} tabIndex={-1}>
+        {children}
+      </h1>
+      {sub && <p className="lede">{sub}</p>}
+    </div>
+  );
+}

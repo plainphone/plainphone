@@ -601,11 +601,19 @@ export function parentRoutes(ctx: Ctx) {
 
   app.get("/approvals", async (c) => {
     const rows = await ctx.db
-      .select({ change: pendingChanges, phoneName: phones.name, requester: users.email })
+      .select({ change: pendingChanges, phoneName: phones.name, requester: users.email, appLabel: phoneApps.label })
       .from(pendingChanges)
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .innerJoin(phones, eq(phones.id, pendingChanges.phoneId))
       .leftJoin(users, eq(users.id, pendingChanges.requestedBy))
+      // The trusted person cannot see the phone's app list, so name the app here.
+      .leftJoin(
+        phoneApps,
+        and(
+          eq(phoneApps.phoneId, pendingChanges.phoneId),
+          eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`),
+        ),
+      )
       .where(
         and(
           eq(selfKeys.trustedUserId, c.get("user").id),
@@ -620,6 +628,7 @@ export function parentRoutes(ctx: Ctx) {
         phoneName: r.phoneName,
         requestedBy: r.requester,
         op: r.change.op,
+        appLabel: r.appLabel,
         createdAt: r.change.createdAt.toISOString(),
       })),
     });

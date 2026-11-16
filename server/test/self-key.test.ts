@@ -128,7 +128,11 @@ describe("Self profile with a trusted person", () => {
     expect((await me.post(`/api/changes/${show.json.change.id}/approve`)).status).toBe(404);
     const list = await friend.get("/api/approvals");
     expect(list.json.approvals).toHaveLength(1);
-    expect(list.json.approvals[0]).toMatchObject({ phoneName: "My phone", requestedBy: "adult@example.org" });
+    expect(list.json.approvals[0]).toMatchObject({
+      phoneName: "My phone",
+      requestedBy: "adult@example.org",
+      appLabel: "Instagram",
+    });
     expect((await friend.post(`/api/changes/${show.json.change.id}/approve`)).status).toBe(204);
     expect(await allowed(device)).toContain("com.instagram.android");
     // The friend cannot see the phone itself.

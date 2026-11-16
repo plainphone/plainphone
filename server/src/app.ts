@@ -67,9 +67,9 @@ export function createApp(ctx: Ctx) {
       if (c.res.status === 200) c.header("Cache-Control", "public, max-age=31536000, immutable");
     });
     app.use("/*", serveStatic({ root }));
-    let indexHtml: string | undefined;
     app.get("*", async (c) => {
-      indexHtml ??= await readFile(join(root, "index.html"), "utf8");
+      // Read per request (it is small), so a rebuilt web/dist is picked up without a restart.
+      const indexHtml = await readFile(join(root, "index.html"), "utf8");
       c.header("Cache-Control", "no-cache");
       return c.html(indexHtml);
     });

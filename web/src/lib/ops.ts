@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Pending changes described in plain words, e.g. "Show Instagram" or "Allow example.com".
+
+import type { MessageKey, T } from "../i18n/translate";
+import type { DnsCategory, Locale, Op, ScheduleInput } from "./api";
+import { formatClock, formatList, weekdayName } from "./format";
+
+export function categoryLabel(c: DnsCategory, t: T): string {
+  return t(`filter.cat.${c}` as MessageKey);
+}
+
+export function formatDays(days: number[], locale: Locale, t: T): string {
+  const sorted = [...new Set(days)].sort((a, b) => a - b);
+  const key = sorted.join(",");
+  if (key === "1,2,3,4,5,6,7") return t("sched.everyDay");
+  if (key === "1,2,3,4,5") return t("sched.weekdays");
+  if (key === "6,7") return t("sched.weekend");
+  return formatList(
+    sorted.map((d) => weekdayName(d, locale, "short")),
+    locale,
+  );
+}
+
+export function formatWindow(s: Pick<ScheduleInput, "startMinute" | "endMinute">, locale: Locale, t: T): string {
+  return t("sched.time", { start: formatClock(s.startMinute, locale), end: formatClock(s.endMinute, locale) });
+}
+
+export function kindLabel(kind: ScheduleInput["kind"], t: T): string {
+  return t(kind === "school" ? "sched.kind.school" : "sched.kind.bedtime");
+}
+
+/** Danish weekdays are lowercase mid-sentence; English ones keep their capital, "every day" does not. */
+function daysInSentence(days: string, locale: Locale): string {
+  if (locale === "da") return days.toLocaleLowerCase("da-DK");
+  return days.startsWith("Every ") ? days.toLowerCase() : days;
+}
+
+/**
+ * Describes an op. `appLabel` turns a package name into the app's name when it is known.
+ */
+export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string) => string = (p) => p): string {
+  switch (op.type) {
+    case "app.set":
+      return t(op.allowed ? "op.appShow" : "op.appHide", { app: appLabel(op.packageName) });
+    case "contact.add":
+      return t("op.contactAdd", { name: op.name, number: op.number });
+    case "contact.remove":
+      return t("op.contactRemove");
+    case "dns.category":
+      return t(op.blocked ? "op.categoryOn" : "op.categoryOff", {
+        category: categoryLabel(op.category, t).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB"),
+      });
+    case "dns.allowDomain":
+      return t(op.present ? "op.allowAdd" : "op.allowRemove", { domain: op.domain });
+    case "dns.blockDomain":
+      return t(op.present ? "op.blockAdd" : "op.blockRemove", { domain: op.domain });
+    case "schedule.create":
+    case "schedule.update":
+      return t(op.type === "schedule.create" ? "op.scheduleCreate" : "op.scheduleUpdate", {
+        kind: kindLabel(op.schedule.kind, t).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB"),
+        days: daysInSentence(formatDays(op.schedule.days, locale, t), locale),
+        time: formatWindow(op.schedule, locale, t),
+      });
+    case "schedule.delete":
+      return t("op.scheduleDelete");
+    case "key.set":
+      return op.key.keyType === "trusted"
+        ? t("op.keyTrusted", { email: op.key.trustedEmail ?? "" })
+        : t("op.keyDelay", { hours: op.key.delayHours });
+  }
+}
