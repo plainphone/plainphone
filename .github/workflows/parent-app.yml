@@ -39,8 +39,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: parent-app/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Same idea for the copy and formatting shared with the PWA: test the app with the
+      # PWA's current files, and warn when the committed copy is behind (pnpm sync:shared).
       - name: Shared copy and formatting match the PWA
-        run: pnpm check:shared
+        run: pnpm check:shared || echo "::warning::parent-app/src/shared is behind web/src; run pnpm --dir parent-app sync:shared"
+      - name: Use the PWA's current shared files
+        run: pnpm sync:shared
       # Typecheck against the API as it is now, so a breaking change in openapi.yaml
       # fails here. A stale committed schema only warns; refresh it with pnpm gen:api.
       - name: Typed API client matches server/openapi.yaml
