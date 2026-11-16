@@ -55,7 +55,7 @@ Record each result in the table at the bottom of a copy of this file, with the p
 
 | # | Attempt | Expected | How to test |
 |---|---|---|---|
-| N1 | Change private DNS | Greyed out, shows `family.adguard-dns.com` | Settings → Network → Private DNS |
+| N1 | Change private DNS | Greyed out, shows the host from the QR code (`<id>.dns.plainphone.org`, or the placeholder `family.adguard-dns.com`) | Settings → Network → Private DNS |
 | N2 | A known adult site in Chrome | Blocked (AdGuard Family block page or "site can't be reached") | Visit a well-known porn domain |
 | N3 | Same in an in-app browser | Blocked | Open a link from Messages or Maps that opens inside the app |
 | N4 | Chrome "Use secure DNS" with another provider | Setting is locked by the administrator | Chrome → Settings → Privacy and security → Use secure DNS |
