@@ -30,15 +30,16 @@ class PolicyApplier(
         }
         val results = mutableListOf<StepResult>()
 
+        // Roles first: DISALLOW_CONFIG_DEFAULT_APPS below then keeps the user from changing them back.
+        results += step("default phone app") { takeRole(ROLE_DIALER) { device.setDefaultDialer(device.ownPackage) } }
+        results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         for (key in LockPolicy.restrictions(sdkInt)) {
             results += step("restriction $key") { device.addRestriction(key) }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
-        // Roles before hiding: the maker's phone and SMS apps are only hidden once Plainphone holds the role.
-        results += step("default phone app") { takeRole(ROLE_DIALER) { device.setDefaultDialer(device.ownPackage) } }
-        results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         results += grantTelephonyPermissions()
+        // After the roles: the maker's phone and SMS apps are only hidden once Plainphone holds the role.
         results += hideApps(config)
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)

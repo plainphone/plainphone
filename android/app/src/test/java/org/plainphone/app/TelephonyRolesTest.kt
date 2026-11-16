@@ -32,6 +32,14 @@ class TelephonyRolesTest {
     }
 
     @Test
+    fun `roles are taken before the user is locked out of changing default apps`() {
+        val names = applier.apply(config).map { it.name }
+        assertThat(names.indexOf("default phone app")).isLessThan(names.indexOf("restriction disallow_config_default_apps"))
+        assertThat(names.indexOf("default SMS app")).isLessThan(names.indexOf("restriction disallow_config_default_apps"))
+        assertThat(device.restrictions).contains(android.os.UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
+    }
+
+    @Test
     fun `the maker's SMS app and extra dialers are hidden, the system dialer never`() {
         applier.apply(config)
         assertThat(device.hidden).containsExactly("com.samsung.dialer", "com.google.android.apps.messaging")

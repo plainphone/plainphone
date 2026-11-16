@@ -43,6 +43,8 @@ object LockPolicy {
         add(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
         // Date/time tricks against schedules (phase 3) and certificate checks.
         add(UserManager.DISALLOW_CONFIG_DATE_TIME)
+        // Phase 2: the default phone and SMS app (Plainphone) cannot be changed in Settings.
+        add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
     }
 
     /**
