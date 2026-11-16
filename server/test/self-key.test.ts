@@ -187,12 +187,15 @@ describe("Self profile with a trusted person", () => {
     const second = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: false });
     expect(second.json.status).toBe("applied");
     // A mail server that is down never fails the request or loses the change.
+    let tried = 0;
     h.mail.send = async () => {
+      tried++;
       throw new Error("SMTP down");
     };
     const again = await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
     expect(again.status).toBe(202);
     expect(again.json.status).toBe("pending");
+    expect(tried).toBe(1);
     expect((await friend.post(`/api/changes/${again.json.change.id}/reject`)).status).toBe(204);
     expect(await allowed(device)).not.toContain("com.instagram.android");
   });

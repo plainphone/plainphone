@@ -221,7 +221,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations and the messages a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. Its address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations and the messages a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {

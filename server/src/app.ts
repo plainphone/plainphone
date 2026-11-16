@@ -50,7 +50,7 @@ export function createApp(ctx: Ctx) {
   let dnsCheck: { at: number; ok: Promise<boolean> } | undefined;
   const dnsHealthy = () => {
     const now = Date.now();
-    if (!dnsCheck || now - dnsCheck.at > 30_000) dnsCheck = { at: now, ok: ctx.dns.healthy() };
+    if (!dnsCheck || now - dnsCheck.at > 30_000) dnsCheck = { at: now, ok: ctx.dns.healthy().catch(() => false) };
     return dnsCheck.ok;
   };
 

@@ -219,7 +219,7 @@ export default {
         id: "mail",
         title: "Mail",
         body: [
-          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og de beskeder, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Adressen har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og de beskeder, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
         ],
       },
       {
