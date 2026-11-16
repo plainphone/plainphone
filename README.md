@@ -27,6 +27,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/setup-test-phone.md](docs/setup-test-phone.md): set up a test phone step by step, and how to get out again
 - [docs/bypass-checklist.md](docs/bypass-checklist.md): every bypass attempt to test on a real phone, with the expected result
 - [docs/policies.md](docs/policies.md): the policies and their known limits
+- [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [SECURITY.md](SECURITY.md): how to report a bypass
 
 ## Build
