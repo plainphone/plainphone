@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# Test override: a self-signed certificate instead of Let's Encrypt, and the API
+# published on localhost. Used by dns/tests/run-stack.sh (locally and in CI).
+services:
+  certs:
+    image: alpine:3.24
+    entrypoint: ["/bin/sh", "-c", "sleep infinity"]
+    environment:
+      CLOUDFLARE_DNS_API_TOKEN: unused
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 2s
+      start_period: 0s
+    volumes: !override
+      - ./tests/.certs:/certs:ro
+  adguard:
+    volumes: !override
+      - conf:/opt/adguardhome/conf
+      - work:/opt/adguardhome/work
+      - ./tests/.certs:/certs:ro
+  api:
+    volumes: !override
+      - conf:/opt/adguardhome/conf:ro
+      - work:/opt/adguardhome/work
+      - data:/data
+      - ./tests/.certs:/certs:ro
