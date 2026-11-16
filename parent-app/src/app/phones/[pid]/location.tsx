@@ -51,7 +51,7 @@ function Position({ location, name, now, onError }: { location: Fix; name: strin
 }
 
 function LocationBody() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { phone, setPhone } = usePhone();
   const now = useNow(30_000);
   const res = useLoad(() => unwrap<LocationState>(client.GET("/phones/{pid}/location", { params: { path: { pid: phone.id } } })), [phone.id]);

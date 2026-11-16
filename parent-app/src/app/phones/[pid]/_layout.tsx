@@ -7,6 +7,9 @@ import { PhoneProvider, usePhoneName } from "../../../components/PhoneContext";
 import { RequireAuth } from "../../../components/RequireAuth";
 import { useStackOptions } from "../../../lib/stackOptions";
 
+// A link straight to a rule screen (a tapped notification) still has the overview beneath it.
+export const unstable_settings = { initialRouteName: "index" };
+
 function PhoneStack() {
   const options = useStackOptions();
   const name = usePhoneName();

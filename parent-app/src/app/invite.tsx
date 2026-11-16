@@ -13,7 +13,8 @@ import { clearPendingInvite, loadPendingInvite, savePendingInvite } from "../lib
 import { useSession } from "../lib/session";
 import { useLaunchToken } from "../lib/useLaunchToken";
 
-// One accept per token, also when effects run twice in development.
+// One accept per token, also when effects run twice in development or the screen is opened
+// again after it worked. A failed accept is forgotten, so the link can be tried again.
 const inflight = new Map<string, Promise<unknown>>();
 
 export default function InviteScreen() {
@@ -21,22 +22,23 @@ export default function InviteScreen() {
   const router = useRouter();
   const { state, refresh, setNext } = useSession();
   const { token: linkToken, ready } = useLaunchToken();
-  // undefined: still looking for the token. null: there is none.
-  const [token, setToken] = useState<string | null | undefined>(undefined);
-  const [result, setResult] = useState<"ok" | string | null>(null);
+  // The token kept from before the login. undefined: not looked up yet; null: none.
+  const [kept, setKept] = useState<string | null | undefined>(undefined);
+  const [outcome, setOutcome] = useState<{ token: string; result: "ok" | string } | null>(null);
 
   // The token is in the link, or was kept from before the login.
+  const token = linkToken ?? kept ?? null;
+  const looking = !ready || (!linkToken && kept === undefined);
+
   useEffect(() => {
     if (!ready) return;
     if (linkToken) {
       void savePendingInvite(linkToken);
-      if (Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
-      setToken(linkToken);
       return;
     }
     let cancelled = false;
     void loadPendingInvite().then((saved) => {
-      if (!cancelled) setToken(saved);
+      if (!cancelled) setKept(saved);
     });
     return () => {
       cancelled = true;
@@ -50,24 +52,27 @@ export default function InviteScreen() {
 
   useEffect(() => {
     if (!token || state.status !== "in") return;
-    setResult(null);
     let p = inflight.get(token);
     if (!p) {
       p = unwrap(client.POST("/invites/accept", { body: { token } }));
       inflight.set(token, p);
+      p.catch(() => inflight.delete(token));
     }
     p.then(
       () => {
-        setResult("ok");
+        setOutcome({ token, result: "ok" });
         void refresh();
       },
-      (err) => setResult(err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t)),
-    ).finally(() => void clearPendingInvite());
+      (err) => setOutcome({ token, result: err instanceof ApiError && err.status === 400 ? t("invite.failed") : errorMessage(err, t) }),
+    ).finally(() => {
+      void clearPendingInvite();
+      if (Platform.OS === "web") window.history.replaceState(null, "", window.location.pathname);
+    });
     // Accept each token once; a changed language or a refreshed session must not run it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, state.status]);
 
-  if (state.status === "loading" || token === undefined) {
+  if (state.status === "loading" || looking) {
     return (
       <Screen>
         <Loading />
@@ -76,6 +81,7 @@ export default function InviteScreen() {
   }
   if (token && anon) return <Redirect href="/login" />;
 
+  const result = outcome?.token === token ? outcome.result : null;
   return (
     <Screen testID="invite">
       <PageTitle>{t("invite.title")}</PageTitle>

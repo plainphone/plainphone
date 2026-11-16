@@ -145,6 +145,7 @@ export function Screen({
         testID={testID}
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} /> : undefined}
       >
         <View style={styles.inner}>{children}</View>

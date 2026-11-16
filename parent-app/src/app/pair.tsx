@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
@@ -22,9 +22,11 @@ function PairForm() {
   const [notice, setNotice] = useState<NoticeValue | null>(null);
 
   // A pairing link opened while this screen is already showing fills in its code.
-  useEffect(() => {
+  const [seenParam, setSeenParam] = useState(params.code);
+  if (params.code !== seenParam) {
+    setSeenParam(params.code);
     if (params.code) setCode(normaliseCode(params.code));
-  }, [params.code]);
+  }
 
   async function submit() {
     setNotice(null);

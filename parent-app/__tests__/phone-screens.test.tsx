@@ -1,0 +1,458 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// The phone screens (pairing, overview, the rule screens, household, invitations,
+// approvals) through the real router, against a fake API.
+import * as SecureStore from "expo-secure-store";
+import * as Linking from "expo-linking";
+import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { Linking as NativeLinking, Share } from "react-native";
+import { clearPendingInvite } from "../src/lib/pendingInvite";
+import { fakeApi, ME, PHONE } from "../test/fakeApi";
+
+jest.mock("expo-linking", () => {
+  const actual = jest.requireActual("expo-linking");
+  return { ...actual, getInitialURL: jest.fn(async () => null), useLinkingURL: jest.fn(() => null) };
+});
+
+const routes = "./src/app";
+const SELF_ID = "22222222-2222-4222-8222-222222222222";
+const SELF = { ...PHONE, id: SELF_ID, name: "Mine", profile: "self" };
+const APPS = [
+  { packageName: "com.android.dialer", label: "Phone", allowed: true, core: true },
+  { packageName: "com.example.insta", label: "Instagram", allowed: false, core: false },
+];
+const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
+
+/** The routes every phone screen loads first. */
+function phoneApi(phone = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+  return fakeApi({
+    "GET /me": { body: ME },
+    [`GET /phones/${phone.id}`]: { body: phone },
+    [`GET /phones/${phone.id}/changes`]: { body: { changes: [] } },
+    [`GET /phones/${phone.id}/apps`]: { body: { apps: APPS } },
+    ...extra,
+  });
+}
+const at = (phone: { id: string }, section = "") => `/phones/${phone.id}${section ? `/${section}` : ""}`;
+
+beforeEach(async () => {
+  await SecureStore.setItemAsync("pp.session", "pp_s_saved");
+});
+
+describe("pairing", () => {
+  it("fills the code from a pairing link and adds the phone", async () => {
+    const api = phoneApi(PHONE, { "POST /phones/claim": { status: 201, body: PHONE } });
+    await renderRouter(routes, { initialUrl: "/pair?code=k7mp4qxr" });
+    expect((await screen.findByTestId("pair-code")).props.value).toBe("K7MP-4QXR");
+    // The name is required.
+    await fireEvent.press(screen.getByTestId("pair-submit"));
+    expect(await screen.findByText("Give the phone a name.")).toBeTruthy();
+    expect(api.calls.some((c) => c.path === "/phones/claim")).toBe(false);
+    await fireEvent.changeText(screen.getByTestId("pair-name"), " Alma ");
+    await fireEvent.press(screen.getByTestId("pair-submit"));
+    await waitFor(() => expect(screen).toHavePathname(at(PHONE)));
+    const claim = api.calls.find((c) => c.path === "/phones/claim")!;
+    expect(claim.body).toMatchObject({ code: "K7MP-4QXR", name: "Alma", profile: "child" });
+    expect(typeof (claim.body as { timezone: string }).timezone).toBe("string");
+  });
+
+  it("says when the code is unknown", async () => {
+    phoneApi(PHONE, { "POST /phones/claim": { status: 404, body: { error: "code not found or expired" } } });
+    await renderRouter(routes, { initialUrl: "/pair?code=K7MP4QXR" });
+    await fireEvent.changeText(await screen.findByTestId("pair-name"), "Alma");
+    await fireEvent.press(screen.getByTestId("pair-submit"));
+    expect(await screen.findByText("That code was not found or has expired. Check the code on the phone.")).toBeTruthy();
+  });
+
+  it("offers to scan the code on a phone", async () => {
+    phoneApi();
+    await renderRouter(routes, { initialUrl: "/pair" });
+    expect(await screen.findByTestId("scan-start")).toBeTruthy();
+  });
+});
+
+describe("overview", () => {
+  it("shows the sections, with the key only on Self phones", async () => {
+    phoneApi();
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByTestId("section-apps")).toBeTruthy();
+    expect(screen.getByTestId("section-location")).toBeTruthy();
+    expect(screen.queryByTestId("section-key")).toBeNull();
+    // Child phones have nothing waiting.
+    expect(screen.queryByText("Waiting changes")).toBeNull();
+  });
+
+  it("lists waiting changes on a Self phone and cancels one", async () => {
+    const api = phoneApi(SELF, {
+      [`GET /phones/${SELF_ID}/changes`]: {
+        body: { changes: [{ id: "c1", op: { type: "app.set", packageName: "com.example.insta", allowed: true }, keyType: "delay", effectiveAt: FUTURE }] },
+      },
+      "POST /changes/c1/cancel": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF) });
+    expect(await screen.findByText("Show Instagram")).toBeTruthy();
+    expect(screen.getByTestId("section-key")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Cancel change: Show Instagram"));
+    expect(await screen.findByText("The change was cancelled.")).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "POST" && c.path === "/changes/c1/cancel")).toBe(true);
+  });
+
+  it("renames the phone", async () => {
+    const api = phoneApi(PHONE, { [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, name: "Alma M" } } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.changeText(await screen.findByTestId("rename-name"), "  ");
+    await fireEvent.press(screen.getByTestId("rename-save"));
+    expect(await screen.findByText("Give the phone a name.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("rename-name"), "Alma M");
+    await fireEvent.press(screen.getByTestId("rename-save"));
+    expect(await screen.findByText("The phone is now called Alma M.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PATCH")!.body).toEqual({ name: "Alma M" });
+  });
+
+  it("removes a Child phone after a confirmation and returns to the list", async () => {
+    const api = phoneApi(PHONE, {
+      [`DELETE /phones/${PHONE.id}`]: { body: { status: "applied" } },
+      "GET /phones": { body: { phones: [] } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.press(await screen.findByTestId("remove-phone"));
+    expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
+    await fireEvent.press(screen.getByTestId("remove-confirm"));
+    await waitFor(() => expect(screen).toHavePathname("/"));
+    expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("keeps a Self phone's removal waiting for the key", async () => {
+    phoneApi(SELF, {
+      [`DELETE /phones/${SELF_ID}`]: {
+        status: 202,
+        body: { status: "pending", change: { id: "c2", op: { type: "phone.remove", dnsClientId: "d1" }, keyType: "delay", effectiveAt: FUTURE } },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF) });
+    await fireEvent.press(await screen.findByTestId("remove-phone"));
+    await fireEvent.press(screen.getByTestId("remove-confirm"));
+    const banner = await screen.findByTestId("pending-banner");
+    expect(banner).toBeTruthy();
+    expect(screen.getByText(/Remove this phone from Plainphone\. This takes effect/)).toBeTruthy();
+    expect(screen).toHavePathname(at(SELF));
+  });
+});
+
+describe("apps", () => {
+  it("shows or hides an app and says so", async () => {
+    const api = phoneApi(PHONE, { [`PUT /phones/${PHONE.id}/apps/com.example.insta`]: { body: { status: "applied" } } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "apps") });
+    await fireEvent.press(await screen.findByTestId("app-com.example.insta"));
+    expect(await screen.findByText("Instagram is shown.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ allowed: true });
+    // Core apps cannot be switched.
+    expect(screen.getByTestId("app-com.android.dialer").props.accessibilityState.disabled).toBe(true);
+  });
+
+  it("explains a change that waits for the key, and cancels it", async () => {
+    const api = phoneApi(SELF, {
+      [`PUT /phones/${SELF_ID}/apps/com.example.insta`]: {
+        status: 202,
+        body: { status: "pending", change: { id: "c3", op: { type: "app.set", packageName: "com.example.insta", allowed: true }, keyType: "delay", effectiveAt: FUTURE } },
+      },
+      "POST /changes/c3/cancel": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "apps") });
+    await fireEvent.press(await screen.findByTestId("app-com.example.insta"));
+    expect(await screen.findByText(/Show Instagram\. This takes effect/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Cancel change"));
+    expect(await screen.findByText("The change was cancelled.")).toBeTruthy();
+    expect(api.calls.some((c) => c.path === "/changes/c3/cancel")).toBe(true);
+  });
+});
+
+describe("contacts", () => {
+  it("checks the number, then adds the contact", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/contacts`]: { body: { contacts: [{ id: "k1", name: "Mum", number: "+4512345678" }] } },
+      [`POST /phones/${PHONE.id}/contacts`]: { body: { status: "applied" } },
+      [`DELETE /phones/${PHONE.id}/contacts/k1`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "contacts") });
+    expect(await screen.findByText("Mum")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("contact-name"), "Dad");
+    await fireEvent.changeText(screen.getByTestId("contact-number"), "12345678");
+    await fireEvent.press(screen.getByTestId("contact-add"));
+    expect(await screen.findByText(/Use international format with country code/)).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    await fireEvent.changeText(screen.getByTestId("contact-number"), "+45 12 34 56 79");
+    await fireEvent.press(screen.getByTestId("contact-add"));
+    expect(await screen.findByText("Dad was added.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ name: "Dad", number: "+4512345679" });
+    await fireEvent.press(screen.getByLabelText("Remove Mum"));
+    expect(await screen.findByText("The contact was removed.")).toBeTruthy();
+  });
+});
+
+describe("web filter", () => {
+  it("switches a category and adds a website in its clean form", async () => {
+    const dns = { host: "abc.dns.plainphone.org", synced: true, blockedCategories: ["social"], allowDomains: [], blockDomains: ["bad.example"] };
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/dns`]: { body: dns },
+      [`PUT /phones/${PHONE.id}/dns/categories/adult`]: { body: { status: "applied" } },
+      [`POST /phones/${PHONE.id}/dns/allow`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "filter") });
+    expect(await screen.findByText("bad.example")).toBeTruthy();
+    expect(screen.getByTestId("category-social").props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(screen.getByTestId("category-adult"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ blocked: true });
+    await fireEvent.changeText(screen.getByTestId("allow-domain"), "not a domain");
+    await fireEvent.press(screen.getByTestId("allow-add"));
+    expect(await screen.findByText("Write a website address like example.com.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("allow-domain"), "https://School.Example.com/path");
+    await fireEvent.press(screen.getByTestId("allow-add"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ domain: "school.example.com" });
+  });
+});
+
+describe("school time and bedtime", () => {
+  it("validates the times and saves a schedule", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/schedules`]: { body: { schedules: [] } },
+      [`POST /phones/${PHONE.id}/schedules`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "schedules") });
+    await fireEvent.press(await screen.findByTestId("sched-add"));
+    await fireEvent.changeText(screen.getByTestId("sched-start"), "25:00");
+    await fireEvent.press(screen.getByTestId("sched-save"));
+    expect(await screen.findByText("Write a time like 08:00.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("sched-start"), "08:00");
+    await fireEvent.changeText(screen.getByTestId("sched-end"), "08:00");
+    await fireEvent.press(screen.getByTestId("sched-save"));
+    expect(await screen.findByText("Start and end must be different.")).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "POST")).toBe(false);
+    await fireEvent.changeText(screen.getByTestId("sched-end"), "15:30");
+    // Days are checkboxes: drop Friday, add Saturday.
+    expect(screen.getByTestId("day-5").props.accessibilityRole).toBe("checkbox");
+    await fireEvent.press(screen.getByTestId("day-5"));
+    await fireEvent.press(screen.getByTestId("day-6"));
+    await fireEvent.press(screen.getByTestId("allow-com.example.insta"));
+    await fireEvent.press(screen.getByTestId("sched-save"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({
+      kind: "school",
+      days: [1, 2, 3, 4, 6],
+      startMinute: 480,
+      endMinute: 930,
+      allowedPackages: ["com.example.insta"],
+    });
+  });
+
+  it("lists a schedule and deletes it after a confirmation", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/schedules`]: {
+        body: { schedules: [{ id: "s1", kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 1260, endMinute: 420, allowedPackages: [] }] },
+      },
+      [`DELETE /phones/${PHONE.id}/schedules/s1`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "schedules") });
+    expect(await screen.findByText(/Every day, 21:00 to 07:00 \(ends the next day\)/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(/^Delete: Bedtime/));
+    expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
+    await fireEvent.press(screen.getByText("Yes, delete"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "DELETE")).toBe(true));
+  });
+});
+
+describe("location", () => {
+  const fix = (accuracyM: number | null) => ({
+    enabled: true,
+    requestedAt: null,
+    location: { lat: 55.6761, lon: 12.5683, accuracyM, recordedAt: new Date().toISOString() },
+  });
+
+  it("draws the position on nine tiles with an accuracy circle", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(80) } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    expect(await screen.findByTestId("map")).toBeTruthy();
+    const tiles = screen.getAllByTestId("map-tile");
+    expect(tiles).toHaveLength(9);
+    expect(tiles[0].props.source.uri).toMatch(/^https:\/\/tile\.openstreetmap\.org\/15\/\d+\/\d+\.png$/);
+    expect(screen.getByTestId("map-marker")).toBeTruthy();
+    expect(screen.getByTestId("map-accuracy")).toBeTruthy();
+    expect(screen.getByLabelText("Map showing the phone's last position.")).toBeTruthy();
+    expect(screen.getByText("Map data © OpenStreetMap contributors")).toBeTruthy();
+  });
+
+  it("leaves out a circle that is too small or too big to mean anything", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(2000) } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    expect(await screen.findByTestId("map")).toBeTruthy();
+    expect(screen.queryByTestId("map-accuracy")).toBeNull();
+  });
+
+  it("opens the position in the maps app", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(30) } });
+    const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
+    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    await fireEvent.press(await screen.findByTestId("open-in-maps"));
+    expect(open).toHaveBeenCalledWith("https://maps.apple.com/?ll=55.676100,12.568300&q=Alma");
+    open.mockRestore();
+  });
+
+  it("switches location on and off", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/location`]: { body: { enabled: false, requestedAt: null, location: null } },
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, locationEnabled: true } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
+    expect(await screen.findByText("Location is off")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("location-switch"));
+    expect(await screen.findByText("Location is on.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PATCH")!.body).toEqual({ locationEnabled: true });
+  });
+});
+
+describe("key", () => {
+  const key = {
+    keyType: "delay",
+    delayHours: 24,
+    trustedEmail: null,
+    payUnlockEnabled: false,
+    payUnlockAmount: 500,
+    payUnlockRecipient: "plainphone",
+    trustedAccepted: false,
+    payUnlockCurrency: "DKK",
+  };
+
+  it("checks the delay, then saves the key and sends the pay-to-unlock values back unchanged", async () => {
+    const api = phoneApi(SELF, {
+      [`GET /phones/${SELF_ID}/key`]: { body: key },
+      [`PUT /phones/${SELF_ID}/key`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "key") });
+    await fireEvent.changeText(await screen.findByTestId("key-hours"), "99");
+    await fireEvent.press(screen.getByTestId("key-save"));
+    expect(await screen.findByText("Choose a number from 1 to 72.")).toBeTruthy();
+    expect(api.calls.some((c) => c.method === "PUT")).toBe(false);
+    await fireEvent.changeText(screen.getByTestId("key-hours"), "48");
+    await fireEvent.press(screen.getByTestId("key-save"));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({
+      keyType: "delay",
+      delayHours: 48,
+      trustedEmail: null,
+      payUnlockEnabled: false,
+      payUnlockAmount: 500,
+      payUnlockRecipient: "plainphone",
+    });
+  });
+
+  it("is not for Child phones", async () => {
+    phoneApi();
+    await renderRouter(routes, { initialUrl: at(PHONE, "key") });
+    await waitFor(() => expect(screen).toHavePathname(at(PHONE)));
+  });
+});
+
+describe("approvals", () => {
+  it("approves a change that waits for you", async () => {
+    const api = phoneApi(PHONE, {
+      "GET /approvals": {
+        body: {
+          approvals: [
+            {
+              id: "a1",
+              phoneName: "Mine",
+              requestedBy: "friend@example.org",
+              op: { type: "app.set", packageName: "com.example.insta", allowed: true },
+              appLabel: "Instagram",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      },
+      "POST /changes/a1/approve": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/approvals" });
+    expect(await screen.findByText("Show Instagram")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Approve: Show Instagram"));
+    expect(await screen.findByText("Approved. The phone gets the change within a minute.")).toBeTruthy();
+    expect(api.calls.some((c) => c.path === "/changes/a1/approve")).toBe(true);
+  });
+});
+
+describe("household", () => {
+  it("invites another parent and hands over the link when the server cannot send mail", async () => {
+    const hid = ME.households[0].id;
+    const url = "https://app.plainphone.org/invite#token=pp_i_abcdefghij";
+    const api = phoneApi(PHONE, {
+      [`GET /households/${hid}/members`]: { body: { members: [{ id: "u1", email: "parent@example.org", role: "owner" }], invites: [] } },
+      [`POST /households/${hid}/invites`]: { status: 201, body: { id: "i1", email: "other@example.org", expiresAt: FUTURE, mailed: false, url } },
+    });
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction", activityType: undefined });
+    await renderRouter(routes, { initialUrl: "/household" });
+    expect(await screen.findByText("parent@example.org (you)")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("invite-email"), "nope");
+    await fireEvent.press(screen.getByTestId("invite-send"));
+    expect(await screen.findByText("Enter a valid email address, like name@example.com.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId("invite-email"), "other@example.org");
+    await fireEvent.press(screen.getByTestId("invite-send"));
+    expect(await screen.findByText(url)).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ email: "other@example.org", locale: "en" });
+    await fireEvent.press(screen.getByTestId("invite-share"));
+    expect(share).toHaveBeenCalledWith({ message: url });
+    share.mockRestore();
+  });
+});
+
+describe("invitations", () => {
+  const link = "https://app.plainphone.org/invite#token=pp_i_abcdefghij";
+
+  it("accepts the invitation when you are logged in", async () => {
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(link);
+    const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } }, "GET /phones": { body: { phones: [] } } });
+    await renderRouter(routes, { initialUrl: "/invite" });
+    expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
+    expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_abcdefghij" });
+    await fireEvent.press(screen.getByTestId("invite-done"));
+    await waitFor(() => expect(screen).toHavePathname("/"));
+  });
+
+  it("keeps the token while you log in", async () => {
+    await SecureStore.deleteItemAsync("pp.session");
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce(link);
+    fakeApi({ "GET /health": { body: { ok: true, mail: "smtp" } } });
+    await renderRouter(routes, { initialUrl: "/invite" });
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    expect(await screen.findByText("Log in to accept the invitation to a household.")).toBeTruthy();
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.invite", "pp_i_abcdefghij");
+  });
+
+  it("accepts the kept invitation when the app comes back after login", async () => {
+    // The app was closed during the mail round trip: nothing in memory, the token in the keychain.
+    await clearPendingInvite();
+    await SecureStore.setItemAsync("pp.invite", "pp_i_keptinvite1");
+    const api = phoneApi(PHONE, { "POST /invites/accept": { body: { ok: true } } });
+    await renderRouter(routes, { initialUrl: "/invite" });
+    expect(await screen.findByText("You are now part of the household and can manage its phones.")).toBeTruthy();
+    expect(api.calls.find((c) => c.path === "/invites/accept")!.body).toEqual({ token: "pp_i_keptinvite1" });
+    // Used or failed: forgotten.
+    await waitFor(() => expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.invite"));
+  });
+
+  it("does not take the login link for an invitation", async () => {
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_loginlink123");
+    const api = phoneApi();
+    await renderRouter(routes, { initialUrl: "/invite" });
+    expect(await screen.findByText("This page needs an invitation link.")).toBeTruthy();
+    expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(false);
+    (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
+  });
+
+  it("says when the invitation is used up", async () => {
+    (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/invite#token=pp_i_usedinvite1");
+    phoneApi(PHONE, { "POST /invites/accept": { status: 400, body: { error: "invalid or expired invitation" } } });
+    await renderRouter(routes, { initialUrl: "/invite" });
+    expect(await screen.findByText("This invitation is expired or already used. Ask for a new one.")).toBeTruthy();
+  });
+});

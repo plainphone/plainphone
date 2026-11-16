@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
@@ -17,7 +17,16 @@ function KeyLoader() {
   return (
     <Screen testID="phone-key" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
       <PageTitle sub={t("key.intro")}>{t("key.title")}</PageTitle>
-      <LoadGate res={res}>{(key) => <KeyForm current={key} onSaved={() => void res.reload()} />}</LoadGate>
+      <LoadGate res={res}>
+        {(key) => (
+          // A new key from the server (after saving) starts the form afresh.
+          <KeyForm
+            key={`${key.keyType}/${key.delayHours}/${key.trustedEmail}/${key.trustedAccepted}`}
+            current={key}
+            onSaved={() => void res.reload()}
+          />
+        )}
+      </LoadGate>
     </Screen>
   );
 }
@@ -31,12 +40,6 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   const [email, setEmail] = useState(current.trustedEmail ?? "");
   const [errors, setErrors] = useState<{ hours?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setKeyType(current.keyType);
-    setHours(String(current.delayHours));
-    setEmail(current.trustedEmail ?? "");
-  }, [current]);
 
   async function submit() {
     const h = Number(hours);

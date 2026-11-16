@@ -76,6 +76,11 @@ export function pendingWhen(c: PendingChange, now: number, t: TFn, locale: Local
   })}`;
 }
 
+async function fetchPending(pid: string): Promise<PendingChange[]> {
+  const r = await unwrap<{ changes: PendingChange[] }>(client.GET("/phones/{pid}/changes", { params: { path: { pid } } }));
+  return r.changes;
+}
+
 export function PhoneProvider({ pid, children }: { pid: string; children: ReactNode }) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -87,8 +92,7 @@ export function PhoneProvider({ pid, children }: { pid: string; children: ReactN
 
   const reloadPending = useCallback(async () => {
     try {
-      const r = await unwrap<{ changes: PendingChange[] }>(client.GET("/phones/{pid}/changes", { params: { path: { pid } } }));
-      setPending(r.changes);
+      setPending(await fetchPending(pid));
     } catch {
       // the overview shows its own error; banners keep working without the list
     }
@@ -97,17 +101,25 @@ export function PhoneProvider({ pid, children }: { pid: string; children: ReactN
   const setApps = useCallback((apps: App[]) => setLabels(new Map(apps.map((a) => [a.packageName, a.label]))), []);
 
   useEffect(() => {
-    void reloadPending();
+    let alive = true;
+    fetchPending(pid)
+      .then((list) => alive && setPending(list))
+      .catch(() => undefined); // the overview shows its own error
     unwrap<{ apps: App[] }>(client.GET("/phones/{pid}/apps", { params: { path: { pid } } }))
-      .then((r) => setApps(r.apps))
+      .then((r) => alive && setApps(r.apps))
       .catch(() => undefined);
-  }, [pid, reloadPending, setApps]);
+    return () => {
+      alive = false;
+    };
+  }, [pid, setApps]);
 
   // Moving to another screen clears the notes of the last one.
-  useEffect(() => {
+  const [shownAt, setShownAt] = useState(pathname);
+  if (shownAt !== pathname) {
+    setShownAt(pathname);
     setNotice(null);
     setBanner(null);
-  }, [pathname]);
+  }
 
   // Success notes fade after a while; errors and waiting banners stay until dismissed.
   useEffect(() => {
