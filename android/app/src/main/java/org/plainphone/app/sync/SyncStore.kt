@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
@@ -30,6 +31,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
 
+    // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
+    @SuppressLint("ApplySharedPref")
     fun savePaired(phoneId: String, token: String) {
         prefs.edit()
             .putString(KEY_TOKEN, box.seal(token))
@@ -71,6 +74,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     }
 
     /** Stores the rules only after they parsed, so a broken answer never replaces good rules. */
+    @SuppressLint("ApplySharedPref") // on disk before they are applied, so a crash cannot lose them
     fun saveRules(etag: String, body: String, nowMs: Long) {
         ServerRules.parse(body)
         prefs.edit().putString(KEY_RULES, body).putString(KEY_ETAG, etag).putLong(KEY_SYNC_AT, nowMs).commit()
