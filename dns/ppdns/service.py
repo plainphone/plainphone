@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Plainphone authors
+"""The ppdns operations: create, read, change and delete one phone's ClientID.
+
+AdGuard Home's own config is the only state. A phone is a persistent client
+named `pp-<ClientID>`; its profile is stored as client tags, and its extra
+allowed/blocked domains are user rules with `$client='pp-<ClientID>'`.
+Only registered ClientIDs may use the resolver (AdGuard's allowed_clients).
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import threading
+
+from . import profiles
+from .adguard import AdGuard, AdGuardError
+
+log = logging.getLogger("ppdns.service")
+
+
+class NotFound(LookupError):
+    pass
+
+
+class Conflict(ValueError):
+    """The ClientID is already registered."""
+
+
+class Service:
+    def __init__(self, adguard: AdGuard, domain: str, data_dir: str):
+        self.adguard = adguard
+        self.domain = domain
+        self.data_dir = data_dir
+        self._lock = threading.Lock()  # AdGuard's user rules and access list are read-modify-write
+        self._catalogue: list[dict] | None = None
+
+    # helpers --------------------------------------------------------------
+    def _services(self) -> list[dict]:
+        if self._catalogue is None:
+            self._catalogue = self.adguard.blocked_services_catalogue()
+        return self._catalogue
+
+    def _find(self, client_id: str) -> dict:
+        if not profiles.valid_client_id(client_id):
+            raise NotFound(client_id)
+        name = profiles.CLIENT_PREFIX + client_id
+        for client in self.adguard.clients():
+            if client.get("name") == name:
+                return client
+        raise NotFound(client_id)
+
+    def _ours(self) -> list[dict]:
+        return [c for c in self.adguard.clients() if str(c.get("name", "")).startswith(profiles.CLIENT_PREFIX)]
+
+    @staticmethod
+    def _rule_suffix(client_id: str) -> str:
+        return f"$client='{profiles.CLIENT_PREFIX}{client_id}',important"
+
+    def _domains(self, rules: list[str], client_id: str) -> tuple[list[str], list[str]]:
+        suffix = self._rule_suffix(client_id)
+        allow, block = [], []
+        for rule in rules:
+            if not rule.endswith(suffix):
+                continue
+            body = rule[: -len(suffix)]
+            if body.startswith("@@||") and body.endswith("^"):
+                allow.append(body[4:-1])
+            elif body.startswith("||") and body.endswith("^"):
+                block.append(body[2:-1])
+        return sorted(allow), sorted(block)
+
+    def _set_domains(self, client_id: str, allow: list[str] | None, block: list[str] | None) -> None:
+        suffix = self._rule_suffix(client_id)
+        rules = self.adguard.user_rules()
+        old_allow, old_block = self._domains(rules, client_id)
+        allow = old_allow if allow is None else sorted({profiles.normalise_domain(d) for d in allow})
+        block = old_block if block is None else sorted({profiles.normalise_domain(d) for d in block})
+        if set(allow) & set(block):
+            raise ValueError("a domain cannot be both allowed and blocked")
+        kept = [r for r in rules if not r.endswith(suffix)]
+        kept += [f"@@||{d}^{suffix}" for d in allow]
+        kept += [f"||{d}^{suffix}" for d in block]
+        self.adguard.set_user_rules(kept)
+
+    def sync_access(self) -> int:
+        """Allow exactly the registered ClientIDs. Returns how many."""
+        ids = sorted({i for c in self._ours() for i in c.get("ids", [])})
+        access = self.adguard.access()
+        wanted = {
+            "allowed_clients": ids,
+            "disallowed_clients": access.get("disallowed_clients") or [],
+            "blocked_hosts": access.get("blocked_hosts") or [],
+        }
+        if sorted(access.get("allowed_clients") or []) != ids:
+            self.adguard.set_access(wanted)
+        return len(ids)
+
+    def view(self, client: dict) -> dict:
+        out = profiles.describe(client, self.domain)
+        out["allow_domains"], out["block_domains"] = self._domains(self.adguard.user_rules(), out["client_id"])
+        return out
+
+    # operations -----------------------------------------------------------
+    def create(self, profile: str, block_adult: bool | None = None, client_id: str | None = None) -> dict:
+        if profile not in profiles.PROFILES:
+            raise ValueError(f"profile must be one of {', '.join(profiles.PROFILES)}")
+        if block_adult is None:
+            block_adult = profile == "child"
+        client_id = client_id or profiles.new_client_id()
+        if not profiles.valid_client_id(client_id):
+            raise ValueError("invalid client_id: 4-63 characters a-z, 0-9 and '-', starting with a letter or digit")
+        payload = profiles.client_payload(client_id, profile, block_adult, self._services())
+        with self._lock:
+            if any(client_id in c.get("ids", []) or c.get("name") == payload["name"] for c in self.adguard.clients()):
+                raise Conflict(client_id)
+            self.adguard.add_client(payload)
+            self.sync_access()
+        return self.view(payload)
+
+    def get(self, client_id: str) -> dict:
+        return self.view(self._find(client_id))
+
+    def list(self) -> list[dict]:
+        rules = self.adguard.user_rules()
+        result = []
+        for client in self._ours():
+            if client["name"].startswith(profiles.CLIENT_PREFIX + "monitor-"):
+                continue  # the self-test's own ClientID
+            item = profiles.describe(client, self.domain)
+            item["allow_domains"], item["block_domains"] = self._domains(rules, item["client_id"])
+            result.append(item)
+        return sorted(result, key=lambda c: c["client_id"])
+
+    def update(
+        self,
+        client_id: str,
+        profile: str | None = None,
+        block_adult: bool | None = None,
+        allow_domains: list[str] | None = None,
+        block_domains: list[str] | None = None,
+    ) -> dict:
+        with self._lock:
+            current = self._find(client_id)
+            now = profiles.describe(current, self.domain)
+            profile = profile or now["profile"]
+            if profile not in profiles.PROFILES:
+                raise ValueError(f"profile must be one of {', '.join(profiles.PROFILES)}")
+            if block_adult is None:
+                block_adult = now["block_adult"] if profile == now["profile"] else profile == "child"
+            payload = profiles.client_payload(client_id, profile, block_adult, self._services())
+            self.adguard.update_client(current["name"], payload)
+            if allow_domains is not None or block_domains is not None:
+                self._set_domains(client_id, allow_domains, block_domains)
+        return self.get(client_id)
+
+    def delete(self, client_id: str) -> None:
+        with self._lock:
+            current = self._find(client_id)
+            self.adguard.delete_client(current["name"])
+            self._set_domains(client_id, [], [])
+            self.sync_access()
+
+    # monitoring client ----------------------------------------------------
+    def ensure_monitor_client(self) -> str:
+        """A child-profile ClientID used only by the self-test. Kept in the data dir."""
+        path = os.path.join(self.data_dir, "monitor-client-id")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                client_id = fh.read().strip()
+        else:
+            client_id = "monitor-" + profiles.new_client_id(16)
+            os.makedirs(self.data_dir, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(client_id + "\n")
+        try:
+            self._find(client_id)
+        except NotFound:
+            try:
+                self.create("child", client_id=client_id)
+            except AdGuardError as exc:
+                log.warning("could not create monitor client: %s", exc)
+        return client_id
