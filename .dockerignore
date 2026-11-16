@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+android
+site
+docs
+scripts
+.git
+.github
+**/*.log
+**/.env
+**/.env.*

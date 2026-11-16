@@ -1,0 +1,997 @@
+# SPDX-License-Identifier: Apache-2.0
+openapi: 3.1.0
+info:
+  title: Plainphone API
+  version: 0.3.0
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  description: |
+    One API for the phone (tag `device`) and for parent apps (the PWA now, native apps later).
+
+    **Phone flow.** The phone starts a pairing and shows the code (and `qrUrl` as a QR code).
+    A parent claims the code in the PWA. The phone polls the pairing until it gets its device
+    token, then polls `GET /device/rules` with `If-None-Match`. Push (FCM) is a planned extra
+    layer that only shortens the wait; polling every `pollSeconds` is the delivery guarantee.
+
+    **Self profile.** Changes that loosen the rules on a Self phone answer `202` with a pending
+    change. They take effect after the delay, or when the trusted person approves. Changes that
+    tighten always answer `200` and apply at once.
+
+    **Auth.** Parent apps send `Authorization: Bearer pp_s_…` (native) or the `pp_session`
+    cookie (PWA; cookie writes must come from the same origin). The phone sends
+    `Authorization: Bearer pp_d_…`. All request bodies are JSON with
+    `Content-Type: application/json`.
+servers:
+  - url: https://app.plainphone.org/api
+  - url: http://localhost:8080/api
+
+tags:
+  - name: device
+    description: Called by the Plainphone app on the phone.
+  - name: auth
+  - name: household
+  - name: phones
+  - name: rules
+  - name: self
+    description: Self profile key, pending changes and the trusted person.
+
+components:
+  securitySchemes:
+    device:
+      type: http
+      scheme: bearer
+      description: Device token `pp_d_…`, received once from the pairing poll.
+    session:
+      type: http
+      scheme: bearer
+      description: Session token `pp_s_…` from `/auth/verify` (native apps).
+    cookie:
+      type: apiKey
+      in: cookie
+      name: pp_session
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Change:
+      description: Applied at once
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ChangeApplied" }
+    ChangePending:
+      description: Self profile, loosening change waiting for the key
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ChangePending" }
+
+  parameters:
+    phoneId: { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+    changeId: { name: cid, in: path, required: true, schema: { type: string, format: uuid } }
+    householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              message: { type: string }
+
+    PackageName:
+      type: string
+      pattern: "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+      examples: [com.spotify.music]
+
+    E164:
+      type: string
+      pattern: "^\\+[1-9]\\d{6,14}$"
+      examples: ["+4512345678"]
+
+    DnsCategory:
+      type: string
+      enum: [social, adult, gambling, games, dating, video]
+
+    Op:
+      description: A rule change, as stored for pending changes and shown on the phone.
+      oneOf:
+        - type: object
+          properties:
+            type: { const: app.set }
+            packageName: { $ref: "#/components/schemas/PackageName" }
+            allowed: { type: boolean }
+        - type: object
+          properties:
+            type: { const: contact.add }
+            name: { type: string }
+            number: { $ref: "#/components/schemas/E164" }
+        - type: object
+          properties:
+            type: { const: contact.remove }
+            contactId: { type: string, format: uuid }
+        - type: object
+          properties:
+            type: { const: dns.category }
+            category: { $ref: "#/components/schemas/DnsCategory" }
+            blocked: { type: boolean }
+        - type: object
+          properties:
+            type: { enum: [dns.allowDomain, dns.blockDomain] }
+            domain: { type: string }
+            present: { type: boolean }
+        - type: object
+          properties:
+            type: { enum: [schedule.create, schedule.update, schedule.delete] }
+            scheduleId: { type: string, format: uuid }
+            schedule: { $ref: "#/components/schemas/ScheduleInput" }
+        - type: object
+          properties:
+            type: { const: key.set }
+            key: { $ref: "#/components/schemas/Key" }
+        - type: object
+          properties:
+            type: { const: phone.remove }
+            dnsClientId: { type: string }
+
+    ChangeApplied:
+      type: object
+      required: [status]
+      properties:
+        status: { const: applied }
+
+    PendingChange:
+      type: object
+      required: [id, op, keyType, effectiveAt]
+      properties:
+        id: { type: string, format: uuid }
+        op: { $ref: "#/components/schemas/Op" }
+        keyType: { enum: [delay, trusted] }
+        effectiveAt:
+          type: [string, "null"]
+          format: date-time
+          description: When a delay-key change takes effect. Null while waiting for a trusted person.
+        createdAt: { type: string, format: date-time }
+        payUnlock:
+          description: Offered only when payments are enabled, on a Self phone with the delay key and pay-to-unlock on.
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                amount: { type: integer, description: "Minor units, e.g. 50000 = 500 kr." }
+                currency: { type: string }
+                recipient: { type: string }
+
+    ChangePending:
+      type: object
+      required: [status, change]
+      properties:
+        status: { const: pending }
+        change: { $ref: "#/components/schemas/PendingChange" }
+
+    Rules:
+      type: object
+      description: Everything the phone enforces. Compare the ETag, not the content.
+      required: [phoneId, profile, mode, timezone, apps, contacts, schedules, dns, location, pendingChanges, pollSeconds]
+      properties:
+        phoneId: { type: string, format: uuid }
+        profile: { enum: [child, self] }
+        mode: { enum: [strong, light] }
+        timezone:
+          type: string
+          description: IANA time zone that schedule times are in.
+          examples: [Europe/Copenhagen]
+        apps:
+          type: object
+          properties:
+            allowed:
+              type: array
+              items: { $ref: "#/components/schemas/PackageName" }
+            hidden:
+              type: array
+              description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default.
+              items: { $ref: "#/components/schemas/PackageName" }
+        contacts:
+          type: array
+          description: Calls and SMS to or from other numbers are blocked. Emergency numbers always work.
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              number: { $ref: "#/components/schemas/E164" }
+        schedules:
+          type: array
+          description: During a window only phone, SMS (approved contacts) and those allowedPackages that are also in apps.allowed work; a hidden app stays hidden. `end` before `start` means the window crosses midnight into the next day.
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              kind: { enum: [school, bedtime] }
+              days:
+                type: array
+                description: ISO weekdays, 1 = Monday … 7 = Sunday, of the window's start.
+                items: { type: integer, minimum: 1, maximum: 7 }
+              start: { type: string, pattern: "^\\d{2}:\\d{2}$", examples: ["08:00"] }
+              end: { type: string, pattern: "^\\d{2}:\\d{2}$", examples: ["14:30"] }
+              allowedPackages:
+                type: array
+                items: { $ref: "#/components/schemas/PackageName" }
+        dns:
+          type: object
+          properties:
+            host:
+              type: string
+              description: Private DNS (DNS-over-TLS) host to force with setGlobalPrivateDnsModeSpecifiedHost.
+              examples: [k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org]
+            blockedCategories:
+              type: array
+              description: Informational; filtering happens in the DNS service.
+              items: { $ref: "#/components/schemas/DnsCategory" }
+        location:
+          type: object
+          properties:
+            enabled: { type: boolean }
+            intervalMinutes: { type: integer, examples: [5] }
+            requestedAt:
+              type: [string, "null"]
+              format: date-time
+              description: A parent pressed Find. Report a fresh position now; the field clears when a position recorded after it arrives.
+        pendingChanges:
+          type: array
+          description: Self profile; show them with a countdown on the phone.
+          items: { $ref: "#/components/schemas/PendingChange" }
+        pollSeconds:
+          type: integer
+          description: Poll interval for GET /device/rules.
+          examples: [60]
+
+    PhoneSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        profile: { enum: [child, self] }
+        mode: { enum: [strong, light] }
+        timezone: { type: string }
+        locationEnabled: { type: boolean }
+        pairedAt: { type: [string, "null"], format: date-time }
+        lastSeenAt: { type: [string, "null"], format: date-time }
+        dnsHost: { type: string }
+        dnsSynced: { type: boolean }
+        hasLocation: { type: boolean }
+
+    ScheduleInput:
+      type: object
+      required: [kind, days, startMinute, endMinute]
+      properties:
+        kind: { enum: [school, bedtime] }
+        days:
+          type: array
+          minItems: 1
+          items: { type: integer, minimum: 1, maximum: 7 }
+        startMinute: { type: integer, minimum: 0, maximum: 1439 }
+        endMinute: { type: integer, minimum: 0, maximum: 1439 }
+        allowedPackages:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PackageName" }
+
+    Key:
+      type: object
+      required: [keyType, delayHours, trustedEmail, payUnlockEnabled, payUnlockAmount, payUnlockRecipient]
+      properties:
+        keyType: { enum: [delay, trusted] }
+        delayHours: { type: integer, minimum: 1, maximum: 72, default: 24 }
+        trustedEmail: { type: [string, "null"], format: email }
+        payUnlockEnabled: { type: boolean }
+        payUnlockAmount: { type: integer, minimum: 100, description: Minor units. }
+        payUnlockRecipient: { enum: [plainphone] }
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      summary: Liveness and database check
+      responses:
+        "200": { description: "OK" }
+        "503": { description: "Database down" }
+
+  # ---------------------------------------------------------------- device
+  /device/pairings:
+    post:
+      operationId: postDevicePairings
+      security: []
+      tags: [device]
+      summary: Start pairing (phone)
+      description: Rate limited to 10 per hour per IP. The code is valid for 15 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode: { enum: [strong, light], default: strong }
+                deviceInfo:
+                  type: object
+                  additionalProperties: { type: string, maxLength: 200 }
+                  maxProperties: 20
+                  examples: [{ model: "Galaxy A15", android: "15" }]
+      responses:
+        "201":
+          description: Show `code` and a QR code of `qrUrl`; keep `pollSecret` private.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pairingId: { type: string, format: uuid }
+                  code: { type: string, examples: ["K7MP-4QXR"] }
+                  pollSecret: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  qrUrl: { type: string, format: uri }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /device/pairings/{id}:
+    get:
+      operationId: getDevicePairings
+      security: []
+      tags: [device]
+      summary: Poll pairing (phone)
+      description: Poll every 3-5 seconds while the code is shown. The device token is returned exactly once.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Paired. Store the token in encrypted storage.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: paired }
+                  phoneId: { type: string, format: uuid }
+                  deviceToken: { type: string, examples: [pp_d_…] }
+        "202": { description: "Waiting for a parent" }
+        "404": { description: "Unknown pairing or wrong secret" }
+        "410": { description: "Expired, or the token was already delivered. Start again." }
+
+  /device/rules:
+    get:
+      operationId: getDeviceRules
+      tags: [device]
+      summary: Fetch rules (phone)
+      security: [{ device: [] }]
+      parameters:
+        - { name: If-None-Match, in: header, schema: { type: string } }
+      responses:
+        "200":
+          description: Rules changed (or first fetch). Apply them, then store the ETag.
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rules" }
+        "304": { description: "Unchanged" }
+        "401": { description: "Token unknown (phone removed by a parent). Keep the last rules and show \"pair again\"." }
+
+  /device/apps:
+    put:
+      operationId: putDeviceApps
+      tags: [device]
+      summary: Report installed launchable apps (phone)
+      description: Send the full list after pairing and whenever packages change. Apps missing from the list are marked uninstalled. New apps start hidden unless `core` or in the country starter pack.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [apps]
+              properties:
+                apps:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: object
+                    required: [packageName, label]
+                    properties:
+                      packageName: { $ref: "#/components/schemas/PackageName" }
+                      label: { type: string, maxLength: 100 }
+                      core:
+                        type: boolean
+                        description: Dialer, messages, settings, launcher, keyboard, clock, camera, contacts. Never hidden.
+      responses:
+        "204": { description: "Stored" }
+
+  /device/location:
+    put:
+      operationId: putDeviceLocation
+      tags: [device]
+      summary: Report the current position (phone)
+      description: Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lon, recordedAt]
+              properties:
+                lat: { type: number, minimum: -90, maximum: 90 }
+                lon: { type: number, minimum: -180, maximum: 180 }
+                accuracyM: { type: number, minimum: 0 }
+                recordedAt: { type: string, format: date-time }
+      responses:
+        "204": { description: "Stored (or ignored if older than the stored one)" }
+        "409": { description: "Location is off for this phone; stop reporting." }
+
+  /device/push-token:
+    put:
+      operationId: putDevicePushToken
+      tags: [device]
+      summary: Register the FCM token (phone, optional)
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fcmToken: { type: [string, "null"] }
+      responses:
+        "204": { description: "Stored" }
+
+  # ---------------------------------------------------------------- auth
+  /auth/request:
+    post:
+      operationId: postAuthRequest
+      security: []
+      tags: [auth]
+      summary: Mail a sign-in link
+      description: Same answer for known and unknown addresses. `mailEnabled` is false on servers without mail settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                locale: { enum: [en, da] }
+      responses:
+        "202": { description: "Accepted" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /auth/verify:
+    post:
+      operationId: postAuthVerify
+      security: []
+      tags: [auth]
+      summary: Exchange the link token for a session
+      description: The link is `${PUBLIC_URL}/auth/callback#token=…`; the page posts the token here. Creates the account and a household on first sign-in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+                locale: { enum: [en, da] }
+                client:
+                  enum: [web, native]
+                  default: web
+                  description: Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
+      responses:
+        "200":
+          description: Signed in. Sets the `pp_session` cookie; `sessionToken` is only in the body for `client=native`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionToken: { type: string }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      email: { type: string }
+                      locale: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /auth/logout:
+    post:
+      operationId: postAuthLogout
+      summary: Post auth logout
+      tags: [auth]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "204": { description: "Signed out" }
+
+  /me:
+    get:
+      operationId: getMe
+      summary: Get me
+      tags: [auth]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "User, households and `mailEnabled`" }
+    patch:
+      operationId: patchMe
+      summary: Change my language
+      tags: [auth]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locale: { enum: [en, da] }
+      responses:
+        "204": { description: "Saved" }
+
+  # ---------------------------------------------------------------- household
+  /households/{hid}:
+    patch:
+      operationId: updateHousehold
+      summary: Rename a household
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { name: { type: string } } }
+      responses:
+        "204": { description: "Renamed" }
+  /households/{hid}/members:
+    get:
+      operationId: getHouseholdsMembers
+      summary: Get households members
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200": { description: "Members and open invites" }
+  /households/{hid}/members/{uid}:
+    delete:
+      operationId: deleteHouseholdsMembers
+      tags: [household]
+      summary: Remove a member (owner) or leave (yourself)
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/householdId" }
+        - { name: uid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Removed" }
+        "409": { description: "Last member" }
+  /households/{hid}/invites:
+    post:
+      operationId: postHouseholdsInvites
+      tags: [household]
+      summary: Invite another parent
+      description: Mails `${PUBLIC_URL}/invite#token=…`. Without mail the response includes `url` to pass on by hand.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                locale: { enum: [en, da] }
+      responses:
+        "201": { description: "Invited" }
+  /households/{hid}/invites/{iid}:
+    delete:
+      operationId: deleteHouseholdsInvites
+      summary: Delete households invites
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/householdId" }
+        - { name: iid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Withdrawn" }
+  /invites/accept:
+    post:
+      operationId: postInvitesAccept
+      summary: Post invites accept
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [token], properties: { token: { type: string } } }
+      responses:
+        "200": { description: "Joined" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  # ---------------------------------------------------------------- phones
+  /phones:
+    get:
+      operationId: getPhones
+      summary: List my phones
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Phones in all my households
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones: { type: array, items: { $ref: "#/components/schemas/PhoneSummary" } }
+  /phones/claim:
+    post:
+      operationId: postPhonesClaim
+      tags: [phones]
+      summary: Claim the code shown on a phone
+      description: Case and separators in the code do not matter. Rate limited.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, profile]
+              properties:
+                code: { type: string }
+                name: { type: string, maxLength: 40 }
+                profile: { enum: [child, self] }
+                householdId: { type: string, format: uuid }
+                timezone: { type: string, examples: [Europe/Copenhagen] }
+      responses:
+        "201":
+          description: Paired
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneSummary" }
+        "404": { description: "Code not found or expired" }
+  /phones/{pid}:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhone
+      summary: Get a phone
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Phone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneSummary" }
+    patch:
+      operationId: updatePhone
+      summary: Rename a phone or switch location
+      tags: [phones]
+      description: Turning location off deletes the stored position.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                locationEnabled: { type: boolean }
+      responses:
+        "200": { description: "Updated phone" }
+    delete:
+      operationId: deletePhone
+      summary: Remove a phone
+      tags: [phones]
+      description: Removes the phone, its rules and its DNS client. The device token stops working; the lock on the phone stays until released there. On a Self phone removal goes through the key.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/apps:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesApps
+      summary: Get phones apps
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "Installed apps: packageName, label, allowed, core" }
+  /phones/{pid}/apps/{package}:
+    put:
+      operationId: putPhonesApps
+      tags: [rules]
+      summary: Show or hide an app
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: package, in: path, required: true, schema: { $ref: "#/components/schemas/PackageName" } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [allowed], properties: { allowed: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { description: "Core apps cannot be hidden" }
+
+  /phones/{pid}/contacts:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesContacts
+      summary: Get phones contacts
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "Approved contacts" }
+    post:
+      operationId: postPhonesContacts
+      summary: Post phones contacts
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, number]
+              properties:
+                name: { type: string }
+                number: { type: string, description: "International format; spaces, dashes and brackets are removed." }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/contacts/{cid}:
+    delete:
+      operationId: deletePhonesContacts
+      summary: Delete phones contacts
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: cid, in: path, required: true, description: Contact id, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+
+  /phones/{pid}/dns:
+    get:
+      operationId: getPhonesDns
+      summary: Get phones dns
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200": { description: "host, synced, blockedCategories, allowDomains, blockDomains" }
+  /phones/{pid}/dns/categories/{category}:
+    put:
+      operationId: putPhonesDnsCategories
+      summary: Put phones dns categories
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: category, in: path, required: true, schema: { $ref: "#/components/schemas/DnsCategory" } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [blocked], properties: { blocked: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/dns/{list}:
+    post:
+      operationId: postPhonesDnsDomain
+      tags: [rules]
+      summary: Add a domain to the allow or block list
+      description: A domain is never on both lists; adding it to one removes it from the other.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: list, in: path, required: true, schema: { enum: [allow, block] } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [domain], properties: { domain: { type: string } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/dns/{list}/{domain}:
+    delete:
+      operationId: deletePhonesDnsDomain
+      summary: Delete phones dns domain
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: list, in: path, required: true, schema: { enum: [allow, block] } }
+        - { name: domain, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/schedules:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesSchedules
+      summary: Get phones schedules
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "School time and bedtime windows" }
+    post:
+      operationId: postPhonesSchedules
+      summary: Post phones schedules
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleInput" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+  /phones/{pid}/schedules/{sid}:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: putPhonesSchedules
+      summary: Put phones schedules
+      tags: [rules]
+      description: Pending on a Self phone if the new window frees any minute of the old one or allows more apps.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleInput" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+    delete:
+      operationId: deletePhonesSchedules
+      summary: Delete phones schedules
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/location:
+    get:
+      operationId: getPhonesLocation
+      tags: [rules]
+      summary: Last known position (only one is stored)
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200": { description: "enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null" }
+  /phones/{pid}/locate:
+    post:
+      operationId: postPhonesLocate
+      tags: [rules]
+      summary: Find the phone now
+      description: Sets `location.requestedAt` in the rules and wakes the phone. Poll GET location for the answer.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "202": { description: "Requested" }
+        "409": { description: "Location is off" }
+
+  # ---------------------------------------------------------------- self
+  /phones/{pid}/key:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesKey
+      summary: Get phones key
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The key (Self phones only)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Key" }
+                  - type: object
+                    properties:
+                      trustedAccepted: { type: boolean, description: The trusted person has signed in. }
+                      payUnlockCurrency: { type: string }
+        "404": { description: "Not a Self phone" }
+    put:
+      operationId: putPhonesKey
+      summary: Put phones key
+      tags: [self]
+      description: Only a longer delay applies at once; every other key change goes through the current key.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Key" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/changes:
+    get:
+      operationId: getPhonesChanges
+      tags: [self]
+      summary: Pending changes on a phone
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Pending changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changes: { type: array, items: { $ref: "#/components/schemas/PendingChange" } }
+  /changes/{cid}/cancel:
+    post:
+      operationId: postChangesCancel
+      summary: Post changes cancel
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      responses:
+        "204": { description: "Cancelled" }
+        "409": { description: "No longer pending" }
+  /approvals:
+    get:
+      operationId: getApprovals
+      tags: [self]
+      summary: Requests waiting for me as a trusted person
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt" }
+  /changes/{cid}/approve:
+    post:
+      operationId: postChangesApprove
+      summary: Post changes approve
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      responses:
+        "204": { description: "Applied" }
+        "404": { description: "Not my request to decide" }
+  /changes/{cid}/reject:
+    post:
+      operationId: postChangesReject
+      summary: Post changes reject
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      responses:
+        "204": { description: "Rejected" }
+  /changes/{cid}/pay-unlock:
+    post:
+      operationId: postChangesPayUnlock
+      tags: [self]
+      summary: Pay to apply a delayed change now (not available yet)
+      description: Data model and flag only (D13). Answers 409 when not offered and 501 while no payment provider exists.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      responses:
+        "409": { $ref: "#/components/responses/Error" }
+        "501": { $ref: "#/components/responses/Error" }

@@ -13,3 +13,11 @@ signing.properties
 # Python
 __pycache__/
 *.pyc
+
+# Node
+node_modules/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# The hosted service (app.plainphone.org) on Dokploy. Dokploy adds the Traefik
+# route for the domain set in its UI and backs up the db service to object storage.
+# Environment (set in Dokploy, never in git): POSTGRES_PASSWORD, PUBLIC_URL,
+# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN.
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: plainphone
+      POSTGRES_USER: plainphone
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plainphone -d plainphone"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://plainphone:${POSTGRES_PASSWORD}@db:5432/plainphone
+      PUBLIC_URL: ${PUBLIC_URL:?}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-none}
+      MAIL_FROM: ${MAIL_FROM:-Plainphone <no-reply@plainphone.org>}
+      SMTP_URL: ${SMTP_URL:-}
+      DNS_PROVIDER: ${DNS_PROVIDER:-mock}
+      DNS_API_URL: ${DNS_API_URL:-}
+      DNS_API_TOKEN: ${DNS_API_TOKEN:-}
+      DNS_HOST_SUFFIX: dns.plainphone.org
+      # Traefik sits in front, so X-Forwarded-For is trustworthy here.
+      TRUST_PROXY: "true"
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+volumes:
+  db:

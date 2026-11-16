@@ -1,0 +1,132 @@
+// SPDX-License-Identifier: Apache-2.0
+import { type FormEvent, useState } from "react";
+import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
+import { useI18n } from "../i18n/I18n";
+import { api, ApiError, type ChangeResult, type Contact } from "../lib/api";
+import { usePhone } from "./Phone";
+
+/** Same rule as the server: + and 7 to 15 digits, spaces, dashes and brackets ignored. */
+export function cleanNumber(raw: string): string {
+  return raw.trim().replace(/[\s()-]/g, "");
+}
+export const NUMBER_RE = /^\+[1-9]\d{6,14}$/;
+
+export function ContactsPage() {
+  const { t } = useI18n();
+  const { phone, run, pending } = usePhone();
+  const res = useLoad(() => api.get<{ contacts: Contact[] }>(`/phones/${phone.id}/contacts`).then((r) => r.contacts), [phone.id]);
+  const [name, setName] = useState("");
+  const [number, setNumber] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; number?: string }>({});
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const waitingAdds = pending.flatMap((c) => (c.op.type === "contact.add" ? [c.op] : []));
+
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    const n = cleanNumber(number);
+    const next: typeof errors = {};
+    if (!name.trim()) next.name = t("contacts.nameRequired");
+    if (!NUMBER_RE.test(n)) next.number = t("contacts.numberInvalid");
+    setErrors(next);
+    if (next.name || next.number) return;
+    setSaving(true);
+    try {
+      const r = await run(
+        () => api.post<ChangeResult>(`/phones/${phone.id}/contacts`, { name: name.trim(), number: n }),
+        t("contacts.added", { name: name.trim() }),
+      );
+      if (r) {
+        setName("");
+        setNumber("");
+        if (r.status === "applied") await res.reload();
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const f = err.fields();
+        setErrors({ name: f.name ? t("contacts.nameRequired") : undefined, number: f.number ? t("contacts.numberInvalid") : undefined });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(c: Contact) {
+    setRemoving(c.id);
+    const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}/contacts/${c.id}`), t("contacts.removed"));
+    if (r?.status === "applied") res.setData((list) => list?.filter((x) => x.id !== c.id));
+    setRemoving(null);
+  }
+
+  return (
+    <>
+      <PageTitle sub={t("contacts.intro")}>{t("contacts.title")}</PageTitle>
+      <p className="notice notice-info">{t("contacts.otherApps")}</p>
+
+      <LoadGate res={res}>
+        {(list) =>
+          list.length === 0 && waitingAdds.length === 0 ? (
+            <p className="empty-inline">{t("contacts.empty")}</p>
+          ) : (
+            <ul className="list item-list">
+              {list.map((c) => (
+                <li key={c.id} className="item">
+                  <div>
+                    <p className="row-title">{c.name}</p>
+                    <p className="row-meta number">{c.number}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    onClick={() => void remove(c)}
+                    disabled={removing === c.id}
+                    aria-label={t("contacts.removeLabel", { name: c.name })}
+                  >
+                    {t("app.remove")}
+                  </button>
+                </li>
+              ))}
+              {waitingAdds.map((op) => (
+                <li key={op.number} className="item item-waiting">
+                  <div>
+                    <p className="row-title">{op.name}</p>
+                    <p className="row-meta number">{op.number}</p>
+                  </div>
+                  <span className="tag tag-waiting">{t("pending.waitingTag")}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </LoadGate>
+
+      <section className="section" aria-labelledby="add-contact">
+        <h2 id="add-contact">{t("contacts.add")}</h2>
+        <form onSubmit={add} noValidate className="stack form-card">
+          <Field label={t("contacts.name")} error={errors.name}>
+            {(p) => <input {...p} name="name" maxLength={60} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />}
+          </Field>
+          <Field label={t("contacts.number")} help={t("contacts.numberHelp")} error={errors.number}>
+            {(p) => (
+              <input
+                {...p}
+                name="number"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                placeholder="+45"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+            )}
+          </Field>
+          <div>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? t("app.saving") : t("contacts.add")}
+            </button>
+          </div>
+        </form>
+      </section>
+    </>
+  );
+}

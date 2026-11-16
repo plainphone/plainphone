@@ -3,7 +3,7 @@
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn. It is meant for a parent setting up a child's first phone, and for adults taking back their own attention.
 
 > **Status: phase 2, approved contacts and DNS filter. Not for real use yet.**
-> There is no server and no parent app yet, and phase 2 has not been tested on a real phone. Only install it on a spare test phone that you are ready to factory reset.
+> Phase 2 has not been tested on a real phone. The server and parent web app ([`server/`](server), [`web/`](web)) are built, but phones do not use them yet. Only install it on a spare test phone that you are ready to factory reset.
 
 Plainphone is free and open source under the [Apache License 2.0](LICENSE). Maintained by Mahoje.
 
@@ -36,6 +36,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/contacts.md](docs/contacts.md): approved contacts, emergency calls and what is not covered
 - [docs/dns-bypass.md](docs/dns-bypass.md): how apps could get around the DNS filter
 - [site/](site): the plainphone.org landing page (static, no JavaScript)
+- [server/](server) and [web/](web): the API and the parent web app (PWA); [docs/self-hosting.md](docs/self-hosting.md) runs your own, [docs/sync-api.md](docs/sync-api.md) is the phone's side of the API
 - [SECURITY.md](SECURITY.md): how to report a bypass
 
 ## Build

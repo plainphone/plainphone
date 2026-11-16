@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+import type { DnsCategory } from "../db/schema.js";
+
+/** The DNS rules for one phone, identified by its DNS-over-TLS ClientID. */
+export interface DnsClientConfig {
+  clientId: string;
+  profile: "child" | "self";
+  blockedCategories: DnsCategory[];
+  allowDomains: string[];
+  blockDomains: string[];
+}
+
+/**
+ * Talks to the filtering DNS service (see dns/ and docs/server-dns-contract.md).
+ * Both calls must be idempotent: the server retries until they succeed.
+ */
+export interface DnsProvider {
+  upsertClient(config: DnsClientConfig): Promise<void>;
+  deleteClient(clientId: string): Promise<void>;
+}
+
+/** Keeps the last config per client in memory. Used in tests and until the DNS service runs. */
+export class MockDnsProvider implements DnsProvider {
+  readonly clients = new Map<string, DnsClientConfig>();
+  failNext = 0;
+
+  async upsertClient(config: DnsClientConfig) {
+    if (this.failNext > 0) {
+      this.failNext--;
+      throw new Error("mock DNS failure");
+    }
+    this.clients.set(config.clientId, structuredClone(config));
+  }
+
+  async deleteClient(clientId: string) {
+    this.clients.delete(clientId);
+  }
+}
+
+/**
+ * Client for the Plainphone DNS service in dns/ (`/v1/clients`, see dns/README.md).
+ *
+ * The DNS service knows two profiles (child, self) plus "block_adult" and per-client
+ * allow/block lists. It has no per-category switches yet, so only the "adult" category
+ * is passed on; see docs/server-dns-contract.md.
+ */
+export class HttpDnsProvider implements DnsProvider {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly token: string,
+  ) {}
+
+  private async call(method: string, path: string, body?: unknown): Promise<Response> {
+    const base = this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`;
+    return fetch(new URL(path, base), {
+      method,
+      headers: {
+        authorization: `Bearer ${this.token}`,
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10_000),
+    });
+  }
+
+  async upsertClient(config: DnsClientConfig) {
+    const payload = {
+      profile: config.profile,
+      block_adult: config.blockedCategories.includes("adult"),
+      allow_domains: config.allowDomains,
+      block_domains: config.blockDomains,
+    };
+    const id = encodeURIComponent(config.clientId);
+    let res = await this.call("PATCH", `v1/clients/${id}`, payload);
+    if (res.status === 404) {
+      res = await this.call("POST", "v1/clients", { client_id: config.clientId, ...payload });
+    }
+    if (!res.ok) throw new Error(`DNS service upsert ${config.clientId} failed: ${res.status}`);
+  }
+
+  async deleteClient(clientId: string) {
+    const res = await this.call("DELETE", `v1/clients/${encodeURIComponent(clientId)}`);
+    if (!res.ok && res.status !== 404) throw new Error(`DNS service delete ${clientId} failed: ${res.status}`);
+  }
+}

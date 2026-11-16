@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: Apache-2.0
+import { type FormEvent, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
+import { useI18n } from "../i18n/I18n";
+import { api, ApiError, type Phone, type Profile } from "../lib/api";
+import { normaliseCode } from "../lib/format";
+
+export function PairPage() {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [code, setCode] = useState(() => normaliseCode(params.get("code") ?? ""));
+  const [name, setName] = useState("");
+  const [profile, setProfile] = useState<Profile>("child");
+  const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    const next: typeof errors = {};
+    if (code.replace(/-/g, "").length !== 8) next.code = t("pair.codeInvalid");
+    if (!name.trim()) next.name = t("pair.nameRequired");
+    setErrors(next);
+    if (next.code || next.name) return;
+    setBusy(true);
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone });
+      navigate(`/phones/${phone.id}`, { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
+      else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
+        const f = err.fields();
+        setErrors({ code: f.code ? t("pair.codeInvalid") : undefined, name: f.name ? t("pair.nameRequired") : undefined });
+        setFormError(t("error.form"));
+      } else setFormError(errorMessage(err, t));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="narrow">
+      <p className="back">
+        <Link to="/">{t("nav.phones")}</Link>
+      </p>
+      <PageTitle sub={t("pair.intro")}>{t("pair.title")}</PageTitle>
+      <form onSubmit={submit} noValidate className="stack">
+        <Field label={t("pair.code")} help={t("pair.codeHelp")} error={errors.code}>
+          {(p) => (
+            <input
+              {...p}
+              className="input-code"
+              name="code"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
+              spellCheck={false}
+              placeholder="K7MP-4QXR"
+              value={code}
+              onChange={(e) => setCode(normaliseCode(e.target.value))}
+            />
+          )}
+        </Field>
+        <Field label={t("pair.name")} help={t("pair.nameHelp")} error={errors.name}>
+          {(p) => (
+            <input {...p} name="name" maxLength={40} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+          )}
+        </Field>
+        <fieldset className="choices">
+          <legend>{t("pair.profile")}</legend>
+          {(["child", "self"] as const).map((p) => (
+            <label key={p} className="choice">
+              <input type="radio" name="profile" value={p} checked={profile === p} onChange={() => setProfile(p)} />
+              <span>
+                <span className="choice-title">{t(p === "child" ? "profile.child" : "profile.self")}</span>
+                <span className="choice-desc">{t(p === "child" ? "profile.childHelp" : "profile.selfHelp")}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
+        <div>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? t("pair.adding") : t("pair.submit")}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

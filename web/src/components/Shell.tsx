@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: Apache-2.0
+import { type ReactNode, useEffect, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { useI18n } from "../i18n/I18n";
+import { api, type Approval } from "../lib/api";
+import { clearNextIf, useSession } from "../lib/session";
+import { Mark } from "./Mark";
+
+export function Shell() {
+  const { t, locale } = useI18n();
+  const { state, logout, saveLocale } = useSession();
+  const loc = useLocation();
+  const navigate = useNavigate();
+  const signedIn = state.status === "in";
+  const [approvals, setApprovals] = useState(0);
+
+  // The Approvals page only shows up for someone who is a trusted person with something waiting.
+  useEffect(() => {
+    if (!signedIn) return;
+    let alive = true;
+    api
+      .get<{ approvals: Approval[] }>("/approvals")
+      .then((r) => alive && setApprovals(r.approvals.length))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [signedIn, loc.pathname]);
+
+  useEffect(() => {
+    if (signedIn) clearNextIf(loc.pathname + loc.search);
+  }, [signedIn, loc.pathname, loc.search]);
+
+  const other = locale === "en" ? "da" : "en";
+  const phonesActive = loc.pathname === "/" || loc.pathname.startsWith("/phones") || loc.pathname === "/pair";
+
+  return (
+    <>
+      <a className="skip" href="#main">
+        {t("app.skip")}
+      </a>
+      <header className="site-header">
+        <div className="wrap header-row">
+          <Link to="/" className="brand">
+            <Mark />
+            <span>{t("app.name")}</span>
+          </Link>
+          <div className="header-tools">
+            <button
+              type="button"
+              className="btn-link lang-switch"
+              lang={other}
+              onClick={() => saveLocale(other)}
+              aria-label={`${t("nav.language")}: ${t(other === "da" ? "lang.da" : "lang.en")}`}
+            >
+              {t(other === "da" ? "lang.da" : "lang.en")}
+            </button>
+            {signedIn && (
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() => void logout().then(() => navigate("/login"))}
+              >
+                {t("nav.logout")}
+              </button>
+            )}
+          </div>
+        </div>
+        {signedIn && (
+          <nav className="wrap main-nav" aria-label={t("nav.label")}>
+            <ul>
+              <NavItem to="/" active={phonesActive}>
+                {t("nav.phones")}
+              </NavItem>
+              <NavItem to="/household" active={loc.pathname === "/household"}>
+                {t("nav.household")}
+              </NavItem>
+              {(approvals > 0 || loc.pathname === "/approvals") && (
+                <NavItem to="/approvals" active={loc.pathname === "/approvals"}>
+                  {t("nav.approvals")}
+                  {approvals > 0 && <span className="count">{approvals}</span>}
+                </NavItem>
+              )}
+            </ul>
+          </nav>
+        )}
+      </header>
+      <main id="main" className="wrap">
+        <Outlet />
+      </main>
+    </>
+  );
+}
+
+function NavItem({ to, active, children }: { to: string; active: boolean; children: ReactNode }) {
+  return (
+    <li>
+      <Link to={to} className={active ? "active" : undefined} aria-current={active ? "page" : undefined}>
+        {children}
+      </Link>
+    </li>
+  );
+}

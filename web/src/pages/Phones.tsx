@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: Apache-2.0
+import { Link } from "react-router";
+import { LoadGate, PageTitle, useLoad, useNow } from "../components/ui";
+import { useI18n } from "../i18n/I18n";
+import { api, type PendingChange, type Phone } from "../lib/api";
+import { formatRelative } from "../lib/format";
+
+interface Row {
+  phone: Phone;
+  pending: number;
+}
+
+export function PhonesPage() {
+  const { t, locale } = useI18n();
+  const now = useNow(60_000);
+  const res = useLoad(async (): Promise<Row[]> => {
+    const { phones } = await api.get<{ phones: Phone[] }>("/phones");
+    return Promise.all(
+      phones.map(async (phone) => {
+        if (phone.profile !== "self") return { phone, pending: 0 };
+        try {
+          const r = await api.get<{ changes: PendingChange[] }>(`/phones/${phone.id}/changes`);
+          return { phone, pending: r.changes.length };
+        } catch {
+          return { phone, pending: 0 };
+        }
+      }),
+    );
+  }, []);
+
+  return (
+    <>
+      <div className="title-row">
+        <PageTitle>{t("phones.title")}</PageTitle>
+        {res.data && res.data.length > 0 && (
+          <Link to="/pair" className="btn btn-primary">
+            {t("phones.add")}
+          </Link>
+        )}
+      </div>
+      <LoadGate res={res}>
+        {(rows) =>
+          rows.length === 0 ? (
+            <section className="empty" aria-labelledby="empty-title">
+              <PhoneDrawing />
+              <h2 id="empty-title">{t("phones.emptyTitle")}</h2>
+              <p>{t("phones.emptyBody")}</p>
+              <p>
+                <Link to="/pair" className="btn btn-primary">
+                  {t("phones.add")}
+                </Link>
+              </p>
+            </section>
+          ) : (
+            <ul className="list phone-list">
+              {rows.map(({ phone, pending }) => (
+                <li key={phone.id}>
+                  <Link to={`/phones/${phone.id}`} className="row-link">
+                    <span className="row-main">
+                      <span className="row-title">{phone.name}</span>
+                      <span className="row-meta">
+                        <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
+                        {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
+                        <span>
+                          {phone.lastSeenAt
+                            ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
+                            : t("phones.neverSeen")}
+                        </span>
+                      </span>
+                      {pending > 0 && (
+                        <span className="row-pending">
+                          {t(pending === 1 ? "phones.pendingCount" : "phones.pendingCountMany", { n: pending })}
+                        </span>
+                      )}
+                    </span>
+                    <Chevron />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </LoadGate>
+    </>
+  );
+}
+
+export function Chevron() {
+  return (
+    <svg className="chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M9 5l7 7-7 7" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PhoneDrawing() {
+  return (
+    <svg className="empty-art" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+      <rect x="38" y="14" width="44" height="92" rx="10" fill="none" strokeWidth="3" />
+      <rect x="49" y="44" width="22" height="22" rx="3" fill="none" strokeWidth="3" />
+      <path d="M54 49h4v4h-4zM62 57h4v4h-4zM54 57h4v4h-4z" />
+      <path d="M50 80h20" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
