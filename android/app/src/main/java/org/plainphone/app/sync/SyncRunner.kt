@@ -86,6 +86,8 @@ class SyncRunner(
                 // Removed in the dashboard. The phone stays locked with its last rules; pairing
                 // again needs the maintenance PIN (a Self user could otherwise pair as a child phone).
                 store.markRemoved()
+                // Its DNS ClientID is deleted with it: switch back to the QR code's host right away.
+                device.applyLockIfNeeded("removed in the dashboard", APPLY_MAX_AGE_MS)
                 return Outcome.Removed
             }
         }
@@ -109,7 +111,9 @@ class SyncRunner(
         if (!rules.locationEnabled) return
         val now = device.nowMs()
         val requested = rules.locateRequestedAt?.toEpochMilli()
-        val find = requested != null && requested != store.answeredLocateMs
+        // A Find nobody can answer with a fresh fix (indoors, no GPS) is given up after a while,
+        // so the phone does not burn its battery on precise attempts every minute.
+        val find = requested != null && requested != store.answeredLocateMs && now - requested < FIND_RETRY_MS
         val due = now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
         if (!find && !due) return
         val fix = device.location(precise = find)
@@ -162,6 +166,7 @@ class SyncRunner(
         /** The lock is re-applied at least this often, so a change on the phone heals itself. */
         const val APPLY_MAX_AGE_MS = 15 * 60_000L
         const val STATUS_EVERY_MS = 15 * 60_000L
+        const val FIND_RETRY_MS = 30 * 60_000L
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }

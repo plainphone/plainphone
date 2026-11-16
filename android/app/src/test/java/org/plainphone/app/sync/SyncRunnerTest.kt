@@ -114,6 +114,7 @@ class SyncRunnerTest {
     @Test
     fun `Find is answered once with a precise position`() {
         pair()
+        device.now = java.time.Instant.parse("2027-01-04T10:01:00Z").toEpochMilli()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(requestedAt = "2027-01-04T10:00:00.000Z"))
         runner.run("find")
         assertThat(device.locationRequests).containsExactly(true)
@@ -146,6 +147,26 @@ class SyncRunnerTest {
         device.now += 60_000
         runner.run("answered")
         assertThat(device.locationRequests).hasSize(2)
+    }
+
+    @Test
+    fun `an unanswerable Find is given up after 30 minutes`() {
+        pair()
+        val pressed = java.time.Instant.parse("2027-01-04T10:00:00Z").toEpochMilli()
+        device.now = pressed + 31 * 60_000
+        device.fixAgeMs = 2 * 60 * 60_000
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(requestedAt = "2027-01-04T10:00:00.000Z"))
+        runner.run("late")
+        // Only the regular coarse report, no precise attempt.
+        assertThat(device.locationRequests).containsExactly(false)
+    }
+
+    @Test
+    fun `removal re-applies the lock at once so DNS falls back`() {
+        pair()
+        api.rules = RulesResult.Unpaired
+        runner.run("removed")
+        assertThat(device.applies.single()).contains("removed")
     }
 
     @Test

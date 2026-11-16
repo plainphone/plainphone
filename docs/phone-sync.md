@@ -81,7 +81,7 @@ is also re-checked whenever the screen turns on.
 The platform's `fused` provider is used when the phone has one. On phones with Google Play
 services it is backed by Google's fused location; without them the phone falls back to GPS and
 the network provider via `LocationManager`. A "Find" counts as answered only by a fix taken
-after the parent pressed it; until then the phone keeps trying on every sync. The app does not include the Play services library.
+after the parent pressed it; until then the phone keeps trying on every sync, for at most 30 minutes. The app does not include the Play services library.
 If no fresh fix comes within 30 seconds, the newest known position is sent with its real time,
 so the parent sees how old it is. Only the latest position is stored on the server (D7).
 
