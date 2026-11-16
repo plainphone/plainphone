@@ -2,7 +2,8 @@
 
 Plainphone keeps as little data as it can, for as short a time as it can
 (decision D7 in the spec). This page says exactly what each part stores. It is
-the technical basis for the privacy policy on plainphone.org.
+the technical basis for the [privacy policy](https://plainphone.org/privacy/) on plainphone.org,
+which also covers the parent app and the server. Change the two together.
 
 ## DNS filter (`dns.plainphone.org`)
 

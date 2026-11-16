@@ -16,6 +16,14 @@ function esc(s: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/**
+ * Logo and mark live on the project site, so every instance (also self-hosted ones)
+ * shows the same wordmark: ink on paper, like plainphone.org.
+ */
+const BRAND_ASSETS = "https://plainphone.org/mail";
+const privacyUrl = { en: "https://plainphone.org/privacy/", da: "https://plainphone.org/da/privacy/" } as const;
+const privacyLabel = { en: "Privacy", da: "Privatliv" } as const;
+
 interface LayoutInput {
   publicUrl: string;
   locale: Locale;
@@ -32,12 +40,12 @@ interface LayoutInput {
  * clients, a hosted 2x PNG logo, a bulletproof button, a preheader and dark mode.
  */
 export function layout(input: LayoutInput): string {
-  const logo = `${input.publicUrl}/mail/logo@2x.png`;
-  const logoDark = `${input.publicUrl}/mail/logo-dark@2x.png`;
+  const logo = `${BRAND_ASSETS}/logo@2x.png`;
+  const logoDark = `${BRAND_ASSETS}/logo-dark@2x.png`;
   const p = (text: string) =>
-    `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1c2321;" class="pp-text">${esc(text)}</p>`;
+    `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1d2a30;" class="pp-text">${esc(text)}</p>`;
   const small = (text: string) =>
-    `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4a5551;" class="pp-muted">${esc(text)}</p>`;
+    `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4c5a60;" class="pp-muted">${esc(text)}</p>`;
   return `<!doctype html>
 <html lang="${input.locale}" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -49,42 +57,43 @@ export function layout(input: LayoutInput): string {
 <style>
   :root { color-scheme: light dark; }
   @media (prefers-color-scheme: dark) {
-    .pp-body, .pp-outer { background:#121816 !important; }
-    .pp-card { background:#1b2320 !important; border-color:#2c3632 !important; }
-    .pp-text, .pp-heading { color:#e8ece9 !important; }
-    .pp-muted { color:#a9b4af !important; }
-    .pp-button { background:#7fc4a2 !important; }
-    .pp-button a { color:#0d1a14 !important; }
-    .pp-link { color:#9fd6bb !important; }
+    .pp-body, .pp-outer { background:#121a1e !important; }
+    .pp-card { background:#172025 !important; border-color:#34433f !important; }
+    .pp-text, .pp-heading { color:#e3e8e4 !important; }
+    .pp-muted { color:#a5b1b3 !important; }
+    .pp-button { background:#e3e8e4 !important; }
+    .pp-button a { color:#172025 !important; }
+    .pp-link { color:#93c9de !important; }
     .pp-logo-light { display:none !important; }
     .pp-logo-dark { display:block !important; max-height:none !important; overflow:visible !important; }
   }
   @media (max-width:600px) { .pp-card { padding:28px 20px !important; } }
 </style>
 </head>
-<body class="pp-body" style="margin:0;padding:0;background:#f2f3ef;">
+<body class="pp-body" style="margin:0;padding:0;background:#e8ece8;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${esc(input.preheader)}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="pp-outer" style="background:#f2f3ef;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="pp-outer" style="background:#e8ece8;">
 <tr><td align="center" style="padding:32px 12px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
   <tr><td style="padding:0 4px 20px;">
-    <img src="${logo}" width="132" height="32" alt="Plainphone" class="pp-logo-light" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:132px;">
-    <!--[if !mso]><!--><div class="pp-logo-dark" style="display:none;max-height:0;overflow:hidden;"><img src="${logoDark}" width="132" height="32" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:132px;"></div><!--<![endif]-->
+    <img src="${logo}" width="158" height="24" alt="Plainphone" class="pp-logo-light" style="display:block;border:0;outline:none;text-decoration:none;height:24px;width:158px;">
+    <!--[if !mso]><!--><div class="pp-logo-dark" style="display:none;max-height:0;overflow:hidden;"><img src="${logoDark}" width="158" height="24" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:24px;width:158px;"></div><!--<![endif]-->
   </td></tr>
-  <tr><td class="pp-card" style="background:#ffffff;border:1px solid #dfe3dd;border-radius:12px;padding:36px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <h1 class="pp-heading" style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:600;color:#1c2321;">${esc(input.heading)}</h1>
+  <tr><td class="pp-card" style="background:#f8f9f7;border:1px solid #c3cbc7;border-radius:6px;padding:36px 32px;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <h1 class="pp-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#1d2a30;">${esc(input.heading)}</h1>
     ${input.paragraphs.map(p).join("\n    ")}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
-    <tr><td class="pp-button" bgcolor="#24604a" style="border-radius:8px;background:#24604a;">
-      <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="16%" fillcolor="#24604a" stroke="f"><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
-      <!--[if !mso]><!--><a href="${esc(input.button.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(input.button.label)}</a><!--<![endif]-->
+    <tr><td class="pp-button" bgcolor="#1d2a30" style="border-radius:6px;background:#1d2a30;">
+      <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="12%" fillcolor="#1d2a30" stroke="f"><center style="color:#f3f5f2;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
+      <!--[if !mso]><!--><a href="${esc(input.button.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;line-height:20px;color:#f3f5f2;text-decoration:none;border-radius:6px;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(input.button.label)}</a><!--<![endif]-->
     </td></tr>
     </table>
     ${input.afterButton.map(small).join("\n    ")}
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#4a5551;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link" style="color:#24604a;">${esc(input.button.url)}</a></p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#4c5a60;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link" style="color:#1d5870;">${esc(input.button.url)}</a></p>
   </td></tr>
-  <tr><td style="padding:20px 4px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <p style="margin:0;font-size:12px;line-height:1.6;color:#4a5551;" class="pp-muted">${esc(input.footer)}</p>
+  <tr><td style="padding:20px 4px 0;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#4c5a60;" class="pp-muted">${esc(input.footer)}</p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:#4c5a60;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link" style="color:#1d5870;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link" style="color:#1d5870;">plainphone.org</a></p>
   </td></tr>
   </table>
 </td></tr>
@@ -103,6 +112,7 @@ function text(input: LayoutInput): string {
     ...input.afterButton.flatMap((s) => [s, ""]),
     "--",
     input.footer,
+    `${privacyLabel[input.locale]}: ${privacyUrl[input.locale]}`,
   ].join("\n");
 }
 
@@ -197,6 +207,35 @@ export function inviteMail(
       da
         ? "Kender du ikke afsenderen, kan du se bort fra mailen."
         : "If you do not know the sender, you can ignore this mail.",
+    ],
+    footer: footer[locale],
+  });
+}
+
+/** To the trusted person: a Self-profile owner asks to loosen a rule (spec 11, D12). */
+export function approvalRequestMail(to: string, locale: Locale, publicUrl: string, phoneName: string): Mail {
+  const da = locale === "da";
+  const subject = da ? "En anmodning venter på dit svar" : "A request is waiting for your answer";
+  const paragraphs = da
+    ? [
+        `Telefonen "${phoneName}" vil løsne en regel. Du er valgt som betroet person, så ændringen sker først, når du har sagt ja.`,
+        "Åbn Plainphone for at se, hvad der skal ændres, og svar ja eller nej.",
+      ]
+    : [
+        `The phone "${phoneName}" wants to loosen a rule. You are the trusted person, so the change only happens when you say yes.`,
+        "Open Plainphone to see what would change, and answer yes or no.",
+      ];
+  return build(to, subject, {
+    publicUrl,
+    locale,
+    preheader: paragraphs[0]!,
+    heading: subject,
+    paragraphs,
+    button: { label: da ? "Se anmodningen" : "See the request", url: `${publicUrl}/approvals` },
+    afterButton: [
+      da
+        ? "Det er helt i orden at sige nej. Hvis du er i tvivl, så tal med personen først."
+        : "It is fine to say no. If you are unsure, talk to the person first.",
     ],
     footer: footer[locale],
   });

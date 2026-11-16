@@ -263,6 +263,18 @@ main {
   padding-bottom: 3rem;
 }
 
+.site-footer {
+  padding-bottom: 2rem;
+  font-size: 0.9375rem;
+}
+
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
+}
+
 /* Page structure ----------------------------------------------------------- */
 
 .page-title {

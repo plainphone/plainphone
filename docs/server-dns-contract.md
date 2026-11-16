@@ -18,7 +18,7 @@ Configured with `DNS_API_URL` (e.g. `http://<private-ip>:8053/`, see `PPDNS_API_
 
 | When | Call |
 |---|---|
-| A phone is paired, or any web-filter rule changes | `PATCH /v1/clients/{id}` with `{profile, block_adult, allow_domains, block_domains}`; on `404`, `POST /v1/clients` with the same body plus `client_id` |
+| A phone is paired, or any web-filter rule changes | `PATCH /v1/clients/{id}` with `{profile, blocked_categories, block_adult, allow_domains, block_domains}`; on `404`, `POST /v1/clients` with the same body plus `client_id` |
 | A phone is removed | `DELETE /v1/clients/{id}` (`404` counts as done) |
 
 Both calls are idempotent. If a call fails, the API request that caused it still succeeds: the
@@ -26,19 +26,35 @@ phone is marked `dns_dirty`, the PWA shows "not synced yet", and the server's sw
 every minute. A version counter makes sure an older, slower attempt cannot mark a newer change
 as synced.
 
-## Mapping and known gaps
+## Mapping
 
 | Server rule | Sent as |
 |---|---|
 | Phone profile `child` / `self` | `profile` |
-| Category `adult` blocked | `block_adult: true` |
+| Blocked categories (`social`, `adult`, `gambling`, `games`, `dating`, `video`) | `blocked_categories`: the full set, sorted. An empty list means every switch is off. The DNS service replaces its set with it |
+| Category `adult` blocked | also `block_adult: true`, the same thing for a DNS service from before categories existed. It must agree with `blocked_categories`, otherwise the DNS service answers `400` |
 | Allowed / blocked domains | `allow_domains` / `block_domains` (full lists) |
-| Categories `social`, `gambling`, `games`, `dating`, `video` | **Not sent yet.** The DNS service's `child` profile always blocks these groups and `self` never does; there are no per-client switches. The PWA lets a parent switch them, and the server stores the choice, but it only takes effect once the DNS service supports per-client categories. |
+
+What each category blocks, and what a child keeps whatever the parent switches, is in
+[dns/README.md](../dns/README.md#categories). In short: the DNS service turns a category into
+AdGuard service groups and block lists per phone; the VPN/proxy/Tor bypass list, SafeSearch and
+YouTube Restricted Mode stay on for a `child` phone. A parent may switch every category off for a
+child, including `adult`.
+
+The server always sends the full set, so the DNS service's own profile defaults (`self` blocks no
+category) only apply to clients created without it. A new phone on the server starts with every
+category blocked, also a `self` phone (spec: "all on by default"); the owner opens categories up
+through their key, like any other loosening.
+
+Old and new can be deployed in either order. A DNS service from before categories ignores
+`blocked_categories` and applies `block_adult` (and then keeps blocking the other categories for a
+child, as before). An older server sends only `block_adult`; the new DNS service reads that as
+"add or remove `adult`" and leaves the rest of the phone's categories alone.
 
 `POST /v1/clients` accepts the server's `client_id` (409 if it exists, 400 if invalid). The DNS
 resolver refuses unregistered ClientIDs, so a phone's private DNS only works once the first sync
 has succeeded; until then the PWA shows the filter as "not synced yet". Domain list changes take
-about 5 seconds to apply in AdGuard; profile and `block_adult` changes are immediate.
+about 5 seconds to apply in AdGuard; profile and category changes are immediate.
 
 ## Testing
 

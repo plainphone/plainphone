@@ -11,7 +11,7 @@ describe("accounts", () => {
     const mail = h.mail.outbox[0]!;
     expect(mail.to).toBe("parent@example.org");
     expect(mail.subject).toBe("Dit login til Plainphone");
-    expect(mail.html).toContain(`${PUBLIC_URL}/mail/logo@2x.png`);
+    expect(mail.html).toContain("https://plainphone.org/mail/logo@2x.png");
     expect(mail.text).toContain(`${PUBLIC_URL}/auth/callback#token=`);
     const token = decodeURIComponent(/#token=(\S+)/.exec(mail.text)![1]!);
 
