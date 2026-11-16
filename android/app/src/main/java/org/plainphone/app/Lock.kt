@@ -41,8 +41,10 @@ object Lock {
     }
 
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
-    fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig =
-        EffectivePolicy.merge(ConfigStore(context).load(), SyncStore(context).rules(), now)
+    fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
+        val sync = SyncStore(context)
+        return EffectivePolicy.merge(ConfigStore(context).load(), sync.rules(), now, removed = sync.removed)
+    }
 
     /** Blocking. Never call on the main thread. */
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
@@ -60,11 +62,16 @@ object Lock {
      * school-time window starting or ending) or the last run is older than [maxAgeMs].
      * Does nothing during a maintenance unlock. Blocking.
      */
-    fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? {
+    fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
+        // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
-        if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) return null
+        if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
+            // Back-to-back windows can leave the config unchanged: still arm the next change.
+            scheduleNextWindowChange(context)
+            return null
+        }
         return applyNow(context, reason)
     }
 
@@ -120,12 +127,12 @@ object Lock {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    /** For alarms: re-applies only if the merged config changed; never during maintenance. */
+    /** For alarms and screen-on: re-applies only if the merged config changed (or is 15 min old); never during maintenance. */
     fun applyIfNeededAsync(context: Context, reason: String, done: () -> Unit) {
         val app = context.applicationContext
         executor.execute {
             try {
-                applyIfNeeded(app, reason, maxAgeMs = 0L)
+                applyIfNeeded(app, reason, maxAgeMs = org.plainphone.app.sync.SyncRunner.APPLY_MAX_AGE_MS)
             } catch (e: Exception) {
                 Log.e(TAG, "apply crashed", e)
             } finally {
@@ -138,9 +145,11 @@ object Lock {
         val app = context.applicationContext
         executor.execute {
             val results = guarded("lift") {
-                val minutes = ConfigStore(app).load().relockMinutes
-                scheduleRelock(app, minutes)
-                applier(app).lift().also { saveReport(app, "maintenance unlock for $minutes min", it) }
+                synchronized(APPLY_LOCK) {
+                    val minutes = ConfigStore(app).load().relockMinutes
+                    scheduleRelock(app, minutes)
+                    applier(app).lift().also { saveReport(app, "maintenance unlock for $minutes min", it) }
+                }
             }
             done(results)
         }

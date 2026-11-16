@@ -155,7 +155,7 @@ class ConfigStore(context: Context) {
  * (which are merged straight into [PolicyConfig]).
  */
 data class ServerOverlay(
-    /** School time or bedtime is on: only the bare essentials plus the window's allowed apps stay visible. */
+    /** School time or bedtime is on: only core apps plus the window's allowed apps stay visible. */
     val windowActive: Boolean = false,
     /** The parent turned location on: Plainphone gets the location permission and location stays on. */
     val locationRequired: Boolean = false,

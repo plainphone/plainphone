@@ -64,12 +64,21 @@ class RulesTest {
     }
 
     @Test
+    fun `a removed phone goes back to the QR code's DNS host, because its ClientID is deleted`() {
+        val rules = ServerRules.parse(rulesJson(dnsReady = true))
+        val merged = EffectivePolicy.merge(qr, rules, Instant.parse("2027-01-04T11:00:00Z"), removed = true)
+        assertThat(merged.dnsHost).isEqualTo("family.adguard-dns.com")
+        // Everything else from the last rules still applies.
+        assertThat(merged.allowedPackages).containsExactly("com.android.dialer", "com.spotify.music")
+    }
+
+    @Test
     fun `the parent's app list replaces the QR list, and a window narrows it`() {
         val rules = ServerRules.parse(rulesJson(schedules = bedtime))
         val day = EffectivePolicy.merge(qr, rules, Instant.parse("2027-01-04T11:00:00Z")) // 12:00 local
         assertThat(day.allowedPackages).containsExactly("com.android.dialer", "com.spotify.music")
         assertThat(day.server!!.windowActive).isFalse()
-        assertThat(day.server!!.locationRequired).isTrue()
+        assertThat(day.server.locationRequired).isTrue()
 
         val night = EffectivePolicy.merge(qr, rules, Instant.parse("2027-01-04T22:00:00Z")) // 23:00 local
         assertThat(night.server!!.windowActive).isTrue()

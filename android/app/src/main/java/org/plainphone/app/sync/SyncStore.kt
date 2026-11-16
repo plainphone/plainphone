@@ -21,7 +21,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         box.open(sealed).also { if (it == null) Log.w(TAG, "stored device token cannot be opened") }
     }
 
-    val isPaired: Boolean get() = prefs.contains(KEY_TOKEN) && !removed
+    /** Paired and the token still opens (a lost keystore key means pairing again, behind the PIN). */
+    val isPaired: Boolean get() = prefs.contains(KEY_TOKEN) && !removed && deviceToken() != null
 
     /** True after the server answered 401: the phone was removed from the dashboard. Rules keep applying. */
     val removed: Boolean get() = prefs.getBoolean(KEY_REMOVED, false)

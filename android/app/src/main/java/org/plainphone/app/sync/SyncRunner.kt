@@ -119,7 +119,9 @@ class SyncRunner(
         }
         api.reportLocation(token, fix)
         store.locationAtMs = now
-        if (find) store.answeredLocateMs = requested!!
+        // Only a fix taken after the parent pressed Find answers it (the server and dashboard
+        // compare the same way). An older last-known position is sent, but the phone keeps trying.
+        if (find && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
     }
 
     private fun reportStatus(token: String) {

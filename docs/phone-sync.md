@@ -20,7 +20,7 @@ describes the phone's side. The API contract is [sync-api.md](sync-api.md) and
    stored copy is useless on any other phone.
 
 **Pairing needs the maintenance PIN except at setup.** A phone that has never been paired may
-show its pairing screen without the PIN during the first 24 hours after the lock was first
+show its pairing screen without the PIN during the first hour after the lock was first
 applied. After that, or once the phone has been paired, a new pairing only starts from the
 PIN-protected maintenance screen. Otherwise a child (or a Self user who wants out of their key)
 could pair the phone to an account of their own and open everything.
@@ -50,7 +50,8 @@ changes made on the phone), answer "Find", report status.
 - **A broken answer** (not JSON, missing fields, unknown time zone, bad weekday) is thrown away
   before it is stored; the last good rules stay.
 - **Removed in the dashboard** (`401`): the phone keeps the last rules, stops polling and shows
-  "pair again from the maintenance screen".
+  "pair again from the maintenance screen". Only its DNS goes back to the QR code's host, because
+  the DNS service deletes a removed phone's ClientID (otherwise the phone would have no DNS).
 - **During a maintenance unlock** the sync stores new rules but does not re-apply the lock;
   the unlock ends on its own timer as before.
 
@@ -60,7 +61,7 @@ changes made on the phone), answer "Find", report status.
 |---|---|
 | App list | The parent's list replaces the QR code's allowlist. Core apps found on the phone (dialer, messages, camera, clock, contacts, Settings, launcher, keyboard) always stay. The maker's own phone and SMS apps stay hidden whatever the list says, so approved contacts cannot be bypassed; they are reported to the server as normal, non-core apps. |
 | Approved contacts | Taken from the rules as soon as the first rules arrive. The maintenance screen then shows the list read-only. Emergency numbers always work. |
-| School time, bedtime | In a window only the bare essentials stay visible: launcher, keyboard, the system dialer (emergency calls), the clock (alarms in the morning), Settings (Wi-Fi), Plainphone's own phone and messages, plus the window's own apps that the app list also allows. Camera, gallery and every other app are hidden until the window ends. Calls and SMS work for approved contacts and emergency numbers, as always. Overlapping windows only allow what all of them allow. |
+| School time, bedtime | In a window every non-core app is hidden, except the window's own apps that the app list also allows. Core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay, as they always do. Calls and SMS work for approved contacts and emergency numbers, as always. Overlapping windows only allow what all of them allow. |
 | DNS | The phone switches private DNS to `<id>.dns.plainphone.org` only when the rules say `dns.ready`. Until then it keeps the QR code's host. Android itself also keeps the old host if the new one does not answer. |
 | Location | When the parent has location on: Device Owner grants the location permissions (no dialog), switches location on and blocks switching it off (`DISALLOW_CONFIG_LOCATION`). "Find" gets one precise fix; otherwise a coarse position every `intervalMinutes` while syncs run. When location is off, nothing is read or sent, and the restriction is lifted. |
 
@@ -79,7 +80,8 @@ is also re-checked whenever the screen turns on.
 
 The platform's `fused` provider is used when the phone has one. On phones with Google Play
 services it is backed by Google's fused location; without them the phone falls back to GPS and
-the network provider via `LocationManager`. The app does not include the Play services library.
+the network provider via `LocationManager`. A "Find" counts as answered only by a fix taken
+after the parent pressed it; until then the phone keeps trying on every sync. The app does not include the Play services library.
 If no fresh fix comes within 30 seconds, the newest known position is sent with its real time,
 so the parent sees how old it is. Only the latest position is stored on the server (D7).
 

@@ -66,7 +66,7 @@ phone syncs is in [phone-sync.md](phone-sync.md).
 
 | Policy | When | Reference |
 |---|---|---|
-| `setApplicationHidden` | The parent's app list replaces the fixed allowlist. The maker's phone and SMS apps stay hidden whatever the list says. During school time and bedtime only the launcher, keyboard, system dialer, clock, Settings, Plainphone and the window's allowed apps stay visible. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setApplicationHidden(android.content.ComponentName,%20java.lang.String,%20boolean)) |
+| `setApplicationHidden` | The parent's app list replaces the fixed allowlist. The maker's phone and SMS apps stay hidden whatever the list says. During school time and bedtime only the core apps and the window's allowed apps stay visible. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setApplicationHidden(android.content.ComponentName,%20java.lang.String,%20boolean)) |
 | `setGlobalPrivateDnsModeSpecifiedHost` | Switches to the phone's own `<id>.dns.plainphone.org` only when the server says the DNS service has accepted the ID (`dns.ready`). | see above |
 | `setPermissionGrantState` (location) | Fine, coarse and background location for Plainphone, only while the parent has location on | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | `setLocationEnabled` + `DISALLOW_CONFIG_LOCATION` | Location on and locked on while the parent has location on; the restriction is lifted when it is turned off | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setLocationEnabled(android.content.ComponentName,%20boolean)) |
@@ -88,7 +88,7 @@ Tap "Version" seven times on the Plainphone status screen and enter the parent P
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.
 - **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally.
-- **Pair with a parent** (phase 4, only when the phone is not paired) shows the pairing code. Outside the first 24 hours after setup this is the only way to pair.
+- **Pair with a parent** (phase 4, only when the phone is not paired) shows the pairing code. Outside the first hour after setup this is the only way to pair.
 - **Sync with the server now** (phase 4, when paired) fetches the rules at once.
 
 The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, random salt). The QR script requires at least six digits. A six-digit PIN can still be brute-forced by someone who has the QR code, so treat the QR code as secret. If no PIN was given, the app falls back to the test PIN `000000` and says so on the status screen. This screen will be removed or replaced by the server-side key in later phases.

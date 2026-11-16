@@ -16,7 +16,11 @@ import org.plainphone.app.ServerOverlay
  */
 object EffectivePolicy {
 
-    fun merge(qr: PolicyConfig, rules: ServerRules?, now: Instant): PolicyConfig {
+    /**
+     * @param removed the phone was removed in the dashboard. Its last rules keep applying, but the
+     *   DNS service has deleted its ClientID, so the phone goes back to the QR code's DNS host.
+     */
+    fun merge(qr: PolicyConfig, rules: ServerRules?, now: Instant, removed: Boolean = false): PolicyConfig {
         if (rules == null) return qr
         val windows = Schedules.active(rules.schedules, now, rules.timezone)
         val windowAllowed = Schedules.allowedDuringWindows(windows)
@@ -24,7 +28,7 @@ object EffectivePolicy {
             // The phone's own DNS address only once the DNS service knows it. Until then the
             // placeholder from the QR code stays, so the network never dies (an unknown ClientID
             // gets no answers at all).
-            dnsHost = if (rules.dnsReady && rules.dnsHost != null) rules.dnsHost else qr.dnsHost,
+            dnsHost = if (rules.dnsReady && rules.dnsHost != null && !removed) rules.dnsHost else qr.dnsHost,
             // During a window, an app needs both: the window allows it and the app list shows it.
             allowedPackages = windowAllowed?.let { it intersect rules.allowedApps } ?: rules.allowedApps,
             server = ServerOverlay(windowActive = windows.isNotEmpty(), locationRequired = rules.locationEnabled),

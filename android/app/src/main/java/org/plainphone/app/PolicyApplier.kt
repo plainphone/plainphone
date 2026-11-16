@@ -151,9 +151,9 @@ class PolicyApplier(
         val telephony = LockPolicy.telephonyAppsToHide(
             device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS),
         ) - parentAllowed
-        // School time and bedtime: only what a phone cannot do without, plus the window's own list.
-        val base = if (config.server?.windowActive == true) device.essentialPackages() else device.corePackages()
-        val keep = base + config.allowedPackages + device.ownPackage - telephony
+        // During school time and bedtime config.allowedPackages is already narrowed to the window's
+        // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
+        val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()

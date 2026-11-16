@@ -42,7 +42,7 @@ class PairingController(
     companion object {
         private const val MIN_REMAINING_MS = 60_000L
         /** A phone that has never been paired can be paired without the PIN this long after setup. */
-        const val FREE_PAIRING_MS = 24 * 60 * 60_000L
+        const val FREE_PAIRING_MS = 60 * 60_000L
 
         /**
          * Pairing without the maintenance PIN is only for the setup moment. Afterwards (or once the

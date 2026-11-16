@@ -284,7 +284,8 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
   const when = (iso: string) => formatRelative(iso, now, locale);
-  const syncedAt = s?.rulesAppliedAt ?? phone.lastSeenAt;
+  // Last time the phone fetched its rules (the server sees every poll); rulesAppliedAt is only the last lock run.
+  const syncedAt = phone.lastSeenAt;
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>

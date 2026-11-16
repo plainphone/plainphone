@@ -130,6 +130,25 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `an old last-known position does not answer Find, so the phone keeps trying`() {
+        pair()
+        device.now = java.time.Instant.parse("2027-01-04T10:05:00Z").toEpochMilli()
+        device.fixAgeMs = 60 * 60_000 // from 09:05, before the parent pressed Find at 10:00
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(requestedAt = "2027-01-04T10:00:00.000Z"))
+        runner.run("find, stale")
+        assertThat(api.locations).hasSize(1)
+        api.rules = RulesResult.Unchanged
+        device.now += 60_000
+        device.fixAgeMs = 0
+        runner.run("find, fresh")
+        assertThat(device.locationRequests).containsExactly(true, true).inOrder()
+        assertThat(api.locations).hasSize(2)
+        device.now += 60_000
+        runner.run("answered")
+        assertThat(device.locationRequests).hasSize(2)
+    }
+
+    @Test
     fun `no position is sent when the parent turned location off`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationEnabled = false, requestedAt = "2027-01-04T10:00:00.000Z"))

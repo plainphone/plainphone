@@ -15,7 +15,6 @@ class ServerOverlayTest {
         ),
         core = setOf("com.google.android.dialer", "com.samsung.messaging", "com.camera", "com.clock", "com.launcher"),
     ).apply {
-        essential = setOf("com.google.android.dialer", "com.clock", "com.launcher")
         roles += setOf("android.app.role.DIALER", "android.app.role.SMS")
         telephony = TelephonyApps(
             dialers = setOf("com.google.android.dialer", own),
@@ -40,13 +39,11 @@ class ServerOverlayTest {
     }
 
     @Test
-    fun `school time hides everything but the essentials and the window's apps, and gives it back afterwards`() {
+    fun `school time hides every non-core app outside the window's list, and gives it back afterwards`() {
         applier.apply(server.copy(allowedPackages = setOf("com.google.android.apps.maps"), server = ServerOverlay(windowActive = true)))
-        assertThat(device.hidden).containsExactly(
-            "com.camera", "com.spotify.music", "com.example.game", "com.samsung.messaging",
-        )
-        // Never hidden: the system dialer (emergency calls), the clock, the launcher, Plainphone itself.
-        assertThat(device.hidden).containsNoneOf("com.google.android.dialer", "com.clock", "com.launcher", own)
+        assertThat(device.hidden).containsExactly("com.spotify.music", "com.example.game", "com.samsung.messaging")
+        // Core apps are never hidden, also not in a window.
+        assertThat(device.hidden).containsNoneOf("com.google.android.dialer", "com.camera", "com.clock", "com.launcher", own)
 
         applier.apply(server)
         assertThat(device.hidden).containsExactly("com.example.game", "com.samsung.messaging")

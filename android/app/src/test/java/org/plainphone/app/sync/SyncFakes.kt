@@ -20,6 +20,8 @@ class FakeSyncDevice(
     var applies = mutableListOf<String>()
     var lock = LockState(deviceOwner = true, maintenance = false, failedPolicies = emptyList(), appliedAtMs = now, dnsHost = "family.adguard-dns.com")
     val locationRequests = mutableListOf<Boolean>()
+    /** How old the fix is (a last-known position when no fresh one comes). */
+    var fixAgeMs = 0L
 
     override fun nowMs() = now
     override fun appVersion() = "0.1.2"
@@ -29,7 +31,7 @@ class FakeSyncDevice(
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
     override fun location(precise: Boolean): LocationFix? {
         locationRequests += precise
-        return fix?.copy(recordedAtMs = now)
+        return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
 }
 

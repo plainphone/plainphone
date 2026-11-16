@@ -29,11 +29,6 @@ interface DeviceControls {
     fun clearRestriction(key: String)
     fun launchablePackages(): Set<String>
     fun corePackages(): Set<String>
-    /**
-     * The bare minimum during school time and bedtime: launcher, keyboard, the system dialer
-     * (emergency calls), the clock (alarms) and Settings (Wi-Fi). Camera, gallery and the like go.
-     */
-    fun essentialPackages(): Set<String>
     fun isInstalled(pkg: String): Boolean
     fun setHidden(pkg: String, hidden: Boolean): Boolean
     fun isHidden(pkg: String): Boolean
@@ -116,24 +111,6 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible.
         found += smsDeliverReceivers()
         Telephony.Sms.getDefaultSmsPackage(context)?.let(found::add)
-        context.getSystemService(InputMethodManager::class.java)
-            ?.enabledInputMethodList
-            ?.mapTo(found) { it.packageName }
-        return found
-    }
-
-    override fun essentialPackages(): Set<String> {
-        val intents = listOf(
-            Intent(AlarmClock.ACTION_SHOW_ALARMS),
-            Intent(Settings.ACTION_SETTINGS),
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
-        )
-        val found = mutableSetOf<String>()
-        for (intent in intents) {
-            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()))
-                .mapTo(found) { it.activityInfo.packageName }
-        }
-        context.getSystemService(TelecomManager::class.java)?.systemDialerPackage?.let(found::add)
         context.getSystemService(InputMethodManager::class.java)
             ?.enabledInputMethodList
             ?.mapTo(found) { it.packageName }
