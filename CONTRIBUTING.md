@@ -30,7 +30,9 @@ The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `
 | `site/` | Node only, no dependencies | `node build.mjs` and `node scripts/check.mjs` in `site/` |
 | `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |
 
-CI runs the same checks for every pull request. To run the server and the web app locally, use `pnpm dev:server` and `pnpm dev:web`, or Docker Compose as in [docs/self-hosting.md](docs/self-hosting.md).
+CI selects which checks to run based on the files changed in each pull request. Checks for unaffected areas report success after skipping their build and test steps. See [CI and builds](docs/ci-build.md) for the workflow details.
+
+To run the server and the web app locally, use `pnpm dev:server` and `pnpm dev:web`, or Docker Compose as in [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Commits and pull requests
 
