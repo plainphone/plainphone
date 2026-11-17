@@ -1377,6 +1377,21 @@ details.details.details-lead {
   margin-top: 0.5rem;
 }
 
+details.details-lead summary::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0 0 0.625rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+details.details-lead[open] summary::after {
+  margin-top: 0.25rem;
+  transform: rotate(225deg);
+}
+
 .explain {
   display: grid;
   gap: 0.5rem;
