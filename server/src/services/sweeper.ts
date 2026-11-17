@@ -4,7 +4,7 @@ import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, 
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges } from "./changes.js";
 import type { Ctx } from "./context.js";
-import { deleteOldSafetyRequests } from "./safety.js";
+import { alertUnansweredCheckins, deleteOldSafetyRequests } from "./safety.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 
@@ -28,7 +28,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
   const dnsDeleted = await retryDnsDeletions(ctx);
-  const offlineAlerts = await alertOfflinePhones(ctx);
+  const offlineAlerts = (await alertOfflinePhones(ctx)) + (await alertUnansweredCheckins(ctx));
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<unknown[]>) => (await q).length;
   const deleted = {

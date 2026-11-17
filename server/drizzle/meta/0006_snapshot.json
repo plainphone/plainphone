@@ -1,5 +1,5 @@
 {
-  "id": "2a171ac7-aa48-4737-837e-c0d0a565f490",
+  "id": "7cde2daa-9b62-4afe-adef-7f8953679d57",
   "prevId": "48532568-24df-4205-85b0-2928a13fd590",
   "version": "7",
   "dialect": "postgresql",
@@ -1548,6 +1548,12 @@
         },
         "located_at": {
           "name": "located_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "no_reply_notified_at": {
+          "name": "no_reply_notified_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

@@ -342,6 +342,8 @@ export const safetyRequests = pgTable(
     stoppedAt: timestamp("stopped_at", { withTimezone: true }),
     /** Check-in: the position sent because nobody answered. */
     locatedAt: timestamp("located_at", { withTimezone: true }),
+    /** Check-in: the parents were told nobody answered by the deadline. */
+    noReplyNotifiedAt: timestamp("no_reply_notified_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("safety_requests_phone_kind_idx").on(t.phoneId, t.kind)],

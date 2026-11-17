@@ -3,9 +3,10 @@
 // "Ring the phone" and "Are you okay?" (docs/location.md). Only the latest request of each kind
 // per phone exists; the phone learns about it through the rules document.
 
-import { and, eq, isNotNull, lt, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { type LocationMode, phones, safetyRequests } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { notifyHousehold, type SafetyNews } from "./notifications.js";
 
 type Phone = typeof phones.$inferSelect;
 export type SafetyRequest = typeof safetyRequests.$inferSelect;
@@ -123,6 +124,7 @@ export async function startRequest(
     answer: null,
     stoppedAt: null,
     locatedAt: null,
+    noReplyNotifiedAt: null,
     createdAt: now,
   };
   return ctx.db.transaction(async (tx) => {
@@ -147,4 +149,49 @@ export async function deleteOldSafetyRequests(ctx: Ctx): Promise<number> {
     )
     .returning({ id: safetyRequests.id });
   return rows.length;
+}
+
+/** Tells the household what happened. Push only; never fails the caller. */
+export async function notifySafety(ctx: Ctx, phone: Pick<Phone, "id" | "name">, what: SafetyNews) {
+  try {
+    await notifyHousehold(ctx, phone.id, { type: "safety", phoneId: phone.id, phoneName: phone.name, what });
+  } catch (err) {
+    console.error(`safety notification failed: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Sweeper: tells the parents once when an "Are you okay?" passed its deadline unanswered.
+ * The position itself (if the mode sends one) is announced when it arrives.
+ */
+export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
+  const now = ctx.now();
+  const rows = await ctx.db
+    .select({ req: safetyRequests, phone: phones })
+    .from(safetyRequests)
+    .innerJoin(phones, eq(phones.id, safetyRequests.phoneId))
+    .where(
+      and(
+        eq(safetyRequests.kind, "checkin"),
+        lte(safetyRequests.endsAt, now),
+        isNull(safetyRequests.answeredAt),
+        isNull(safetyRequests.stoppedAt),
+        isNull(safetyRequests.noReplyNotifiedAt),
+      ),
+    );
+  let sent = 0;
+  for (const { req, phone } of rows) {
+    // Claim it first, so two sweeps never notify twice.
+    const claimed = await ctx.db
+      .update(safetyRequests)
+      .set({ noReplyNotifiedAt: now })
+      .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.noReplyNotifiedAt)))
+      .returning({ id: safetyRequests.id });
+    if (!claimed.length) continue;
+    // Already located (the phone was quicker than the sweeper): that push said it all.
+    if (req.locatedAt) continue;
+    await notifySafety(ctx, phone, checkinSendsLocation(phone.locationMode) ? "noReplyLocating" : "noReplyNoLocation");
+    sent++;
+  }
+  return sent;
 }

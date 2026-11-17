@@ -199,3 +199,55 @@ describe("are you okay?", () => {
     expect(await h.ctx.db.select().from(safetyRequests)).toHaveLength(0);
   });
 });
+
+describe("notifications to the parents", () => {
+  const sub = (c: Awaited<ReturnType<typeof signIn>>) =>
+    c.post("/api/notifications/subscriptions", {
+      platform: "web",
+      endpoint: "https://fcm.googleapis.com/fcm/send/safety",
+      keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) },
+      label: "Chrome on Android",
+    });
+  const titles = () => h.parentPush.sent.map((s) => s.msg.title);
+
+  it("tells the parents about answers, a missed deadline and the position, each once", async () => {
+    const { parent, phoneId, device } = await setup();
+    expect((await sub(parent)).status).toBeLessThan(300);
+
+    const ring = (await parent.post(`/api/phones/${phoneId}/ring`, {})).json.ring;
+    await device.post(`/api/device/safety/${ring.id}`, { event: "here" });
+    await device.post(`/api/device/safety/${ring.id}`, { event: "here" });
+    expect(titles()).toEqual([`Alma: "I'm here"`]);
+
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
+    await sweep(h.ctx);
+    expect(titles()).toHaveLength(1); // not due yet
+    h.clock.advance(5 * 60_000);
+    await sweep(h.ctx);
+    await sweep(h.ctx);
+    expect(titles().slice(1)).toEqual(["No answer from Alma"]);
+    expect(h.parentPush.sent.at(-1)!.msg.body).toBe("The phone is sending its position.");
+    await device.put("/api/device/location", fix(h.clock.now));
+    await device.put("/api/device/location", fix(h.clock.now));
+    expect(titles().slice(2)).toEqual(["Position of Alma"]);
+    expect(h.parentPush.sent.at(-1)!.msg.url).toBe(`/phones/${phoneId}/location`);
+  });
+
+  it("says no position is coming in Find-only mode, and stays quiet after an answer", async () => {
+    const { parent, phoneId, device } = await setup();
+    await sub(parent);
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "find" });
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
+    h.clock.advance(6 * 60_000);
+    await sweep(h.ctx);
+    expect(h.parentPush.sent.at(-1)!.msg.body).toBe('"Are you okay?" was not answered in time.');
+
+    const c = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json.checkin;
+    await device.post(`/api/device/safety/${c.id}`, { event: "ok" });
+    const n = h.parentPush.sent.length;
+    h.clock.advance(6 * 60_000);
+    await sweep(h.ctx);
+    expect(h.parentPush.sent).toHaveLength(n);
+    expect(h.parentPush.sent.at(-1)!.msg.title).toBe(`Alma: "Yes, I'm okay"`);
+  });
+});

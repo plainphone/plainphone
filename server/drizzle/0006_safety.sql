@@ -11,6 +11,7 @@ CREATE TABLE "safety_requests" (
 	"answer" text,
 	"stopped_at" timestamp with time zone,
 	"located_at" timestamp with time zone,
+	"no_reply_notified_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

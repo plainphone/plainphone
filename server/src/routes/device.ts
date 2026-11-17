@@ -17,7 +17,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { rulesDocument } from "../services/phones.js";
-import { checkinLocationDue, loadSafety } from "../services/safety.js";
+import { checkinLocationDue, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 export const PAIRING_MINUTES = 15;
@@ -254,10 +254,12 @@ export function deviceRoutes(ctx: Ctx) {
         .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
     }
     if (forCheckin) {
-      await ctx.db
+      const first = await ctx.db
         .update(safetyRequests)
         .set({ locatedAt: ctx.now() })
-        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)));
+        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)))
+        .returning({ id: safetyRequests.id });
+      if (first.length) await notifySafety(ctx, phone, "located");
     }
     return c.body(null, 204);
   });
@@ -284,10 +286,12 @@ export function deviceRoutes(ctx: Ctx) {
         .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.shownAt)));
     } else {
       // The first answer counts. A late answer is still recorded: the parent wants to know.
-      await ctx.db
+      const first = await ctx.db
         .update(safetyRequests)
         .set({ answeredAt: now, answer: event, shownAt: req.shownAt ?? now })
-        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.answeredAt)));
+        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.answeredAt)))
+        .returning({ id: safetyRequests.id });
+      if (first.length && !req.stoppedAt) await notifySafety(ctx, phone, event);
     }
     return c.body(null, 204);
   });
