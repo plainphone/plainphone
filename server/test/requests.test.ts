@@ -43,6 +43,9 @@ describe("requests from the phone", () => {
     const list = await mum.get(`/api/phones/${phoneId}/requests`);
     expect(list.json.requests).toEqual([expect.objectContaining({ id: r.json.id, appLabel: "Instagram", phoneId })]);
     expect((await mum.get(`/api/phones/${phoneId}`)).json.openRequests).toBe(1);
+    expect((await mum.get("/api/phones")).json.phones).toContainEqual(
+      expect.objectContaining({ id: phoneId, openRequests: 1 }),
+    );
 
     const ok = await mum.post(`/api/phones/${phoneId}/requests/${r.json.id}/approve`, {});
     expect(ok.status).toBe(200);

@@ -40,7 +40,9 @@ phone                                      server                         parent
    (`410` afterwards). Store it in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
-   is the complete truth; there are no deltas.
+   is the complete truth; there are no deltas. A release request changes the ETag, so a
+   phone polling with its previous ETag receives `200` with `release: true`. See the
+   [server benchmark](../server/README.md#measure-the-server-footprint) for polling costs.
 3. **Apps.** Send the full list of launchable apps after pairing and whenever packages change
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are

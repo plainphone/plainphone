@@ -64,6 +64,13 @@
       "when": 1794951135145,
       "tag": "0008_phone_release",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794953137891,
+      "tag": "0009_sweep_indexes",
+      "breakpoints": true
     }
   ]
 }
