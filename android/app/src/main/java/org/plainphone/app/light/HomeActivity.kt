@@ -112,6 +112,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
+            org.plainphone.app.safety.LocationSharingBadge()
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }
             if (install.isNotEmpty()) InstallList(install)
@@ -197,6 +198,7 @@ class HomeActivity : ComponentActivity() {
         /** Strong mode shows a "Today" button only when there is something on it. */
         fun hasContent(context: Context): Boolean {
             val rules = SyncStore(context).rules() ?: return false
+            if (org.plainphone.app.safety.SafetyStore(context).sharingAlways) return true
             return rules.timeLimits != TimeLimits.NONE && !rules.timeLimits.isEmpty || rules.toInstall.isNotEmpty()
         }
     }

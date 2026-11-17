@@ -23,7 +23,23 @@ interface SyncDevice {
     fun location(precise: Boolean): LocationFix?
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
     fun timeUsed(): Map<String, Int>? = null
+
+    // "Ring the phone", "Are you okay?" and the location notices (docs/location.md).
+    // Defaults do nothing, so a device without a screen (tests) needs none of it.
+
+    /** Starts or stops the ring, shows or closes the question, and keeps the location notices current. */
+    fun onSafetyRules(rules: ServerRules) {}
+    /** Answers and "shown" events the server has not heard yet, oldest first. */
+    fun pendingSafetyEvents(): List<SafetyEvent> = emptyList()
+    fun safetyEventDone(event: SafetyEvent) {}
+    /** The child answered this "Are you okay?" on the phone (the server may not know yet). */
+    fun checkInAnswered(id: String): Boolean = false
+    /** A single position went to the parent; the phone says so ([why] is "find" or "checkin"). */
+    fun positionSent(why: String) {}
 }
+
+/** Something the child did with a ring or an "Are you okay?", waiting to be sent. */
+data class SafetyEvent(val requestId: String, val event: String)
 
 data class LockState(
     /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
@@ -103,6 +119,9 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
+        // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
+        guarded("report safety events") { reportSafetyEvents(token) }
+        if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         guarded("report status") { reportStatus(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
@@ -116,25 +135,41 @@ class SyncRunner(
         store.appsHash = hash
     }
 
+    private fun reportSafetyEvents(token: String) {
+        for (e in device.pendingSafetyEvents()) {
+            // Sent, or refused for good (unknown request): either way it is done. Network errors throw and retry later.
+            api.reportSafety(token, e.requestId, e.event)
+            device.safetyEventDone(e)
+        }
+    }
+
     private fun reportLocation(token: String, rules: ServerRules) {
-        if (!rules.locationEnabled) return
+        if (!rules.locationEnabled || rules.locationMode == ServerRules.LOCATION_OFF) return
         val now = device.nowMs()
         val requested = rules.locateRequestedAt?.toEpochMilli()
         // A Find nobody can answer with a fresh fix (indoors, no GPS) is given up after a while,
         // so the phone does not burn its battery on precise attempts every minute.
         val find = requested != null && requested != store.answeredLocateMs && now - requested < FIND_RETRY_MS
-        val due = now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
-        if (!find && !due) return
-        val fix = device.location(precise = find)
+        // "Are you okay?" without an answer by the deadline: one position, once.
+        val c = rules.checkIn
+        val checkIn = c != null && c.sendLocation && now >= c.deadline.toEpochMilli() &&
+            c.id != store.locatedCheckInId && !device.checkInAnswered(c.id)
+        val due = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
+            now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
+        if (!find && !checkIn && !due) return
+        val fix = device.location(precise = find || checkIn)
         if (fix == null) {
             Log.w(TAG, "no position available")
             return
         }
-        api.reportLocation(token, fix)
+        val stored = api.reportLocation(token, fix)
         store.locationAtMs = now
+        if (checkIn) store.locatedCheckInId = c.id
         // Only a fix taken after the parent pressed Find answers it (the server and dashboard
         // compare the same way). An older last-known position is sent, but the phone keeps trying.
         if (find && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
+        // Each single position is shown on the phone; "always" has its own ongoing notice.
+        if (stored && (find || checkIn)) device.positionSent(if (checkIn) "checkin" else "find")
     }
 
     private fun reportStatus(token: String) {

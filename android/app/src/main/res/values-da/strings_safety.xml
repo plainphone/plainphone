@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="safety_channel_ring">Ring telefonen</string>
+    <string name="safety_channel_checkin">Er du okay?</string>
+    <string name="safety_channel_location">Placering delt</string>
+
+    <string name="ring_eyebrow">Fra din forælder</string>
+    <string name="ring_title">Din forælder leder efter dig</string>
+    <string name="ring_body">Tryk på knappen, så din forælder ved, at du har hørt det.</string>
+    <string name="ring_here">Jeg er her</string>
+    <string name="ring_notice">Tryk for at åbne, og tryk så på Jeg er her.</string>
+    <string name="ring_thanks">Tak. Din forælder ved det nu.</string>
+    <string name="ring_keeps_going">Din forælder har bedt om, at lyden fortsætter. Den stopper om %1$s.</string>
+
+    <string name="checkin_eyebrow">Fra din forælder</string>
+    <string name="checkin_title">Er du okay?</string>
+    <string name="checkin_body">Svar gerne inden kl. %1$s.</string>
+    <string name="checkin_body_location">Svar gerne inden kl. %1$s. Svarer du ikke, sendes din placering én gang til din forælder.</string>
+    <string name="checkin_ok">Ja, jeg er okay</string>
+    <string name="checkin_call">Ring til mig</string>
+    <string name="checkin_notice">Svar gerne inden kl. %1$s.</string>
+
+    <string name="location_sent_title">Placering sendt</string>
+    <string name="location_sent_find">Din forælder trykkede Find, og din placering blev sendt kl. %1$s.</string>
+    <string name="location_sent_checkin">Du svarede ikke på ”Er du okay?”, så din placering blev sendt til din forælder kl. %1$s.</string>
+    <string name="location_always_title">Din placering deles med din forælder</string>
+    <string name="location_always_body">Hvert 5. minut, indtil din forælder slår det fra.</string>
+</resources>

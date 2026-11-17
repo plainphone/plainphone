@@ -22,6 +22,10 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- "Ring the phone" (docs/location.md): alarm sound in a foreground service, and vibration. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Phase 4: sync with the parent's dashboard, and the last position for "Find". -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -302,6 +306,31 @@
                 <data android:scheme="mmsto" />
             </intent-filter>
         </service>
+
+        <!-- "Ring the phone" and "Are you okay?" (docs/location.md). -->
+        <service
+            android:name=".safety.RingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <activity
+            android:name=".safety.RingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="org.plainphone.app.safety" />
+        <activity
+            android:name=".safety.CheckInActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:taskAffinity="org.plainphone.app.safety" />
+        <receiver
+            android:name=".safety.SafetyAlarmReceiver"
+            android:exported="false" />
 
         <!-- Light mode: DNS-only VPN (docs/light-mode.md). -->
         <service

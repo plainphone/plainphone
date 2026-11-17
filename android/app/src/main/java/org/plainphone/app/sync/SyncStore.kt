@@ -129,6 +129,11 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         get() = prefs.getLong(KEY_LOCATION_AT, 0L)
         set(v) { prefs.edit().putLong(KEY_LOCATION_AT, v).apply() }
 
+    /** The unanswered "Are you okay?" whose one position was already sent. */
+    var locatedCheckInId: String?
+        get() = prefs.getString(KEY_CHECKIN_LOCATED, null)
+        set(v) { prefs.edit().putString(KEY_CHECKIN_LOCATED, v).apply() }
+
     companion object {
         private const val TAG = "Plainphone"
         const val PREFS = "plainphone_sync"
@@ -147,5 +152,6 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_STATUS_AT = "status_at"
         private const val KEY_LOCATE_ANSWERED = "locate_answered"
         private const val KEY_LOCATION_AT = "location_at"
+        private const val KEY_CHECKIN_LOCATED = "checkin_located"
     }
 }
