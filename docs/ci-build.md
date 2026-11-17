@@ -15,9 +15,10 @@ parallel. Android debug and release checks share one Gradle invocation so they
 can share setup and compilation. The server test and Docker smoke jobs also
 run concurrently, with `pnpm -r build` running in Docker only.
 
-The pnpm cache is scoped to each workspace lockfile. Phone sync installs only
-the server workspace, while the separate Expo workspace uses its own lockfile
-and install. The Docker build uses its own layer cache and runs a frozen install
+The pnpm cache is scoped to each workspace lockfile. The server and web test
+job saves the root store. Phone sync restores it and installs only the server
+workspace, so a partial install cannot populate the shared key. The separate
+Expo workspace uses its own lockfile and install. The Docker build uses its own layer cache and runs a frozen install
 before building either workspace package. The `pnpm deploy --prod` output is
 cached separately from the application source. The image contains its production
 dependencies, compiled server, migrations, catalog and built PWA. It runs as

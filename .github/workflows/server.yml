@@ -68,8 +68,17 @@ jobs:
         if: needs.changes.outputs.server != 'false'
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          package-manager-cache: false
+      - name: Locate the pnpm store
+        id: pnpm-store
+        if: needs.changes.outputs.server != 'false'
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache the root pnpm store
+        if: needs.changes.outputs.server != 'false'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
         if: needs.changes.outputs.server != 'false'
       - name: Typecheck

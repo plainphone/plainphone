@@ -149,8 +149,18 @@ jobs:
         if: needs.changes.outputs.e2e != 'false'
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          package-manager-cache: false
+      - name: Locate the pnpm store
+        id: pnpm-store
+        if: needs.changes.outputs.e2e != 'false'
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # The full workspace test owns this key. A filtered install would save a partial store.
+      - name: Restore the root pnpm store
+        if: needs.changes.outputs.e2e != 'false'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm --filter @plainphone/server install --frozen-lockfile
         if: needs.changes.outputs.e2e != 'false'
       - uses: actions/setup-java@v6
