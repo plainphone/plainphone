@@ -91,7 +91,7 @@ export function Shell() {
           </nav>
         )}
       </header>
-      <main id="main" className="wrap">
+      <main id="main" className="wrap" tabIndex={-1}>
         <Outlet />
       </main>
       <footer className="wrap site-footer">

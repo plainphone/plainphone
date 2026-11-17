@@ -40,7 +40,7 @@ export function PhonesPage() {
 
   return (
     <>
-      <div className="title-row">
+      <div className="title-row phones-heading">
         <PageTitle>{t("phones.title")}</PageTitle>
         {res.data && res.data.length > 0 && (
           <Link to="/add" className="btn btn-primary">
@@ -74,11 +74,13 @@ export function PhonesPage() {
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
-                        <span>
-                          {phone.lastSeenAt
-                            ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                            : t("phones.neverSeen")}
-                        </span>
+                        {phone.pairedAt && (
+                          <span>
+                            {phone.lastSeenAt
+                              ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
+                              : t("phones.neverSeen")}
+                          </span>
+                        )}
                       </span>
                       {pending > 0 && (
                         <span className="row-pending">

@@ -403,18 +403,11 @@ export function PhoneOverview() {
 
       {phone.openRequests > 0 && <RequestsSection />}
 
-      <PhoneStatusBlock phone={phone} now={now} />
-
-      {(phone.profile === "self" || pending.length > 0) && (
-        <section className="section" aria-labelledby="pending-h">
-          <h2 id="pending-h">{t("phone.pendingTitle")}</h2>
-          <PendingList />
-        </section>
-      )}
+      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
 
       <section className="section" aria-labelledby="rules-h">
         <h2 id="rules-h">{t("phone.rules")}</h2>
-        <ul className="list nav-list">
+        <ul className="list phone-rules">
           {items.map((i) => (
             <li key={i.to}>
               <Link to={`${base}/${i.to}`} className="row-link">
@@ -437,6 +430,15 @@ export function PhoneOverview() {
           </li>
         </ul>
       </section>
+
+      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
+
+      {(phone.profile === "self" || pending.length > 0) && (
+        <section className="section" aria-labelledby="pending-h">
+          <h2 id="pending-h">{t("phone.pendingTitle")}</h2>
+          <PendingList />
+        </section>
+      )}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <ManagePhone />

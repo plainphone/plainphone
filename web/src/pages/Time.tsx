@@ -185,8 +185,8 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
         <h2 id="total-h">{t("time.totalTitle")}</h2>
         {waiting.has(TOTAL) && <WaitingTag />}
       </div>
-      <form className="form-card stack" onSubmit={(e) => void save(e)}>
-        {current && <UsedToday used={limits.used?.[TOTAL]} allowed={allowedToday} t={t} />}
+      {current && <UsedToday used={limits.used?.[TOTAL]} allowed={allowedToday} t={t} />}
+      <form className="form-card stack time-total-form" onSubmit={(e) => void save(e)}>
         <Switch
           label={t("time.totalSwitch")}
           description={on ? undefined : t("time.totalOff")}
