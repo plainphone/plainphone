@@ -274,6 +274,19 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a phone removed during an unfinished release is locked again with its last rules`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        device.releaseResults = listOf(StepResult("give up Device Owner", false, "refused"))
+        runner.run("release")
+        assertThat(store.releaseAsked).isTrue()
+        api.rules = RulesResult.Unpaired
+        assertThat(runner.run("removed")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(store.releaseAsked).isFalse()
+        assertThat(device.applies).isNotEmpty()
+    }
+
+    @Test
     fun `without release in the rules nothing is released, also from an older server`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson())
