@@ -2,7 +2,8 @@
 # The hosted service (app.plainphone.org) on Dokploy. Dokploy adds the Traefik
 # route for the domain set in its UI and backs up the db service to object storage.
 # Environment (set in Dokploy, never in git): POSTGRES_PASSWORD, PUBLIC_URL,
-# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN.
+# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN,
+# GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET.
 services:
   db:
     image: postgres:18
@@ -41,6 +42,8 @@ services:
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: dns.plainphone.org
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       # Traefik sits in front, so X-Forwarded-For is trustworthy here.
       TRUST_PROXY: "true"
     expose:

@@ -38,6 +38,7 @@ pairing QR code.
 | `PAYMENTS_ENABLED` | `false` | Pay to unlock (not implemented yet) |
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | | Optional. A Google OAuth client of type "Web application" for "Protect against reset" (factory reset protection with the parent's Google account). Create it in the Google Cloud console under Google Auth Platform → Clients, with the redirect URI `<PUBLIC_URL>/api/reset-protection/google/callback`. Only the `openid` scope is used, so the consent screen can be published without Google's verification. The server stores only the numeric account ID. Without it the dashboard says the feature is not set up |
 | `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |
 
 ## Backups

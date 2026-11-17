@@ -17,7 +17,7 @@ Record each result in the table at the bottom of a copy of this file, with the p
 | A7 | Install via a web app / "Add to home screen" | Allowed: a web shortcut is not an app. The DNS filter is what stops harmful sites | Add a site to the home screen, note what it is |
 | A8 | Re-enable a hidden app from Settings → Apps | The app is not listed, or cannot be enabled | Search Settings → Apps for YouTube |
 | A9 | Open a hidden app by a link (for example `youtube.com` opening the YouTube app) | Opens in Chrome or not at all, never in the hidden app | Tap a YouTube link in Messages |
-| A10 | App cloning (Samsung Dual Messenger, Xiaomi Dual apps) | Not available | Settings → Advanced features → Dual Messenger (Samsung); Settings → Apps → Dual apps (Xiaomi) |
+| A10 | App cloning (Samsung Dual Messenger, Xiaomi Dual apps, OnePlus Parallel Apps) | Not available. If a phone still creates a clone (an extra Android user, often 999), the step `extra users and profiles` removes it at the next lock check (at the latest 15 minutes) or reports it as failed | Settings → Advanced features → Dual Messenger (Samsung); Settings → Apps → Dual apps (Xiaomi) |
 
 ## Resetting and removing Plainphone
 
@@ -25,10 +25,10 @@ Record each result in the table at the bottom of a copy of this file, with the p
 |---|---|---|---|
 | R1 | Factory reset from Settings | Option is greyed out or refused | Settings → System → Reset options |
 | R2 | Uninstall Plainphone | Not possible | Long-press the icon; Settings → Apps → Plainphone |
-| R3 | Disable or force-stop Plainphone | Disable is not offered. Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
+| R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
 | R4 | Remove Plainphone as device admin | Not offered | Settings → Security → Device admin apps |
 | R5 | Recovery reset (Power + Volume up at boot) | **Cannot be blocked.** The reset works. Afterwards: with FRP accounts or a previous Google account on the phone, it asks for that account; without one, the phone is free | Test once at the end. Note what the phone asks for after the reset |
-| R6 | Samsung Find My Mobile / Google Find My Device remote erase | Works if the child knows an account on the phone. Then as R5 | Only if an account is signed in |
+| R6 | Samsung Find My Mobile / Google Find My Device remote erase | Works if the child knows an account on the phone. Then as R5. Since 0.1.4 no account can be added or removed (`DISALLOW_MODIFY_ACCOUNTS`): Settings → Accounts → Add account says it is blocked by the admin, and it works again during a maintenance unlock | Only if an account is signed in |
 | R7 | Clear Plainphone's data | Not offered for a Device Owner | Settings → Apps → Plainphone → Storage |
 | R8 | Reset app preferences / reset network settings | App preferences can be reset but do not show hidden apps. Network reset is blocked | Settings → System → Reset options |
 
@@ -86,7 +86,7 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | C10 | SMS with a link from an approved contact | The link opens in Chrome and the DNS filter applies | Send `https://` link to a blocked site |
 | C11 | Messenger apps (WhatsApp, Signal, Telegram) | Hidden by default. If a parent allows one, calls and chats in it are **not** covered by the list (documented). Note whether its in-app browser is filtered | Look for them; if allowed, call through them |
 | C12 | Google Messages "Messages for web" / RCS | Google Messages is hidden once Plainphone is the SMS app and is not the SMS app, so it cannot send or pair with the web | Look for Messages; go to messages.google.com/web on a PC |
-| C13 | Make another app the default phone or SMS app | Not allowed (`DISALLOW_CONFIG_DEFAULT_APPS`): the setting is greyed out or says "blocked by your admin". If a phone ignores it, Plainphone takes the roles back at the next reboot or when it is opened. **Android 10 to 13:** the restriction does not exist, so picking the built-in dialer works, and **calls are then unfiltered** until Plainphone is the phone app again (known gap). Expected: only the built-in dialer can be picked, the status screen and the dashboard show `default phone app` as failed within 15 minutes, and Plainphone asks again when opened (see [android-versions.md](android-versions.md)) | Settings → Apps → Default apps |
+| C13 | Make another app the default phone or SMS app | Not allowed (`DISALLOW_CONFIG_DEFAULT_APPS`): the setting is greyed out or says "blocked by your admin". If a phone ignores it, Plainphone takes the roles back at the next reboot or when it is opened. **Android 10 to 13:** the restriction does not exist, so picking the built-in dialer works, and **calls are then unfiltered** until Plainphone is the phone app again (known gap). Expected: only the built-in dialer can be picked, the status screen and the dashboard show `default phone app` as failed within 15 minutes, and Plainphone asks again when opened (see [android-versions.md](android-versions.md)). **Since 0.1.4:** with the call screening and redirection roles held, calls to and from numbers that are not approved are still stopped after the switch (except incoming calls with a hidden number), and the dashboard shows the switch within about a minute | Settings → Apps → Default apps |
 | C14 | MMS / group message from an approved contact | Dropped in phase 2 (documented). Note what the sender sees | Send a picture or a group message |
 | C15 | Reply with a message from the incoming-call screen | Only sent if the caller is approved | Decline a call from an approved number with a quick reply |
 | C16 | Voicemail | The voicemail number is blocked unless added as a contact (documented). Note whether missed calls from unknown numbers still reach voicemail | Call from the second phone, check the carrier's voicemail |
@@ -120,7 +120,7 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | X1 | GetApps, Mi Browser, Themes, Games | Hidden | App drawer |
 | X2 | "Install via USB" with a Mi account | Blocked | Developer options are blocked anyway |
 | X3 | Xiaomi security app "Hidden apps" / App lock | Cannot show apps hidden by Plainphone | Security app |
-| X4 | Battery saver kills Plainphone | The lock stays (it lives in the system). Maintenance unlock may not re-lock on time if the alarm is delayed; it always re-locks at the next reboot | Lift the lock, lock the screen for 40 minutes, check |
+| X4 | Battery saver kills Plainphone | The lock stays (it lives in the system). Android 11+: Plainphone is exempt from App Standby (`setUserControlDisabledPackages`), so the re-lock should come on time. Android 10: a maintenance unlock may not re-lock on time if the alarm is delayed; it always re-locks at the next reboot | Lift the lock, lock the screen for 40 minutes, check |
 
 ## Maintenance screen
 

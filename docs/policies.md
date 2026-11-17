@@ -30,6 +30,8 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
 ## Phone and SMS (phase 2)
@@ -45,7 +47,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
-`DISALLOW_MODIFY_ACCOUNTS` is **not** set in phase 1, because a Google account may be needed for Play Store installs (see R2 in the phase 1 report). It is a candidate for later.
+`DISALLOW_MODIFY_ACCOUNTS` is set since 0.1.4 (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock. Which account types are on the phone (types only, no names) is reported to the dashboard.
 
 ## Other policies
 
@@ -54,7 +56,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 | `setGlobalPrivateDnsModeSpecifiedHost` | Forces DNS-over-TLS to `family.adguard-dns.com` (phase 1 placeholder; phase 2 uses Plainphone's own resolver). The call checks that the host answers, so it fails while the phone is offline and is retried later. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setGlobalPrivateDnsModeSpecifiedHost(android.content.ComponentName,%20java.lang.String)) |
 | `setApplicationHidden` | Hides every launchable app that is not allowed. Hidden apps behave as if uninstalled and cannot be opened. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setApplicationHidden(android.content.ComponentName,%20java.lang.String,%20boolean)) |
 | `setApplicationRestrictions` (Chrome) | `DnsOverHttpsMode=off`, `IncognitoModeAvailability=1`, `ForceGoogleSafeSearch`, `ForceYouTubeRestrict=2` | [Chrome policy list](https://chromeenterprise.google/policies/) |
-| `setFactoryResetProtectionPolicy` | Only set when Google account IDs are given in the QR code (see below) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setFactoryResetProtectionPolicy(android.content.ComponentName,%20android.app.admin.FactoryResetProtectionPolicy)) |
+| `setFactoryResetProtectionPolicy` (Android 11+), Play services' `factoryResetProtectionAdmin` managed configuration (Android 10) | The parent's Google account IDs, from "Protect against reset" in the dashboard or from the QR code. Followed by the broadcast `com.google.android.gms.auth.FRP_CONFIG_CHANGED` to Play services. See "Factory reset protection" below | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
 | `setUninstallBlocked` | Plainphone cannot be uninstalled | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUninstallBlocked(android.content.ComponentName,%20java.lang.String,%20boolean)) |
 
 ### Which apps stay visible
@@ -72,6 +74,48 @@ phone syncs is in [phone-sync.md](phone-sync.md).
 | `setGlobalPrivateDnsModeSpecifiedHost` | Switches to the phone's own `<id>.dns.plainphone.org` only when the server says the DNS service has accepted the ID (`dns.ready`). | see above |
 | `setPermissionGrantState` (location) | Fine, coarse and background location for Plainphone, only while the parent has location on | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | `setLocationEnabled` + `DISALLOW_CONFIG_LOCATION` | Location on and locked on while the parent has location on; the restriction is lifted when it is turned off | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setLocationEnabled(android.content.ComponentName,%20boolean)) |
+
+## Hardening (0.1.4, [Hardening.kt](../android/app/src/main/java/org/plainphone/app/Hardening.kt))
+
+Each is its own status step, so the parent sees exactly what held.
+
+| Step | What it does | Android | Reference |
+|---|---|---|---|
+| `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails only when an account is set and cannot be applied | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
+| `accounts on the phone` | Lists account types (`com.google`, a maker's account), no names | all | |
+| `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, so the re-lock and the sync are not delayed by battery savers | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Fails while one is left. Reports counts only | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
+| `call screening role`, `call redirection role`, `contacts permission for call screening` | A second layer for calls on Android 10 to 13, see [android-versions.md](android-versions.md). Fails until the role dialog is accepted on the phone | 10-13 | [link](https://developer.android.com/reference/android/telecom/CallRedirectionService) |
+| `no lock screen widgets` | `KEYGUARD_DISABLE_WIDGETS_ALL`; the lock screen camera stays | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setKeyguardDisabledFeatures(android.content.ComponentName,%20int)) |
+| `only built-in keyboards` | `setPermittedInputMethods(empty)`: only keyboards that came with the phone. Fails if a keyboard from an app is enabled | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedInputMethods(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+| `only built-in accessibility services` | `setPermittedAccessibilityServices(empty)`: TalkBack and other built-in services keep working | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedAccessibilityServices(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+
+Releasing Device Owner undoes all of them.
+
+## Factory reset protection
+
+A reset from recovery mode cannot be blocked by any app. What protects the phone afterwards is FRP:
+Android's setup asks for a Google account before the phone can be used.
+
+- **The parent's account.** In the dashboard, Household → "Protect against reset", a parent signs in with
+  Google (scope `openid` only). The server keeps only the numeric account ID (the OpenID Connect `sub`),
+  no email address, and sends it to every phone in the household in the rules (`resetProtection.accountIds`).
+  Each parent in the household can add their own account. A parent who leaves the household stops
+  protecting the phones at the next sync. Removing the account clears the policy at the next sync.
+- **On the phone:** Android 11+ uses `setFactoryResetProtectionPolicy`; Android 10 uses the legacy path Google
+  documents, the managed configuration `factoryResetProtectionAdmin` of `com.google.android.gms`. Both are
+  followed by the broadcast `FRP_CONFIG_CHANGED`, which Play services needs to pick up the change.
+- **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard shows
+  "Protects from" the time the account was linked plus 72 hours.
+- **Assumption to verify on hardware:** that the OpenID Connect `sub` is the same number as the People API
+  ID that FRP expects (both are the Google account ID). The FRP test in the 0.1.4 report checks it.
+- **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
+- **OEM unlocking** switches FRP off. It is greyed out by `DISALLOW_FACTORY_RESET` and developer options are
+  blocked, but a phone that arrives with an unlocked bootloader has no FRP.
+- **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** the FRP policy does not need the parent's account to be
+  on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
+  accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
+  maintenance unlock.
 
 ## What Android does not let us block
 

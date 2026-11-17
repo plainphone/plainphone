@@ -29,7 +29,9 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 | App cloning blocked (`no_add_clone_profile`) | yes | not blocked by Plainphone: the AOSP clone profile came with Android 14, but maker features such as Samsung Dual Messenger and Xiaomi Dual apps exist on older versions. Test them with the bypass checklist | same | same |
 | Private space blocked | Android 15+ | not available (no private space) | same | same |
 | Automatic date, time and time zone required | yes | yes | yes | only automatic time (`setAutoTimeRequired`); manual changes are still blocked by `DISALLOW_CONFIG_DATE_TIME` |
-| Factory reset protection with chosen Google accounts | yes | yes | yes | no: Android's normal FRP applies |
+| Factory reset protection with chosen Google accounts | yes | yes | yes | yes, through Play services' managed configuration `factoryResetProtectionAdmin` (0.1.4; not yet tested on hardware) |
+| Force stop of Plainphone blocked (`setUserControlDisabledPackages`) | yes | yes | yes | no: Force stop works, the lock stays |
+| Second layer for calls (call screening and call redirection roles) | not needed (phone app locked) | yes, two extra role dialogs | same | same |
 | Location on for "Find" | `setLocationEnabled` | same | same | `LOCATION_MODE` through `setSecureSetting` |
 | One position for "Find" | `getCurrentLocation` with a quality request | same | `getCurrentLocation` without a request | `requestSingleUpdate` |
 | Call notification with answer and decline | call style | call style | plain notification with two buttons | same |
@@ -56,6 +58,23 @@ next lock check (at the latest within 15 minutes, and every time Plainphone is o
 `default phone app` as failed, the dashboard shows the lock as not intact, and Plainphone asks again
 when it is opened. SMS is not affected: no other SMS app can be chosen. Bypass checklist row C13
 covers this test. For a child who will try this, use a phone with Android 14 or newer.
+
+**The second layer (0.1.4, #24).** On Android 10 to 13 Plainphone also asks for two more roles with
+Android's dialog, right after the phone app: **call screening** (`ROLE_CALL_SCREENING`) and **call
+redirection** (`ROLE_CALL_REDIRECTION`). Telecom uses them whichever app is the phone app, so after a
+switch to the built-in dialer:
+
+- incoming calls from numbers that are not approved are still rejected, except calls with a hidden or
+  unknown caller ID: Android does not pass those to a screening app that is not the phone app, so they
+  ring until Plainphone is the phone app again;
+- outgoing calls to numbers that are not approved are cancelled before they start. Telecom never passes
+  emergency calls to call redirection, and emergency numbers are always allowed;
+- Plainphone gets the contacts permission (granted by Device Owner, it never reads contacts itself):
+  without it Android skips screening for numbers saved in the phone's contacts.
+
+Plainphone also listens for `ACTION_DEFAULT_DIALER_CHANGED` while it runs. A switch re-checks the lock at
+once and reports it to the dashboard within about a minute instead of 15. Both roles can also be changed
+under Settings → Default apps, so a child has to change three settings; each shows as a failed step.
 
 ## Not yet tested on a real phone
 
