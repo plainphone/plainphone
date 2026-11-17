@@ -11,7 +11,7 @@ it("shows the system check's own date even after a newer phone sync", () => {
   const phone: Phone = {
     id: "phone", name: "Test", profile: "child", mode: "strong", timezone: "UTC", locationEnabled: false,
     pairedAt: "2026-11-16T10:00:00Z", lastSeenAt: new Date(now).toISOString(), dnsHost: "", dnsSynced: false,
-    dnsReady: false, hasLocation: false, openRequests: 0, offlineAlertHours: null, offlineAlertHoursDefault: 48,
+    dnsReady: false, hasLocation: false, openRequests: 0, offlineAlertHours: null, offlineAlertHoursDefault: 48, releaseRequestedAt: null,
     status: {
       appVersion: "1.0", batteryPct: null, charging: false, deviceOwner: true, lockIntact: true,
       maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,

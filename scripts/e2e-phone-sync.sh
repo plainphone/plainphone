@@ -47,7 +47,7 @@ PLAINPHONE_E2E="$fixture" ./gradlew --no-daemon testDebugUnitTest \
 
 # The test is skipped (not failed) without PLAINPHONE_E2E, so make sure it really ran.
 report="app/build/test-results/testDebugUnitTest/TEST-org.plainphone.app.sync.PhoneSyncContractTest.xml"
-grep -q 'tests="2" skipped="0" failures="0" errors="0"' "$report" || {
+grep -q 'tests="3" skipped="0" failures="0" errors="0"' "$report" || {
   echo "PhoneSyncContractTest did not run cleanly:" >&2
   head -c 4000 "$report" >&2
   exit 1

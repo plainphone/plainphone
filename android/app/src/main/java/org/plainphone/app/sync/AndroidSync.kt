@@ -37,6 +37,7 @@ import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.PrefsHiddenAppsStore
+import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
 
 /** Entry points for the rest of the app. */
@@ -83,6 +84,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 
     override fun lockState(): LockState = Lock.lockState(context)
+
+    override fun release(): List<StepResult> = Lock.releaseNow(context)
 
     override fun battery(): Pair<Int?, Boolean?> {
         val bm = context.getSystemService(BatteryManager::class.java) ?: return null to null
@@ -299,6 +302,8 @@ object SyncScheduler {
 
     /** Pairs in the background with the QR code's enrollment token, if one is waiting. */
     fun enrollIfNeeded(context: Context) {
+        // Light setup redeems in the foreground after Android permissions are granted.
+        if (org.plainphone.app.light.Mode.isLight(context)) return
         val store = SyncStore(context)
         if (store.isPaired || store.enrollToken() == null) return
         val request = OneTimeWorkRequestBuilder<EnrollWorker>()

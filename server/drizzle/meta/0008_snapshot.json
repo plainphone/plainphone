@@ -1,5 +1,5 @@
 {
-  "id": "c87c7c72-2305-426a-92a6-19aeb5b248af",
+  "id": "cdd0ec6a-eeef-4ccd-953a-bca636c8d1c0",
   "prevId": "77bf788e-2ab5-476f-a09a-b33dbb9c343f",
   "version": "7",
   "dialect": "postgresql",
@@ -287,79 +287,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.frp_accounts": {
-      "name": "frp_accounts",
-      "schema": "",
-      "columns": {
-        "household_id": {
-          "name": "household_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_account_id": {
-          "name": "google_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "frp_accounts_household_id_households_id_fk": {
-          "name": "frp_accounts_household_id_households_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "frp_accounts_user_id_users_id_fk": {
-          "name": "frp_accounts_user_id_users_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "frp_accounts_household_id_user_id_pk": {
-          "name": "frp_accounts_household_id_user_id_pk",
-          "columns": [
-            "household_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1395,6 +1322,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "release_requested_at": {
+          "name": "release_requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_seen_at": {
           "name": "last_seen_at",
           "type": "timestamp with time zone",
@@ -1409,18 +1342,6 @@
         },
         "status_reported_at": {
           "name": "status_reported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attestation": {
-          "name": "attestation",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attested_at": {
-          "name": "attested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

@@ -74,9 +74,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Pair with the setup token from a dashboard QR code (phone)
-         * @description A provisioning QR code made in the dashboard carries a one-time enrollment token
-         *     (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+         * Pair with a dashboard setup token (phone)
+         * @description A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
+         *     setup link carries a one-time enrollment token. After setup the phone sends it here and gets
          *     its device token, with no code to type. The token is bound to the phone entry the parent made,
          *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
          *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
@@ -181,6 +181,30 @@ export interface paths {
          */
         put: operations["putDeviceStatus"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/released": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tell the server Plainphone is switched off (phone)
+         * @description Sent by the phone after it has switched Plainphone off because the rules said
+         *     `release: true`. The server deletes the phone and its DNS client, so the device token is
+         *     unknown from then on (401, which the phone reads as "removed"). Answers 409 when nobody
+         *     asked for a release. Send it again after a network error; 401 on a retry means it
+         *     already went through. See docs/sync-api.md.
+         */
+        post: operations["postDeviceReleased"];
         delete?: never;
         options?: never;
         head?: never;
@@ -659,10 +683,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add a phone for setup with a provisioning QR code
+         * Add a phone for setup from the dashboard
          * @description Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
-         *     token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
-         *     token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+         *     token, valid 24 hours. The browser builds a provisioning QR code in strong mode or a
+         *     download and setup link in light mode from `provisioning`, the token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
          *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
          *     its hash never reach the server. Rate limited to 30 per day per user.
          */
@@ -710,7 +734,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a phone
-         * @description Removes the phone, its rules and its DNS client. The device token stops working; the lock on the phone stays until released there. On a Self phone removal goes through the key.
+         * @description Removes the phone, its rules and its DNS client. The device token stops working; the lock on the phone stays until released there (to switch it off from the dashboard, use `POST /phones/{pid}/release` instead). On a Self phone removal goes through the key.
          */
         delete: operations["deletePhone"];
         options?: never;
@@ -720,6 +744,33 @@ export interface paths {
          * @description Turning location off deletes the stored position.
          */
         patch: operations["updatePhone"];
+        trace?: never;
+    };
+    "/phones/{pid}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release the phone
+         * @description Switches Plainphone off on the phone, with the same effect as the maintenance screen's
+         *     "Release Device Owner" (strong mode) or light mode's "Switch Plainphone off": the lock and
+         *     the filters stop, and Plainphone is an ordinary app that can be uninstalled. The phone is
+         *     told in its rules (`release: true`), does it the next time it is online, and then
+         *     disappears from the dashboard. Until then `releaseRequestedAt` is set on the phone. On a
+         *     Self phone this goes through the key. A phone that never paired answers 400: remove it instead.
+         */
+        post: operations["postPhoneRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/phones/{pid}/apps": {
@@ -1566,6 +1617,9 @@ export interface components {
             dnsClientId?: string;
         } | {
             /** @constant */
+            type?: "phone.release";
+        } | {
+            /** @constant */
             type?: "timeLimit.set";
             packageName?: components["schemas"]["LimitTarget"];
             limit?: components["schemas"]["Limit"] | null;
@@ -1876,6 +1930,13 @@ export interface components {
                 accountIds?: string[];
             };
             /**
+             * @description True once the parents have released the phone. The phone then switches Plainphone off
+             *     (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
+             *     Plainphone off"), never locks again, and calls `POST /device/released`. An older
+             *     server without this field means false.
+             */
+            release: boolean;
+            /**
              * @description Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
              * @example 60
              */
@@ -1966,6 +2027,11 @@ export interface components {
             locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
+            /**
+             * Format: date-time
+             * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
+             */
+            releaseRequestedAt?: string | null;
             /** Format: date-time */
             lastSeenAt?: string | null;
             dnsHost?: string;
@@ -2454,6 +2520,26 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["Error"];
+        };
+    };
+    postDeviceReleased: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The phone is deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     getDeviceRequests: {
@@ -3306,6 +3392,11 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
+                    /**
+                     * @default strong
+                     * @enum {string}
+                     */
+                    mode?: "strong" | "light";
                     /** @enum {unknown} */
                     profile: "child" | "self";
                     /** Format: uuid */
@@ -3435,6 +3526,22 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    postPhoneRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            400: components["responses"]["Error"];
         };
     };
     getPhonesApps: {

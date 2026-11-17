@@ -5,6 +5,7 @@ package org.plainphone.app.sync
 import android.util.Log
 import java.io.IOException
 import java.security.MessageDigest
+import org.plainphone.app.StepResult
 
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
@@ -19,6 +20,12 @@ interface SyncDevice {
     fun applyLockIfNeeded(reason: String, maxAgeMs: Long)
     fun lockState(): LockState
     fun battery(): Pair<Int?, Boolean?>
+    /**
+     * Switches Plainphone off for good, as the maintenance screen's release does (strong mode:
+     * Device Owner given up; light mode: device admin, VPN and guard off), after cancelling any
+     * relock. Blocking. Every step that did not hold is in the list as a failure.
+     */
+    fun release(): List<StepResult>
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean): LocationFix?
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
@@ -88,12 +95,18 @@ class SyncRunner(
         if (store.removed) return Outcome.Removed
         val token = store.deviceToken() ?: return Outcome.NotPaired
 
+        // Released already: Plainphone is off, so the lock is never applied again. Only the
+        // server still has to be told (it may have been unreachable the last time).
+        if (store.released) acknowledgeRelease(token)?.let { return it }
+
         // Apps first: a newly installed app then shows up (hidden) in the rules fetched right after.
         guarded("report apps") { reportApps(token) }
 
         val result = try {
             api.fetchRules(token, store.etag)
         } catch (e: IOException) {
+            // A release that did not finish last time is finished offline too.
+            releaseIfAsked(token)?.let { return it }
             // Offline or server trouble: keep enforcing the last rules (schedules still advance).
             device.applyLockIfNeeded("sync failed, last rules", APPLY_MAX_AGE_MS)
             return Outcome.Failed(e.message ?: e.javaClass.simpleName)
@@ -104,6 +117,7 @@ class SyncRunner(
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "rules from the server do not parse; keeping the last good ones", e)
+                releaseIfAsked(token)?.let { return it }
                 device.applyLockIfNeeded("bad rules, last rules", APPLY_MAX_AGE_MS)
                 return Outcome.Failed("rules do not parse: ${e.message}")
             }
@@ -121,6 +135,9 @@ class SyncRunner(
             }
         }
 
+        // Before the lock: a released phone must never be locked again.
+        releaseIfAsked(token)?.let { return it }
+
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
@@ -129,6 +146,48 @@ class SyncRunner(
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         guarded("report status") { reportStatus(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
+    }
+
+    /**
+     * The parents released the phone (`release` in the rules). Switches Plainphone off, remembers it,
+     * and tells the server. Returns null when no release was asked for. A release that did not hold
+     * is not acknowledged (the parent keeps seeing "Releasing") and is tried again at the next sync;
+     * nothing is reported to the parent meanwhile, since they asked for the protection to go.
+     */
+    private fun releaseIfAsked(token: String): Outcome? {
+        if (!store.releaseAsked) return null
+        val results = try {
+            device.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "release crashed", e)
+            listOf(StepResult("release", false, "${e.javaClass.simpleName}: ${e.message}"))
+        }
+        val failed = results.filterNot { it.ok }
+        if (failed.isNotEmpty()) {
+            Log.w(TAG, "release did not hold, trying again at the next sync: ${failed.joinToString()}")
+            return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
+        }
+        store.markReleased()
+        return acknowledgeRelease(token) ?: Outcome.Failed("the server says nobody asked for a release")
+    }
+
+    /**
+     * Tells the server Plainphone is off. Done, or a phone the server no longer knows, ends the sync
+     * as [Outcome.Removed]. A network error keeps the release for the next sync. Null means the server
+     * says nobody asked for a release: the release is forgotten and the sync goes on with the real rules.
+     */
+    private fun acknowledgeRelease(token: String): Outcome? {
+        val done = try {
+            api.ackReleased(token)
+        } catch (e: IOException) {
+            return Outcome.Failed("release not acknowledged yet: ${e.message ?: e.javaClass.simpleName}")
+        }
+        if (done) {
+            store.markRemoved()
+            return Outcome.Removed
+        }
+        store.clearReleased()
+        return null
     }
 
     private fun reportApps(token: String) {

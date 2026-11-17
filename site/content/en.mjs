@@ -41,12 +41,12 @@ export default {
     title: "How it works",
     steps: [
       {
-        title: "Reset the phone",
-        body: "An Android phone with Android 10 or newer (see tested phones below). Setup erases it, so save what you want to keep first.",
+        title: "Choose how to set up",
+        body: "An Android phone with Android 10 or newer (see tested phones below). You can set up a phone already in use without erasing it.",
       },
       {
-        title: "Scan a QR code",
-        body: "Tap six times on the welcome screen and scan the code. The phone installs Plainphone and locks itself before it is ever used.",
+        title: "Install and connect",
+        body: "On a phone already in use, open the setup link, install Plainphone and follow the prompts. On a new or reset phone, tap the welcome screen six times and scan the setup code.",
       },
       {
         title: "Choose the rules",
@@ -379,46 +379,36 @@ export default {
   setup: {
     path: "/setup/",
     title: "Set up a phone: Plainphone",
-    description:
-      "How to set up a phone with Plainphone: choose a PIN in the dashboard, scan a QR code on the reset phone, and let the phone lock itself. About ten minutes.",
     h1: "Set up a phone",
-    lead:
-      "You set up a phone with a QR code from the dashboard. It takes about ten minutes, and you need no computer.",
-    needTitle: "What you need",
-    need: [
-      "An Android phone with Android 10 or newer that you may reset. Setup erases everything on it, so save what you want to keep first. The version is under Settings → About phone.",
-      "Wi-Fi without a login page. Hotel and school networks that ask you to sign in do not work during setup.",
-      "About ten minutes.",
-      "The dashboard open on another device, such as your own phone or a computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    description: "Set up Plainphone on a new Android phone or one already in use, with a private setup code from your dashboard.",
+    lead: "You need an Android 10 or newer phone and the dashboard open on a second device.",
+    question: "Is the phone new or already in use?",
+    strong: "It is new or reset",
+    strongHelp: "Recommended. Plainphone can protect more settings on a fresh phone.",
+    light: "It is already in use",
+    lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
+    startStrong: "Start setup for a new or reset phone",
+    startLight: "Start setup for a phone in use",
+    start: "In the dashboard, say who the phone is for and create a setup link.",
+    strongTitle: "New or reset phone",
+    lightTitle: "Phone already in use",
+    lightSteps: [
+      ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
+      ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
+      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address, then choose a parent PIN of 6 to 12 digits and enter it twice on the phone. Follow the prompts until the phone has received your rules.", "permissions"],
     ],
-    stepsTitle: "Step by step",
+    lightHelpItems: [
+      ["Android says a setting is restricted", "In Plainphone, open the help below the guard step. From App info, tap the three dots and pick Allow restricted settings. Return to Plainphone and try again. The guard closes apps you haven’t allowed."],
+      ["Android asks to start a VPN connection", "Tap OK. That is how Plainphone checks web addresses against your web filter."],
+      ["I opened the app from the installer", "Go back to Chrome and tap Open Plainphone on the setup page. If you already entered a PIN on the phone, use that same PIN in the dashboard."],
+    ],
+    nextTitle: "Once the phone is connected",
+    next: "In the dashboard, add contacts, choose apps from the catalog or set school hours.",
     steps: [
-      {
-        title: "Add the phone",
-        body: [
-          "In the dashboard, choose <strong>Add phone</strong>. Say who the phone is for, a child or yourself, and give it a name. Only you see the name.",
-        ],
-        fig: "who",
-      },
-      {
-        title: "Choose a maintenance PIN",
-        body: [
-          "Choose a PIN of at least 6 digits and type it twice. It opens a hidden maintenance screen on the phone: tap <strong>Version</strong> 7 times, then enter the PIN. Keep it somewhere safe, because Plainphone cannot show it again.",
-          "The PIN never leaves your browser. Only a scrambled (hashed) copy goes into the QR code.",
-        ],
-        fig: "pin",
-      },
-      {
-        title: "Show the QR code",
-        body: [
-          "The dashboard now shows a QR code. It works once, and for 24 hours. Do not share it, and keep the page open.",
-        ],
-        fig: "qr",
-      },
       {
         title: "Reset the phone",
         body: [
-          "Factory reset the phone: Settings → System → Reset → Erase all data. Or use a new phone. Wait until the welcome screen appears.",
+          "On a phone you need to reset, back up anything you want to keep, then choose Settings → System → Reset → Erase all data. Wait until the welcome screen appears.",
           "The menu names differ a little between brands. If a Google account is on the phone, remove it first (Settings → Accounts), or the phone asks for it after the reset.",
         ],
         fig: "reset",
@@ -433,7 +423,7 @@ export default {
       {
         title: "Scan the QR code",
         body: [
-          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, makes it the device owner and locks itself.",
+          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, applies the lock before you start using the phone.",
           "If the phone says it will be managed by an organisation, that is Plainphone. Accept: it is how the lock works.",
         ],
         fig: "scan",
@@ -446,19 +436,11 @@ export default {
         ],
         fig: "dialog",
       },
-      {
-        title: "Done",
-        body: [
-          "The phone connects to the dashboard by itself. There is no code to type. When it is connected, the dashboard says so. Then choose its apps and contacts.",
-        ],
-        fig: "done",
-      },
     ],
     figs: {
-      who: "The dashboard page “Who is the phone for?” with the choices Child and Self, a Name field and a Next button.",
-      pin: "The dashboard page “Choose a maintenance PIN” with two PIN fields and the button “Make the QR code”.",
-      qr: "The dashboard page “Set up Alma’s phone”. A box where the QR code appears, and below it “Waiting for the phone” and a note that the code works once.",
-      done: "The dashboard says the phone is connected and offers a button to open it.",
+      lightScan: "A phone camera framing a setup code.",
+      download: "A phone screen with a download arrow.",
+      permissions: "A phone screen with two settings switches.",
       reset: "A drawing of a phone showing a settings list, with the row for erasing all data marked.",
       welcome: "A drawing of a phone on its first welcome screen. Six taps in the same empty spot, marked “6×”.",
       scan: "Two drawings of a phone. On the first, a QR reader frames a QR code. On the second, a list of Wi-Fi networks with one chosen.",
