@@ -9,6 +9,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.home.HomePrefs
+import org.plainphone.app.settings.PhoneSettings
 
 /**
  * The rules document from `GET /device/rules` (server/openapi.yaml, docs/sync-api.md).
@@ -30,6 +32,10 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** Phone settings the parent set or locked (docs/phone-settings.md). Empty from older servers. */
+    val settings: PhoneSettings = PhoneSettings.NONE,
+    /** How the home screen looks. Defaults from older servers. */
+    val home: HomePrefs = HomePrefs.DEFAULT,
     /** Apps the parent picked from the catalog that are not installed yet. Treated as allowed. */
     val toInstall: List<CatalogInstall> = emptyList(),
     /** Daily minutes per app and in total (docs/time-limits.md). */
@@ -82,6 +88,8 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                settings = PhoneSettings.parse(j.optJSONObject("settings")),
+                home = HomePrefs.parse(j.optJSONObject("home")),
                 // Both are newer than the first servers: missing means none.
                 toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
                     CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))

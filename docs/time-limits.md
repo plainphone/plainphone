@@ -58,3 +58,10 @@ at once:
 - A bonus: always waits for the key. It counts for the day it takes effect (the server picks
   the local date when it applies the change), so with the delay key it is extra time on a
   later day, not on the day it was asked for.
+
+## On the home screen
+
+Plainphone's home screen shows the minutes left today under each app that a cap applies to,
+its own or the total, whichever is smaller, rounded up to whole minutes. An app shows "used
+up" only at zero. Core apps never show a number. Without usage access the phone counts no
+use, so the home screen shows no numbers at all rather than untouched caps.

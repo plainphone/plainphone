@@ -799,6 +799,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get the phone settings
+         * @description Every setting, with `free` filled in for those that are not set. Works the same for Child and Self phones.
+         */
+        get: operations["getPhonesSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set, lock or free one phone setting
+         * @description A setting that is not supported in the given mode, or a value it does not accept, answers `400`
+         *     (a missing value too, and a value for a setting that takes none). An unknown `key` answers `404`.
+         *     On a Self phone, leaving `locked` or changing the value of a locked setting answers `202` and waits
+         *     for the key (Bluetooth from `noNewDevices` to `off` excepted); everything else applies at once.
+         *     The server stores light-mode phones' settings too, but the phone ignores them there.
+         */
+        put: operations["putPhonesSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get the home screen
+         * @description Defaults are filled in.
+         */
+        get: operations["getPhonesHome"];
+        /**
+         * Change the home screen
+         * @description Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+         */
+        put: operations["putPhonesHome"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/contacts": {
         parameters: {
             query?: never;
@@ -1360,6 +1432,15 @@ export interface components {
             schedule?: components["schemas"]["ScheduleInput"];
         } | {
             /** @constant */
+            type?: "setting.set";
+            key?: components["schemas"]["PhoneSettingKey"];
+            setting?: components["schemas"]["PhoneSetting"];
+        } | {
+            /** @constant */
+            type?: "home.set";
+            home?: components["schemas"]["Home"];
+        } | {
+            /** @constant */
             type?: "key.set";
             key?: components["schemas"]["Key"];
         } | {
@@ -1462,6 +1543,61 @@ export interface components {
         Localized: {
             en?: string;
             da?: string;
+        };
+        /**
+         * @description A phone setting the parent can set or lock. See docs/phone-settings.md for what each one does on Android.
+         * @enum {string}
+         */
+        PhoneSettingKey: "airplaneMode" | "bluetooth" | "brightness" | "camera" | "language" | "location" | "mobileNetworks" | "nfc" | "roaming" | "screenCapture" | "screenTimeout" | "tethering" | "volume" | "wallpaper" | "wifi";
+        /**
+         * @description What one setting is set to. `free`: the child (or the Self user) decides and Plainphone does
+         *     not touch it. `preset`: Plainphone sets the value once, each time the parent changes it.
+         *     `locked`: Plainphone sets it and blocks it in Android's Settings. `value` is only present
+         *     for `preset` and `locked`, and only for settings that have one.
+         * @example {
+         *       "mode": "locked",
+         *       "value": "off"
+         *     }
+         * @example {
+         *       "mode": "preset",
+         *       "value": 60
+         *     }
+         * @example {
+         *       "mode": "locked"
+         *     }
+         */
+        PhoneSetting: {
+            /** @enum {unknown} */
+            mode: "free" | "preset" | "locked";
+            /**
+             * @description Per setting. `bluetooth` (locked): `off` or `noNewDevices`. `location` (preset, locked): `on` or `off`.
+             *     `screenTimeout` (preset, locked): 15, 30, 60, 120, 300 or 600 seconds.
+             *     `brightness` (preset, locked): `auto` or a percentage 10 to 100.
+             *     `volume`: preset is a percentage 0 to 100, locked is `muted`.
+             *     `roaming`, `camera`, `screenCapture`, `tethering`, `nfc`, `airplaneMode` (locked): `off`.
+             *     `wallpaper` (locked): `plainphone`. `wifi`, `mobileNetworks` and `language` (locked) take no value.
+             */
+            value?: string | number;
+        };
+        /** @description How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed. */
+        Home: {
+            /**
+             * @default list
+             * @enum {unknown}
+             */
+            layout: "list" | "grid";
+            /**
+             * @default system
+             * @enum {unknown}
+             */
+            theme: "system" | "light" | "dark";
+            /**
+             * @default sage
+             * @enum {unknown}
+             */
+            palette: "grey" | "sage" | "sand";
+            /** @description Package names on the front page, in order. At most 8, no duplicates. */
+            apps: components["schemas"]["PackageName"][];
         };
         ChangeApplied: {
             /** @constant */
@@ -1595,6 +1731,27 @@ export interface components {
                 callNumber: string | null;
                 sendLocation: boolean;
             };
+            /**
+             * @description The phone settings that are not `free`, keys in alphabetical order. A missing key is `free`. Needs Device Owner, so a light-mode phone ignores it.
+             * @example {
+             *       "camera": {
+             *         "mode": "locked",
+             *         "value": "off"
+             *       },
+             *       "screenTimeout": {
+             *         "mode": "preset",
+             *         "value": 60
+             *       },
+             *       "wifi": {
+             *         "mode": "locked"
+             *       }
+             *     }
+             */
+            settings: {
+                [key: string]: components["schemas"]["PhoneSetting"];
+            };
+            /** @description The home screen. Defaults are filled in; an older server without this field means the defaults. */
+            home: components["schemas"]["Home"];
             /** @description Self profile; show them with a countdown on the phone. */
             pendingChanges: components["schemas"]["PendingChange"][];
             /**
@@ -3255,6 +3412,108 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    getPhonesSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settings: {
+                            [key: string]: components["schemas"]["PhoneSetting"];
+                        };
+                    };
+                };
+            };
+            /** @description Unknown phone, or not in your household */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhonesSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                key: components["schemas"]["PhoneSettingKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneSetting"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            400: components["responses"]["Error"];
+            /** @description Unknown phone or unknown setting key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The home screen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
+                };
+            };
+        };
+    };
+    putPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Home"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            400: components["responses"]["Error"];
         };
     };
     getPhonesContacts: {
