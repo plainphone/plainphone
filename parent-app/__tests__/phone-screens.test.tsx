@@ -5,7 +5,7 @@
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { Linking as NativeLinking, Share } from "react-native";
+import { Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
@@ -260,64 +260,6 @@ describe("school time and bedtime", () => {
     expect(api.calls.some((c) => c.method === "DELETE")).toBe(false);
     await fireEvent.press(screen.getByText("Yes, delete"));
     await waitFor(() => expect(api.calls.some((c) => c.method === "DELETE")).toBe(true));
-  });
-});
-
-describe("location", () => {
-  const fix = (accuracyM: number | null) => ({
-    enabled: true,
-    requestedAt: null,
-    location: { lat: 55.6761, lon: 12.5683, accuracyM, recordedAt: new Date().toISOString() },
-  });
-
-  it("loads no map tiles until the parent asks for the map", async () => {
-    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(80) } });
-    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
-    expect(await screen.findByText(/whose servers then see roughly where the phone is/)).toBeTruthy();
-    expect(screen.queryByTestId("map-tile")).toBeNull();
-  });
-
-  it("draws the position on nine tiles with an accuracy circle", async () => {
-    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(80) } });
-    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
-    await fireEvent.press(await screen.findByTestId("toggle-map"));
-    expect(await screen.findByTestId("map")).toBeTruthy();
-    const tiles = screen.getAllByTestId("map-tile");
-    expect(tiles).toHaveLength(9);
-    expect(tiles[0].props.source.uri).toMatch(/^https:\/\/tile\.openstreetmap\.org\/15\/\d+\/\d+\.png$/);
-    expect(screen.getByTestId("map-marker")).toBeTruthy();
-    expect(screen.getByTestId("map-accuracy")).toBeTruthy();
-    expect(screen.getByLabelText("Map showing the phone's last position.")).toBeTruthy();
-    expect(screen.getByText("Map data © OpenStreetMap contributors")).toBeTruthy();
-  });
-
-  it("leaves out a circle that is too small or too big to mean anything", async () => {
-    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(2000) } });
-    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
-    await fireEvent.press(await screen.findByTestId("toggle-map"));
-    expect(await screen.findByTestId("map")).toBeTruthy();
-    expect(screen.queryByTestId("map-accuracy")).toBeNull();
-  });
-
-  it("opens the position in the maps app", async () => {
-    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/location`]: { body: fix(30) } });
-    const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
-    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
-    await fireEvent.press(await screen.findByTestId("open-in-maps"));
-    expect(open).toHaveBeenCalledWith("https://maps.apple.com/?ll=55.676100,12.568300&q=Alma");
-    open.mockRestore();
-  });
-
-  it("switches location on and off", async () => {
-    const api = phoneApi(PHONE, {
-      [`GET /phones/${PHONE.id}/location`]: { body: { enabled: false, requestedAt: null, location: null } },
-      [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, locationEnabled: true } },
-    });
-    await renderRouter(routes, { initialUrl: at(PHONE, "location") });
-    expect(await screen.findByText("Location is off")).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("location-switch"));
-    expect(await screen.findByText("Location is on.")).toBeTruthy();
-    expect(api.calls.find((c) => c.method === "PATCH")!.body).toEqual({ locationEnabled: true });
   });
 });
 

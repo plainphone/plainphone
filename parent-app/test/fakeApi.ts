@@ -53,3 +53,46 @@ export const PHONE = {
   dnsSynced: true,
   hasLocation: false,
 };
+
+/** A GET /phones/{pid}/location answer: find mode, nothing sent yet. */
+export function locationState(patch: Record<string, unknown> = {}) {
+  return { enabled: true, mode: "find", requestedAt: null, location: null, ring: null, checkin: null, ...patch };
+}
+
+/** A position recorded `agoMs` ago (default: now). */
+export function fix(accuracyM: number | null = 80, agoMs = 0) {
+  return { lat: 55.6761, lon: 12.5683, accuracyM, recordedAt: new Date(Date.now() - agoMs).toISOString() };
+}
+
+/** A ring that ends `leftMs` from now. */
+export function ring(patch: Record<string, unknown> = {}, leftMs = 300_000) {
+  return {
+    id: "r1",
+    active: true,
+    stopOnAnswer: true,
+    createdAt: new Date().toISOString(),
+    endsAt: new Date(Date.now() + leftMs).toISOString(),
+    shownAt: null,
+    answeredAt: null,
+    stoppedAt: null,
+    ...patch,
+  };
+}
+
+/** A check-in whose deadline is `leftMs` from now. */
+export function checkin(patch: Record<string, unknown> = {}, leftMs = 600_000) {
+  return {
+    id: "q1",
+    status: "waiting",
+    createdAt: new Date().toISOString(),
+    deadline: new Date(Date.now() + leftMs).toISOString(),
+    callNumber: null,
+    sendsLocation: true,
+    shownAt: null,
+    answeredAt: null,
+    answer: null,
+    stoppedAt: null,
+    locatedAt: null,
+    ...patch,
+  };
+}
