@@ -1,0 +1,55 @@
+{
+  "encoding": {
+    "input": {
+      "€": "é",
+      "😀": "\n",
+      "z": [
+        3,
+        null,
+        true
+      ],
+      "a": "é"
+    },
+    "expected": "eyJhIjoiw6kiLCJ6IjpbMyxudWxsLHRydWVdLCLigqwiOiJlzIEiLCLwn5iAIjoiXG4ifQ"
+  },
+  "sha256": {
+    "input": "YWJj",
+    "digest": "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0"
+  },
+  "hmacSha256": {
+    "key": "CwsLCwsLCwsLCwsLCwsLCwsLCws",
+    "input": "SGkgVGhlcmU",
+    "tag": "sDRMYdjbOFNcqK_OrwvxK4gdwgDJgz2nJuk3bC4yz_c"
+  },
+  "hkdfSha256": {
+    "ikm": "CwsLCwsLCwsLCwsLCwsLCwsLCwsLCw",
+    "salt": "AAECAwQFBgcICQoLDA",
+    "info": "8PHy8_T19vf4-Q",
+    "length": 42,
+    "okm": "PLJfJfqs1XqQQ09k0DYvKi0tCpDPGlpMXbAtVuzExb80AHII1biHGFhl"
+  },
+  "ed25519": {
+    "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A",
+    "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "message": "",
+    "signature": "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeOXAc-bRr0lv18FlbviRlUUFDjnoQCw"
+  },
+  "aesGcm": {
+    "key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "nonce": "AAAAAAAAAAAAAAAA",
+    "aad": "",
+    "plaintext": "AAAAAAAAAAAAAAAAAAAAAA",
+    "ct": "zqdAPU1ga24HTsXTuvOdGNDRyKeZmWvwJluYtdSKuRk"
+  },
+  "hpke": {
+    "info": "T2RlIG9uIGEgR3JlY2lhbiBVcm4",
+    "aad": "Q291bnQtMA",
+    "plaintext": "QmVhdXR5IGlzIHRydXRoLCB0cnV0aCBiZWF1dHk",
+    "ikm": "2sM7Dp2xtZ276ljVmhTntYlum9-Y-taJHpnRaGSSue4",
+    "ikmE": "LNfGAc77PUKmKwS3qQQUlMBseEOBjgziio9wSuerIPk",
+    "recipientPrivateKey": "SXtFAmZM_qXVrws5k02sciQqdPhIBFHhrufWpTMgMz0",
+    "recipientPublicKey": "Qw9LmFlmUUWmsbonQCRIe9ZvA6LdV313U8aNfX0AwAw",
+    "enc": "bJPgmGnfNALXvyMb9UD63TXNVr4U-XF48JVNuUt_wlY",
+    "ct": "5dhM1THPtYMJbnz6lkG9MHnPOpHNqBPFLetfUSvpkxmApB3hJaklza2FnVt6"
+  }
+}
