@@ -5,10 +5,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Linking, Platform } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
-import { type Checkin, type Contact, LOCATION_MODES, type LocationMode, type LocationState, type Position, type Ring } from "../../../api/models";
+import { type AlwaysFor, type Checkin, type Contact, LOCATION_MODES, type LocationMode, type LocationState, type Position, type Ring } from "../../../api/models";
 import { MapTiles } from "../../../components/MapTiles";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { CheckinSection, RingSection } from "../../../components/safety";
+import { AlwaysNotes, CheckinSection, RingSection } from "../../../components/safety";
 import { Button, Card, Choice, errorMessage, LoadGate, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { copyText } from "../../../lib/clipboard";
@@ -102,6 +102,8 @@ function LocationBody() {
   const contacts = useLoad(() => unwrap<{ contacts: Contact[] }>(client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } })), [phone.id]);
   const [busy, setBusy] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
+  // "Always on" was pressed and the parent is still choosing how long; nothing is sent before that.
+  const [choosingAlways, setChoosingAlways] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
   // Counts what the parent has pressed, so a poll that was answered before a press cannot undo it.
@@ -148,16 +150,25 @@ function LocationBody() {
     }
   }
 
-  async function setMode(mode: LocationMode) {
+  /** `alwaysFor` goes with "always" only: the server refuses it without, and it always ends by itself. */
+  async function setMode(mode: LocationMode, alwaysFor?: AlwaysFor) {
     await act(
       "mode",
       async () => {
-        const r = await unwrap<LocationState>(client.PUT("/phones/{pid}/location/mode", { params: { path: { pid: phone.id } }, body: { mode } }));
+        const body = mode === "always" && alwaysFor ? { mode, alwaysFor } : { mode };
+        const r = await unwrap<LocationState>(client.PUT("/phones/{pid}/location/mode", { params: { path: { pid: phone.id } }, body }));
         setPhone({ ...phone, locationEnabled: mode !== "off", locationMode: mode });
+        if (alive.current) setChoosingAlways(false);
         return r;
       },
       t(`loc.mode.${mode}.done`),
     );
+  }
+
+  function chooseMode(m: LocationMode, current: LocationMode) {
+    // Pressing "always" asks how long first, also when it is on already (to extend it).
+    setChoosingAlways(m === "always");
+    if (m !== "always" && m !== current) void setMode(m);
   }
 
   async function find() {
@@ -285,8 +296,23 @@ function LocationBody() {
                 hideLabel
                 value={state.mode}
                 disabled={busy === "mode"}
-                onChange={(m) => m !== state.mode && void setMode(m)}
-                options={LOCATION_MODES.map((m) => ({ value: m, label: t(`loc.mode.${m}`), help: t(`loc.mode.${m}.help`), testID: `mode-${m}` }))}
+                onChange={(m) => chooseMode(m, state.mode)}
+                options={LOCATION_MODES.map((m) => ({
+                  value: m,
+                  label: t(`loc.mode.${m}`),
+                  help: t(m === "always" ? "native.alwaysHelp" : `loc.mode.${m}.help`),
+                  testID: `mode-${m}`,
+                }))}
+              />
+              {/* "Always" is the last option, so these notes sit right under it. */}
+              <AlwaysNotes
+                mode={state.mode}
+                until={state.alwaysUntil}
+                now={now}
+                choosing={choosingAlways}
+                busy={busy === "mode"}
+                onStart={(alwaysFor) => void setMode("always", alwaysFor)}
+                onCancel={() => setChoosingAlways(false)}
               />
             </Card>
           </>

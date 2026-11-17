@@ -1050,7 +1050,7 @@ export interface paths {
         get?: never;
         /**
          * Choose when the phone sends its position
-         * @description Applies at once. `off` deletes the stored position.
+         * @description Applies at once. `off` deletes the stored position. `always` needs `alwaysFor` (400 without) and ends by itself.
          */
         put: operations["putPhonesLocationMode"];
         post?: never;
@@ -1561,6 +1561,11 @@ export interface components {
                 enabled?: boolean;
                 mode?: components["schemas"]["LocationMode"];
                 /**
+                 * Format: date-time
+                 * @description When `mode` is `always`, the moment it falls back to `checkin` by itself. The phone shows it.
+                 */
+                alwaysUntil?: string | null;
+                /**
                  * @description Report interval when `mode` is `always`. Other modes send 1440, so phones that only know `enabled` report at most once a day (and get 409).
                  * @example 5
                  */
@@ -1599,10 +1604,15 @@ export interface components {
             pollSeconds: number;
         };
         /**
-         * @description When the phone sends its position: never; on Find; on Find and once for an unanswered "Are you okay?"; every 5 minutes (shown on the phone all the time).
+         * @description When the phone sends its position: never; on Find; on Find and once for an unanswered "Are you okay?"; every 5 minutes for a chosen time (shown on the phone all the time).
          * @enum {unknown}
          */
         LocationMode: "off" | "find" | "checkin" | "always";
+        /**
+         * @description How long `always` lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to `checkin`.
+         * @enum {unknown}
+         */
+        AlwaysFor: "hour" | "today" | "week";
         Ring: {
             /** Format: uuid */
             id: string;
@@ -1648,6 +1658,11 @@ export interface components {
         LocationState: {
             enabled: boolean;
             mode: components["schemas"]["LocationMode"];
+            /**
+             * Format: date-time
+             * @description End of `always`; null in other modes.
+             */
+            alwaysUntil: string | null;
             /** Format: date-time */
             requestedAt: string | null;
             location: null | {
@@ -3602,6 +3617,7 @@ export interface operations {
             content: {
                 "application/json": {
                     mode: components["schemas"]["LocationMode"];
+                    alwaysFor?: components["schemas"]["AlwaysFor"];
                 };
             };
         };

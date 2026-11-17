@@ -5,7 +5,7 @@
 // "Are you okay?" are polled while something is still open on the phone.
 import type { Checkin, Locale, LocationState, Ring } from "../api/models";
 import type { TFn } from "../i18n/I18n";
-import { formatDateTime } from "../shared/lib/format";
+import { formatClock, formatDateTime, intlLocale } from "../shared/lib/format";
 
 export const POLL_MS = 5000;
 export const FIND_TIMEOUT_MS = 90_000;
@@ -20,6 +20,24 @@ export function answers(loc: LocationState["location"], requestedAt: string): bo
 export function needsPolling(s: LocationState): boolean {
   const c = s.checkin;
   return Boolean(s.ring?.active || c?.status === "waiting" || (c?.status === "noReply" && c.sendsLocation && !c.locatedAt));
+}
+
+/**
+ * When "always" ends, as one line: "On until 14:05" today, "On until Tuesday 24 Nov at 14:05" on another day.
+ * The end of "Today" is the phone's midnight, which reads best as "midnight" rather than "00:00 tomorrow".
+ */
+export function alwaysUntilText(iso: string, now: number, t: TFn, locale: Locale): string {
+  const end = new Date(iso);
+  const minute = end.getHours() * 60 + end.getMinutes();
+  const time = formatClock(minute, locale);
+  const day = (d: Date) => d.toDateString();
+  const today = new Date(now);
+  if (day(end) === day(today)) return t("native.alwaysUntil", { time });
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (minute === 0 && day(end) === day(tomorrow)) return t("native.alwaysUntilMidnight");
+  const date = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "long", day: "numeric", month: "short" }).format(end);
+  return t("native.alwaysUntilDate", { date, time });
 }
 
 /** "4:05" */

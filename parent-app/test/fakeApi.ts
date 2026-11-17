@@ -56,7 +56,7 @@ export const PHONE = {
 
 /** A GET /phones/{pid}/location answer: find mode, nothing sent yet. */
 export function locationState(patch: Record<string, unknown> = {}) {
-  return { enabled: true, mode: "find", requestedAt: null, location: null, ring: null, checkin: null, ...patch };
+  return { enabled: true, mode: "find", alwaysUntil: null, requestedAt: null, location: null, ring: null, checkin: null, ...patch };
 }
 
 /** A position recorded `agoMs` ago (default: now). */
