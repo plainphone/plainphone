@@ -35,6 +35,7 @@ profile (a name is not a rule).
 | A household where you are the only member, with a Self phone | Refused with `409` and the ids of those phones. Remove them first; that goes through their key (at most 72 hours with the delay key). Deleting the account must not be a way around the key. |
 | You are someone's trusted person | Their key becomes the delay key (with their delay hours), and requests that waited for you start the delay from now. |
 | Invitations sent to your address, your login links | Deleted. |
+| A waiting key change that would make you someone's trusted person | Cancelled, so your address is not kept in it and cannot be linked to a new account later. |
 | Changes you requested or decided on other phones | Kept, with `requestedBy`/`decidedBy` set to null. |
 
 The session cookie is cleared. Signing in again with the same address creates a new,
@@ -49,12 +50,15 @@ empty account.
 | Pairings | 1 day after they expire or were created |
 | Household invitations | When accepted (at once), or 1 day after they expire (7 days) |
 | Finished pending changes (applied, cancelled, rejected, failed) | 30 days after they were decided. Their `op` can hold contact names and numbers, domains or an email address |
-| DNS ClientIDs of removed phones | As soon as the DNS service confirms |
+| DNS ClientIDs of removed phones | As soon as the DNS service confirms. Retries back off (2, 4, 8 … minutes, at most an hour), and a pass stops at the first failure so a DNS outage cannot hold up the rest |
 
 The sweeper logs one line with counts when it deleted something, and always on its first
 pass after start, for example
 `sweeper: applied=0 dnsSynced=0 dnsDeleted=0 deleted magicLinks=1 sessions=0 pairings=0 invites=0 changes=0`.
-It never logs ids, addresses or names.
+It never logs ids, addresses or names, and a failed DNS delete is logged without its ClientID.
+
+Pay to unlock (D13) is not switched on. When it is, note that `unlock_payments` rows are
+deleted with their pending change after 30 days; bookkeeping needs its own copy before then.
 
 Database backups still hold deleted data until they rotate out (30 days on the hosted
 service).

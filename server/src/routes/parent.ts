@@ -303,17 +303,19 @@ export function parentRoutes(ctx: Ctx) {
     if (me.role !== "owner" && uid !== c.get("user").id) {
       throw new HTTPException(403, { message: "only the owner can remove other members" });
     }
-    const [{ n } = { n: 0 }] = await ctx.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(householdMembers)
-      .where(eq(householdMembers.householdId, hid));
-    if (n <= 1) throw new HTTPException(409, { message: "a household needs at least one member" });
-    await ctx.db.transaction(async (tx) => {
+    const ok = await ctx.db.transaction(async (tx) => {
+      // Locked like in account deletion, so two members leaving at once cannot both see two members.
+      await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+      const [{ n } = { n: 0 }] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(householdMembers)
+        .where(eq(householdMembers.householdId, hid));
+      if (n <= 1) return false;
       const [removed] = await tx
         .delete(householdMembers)
         .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, uid)))
         .returning();
-      if (removed?.role !== "owner") return;
+      if (removed?.role !== "owner") return true;
       // The household always keeps an owner: the longest-standing parent takes over.
       const [next] = await tx
         .select()
@@ -327,7 +329,9 @@ export function parentRoutes(ctx: Ctx) {
           .set({ role: "owner" })
           .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, next.userId)));
       }
+      return true;
     });
+    if (!ok) throw new HTTPException(409, { message: "a household needs at least one member" });
     return c.body(null, 204);
   });
 

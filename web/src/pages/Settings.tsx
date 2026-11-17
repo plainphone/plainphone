@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router";
 import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { api, ApiError } from "../lib/api";
+import { Link, useNavigate } from "react-router";
+import { api, ApiError, type Phone } from "../lib/api";
 import { useMe, useSession } from "../lib/session";
 
 export function SettingsPage() {
@@ -25,6 +25,7 @@ function AccountSection() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [blocking, setBlocking] = useState<Phone[]>([]);
   const matches = email.trim().toLowerCase() === me.user.email;
 
   async function del(e: FormEvent) {
@@ -32,16 +33,22 @@ function AccountSection() {
     if (!matches) return;
     setBusy(true);
     setNotice(null);
+    setBlocking([]);
     try {
       await api.del("/me", { confirmEmail: email.trim() });
       // Leave the protected page before the session state turns anonymous.
       navigate("/login", { replace: true, state: { deleted: true } });
       await refresh();
     } catch (err) {
-      setNotice({
-        tone: "error",
-        text: err instanceof ApiError && err.status === 409 ? t("settings.deleteSelfFirst") : errorMessage(err, t),
-      });
+      if (err instanceof ApiError && err.status === 409) {
+        // Name the phones that stand in the way, with a link to each.
+        const ids = new Set(err.data?.selfPhoneIds ?? []);
+        const { phones } = await api.get<{ phones: Phone[] }>("/phones").catch(() => ({ phones: [] as Phone[] }));
+        setBlocking(phones.filter((p) => ids.has(p.id)));
+        setNotice({ tone: "error", text: t("settings.deleteSelfFirst") });
+      } else {
+        setNotice({ tone: "error", text: errorMessage(err, t) });
+      }
       setBusy(false);
     }
   }
@@ -62,12 +69,22 @@ function AccountSection() {
                   inputMode="email"
                   autoComplete="off"
                   spellCheck={false}
+                  autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               )}
             </Field>
             <LiveStatus notice={notice} onClose={() => setNotice(null)} />
+            {blocking.length > 0 && (
+              <ul className="plain-list">
+                {blocking.map((p) => (
+                  <li key={p.id}>
+                    <Link to={`/phones/${p.id}`}>{p.name}</Link>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="actions">
               <button type="submit" className="btn btn-danger" disabled={busy || !matches}>
                 {t("settings.deleteYes")}

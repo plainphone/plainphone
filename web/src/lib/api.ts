@@ -152,6 +152,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly issues: Issue[] = [],
+    /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
+    readonly data: { selfPhoneIds?: string[] } = {},
   ) {
     super(message);
   }
@@ -195,9 +197,9 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[] };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[] };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
-    throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? []);
+    throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }
   if (res.status === 202 || res.status === 200 || res.status === 201) {
     // Change endpoints answer 200 {status:"applied"} or 202 {status:"pending"}.

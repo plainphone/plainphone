@@ -43,6 +43,13 @@ export async function deleteAccount(ctx: Ctx, userId: string): Promise<DeleteAcc
       .from(householdMembers)
       .where(eq(householdMembers.userId, userId));
     const hids = mine.map((m) => m.householdId);
+    // Lock the households (in a fixed order) before counting their members. Two parents
+    // deleting at once, or one leaving while the other deletes, then wait for each other
+    // instead of both seeing "shared" and leaving a household with no members. A phone
+    // claim or invite acceptance into these households waits too (foreign key check).
+    if (hids.length) {
+      await tx.select({ id: households.id }).from(households).where(inArray(households.id, hids)).orderBy(households.id).for("update");
+    }
     const counts = hids.length
       ? await tx
           .select({ hid: householdMembers.householdId, n: sql<number>`count(*)::int` })
@@ -97,6 +104,19 @@ export async function deleteAccount(ctx: Ctx, userId: string): Promise<DeleteAcc
           ),
         );
     }
+
+    // A waiting key change that would make this address someone's trusted person is cancelled:
+    // it holds the address, and applied later it would link whoever signs up with it next.
+    await tx
+      .update(pendingChanges)
+      .set({ status: "cancelled", decidedAt: ctx.now() })
+      .where(
+        and(
+          eq(pendingChanges.status, "pending"),
+          sql`${pendingChanges.op}->>'type' = 'key.set'`,
+          sql`${pendingChanges.op}->'key'->>'trustedEmail' = ${user.email}`,
+        ),
+      );
 
     await queueDnsDeletions(
       tx,

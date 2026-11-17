@@ -92,8 +92,13 @@ describe("DNS delete retry (#10)", () => {
     expect(h.dns.clients.has(p!.dnsClientId)).toBe(true);
     expect(await h.ctx.db.select().from(dnsDeletions)).toMatchObject([{ clientId: p!.dnsClientId, attempts: 1 }]);
 
+    // Backs off: right after a failure nothing is tried.
+    await sweep(h.ctx);
+    expect(await h.ctx.db.select().from(dnsDeletions)).toMatchObject([{ attempts: 1 }]);
+    h.clock.advance(3 * 60_000);
     await sweep(h.ctx);
     expect(await h.ctx.db.select().from(dnsDeletions)).toMatchObject([{ attempts: 2 }]);
+    h.clock.advance(5 * 60_000);
     const r = await sweep(h.ctx);
     expect(r.dnsDeleted).toBe(1);
     expect(h.dns.clients.has(p!.dnsClientId)).toBe(false);
@@ -151,6 +156,30 @@ describe("deleting an account (#11)", () => {
     expect(members.json.members).toEqual([expect.objectContaining({ email: "dad@example.org", role: "owner" })]);
     // Dad's own first household (created at sign-in) is untouched too.
     expect((await dad.get("/api/me")).json.households).toHaveLength(2);
+  });
+
+  it("never leaves a household without members when both parents delete at once", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    const { device } = await pairPhone(h, mum);
+    const { token } = await invite(mum, "dad@example.org");
+    const dad = await signIn(h, "dad@example.org");
+    await dad.post("/api/invites/accept", { token });
+    const [a, b] = await Promise.all([deleteMe(mum, "mum@example.org"), deleteMe(dad, "dad@example.org")]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    // The second deletion saw a household of one and took the phone with it.
+    expect(a.json.phonesRemoved + b.json.phonesRemoved).toBe(1);
+    expect((await device.get("/api/device/rules")).status).toBe(401);
+    expect(await h.ctx.db.select().from(phones)).toHaveLength(0);
+  });
+
+  it("cancels a waiting key change that names the deleted person", async () => {
+    const me = await signIn(h, "adult@example.org");
+    const { phoneId } = await selfPhone(me);
+    const key = { keyType: "trusted", delayHours: 24, trustedEmail: "friend@example.org", payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
+    expect((await me.put(`/api/phones/${phoneId}/key`, key)).json.status).toBe("pending");
+    const friend = await signIn(h, "friend@example.org");
+    expect((await deleteMe(friend, "friend@example.org")).status).toBe(200);
+    expect((await me.get(`/api/phones/${phoneId}/changes`)).json.changes).toHaveLength(0);
   });
 
   it("refuses while a sole household holds a Self phone, until it is removed through the key", async () => {

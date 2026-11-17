@@ -1284,3 +1284,12 @@ details.details p {
   padding: 0;
   color: var(--danger);
 }
+
+.plain-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.plain-list li + li {
+  margin-top: 0.25rem;
+}

@@ -449,7 +449,7 @@ function ManagePhone() {
     const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}`), t("phone.removed"));
     setRemoving(false);
     setConfirming(false);
-    if (r?.status === "applied") navigate("/", { replace: true });
+    if (r?.status === "applied") navigate("/", { replace: true, state: { notice: t("phone.removed") } });
   }
 
   return (
@@ -468,7 +468,7 @@ function ManagePhone() {
       <div className="danger-zone">
         {confirming ? (
           <div className="stack-sm" role="group" aria-labelledby="remove-q">
-            <p id="remove-q">{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
+            <p id="remove-q" tabIndex={-1} ref={(el) => el?.focus()}>{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
             <div className="actions">
               <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={removing}>
                 {t("phone.removeYes")}

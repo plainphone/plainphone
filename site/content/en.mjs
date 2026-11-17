@@ -309,7 +309,7 @@ export default {
               "withdraw an open invitation",
               "rename or remove a phone. Removing it deletes everything stored about it, and the web filter is asked to forget its ClientID until it confirms. On an adult’s own phone the removal waits for the key",
               "leave a household (the last member cannot leave, but can delete their account)",
-              "delete your account under Settings. A household you share with another parent stays with them, with its phones. A household only you belong to is deleted with its phones. If you are someone’s trusted person, their key becomes a delay instead. Phones with a key of your own (an adult’s own phone) must be removed first, through the key",
+              "delete your account under Settings. A household you share with another parent stays with them, with its phones. A household only you belong to is deleted with its phones. If you are someone’s trusted person, their key becomes a delay instead. In a household only you belong to, phones with a key (an adult’s own phone) must be removed first, through the key",
               "log out, which ends the session",
             ],
           },

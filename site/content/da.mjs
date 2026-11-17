@@ -307,7 +307,7 @@ export default {
               "trække en åben invitation tilbage",
               "omdøbe eller fjerne en telefon. Når den fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID, indtil det bekræfter. På en voksens egen telefon venter fjernelsen på nøglen",
               "forlade en husstand (det sidste medlem kan ikke forlade den, men kan slette sin konto)",
-              "slette din konto under Indstillinger. En husstand, du deler med en anden forælder, bliver hos dem med sine telefoner. En husstand, kun du er med i, bliver slettet med sine telefoner. Er du betroet person for en anden, bliver deres nøgle i stedet en forsinkelse. Telefoner med din egen nøgle (en voksens egen telefon) skal først fjernes gennem nøglen",
+              "slette din konto under Indstillinger. En husstand, du deler med en anden forælder, bliver hos dem med sine telefoner. En husstand, kun du er med i, bliver slettet med sine telefoner. Er du betroet person for en anden, bliver deres nøgle i stedet en forsinkelse. I en husstand, kun du er med i, skal telefoner med en nøgle (en voksens egen telefon) først fjernes gennem nøglen",
               "logge ud, så sessionen slutter",
             ],
           },

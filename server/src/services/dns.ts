@@ -88,7 +88,12 @@ export async function retryDnsDeletions(ctx: Ctx, only?: string[]): Promise<numb
   const rows = await ctx.db
     .select({ clientId: dnsDeletions.clientId })
     .from(dnsDeletions)
-    .where(only ? inArray(dnsDeletions.clientId, only.length ? only : [""]) : undefined)
+    .where(
+      only
+        ? inArray(dnsDeletions.clientId, only.length ? only : [""])
+        : // Back off: wait 2^attempts minutes (at most an hour) between tries.
+          sql`${dnsDeletions.lastAttemptAt} is null or ${dnsDeletions.lastAttemptAt} < ${ctx.now().toISOString()}::timestamptz - make_interval(mins => least(power(2, ${dnsDeletions.attempts})::int, 60))`,
+    )
     .orderBy(sql`${dnsDeletions.lastAttemptAt} asc nulls first`)
     .limit(100);
   let done = 0;
@@ -98,11 +103,16 @@ export async function retryDnsDeletions(ctx: Ctx, only?: string[]): Promise<numb
       await ctx.db.delete(dnsDeletions).where(eq(dnsDeletions.clientId, clientId));
       done++;
     } catch (err) {
-      console.error(`DNS delete failed for a removed phone, will retry: ${(err as Error).message}`);
+      // The provider's message names the ClientID; log only that it failed.
+      void err;
+      console.error("DNS delete failed for a removed phone; the sweeper retries");
       await ctx.db
         .update(dnsDeletions)
         .set({ attempts: sql`${dnsDeletions.attempts} + 1`, lastAttemptAt: ctx.now() })
         .where(eq(dnsDeletions.clientId, clientId));
+      // The DNS service is probably down: leave the rest for a later sweep instead of
+      // waiting for a timeout per row, which would hold up the sweeper's other work.
+      break;
     }
   }
   return done;
