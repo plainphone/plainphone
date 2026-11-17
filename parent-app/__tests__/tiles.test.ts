@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { inviteTokenFromUrl } from "../src/lib/links";
-import { mapsUrl } from "../src/lib/maps";
-import { accuracyRadiusPx, metersPerPixel, tileForPosition, tileGrid, tileUrl, TILE_SIZE } from "../src/lib/tiles";
+import { appleMapsUrl, googleMapsUrl, positionText, routeLinks } from "../src/lib/maps";
+import { accuracyRadiusPx, metersPerPixel, tileForPosition, tileGrid, tileUrl, TILE_SIZE, zoomForAccuracy } from "../src/lib/tiles";
 
 // Reference values computed with the formulas on the OpenStreetMap wiki (Slippy map tilenames).
 describe("map tiles", () => {
@@ -46,11 +46,42 @@ describe("map tiles", () => {
   });
 });
 
-describe("open in maps", () => {
-  it("uses the maps app of the platform", () => {
-    expect(mapsUrl("ios", 55.6761, 12.5683, "Alma's phone")).toBe("https://maps.apple.com/?ll=55.676100,12.568300&q=Alma's%20phone");
-    expect(mapsUrl("android", 55.6761, 12.5683, "Alma")).toBe("geo:55.676100,12.568300?q=55.676100,12.568300");
-    expect(mapsUrl("web", 55.6761, 12.5683, "Alma")).toContain("https://www.openstreetmap.org/?mlat=55.67610&mlon=12.56830");
+describe("zoom for the accuracy circle", () => {
+  it("zooms in on a precise fix and out for a rough one, within the tile range", () => {
+    expect(zoomForAccuracy(55.6761, 5, 100)).toBe(17);
+    expect(zoomForAccuracy(55.6761, 20, 100)).toBe(17);
+    expect(zoomForAccuracy(55.6761, 80, 100)).toBe(16);
+    expect(zoomForAccuracy(55.6761, 300, 100)).toBe(14);
+    expect(zoomForAccuracy(55.6761, 2000, 100)).toBe(12);
+    expect(zoomForAccuracy(55.6761, 100_000, 100)).toBe(12);
+    expect(zoomForAccuracy(55.6761, null, 100)).toBe(16);
+  });
+
+  it("keeps the circle inside the limit whenever the zoom range allows it", () => {
+    for (const acc of [20, 45, 80, 150, 400, 900, 1500]) {
+      const z = zoomForAccuracy(55.6761, acc, 100);
+      expect(accuracyRadiusPx(acc, 55.6761, z)).toBeLessThanOrEqual(100);
+      // and the next zoom level in would not fit (unless already at the closest level)
+      if (z < 17) expect(accuracyRadiusPx(acc, 55.6761, z + 1)).toBeGreaterThan(100);
+    }
+  });
+});
+
+describe("drive there", () => {
+  it("builds the Google Maps and Apple Maps links with six decimals", () => {
+    expect(googleMapsUrl(55.6761, 12.5683)).toBe("https://www.google.com/maps/dir/?api=1&destination=55.676100,12.568300");
+    expect(appleMapsUrl(55.6761, 12.5683)).toBe("https://maps.apple.com/?daddr=55.676100,12.568300");
+  });
+
+  it("puts Apple Maps first on iOS and Google Maps first elsewhere", () => {
+    expect(routeLinks(55.6761, 12.5683, "ios").map((l) => l.app)).toEqual(["apple", "google"]);
+    expect(routeLinks(55.6761, 12.5683, "android").map((l) => l.app)).toEqual(["google", "apple"]);
+    expect(routeLinks(55.6761, 12.5683, "web").map((l) => l.app)).toEqual(["google", "apple"]);
+  });
+
+  it("writes the position as 'lat, lon' with six decimals", () => {
+    expect(positionText(55.676098, 12.568337)).toBe("55.676098, 12.568337");
+    expect(positionText(-33.8688, 151.2)).toBe("-33.868800, 151.200000");
   });
 });
 

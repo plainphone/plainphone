@@ -23,8 +23,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.1.5"
+        versionCode = 7
+        versionName = "0.1.6"
     }
 
     signingConfigs {
@@ -93,4 +93,7 @@ dependencies {
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("com.google.truth:truth:1.4.5")
     testImplementation("androidx.work:work-testing:2.12.0")
+    // Screenshots of the home screen under Robolectric (native graphics), see HomeScreenshotTest.
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

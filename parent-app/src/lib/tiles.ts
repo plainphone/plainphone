@@ -86,3 +86,23 @@ export function metersPerPixel(lat: number, zoom: number): number {
 export function accuracyRadiusPx(accuracyM: number, lat: number, zoom: number): number {
   return accuracyM / metersPerPixel(lat, zoom);
 }
+
+/** Zoom levels the static map uses: close enough to see a street, far enough to hold a big circle. */
+export const MIN_MAP_ZOOM = 12;
+export const MAX_MAP_ZOOM = 17;
+/** Used when the phone did not say how accurate the position is. */
+export const DEFAULT_MAP_ZOOM = 16;
+
+/**
+ * The closest whole zoom level that still fits the accuracy circle inside `maxRadiusPx`.
+ * Raster tiles only exist at whole zoom levels, so unlike the PWA's vector map this cannot
+ * zoom smoothly. Very small circles are treated as 20 m (the marker covers them anyway).
+ */
+export function zoomForAccuracy(lat: number, accuracyM: number | null, maxRadiusPx: number): number {
+  if (accuracyM === null) return DEFAULT_MAP_ZOOM;
+  const radius = Math.max(accuracyM, 20);
+  for (let z = MAX_MAP_ZOOM; z > MIN_MAP_ZOOM; z--) {
+    if (accuracyRadiusPx(radius, lat, z) <= maxRadiusPx) return z;
+  }
+  return MIN_MAP_ZOOM;
+}

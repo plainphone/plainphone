@@ -63,10 +63,10 @@ p { margin: 0 0 1rem; max-width: var(--measure); text-wrap: pretty; }
 }
 
 /* Header */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.5rem; }
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.5rem; }
 .brand { color: var(--ink); display: inline-flex; padding-block: 0.6rem; }
 .wordmark { height: 1.75rem; width: auto; display: block; }
-.top nav { display: flex; gap: 1.25rem; font-size: 0.95em; }
+.top nav { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.95em; }
 .top nav a { color: var(--ink); padding-block: 0.6rem; text-decoration-color: var(--rule); }
 
 /* Hero */

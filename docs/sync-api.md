@@ -45,10 +45,19 @@ phone                                      server                         parent
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are
    hidden by default (unless in the country starter pack).
-4. **Location.** When `location.enabled`, report every `intervalMinutes`, and at once when
-   `location.requestedAt` is set (a parent pressed Find). When it is off, the server answers
-   `409` and the phone should stop.
-5. **Status.** Report battery, app version and lock state with `PUT /device/status`. Send it
+4. **Location.** `location.mode` says when (see [location.md](location.md)): in `always`,
+   report every `intervalMinutes`; in every mode but `off`, at once when `location.requestedAt`
+   is set (a parent pressed Find); and in `checkin` and `always`, once when an open `checkIn`
+   with `sendLocation` passes its deadline unanswered. Any other position gets `409` ("no
+   position was asked for"), as does every position when location is off. Phones from before
+   `mode` only know `enabled`; the server sends them `intervalMinutes: 1440` outside `always`.
+   `location.alwaysUntil` is the end of `always` (the phone shows it); after it the server
+   refuses 5-minute positions and the mode becomes `checkin`.
+5. **Ring and "Are you okay?".** `ring` and `checkIn` in the rules are the open requests (null:
+   none, or stop). Report what happened with `POST /device/safety/{id}`: `shown`, `here` (ring),
+   `ok` or `call` (check-in). While a ring is open or a check-in waits for an answer,
+   `pollSeconds` is 10.
+6. **Status.** Report battery, app version and lock state with `PUT /device/status`. Send it
    regularly and at once when the lock state or a maintenance unlock changes. The newest report
    replaces the one before (no history), and the parent sees it on the phone's page: battery,
    last sync, app version, and a warning listing `failedPolicies` when `lockIntact` is false.
@@ -141,7 +150,8 @@ releases signed with the same key.
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` turns `true` once, after the first successful sync, and never goes back to `false`, so the network never dies |
-| `location` | See above |
+| `location` | `enabled`, `mode`, `intervalMinutes`, `requestedAt`; see above |
+| `ring`, `checkIn` | See above and [location.md](location.md) |
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |
 | `pollSeconds` | Poll interval |
 

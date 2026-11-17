@@ -93,6 +93,7 @@ function footer(t) {
   return `<footer class="foot">
 <p>${t.footer.maintained}</p>
 <p>${t.footer.setup}</p>
+<p><a href="${t.why.path}">${t.why.h1}</a></p>
 <p>${t.footer.privacy}</p>
 <p>${t.footer.license}</p>
 </footer>`;
@@ -126,7 +127,8 @@ function page(t) {
     t.how.title,
     `<ol class="steps">${t.how.steps
       .map((s) => `<li><h3>${s.title}</h3><p>${s.body}</p></li>`)
-      .join("")}</ol><p>${t.how.guide}</p><p class="note">${t.how.note}</p>`,
+      .join("")}</ol><p>${t.how.guide}</p><p class="note">${t.how.note}</p>
+<p><a href="${t.why.path}">${t.why.h1}</a></p>`,
   );
 
   const c = t.compare;
@@ -193,6 +195,34 @@ ${header(t)}
 <p class="lead">${t.notFound.body}</p>
 <p><a href="/">${t.notFound.back}</a></p>
 <p lang="da"><a href="/da/">${da.notFound.back}</a></p>
+</main>
+${footer(t)}
+</body>
+</html>
+`;
+}
+
+function whyPage(t) {
+  const p = t.why;
+  const other = pages.find((x) => x.lang === t.nav.switchLang);
+  return `${head(t, {
+    path: p.path,
+    title: p.h1,
+    description: p.lead,
+    ogTitle: p.h1,
+    alternates: pages.map((x) => ({ lang: x.lang, path: x.why.path })),
+    xDefault: pages[0].why.path,
+  })}
+<body>
+${header(t, other.why.path)}
+<main id="main" class="doc">
+<h1>${p.h1}</h1>
+<p class="lead">${p.lead}</p>
+${p.sections.map(([title, body]) => `<section><h2>${title}</h2><p>${body}</p></section>`).join("\n")}
+<section>
+<h2>${p.sourcesTitle}</h2>
+<ul>${p.sources.map(([label, url]) => `<li><a href="${esc(url)}">${label}</a></li>`).join("")}</ul>
+</section>
 </main>
 ${footer(t)}
 </body>
@@ -302,6 +332,8 @@ mkdirSync(join(dist, "da"), { recursive: true });
 writeFileSync(join(dist, "index.html"), page(en));
 writeFileSync(join(dist, "da", "index.html"), page(da));
 for (const t of pages) {
+  mkdirSync(join(dist, t.why.path), { recursive: true });
+  writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
   writeFileSync(join(dist, t.privacy.path, "index.html"), privacyPage(t));
   mkdirSync(join(dist, t.setup.path), { recursive: true });
@@ -319,7 +351,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -347,4 +379,4 @@ writeFileSync(
   Cache-Control: public, max-age=604800
 `,
 );
-console.log(`Built ${pages.length * 3} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 4} pages + 404 into dist/ (css ${css.length} bytes)`);

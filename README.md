@@ -40,6 +40,8 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 ## Documents
 
 - [docs/dashboard-setup.md](docs/dashboard-setup.md): set up from the dashboard in strong or light mode
+- [Design principles](docs/design-principles.md) and [evidence by feature](docs/evidence.md)
+- [Contributing](CONTRIBUTING.md)
 - [docs/setup-test-phone.md](docs/setup-test-phone.md): set up a test phone step by step, and how to get out again
 - [docs/bypass-checklist.md](docs/bypass-checklist.md): every bypass attempt to test on a real phone, with the expected result
 - [docs/policies.md](docs/policies.md): the policies and their known limits
