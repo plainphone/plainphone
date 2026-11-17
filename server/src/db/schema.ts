@@ -15,6 +15,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -308,6 +309,19 @@ export const schedules = pgTable(
   },
   (t) => [index("schedules_phone_idx").on(t.phoneId)],
 );
+
+/**
+ * What the parent set for the phone's own settings, and how the home screen looks
+ * (docs/phone-settings.md). `settings` only holds settings that are not free.
+ */
+export const phoneSettings = pgTable("phone_settings", {
+  phoneId: uuid("phone_id")
+    .primaryKey()
+    .references(() => phones.id, { onDelete: "cascade" }),
+  settings: jsonb("settings").$type<StoredSettings>().notNull().default({}),
+  /** The home screen choices. May be empty: the defaults are filled in when read. */
+  home: jsonb("home").$type<Partial<Home>>().notNull().default({}),
+});
 
 /** Only the latest known position per phone (decision D7). No history. */
 export const locations = pgTable("locations", {

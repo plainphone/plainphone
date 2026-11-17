@@ -369,6 +369,8 @@ export function PhoneOverview() {
       label: t("phone.location"),
       hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff"),
     },
+    { to: "settings", label: t("phone.settings"), hint: t("phone.settingsHint") },
+    { to: "home", label: t("phone.home"), hint: t("phone.homeHint") },
   ];
   if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 

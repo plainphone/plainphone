@@ -47,16 +47,18 @@ throughput, Node CPU per request, and warm and peak sampled Node RSS. RSS
 excludes PostgreSQL and the package runner. Use the same worker, Node version
 and arguments when comparing revisions.
 
-On a shared Linux worker with Node 24.22.3, the medians of three runs
-(4,000 conditional polls, eight concurrent clients) were:
+On a shared Linux worker with Node 24.22.3, one paired run against main
+commit `44cdda0` used 2,500 polls and eight concurrent clients:
 
 | Metric | Before | After |
 | --- | ---: | ---: |
-| HTTP responses per second | 113 | 153 |
-| Warm Node RSS | 255.3 MiB | 256.7 MiB |
-| Peak sampled Node RSS | 311.8 MiB | 310.1 MiB |
+| HTTP responses per second | 134 | 198 |
+| Node CPU per request | 6.215 ms | 4.993 ms |
+| Warm Node RSS | 278.3 MiB | 271.2 MiB |
+| Peak sampled Node RSS | 360.9 MiB | 306.2 MiB |
 
-Throughput varied between runs. The RSS measurements showed little change.
+RSS varied across runs. In three earlier runs of 4,000 polls per version,
+median peak Node RSS was 311.8 MiB before and 310.1 MiB after.
 
 The device rules handler still authenticates, applies due changes and
 updates last-seen state as needed. It reads the current rules inputs and

@@ -9,12 +9,14 @@ import {
   locations,
   pendingChanges,
   phoneApps,
+  phoneSettings,
   phoneRequests,
   phones,
   schedules,
   selfKeys,
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
+import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
@@ -82,12 +84,26 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: "rules" | "lo
   }
 }
 
+async function readPhoneSettings(db: Ctx["db"], phoneId: string) {
+  const [row] = await db
+    .select({ settings: phoneSettings.settings, home: phoneSettings.home })
+    .from(phoneSettings)
+    .where(eq(phoneSettings.phoneId, phoneId));
+  return row;
+}
+
+/** The phone's own settings and home screen, with the defaults filled in. */
+export async function loadPhoneSettings(db: Ctx["db"], phoneId: string) {
+  const row = await readPhoneSettings(db, phoneId);
+  return { stored: row?.settings ?? {}, settings: fullSettings(row?.settings), home: fullHome(row?.home) };
+}
+
 function hhmm(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -138,6 +154,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       .orderBy(pendingChanges.createdAt),
     loadTimeLimits(ctx.db, phone, ctx.now()),
     loadSafety(ctx, phone.id),
+    readPhoneSettings(ctx.db, phone.id),
+    loadPhoneSettings(ctx.db, phone.id),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -160,13 +178,14 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     pending,
     limits,
     safety,
+    own,
   };
 }
 
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own }: RulesInputs) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
@@ -208,6 +227,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       intervalMinutes: phone.locationMode === "always" ? LOCATION_INTERVAL_MINUTES : OLD_PHONE_INTERVAL_MINUTES,
       requestedAt: phone.locationEnabled ? (phone.locateRequestedAt?.toISOString() ?? null) : null,
     },
+    // Only settings that are not free, keys in alphabetical order (a stable ETag).
+    settings: rulesSettings(own?.settings ?? {}),
+    home: fullHome(own?.home),
     ring: safety.ring,
     checkIn: safety.checkIn,
     pendingChanges: pending.map((c) => ({
