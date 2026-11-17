@@ -43,7 +43,7 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 Android 14 lets a Device Owner set the default phone app without asking. Older versions only let the
 user choose, so on Android 10 to 13:
 
-1. Android shows the dialog "Set Plainphone as your default phone app?". On Android 12 and 13 it comes during setup, before the home screen; on Android 10 and 11 it comes when Plainphone opens right after setup. The parent taps **Set as default**.
+1. Android shows the dialog "Set Plainphone as your default phone app?". On Android 12 and 13 it comes during setup, before the home screen (some Android 10 and 11 phones run the same setup step and show it there too); on Android 10 and 11 it comes when Plainphone opens right after setup. The parent taps **Set as default**.
 2. Until that happens, the status screen says "Phone app: not Plainphone. Calls are not filtered.", the line `default phone app` says `FAIL` with "confirm Plainphone as phone app on the phone", and the parent's dashboard shows the lock as not intact. Each time Plainphone is opened, it asks again.
 3. If "Don't ask again" was ticked in the dialog, Android no longer shows it. Then set it by hand: Settings → Apps → Default apps → Phone app → Plainphone.
 4. The maker's extra phone apps are hidden whether or not Plainphone holds the role. The built-in (system) dialer stays, because Android falls back to it for emergency calls.

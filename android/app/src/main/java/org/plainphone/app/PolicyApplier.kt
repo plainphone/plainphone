@@ -40,7 +40,8 @@ class PolicyApplier(
         results += step("automatic date and time") { device.requireAutoTime(true) }
         results += grantTelephonyPermissions()
         results += location(config)
-        // After the roles: the maker's phone and SMS apps are only hidden once Plainphone holds the role.
+        // After the roles: the maker's phone and SMS apps are hidden once Plainphone holds the role
+        // (below Android 14 the extra dialers always, see LockPolicy.telephonyAppsToHide).
         results += hideApps(config)
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)

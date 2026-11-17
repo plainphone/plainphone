@@ -32,6 +32,12 @@ class MainActivity : Activity() {
     private var taps = 0
     private var askedForDialer = false
     private var dialerDialogOpen = false
+    private var started = false
+
+    override fun onStart() {
+        super.onStart()
+        started = true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,7 +108,8 @@ class MainActivity : Activity() {
      * cannot set it silently (before Android 14). Returns true if the dialog was opened.
      */
     private fun askForDialerRole(): Boolean {
-        if (askedForDialer || !Lock.applier(this).needsDialerDialog()) return false
+        // The lock is applied in the background; if the user left meanwhile, do not open a dialog over another app.
+        if (!started || askedForDialer || !Lock.applier(this).needsDialerDialog()) return false
         val roles = getSystemService(RoleManager::class.java) ?: return false
         if (!roles.isRoleAvailable(RoleManager.ROLE_DIALER)) return false
         askedForDialer = true
@@ -115,6 +122,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         super.onStop()
+        started = false
         // Ask again the next time Plainphone is opened (the activity is singleTask and survives Home),
         // but not when it is our own dialog that covers the screen.
         if (!dialerDialogOpen) askedForDialer = false

@@ -2,7 +2,6 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
-import org.plainphone.app.Compat
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -16,6 +15,7 @@ import android.telephony.SmsManager
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.plainphone.app.Compat
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources

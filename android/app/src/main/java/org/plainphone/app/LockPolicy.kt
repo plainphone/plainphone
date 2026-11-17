@@ -73,8 +73,8 @@ object LockPolicy {
     data class HidePlan(val hide: Set<String>, val unhide: Set<String>)
 
     /**
-     * The maker's phone and SMS apps to hide once Plainphone holds the role,
-     * so approved contacts cannot be bypassed through them.
+     * The maker's phone and SMS apps to hide once Plainphone holds the role (below Android 14
+     * the extra dialers always), so approved contacts cannot be bypassed through them.
      *
      * The system dialer is never hidden: Android falls back to it for
      * emergency calls if the default phone app fails, and lock-screen
