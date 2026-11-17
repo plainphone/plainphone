@@ -19,8 +19,36 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1794944921269,
-      "tag": "0002_hardening",
+      "when": 1794942177558,
+      "tag": "0002_dns_deletions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794944051679,
+      "tag": "0003_light_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794944510866,
+      "tag": "0004_enrollments",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794945047736,
+      "tag": "0005_push_and_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794948061685,
+      "tag": "0006_security_hardening",
       "breakpoints": true
     }
   ]

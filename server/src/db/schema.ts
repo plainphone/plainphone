@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -102,9 +103,15 @@ export interface DeviceStatus {
   /** The private DNS host the phone actually uses. */
   dnsHost: string | null;
   /** Factory reset protection on the phone: on, off, no-play-services or failed (#19). Missing on old apps. */
-  resetProtection?: string | null;
+  resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
   /** Account types signed in on the phone ("com.google"), no names (#21). */
   accountTypes?: string[] | null;
+  /** Missing on phones that predate light mode: strong. */
+  mode?: "strong" | "light";
+  /** What is active on the phone right now (light mode reports all of them). */
+  protections?: Partial<Record<Protection, boolean>>;
+  /** Minutes used today per limited package; "*" is the total. */
+  timeUsed?: Record<string, number>;
 }
 
 /** What the server read from the phone's key attestation (#23). No serial number or IMEI. */
@@ -116,6 +123,22 @@ export interface PhoneAttestation {
   osPatchLevel: number | null;
   revocationChecked: boolean;
 }
+
+/** The protections a phone can report in `PUT /device/status`. */
+export const PROTECTIONS = [
+  "deviceOwner",
+  "deviceAdmin",
+  "accessibility",
+  "usageAccess",
+  "vpn",
+  "alwaysOnVpn",
+  "phoneRole",
+  "smsRole",
+  "notifications",
+  "batteryUnrestricted",
+  "privateDnsOk",
+] as const;
+export type Protection = (typeof PROTECTIONS)[number];
 
 export const phones = pgTable(
   "phones",
@@ -154,6 +177,10 @@ export const phones = pgTable(
     /** The last hardware attestation result (#23); null until the phone attested once. */
     attestation: jsonb("attestation").$type<PhoneAttestation>(),
     attestedAt: timestamp("attested_at", { withTimezone: true }),
+    /** When the parents were told the phone is offline; cleared when it is seen again. */
+    offlineAlertedAt: timestamp("offline_alerted_at", { withTimezone: true }),
+    /** Hours of silence before the parents are told; null = the server default, 0 = never. */
+    offlineAlertHours: integer("offline_alert_hours"),
     createdAt: createdAt(),
   },
   (t) => [index("phones_household_idx").on(t.householdId)],
@@ -191,9 +218,44 @@ export const phoneApps = pgTable(
     /** Reported by the phone: dialer, messages, settings, launcher... Never hidden. */
     core: boolean("core").notNull().default(false),
     installed: boolean("installed").notNull().default(true),
+    /** The parent picked it from the app catalog; the phone offers to install it. */
+    requested: boolean("requested").notNull().default(false),
     reportedAt: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.phoneId, t.packageName] })],
+);
+
+/** Weekday overrides of a limit: ISO weekday ("1" = Monday) to minutes. */
+export type LimitDays = Partial<Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", number>>;
+
+/** Daily time limits. packageName "*" is the cap for all non-core apps together. */
+export const timeLimits = pgTable(
+  "time_limits",
+  {
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    packageName: text("package_name").notNull(),
+    minutes: integer("minutes").notNull(),
+    days: jsonb("days").$type<LimitDays>().notNull().default({}),
+  },
+  (t) => [primaryKey({ columns: [t.phoneId, t.packageName] })],
+);
+
+/** Extra minutes for one local date (the phone's time zone). packageName "*" is the total cap. */
+export const timeBonuses = pgTable(
+  "time_bonuses",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    packageName: text("package_name").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    minutes: integer("minutes").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("time_bonuses_phone_day_idx").on(t.phoneId, t.day)],
 );
 
 export const contacts = pgTable(
@@ -318,8 +380,107 @@ export const unlockPayments = pgTable("unlock_payments", {
 });
 
 /**
+ * ClientIDs the DNS service must forget. A row is written in the same transaction that
+ * deletes a phone, so the sweeper can retry the delete until the DNS service confirms it
+ * (204 or 404). Holds no personal data: only the random ClientID.
+ */
+export const dnsDeletions = pgTable("dns_deletions", {
+  clientId: text("client_id").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/**
+ * Where to send notifications for a parent: one row per browser (Web Push) or, later,
+ * per native app install (APNs/FCM device token). Push messages are end-to-end encrypted
+ * for Web Push; the push service (Google, Apple, Mozilla) only sees the endpoint.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform", { enum: ["web", "apns", "fcm"] }).notNull(),
+    /** Web Push: the push service URL. APNs/FCM: the device token. */
+    endpoint: text("endpoint").notNull().unique(),
+    /** Web Push only: the browser's public key and auth secret (base64url). */
+    p256dh: text("p256dh"),
+    auth: text("auth"),
+    /** A short label the app shows, such as "Chrome on Android". Not used for anything else. */
+    label: text("label"),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+/** Phones a parent does not want notifications about. Absent means on. */
+export const notificationMutes = pgTable(
+  "notification_mutes",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.phoneId] })],
+);
+
+/** Something the person with the phone asks for: an app from its list, or a contact. */
+export const phoneRequests = pgTable(
+  "phone_requests",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["app", "contact"] }).notNull(),
+    packageName: text("package_name"),
+    contactName: text("contact_name"),
+    /** E.164. */
+    contactNumber: text("contact_number"),
+    status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+    /** On a Self phone an approval becomes a change that waits for the key. */
+    changeId: uuid("change_id").references(() => pendingChanges.id, { onDelete: "set null" }),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("phone_requests_phone_status_idx").on(t.phoneId, t.status)],
+);
+
+/**
+ * One-time enrollment token in a provisioning QR code made in the dashboard. The phone sends it
+ * after setup and is paired with [phoneId] without a code. Only the SHA-256 of the token is stored.
+ */
+export const enrollments = pgTable(
+  "enrollments",
+  {
+    id: id(),
+    tokenHash: text("token_hash").notNull().unique(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** SHA-256 of the phone's install id, so a lost answer can be retried by the same phone. */
+    installIdHash: text("install_id_hash"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("enrollments_phone_idx").on(t.phoneId)],
+);
+
+/**
  * A parent's Google account for factory reset protection (#20), one per member and household.
- * Only the numeric account ID (OpenID Connect `sub`) is stored, no email address.
+ * Only the numeric account ID (Google People API) is stored, no email address.
  */
 export const frpAccounts = pgTable(
   "frp_accounts",

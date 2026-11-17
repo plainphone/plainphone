@@ -23,14 +23,16 @@ Record each result in the table at the bottom of a copy of this file, with the p
 
 | # | Attempt | Expected | How to test |
 |---|---|---|---|
-| R1 | Factory reset from Settings | Option is greyed out or refused | Settings → System → Reset options |
+| R1 | Factory reset from Settings | Option is greyed out or refused | Settings → System → Reset options. If a reset confirmation appears, cancel it |
 | R2 | Uninstall Plainphone | Not possible | Long-press the icon; Settings → Apps → Plainphone |
 | R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
 | R4 | Remove Plainphone as device admin | Not offered | Settings → Security → Device admin apps |
-| R5 | Recovery reset (Power + Volume up at boot) | **Cannot be blocked.** The reset works. Afterwards: with FRP accounts or a previous Google account on the phone, it asks for that account; without one, the phone is free | Test once at the end. Note what the phone asks for after the reset |
-| R6 | Samsung Find My Mobile / Google Find My Device remote erase | Works if the child knows an account on the phone. Then as R5. Since 0.1.4 no account can be added or removed (`DISALLOW_MODIFY_ACCOUNTS`): Settings → Accounts → Add account says it is blocked by the admin, and it works again during a maintenance unlock | Only if an account is signed in |
+| R5 | Reset from recovery with a parent's FRP account set | **Destructive.** Does setup accept the child's previous screen-lock PIN? Record whether the PIN alone completes setup. Then check that the parent's linked Google account can complete setup | Last, on the test phone only. Use an established Google account, OEM unlocking off, and wait until the phone reports reset protection set |
+| R6 | Add or remove an account in strong mode | Settings blocks account changes. Add the parent's account during a maintenance unlock, then confirm the restriction returns when the unlock expires. The dashboard lists account types only | Settings → Accounts |
 | R7 | Clear Plainphone's data | Not offered for a Device Owner | Settings → Apps → Plainphone → Storage |
 | R8 | Reset app preferences / reset network settings | App preferences can be reset but do not show hidden apps. Network reset is blocked | Settings → System → Reset options |
+| R9 | Remote erase with a signed-in test account | **Destructive.** Record what setup asks for after the erase. Keep separate from R5 since the reset path differs | Optional, on the test phone only |
+| R10 | Force stop and maintenance expiry | On Android 11+, Force stop and Clear data should be unavailable. On OnePlus Android 10, check the existing behavior and let a 30-minute maintenance unlock expire with the screen off | Settings → Apps → Plainphone |
 
 ## Safe mode, users and profiles
 
@@ -86,7 +88,7 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 | C10 | SMS with a link from an approved contact | The link opens in Chrome and the DNS filter applies | Send `https://` link to a blocked site |
 | C11 | Messenger apps (WhatsApp, Signal, Telegram) | Hidden by default. If a parent allows one, calls and chats in it are **not** covered by the list (documented). Note whether its in-app browser is filtered | Look for them; if allowed, call through them |
 | C12 | Google Messages "Messages for web" / RCS | Google Messages is hidden once Plainphone is the SMS app and is not the SMS app, so it cannot send or pair with the web | Look for Messages; go to messages.google.com/web on a PC |
-| C13 | Make another app the default phone or SMS app | Not allowed (`DISALLOW_CONFIG_DEFAULT_APPS`): the setting is greyed out or says "blocked by your admin". If a phone ignores it, Plainphone takes the roles back at the next reboot or when it is opened. **Android 10 to 13:** the restriction does not exist, so picking the built-in dialer works, and **calls are then unfiltered** until Plainphone is the phone app again (known gap). Expected: only the built-in dialer can be picked, the status screen and the dashboard show `default phone app` as failed within 15 minutes, and Plainphone asks again when opened (see [android-versions.md](android-versions.md)). **Since 0.1.4:** with the call screening and redirection roles held, calls to and from numbers that are not approved are still stopped after the switch (except incoming calls with a hidden number), and the dashboard shows the switch within about a minute | Settings → Apps → Default apps |
+| C13 | Change the default phone app | On Android 14+, Android blocks the change. On Android 10–13, switch to the built-in dialer after granting both extra call roles. Repeat C1, C4, C5 and C6. Calls with hidden or unknown caller ID can bypass screening. Check that the dashboard reports the changed dialer and reopening Plainphone asks for the role | Settings → Apps → Default apps |
 | C14 | MMS / group message from an approved contact | Dropped in phase 2 (documented). Note what the sender sees | Send a picture or a group message |
 | C15 | Reply with a message from the incoming-call screen | Only sent if the caller is approved | Decline a call from an approved number with a quick reply |
 | C16 | Voicemail | The voicemail number is blocked unless added as a contact (documented). Note whether missed calls from unknown numbers still reach voicemail | Call from the second phone, check the carrier's voicemail |

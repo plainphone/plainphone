@@ -37,8 +37,8 @@ class AndroidHardeningControlsTest {
     @Test
     fun `Android 10 writes factoryResetProtectionAdmin for Play services and sends the broadcast`() {
         installPlayServices()
-        val results = Hardening(AndroidHardeningControls(context), 29).apply(PolicyConfig(frpAccountIds = setOf("1234567890")))
-        assertThat(results.single { it.name == Hardening.RESET_PROTECTION }.ok).isTrue()
+        val result = Hardening(AndroidHardeningControls(context), 29).resetProtection(setOf("1234567890"))
+        assertThat(result.ok).isTrue()
 
         val bundle = dpm.getApplicationRestrictions(admin, AndroidHardeningControls.GMS_PACKAGE)
         assertThat(bundle.getStringArray(AndroidHardeningControls.KEY_FRP_ADMIN)).asList().containsExactly("1234567890")
@@ -53,7 +53,7 @@ class AndroidHardeningControlsTest {
     fun `release switches the Android 10 configuration off`() {
         installPlayServices()
         val controls = AndroidHardeningControls(context)
-        Hardening(controls, 29).apply(PolicyConfig(frpAccountIds = setOf("1234567890")))
+        Hardening(controls, 29).resetProtection(setOf("1234567890"))
         Hardening(controls, 29).release()
         val bundle = dpm.getApplicationRestrictions(admin, AndroidHardeningControls.GMS_PACKAGE)
         assertThat(bundle.containsKey(AndroidHardeningControls.KEY_FRP_ADMIN)).isFalse()
@@ -62,8 +62,8 @@ class AndroidHardeningControlsTest {
 
     @Test
     fun `without Play services nothing is written`() {
-        val results = Hardening(AndroidHardeningControls(context), 29).apply(PolicyConfig(frpAccountIds = setOf("1")))
-        assertThat(Hardening.resetProtectionState(results)).isEqualTo(ResetProtection.NO_PLAY_SERVICES)
+        val result = Hardening(AndroidHardeningControls(context), 29).resetProtection(setOf("1"))
+        assertThat(Hardening.resetProtectionState(listOf(result))).isEqualTo(ResetProtection.NO_PLAY_SERVICES)
         assertThat(dpm.getApplicationRestrictions(admin, AndroidHardeningControls.GMS_PACKAGE).isEmpty).isTrue()
     }
 

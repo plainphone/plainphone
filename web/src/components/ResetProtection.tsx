@@ -22,7 +22,7 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
   // Back from Google: show the result once and drop it from the address.
   useEffect(() => {
     const result = params.get("reset-protection") as keyof typeof RESULTS | null;
-    if (!result || !(result in RESULTS)) return;
+    if (!result || !Object.hasOwn(RESULTS, result)) return;
     setNotice({ tone: result === "ok" ? "success" : "error", text: t(RESULTS[result]) });
     const next = new URLSearchParams(params);
     next.delete("reset-protection");
@@ -57,15 +57,14 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
   return (
     <section className="section" aria-labelledby="frp-h">
       <h2 id="frp-h">{t("frp.title")}</h2>
-      <p className="help">{t("frp.intro")}</p>
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(data) => {
           const mine = data.accounts.find((a) => a.mine);
-          if (!data.available) return <p className="notice notice-info">{t("frp.unavailable")}</p>;
           return (
             <>
-              {data.accounts.length === 0 ? (
+              <p className="help">{t(data.available ? "frp.intro" : "frp.unavailable")}</p>
+              {data.available && data.accounts.length === 0 ? (
                 <p className="muted">{t("frp.none")}</p>
               ) : (
                 <ul className="list item-list">
@@ -88,12 +87,12 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
                   ))}
                 </ul>
               )}
-              <p className="help">{t("frp.remember")}</p>
-              <div>
+              {data.available && <p className="help">{t("frp.remember")}</p>}
+              {data.available && <div>
                 <button type="button" className={mine ? "btn btn-secondary" : "btn btn-primary"} onClick={() => void start()} disabled={busy}>
                   {t(mine ? "frp.change" : "frp.button")}
                 </button>
-              </div>
+              </div>}
             </>
           );
         }}

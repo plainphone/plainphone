@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Factory reset protection (FRP) from the dashboard (#20). A parent signs in with Google once;
-// the server keeps only the numeric Google account ID (the OpenID Connect `sub`), never an email
+// the server keeps only the numeric Google account ID (from the People API), never an email
 // address, and sends it to the household's phones in the rules document. After a reset from
 // recovery mode, Android's setup then asks for that Google account.
 
@@ -13,6 +13,7 @@ import { wakePhone } from "./phones.js";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+export const GOOGLE_PEOPLE_URL = "https://people.googleapis.com/v1/people/me?personFields=metadata&sources=READ_SOURCE_TYPE_PROFILE&fields=resourceName";
 const GOOGLE_ISSUERS = new Set(["https://accounts.google.com", "accounts.google.com"]);
 
 /** Google: "Newly-created accounts might not be available for factory reset purposes for 72 hours". */
@@ -32,6 +33,7 @@ interface PendingLogin {
   userId: string;
   householdId: string;
   verifier: string;
+  native: boolean;
   expiresAt: number;
 }
 
@@ -42,12 +44,12 @@ interface PendingLogin {
 export class PendingLogins {
   private readonly map = new Map<string, PendingLogin>();
 
-  start(userId: string, householdId: string, now: number) {
+  start(userId: string, householdId: string, now: number, native = false) {
     for (const [k, v] of this.map) if (v.expiresAt <= now) this.map.delete(k);
     if (this.map.size >= MAX_PENDING) throw new Error("too many logins in progress");
     const state = randomBytes(24).toString("base64url");
     const verifier = randomBytes(32).toString("base64url");
-    this.map.set(state, { userId, householdId, verifier, expiresAt: now + STATE_TTL_MS });
+    this.map.set(state, { userId, householdId, verifier, native, expiresAt: now + STATE_TTL_MS });
     return { state, challenge: createHash("sha256").update(verifier).digest("base64url") };
   }
 
@@ -58,13 +60,13 @@ export class PendingLogins {
   }
 }
 
-/** The Google sign-in URL. Scope `openid` only: Google then returns the account ID and nothing else. */
+/** The Google sign-in URL. The profile scope authorizes the People API without requesting email. */
 export function googleAuthUrl(ctx: Ctx, state: string, challenge: string): string {
   const q = new URLSearchParams({
     client_id: ctx.cfg.GOOGLE_OAUTH_CLIENT_ID!,
     redirect_uri: callbackUrl(ctx),
     response_type: "code",
-    scope: "openid",
+    scope: "openid https://www.googleapis.com/auth/userinfo.profile",
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -75,13 +77,15 @@ export function googleAuthUrl(ctx: Ctx, state: string, challenge: string): strin
 }
 
 /**
- * Exchanges the code for an ID token and returns its `sub`. The token comes straight from Google's
+ * Exchanges the code and reads the numeric FRP account ID from the People API. The token comes straight from Google's
  * token endpoint over TLS, so its signature does not need checking (OpenID Connect Core 3.1.3.7);
  * issuer, audience and expiry are still checked.
  */
 export async function googleAccountId(ctx: Ctx, code: string, verifier: string): Promise<string> {
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
@@ -93,7 +97,7 @@ export async function googleAccountId(ctx: Ctx, code: string, verifier: string):
     }),
   });
   if (!res.ok) throw new Error(`Google token endpoint answered ${res.status}`);
-  const token = (await res.json()) as { id_token?: unknown };
+  const token = (await res.json()) as { id_token?: unknown; access_token?: unknown };
   if (typeof token.id_token !== "string") throw new Error("no ID token from Google");
   const payload = decodeJwtPayload(token.id_token);
   if (!GOOGLE_ISSUERS.has(String(payload.iss))) throw new Error("ID token from the wrong issuer");
@@ -102,10 +106,17 @@ export async function googleAccountId(ctx: Ctx, code: string, verifier: string):
   if (typeof payload.exp !== "number" || payload.exp * 1000 < ctx.now().getTime() - 60_000) {
     throw new Error("ID token expired");
   }
-  const sub = String(payload.sub ?? "");
-  // Google account IDs are decimal numbers (21 digits today); FRP takes exactly that.
-  if (!/^\d{1,30}$/.test(sub)) throw new Error("unexpected account ID format");
-  return sub;
+  if (typeof token.access_token !== "string") throw new Error("no access token from Google");
+  const person = await fetch(GOOGLE_PEOPLE_URL, {
+    headers: { authorization: `Bearer ${token.access_token}` },
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!person.ok) throw new Error(`Google People API answered ${person.status}`);
+  const { resourceName } = (await person.json()) as { resourceName?: unknown };
+  const id = typeof resourceName === "string" ? /^people\/(\d{1,30})$/.exec(resourceName)?.[1] : undefined;
+  if (!id) throw new Error("unexpected Google account ID format");
+  return id;
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> {

@@ -6,6 +6,7 @@ import { loadConfig } from "../src/config.js";
 import { createDb, runMigrations } from "../src/db/client.js";
 import { MockDnsProvider } from "../src/providers/dns.js";
 import { MemoryMailProvider } from "../src/providers/mail.js";
+import { MemoryParentPushProvider } from "../src/providers/parent-push.js";
 import { RecordingPushProvider } from "../src/providers/push.js";
 import type { Ctx } from "../src/services/context.js";
 
@@ -17,6 +18,7 @@ export interface Harness {
   mail: MemoryMailProvider;
   dns: MockDnsProvider;
   push: RecordingPushProvider;
+  parentPush: MemoryParentPushProvider;
   clock: { now: Date; advance(ms: number): void };
 }
 
@@ -42,6 +44,7 @@ export function useHarness(): Harness {
     h.mail = new MemoryMailProvider();
     h.dns = new MockDnsProvider();
     h.push = new RecordingPushProvider();
+    h.parentPush = new MemoryParentPushProvider();
     const clock = {
       now: new Date("2026-11-16T12:00:00Z"),
       advance(ms: number) {
@@ -55,6 +58,7 @@ export function useHarness(): Harness {
       mail: h.mail,
       dns: h.dns,
       push: h.push,
+      parentPush: h.parentPush,
       now: () => clock.now,
     };
     h.app = createApp(h.ctx);

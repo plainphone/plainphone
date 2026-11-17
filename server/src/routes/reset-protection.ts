@@ -51,7 +51,8 @@ export function resetProtectionRoutes(ctx: Ctx) {
       const hid = await requireMember(c);
       if (!resetProtectionAvailable(ctx)) return c.json({ error: "Google sign-in is not set up on this server" }, 409);
       if (!startLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many attempts" });
-      const { state, challenge } = pending.start(c.get("user").id, hid, ctx.now().getTime());
+      const native = !c.get("viaCookie") && c.req.header("x-plainphone-app") === "parent";
+      const { state, challenge } = pending.start(c.get("user").id, hid, ctx.now().getTime(), native);
       return c.json({ url: googleAuthUrl(ctx, state, challenge) });
     });
 
@@ -65,10 +66,10 @@ export function resetProtectionRoutes(ctx: Ctx) {
   /** Google sends the browser back here. No session cookie arrives (SameSite=Strict); the state says who it is. */
   const callback = new Hono();
   callback.get("/google/callback", async (c) => {
+    const allowed = callbackLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY));
+    const login = allowed ? pending.take(c.req.query("state") ?? "", ctx.now().getTime()) : null;
     const done = (result: "ok" | "cancelled" | "failed") =>
-      c.redirect(`${ctx.cfg.PUBLIC_URL}/household?reset-protection=${result}`, 302);
-    if (!callbackLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) return done("failed");
-    const login = pending.take(c.req.query("state") ?? "", ctx.now().getTime());
+      c.redirect(`${login?.native ? "plainphone://" : `${ctx.cfg.PUBLIC_URL}/`}household?reset-protection=${result}`, 302);
     if (!login || !resetProtectionAvailable(ctx)) return done("failed");
     const code = c.req.query("code");
     if (!code) return done(c.req.query("error") === "access_denied" ? "cancelled" : "failed");
@@ -82,7 +83,7 @@ export function resetProtectionRoutes(ctx: Ctx) {
       const id = await googleAccountId(ctx, code, login.verifier);
       await saveAccount(ctx, login.householdId, login.userId, id);
     } catch (err) {
-      console.error(`reset protection sign-in failed: ${(err as Error).message}`);
+      console.error("reset protection sign-in failed", err instanceof Error ? err.name : "unknown error");
       return done("failed");
     }
     return done("ok");

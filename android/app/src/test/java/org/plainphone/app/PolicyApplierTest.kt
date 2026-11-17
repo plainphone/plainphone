@@ -83,6 +83,46 @@ class PolicyApplierTest {
     }
 
     @Test
+    fun `FRP broadcast precedes blocking account changes on apply and relock`() {
+        for (sdk in listOf(29, 30, 35)) {
+            val controls = FakeHardening()
+            val checked = object : DeviceControls by device {
+                override fun addRestriction(key: String) {
+                    if (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                        assertThat(controls.broadcasts).isGreaterThan(0)
+                        val ids = if (sdk == 29) controls.legacyFrp else controls.policyAccounts
+                        assertThat(ids).containsExactly("123")
+                    }
+                    device.addRestriction(key)
+                }
+            }
+            val policy = PolicyApplier(checked, store, sdk, Hardening(controls, sdk))
+            val configured = config.copy(frpAccountIds = setOf("123"))
+            assertThat(policy.apply(configured).single { it.name.endsWith("no_modify_accounts") }.ok).isTrue()
+            policy.lift()
+            assertThat(device.restrictions).doesNotContain(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+            controls.broadcasts = 0
+            assertThat(policy.apply(configured).single { it.name.endsWith("no_modify_accounts") }.ok).isTrue()
+        }
+    }
+
+    @Test
+    fun `the emergency dialers stay visible and callable under strong mode limits`() {
+        val systemDialer = "com.android.dialer"
+        device.telephony = TelephonyApps(setOf(systemDialer, device.ownPackage), emptySet(), systemDialer)
+        device.launchable += setOf(systemDialer, device.ownPackage)
+        for (sdk in listOf(29, 33, 35)) {
+            val results = PolicyApplier(device, store, sdk, Hardening(FakeHardening(), sdk)).apply(
+                config.copy(allowedPackages = emptySet(), timeBlocked = setOf(systemDialer, device.ownPackage)),
+            )
+            assertThat(results.single { it.name == "time limits" }.ok).isTrue()
+            assertThat(device.hidden).containsNoneOf(systemDialer, device.ownPackage)
+            assertThat(device.suspended).containsNoneOf(systemDialer, device.ownPackage)
+            assertThat(device.restrictions).doesNotContain(android.os.UserManager.DISALLOW_OUTGOING_CALLS)
+        }
+    }
+
+    @Test
     fun `FRP unsupported on the device is reported, not fatal`() {
         val hardening = FakeHardening().apply { frpUnsupported = true }
         val results = PolicyApplier(device, store, 35, Hardening(hardening, 35)).apply(config.copy(frpAccountIds = setOf("1")))
@@ -144,5 +184,42 @@ class PolicyApplierTest {
         assertThat(device.hidden).isEmpty()
         assertThat(device.uninstallBlocked).isEmpty()
         assertThat(device.appRestrictions[LockPolicy.CHROME_PACKAGE]).isNull()
+    }
+}
+
+class TimeLimitApplierTest {
+    private val device = FakeDevice(
+        launchable = mutableSetOf("com.dialer", "com.spotify", "com.game", "com.android.vending", "org.plainphone.app"),
+        core = setOf("com.dialer"),
+    )
+    private val store = MemoryHiddenStore()
+    private val applier = PolicyApplier(device, store, sdkInt = 35)
+    private val config = PolicyConfig(dnsHost = "dns.example.org", allowedPackages = setOf("com.spotify"))
+
+    @Test
+    fun `used-up apps are suspended and come back when the day is new`() {
+        applier.apply(config.copy(timeBlocked = setOf("com.spotify", "com.dialer")))
+        assertThat(device.suspended).containsExactly("com.spotify") // core apps never
+        assertThat(store.suspendedSaved).containsExactly("com.spotify")
+        applier.apply(config)
+        assertThat(device.suspended).isEmpty()
+        assertThat(store.suspendedSaved).isEmpty()
+    }
+
+    @Test
+    fun `the install window lifts the install restriction and shows Play, then closes`() {
+        applier.apply(config.copy(installing = "dk.mitid.app.android"))
+        assertThat(device.restrictions).doesNotContain("no_install_apps")
+        assertThat(device.hidden).doesNotContain("com.android.vending")
+        applier.apply(config)
+        assertThat(device.restrictions).contains("no_install_apps")
+        assertThat(device.hidden).contains("com.android.vending")
+    }
+
+    @Test
+    fun `a maintenance unlock lifts suspensions too`() {
+        applier.apply(config.copy(timeBlocked = setOf("com.spotify")))
+        applier.lift()
+        assertThat(device.suspended).isEmpty()
     }
 }

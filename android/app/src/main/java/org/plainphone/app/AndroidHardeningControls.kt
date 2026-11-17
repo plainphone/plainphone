@@ -8,6 +8,7 @@ import android.app.admin.FactoryResetProtectionPolicy
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.os.UserHandle
@@ -65,20 +66,25 @@ class AndroidHardeningControls(private val context: Context) : HardeningControls
         dpm.setUserControlDisabledPackages(admin, packages)
 
     override fun extraUsers(): List<ExtraUser> {
-        val me = Process.myUserHandle()
         val um = context.getSystemService(UserManager::class.java)
-        val profiles = um.userProfiles.filter { it != me }
-        val secondary = dpm.getSecondaryUsers(admin).orEmpty().filter { it != me && it !in profiles }
+        val profiles = um.userProfiles.filterNot(::isProtectedUser)
+        val secondary = dpm.getSecondaryUsers(admin).orEmpty().filter { !isProtectedUser(it) && it !in profiles }
         return profiles.map { ExtraUser(id(it), "profile") } + secondary.map { ExtraUser(id(it), "user") }
     }
 
     override fun removeUser(user: ExtraUser): Boolean {
+        // The first interactive user can be secondary when Device Owner lives in headless user 0.
+        // The public API cannot identify that main user by handle, so report without removing.
+        if (Build.VERSION.SDK_INT >= 31 && UserManager.isHeadlessSystemUserMode()) return false
+        if (user.id < 0) return false
         val um = context.getSystemService(UserManager::class.java)
-        val me = Process.myUserHandle()
         val handle = (um.userProfiles + dpm.getSecondaryUsers(admin).orEmpty())
-            .firstOrNull { it != me && id(it) == user.id } ?: return true // gone already
+            .firstOrNull { !isProtectedUser(it) && id(it) == user.id } ?: return true
         return dpm.removeUser(admin, handle)
     }
+
+    private fun isProtectedUser(handle: UserHandle): Boolean =
+        handle == Process.myUserHandle() || handle == UserHandle.getUserHandleForUid(Process.SYSTEM_UID)
 
     override fun setKeyguardDisabledFeatures(flags: Int) = dpm.setKeyguardDisabledFeatures(admin, flags)
 

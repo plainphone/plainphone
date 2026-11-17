@@ -20,20 +20,34 @@ object EffectivePolicy {
      * @param removed the phone was removed in the dashboard. Its last rules keep applying, but the
      *   DNS service has deleted its ClientID, so the phone goes back to the QR code's DNS host.
      */
-    fun merge(qr: PolicyConfig, rules: ServerRules?, now: Instant, removed: Boolean = false): PolicyConfig {
+    fun merge(
+        qr: PolicyConfig,
+        rules: ServerRules?,
+        now: Instant,
+        removed: Boolean = false,
+        timeBlocked: Set<String> = emptySet(),
+        installing: String? = null,
+    ): PolicyConfig {
         if (rules == null) return qr
         val windows = Schedules.active(rules.schedules, now, rules.timezone)
         val windowAllowed = Schedules.allowedDuringWindows(windows)
+        // Catalog apps the parent approved before they were installed count as allowed, so they
+        // are not hidden in the minute between installing and the next rules.
+        val allowed = rules.allowedApps + rules.toInstall.map { it.packageName }
+        // Only an app the parent approved can open the install window.
+        val install = installing?.takeIf { pkg -> rules.toInstall.any { it.packageName == pkg } }
         return qr.copy(
             // The phone's own DNS address only once the DNS service knows it. Until then the
             // placeholder from the QR code stays, so the network never dies (an unknown ClientID
             // gets no answers at all).
             dnsHost = if (rules.dnsReady && rules.dnsHost != null && !removed) rules.dnsHost else qr.dnsHost,
             // During a window, an app needs both: the window allows it and the app list shows it.
-            allowedPackages = windowAllowed?.let { it intersect rules.allowedApps } ?: rules.allowedApps,
+            allowedPackages = windowAllowed?.let { it intersect allowed } ?: allowed,
             // The parents' accounts from the dashboard join any from the QR code (#20).
             frpAccountIds = qr.frpAccountIds + rules.frpAccountIds,
             server = ServerOverlay(windowActive = windows.isNotEmpty(), locationRequired = rules.locationEnabled),
+            timeBlocked = timeBlocked,
+            installing = install,
         )
     }
 
@@ -45,6 +59,8 @@ object EffectivePolicy {
             config.server?.windowActive.toString(),
             config.server?.locationRequired.toString(),
             config.frpAccountIds.sorted().joinToString(","),
+            config.timeBlocked.sorted().joinToString(","),
+            config.installing.toString(),
         ).joinToString("|")
         return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
     }

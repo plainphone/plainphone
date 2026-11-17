@@ -68,8 +68,10 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   const root = certs.at(-1)!;
   if (!root.verify(root.publicKey)) throw new Error("the last certificate is not self-signed");
 
-  const ext = certificateExtension(chainDer[0]!, KEY_ATTESTATION_OID);
-  if (!ext) throw new Error("no attestation record in the leaf certificate");
+  // Use the record closest to the root. A later certificate can carry an extension
+  // added by whoever controls an already-attested key.
+  const ext = chainDer.toReversed().map((der) => certificateExtension(der, KEY_ATTESTATION_OID)).find(Boolean);
+  if (!ext) throw new Error("no attestation record in the certificate chain");
   const desc = children(readTlv(ext).tlv.value);
   if (desc.length < 8) throw new Error("attestation record too short");
   const level = LEVELS[asInt(desc[1]!)] ?? null;
@@ -101,7 +103,7 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   let state: AttestationState;
   if (!deviceLocked || bootState === "unverified") state = "unlocked";
   else if (bootState === "self-signed") state = "custom-os";
-  else if (bootState === "verified") state = "verified";
+  else if (bootState === "verified") state = revocationChecked ? "verified" : "unverifiable";
   else state = "failed-boot";
   return { ...base, state, deviceLocked, verifiedBootState: bootState, osPatchLevel };
 }
@@ -120,7 +122,10 @@ export class RevocationList {
     if (this.cached && now - this.cached.at < 60 * 60_000) return this.cached.serials;
     try {
       const body = (await this.fetcher()) as { entries?: Record<string, unknown> };
-      const serials = new Set(Object.keys(body.entries ?? {}).map((s) => s.toLowerCase().replace(/^0+(?=.)/, "")));
+      if (!body?.entries || typeof body.entries !== "object" || Array.isArray(body.entries)) {
+        throw new Error("invalid revocation list");
+      }
+      const serials = new Set(Object.keys(body.entries).map((s) => s.toLowerCase().replace(/^0+(?=.)/, "")));
       this.cached = { at: now, serials };
     } catch (err) {
       console.error(`attestation revocation list: ${(err as Error).message}`);

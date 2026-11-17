@@ -11,6 +11,9 @@ data class StepResult(val name: String, val ok: Boolean, val detail: String = ""
 interface HiddenAppsStore {
     fun load(): Set<String>
     fun save(packages: Set<String>)
+    /** Apps suspended because their time is used up. */
+    fun loadSuspended(): Set<String> = emptySet()
+    fun saveSuspended(packages: Set<String>) = Unit
 }
 
 /**
@@ -34,7 +37,13 @@ class PolicyApplier(
         // Roles first: DISALLOW_CONFIG_DEFAULT_APPS below then keeps the user from changing them back (Android 14+).
         results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
+        hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
+            if (key == INSTALL_APPS && config.installing != null) {
+                // R2: one approved catalog app is being installed from Play. Re-added when it is installed or after 15 min.
+                results += step("install window for ${config.installing}") { device.clearRestriction(key) }
+                continue
+            }
             results += step("restriction $key") { device.addRestriction(key) }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
@@ -44,11 +53,12 @@ class PolicyApplier(
         // After the roles: the maker's phone and SMS apps are hidden once Plainphone holds the role
         // (below Android 14 the extra dialers always, see LockPolicy.telephonyAppsToHide).
         results += hideApps(config)
+        results += suspendUsedUp(config)
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)
         }
         // Factory reset protection, force stop, accounts, extra users, keyboards (Hardening.kt).
-        hardening?.let { results += it.apply(config) }
+        hardening?.let { results += it.applyOtherPolicies() }
         // Last, because it waits on the network.
         results += step("private DNS") { device.forcePrivateDns(config.dnsHost) }
         return results
@@ -62,6 +72,7 @@ class PolicyApplier(
             results += step("clear $key") { device.clearRestriction(key) }
         }
         results += showAllHidden()
+        results += step("time limits lifted") { setSuspended(emptySet()); null }
         results += step("private DNS back to automatic") { device.releasePrivateDns() }
         return results
     }
@@ -168,7 +179,8 @@ class PolicyApplier(
         ) - parentAllowed
         // During school time and bedtime config.allowedPackages is already narrowed to the window's
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
-        val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony
+        val keep = protectedCallPackages() + device.corePackages() + config.allowedPackages + device.ownPackage - telephony +
+            listOfNotNull(config.installing?.let { PolicyConfig.PLAY_STORE })
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()
@@ -193,6 +205,30 @@ class PolicyApplier(
         )
     }
 
+    /**
+     * Time limits in strong mode: used-up apps are suspended (the icon stays, Android says the app
+     * is paused) until the day ends. Core apps never get here (see TimeGuard.exempt).
+     */
+    private fun suspendUsedUp(config: PolicyConfig): StepResult = step("time limits") {
+        val target = config.timeBlocked - device.corePackages() - protectedCallPackages()
+        val refused = setSuspended(target)
+        (if (target.isEmpty()) "nothing used up" else "${target.size} used up for today") +
+            if (refused.isEmpty()) "" else "; Android refused: ${refused.joinToString()}"
+    }
+
+    private fun protectedCallPackages(): Set<String> =
+        setOfNotNull(device.ownPackage, device.telephonyApps().systemDialer)
+
+    private fun setSuspended(target: Set<String>): Set<String> {
+        val before = hiddenStore.loadSuspended()
+        val release = (before - target).filter(device::isInstalled).toSet()
+        val failedOff = if (release.isEmpty()) emptySet() else device.setSuspended(release, false)
+        val failedOn = if (target.isEmpty()) emptySet() else device.setSuspended(target, true)
+        hiddenStore.saveSuspended(target - failedOn + failedOff)
+        // Android refuses some packages (for example the active launcher): not a hole in the lock.
+        return (failedOn + failedOff)
+    }
+
     private fun showAllHidden(): StepResult = try {
         showAllHiddenUnguarded()
     } catch (e: Exception) {
@@ -213,6 +249,7 @@ class PolicyApplier(
         fun androidVersion(sdkInt: Int) = if (sdkInt in 29..33) (sdkInt - 19).toString() else "API $sdkInt"
 
         const val SHOW_HIDDEN = "show hidden apps"
+        const val INSTALL_APPS = "no_install_apps" // UserManager.DISALLOW_INSTALL_APPS
         // RoleManager.ROLE_DIALER / ROLE_SMS, as plain strings so the class stays JVM-testable.
         const val ROLE_DIALER = "android.app.role.DIALER"
         const val ROLE_SMS = "android.app.role.SMS"

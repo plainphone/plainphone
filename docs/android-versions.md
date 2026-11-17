@@ -29,7 +29,7 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 | App cloning blocked (`no_add_clone_profile`) | yes | not blocked by Plainphone: the AOSP clone profile came with Android 14, but maker features such as Samsung Dual Messenger and Xiaomi Dual apps exist on older versions. Test them with the bypass checklist | same | same |
 | Private space blocked | Android 15+ | not available (no private space) | same | same |
 | Automatic date, time and time zone required | yes | yes | yes | only automatic time (`setAutoTimeRequired`); manual changes are still blocked by `DISALLOW_CONFIG_DATE_TIME` |
-| Factory reset protection with chosen Google accounts | yes | yes | yes | yes, through Play services' managed configuration `factoryResetProtectionAdmin` (0.1.4; not yet tested on hardware) |
+| Factory reset protection with chosen Google accounts | yes | yes | yes | yes, through Play services' managed configuration `factoryResetProtectionAdmin` (requires hardware verification) |
 | Force stop of Plainphone blocked (`setUserControlDisabledPackages`) | yes | yes | yes | no: Force stop works, the lock stays |
 | Second layer for calls (call screening and call redirection roles) | not needed (phone app locked) | yes, two extra role dialogs | same | same |
 | Location on for "Find" | `setLocationEnabled` | same | same | `LOCATION_MODE` through `setSecureSetting` |
@@ -50,16 +50,11 @@ user choose, so on Android 10 to 13:
 3. If "Don't ask again" was ticked in the dialog, Android no longer shows it. Then set it by hand: Settings → Apps → Default apps → Phone app → Plainphone.
 4. The maker's extra phone apps are hidden whether or not Plainphone holds the role. The built-in (system) dialer stays, because Android falls back to it for emergency calls.
 
-**The gap:** without `DISALLOW_CONFIG_DEFAULT_APPS`, someone holding the phone can go to
-Settings → Apps → Default apps and pick the built-in dialer as the phone app. **From then on calls are
-not filtered at all**, neither incoming nor outgoing, until Plainphone is the phone app again. The
-maker's extra dialers and SMS apps stay hidden, so the built-in dialer is the only other choice. The
-next lock check (at the latest within 15 minutes, and every time Plainphone is opened) marks
-`default phone app` as failed, the dashboard shows the lock as not intact, and Plainphone asks again
-when it is opened. SMS is not affected: no other SMS app can be chosen. Bypass checklist row C13
-covers this test. For a child who will try this, use a phone with Android 14 or newer.
+On Android 10 to 13, the default-app setting remains available and the user can choose the system
+dialer. The extra dialers and SMS apps stay hidden. If either additional call role below is declined
+or removed, filtering for that direction can be lost until the role is restored.
 
-**The second layer (0.1.4, #24).** On Android 10 to 13 Plainphone also asks for two more roles with
+**The second layer (#24).** On Android 10 to 13 Plainphone also asks for two more roles with
 Android's dialog, right after the phone app: **call screening** (`ROLE_CALL_SCREENING`) and **call
 redirection** (`ROLE_CALL_REDIRECTION`). Telecom uses them whichever app is the phone app, so after a
 switch to the built-in dialer:

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { frpAccounts } from "../src/db/schema.js";
-import { GOOGLE_TOKEN_URL } from "../src/services/reset-protection.js";
+import { GOOGLE_PEOPLE_URL, GOOGLE_TOKEN_URL } from "../src/services/reset-protection.js";
 import { Client, pairPhone, PUBLIC_URL, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -16,11 +16,15 @@ function jwt(payload: Record<string, unknown>): string {
 function fakeGoogle(token: Record<string, unknown> | ((body: URLSearchParams) => Record<string, unknown>), status = 200) {
   const calls: URLSearchParams[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    if (String(url) === GOOGLE_PEOPLE_URL) {
+      const id = new Headers(init?.headers).get("authorization")?.replace(/^Bearer /, "");
+      return Response.json({ resourceName: `people/${id}` });
+    }
     expect(String(url)).toBe(GOOGLE_TOKEN_URL);
     const body = new URLSearchParams(String(init?.body));
     calls.push(body);
     const payload = typeof token === "function" ? token(body) : token;
-    return new Response(JSON.stringify({ id_token: jwt(payload), access_token: "x" }), { status });
+    return new Response(JSON.stringify({ id_token: jwt(payload), access_token: String(payload.sub) }), { status });
   });
   return calls;
 }
@@ -62,7 +66,7 @@ describe("reset protection", () => {
     expect((await parent.post(`/api/households/${hid}/reset-protection/google`)).status).toBe(409);
   });
 
-  it("asks Google for openid only, stores the account ID and no email, and syncs it to the phone", async () => {
+  it("uses the People API without an email scope, stores the account ID and no email, and syncs it to the phone", async () => {
     const parent = await signIn(h, "mum@example.org");
     const hid = (await parent.get("/api/me")).json.households[0].id;
     const { device } = await pairPhone(h, parent);
@@ -70,7 +74,7 @@ describe("reset protection", () => {
 
     const { url, state } = await startLogin(parent, hid);
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
-    expect(url.searchParams.get("scope")).toBe("openid");
+    expect(url.searchParams.get("scope")).toBe("openid https://www.googleapis.com/auth/userinfo.profile");
     expect(url.searchParams.get("redirect_uri")).toBe(`${PUBLIC_URL}/api/reset-protection/google/callback`);
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
 
@@ -93,6 +97,18 @@ describe("reset protection", () => {
 
     // The state is single-use.
     expect(await callback({ code: "c1", state })).toBe(`${PUBLIC_URL}/household?reset-protection=failed`);
+  });
+
+  it("returns a bearer-authenticated native parent to the app", async () => {
+    const parent = await signIn(h, "mum@example.org");
+    const hid = (await parent.get("/api/me")).json.households[0].id;
+    const started = await parent.call("POST", `/api/households/${hid}/reset-protection/google`, {}, {
+      "x-plainphone-app": "parent",
+    });
+    expect(started.status).toBe(200);
+    const state = new URL(started.json.url).searchParams.get("state")!;
+    fakeGoogle(goodToken());
+    expect(await callback({ code: "c", state })).toBe("plainphone://household?reset-protection=ok");
   });
 
   it("removing it clears the ID on the next sync", async () => {

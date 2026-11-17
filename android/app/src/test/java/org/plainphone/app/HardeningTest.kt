@@ -10,11 +10,14 @@ class HardeningTest {
     private val controls = FakeHardening()
     private val withAccount = PolicyConfig(frpAccountIds = setOf("118000000000000000001"))
 
+    private fun apply(hardening: Hardening, config: PolicyConfig): List<StepResult> =
+        listOf(hardening.resetProtection(config.frpAccountIds)) + hardening.applyOtherPolicies()
+
     private fun step(results: List<StepResult>, name: String) = results.single { it.name == name }
 
     @Test
     fun `Android 11+ sets the FRP policy and tells Play services`() {
-        val results = Hardening(controls, 30).apply(withAccount)
+        val results = apply(Hardening(controls, 30), withAccount)
         assertThat(controls.policyAccounts).containsExactly("118000000000000000001")
         assertThat(controls.legacyFrpSet).isFalse()
         assertThat(controls.broadcasts).isEqualTo(1)
@@ -23,7 +26,7 @@ class HardeningTest {
 
     @Test
     fun `Android 10 writes the Play services configuration and tells Play services`() {
-        val results = Hardening(controls, 29).apply(withAccount)
+        val results = apply(Hardening(controls, 29), withAccount)
         assertThat(controls.legacyFrp).containsExactly("118000000000000000001")
         assertThat(controls.policyWritten).isFalse()
         assertThat(controls.broadcasts).isEqualTo(1)
@@ -33,8 +36,8 @@ class HardeningTest {
     @Test
     fun `no account clears the policy, so removing it in the dashboard takes effect`() {
         val h = Hardening(controls, 33)
-        h.apply(withAccount)
-        val results = h.apply(PolicyConfig())
+        apply(h, withAccount)
+        val results = apply(h, PolicyConfig())
         assertThat(controls.policyWritten).isTrue()
         assertThat(controls.policyAccounts).isNull()
         assertThat(controls.broadcasts).isEqualTo(2)
@@ -43,17 +46,17 @@ class HardeningTest {
 
     @Test
     fun `account IDs that are not numbers are never sent`() {
-        Hardening(controls, 34).apply(PolicyConfig(frpAccountIds = setOf("parent@example.org", "42")))
+        apply(Hardening(controls, 34), PolicyConfig(frpAccountIds = setOf("parent@example.org", "42")))
         assertThat(controls.policyAccounts).containsExactly("42")
     }
 
     @Test
     fun `no Play services fails only when a parent asked for protection`() {
         controls.playServices = false
-        val off = Hardening(controls, 34).apply(PolicyConfig())
+        val off = apply(Hardening(controls, 34), PolicyConfig())
         assertThat(step(off, Hardening.RESET_PROTECTION).ok).isTrue()
         assertThat(Hardening.resetProtectionState(off)).isEqualTo(ResetProtection.NO_PLAY_SERVICES)
-        val asked = Hardening(controls, 34).apply(withAccount)
+        val asked = apply(Hardening(controls, 34), withAccount)
         assertThat(step(asked, Hardening.RESET_PROTECTION).ok).isFalse()
         assertThat(Hardening.resetProtectionState(asked)).isEqualTo(ResetProtection.NO_PLAY_SERVICES)
         assertThat(controls.broadcasts).isEqualTo(0)
@@ -62,19 +65,19 @@ class HardeningTest {
     @Test
     fun `a device without FRP support fails the step when accounts are set`() {
         controls.frpUnsupported = true
-        val results = Hardening(controls, 34).apply(withAccount)
+        val results = apply(Hardening(controls, 34), withAccount)
         assertThat(step(results, Hardening.RESET_PROTECTION).ok).isFalse()
         assertThat(Hardening.resetProtectionState(results)).isEqualTo(ResetProtection.FAILED)
         // Without accounts there is nothing to protect, so nothing fails.
-        assertThat(step(Hardening(controls, 34).apply(PolicyConfig()), Hardening.RESET_PROTECTION).ok).isTrue()
+        assertThat(step(apply(Hardening(controls, 34), PolicyConfig()), Hardening.RESET_PROTECTION).ok).isTrue()
     }
 
     @Test
     fun `release clears FRP on both paths`() {
-        Hardening(controls, 29).apply(withAccount)
+        apply(Hardening(controls, 29), withAccount)
         Hardening(controls, 29).release()
         assertThat(controls.legacyFrp).isNull()
-        Hardening(controls, 31).apply(withAccount)
+        apply(Hardening(controls, 31), withAccount)
         Hardening(controls, 31).release()
         assertThat(controls.policyAccounts).isNull()
     }
@@ -82,10 +85,10 @@ class HardeningTest {
     @Test
     fun `account types are reported without names`() {
         controls.accounts += listOf("com.google", "com.oneplus.account", "com.google")
-        val results = Hardening(controls, 29).apply(PolicyConfig())
+        val results = apply(Hardening(controls, 29), PolicyConfig())
         assertThat(Hardening.accountTypes(results)).containsExactly("com.google", "com.oneplus.account").inOrder()
         controls.accounts.clear()
-        assertThat(Hardening.accountTypes(Hardening(controls, 29).apply(PolicyConfig()))).isEmpty()
+        assertThat(Hardening.accountTypes(apply(Hardening(controls, 29), PolicyConfig()))).isEmpty()
     }
 
     @Test
@@ -103,7 +106,7 @@ class HardeningTest {
 
     @Test
     fun `Plainphone cannot be force stopped from Android 11, cleared on release`() {
-        val results = Hardening(controls, 30).apply(PolicyConfig())
+        val results = apply(Hardening(controls, 30), PolicyConfig())
         assertThat(step(results, Hardening.NO_FORCE_STOP).ok).isTrue()
         assertThat(controls.noUserControl).containsExactly("org.plainphone.app")
         Hardening(controls, 30).release()
@@ -112,22 +115,22 @@ class HardeningTest {
 
     @Test
     fun `Android 10 keeps today's behaviour for force stop`() {
-        val results = Hardening(controls, 29).apply(PolicyConfig())
+        val results = apply(Hardening(controls, 29), PolicyConfig())
         assertThat(results.map { it.name }).doesNotContain(Hardening.NO_FORCE_STOP)
         assertThat(controls.noUserControl).isEmpty()
     }
 
     @Test
     fun `no extra users is fine`() {
-        assertThat(step(Hardening(controls, 29).apply(PolicyConfig()), Hardening.EXTRA_USERS).detail).isEqualTo("none")
+        assertThat(step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.EXTRA_USERS).detail).isEqualTo("none")
     }
 
     @Test
     fun `an extra user or clone profile is removed`() {
         controls.users += listOf(ExtraUser(999, "profile"), ExtraUser(10, "user"))
-        val s = step(Hardening(controls, 29).apply(PolicyConfig()), Hardening.EXTRA_USERS)
-        assertThat(s.ok).isTrue()
-        assertThat(s.detail).isEqualTo("removed 2")
+        val s = step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.EXTRA_USERS)
+        assertThat(s.ok).isFalse()
+        assertThat(s.detail).isEqualTo("extra profile present; removed 2")
         assertThat(controls.users).isEmpty()
     }
 
@@ -135,7 +138,7 @@ class HardeningTest {
     fun `an extra user Android refuses to remove breaks the lock, with counts only`() {
         controls.users += listOf(ExtraUser(999, "profile"), ExtraUser(10, "user"))
         controls.unremovable += 999
-        val s = step(Hardening(controls, 29).apply(PolicyConfig()), Hardening.EXTRA_USERS)
+        val s = step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.EXTRA_USERS)
         assertThat(s.ok).isFalse()
         assertThat(s.detail).contains("1 of 2")
         assertThat(s.detail).contains("1 profile")
@@ -156,7 +159,7 @@ class HardeningTest {
 
     @Test
     fun `lock screen widgets, keyboards and accessibility are limited to built-in ones`() {
-        val results = Hardening(controls, 29).apply(PolicyConfig())
+        val results = apply(Hardening(controls, 29), PolicyConfig())
         assertThat(controls.keyguardFlags).isEqualTo(Hardening.KEYGUARD_DISABLE_WIDGETS_ALL)
         assertThat(controls.inputMethods).isEmpty()
         assertThat(controls.accessibility).isEmpty()
@@ -170,25 +173,25 @@ class HardeningTest {
     @Test
     fun `an enabled keyboard from an app is reported as its own failed step`() {
         controls.thirdPartyKeyboardEnabled = true
-        val results = Hardening(controls, 29).apply(PolicyConfig())
+        val results = apply(Hardening(controls, 29), PolicyConfig())
         assertThat(results.filterNot { it.ok }.map { it.name }).containsExactly(Hardening.KEYBOARDS)
     }
 
     @Test
     fun `Android 10 to 13 need the call screening and redirection roles, Android 14 does not`() {
         controls.roles[Hardening.ROLE_CALL_REDIRECTION] = RoleState.NOT_HELD
-        val old = Hardening(controls, 33).apply(PolicyConfig())
+        val old = apply(Hardening(controls, 33), PolicyConfig())
         assertThat(step(old, Hardening.CALL_SCREENING_ROLE).ok).isTrue()
         assertThat(step(old, Hardening.CALL_REDIRECTION_ROLE).ok).isFalse()
         assertThat(controls.granted).contains(Hardening.READ_CONTACTS)
-        val new = Hardening(controls, 34).apply(PolicyConfig())
+        val new = apply(Hardening(controls, 34), PolicyConfig())
         assertThat(new.map { it.name }).containsNoneOf(Hardening.CALL_SCREENING_ROLE, Hardening.CALL_REDIRECTION_ROLE, Hardening.CONTACTS_PERMISSION)
     }
 
     @Test
     fun `a role the phone does not offer does not break the lock`() {
         controls.roles[Hardening.ROLE_CALL_REDIRECTION] = RoleState.UNAVAILABLE
-        assertThat(step(Hardening(controls, 29).apply(PolicyConfig()), Hardening.CALL_REDIRECTION_ROLE).ok).isTrue()
+        assertThat(step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.CALL_REDIRECTION_ROLE).ok).isTrue()
     }
 
     @Test

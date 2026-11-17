@@ -1,30 +1,106 @@
 // SPDX-License-Identifier: Apache-2.0
-import { lt, or } from "drizzle-orm";
-import { magicLinks, pairings, sessions } from "../db/schema.js";
+import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
+import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, sessions } from "../db/schema.js";
+import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges } from "./changes.js";
 import type { Ctx } from "./context.js";
-import { syncDirtyDns } from "./dns.js";
+import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
+import { alertOfflinePhones } from "./notifications.js";
+
+const DAY = 86_400_000;
+/** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
+export const INVITE_GRACE_DAYS = 1;
+/** Finished pending changes (applied, cancelled, rejected, failed) are kept this long as history. */
+export const CHANGE_HISTORY_DAYS = 30;
+
+export interface SweepResult {
+  applied: number;
+  dns: number;
+  dnsDeleted: number;
+  offlineAlerts: number;
+  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number };
+}
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
-export async function sweep(ctx: Ctx) {
+export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
-  const dayAgo = new Date(now.getTime() - 86_400_000);
-  await ctx.db.delete(magicLinks).where(lt(magicLinks.expiresAt, dayAgo));
-  await ctx.db.delete(sessions).where(lt(sessions.expiresAt, now));
-  // Pairings hold an undelivered device token in clear text; never keep them long.
-  await ctx.db.delete(pairings).where(or(lt(pairings.expiresAt, dayAgo), lt(pairings.createdAt, dayAgo)));
-  return { applied, dns };
+  const dnsDeleted = await retryDnsDeletions(ctx);
+  const offlineAlerts = await alertOfflinePhones(ctx);
+  const dayAgo = new Date(now.getTime() - DAY);
+  const count = async (q: Promise<unknown[]>) => (await q).length;
+  const deleted = {
+    magicLinks: await count(ctx.db.delete(magicLinks).where(lt(magicLinks.expiresAt, dayAgo)).returning({ id: magicLinks.id })),
+    sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now)).returning({ id: sessions.id })),
+    // Pairings hold an undelivered device token in clear text; never keep them long.
+    pairings: await count(
+      ctx.db
+        .delete(pairings)
+        .where(or(lt(pairings.expiresAt, dayAgo), lt(pairings.createdAt, dayAgo)))
+        .returning({ id: pairings.id }),
+    ),
+    // Invitations hold the invited email address. Accepted ones are deleted on acceptance;
+    // this also catches any left from before that.
+    invites: await count(
+      ctx.db
+        .delete(householdInvites)
+        .where(
+          or(
+            isNotNull(householdInvites.acceptedAt),
+            lt(householdInvites.expiresAt, new Date(now.getTime() - INVITE_GRACE_DAYS * DAY)),
+          ),
+        )
+        .returning({ id: householdInvites.id }),
+    ),
+    // A change's op can hold contact names and numbers, domains or an email address.
+    changes: await count(
+      ctx.db
+        .delete(pendingChanges)
+        .where(
+          and(
+            inArray(pendingChanges.status, ["applied", "cancelled", "rejected", "failed"]),
+            lt(pendingChanges.decidedAt, new Date(now.getTime() - CHANGE_HISTORY_DAYS * DAY)),
+          ),
+        )
+        .returning({ id: pendingChanges.id }),
+    ),
+    // Answered requests hold an app name or a contact; the phone shows the answer for a while.
+    requests: await count(
+      ctx.db
+        .delete(phoneRequests)
+        .where(
+          and(
+            inArray(phoneRequests.status, ["approved", "rejected"]),
+            lt(phoneRequests.decidedAt, new Date(now.getTime() - REQUEST_HISTORY_DAYS * DAY)),
+          ),
+        )
+        .returning({ id: phoneRequests.id }),
+    ),
+  };
+  return { applied, dns, dnsDeleted, offlineAlerts, deleted };
+}
+
+/** Logs only counts, never ids or addresses, and only when something happened. */
+export function logSweep(r: SweepResult, always = false) {
+  const d = r.deleted;
+  const total = r.applied + r.dnsDeleted + r.offlineAlerts + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.requests;
+  if (total === 0 && !always) return;
+  console.log(
+    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} offlineAlerts=${r.offlineAlerts} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} requests=${d.requests}`,
+  );
 }
 
 export function startSweeper(ctx: Ctx, everyMs = 60_000): () => void {
   let running = false;
+  let first = true;
   const timer = setInterval(async () => {
     if (running) return;
     running = true;
     try {
-      await sweep(ctx);
+      // The first pass always logs, so a deploy shows that the sweeper runs.
+      logSweep(await sweep(ctx), first);
+      first = false;
     } catch (err) {
       console.error("sweeper failed", err);
     } finally {

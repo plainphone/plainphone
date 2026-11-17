@@ -51,6 +51,15 @@ describe("key attestation", () => {
     expect(() => verifyAttestation(broken, Buffer.from("challenge"), new Set())).toThrow(/not signed/);
   });
 
+  it("does not mark a locked phone verified without a revocation list", () => {
+    const result = verifyAttestation(
+      chain("sony-xperia10-iii-TEE_EC"),
+      b64("Pq/k1d0AkN5aQrQytCSBr1zimWNlayWExZpJLeFtAMk="),
+      null,
+    );
+    expect(result).toMatchObject({ state: "unverifiable", revocationChecked: false });
+  });
+
   it("says when the revocation list could not be fetched", async () => {
     const list = new RevocationList(async () => {
       throw new Error("offline");

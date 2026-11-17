@@ -78,8 +78,7 @@ enum class ResetProtection(val wire: String) {
  */
 class Hardening(private val controls: HardeningControls, private val sdkInt: Int) {
 
-    fun apply(config: PolicyConfig): List<StepResult> = buildList {
-        add(resetProtection(config.frpAccountIds))
+    fun applyOtherPolicies(): List<StepResult> = buildList {
         add(accounts())
         if (sdkInt >= 30) {
             add(step(NO_FORCE_STOP) { controls.setUserControlDisabled(listOf(controls.ownPackage)) })
@@ -116,7 +115,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
      * and uses Play services' managed configuration instead. Both paths end with the broadcast
      * Play services needs to pick up the change.
      */
-    private fun resetProtection(accountIds: Set<String>): StepResult {
+    fun resetProtection(accountIds: Set<String>): StepResult {
         val ids = accountIds.filter { it.isNotBlank() && it.all(Char::isDigit) }.sorted()
         if (!controls.hasPlayServices()) {
             // Without Play services nobody enforces FRP; a configured account is then a broken promise.
@@ -159,10 +158,8 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         val found = controls.extraUsers()
         if (found.isEmpty()) return@step "none"
         val left = found.filterNot { runCatching { controls.removeUser(it) }.getOrDefault(false) }
-        check(left.isEmpty()) {
-            "${left.size} of ${found.size} could not be removed (${left.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }})"
-        }
-        "removed ${found.size}"
+        if (left.isEmpty()) return StepResult(EXTRA_USERS, false, "extra profile present; removed ${found.size}")
+        error("extra profile present; ${left.size} of ${found.size} could not be removed (${left.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }})")
     }
 
     /** Fails until the role dialog was accepted on the phone (MainActivity asks), like the phone app itself. */

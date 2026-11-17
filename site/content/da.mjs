@@ -53,6 +53,7 @@ export default {
         body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel kommer til at gælde med det samme.",
       },
     ],
+    guide: "Har du lyst til at prøve? <a href=\"/da/setup/\">Følg trin-for-trin-guiden</a>.",
     note:
       "I dag virker trin 1 og 2 på testtelefoner. Stedet, hvor du vælger reglerne, er ved at blive bygget.",
   },
@@ -73,7 +74,7 @@ export default {
   phones: {
     title: "Testede telefoner",
     body:
-      "Ingen endnu. En telefon kommer først på listen, når den har klaret alle test i vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware. Indtil da er Plainphone et eksperiment.",
+      "Én indtil videre: en OnePlus 5T med Android 10. Opsætning, låsen og forbindelsen til dashboardet virker, som <a href=\"/da/setup/#tested\">opsætningsguiden</a> viser. Den har endnu ikke været igennem vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware, og en telefon regnes først for helt testet, når den har klaret alle test på den liste. Indtil da er Plainphone et eksperiment.",
   },
   open: {
     title: "Gratis og open source",
@@ -120,7 +121,7 @@ export default {
     lead:
       "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
     status:
-      "Plainphone er i en tidlig udgave. Forældreappen og serveren findes, men Plainphone-appen på telefonen forbinder endnu ikke til dem, så i dag sender den ikke noget til serveren. Hvor noget først gælder, når telefonerne er koblet på, står det her. En telefon kan allerede sættes op til at bruge webfilteret, som er beskrevet nedenfor.",
+      "Plainphone er i en tidlig udgave. Forældreappen, serveren, webfilteret og Plainphone-appen på telefonen virker sammen, men det er endnu ikke klar til daglig brug. Når det, Plainphone gemmer, ændrer sig, bliver denne side ændret først.",
     tocLabel: "På denne side",
     short: {
       title: "Kort fortalt",
@@ -158,7 +159,7 @@ export default {
               "din e-mailadresse og dit sprog (dansk eller engelsk)",
               "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et fingeraftryk (hash) af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
               "din session: et fingeraftryk (hash) af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
-              "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato",
+              "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato. En invitation bliver slettet, når den tages imod, og et døgn efter at den er udløbet",
             ],
           },
           "Alle i en husstand kan se hinandens e-mailadresser og styre alle husstandens telefoner. Links til at logge ind, sessioner og de nøgler, telefonerne bruger, gemmes som hashes.",
@@ -172,12 +173,14 @@ export default {
           {
             list: [
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
-              "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion",
+              "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
               "de apps, der er på telefonen (navn og pakkenavn), og hvilke af dem der er tilladt",
               "godkendte kontakter: de navne og numre, en forælder selv skriver ind i forældreappen. Serveren har ikke andet fra telefonens kontakter",
               "webfilterets indstillinger: hvilke kategorier der er blokeret, og de domæner, forælderen tillader eller blokerer",
               "skoletid og sengetid og de apps, der er tilladt i dem",
-              "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og en oversigt over de ændringer, der har ventet på nøglen",
+              "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og de ændringer, der venter på nøglen. En ændring, der er gennemført, annulleret eller afvist, gemmes i 30 dage og slettes derefter",
+              "anmodninger fra telefonen: en app fra dens egen liste eller en kontakt (navn og nummer), som den, der har telefonen, beder om at få tilføjet. En anmodning gemmes, mens den er åben, og i 30 dage efter, at en forælder har tilladt eller afvist den",
+              "efter hvor mange timers tavshed telefonen regnes for stille (én indstilling pr. telefon, fælles for dens forældre), og for hver forælder om de vil have notifikationer om den",
             ],
           },
           "En betroet person, du udpeger, får en mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
@@ -219,7 +222,7 @@ export default {
         id: "mail",
         title: "Mail",
         body: [
-          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer og de beskeder, en betroet person får. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer, de beskeder, en betroet person får, og en advarsel, når en telefons beskyttelse fjernes, eller den har været stille længe. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
         ],
       },
       {
@@ -228,7 +231,8 @@ export default {
         body: [
           "plainphone.org sætter ingen cookies, bruger ingen statistik og indlæser hverken scripts, skrifter eller billeder fra andre sider. Siden ligger hos Cloudflare Pages, så Cloudflare behandler, som enhver webhost, din IP-adresse og den adresse, du beder om, når en side leveres. Links til andre sider, fx GitHub, er almindelige links. Når du følger et, gælder den anden sides politik.",
           "Forældreappen på app.plainphone.org sætter én cookie, pp_session. Den holder dig logget ind, sendes kun til vores egen server, kan ikke læses af scripts på siden (HttpOnly), sendes kun ved forespørgsler fra samme side (SameSite=Strict) og varer højst 60 dage. Du har brug for den for at kunne logge ind, så der er intet cookiebanner.",
-          "Appen husker desuden i din browser dit valg af sprog (lokal lagring) og, kun mens du logger ind, hvor du skal hen bagefter samt en invitations- eller parringskode (sessionslagring, som bliver ryddet, når fanen lukkes). En service worker gemmer en kopi af appens egne filer, så den kan åbnes uden net. Den gemmer aldrig dine oplysninger.",
+          "Appen husker desuden i din browser dit valg af sprog og, hvis du slår notifikationer til, id’et på denne enheds notifikationsadresse (lokal lagring) og, kun mens du logger ind, hvor du skal hen bagefter samt en invitations- eller parringskode (sessionslagring, som bliver ryddet, når fanen lukkes). En service worker gemmer en kopi af appens egne filer, så den kan åbnes uden net. Den gemmer aldrig dine oplysninger.",
+          "Slår du notifikationer til, giver din browser os en adresse hos dens push-tjeneste (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) og to nøgler. Vi gemmer dem med en kort betegnelse som “Chrome · Android”, indtil du slår notifikationer fra, logger ud på enheden, fjerner enheden under Indstillinger, push-tjenesten melder, at adressen ikke længere gælder, eller du sletter din konto. Hver notifikation krypteres til din enhed, før den forlader vores server, så push-tjenesten kan levere den, men ikke læse den. Den kan se, at der blev sendt en notifikation, hvornår, og til hvilken adresse.",
         ],
       },
       {
@@ -242,6 +246,7 @@ export default {
               "Vores egen mailserver i EU sender mails. Det er ikke en mailtjeneste fra en tredjepart.",
               "Cloudflare hoster denne hjemmeside (plainphone.org) og logoet i vores mails.",
               "Quad9 og Mullvad, med Cloudflare som reserve, besvarer tilladte opslag i webfilteret, som beskrevet ovenfor.",
+              "Slår du notifikationer til, leverer din browsers push-tjeneste (Google, Apple, Mozilla eller Microsoft) dem. Indholdet er krypteret hele vejen.",
             ],
           },
           "Konto- og telefonoplysninger ligger på servere i EU.",
@@ -264,11 +269,11 @@ export default {
                 ],
                 [
                   "Din konto (e-mailadresse, sprog)",
-                  "Til kontoen bliver slettet. Der er endnu ingen knap til at slette den, så bed os om det (se Dine rettigheder)",
+                  "Til du sletter kontoen under Indstillinger i appen, eller beder os om det",
                 ],
                 [
                   "Husstand, telefoner, apps, kontakter, skoletid, filterindstillinger",
-                  "Til telefonen eller husstanden fjernes. Der er endnu ingen knap til nogen af delene i appen, så bed os om det. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
+                  "Til telefonen fjernes (på telefonens side i appen), eller din konto bliver slettet. En husstand bliver slettet sammen med kontoen for dens sidste medlem. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
                 ],
                 [
                   "Seneste position",
@@ -276,11 +281,19 @@ export default {
                 ],
                 [
                   "Ændringer, der har ventet på nøglen på en voksens egen telefon",
-                  "Til telefonen fjernes",
+                  "Mens de venter, og 30 dage efter at de er gennemført, annulleret eller afvist",
+                ],
+                [
+                  "Anmodninger fra en telefon (en app eller en kontakt)",
+                  "Mens de er åbne, og 30 dage efter, at de er tilladt eller afvist",
+                ],
+                [
+                  "Adresser til notifikationer (én pr. enhed)",
+                  "Indtil du slår notifikationer fra eller logger ud på enheden, fjerner den, push-tjenesten afviser adressen, eller du sletter din konto",
                 ],
                 [
                   "Invitationer",
-                  "De holder op med at virke efter 7 dage. Posten bliver endnu ikke slettet automatisk. Du kan trække en åben invitation tilbage, og vi kan fjerne resten, når du beder om det",
+                  "Slettes, når de tages imod. Ellers holder de op med at virke efter 7 dage og slettes et døgn senere. Du kan altid trække en åben invitation tilbage",
                 ],
                 ["Webfilterets tællere", "24 timer"],
                 [
@@ -305,11 +318,13 @@ export default {
               "ændre en telefons kontakter, apps, webfilter og tidsplaner",
               "slå placering fra, så den gemte position bliver slettet",
               "trække en åben invitation tilbage",
-              "forlade en husstand (det sidste medlem kan ikke forlade den)",
+              "omdøbe eller fjerne en telefon. Når den fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID, indtil det bekræfter. På en voksens egen telefon venter fjernelsen på nøglen",
+              "forlade en husstand (det sidste medlem kan ikke forlade den, men kan slette sin konto)",
+              "slette din konto under Indstillinger. En husstand, du deler med en anden forælder, bliver hos dem med sine telefoner. En husstand, kun du er med i, bliver slettet med sine telefoner. Er du betroet person for en anden, bliver deres nøgle i stedet en forsinkelse. I en husstand, kun du er med i, skal telefoner med en nøgle (en voksens egen telefon) først fjernes gennem nøglen",
               "logge ud, så sessionen slutter",
             ],
           },
-          "Der er endnu ingen knap til at omdøbe eller fjerne en telefon, slette din konto, hente dine oplysninger eller fjerne en udløbet invitation. Bed os om det (se Hvem er ansvarlig). Når en telefon fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID. Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
+          "Der er endnu ingen knap til at hente dine oplysninger. Bed os om det eller om noget andet på listen (se Hvem er ansvarlig). Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
         ],
       },
       {
@@ -328,8 +343,130 @@ export default {
       },
     ],
   },
+  setup: {
+    path: "/da/setup/",
+    title: "Sæt en telefon op: Plainphone",
+    description:
+      "Sådan sætter du en telefon op med Plainphone: vælg en PIN i dashboardet, scan en QR-kode på den nulstillede telefon, og lad telefonen låse sig selv. Omkring ti minutter.",
+    h1: "Sæt en telefon op",
+    lead:
+      "Du sætter en telefon op med en QR-kode fra dashboardet. Det tager omkring ti minutter, og du skal ikke bruge en computer.",
+    needTitle: "Det skal du bruge",
+    need: [
+      "En Android-telefon med Android 10 eller nyere, som du må nulstille. Opsætningen sletter alt på den, så gem det, du vil beholde, først. Versionen står under Indstillinger → Om telefonen.",
+      "Wi-Fi uden loginside. Netværk på hoteller og skoler, hvor man skal logge ind, virker ikke under opsætningen.",
+      "Omkring ti minutter.",
+      "Dashboardet åbent på en anden enhed, fx din egen telefon eller en computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    ],
+    stepsTitle: "Trin for trin",
+    steps: [
+      {
+        title: "Tilføj telefonen",
+        body: [
+          "Vælg <strong>Tilføj telefon</strong> i dashboardet. Sig, hvem telefonen er til, et barn eller dig selv, og giv den et navn. Det er kun dig, der kan se navnet.",
+        ],
+        fig: "who",
+      },
+      {
+        title: "Vælg en vedligeholds-PIN",
+        body: [
+          "Vælg en PIN på mindst 6 cifre, og skriv den to gange. Den åbner en skjult vedligeholdelsesskærm på telefonen: tryk 7 gange på <strong>Version</strong>, og indtast PIN’en. Gem den et sikkert sted, for Plainphone kan ikke vise den igen.",
+          "PIN’en forlader aldrig din browser. Kun en tilsløret udgave (et hash) kommer med i QR-koden.",
+        ],
+        fig: "pin",
+      },
+      {
+        title: "Se QR-koden",
+        body: [
+          "Dashboardet viser nu en QR-kode. Den virker én gang og i 24 timer. Del den ikke med andre, og hold siden åben.",
+        ],
+        fig: "qr",
+      },
+      {
+        title: "Nulstil telefonen",
+        body: [
+          "Nulstil telefonen til fabriksindstillinger: Indstillinger → System → Nulstil → Slet alle data. Eller brug en ny telefon. Vent, til velkomstskærmen vises.",
+          "Menuernes navne varierer lidt fra mærke til mærke. Er der en Google-konto på telefonen, så fjern den først (Indstillinger → Konti). Ellers beder telefonen om kontoen efter nulstillingen.",
+        ],
+        fig: "reset",
+      },
+      {
+        title: "Tryk 6 gange på velkomstskærmen",
+        body: [
+          "Tryk hurtigt 6 gange på det samme tomme sted på den første velkomstskærm. Tryk ikke på Start. En QR-læser åbner. På nogle telefoner spørger den først, om du vil hente den.",
+        ],
+        fig: "welcome",
+      },
+      {
+        title: "Scan QR-koden",
+        body: [
+          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone, gør den til enhedsejer (device owner) og låser sig selv.",
+          "Siger telefonen, at den bliver styret af en organisation, er det Plainphone. Accepter det: det er sådan, låsen virker.",
+        ],
+        fig: "scan",
+      },
+      {
+        title: "Kun Android 10 til 13: vælg standardapp til telefon",
+        body: [
+          "Under opsætningen eller lige efter spørger telefonen, om du vil angive Plainphone som standardapp til telefon. Tryk <strong>Angiv som standard</strong>. Nåede du det ikke, så åbn Plainphone-appen, så spørger den igen.",
+          "På Android 14 og nyere sker det af sig selv.",
+        ],
+        fig: "dialog",
+      },
+      {
+        title: "Færdig",
+        body: [
+          "Telefonen forbinder sig selv til dashboardet. Du skal ikke skrive en kode. Når den er forbundet, siger dashboardet det. Vælg derefter dens apps og kontakter.",
+        ],
+        fig: "done",
+      },
+    ],
+    figs: {
+      who: "Siden i dashboardet »Hvem er telefonen til?« med valgene Barn og Mig selv, et felt til navn og knappen Næste.",
+      pin: "Siden i dashboardet »Vælg en vedligeholds-PIN« med to felter til PIN og knappen »Lav QR-koden«.",
+      qr: "Siden i dashboardet »Sæt telefonen op: Alma«. En boks, hvor QR-koden vises, og under den »Venter på telefonen« og en note om, at koden virker én gang.",
+      done: "Dashboardet siger, at telefonen er forbundet, og har en knap til at åbne den.",
+      reset: "Tegning af en telefon med en liste over indstillinger, hvor rækken til at slette alle data er markeret.",
+      welcome: "Tegning af en telefon på den første velkomstskærm. Seks tryk på det samme tomme sted, markeret »6×«.",
+      scan: "To tegninger af en telefon. På den første indrammer en QR-læser en QR-kode. På den anden en liste over Wi-Fi-netværk, hvor ét er valgt.",
+      dialog: "Tegning af en telefon med en dialogboks og to knapper, »Angiv som standard« og »Annuller«.",
+    },
+    drawing: { taps: "6×", set: "Angiv som standard", cancel: "Annuller" },
+    troubleTitle: "Hvis noget går galt",
+    trouble: [
+      [
+        "QR-koden er udløbet eller virker ikke",
+        "En kode virker én gang og i 24 timer. Åbn telefonen i dashboardet, og vælg <strong>Vis QR-koden til opsætning</strong> for at få en ny. En ny kode får den gamle til at holde op med at virke.",
+      ],
+      [
+        "Telefonen siger, at enheden ikke kan sættes op",
+        "Tjek, at telefonen har Android 10 eller nyere (Indstillinger → Om telefonen). Ældre telefoner kan ikke bruges.",
+      ],
+      [
+        "Telefonen viser en kode i stedet for at forbinde",
+        "Vælg <strong>Tilføj telefon</strong> i dashboardet, derefter <strong>Indtast koden</strong> nederst, og skriv den kode, telefonen viser.",
+      ],
+      [
+        "Seks tryk gør ingenting",
+        "Telefonen skal stå på allerførste velkomstskærm. Tryk hurtigt ét sted midt på skærmen, og tryk ikke på Start.",
+      ],
+    ],
+    help: "Sidder du stadig fast? <a href=\"https://github.com/plainphone/plainphone/issues\">Opret en sag på GitHub</a> (et issue).",
+    testedTitle: "Testede telefoner",
+    tested: {
+      caption: "Telefoner, som Plainphone er sat op på",
+      cols: ["Telefon", "Android", "Resultat"],
+      rows: [["OnePlus 5T (A5010)", "Android 10", "Virker"]],
+      body: [
+        "Virker betyder, at opsætning, låsen og forbindelsen til dashboardet er bekræftet på denne telefon. Den har endnu ikke været igennem hele tjeklisten over omgåelser.",
+        "Android 14 eller nyere anbefales. Den klarer alt selv og låser telefonappen i Indstillinger.",
+        "På Android 10 til 13 er der ét kendt hul: barnet kan skifte til den indbyggede telefonapp i Indstillinger. Så bliver opkald ikke filtreret, før Plainphone er valgt igen. Dashboardet viser det inden for 15 minutter.",
+      ],
+    },
+  },
   footer: {
     maintained: "Plainphone vedligeholdes af <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
+    setup: "Guide: <a href=\"/da/setup/\">Sæt en telefon op</a>.",
     privacy: "Siden sætter ingen cookies og bruger ingen statistik. <a href=\"/da/privacy/\">Privatlivspolitik</a>.",
     license: "Koden er under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrift: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },

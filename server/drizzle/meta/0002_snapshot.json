@@ -1,5 +1,5 @@
 {
-  "id": "e082ccd5-323b-47ee-8dce-7505636a56a6",
+  "id": "2fcd1660-a503-4dcd-9ccc-ff8965ca92d5",
   "prevId": "b1730335-41ba-4069-8afc-5369c3512262",
   "version": "7",
   "dialect": "postgresql",
@@ -85,6 +85,45 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.dns_deletions": {
+      "name": "dns_deletions",
+      "schema": "",
+      "columns": {
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_attempt_at": {
+          "name": "last_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.dns_settings": {
       "name": "dns_settings",
       "schema": "",
@@ -133,79 +172,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.frp_accounts": {
-      "name": "frp_accounts",
-      "schema": "",
-      "columns": {
-        "household_id": {
-          "name": "household_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_account_id": {
-          "name": "google_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "frp_accounts_household_id_households_id_fk": {
-          "name": "frp_accounts_household_id_households_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "frp_accounts_user_id_users_id_fk": {
-          "name": "frp_accounts_user_id_users_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "frp_accounts_household_id_user_id_pk": {
-          "name": "frp_accounts_household_id_user_id_pk",
-          "columns": [
-            "household_id",
-            "user_id"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -978,18 +944,6 @@
         },
         "status_reported_at": {
           "name": "status_reported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attestation": {
-          "name": "attestation",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attested_at": {
-          "name": "attested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

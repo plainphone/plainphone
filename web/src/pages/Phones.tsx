@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Link } from "react-router";
-import { LoadGate, PageTitle, useLoad, useNow } from "../components/ui";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
 import { formatRelative } from "../lib/format";
@@ -13,6 +14,15 @@ interface Row {
 export function PhonesPage() {
   const { t, locale } = useI18n();
   const now = useNow(60_000);
+  // A note handed over by the page that sent us here, such as "The phone was removed."
+  const loc = useLocation();
+  const navigate = useNavigate();
+  const handed = (loc.state as { notice?: string } | null)?.notice;
+  const [notice, setNotice] = useState<Notice | null>(handed ? { tone: "success", text: handed } : null);
+  // Shown once: not again after a reload or going back.
+  useEffect(() => {
+    if (handed) navigate(".", { replace: true, state: null });
+  }, [handed, navigate]);
   const res = useLoad(async (): Promise<Row[]> => {
     const { phones } = await api.get<{ phones: Phone[] }>("/phones");
     return Promise.all(
@@ -33,11 +43,12 @@ export function PhonesPage() {
       <div className="title-row">
         <PageTitle>{t("phones.title")}</PageTitle>
         {res.data && res.data.length > 0 && (
-          <Link to="/pair" className="btn btn-primary">
+          <Link to="/add" className="btn btn-primary">
             {t("phones.add")}
           </Link>
         )}
       </div>
+      <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(rows) =>
           rows.length === 0 ? (
@@ -46,7 +57,7 @@ export function PhonesPage() {
               <h2 id="empty-title">{t("phones.emptyTitle")}</h2>
               <p>{t("phones.emptyBody")}</p>
               <p>
-                <Link to="/pair" className="btn btn-primary">
+                <Link to="/add" className="btn btn-primary">
                   {t("phones.add")}
                 </Link>
               </p>
@@ -61,6 +72,7 @@ export function PhonesPage() {
                       <span className="row-meta">
                         <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
+                        {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
                         <span>
                           {phone.lastSeenAt
@@ -74,6 +86,14 @@ export function PhonesPage() {
                         </span>
                       )}
                     </span>
+                    {phone.openRequests > 0 && (
+                      <span className="count-badge">
+                        <span aria-hidden="true">{phone.openRequests}</span>
+                        <span className="sr-only">
+                          {t(phone.openRequests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: phone.openRequests })}
+                        </span>
+                      </span>
+                    )}
                     <Chevron />
                   </Link>
                 </li>

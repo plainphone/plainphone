@@ -47,7 +47,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
-`DISALLOW_MODIFY_ACCOUNTS` is set since 0.1.4 (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock. Which account types are on the phone (types only, no names) is reported to the dashboard.
+`DISALLOW_MODIFY_ACCOUNTS` is set in strong mode (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock. Which account types are on the phone (types only, no names) is reported to the dashboard.
 
 ## Other policies
 
@@ -75,7 +75,7 @@ phone syncs is in [phone-sync.md](phone-sync.md).
 | `setPermissionGrantState` (location) | Fine, coarse and background location for Plainphone, only while the parent has location on | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | `setLocationEnabled` + `DISALLOW_CONFIG_LOCATION` | Location on and locked on while the parent has location on; the restriction is lifted when it is turned off | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setLocationEnabled(android.content.ComponentName,%20boolean)) |
 
-## Hardening (0.1.4, [Hardening.kt](../android/app/src/main/java/org/plainphone/app/Hardening.kt))
+## Hardening ([Hardening.kt](../android/app/src/main/java/org/plainphone/app/Hardening.kt))
 
 Each is its own status step, so the parent sees exactly what held.
 
@@ -83,8 +83,8 @@ Each is its own status step, so the parent sees exactly what held.
 |---|---|---|---|
 | `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails only when an account is set and cannot be applied | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
 | `accounts on the phone` | Lists account types (`com.google`, a maker's account), no names | all | |
-| `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, so the re-lock and the sync are not delayed by battery savers | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
-| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Fails while one is left. Reports counts only | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
+| `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, which reduces delays from App Standby for re-lock and sync | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Reports a failed check when an extra profile was found, including whether removal succeeded. Reports counts only. In headless system-user mode, reports without removing users to protect the main interactive user | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
 | `call screening role`, `call redirection role`, `contacts permission for call screening` | A second layer for calls on Android 10 to 13, see [android-versions.md](android-versions.md). Fails until the role dialog is accepted on the phone | 10-13 | [link](https://developer.android.com/reference/android/telecom/CallRedirectionService) |
 | `no lock screen widgets` | `KEYGUARD_DISABLE_WIDGETS_ALL`; the lock screen camera stays | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setKeyguardDisabledFeatures(android.content.ComponentName,%20int)) |
 | `only built-in keyboards` | `setPermittedInputMethods(empty)`: only keyboards that came with the phone. Fails if a keyboard from an app is enabled | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedInputMethods(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
@@ -95,10 +95,11 @@ Releasing Device Owner undoes all of them.
 ## Factory reset protection
 
 A reset from recovery mode cannot be blocked by any app. What protects the phone afterwards is FRP:
-Android's setup asks for a Google account before the phone can be used.
+Android's setup can ask for an eligible Google account before the phone can be used.
+A phone may also offer the previous screen-lock PIN. Check R5 on the exact model and Android build before relying on FRP to keep the phone locked after a reset.
 
 - **The parent's account.** In the dashboard, Household → "Protect against reset", a parent signs in with
-  Google (scope `openid` only). The server keeps only the numeric account ID (the OpenID Connect `sub`),
+  Google. The server keeps only the numeric Google account ID from the People API,
   no email address, and sends it to every phone in the household in the rules (`resetProtection.accountIds`).
   Each parent in the household can add their own account. A parent who leaves the household stops
   protecting the phones at the next sync. Removing the account clears the policy at the next sync.
@@ -107,12 +108,10 @@ Android's setup asks for a Google account before the phone can be used.
   followed by the broadcast `FRP_CONFIG_CHANGED`, which Play services needs to pick up the change.
 - **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard shows
   "Protects from" the time the account was linked plus 72 hours.
-- **Assumption to verify on hardware:** that the OpenID Connect `sub` is the same number as the People API
-  ID that FRP expects (both are the Google account ID). The FRP test in the 0.1.4 report checks it.
 - **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
 - **OEM unlocking** switches FRP off. It is greyed out by `DISALLOW_FACTORY_RESET` and developer options are
   blocked, but a phone that arrives with an unlocked bootloader has no FRP.
-- **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** the FRP policy does not need the parent's account to be
+- **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** Plainphone sets FRP and notifies Play services before blocking account changes. The FRP policy does not need the parent's account to be
   on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
   accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
   maintenance unlock.
@@ -124,7 +123,8 @@ TEE or StrongBox with it (`setAttestationChallenge`) and sends the certificate c
 `PUT /device/attestation`. The **server** checks that each certificate is signed by the next, that the
 last one carries one of Google's attestation root keys, and that none is on Google's revocation list,
 and reads `RootOfTrust` (`deviceLocked`, `verifiedBootState`) and the OS patch level. Play Integrity is not
-used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is attested.
+used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is requested. Only the verification result and its timestamp are stored.
+When Android exposes a local unlocked-bootloader signal, Plainphone warns before Android 12+ QR provisioning proceeds. Android 10 and 11 can apply policies before showing the status screen, where the same warning is displayed.
 
 | Result | Dashboard |
 |---|---|
@@ -157,3 +157,10 @@ Tap "Version" seven times on the Plainphone status screen and enter the parent P
 - **Sync with the server now** (phase 4, when paired) fetches the rules at once.
 
 The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, random salt). The QR script requires at least six digits. A six-digit PIN can still be brute-forced by someone who has the QR code, so treat the QR code as secret. If no PIN was given, the app falls back to the test PIN `000000` and says so on the status screen. This screen will be removed or replaced by the server-side key in later phases.
+
+## Time limits and catalog installs (strong mode)
+
+- **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
+- **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone.
+
+Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).

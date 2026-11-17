@@ -48,6 +48,16 @@ export function formatDateTime(iso: string, locale: Locale): string {
   }).format(new Date(iso));
 }
 
+/** Android key attestation reports the OS security update as YYYYMM. */
+export function formatPatchMonth(level: number | null | undefined, locale: Locale): string | null {
+  if (!level || !Number.isInteger(level)) return null;
+  const year = Math.floor(level / 100);
+  const month = level % 100;
+  if (year < 2000 || year > 9999 || month < 1 || month > 12) return null;
+  return new Intl.DateTimeFormat(intlLocale(locale), { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1)));
+}
+
 /** ISO weekday (1 = Monday ... 7 = Sunday) to a localised name. */
 export function weekdayName(isoDay: number, locale: Locale, width: "short" | "long" = "short"): string {
   // 1 January 2024 was a Monday.
@@ -122,4 +132,33 @@ export function osmUrl(lat: number, lon: number): string {
 export function normaliseCode(raw: string): string {
   const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
   return s.length > 4 ? `${s.slice(0, 4)}-${s.slice(4)}` : s;
+}
+
+/** Minutes as "45 min", "2 h" or "1 h 30 min". */
+export function formatMinutes(min: number, w: DurationWords): string {
+  const fill = (s: string, h: number, m: number) => s.replace("{h}", String(h)).replace("{m}", String(m));
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 0 && m > 0) return fill(w.hm, h, m);
+  if (h > 0) return fill(w.h, h, 0);
+  return fill(w.m, 0, m);
+}
+
+/** The minutes a limit gives on an ISO weekday. */
+export function limitOn(limit: { minutes: number; days: Partial<Record<string, number>> }, isoDay: number): number {
+  return limit.days[String(isoDay)] ?? limit.minutes;
+}
+
+/** Today's ISO weekday and date (YYYY-MM-DD) in a time zone. */
+export function todayIn(timezone: string, now: Date = new Date()): { isoDay: number; date: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return { isoDay: days.indexOf(get("weekday")) + 1, date: `${get("year")}-${get("month")}-${get("day")}` };
 }

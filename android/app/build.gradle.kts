@@ -23,8 +23,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.1.5"
     }
 
     signingConfigs {
@@ -40,7 +40,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 and resource shrinking: about 23 MB unshrunk. Keep rules in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (signingProps != null) {
                 signingConfigs.getByName("plainphone")
             } else {

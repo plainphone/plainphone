@@ -16,7 +16,7 @@ The Android app in [`android/`](android) is a Device Policy Controller. It is se
 - turns Chrome's own DNS-over-HTTPS and incognito mode off and forces SafeSearch;
 - hides every app that is not on the allowlist: phone, messages, camera, clock, contacts, settings, keyboard and launcher (found per device, so Samsung and Xiaomi keep their own apps), plus Chrome, Maps, calculator, calendar and gallery;
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
-- optionally sets a Factory Reset Protection policy for chosen Google accounts.
+- can use a parent's Google account to protect a phone after a recovery reset, with setup from the dashboard.
 
 A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away.
 
@@ -47,6 +47,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [dns/](dns): the filtering DNS service (AdGuard Home + ppdns), its profiles and API; [docs/self-hosting-dns.md](docs/self-hosting-dns.md) runs your own, [docs/privacy.md](docs/privacy.md) says what it stores
 - [site/](site): the plainphone.org landing page (static, no JavaScript)
 - [server/](server) and [web/](web): the API and the parent web app (PWA); [docs/self-hosting.md](docs/self-hosting.md) runs your own, [docs/sync-api.md](docs/sync-api.md) is the phone's side of the API
+- [docs/time-limits.md](docs/time-limits.md) and [docs/app-catalog.md](docs/app-catalog.md): daily time limits and the per-country app catalog
 - [parent-app/](parent-app): the native parent app for iOS and Android (Expo) on the same API; [docs/parent-app.md](docs/parent-app.md) covers builds, app links and push
 - [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
 - [SECURITY.md](SECURITY.md): how to report a bypass
@@ -82,14 +83,18 @@ Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug 
 
 ### QR code
 
+Parents make the QR code in the dashboard: **Add phone** asks who the phone is for and for a maintenance PIN, then shows the provisioning QR code. The browser hashes the PIN (PBKDF2; neither the PIN nor its hash reaches the server), and the code carries a one-time token, so the phone pairs itself after setup. The code points at `https://app.plainphone.org/download/android`, which redirects to the newest release, so it does not go stale when a new version comes out.
+
+For self-hosting, tests and phones without an account there is a script with the same format:
+
 ```sh
 scripts/provisioning-qr.py \
   --apk android/app/build/outputs/apk/release/app-release.apk \
-  --apk-url https://github.com/plainphone/plainphone/releases/download/<tag>/<file>.apk \
+  --apk-url https://example.org/plainphone.apk \
   --ask-pin --out dist/provisioning-qr
 ```
 
-The script reads the signing certificate checksum from the APK, asks for or generates the maintenance PIN (6+ digits), hashes it (PBKDF2; the PIN itself never goes into the QR code) and writes `dist/provisioning-qr.json` and `.png`. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps and FRP accounts. A QR code with a Wi-Fi password in it must not be published.
+The script reads the signing certificate checksum from the APK (or takes `--checksum`), asks for or generates the maintenance PIN (6+ digits), hashes it and writes `dist/provisioning-qr.json` and `.png`. Without `--apk-url` it uses the stable download address. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps, FRP accounts and `--enroll-token`. A QR code with a Wi-Fi password in it must not be published.
 
 Phase 2 options:
 
@@ -105,7 +110,7 @@ Phase 4 option:
 1. Proof of lock
 2. **Contacts and DNS** (this phase): dialer/SMS role with an allowlist, own AdGuard Home with a DNS address per phone
 3. Server and parent web app: accounts, pairing, rules, app list, location, school time
-4. Light mode: a Play Store app for phones already in use
+4. Light mode: the same app on a phone already in use, without a reset ([docs/light-mode.md](docs/light-mode.md)); time limits and an app catalog
 5. Native parent apps
 6. Self-hosting, plainphone.org and the public launch
 

@@ -19,6 +19,10 @@ import android.widget.TextView
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.light.HomeActivity
+import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.LightSetupActivity
+import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.ui.PairingActivity
 
 /**
@@ -29,11 +33,13 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
     private lateinit var pairButton: Button
+    private lateinit var todayButton: Button
     private var taps = 0
     /** Roles asked for during this visit to the screen (phone app, and on Android 10 to 13 call screening and redirection). */
     private val askedRoles = mutableSetOf<String>()
     private var roleDialogOpen = false
     private var started = false
+    private val localBootWarning by lazy { BootloaderWarning.reportsUnlocked() }
 
     override fun onStart() {
         super.onStart()
@@ -42,6 +48,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
+        if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
+            startActivity(if (LightSetup.isComplete(this)) HomeActivity.intent(this) else LightSetupActivity.intent(this))
+            finish()
+            return
+        }
         val pad = (20 * resources.displayMetrics.density).toInt()
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -64,6 +76,11 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(PairingActivity.intent(this@MainActivity, authorized = false)) }
         }
         column.addView(pairButton)
+        todayButton = Button(this).apply {
+            text = getString(R.string.today_title)
+            setOnClickListener { startActivity(HomeActivity.intent(this@MainActivity)) }
+        }
+        column.addView(todayButton)
         report = TextView(this).apply {
             typeface = Typeface.MONOSPACE
             textSize = 12f
@@ -171,6 +188,7 @@ class MainActivity : Activity() {
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
+            if (localBootWarning) appendLine(getString(R.string.setup_bootloader_warning))
             // #23: the server's verdict on the boot state; only shown when it is a warning.
             org.plainphone.app.sync.AttestationRunner.lastState(this@MainActivity)
                 ?.takeIf { it != "verified" && it != "unverifiable" }
@@ -178,6 +196,7 @@ class MainActivity : Activity() {
         }
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE
+        todayButton.visibility = if (HomeActivity.hasContent(this)) View.VISIBLE else View.GONE
     }
 
     private fun onVersionTapped() {

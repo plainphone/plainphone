@@ -94,6 +94,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
+import org.plainphone.app.contacts.EmergencyNumbers
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
 import org.plainphone.app.telephony.CallNotifications
@@ -162,12 +163,14 @@ class PhoneActivity : ComponentActivity() {
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
 fun placeCall(context: Context, number: String): String? {
-    val decision = context.contactPolicy().decide(
-        ContactPolicySources.get(context).rules(), Channel.CALL, Direction.OUTGOING, number,
-    )
-    if (!decision.allowed) {
-        TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
-        return context.getString(R.string.call_not_allowed)
+    if (!EmergencyNumbers.forContext(context).isEmergency(number)) {
+        val decision = context.contactPolicy().decide(
+            ContactPolicySources.get(context).rules(), Channel.CALL, Direction.OUTGOING, number,
+        )
+        if (!decision.allowed) {
+            TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
+            return context.getString(R.string.call_not_allowed)
+        }
     }
     if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
         return context.getString(R.string.call_no_permission)

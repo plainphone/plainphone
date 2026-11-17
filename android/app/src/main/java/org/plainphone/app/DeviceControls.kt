@@ -53,6 +53,9 @@ interface DeviceControls {
 
     // Phase 4: location for "Find".
     fun setLocationEnabled(enabled: Boolean)
+
+    /** Suspends or resumes apps (time limits). Returns the packages Android refused. */
+    fun setSuspended(packages: Set<String>, suspended: Boolean): Set<String>
 }
 
 data class TelephonyApps(
@@ -210,6 +213,9 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
 
     override fun grantPermission(pkg: String, permission: String): Boolean =
         dpm.setPermissionGrantState(admin, pkg, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+
+    override fun setSuspended(packages: Set<String>, suspended: Boolean): Set<String> =
+        dpm.setPackagesSuspended(admin, packages.toTypedArray(), suspended).toSet()
 
     override fun setLocationEnabled(enabled: Boolean) {
         if (Build.VERSION.SDK_INT >= 30) {

@@ -41,6 +41,15 @@ class ProvisioningQrTest(unittest.TestCase):
         # Phase 4: without --server-url the phone pairs with the hosted service.
         self.assertEqual(extras["plainphone.server_url"], "https://app.plainphone.org")
 
+    def test_enroll_token_goes_into_the_extras(self):
+        args = argparse.Namespace(
+            apk_url=qr.DEFAULT_APK_URL, dns_host="family.adguard-dns.com", relock_minutes=30, allow=[], frp_account=[],
+            wifi_ssid=None, wifi_password=None, wifi_security="WPA", wifi_hidden=False, enroll_token="pp_e_3q2-7wEvR1q8aZ0sLx9Ywg",
+        )
+        p = qr.build_payload(args, "abc", "123456")
+        self.assertEqual(p["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]["plainphone.enroll"], "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
+        self.assertEqual(p["android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION"], "https://app.plainphone.org/download/android")
+
     def test_server_url_must_be_https(self):
         self.assertEqual(qr.check_server_url("https://pp.example.org/"), "https://pp.example.org")
         self.assertEqual(qr.check_server_url("https://pp.example.org:8443/x"), "https://pp.example.org:8443/x")

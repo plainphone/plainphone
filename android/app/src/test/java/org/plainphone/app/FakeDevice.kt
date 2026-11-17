@@ -67,6 +67,11 @@ class FakeDevice(
     override fun telephonyApps() = telephony
     var locationOn = false
     override fun setLocationEnabled(enabled: Boolean) { locationOn = enabled }
+    val suspended = mutableSetOf<String>()
+    override fun setSuspended(packages: Set<String>, suspended: Boolean): Set<String> {
+        if (suspended) this.suspended += packages else this.suspended -= packages
+        return emptySet()
+    }
 
     override fun grantPermission(pkg: String, permission: String): Boolean {
         if (permission in refusedPermissions) return false
@@ -84,4 +89,7 @@ class MemoryHiddenStore : HiddenAppsStore {
     var saved: Set<String> = emptySet()
     override fun load() = saved
     override fun save(packages: Set<String>) { saved = packages }
+    var suspendedSaved: Set<String> = emptySet()
+    override fun loadSuspended() = suspendedSaved
+    override fun saveSuspended(packages: Set<String>) { suspendedSaved = packages }
 }

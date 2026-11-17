@@ -31,6 +31,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
+    <!-- Light mode and time limits (docs/light-mode.md, docs/time-limits.md). -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
@@ -120,6 +126,53 @@
             android:name=".MaintenanceActivity"
             android:exported="false"
             android:excludeFromRecents="true" />
+
+        <!-- ===== Light mode: Plainphone as an ordinary app (docs/light-mode.md) ===== -->
+
+        <!-- Uninstalling needs this switched off first. Separate from the Device Owner receiver on purpose. -->
+        <receiver
+            android:name=".light.LightAdminReceiver"
+            android:description="@string/light_admin_description"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/light_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Closes apps the parent has not allowed and guards Plainphone's own Settings screens. -->
+        <service
+            android:name=".light.GuardService"
+            android:exported="false"
+            android:label="@string/guard_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/guard_service" />
+        </service>
+
+        <activity
+            android:name=".light.LightSetupActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".light.HomeActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".light.BlockedActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="org.plainphone.app.blocked" />
 
         <!-- ===== Phase 2: phone and messages ===== -->
 
@@ -259,6 +312,16 @@
                 <data android:scheme="smsto" />
                 <data android:scheme="mms" />
                 <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+        <!-- Light mode: DNS-only VPN (docs/light-mode.md). -->
+        <service
+            android:name=".light.vpn.PlainphoneVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
     </application>

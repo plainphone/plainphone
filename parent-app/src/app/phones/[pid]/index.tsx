@@ -9,7 +9,7 @@ import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneConte
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatRelative } from "../../../shared/lib/format";
+import { formatPatchMonth, formatRelative } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -142,6 +142,22 @@ function RemovePhone() {
   );
 }
 
+const resetStatus = {
+  on: "phone.frpOn",
+  off: "phone.frpOff",
+  "no-play-services": "phone.frpNoPlay",
+  failed: "phone.frpFailed",
+} as const;
+
+const systemStatus = {
+  verified: "phone.attVerified",
+  unlocked: "phone.attUnlocked",
+  "custom-os": "phone.attCustomOs",
+  "failed-boot": "phone.attFailedBoot",
+  revoked: "phone.attRevoked",
+  unverifiable: "phone.attUnverifiable",
+} as const;
+
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -178,10 +194,23 @@ function Overview() {
     phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phones.neverSeen"),
   ].join(", ");
 
+  const reset = phone.status?.resetProtection;
+  const system = phone.attestation?.state;
+  const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
+
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {phone.mode === "strong" && phone.pairedAt ? (
+        <VStack gap={space.sm}>
+          {reset ? <Text>{t(resetStatus[reset])}</Text> : null}
+          {patchMonth ? <Text variant="muted">{t("phone.attPatchMonth", { month: patchMonth })}</Text> : null}
+          {system && system !== "verified" && system !== "unverifiable"
+            ? <Notice tone="warn" text={t(systemStatus[system])} />
+            : <Text variant="muted">{t(system ? systemStatus[system] : "phone.attPending")}</Text>}
+        </VStack>
+      ) : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>

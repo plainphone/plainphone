@@ -64,6 +64,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair with the setup token from a dashboard QR code (phone)
+         * @description A provisioning QR code made in the dashboard carries a one-time enrollment token
+         *     (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+         *     its device token, with no code to type. The token is bound to the phone entry the parent made,
+         *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
+         *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
+         *     working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
+         *     token) pair with a code as before (`POST /device/pairings`).
+         */
+        post: operations["postDeviceEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/rules": {
         parameters: {
             query?: never;
@@ -134,6 +160,73 @@ export interface paths {
          * @description The newest report replaces the one before; no history is kept. Parents see it on the phone's page. How often to send is up to the app; sending at once when the lock state or a maintenance unlock changes is useful.
          */
         put: operations["putDeviceStatus"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The phone's requests and their answers (phone)
+         * @description Open requests and those answered in the last 30 days, newest first.
+         */
+        get: operations["getDeviceRequests"];
+        put?: never;
+        /**
+         * Ask for an app or a contact (phone)
+         * @description The person with the phone asks for an app from the phone's own app list (by package
+         *     name, as reported in `PUT /device/apps`) or for a contact. The parents get a push
+         *     notification. Asking again for the same thing while it is open returns the open
+         *     request (200). At most 10 open requests per phone. See docs/sync-api.md.
+         */
+        post: operations["postDeviceRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/attestation/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A fresh challenge for hardware key attestation (#23)
+         * @description Valid for 10 minutes, one open challenge per phone.
+         */
+        post: operations["postDeviceAttestationChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/attestation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Send the attestation certificate chain of a key made with the challenge
+         * @description The server checks the chain against Google's attestation roots and revocation list and reads the boot state. Verification happens only on the server. No serial number or IMEI is attested.
+         */
+        put: operations["putDeviceAttestation"];
         post?: never;
         delete?: never;
         options?: never;
@@ -226,11 +319,95 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete my account
+         * @description Deletes the account. Households shared with another parent stay, with their phones;
+         *     if you owned one, the longest-standing other member becomes the owner. Households
+         *     where you are the only member are deleted with all their phones: those phones get 401
+         *     on their next request and fall back as described in docs/sync-api.md. Refused with 409
+         *     while such a household holds a Self phone; remove those first (through their key).
+         *     Where you are someone's trusted person, their key falls back to the delay.
+         *     See docs/account-deletion.md.
+         */
+        delete: operations["deleteMe"];
         options?: never;
         head?: never;
         /** Change my language */
         patch: operations["patchMe"];
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My push subscriptions and muted phones */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register this browser or app install
+         * @description `web`: the PushSubscription from the browser. Only the browsers' push services are
+         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
+         *     now, sending to them comes with the native apps. Registering an endpoint that belongs
+         *     to someone else moves it to you (another person signed in on the same device).
+         */
+        post: operations["postNotificationSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unregister a browser or app install */
+        delete: operations["deleteNotificationSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to my devices (or one of them) */
+        post: operations["postNotificationTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/households/{hid}": {
@@ -279,6 +456,83 @@ export interface paths {
         post?: never;
         /** Remove a member (owner) or leave (yourself) */
         delete: operations["deleteHouseholdsMembers"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who protects the household's phones against a reset
+         * @description `available` is false when the server has no Google OAuth client (`GOOGLE_OAUTH_CLIENT_ID`). `activeFrom` is the time the link was added plus 72 hours (Google's delay for new accounts). Account IDs never leave the server.
+         */
+        get: operations["getResetProtection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Google sign-in for reset protection
+         * @description Returns the Google URL to open. People API profile scope without email, PKCE, single-use state valid for 10 minutes.
+         */
+        post: operations["postResetProtectionGoogle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove your own Google account; the phones clear it at the next sync */
+        delete: operations["deleteResetProtectionMine"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reset-protection/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Google redirects here after sign-in
+         * @description No session is needed: the `state` from the start call says who signed in. Stores the numeric account ID and redirects to `${PUBLIC_URL}/household?reset-protection=ok|cancelled|failed`.
+         */
+        get: operations["getResetProtectionCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -375,6 +629,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a phone for setup with a provisioning QR code
+         * @description Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
+         *     token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
+         *     token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+         *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
+         *     its hash never reach the server. Rate limited to 30 per day per user.
+         */
+        post: operations["postPhonesEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New setup token for a phone that is not set up yet
+         * @description Replaces earlier tokens for the phone. `409` once the phone is set up.
+         */
+        post: operations["postPhoneEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}": {
         parameters: {
             query?: never;
@@ -433,6 +733,164 @@ export interface paths {
         put: operations["putPhonesApps"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Time limits, today's and tomorrow's bonuses and today's use */
+        get: operations["getPhonesTimeLimits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/total": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the daily cap for all non-core apps */
+        put: operations["putPhonesTimeLimitsTotal"];
+        post?: never;
+        /** Remove the daily cap */
+        delete: operations["deletePhonesTimeLimitsTotal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/apps/{package}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Set a daily limit for one app */
+        put: operations["putPhonesTimeLimitsApp"];
+        post?: never;
+        /** Remove an app's limit */
+        delete: operations["deletePhonesTimeLimitsApp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/bonus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give extra minutes today (phone time zone)
+         * @description Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
+         */
+        post: operations["postPhonesTimeLimitsBonus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Countries that have an app catalog (public) */
+        get: operations["getCatalogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{country}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One country's app catalog (public) */
+        get: operations["getCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The phone's catalog with each app's state
+         * @description Empty (country null) when no catalog applies to the phone. For now a phone in Europe/Copenhagen gets the Danish catalog.
+         */
+        get: operations["getPhonesCatalog"];
+        put?: never;
+        /**
+         * Add an app from the catalog
+         * @description Allows the app and asks the phone to offer it for install. A loosening, so on a Self phone it waits for the key.
+         */
+        post: operations["postPhonesCatalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/catalog/{package}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an app added from the catalog
+         * @description Hides it and takes it off the install list. Applies at once.
+         */
+        delete: operations["deletePhonesCatalog"];
         options?: never;
         head?: never;
         patch?: never;
@@ -585,6 +1043,78 @@ export interface paths {
         post?: never;
         /** Delete phones schedules */
         delete: operations["deletePhonesSchedules"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn my notifications about this phone on or off */
+        put: operations["putPhoneNotifications"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open requests from the phone */
+        get: operations["getPhoneRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests/{rid}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a request
+         * @description Applies it as a rule change: the app is shown, or the contact is added. On a Self
+         *     phone that waits for the key (202). `name` corrects a contact's name.
+         */
+        post: operations["approvePhoneRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests/{rid}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline a request */
+        post: operations["rejectPhoneRequest"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -759,6 +1289,61 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PhoneRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            kind: "app" | "contact";
+            packageName?: string | null;
+            /** @description Contact name */
+            name?: string | null;
+            /** @description Contact number, E.164 */
+            number?: string | null;
+            /** @enum {unknown} */
+            status: "pending" | "approved" | "rejected";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt?: string | null;
+        };
+        PushSubscription: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {unknown} */
+            platform?: "web" | "apns" | "fcm";
+            label?: string | null;
+            /** @description SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned. */
+            endpointHash?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            lastSuccessAt?: string | null;
+        };
+        Enrollment: {
+            phone?: components["schemas"]["PhoneSummary"];
+            enrollment?: {
+                /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
+                token?: string;
+                /** Format: date-time */
+                expiresAt?: string;
+            };
+            /** @description Values for the provisioning QR code */
+            provisioning?: {
+                /** @example org.plainphone.app/.PlainphoneAdminReceiver */
+                adminComponent?: string;
+                /**
+                 * Format: uri
+                 * @description Stable APK address (`/download/android`, outside `/api`); redirects to the newest release.
+                 */
+                downloadUrl?: string;
+                /** @description base64url SHA-256 of the app's signing certificate */
+                signatureChecksum?: string;
+                /** Format: uri */
+                serverUrl?: string;
+                /** @description Private DNS until the phone's own filter host is ready */
+                dnsHost?: string;
+            };
+        };
         Error: {
             error: string;
             issues?: {
@@ -812,6 +1397,102 @@ export interface components {
             /** @constant */
             type?: "phone.remove";
             dnsClientId?: string;
+        } | {
+            /** @constant */
+            type?: "timeLimit.set";
+            packageName?: components["schemas"]["LimitTarget"];
+            limit?: components["schemas"]["Limit"] | null;
+        } | {
+            /** @constant */
+            type?: "timeLimit.bonus";
+            packageName?: components["schemas"]["LimitTarget"];
+            /**
+             * Format: date
+             * @description The local date it was asked for. The bonus counts for the local date when it takes effect.
+             */
+            date?: string;
+            minutes?: number;
+        } | {
+            /** @constant */
+            type?: "catalog.add";
+            packageName?: components["schemas"]["PackageName"];
+            label?: string;
+        } | {
+            /** @constant */
+            type?: "catalog.remove";
+            packageName?: components["schemas"]["PackageName"];
+        };
+        /** @description "*" is the daily cap for all non-core apps together; otherwise one app. */
+        LimitTarget: "*" | components["schemas"]["PackageName"];
+        Limit: {
+            minutes: number;
+            /**
+             * @description ISO weekday ("1" = Monday … "7" = Sunday) to minutes; overrides `minutes` on that day.
+             * @default {}
+             */
+            days: {
+                [key: string]: number;
+            };
+        };
+        Bonus: {
+            packageName?: components["schemas"]["LimitTarget"];
+            /**
+             * Format: date
+             * @description Local date in the phone's time zone.
+             */
+            date?: string;
+            minutes?: number;
+        };
+        /** @description Minutes used today per limited package; "*" is the total. At most 200 entries. */
+        TimeUsed: {
+            [key: string]: number;
+        };
+        /** @description What is active on the phone right now. Unknown keys are refused (400). */
+        Protections: {
+            deviceOwner?: boolean;
+            deviceAdmin?: boolean;
+            accessibility?: boolean;
+            usageAccess?: boolean;
+            vpn?: boolean;
+            alwaysOnVpn?: boolean;
+            phoneRole?: boolean;
+            smsRole?: boolean;
+            notifications?: boolean;
+            batteryUnrestricted?: boolean;
+            privateDnsOk?: boolean;
+        };
+        /** @description One country's catalog, as in server/catalog/<country>.json. */
+        CatalogFile: {
+            /** @example dk */
+            country?: string;
+            name?: components["schemas"]["Localized"];
+            /** Format: date */
+            verifiedAt?: string;
+            categories?: {
+                /** @example bank */
+                id?: string;
+                name?: components["schemas"]["Localized"];
+            }[];
+            apps?: components["schemas"]["CatalogApp"][];
+        };
+        CatalogApp: {
+            packageName?: components["schemas"]["PackageName"];
+            name?: string;
+            category?: string;
+            /** @description Allowed from the start when the phone reports it. */
+            starter?: boolean;
+            /**
+             * Format: uri
+             * @description The Play page the package name was verified against.
+             */
+            source?: string;
+            /** Format: date */
+            verifiedAt?: string;
+            playTitle?: string;
+        };
+        Localized: {
+            en?: string;
+            da?: string;
         };
         ChangeApplied: {
             /** @constant */
@@ -860,6 +1541,21 @@ export interface components {
                 allowed?: components["schemas"]["PackageName"][];
                 /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default. */
                 hidden?: components["schemas"]["PackageName"][];
+                /** @description Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play). */
+                toInstall?: {
+                    packageName?: components["schemas"]["PackageName"];
+                    label?: string;
+                }[];
+            };
+            /** @description Always present. The limit for a local date is `days[isoWeekday] ?? minutes` plus the bonuses for that date and package. Days start at local midnight in `timezone`. Core apps never have a limit. */
+            timeLimits: {
+                /** @description Daily cap for all non-core apps together; null means no cap. */
+                total?: components["schemas"]["Limit"] | null;
+                apps?: (components["schemas"]["Limit"] & {
+                    packageName?: components["schemas"]["PackageName"];
+                })[];
+                /** @description Only today's and tomorrow's (phone time zone, server clock). */
+                bonuses?: components["schemas"]["Bonus"][];
             };
             /** @description Calls and SMS to or from other numbers are blocked. Emergency numbers always work. */
             contacts: {
@@ -903,6 +1599,10 @@ export interface components {
             };
             /** @description Self profile; show them with a countdown on the phone. */
             pendingChanges: components["schemas"]["PendingChange"][];
+            /** @description Factory reset protection (#20). Numeric Google account IDs (from the Google People API) of the household's parents who turned it on. The phone sets them with `setFactoryResetProtectionPolicy` (Android 11+) or Play services' managed configuration (Android 10). Empty clears the policy. Old servers do not send the field. */
+            resetProtection?: {
+                accountIds?: string[];
+            };
             /**
              * @description Poll interval for GET /device/rules.
              * @example 60
@@ -928,8 +1628,33 @@ export interface components {
             /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
             dnsReady?: boolean;
             hasLocation?: boolean;
+            /** @description The phone's last hardware attestation (#23); null when it has not attested. */
+            attestation?: components["schemas"]["Attestation"] | null;
+            /** @description Open requests from the phone (apps, contacts) */
+            openRequests?: number;
+            /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
+            offlineAlertHours?: number | null;
+            offlineAlertHoursDefault?: number;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
+        };
+        /** @description `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off). `custom-os`: locked with another system. `failed-boot`: verified boot failed. `unverifiable`: no hardware attestation (software keystore or a root that is not Google's). `revoked`: a certificate is revoked. */
+        Attestation: {
+            /** @enum {unknown} */
+            state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+            /** @enum {unknown} */
+            securityLevel: "software" | "tee" | "strongbox" | null;
+            deviceLocked: boolean | null;
+            /** @enum {unknown} */
+            verifiedBootState: "verified" | "self-signed" | "unverified" | "failed" | null;
+            /** @description YYYYMM */
+            osPatchLevel: number | null;
+            revocationChecked: boolean;
+            /**
+             * Format: date-time
+             * @description Only in PhoneSummary.
+             */
+            checkedAt?: string | null;
         };
         DeviceStatusInput: {
             /** @example 0.4.0 */
@@ -938,7 +1663,7 @@ export interface components {
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
             deviceOwner: boolean;
-            /** @description Every lock policy was applied and no maintenance unlock is running. */
+            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs. */
             lockIntact: boolean;
             /** @description A PIN maintenance unlock is running on the phone. */
             maintenance: boolean;
@@ -953,6 +1678,21 @@ export interface components {
             rulesAppliedAt: string | null;
             /** @description The private DNS host the phone actually uses. */
             dnsHost: string | null;
+            /**
+             * @description Factory reset protection on the phone: `on`, `off` (no parent account; Android's own FRP), `no-play-services` or `failed`. Optional for older apps.
+             * @example on
+             * @enum {string|null}
+             */
+            resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
+            /** @description Account types signed in on the phone (`com.google`, a maker's account). Types only, no names. */
+            accountTypes?: string[] | null;
+            /**
+             * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
+             * @enum {unknown}
+             */
+            mode?: "strong" | "light";
+            protections?: components["schemas"]["Protections"];
+            timeUsed?: components["schemas"]["TimeUsed"];
         };
         /** @description What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC. */
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
@@ -1148,6 +1888,59 @@ export interface operations {
             };
         };
     };
+    postDeviceEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @description Random id the phone makes once and keeps; only its hash is stored. */
+                    installId: string;
+                    deviceInfo?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Paired. Store `deviceToken` like a token from a pairing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status?: "paired";
+                        /** Format: uuid */
+                        phoneId?: string;
+                        deviceToken?: string;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Unknown token. Fall back to pairing with a code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     getDeviceRules: {
         parameters: {
             query?: never;
@@ -1270,6 +2063,167 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["Error"];
+        };
+    };
+    getDeviceRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: (components["schemas"]["PhoneRequest"] & {
+                            /** @description Approved on a Self phone, but the change still waits for the key */
+                            waitingForKey?: boolean;
+                            /**
+                             * Format: date-time
+                             * @description When a delay-key change takes effect
+                             */
+                            effectiveAt?: string | null;
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    postDeviceRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    kind: "app";
+                    /** @example com.spotify.music */
+                    packageName: string;
+                } | {
+                    /** @constant */
+                    kind: "contact";
+                    name: string;
+                    /** @description International format, e.g. +4512345678 */
+                    number: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The same thing is already asked for; the open request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneRequest"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneRequest"];
+                };
+            };
+            /** @description The app is not on the phone's app list */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The app is already allowed, or the number is already a contact */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many open requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceAttestationChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Challenge (base64url) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        challenge: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+        };
+    };
+    putDeviceAttestation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge: string;
+                    /** @description DER certificates, base64, leaf first. */
+                    chain: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attestation"];
+                };
+            };
+            /** @description The chain does not verify */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     putDevicePushToken: {
@@ -1408,6 +2362,55 @@ export interface operations {
             };
         };
     };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Your own email address, as a confirmation */
+                    confirmEmail: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Deleted. The session cookie is cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        householdsDeleted: number;
+                        phonesRemoved: number;
+                    };
+                };
+            };
+            /** @description confirmEmail does not match */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A household only you belong to holds a Self phone */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        selfPhoneIds?: string[];
+                    };
+                };
+            };
+        };
+    };
     patchMe: {
         parameters: {
             query?: never;
@@ -1426,6 +2429,146 @@ export interface operations {
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description False when the server has no VAPID keys */
+                        webPushEnabled?: boolean;
+                        /** @description applicationServerKey for PushManager.subscribe */
+                        webPushPublicKey?: string | null;
+                        /** @description 0 means off */
+                        offlineAlertHours?: number;
+                        subscriptions?: components["schemas"]["PushSubscription"][];
+                        mutedPhoneIds?: string[];
+                    };
+                };
+            };
+        };
+    };
+    postNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    platform: "web";
+                    /** Format: uri */
+                    endpoint: string;
+                    keys: {
+                        p256dh: string;
+                        auth: string;
+                    };
+                    label?: string;
+                    /** @description The endpoint of the subscription this one replaces (sent by the service worker after the browser rotated it). That row is deleted and its label kept. */
+                    replaces?: string;
+                } | {
+                    /** @enum {unknown} */
+                    platform: "apns" | "fcm";
+                    token: string;
+                    label?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscription"];
+                };
+            };
+            /** @description Unknown push service or invalid keys */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Notifications are not set up on this server */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postNotificationTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    subscriptionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description How many were sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent?: number;
+                    };
+                };
+            };
+            /** @description Too many tests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1500,6 +2643,116 @@ export interface operations {
             };
             /** @description Last member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getResetProtection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        available: boolean;
+                        accounts: {
+                            mine: boolean;
+                            /** Format: uuid */
+                            userId: string;
+                            /** Format: date-time */
+                            addedAt: string;
+                            /** Format: date-time */
+                            activeFrom: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postResetProtectionGoogle: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description With bearer authentication, returns to the native parent app after Google sign-in. */
+                "X-Plainphone-App"?: "parent";
+            };
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sign-in URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+            /** @description Google sign-in is not set up on this server */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteResetProtectionMine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getResetProtectionCallback: {
+        parameters: {
+            query: {
+                code?: string;
+                state: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to the dashboard */
+            302: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1644,6 +2897,82 @@ export interface operations {
             };
         };
     };
+    postPhonesEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {unknown} */
+                    profile: "child" | "self";
+                    /** Format: uuid */
+                    householdId?: string;
+                    /** @example Europe/Copenhagen */
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Phone entry, token and what the QR code needs */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Household not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
+    postPhoneEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token and what the QR code needs (no `phone`) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already set up */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getPhone: {
         parameters: {
             query?: never;
@@ -1695,6 +3024,8 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     locationEnabled?: boolean;
+                    /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
+                    offlineAlertHours?: number | null;
                 };
             };
         };
@@ -1755,6 +3086,271 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getPhonesTimeLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Limits */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        total?: components["schemas"]["Limit"] | null;
+                        apps?: {
+                            packageName?: components["schemas"]["PackageName"];
+                            label?: string;
+                            limit?: components["schemas"]["Limit"];
+                        }[];
+                        bonuses?: components["schemas"]["Bonus"][];
+                        /** @description `timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null. */
+                        used?: components["schemas"]["TimeUsed"] | null;
+                    };
+                };
+            };
+        };
+    };
+    putPhonesTimeLimitsTotal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limit"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    deletePhonesTimeLimitsTotal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    putPhonesTimeLimitsApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limit"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Core apps cannot have a limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The phone has not reported this app */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesTimeLimitsApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    postPhonesTimeLimitsBonus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    packageName: components["schemas"]["LimitTarget"];
+                    minutes: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Core apps cannot have a limit, or the target has no limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCatalogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Countries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example dk */
+                        country?: string;
+                        name?: components["schemas"]["Localized"];
+                    }[];
+                };
+            };
+        };
+    };
+    getCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogFile"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    getPhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        country?: string | null;
+                        categories?: Record<string, never>[];
+                        apps?: (components["schemas"]["CatalogApp"] & {
+                            /** @enum {unknown} */
+                            state?: "installed-allowed" | "installed-hidden" | "requested" | "none";
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    postPhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    packageName: components["schemas"]["PackageName"];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Not in this phone's catalog */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
         };
     };
     getPhonesContacts: {
@@ -1969,6 +3565,117 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    putPhoneNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPhoneRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open requests, oldest first, with the app's name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests?: (components["schemas"]["PhoneRequest"] & {
+                            /** Format: uuid */
+                            phoneId?: string;
+                            appLabel?: string | null;
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    approvePhoneRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description No longer open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rejectPhoneRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No longer open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getPhonesLocation: {

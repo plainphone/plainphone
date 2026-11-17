@@ -5,6 +5,7 @@ package org.plainphone.app
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.sync.SyncScheduler
 
 /**
@@ -19,6 +20,7 @@ class RelockReceiver : BroadcastReceiver() {
                 Lock.applyAsync(context, intent.action ?: "relock") { pending.finish() }
                 if (intent.action != ACTION_RELOCK) SyncScheduler.onBoot(context)
             }
+            ACTION_INSTALL_DONE -> InstallWindow.close(context, "install window ended")
             ACTION_WINDOW -> {
                 val pending = goAsync()
                 Lock.applyIfNeededAsync(context, "school time or bedtime starts or ends") { pending.finish() }
@@ -29,5 +31,6 @@ class RelockReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_RELOCK = "org.plainphone.app.RELOCK"
         const val ACTION_WINDOW = "org.plainphone.app.WINDOW"
+        const val ACTION_INSTALL_DONE = "org.plainphone.app.INSTALL_DONE"
     }
 }

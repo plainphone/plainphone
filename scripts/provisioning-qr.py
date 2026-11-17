@@ -7,10 +7,16 @@ The phone shows a QR reader after six taps on the welcome screen. It downloads
 the APK from --apk-url, checks the signing certificate against the checksum
 read from --apk, and makes Plainphone the Device Owner.
 
+Most parents do not need this script: "Add phone" in the dashboard shows the same QR code,
+with the PIN hashed in the browser and a one-time token that pairs the phone by itself.
+The script is for self-hosters, tests and phones without an account.
+
 Examples:
-  scripts/provisioning-qr.py --apk app-release.apk \
-      --apk-url https://github.com/plainphone/plainphone/releases/download/v0.1.0-phase1/plainphone-0.1.0-phase1.apk \
-      --ask-pin --out dist/qr
+  # The stable download address always serves the newest release (signed with the same key)
+  scripts/provisioning-qr.py --checksum mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM --ask-pin --out dist/qr
+
+  # Your own build
+  scripts/provisioning-qr.py --apk app-release.apk --apk-url https://example.org/plainphone.apk --ask-pin
 
   # Wi-Fi in the QR code (keep that PNG private: it contains the password)
   scripts/provisioning-qr.py ... --wifi-ssid Home --wifi-password secret
@@ -55,6 +61,8 @@ HOST_RE = re.compile(r"^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])
 CONTACT_RE = re.compile(r"^\+?[0-9 ()./-]{3,24}$")
 # Where the phone pairs and fetches its rules (phase 4). Self-hosters pass their own.
 DEFAULT_SERVER_URL = "https://app.plainphone.org"
+# Redirects to the newest released APK (server/src/routes/download.ts), so QR codes do not go stale.
+DEFAULT_APK_URL = "https://app.plainphone.org/download/android"
 
 
 def new_client_id(length: int = 20) -> str:
@@ -144,6 +152,8 @@ def build_payload(args: argparse.Namespace, checksum: str, pin: str) -> dict:
         extras["plainphone.country_code"] = args.country_code.lstrip("+")
     if getattr(args, "contact", None):
         extras["plainphone.contacts"] = contacts_extra(args.contact)
+    if getattr(args, "enroll_token", None):
+        extras["plainphone.enroll"] = args.enroll_token
 
     payload = {
         PREFIX + "PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": ADMIN_COMPONENT,
@@ -165,7 +175,8 @@ def build_payload(args: argparse.Namespace, checksum: str, pin: str) -> dict:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--apk-url", required=True, help="HTTPS URL the phone downloads the APK from")
+    p.add_argument("--apk-url", default=DEFAULT_APK_URL,
+                   help=f"HTTPS URL the phone downloads the APK from (default: {DEFAULT_APK_URL})")
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument("--apk", type=Path, help="local copy of the same APK, to read the signing checksum")
     src.add_argument("--checksum", help="signature checksum, if you already have it")
@@ -184,6 +195,7 @@ def main() -> None:
     p.add_argument("--relock-minutes", type=int, default=30)
     p.add_argument("--server-url", default=DEFAULT_SERVER_URL,
                    help=f"server the phone pairs with and fetches rules from (default: {DEFAULT_SERVER_URL})")
+    p.add_argument("--enroll-token", help="one-time token from POST /phones/enroll; the phone then pairs by itself")
     p.add_argument("--wifi-ssid")
     p.add_argument("--wifi-password")
     p.add_argument("--wifi-security", default="WPA", choices=["NONE", "WEP", "WPA", "SAE"])
@@ -203,6 +215,8 @@ def main() -> None:
     if not pin.isdigit() or len(pin) < 6:
         sys.exit("the PIN must be at least 6 digits")
 
+    if args.enroll_token and not re.fullmatch(r"pp_e_[A-Za-z0-9_-]{10,95}", args.enroll_token):
+        sys.exit("--enroll-token must look like pp_e_...")
     if args.country_code and not re.fullmatch(r"\+?[0-9]{1,3}", args.country_code):
         sys.exit("--country-code must be 1-3 digits, e.g. 45")
     try:
@@ -236,7 +250,10 @@ def main() -> None:
     print(f"signature checksum: {checksum}")
     print(f"private DNS host: {args.dns_host}")
     print(f"server: {args.server_url}")
-    print("  After setup the phone shows a pairing code; claim it in the dashboard (Add phone).")
+    if args.enroll_token:
+        print("  After setup the phone pairs itself with the enrollment token.")
+    else:
+        print("  After setup the phone shows a pairing code; claim it in the dashboard (Add phone, Type the code).")
     print("  The server then registers the phone's own DNS ClientID and the phone switches to it.")
     if dns_id:
         print(f"DNS ClientID: {dns_id}")
