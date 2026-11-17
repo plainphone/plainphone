@@ -47,12 +47,22 @@ class HomeModelTest {
         home = home,
     )
 
+    /** Camera stands in for a core app, and Plainphone's own status screen is always there. */
+    private val core = setOf("com.android.camera", "org.plainphone.app")
+
     private val school = Schedule("s", "school", setOf(1, 2, 3, 4, 5), LocalTime.of(8, 0), LocalTime.of(14, 0), setOf("com.google.android.apps.maps"))
 
     @Test
     fun `apps the parent hid never show, even in light mode where Android does not hide them`() {
-        val s = HomeModel.build(apps, rules(), mondayMorning)
+        val s = HomeModel.build(apps, rules(), mondayMorning, core = core)
         assertThat(s.all.map { it.label }).containsExactly("Camera", "DR LYD", "Maps", "Plainphone", "Spotify").inOrder()
+    }
+
+    @Test
+    fun `an app the rules do not list yet stays off the home screen`() {
+        val s = HomeModel.build(apps + app("com.example.newgame", "New game"), rules(hidden = emptySet()), mondayMorning, core = core)
+        assertThat(s.all.map { it.packageName }).doesNotContain("com.example.newgame")
+        assertThat(s.all.map { it.packageName }).doesNotContain("com.example.game")
     }
 
     @Test

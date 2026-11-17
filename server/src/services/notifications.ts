@@ -19,7 +19,11 @@ export type NotifyEvent =
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
+  | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   | { type: "test" };
+
+/** What a parent hears about a ring or an "Are you okay?" (docs/location.md). */
+export type SafetyNews = "here" | "ok" | "call" | "noReplyLocating" | "noReplyNoLocation" | "located";
 
 /** "Tue 08:10" in the phone's own time zone. */
 function lastSeen(e: { lastSeenAt: Date; timezone: string }, locale: Locale): string {
@@ -72,6 +76,15 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
           body: `${e.what}. Open the app to approve or decline.`,
         };
+      case "safety":
+        return {
+          here: { title: `${e.phoneName}: "I'm here"`, body: "The button on the phone was pressed." },
+          ok: { title: `${e.phoneName}: "Yes, I'm okay"`, body: "No position was sent." },
+          call: { title: `${e.phoneName}: "Call me"`, body: "The phone is calling you now." },
+          noReplyLocating: { title: `No answer from ${e.phoneName}`, body: "The phone is sending its position." },
+          noReplyNoLocation: { title: `No answer from ${e.phoneName}`, body: "\"Are you okay?\" was not answered in time." },
+          located: { title: `Position of ${e.phoneName}`, body: "\"Are you okay?\" was not answered. Open the app to see where the phone is." },
+        }[e.what];
       case "test":
         return { title: "Notifications work", body: "This device will get Plainphone notifications." };
     }
@@ -98,6 +111,15 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
           body: `${e.what}. Åbn appen for at godkende eller afvise.`,
         };
+      case "safety":
+        return {
+          here: { title: `${e.phoneName}: ”Jeg er her”`, body: "Der blev trykket på knappen på telefonen." },
+          ok: { title: `${e.phoneName}: ”Ja, jeg er okay”`, body: "Der blev ikke sendt nogen placering." },
+          call: { title: `${e.phoneName}: ”Ring til mig”`, body: "Telefonen ringer til dig nu." },
+          noReplyLocating: { title: `Intet svar fra ${e.phoneName}`, body: "Telefonen sender sin placering." },
+          noReplyNoLocation: { title: `Intet svar fra ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret i tide." },
+          located: { title: `Placering af ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret. Åbn appen for at se, hvor telefonen er." },
+        }[e.what];
       case "test":
         return { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." };
     }
@@ -115,6 +137,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
       return { ...t, url: "/approvals", tag: "approvals" };
     case "request":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+    case "safety":
+      return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
     case "test":
       return { ...t, url: "/settings", tag: "test" };
   }

@@ -41,9 +41,24 @@ Still missing before notifications arrive:
 2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
 3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
 
-## Map
+## Location screen
 
-The location screen can draw the last position on OpenStreetMap raster tiles, fetched straight from `tile.openstreetmap.org`. The map is off until the parent taps Show map (the choice is kept on the device), and the screen says why. No map SDK or API key is needed. Loading the tiles tells the OpenStreetMap servers roughly which area is being looked at, the same as opening the "Open in Maps" link. The app sends no other data to third parties.
+The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `web/src/i18n` through `pnpm sync:shared`):
+
+1. **Last known position**: when ("5 minutes ago"), the date, how accurate, the map, and Find. Under it, "Drive there" with Apple Maps and Google Maps (Apple first on iOS, Google first on Android) and "Copy position" (`lat, lon` with six decimals).
+2. **Ring the phone**: start, an option to keep ringing for the full 5 minutes, a live status (waiting, ringing with the time left, "I'm here" pressed, stopped, nobody answered) and "Stop the sound".
+3. **Are you okay?**: 5, 10, 15 or 30 minutes, which approved contact the "Call me" button calls (or none), a live status, and cancel while it waits.
+4. **Location sharing**: the four modes (`off`, `find`, `checkin`, `always`) as radio choices with an explanation each.
+
+While a ring or a question is open (or an unanswered question still waits for its position), the screen reads `GET /phones/{pid}/location` every 5 seconds. Screen readers are told when the situation changes, not on every tick of the countdown.
+
+### Map
+
+The last position is drawn on OpenStreetMap raster tiles, fetched straight from `tile.openstreetmap.org`: nine plain images around the position, a marker and the accuracy circle drawn on top. The zoom level (12 to 17) follows the accuracy so that the circle fits; raster tiles only exist at whole zoom levels, so unlike the PWA's map it does not zoom smoothly or pan. The map is off until the parent taps Show map (the choice is kept on the device), and the screen says why. No map SDK or API key is needed. Loading the tiles tells the OpenStreetMap servers roughly which area is being looked at. The app sends no other data to third parties.
+
+The PWA uses OpenFreeMap (`tiles.openfreemap.org`). It serves vector tiles only, which need a map SDK to draw (MapLibre Native, a new native module), so the app keeps the OpenStreetMap raster tiles. They are used as the tile usage policy asks: the app sends its own `User-Agent`, nothing is prefetched or saved for offline use, and tiles are only requested while the parent looks at the map. If the app ever grows beyond light use, switch to a provider with a key or host your own tiles, and change `tileUrl` in `parent-app/src/lib/tiles.ts` and the text in `native.mapPrivacy`.
+
+"Copy position" opens the system share sheet, which has a Copy action on iOS and Android, because the app has no clipboard module. Adding `expo-clipboard` would make it a one-tap copy; it needs a new native build, so it is left out for now (`parent-app/src/lib/clipboard.ts` is the only place to change).
 
 ## Building
 

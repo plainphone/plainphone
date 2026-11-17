@@ -41,6 +41,16 @@ class FakeSyncDevice(
         locationRequests += precise
         return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
+
+    val safetyRules = mutableListOf<ServerRules>()
+    val pendingEvents = mutableListOf<SafetyEvent>()
+    val answeredCheckIns = mutableSetOf<String>()
+    val positionsShown = mutableListOf<String>()
+    override fun onSafetyRules(rules: ServerRules) { safetyRules += rules }
+    override fun pendingSafetyEvents() = pendingEvents.toList()
+    override fun safetyEventDone(event: SafetyEvent) { pendingEvents -= event }
+    override fun checkInAnswered(id: String) = id in answeredCheckIns
+    override fun positionSent(why: String) { positionsShown += why }
 }
 
 /** Scriptable server. */
@@ -51,6 +61,9 @@ class FakeSyncApi : SyncApi {
     val appsReported = mutableListOf<List<InstalledApp>>()
     val locations = mutableListOf<LocationFix>()
     val statuses = mutableListOf<DeviceStatus>()
+    val safetyEvents = mutableListOf<SafetyEvent>()
+    /** What PUT /device/location answers: false = 409. */
+    var locationAccepted = true
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
@@ -81,7 +94,11 @@ class FakeSyncApi : SyncApi {
         return rules
     }
     override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
-    override fun reportLocation(token: String, fix: LocationFix): Boolean { locations += fix; return true }
+    override fun reportLocation(token: String, fix: LocationFix): Boolean { locations += fix; return locationAccepted }
+    override fun reportSafety(token: String, requestId: String, event: String): Boolean {
+        safetyEvents += SafetyEvent(requestId, event)
+        return true
+    }
     override fun reportStatus(token: String, status: DeviceStatus) { statuses += status }
     override fun ackReleased(token: String): Boolean {
         acks += token
@@ -103,7 +120,13 @@ fun rulesJson(
     toInstall: String? = null,
     timeLimits: String? = null,
     release: Boolean? = null,
+    /** null = an older server without location modes. */
+    locationMode: String? = null,
+    ring: String? = null,
+    checkIn: String? = null,
 ): String {
+    val mode = locationMode?.let { ""","mode":"$it"""" } ?: ""
+    val safety = (ring?.let { ""","ring":$it""" } ?: "") + (checkIn?.let { ""","checkIn":$it""" } ?: "")
     val install = toInstall?.let { ""","toInstall":$it""" } ?: ""
     val limits = timeLimits?.let { ""","timeLimits":$it""" } ?: ""
     val rel = release?.let { ""","release":$it""" } ?: ""
@@ -115,7 +138,7 @@ fun rulesJson(
      "contacts":$contacts,
      "schedules":$schedules,
      "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready,"blockedCategories":["adult"]},
-     "location":{"enabled":$locationEnabled,"intervalMinutes":5,"requestedAt":$req},
+     "location":{"enabled":$locationEnabled$mode,"intervalMinutes":5,"requestedAt":$req}$safety,
      "pendingChanges":[]$rel,
      "pollSeconds":60$limits}
     """.trimIndent()

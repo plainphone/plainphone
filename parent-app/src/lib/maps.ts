@@ -1,12 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Where "Open in Maps" leads: Apple Maps on iOS, whatever handles geo: links on Android
-// (Google Maps and others), OpenStreetMap on the web.
-import { osmUrl } from "../shared/lib/format";
+// "Drive there": the position handed to the parent's own maps app. Same links as the PWA
+// (web/src/lib/maps.ts), Apple Maps first on iOS.
 
-export function mapsUrl(os: string, lat: number, lon: number, label: string): string {
-  const ll = `${lat.toFixed(6)},${lon.toFixed(6)}`;
-  if (os === "ios") return `https://maps.apple.com/?ll=${ll}&q=${encodeURIComponent(label)}`;
-  if (os === "android") return `geo:${ll}?q=${ll}`;
-  return osmUrl(lat, lon);
+const fixed = (n: number) => n.toFixed(6);
+
+export function googleMapsUrl(lat: number, lon: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${fixed(lat)},${fixed(lon)}`;
+}
+
+export function appleMapsUrl(lat: number, lon: number): string {
+  return `https://maps.apple.com/?daddr=${fixed(lat)},${fixed(lon)}`;
+}
+
+export type RouteApp = "apple" | "google";
+
+/** Route links for the platform (`Platform.OS`): Apple Maps first on iOS, Google Maps first elsewhere. */
+export function routeLinks(lat: number, lon: number, os: string): { app: RouteApp; url: string }[] {
+  const links = [
+    { app: "google" as const, url: googleMapsUrl(lat, lon) },
+    { app: "apple" as const, url: appleMapsUrl(lat, lon) },
+  ];
+  return os === "ios" ? links.reverse() : links;
+}
+
+/** "55.676098, 12.568337": what "Copy position" hands over; maps apps understand it. */
+export function positionText(lat: number, lon: number): string {
+  return `${fixed(lat)}, ${fixed(lon)}`;
 }

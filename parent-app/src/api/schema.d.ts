@@ -137,10 +137,30 @@ export interface paths {
         get?: never;
         /**
          * Report the current position (phone)
-         * @description Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
+         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/safety/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report what happened to a ring or an "Are you okay?" (phone)
+         * @description `shown` when the screen appeared; `here` answers a ring; `ok` and `call` answer a check-in. The first answer counts.
+         */
+        post: operations["postDeviceSafety"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1143,6 +1163,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/location/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose when the phone sends its position
+         * @description Applies at once. `off` deletes the stored position. `always` needs `alwaysFor` (400 without) and ends by itself.
+         */
+        put: operations["putPhonesLocationMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/locate": {
         parameters: {
             query?: never;
@@ -1158,6 +1198,52 @@ export interface paths {
          */
         post: operations["postPhonesLocate"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/ring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ring the phone
+         * @description Alarm sound at full volume and vibration, also on silent, for at most 5 minutes. With `stopOnAnswer` (default) it stops when the child taps "I'm here"; without, it rings the full 5 minutes. Replaces an earlier ring.
+         */
+        post: operations["postPhonesRing"];
+        /** Stop ringing */
+        delete: operations["deletePhonesRing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask "Are you okay?"
+         * @description The phone shows "Yes, I'm okay" and, with `callNumber`, "Call me". If nobody answers within `minutes` and the location mode is `checkin` or `always`, the phone sends one position. Replaces an earlier check-in.
+         */
+        post: operations["postPhonesCheckin"];
+        /** Cancel an open "Are you okay?" */
+        delete: operations["deletePhonesCheckin"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1661,14 +1747,43 @@ export interface components {
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
             location: {
+                /** @description `mode` is not off. Kept for phones from before `mode`. */
                 enabled?: boolean;
-                /** @example 5 */
+                mode?: components["schemas"]["LocationMode"];
+                /**
+                 * Format: date-time
+                 * @description When `mode` is `always`, the moment it falls back to `checkin` by itself. The phone shows it.
+                 */
+                alwaysUntil?: string | null;
+                /**
+                 * @description Report interval when `mode` is `always`. Other modes send 1440, so phones that only know `enabled` report at most once a day (and get 409).
+                 * @example 5
+                 */
                 intervalMinutes?: number;
                 /**
                  * Format: date-time
                  * @description A parent pressed Find. Report a fresh position now; the field clears when a position recorded after it arrives.
                  */
                 requestedAt?: string | null;
+            };
+            /** @description An open "Ring the phone". Play the alarm sound and vibrate until `endsAt` (at most 5 minutes), or until the child taps "I'm here" when `stopOnAnswer`. Null means stop now. */
+            ring?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                endsAt: string;
+                stopOnAnswer: boolean;
+                answered: boolean;
+            };
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it. */
+            checkIn?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                deadline: string;
+                /** @description An approved contact for the "Call me" button. */
+                callNumber: string | null;
+                sendLocation: boolean;
             };
             /**
              * @description The phone settings that are not `free`, keys in alphabetical order. A missing key is `free`. Needs Device Owner, so a light-mode phone ignores it.
@@ -1701,10 +1816,82 @@ export interface components {
              */
             release: boolean;
             /**
-             * @description Poll interval for GET /device/rules.
+             * @description Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
              * @example 60
              */
             pollSeconds: number;
+        };
+        /**
+         * @description When the phone sends its position: never; on Find; on Find and once for an unanswered "Are you okay?"; every 5 minutes for a chosen time (shown on the phone all the time).
+         * @enum {unknown}
+         */
+        LocationMode: "off" | "find" | "checkin" | "always";
+        /**
+         * @description How long `always` lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to `checkin`.
+         * @enum {unknown}
+         */
+        AlwaysFor: "hour" | "today" | "week";
+        Ring: {
+            /** Format: uuid */
+            id: string;
+            /** @description The phone should be ringing now. */
+            active: boolean;
+            stopOnAnswer: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+        };
+        Checkin: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            status: "waiting" | "answered" | "cancelled" | "noReply";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            deadline: string;
+            callNumber: string | null;
+            sendsLocation: boolean;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** @enum {unknown} */
+            answer: "ok" | "call" | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+            /**
+             * Format: date-time
+             * @description The one position sent because nobody answered.
+             */
+            locatedAt: string | null;
+        };
+        LocationState: {
+            enabled: boolean;
+            mode: components["schemas"]["LocationMode"];
+            /**
+             * Format: date-time
+             * @description End of `always`; null in other modes.
+             */
+            alwaysUntil: string | null;
+            /** Format: date-time */
+            requestedAt: string | null;
+            location: null | {
+                lat: number;
+                lon: number;
+                accuracyM: number | null;
+                /** Format: date-time */
+                recordedAt: string;
+            };
+            ring: null | components["schemas"]["Ring"];
+            checkin: null | components["schemas"]["Checkin"];
         };
         PhoneSummary: {
             /** Format: uuid */
@@ -1716,6 +1903,7 @@ export interface components {
             mode?: "strong" | "light";
             timezone?: string;
             locationEnabled?: boolean;
+            locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
             /**
@@ -2107,8 +2295,49 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Location is off for this phone; stop reporting. */
+            /** @description Location is off for this phone, or no position was asked for; stop reporting. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceSafety: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    event: "shown" | "here" | "ok" | "call";
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The event does not fit the request's kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such request for this phone */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3725,12 +3954,43 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null */
+            /** @description The position, the location mode and the latest ring and check-in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
+            };
+        };
+    };
+    putPhonesLocationMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    mode: components["schemas"]["LocationMode"];
+                    alwaysFor?: components["schemas"]["AlwaysFor"];
+                };
+            };
+        };
+        responses: {
+            /** @description The new state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
             };
         };
     };
@@ -3754,6 +4014,136 @@ export interface operations {
             };
             /** @description Location is off */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default true */
+                    stopOnAnswer?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ring?: components["schemas"]["Ring"];
+                    };
+                };
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ring, now stopped (or null) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @example 5
+                     * @example 10
+                     * @example 15
+                     * @example 30
+                     */
+                    minutes: number;
+                    /** @description One of the phone's approved contacts (400 otherwise). */
+                    callNumber?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        checkin?: components["schemas"]["Checkin"];
+                    };
+                };
+            };
+            /** @description Bad minutes, or callNumber is not an approved contact */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The check-in, now cancelled (or as it was if already answered or located) */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

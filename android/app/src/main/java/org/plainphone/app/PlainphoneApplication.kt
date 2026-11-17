@@ -10,9 +10,10 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Log
+import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.home.HomeGuard
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
-import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.time.TimeTicker
 
 /**
@@ -27,6 +28,7 @@ class PlainphoneApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         try {
+            HomeGuard.onAppStart(this)
             SyncScheduler.ensurePeriodic(this)
             registerReceiver(
                 object : BroadcastReceiver() {
@@ -36,6 +38,15 @@ class PlainphoneApplication : Application() {
                     }
                 },
                 IntentFilter(Intent.ACTION_SCREEN_ON),
+            )
+            // Screen off: keep looking for a ring or an "Are you okay?" every 2 minutes (docs/location.md).
+            registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        org.plainphone.app.safety.Safety.scheduleIdlePoll(context)
+                    }
+                },
+                IntentFilter(Intent.ACTION_SCREEN_OFF),
             )
             TimeTicker.register(this)
             // The filter went down (revoked or stopped): the parent hears it with this sync, not 15 minutes later.

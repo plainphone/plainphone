@@ -25,6 +25,10 @@ interface SyncApi {
      * release (409). Other answers and network errors throw.
      */
     fun ackReleased(token: String): Boolean
+     * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
+     * False when the server no longer knows the request (404) or refuses the event (400): drop it.
+     */
+    fun reportSafety(token: String, requestId: String, event: String): Boolean
 }
 
 data class Pairing(val id: String, val code: String, val pollSecret: String, val qrUrl: String, val expiresAtMs: Long)
@@ -205,6 +209,16 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         return when (r.status) {
             204, 401 -> true
             409 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
+    }
+
+    override fun reportSafety(token: String, requestId: String, event: String): Boolean {
+        require(requestId.matches(Regex("[0-9a-fA-F-]{36}"))) { "bad request id" }
+        val r = call("POST", "/device/safety/$requestId", token, JSONObject().put("event", event))
+        return when (r.status) {
+            204 -> true
+            400, 404 -> false
             else -> throw HttpError(r.status, r.body)
         }
     }

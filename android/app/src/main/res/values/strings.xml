@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">Plainphone</string>
-    <string name="admin_description">Keeps this phone calm: blocks app installs, factory reset, safe mode and DNS changes.</string>
+    <string name="admin_description">Applies phone rules for app installs, factory reset, safe mode and DNS settings.</string>
     <string name="phase_notice">Phase 4: rules from the parent\'s dashboard. Not for real use yet.</string>
     <string name="status_owner">Locked: Plainphone is Device Owner.</string>
     <string name="status_not_owner">Not locked: Plainphone is not Device Owner. Set the phone up with the QR code.</string>
@@ -129,10 +129,10 @@
     <!-- Light mode (docs/light-mode.md) -->
     <string name="guard_label">Plainphone guard</string>
     <string name="guard_summary">Closes apps your parent has not allowed, and apps whose time is up.</string>
-    <string name="guard_description">Plainphone uses this to see which app is open, so it can close apps that are not allowed or whose time is used up, and to keep its own protection from being switched off. It reads nothing else and sends nothing about what you do, apart from minutes used for apps with a time limit.</string>
+    <string name="guard_description">Plainphone checks which app is open so it can close apps that are blocked or out of time. To recognise pages where Plainphone can be switched off, it checks screen text and descriptions in Android settings and related system screens. It checks these on the phone and does not send them to the server. The phone can report minutes used for apps with a time limit.</string>
     <string name="light_admin_description">Plainphone uses this so it has to be switched off here before it can be uninstalled.</string>
     <string name="light_admin_explanation">With this on, Plainphone cannot simply be uninstalled. The parent is told if it is switched off.</string>
-    <string name="light_admin_disable_warning">Switching this off removes Plainphone\'s protection. The parent will be told.</string>
+    <string name="light_admin_disable_warning">Switching this off allows Plainphone to be uninstalled. Your parent can receive a notification.</string>
     <string name="light_step_counter">Step %1$d of %2$d</string>
     <string name="light_skip">Not now</string>
     <string name="light_step_pin_title">Choose a parent PIN</string>
@@ -149,12 +149,12 @@
     <string name="light_step_sms_body">Text messages to and from numbers that are not approved are stopped.</string>
     <string name="light_step_sms_action">Set as messages app</string>
     <string name="light_step_filter_title">Switch on the web filter</string>
-    <string name="light_step_filter_body">Android calls it a VPN. It only looks up web addresses through the Plainphone filter. No other traffic goes through it.</string>
+    <string name="light_step_filter_body">Android calls it a VPN. It looks up web addresses through Plainphone to block some sites. Some content still gets through. No other traffic goes through it.</string>
     <string name="light_step_filter_action">Switch on</string>
     <string name="light_step_usage_title">Allow usage access</string>
     <string name="light_step_usage_body">Needed for time limits. Find Plainphone in the list and switch it on.</string>
     <string name="light_step_usage_action">Open settings</string>
-    <string name="light_step_admin_title">Protect against uninstalling</string>
+    <string name="light_step_admin_title">Turn on device admin</string>
     <string name="light_step_admin_body">With this on, Plainphone cannot simply be removed. The parent is told if it is switched off.</string>
     <string name="light_step_admin_action">Switch on</string>
     <string name="light_step_running_title">Keep Plainphone running</string>
@@ -180,12 +180,12 @@
     <string name="blocked_time_title">Time is up for today</string>
     <string name="blocked_time_body">It opens again tomorrow. Calls and messages work as always.</string>
     <string name="blocked_protection_title">This setting is locked</string>
-    <string name="blocked_protection_body">Plainphone\'s protection can only be changed with the parent\'s PIN.</string>
+    <string name="blocked_protection_body">Use the parent\'s PIN to change this setting.</string>
     <string name="blocked_ok">OK</string>
     <string name="blocked_enter_pin">Enter PIN</string>
     <string name="today_title">Today</string>
     <string name="today_no_limits">No time limits today.</string>
-    <string name="today_protection_missing">Some of the protection is switched off.</string>
+    <string name="today_protection_missing">Some settings Plainphone uses to apply rules are off.</string>
     <string name="today_fix">Switch it back on</string>
     <string name="today_left_total">Time left today</string>
     <string name="today_used_up">Used up</string>
