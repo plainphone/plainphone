@@ -53,7 +53,9 @@ beyond the stated metadata are outside the guarantees.
 
 Column names below use wire-style names. Identifiers, foreign keys, row
 presence, lifecycle timestamps, padded ciphertext lengths and traffic timing
-remain visible wherever used for routing or retention.
+remain visible wherever used for routing or retention. `lockIntact` is the
+only clear phone-state value. Identifiers and transport metadata in this table
+remain visible as described.
 
 | Data | Clear or visible | Protected |
 |---|---|---|
@@ -61,19 +63,19 @@ remain visible wherever used for routing or retention.
 | `households`, `household_members`, `household_invites` | Household ID, membership user IDs and API roles, invitation state and email until accepted | Household name, H |
 | `phones` identity | Phone ID, household ID, profile (`child`/`self`), mode (`strong`/`light`), pairing and last-seen times | Phone name, H. Time zone, device model and other device info, R |
 | `phones` auth and routing | Device token hash, DNS ClientID, routing/readiness metadata, FCM token | DNS policy in R and separately available to ppdns. Location mode/interval in R. Locate requests use encrypted commands |
-| Phone status | `lockIntact` boolean, applied `rulesVersion`, `statusReportedAt`, offline-alert threshold and last alerted time. Transport User-Agent can reveal app version | Battery, detailed protection state, failed policies, DNS host in reports, app version field, time used and observed roster head, R |
+| Phone status | `lockIntact` boolean, `statusReportedAt`, offline-alert threshold and last alerted time. Transport User-Agent can reveal app version | Battery, detailed protection state, failed policies, DNS host in reports, app version field, time used, applied `rulesVersion` and observed roster head, R |
 | `pairings`, `enrollments` | Short-lived pairing routing fields, public keys, existing transient pairing bearer token where applicable, enrollment token hash, MAC, IDs/times | QR secret stays on the initiating device |
 | Apps, contacts, time limits/bonuses, schedules | Phone/record routing and update activity | Installed package, label, core/installed flags in signed R app report. Allowed/hidden/selected/catalog installs, names, numbers, limits, bonuses and windows in signed R rules |
 | `dns_settings`, `dns_deletions` | ClientID and DNS deletion/readiness state | Allowed/blocked domains and categories in signed R rules. The HPKE copy goes directly to ppdns |
-| `locations` | Receipt timestamp and update frequency, which can expose continuous tracking | Coordinates, accuracy, capture time and any command correlation, L. Keep the latest position only |
+| `locations` | Receipt timestamp and update frequency, which can expose continuous tracking | Periodic coordinates, accuracy and capture time, R. Keep only the latest periodic position. Command results go only to the requesting device |
 | `self_keys` | Trusted user ID for routing, trusted email until acceptance. Future payment routing and amounts if payments launch | Expected key type and delay in R |
-| `pending_changes` | ID, key type for routing, status, effective/decision times, requester and decider IDs | Operation and authenticated change context, R or a per-change key for trusted approval |
+| `pending_changes` | ID, key type for routing, status and receipt/retention times, requester and decider IDs | Operation, effective/expiry times and authenticated change context, R or a per-change key for trusted approval |
 | `phone_requests` | Status, creation/decision times, keyed dedupe tag. Tag equality exposes repeats within the epoch | Request kind, app package, proposed contact name and number, R |
 | `usage_days` | Day and receipt timing for 30-day expiry | Daily totals, per-app totals and unlock counts, R |
 | `push_subscriptions`, `notification_mutes` | Endpoint, Web Push routing keys, native token and mute state | Optional label under H for admins. Otherwise omit it |
 | `devices`, `household_log` | Device/user IDs, public keys, roles, grants, public epoch commitments, signatures, event order and observed timestamps | Optional device label, H |
 | `key_envelopes`, `phone_state` | Scope, epoch, recipient and/or signer IDs, roster head, rules version, public headers/signatures and lengths | Wrapped keys and rules |
-| `commands` | Phone and command ID, signer, head, epoch, scope, issue/expiry times, length. Scope R can identify a release while L groups the three emergency actions. The signed release acknowledgement is visible for removal routing | Action and encrypted parameters/results for ordinary commands |
+| `commands` | Phone and command ID, signer, head, epoch, scope, issue/expiry times, length. Scope R can identify a release while L groups the three emergency actions. | Action and encrypted parameters/results for ordinary commands |
 | Public catalog, edge, delivery | Catalog and requested country, network IP and User-Agent during requests, rate-limit and infrastructure metadata, push/mail routing and send time | The catalog choices of a household go into R |
 
 Push wake-ups to phones contain only a generic sync signal. Push providers see
@@ -90,10 +92,10 @@ Use one independently random 32-byte key H per household, and independent
 32-byte R and L keys per phone. Epochs start at 1 and increment by one for
 each scope independently. H protects names and labels. R protects rules,
 reports, usage, requests and Self changes that lack a per-change key.
-L protects position and emergency
-actions. Admins get H and R/L only for their authorized phones. A phone gets
-its own R and L. An emergency device gets L for named phones only, including
-the latest position if available. A trusted device gets only its designated
+L protects the three emergency commands. Admins get H and R/L only for
+their authorized phones. A phone gets its own R and L. An emergency device
+gets L for named phones and can request Find, Ring or “Are you okay?”. It
+gets neither periodic positions nor results addressed to other devices. A trusted device gets only its designated
 per-change key and no R, L or H. Self-phone access MUST be explicitly scoped.
 The Self owner MUST approve granting another principal access to that phone.
 A recovery device holds only the permissions of the admin principal who
@@ -122,9 +124,11 @@ appears only in fields that permit it.
 
 Let `D(p,x) = UTF8(JCS(["plainphone",1,p,x]))`. Hashes are SHA-256 (32 bytes).
 Ed25519 is pure RFC 8032 over the stated bytes, with a raw 32-byte public key
-and 64-byte signature. Require canonical encodings and reject small-order public
-keys. Use strict RFC 8032 verification, including scalar-range checks, and share
-negative vectors across platforms in F1. Do not sign a digest in place of the
+and 64-byte signature. Require canonical encodings of public point A and
+signature point R, reject small-order A and R (including the identity),
+require 0 ≤ S < L (the subgroup order), and verify the non-cofactored
+equation [S]B = R + [k]A from [RFC 8032 §5.1.7](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.7).
+A native provider may be used only with checks that enforce this profile. Do not sign a digest in place of the
 specified message. In each structure with a `sig`, sign the object with just
 that field omitted. Version `v` means format revision, and MUST equal 1.
 Version `version` is a record revision counter. Range for stored revision
@@ -143,7 +147,8 @@ logical owner. Clients MUST check these against their request and local state.
 
 Encode the plaintext as JCS JSON bytes. Pad by prepending its unsigned 32-bit
 big-endian length and appending zero bytes to the smallest power-of-two bucket
-that fits, with a minimum of 256 and a maximum of 4 MiB. Reject malformed padding,
+that fits, with a minimum of 256 and a maximum of 4 MiB including the length
+prefix (maximum JCS length 4 MiB minus four bytes). Reject malformed padding,
 noncanonical payload bytes and oversized records before applying them. Encrypt
 with AES-256-GCM, a fresh random 12-byte nonce and a 16-byte tag. AAD is
 `D("blob",header)`. The wire is `{header,nonce,ct}`, with `ct = ciphertext || tag`.
@@ -165,34 +170,69 @@ clear application fields separately where used for enforcement. Routing fields,
 including `lockIntact`, are advisory to the application server and never
 authority for phone policy. Phone-written R/L reports MUST carry the phone
 signature. H metadata MUST be signed by an admin. A phone name also
-requires signer authorization for that phone.
+requires signer authorization for that phone. Every H/R/L blob and every
+per-change blob MUST be signed. Public catalog and API routing metadata
+are outside the signed blob format and confer no cryptographic authority.
 
-For a Self change that requires trusted approval, seal the operation once
-under a fresh random 32-byte per-change key. Use the signed record format
-above with `table:"pending_changes",scope:"change",version:1`, the current R
-epoch, and `recordId` equal to the change ID. Its plaintext is
-`{op,trustedUserId,effectiveAt}`, where `op` is the exact operation the phone
-will evaluate. HPKE-wrap the same key to the phone, the authorized admins
-that need the change, and the assigned trusted devices. Each recipient
-verifies the admin signature, envelope and header bindings, then decrypts
-that same record. Never review a separately supplied operation or context.
+Every Self loosening, including removing or replacing an active trusted
+requirement, requires a signed change record with
+`table:"pending_changes",version:1,recordId:changeId`. Use the current R
+epoch in the record header. Use scope R when no trusted approval is required.
+When approval is required, use `scope:"change"` and seal once under a fresh
+random 32-byte key. Wrap that key to the phone, the authorized admins who
+need it, and the designated trusted devices. Recipients verify signer,
+envelope and header bindings and review that exact decrypted operation.
+
+The plaintext is `{op,trustedUserId,baseRulesVersion,baseRulesDigest,effectiveAt,expiresAt}`.
+`trustedUserId` is null for changes without trusted approval.
+`baseRulesDigest` is SHA-256 of `D("rules-digest",appliedSignedRulesWire)`.
+`op` is a deterministic operation on the base policy, defined by F3.
+The phone requires the exact applied base revision and digest, the current
+R epoch, a fresh UUID, and `effectiveAt < expiresAt`. It requires trusted local
+time before first observation and application, rejects expired changes, and
+uses `effectiveAt` only as an additional lower bound. At commitment, require
+`effectiveAt <= trustedNow < expiresAt` and the full accumulated delay.
 
 A trusted approval is
-`{v,householdId,phoneId,changeId,rosterHead,signerDeviceId,recordHash,keyHash,sig}`.
-After showing the decrypted operation and context, the trusted device signs
-`D("self-approval",approvalWithoutSig)`.
-Here `recordHash = SHA-256(D("self-change", signedChangeRecord))` covers the
-entire signed wire record, and `keyHash` is SHA-256 of the raw per-change key.
-The phone recomputes both hashes from the record and key it actually uses,
-requires matching IDs and current R epoch, and verifies that the signer was
-authorized at the approval head and remains authorized for the phone and
-the trusted user required by its applied Self policy. Binding the key
-prevents presenting different decryptions of the same ciphertext.
-Each phone re-evaluates loosening against its applied state and measures the
-delay locally. Removing or replacing a trusted grant that protects an active
-Self rule is itself a loosening operation. The phone MUST keep enforcing the
-old requirement until its local Self gate allows that policy change. Never give
-a trusted device access to subsequent changes after removal.
+`{v,householdId,phoneId,changeId,rosterHead,signerDeviceId,recordHash,keyHash,baseRulesVersion,baseRulesDigest,expiresAt,sig}`.
+The trusted device signs `D("self-approval",approvalWithoutSig)` after
+displaying the exact decrypted operation and context. The phone matches
+the base fields and expiry against the change and recomputes
+`recordHash = SHA-256(D("self-change",signedChangeRecord))` and
+`keyHash = SHA-256(D("self-change-key",base64url(changeKey)))`.
+Verify the approval's IDs and signer at both the referenced and current
+heads. The applied Self policy authorizes specific trusted device IDs and
+their signed `userId` for this phone. A matching user ID alone grants nothing.
+Removal immediately prevents new approvals and use of outstanding approvals
+from the removed device. It does not remove the applied Self requirement.
+
+On the first successful authenticated observation, durably store the
+change ID, signed-record digest, boot count, `elapsedRealtime()` checkpoint,
+and zero accumulated delay. Reject different bytes for an observed ID.
+Measure the delay required by the applied base using only nonnegative
+same-boot elapsed deltas. Persist the accumulated duration and checkpoint
+atomically and checkpoint periodically and on orderly shutdown. On reboot,
+resume from the saved duration with a new checkpoint and give no credit for
+uncheckpointed time from a prior boot or time powered off. A process restart
+in the same boot can use the saved checkpoint. Missing, inconsistent or
+regressing time state blocks the change. A wall-clock jump blocks execution
+until trusted local time is re-established and cannot advance the delay.
+A retry cannot reset a valid timer or move its first observation earlier.
+
+The admin supplies a signed full rules snapshot at exactly
+`baseRulesVersion + 1` under the current R epoch. The phone applies `op` to
+the actual base in memory, validates the resulting policy, and requires
+exact canonical equality with the candidate snapshot before committing.
+The Self gate applies to every loosening snapshot even if sent without a
+change record. The phone atomically consumes the ID and persists the new
+policy, signed snapshot, revision, digest and enforcement intent before
+reconciling local enforcement idempotently. Keep consumed IDs durably for
+the lifetime of this phone identity. A duplicate delivery may acknowledge the
+already accepted snapshot but cannot apply the operation again. Any intervening
+rules revision or R epoch invalidates the pending change and approval.
+Reissue against the new base with a fresh ID, fresh delay and fresh approval.
+Keep prior enforcement on failure, including if incrementing the base
+would exceed the revision counter range.
 
 ### HPKE and key envelopes
 
@@ -205,7 +245,8 @@ encapsulation keys using the library's X25519 failure checks.
 Envelope = `{header,enc,ct,sig}`. Header =
 `{v,householdId,phoneId,scope,epoch,recipientDeviceId,rosterHead,signerDeviceId}`.
 H uses `phoneId:null`. R/L require a phone ID. For the per-change key only,
-use scope `"change"`, epoch 1, and add `changeId` to the header. Its sender must
+use scope `"change"`, the same current R epoch as the change record, and
+add `changeId` to the header. Its sender must
 be authorized to submit the change and its recipient must be a currently
 assigned trusted device for the change or an authorized phone/admin recipient.
 The HPKE plaintext is exactly the 32-byte key. Use `info = D("key-envelope",header)`
@@ -215,9 +256,9 @@ the 16-byte tag. The Ed25519 signature covers
 `D("key-envelope",{header,enc,ct})`. HPKE base mode needs this independent
 sender authentication. Check the envelope target and the sender and receiver's
 authorization at the referenced head and locally accepted head, validate epoch
-and scope, then decrypt and compare SHA-256 of the key to the log commitment
+and scope, then decrypt and compare the domain-separated key hash to the log commitment
 for H/R/L. For a per-change key, require an envelope signed by the change signer, bound to the same
-household, phone, change ID and roster head. For execution requiring trusted
+household, phone, change ID, R epoch and roster head. For execution requiring trusted
 approval, require the approval to bind that key as specified above. An R epoch
 change invalidates outstanding approvals. Reissue the change with a new ID
 and key and obtain a new approval if it is still needed.
@@ -229,37 +270,58 @@ A log post is `{v,householdId,seq,prevHash,type,data,epochs,signerDeviceId,sig}`
 The head is SHA-256 of `D("log-head",postIncludingSig)`.
 `prevHash` is the immediate predecessor's head. Every post has `epochs`, an
 array of `{scope,phoneId,epoch,keyHash}`, sorted by scope then phone ID
-(null sorts first). No duplicates. `keyHash` is SHA-256 of the raw scope key.
+(null sorts first). No duplicates. `keyHash` is SHA-256 of
+`D("scope-key",{scope,phoneId,epoch,key:base64url(scopeKey)})`.
 Unchanged scopes are omitted. Removed phones retire both their scopes and IDs.
 All other changes follow the table.
 
 | Type | Exact `data` | Authorization and epoch changes |
 |---|---|---|
 | `genesis` | `{deviceId,userId,signPub,kemPub}` | Self-signed by the first admin (`signerDeviceId=deviceId`), seq 0, `prevHash:null`, H epoch 1. Initially no phones |
-| `device.add` | `{deviceId,userId,signPub,kemPub,role,scope}` | Admin or recovery. Grant can only cover phones the signer can administer. `role` is `admin`, `emergency`, `trusted` or `recovery`. No epoch changes |
+| `device.add` | `{deviceId,userId,signPub,kemPub,role,scope,relationship,selfPhoneIds}` | Admin may admit an admin, emergency or trusted device for child phones it administers. An owner admin must sign for each Self phone in the grant. An owner recovery may grant Self access only when bootstrapping its own admin. An admin may admit recovery only as its own device and within its scope. Recovery may admit only a regular admin as its own device within its scope. No epoch changes |
+| `device.grant-self` | `{deviceId,phoneId}` | Owner admin or owner recovery for the named Self phone. An existing eligible device gains explicit access, subject to the recovery restriction below. No epoch changes |
 | `device.remove` | `{deviceId}` | Admin or recovery with authority over all affected scopes. No removing the last admin unless an active recovery remains. Rotate every H/R/L scope the target could read. Trusted removal also invalidates outstanding trusted approvals for new application, subject to the phone's Self gate |
-| `phone.add` | `{phoneId,profile,ownerUserId,deviceId,signPub,kemPub}` | Admin or recovery. `ownerUserId` is null for `child` and the signer’s user ID for `self`. Adds the unique `phone` device for that phone and inits R/L epoch 1 |
+| `phone.add` | `{phoneId,profile,ownerUserId,ownerPrincipalId,deviceId,signPub,kemPub}` | Admin with wildcard. Both owner fields are null for `child`. For `self`, use the signer’s signed user ID and roster-derived principal ID, and give the signer explicit ownership access. Adds the unique `phone` device for that phone and inits R/L epoch 1 |
 | `phone.remove` | `{phoneId}` | Admin or recovery for that phone. Retire phone and phone device. Empty epoch list. Signed removal permits deletion of server data. For remote release followed by removal, require the phone acknowledgement below before signing this post |
 | `keys.rotate` | `{}` | Admin or recovery for each listed scope. Nonempty epoch list. Advance each listed scope by one |
 
-A grant `scope` is `"*"` (admin or recovery only) or a sorted, nonempty
-array of existing phone IDs. A wildcard grants all current and future child
-phones and only those Self phones whose signed `ownerUserId` equals the
-device's `userId`. An explicit Self grant to a different user requires a
-signature from the Self owner. This includes trusted and emergency devices.
-An explicitly delegated admin may control that phone within the admin role
-but cannot delegate it further. A recovery device MUST have the same user
-ID as its enrolling admin, cannot exceed that admin's scope, and may
-bootstrap a regular admin only for that user within its own authority.
-A phone's grant is its single `phoneId` from `phone.add`. Only an admin or
-recovery with `"*"` may create a phone or grant `"*"`.
-At least one wildcard admin or recovery MUST remain for the household and at
-least one owner-admin or owner-recovery MUST remain for each Self phone
-until the phone is removed. To remove a device, the signer must be able to
-administer every phone within the target's active grant. Never reuse retired device IDs, phone IDs or device key material.
-All grants are evaluated on the predecessor roster. A `recovery` device may
-sign membership/rotation actions and key envelopes. It MUST bootstrap a regular
-admin before any rule or command is written.
+A grant `scope` is either `"*"` (admin or recovery only) or a sorted
+array of child phone IDs. Wildcards cover current and future child phones.
+`selfPhoneIds` is a sorted array of existing Self phone IDs. An explicit
+grant must cover at least one phone across the two arrays. Both arrays
+reject duplicates. Only a wildcard signer can grant wildcard child access,
+and every granted phone must be within the signer's scope.
+
+Genesis starts a principal identified by its device ID. For `device.add`,
+`relationship` is either `"own"` (“my own device”) or `"other"`
+(“another person”), explicitly selected by the signer and included in the
+signed post. `"own"` is valid only for admin/recovery admissions and requires
+the same authenticated user ID as the signer. It inherits the signer's
+principal ID. `"other"` starts a distinct principal identified by the new
+device ID, even if the same user ID appears elsewhere. Neither relationship
+nor a matching user ID automatically grants any Self access.
+
+For each `selfPhoneIds` entry, the post's signer MUST be an active admin or
+recovery with access to that phone and with the phone's `ownerPrincipalId`.
+The signature on the post explicitly grants access to those IDs. A delegate
+may administer the Self phone within its role but may neither grant its
+access nor create an owner device. Only the signer of a new Self phone
+automatically acquires access to it. Other devices of the same principal
+require a signed explicit grant. An owner may sign a new `device.grant-self`
+post with exact data `{deviceId,phoneId}` for an already admitted device.
+It adds that phone to its Self grant, requires the same owner authorization
+as `device.add`, and makes no epoch changes. A recovery signer may use this post only for an admin in its own principal.
+Granting to a recovery recipient requires that the recipient share the owner
+principal.
+
+A phone's grant is its single `phoneId` from `phone.add`. At least one
+wildcard admin or recovery MUST remain, and each Self phone MUST retain at
+least one owner admin or owner recovery with explicit access. Device removal
+requires authority over every phone in the target's grant and owner
+authority over any affected Self owner role. Never reuse retired phone IDs,
+device IDs or device key material. Evaluate grants on the predecessor roster.
+Recovery may sign the membership/rotation actions authorized here and key
+envelopes. It MUST bootstrap a regular admin before writing rules or commands.
 
 Pin genesis locally on creation and a verified head on enrollment/admission.
 Persist the accepted head, roster, key epochs, applied revision and digest
@@ -286,8 +348,8 @@ writers. It supplies no fork prevention against a dishonest server.
 
 Phone-written R/L reports MUST increment `version` per logical record
 `(householdId,phoneId,table,recordId)`, starting at 1 and continuing across
-epoch changes. Latest position uses a singleton record ID equal to the phone
-ID. The phone durably reserves the next version before sealing and retries
+epoch changes. Latest periodic position uses scope R, `table:"locations"` and a singleton
+record ID equal to the phone ID. The phone durably reserves the next version before sealing and retries
 with identical bytes. It must stop publishing under that identity if it loses
 the counter state. Re-enroll under a fresh phone identity after such loss.
 
@@ -320,7 +382,7 @@ signed validity window. The exact encrypted bodies and signer permissions are:
 |---|---|---|
 | `{kind:"locate"}` | L | Admin or emergency. Request a single position under phone policy and notify the child on a single-position capture |
 | `{kind:"ring",stopAfter}` | L | Admin or emergency. Ring for integer seconds 1–60, with local cancellation |
-| `{kind:"okay",deadline}` | L | Admin or emergency. Show the question. Send an encrypted acknowledgement if answered, or one encrypted position under local policy if unanswered. Deadline is Unix ms, greater than `expiresAt` and no later than `issuedAt+900000` |
+| `{kind:"okay",deadline}` | L | Admin or emergency. Show the question. Send an encrypted acknowledgement if answered. Only an admin request may yield one encrypted position if unanswered, under local policy. Deadline is Unix ms, greater than `expiresAt` and no later than `issuedAt+900000` |
 | `{kind:"release"}` | R | Admin only. A release of a Self phone is a loosening operation and requires the local gate |
 
 Before execution require `issuedAt <= now + 30000`, `expiresAt > now` and
@@ -331,8 +393,31 @@ local time is unavailable or has rolled back past the stored high-water mark.
 Bound running effects using elapsed time, and carry pending consent and replay
 state through restarts. Never interpret server time as a freshness proof.
 Apply local location settings and refuse forbidden actions regardless of the
-sender. Results are signed by the phone, encrypted under L and carry command
-correlation inside the payload.
+sender. For each result, use an independent HPKE seal to the initiating device's
+verified KEM key. Require that device still hold the command permission
+when producing and accepting the result. Wire `{header,enc,ct,sig}` uses header
+`{v,householdId,phoneId,commandId,epoch,rosterHead,signerDeviceId,recipientDeviceId}`,
+with the current L epoch and phone device signer. Use
+`info=D("command-result",header)`, empty AAD, and the length-prefixed padded
+JCS result. Sign `D("command-result",{header,enc,ct})`. Check the original
+command ID, recipient, phone signature, current epoch and both head permissions
+before opening. Use a fresh capture for a Find response. The recipient
+accepts at most one terminal result per command. Emergency contacts can
+receive a position only for their own Find request, and a check-in response
+only for their own “Are you okay?” request.
+
+Trusted local time for commands and changes is a UTC estimate advanced from
+a trusted UTC anchor by same-boot `elapsedRealtime()`
+([Android SystemClock](https://developer.android.com/reference/android/os/SystemClock)).
+Require an authenticated time source independent of the application relay
+or explicit local UTC confirmation by a trusted device administrator.
+Never use raw RTC or the relay as the anchor. Persist the boot identifier
+(`Settings.Global.BOOT_COUNT` on Android), elapsed checkpoint and accepted
+UTC high-water mark. After reboot, obtain a new anchor before comparing UTC.
+Fail closed on missing or inconsistent state, monotonic rollback, UTC
+below the high-water mark or a detected wall-clock discontinuity.
+Re-anchoring never credits elapsed Self delay. Use these Android 10
+time primitives without calling `currentNetworkTimeClock()`.
 
 ### Release before remote removal
 
@@ -340,14 +425,18 @@ For a release-and-remove request, keep the phone enrolled with its scope
 keys, command routing and pending Self state until release is confirmed.
 If the command expires before acceptance, send a newly signed command with
 a fresh ID and validity window. The phone persists an accepted release
-intent before acknowledging it and must preserve any applicable Self delay
-across restarts. A retry for the same pending intent must neither restart the
-delay nor bypass it. The wire acknowledgement contains the fields below
-plus `sig`. Only after completing release does the phone sign
-`D("release-ack",{v,householdId,phoneId,commandId,rosterHead,signerDeviceId})`
-with its phone signing key. Persist the acknowledgement and keep retrying
-delivery until removal is observed. An already released phone may acknowledge
+intent and must preserve any applicable Self delay across restarts. For Self
+release, require the same change gate and atomic rule revision as any other
+loosening, with a released state defined by F3 and tied to the accepted
+release intent. Revalidate the base, approval and expiry at commitment.
+Retries preserve the pending intent and its delay. Only after completing
+release does the phone write a signed R report with
+`table:"phone_reports",recordId:commandId`, initial version 1 and plaintext
+`{kind:"release-ack",commandId}`. Persist the acknowledgement and keep
+retrying delivery until removal is observed. If rotation retires the report's
+epoch before delivery, reissue with the next report version in the new epoch. An already released phone may acknowledge
 a fresh valid retry for the same release request without applying release again.
+The relay requires only the signed removal post for deletion.
 The admin verifies the signature against the acknowledged head and current
 roster, and matches the command ID to a release sent for that phone before
 signing `phone.remove`. Queueing, expiry or server status never confirms release.
@@ -357,18 +446,21 @@ release will no longer be possible.
 
 ## 4. Enrollment and recovery
 
-For parent or contact admission, the candidate displays
-`{v,householdId,deviceId,signPub,kemPub}` in a QR or the full SHA-256 of
-`D("join-device",thatObject)` as an out-of-band comparison. The approving
-admin compares the candidate's exact keys with the keys presented for log
-inclusion and presents its own currently verified `householdId,rosterHead`
-to the candidate over the same authenticated channel. The candidate pins that
-head and validates inclusion as a descendant. Login and invitation only grant
-API access. A short decimal equality code is not a substitute for the full
-fingerprint in this flow. Twelve decimal digits would provide under 40 bits.
+For parent or contact admission, the approving admin first shows an
+in-person QR containing `{v,householdId,rosterHead}`. The candidate scans
+it and pins the head. For remote admission, compare the full household ID
+and head over an independently authenticated channel before pinning.
+The candidate then shows `{v,householdId,deviceId,userId,signPub,kemPub}`
+by QR or compares the full base64url SHA-256 of `D("join-device",thatObject)`
+over that channel. The admin checks every field against the proposed post
+and explicitly selects its relationship and grants. A trusted candidate uses
+its `trustedUserId` as the authenticated `userId` in this object. The
+candidate checks its exact fields, intended role and grants in the inclusion
+post and verifies ancestry from its pin. Login and invitation grant API
+access only. Short numeric codes are routing information.
 
 For managed-phone provisioning the authenticated QR carries
-`{v,householdId,phoneId,profile,ownerUserId,rosterHead,s}` alongside the
+`{v,householdId,phoneId,profile,ownerUserId,ownerPrincipalId,rosterHead,s}` alongside the
 existing enrollment token and APK certificate pin. `s` is 16 random bytes used for one enrollment
 attempt. Keep it in protected local storage on the initiating admin device
 only, bound to the QR context. Never upload it, including under H. Other
@@ -377,19 +469,19 @@ If local state is lost, restart provisioning with a new QR and secret.
 Delete the secret when consumed or expired (within 24 hours). The phone
 sends its freshly generated
 `deviceId,signPub,kemPub` and
-`enrollMac = HMAC-SHA256(s,D("enroll",{householdId,phoneId,profile,ownerUserId,rosterHead,deviceId,signPub,kemPub}))`
+`enrollMac = HMAC-SHA256(s,D("enroll",{householdId,phoneId,profile,ownerUserId,ownerPrincipalId,rosterHead,deviceId,signPub,kemPub}))`
 with the existing bearer token. The admin checks the QR context and compares
 the MAC in constant time, then binds the authenticated keys in `phone.add`.
 Atomically consume the attempt on successful admission. Before using envelopes
 or rules, the phone checks that the accepted post matches its own key pair
-and the QR's profile and owner, and descends from the QR head. Before that, retain restrictive enrollment defaults.
+and the QR's profile and both owner fields, and descends from the QR head. Before that, retain restrictive enrollment defaults.
 
 For phone-initiated pairing with an authenticated camera scan, have the phone
 generate and display a fresh 16-byte `s` in the QR URL fragment. Bind the
 pairing ID to the locally pending QR secret. The admin scans the QR, chooses
 the phone ID and profile, and sends
-`{householdId,phoneId,profile,ownerUserId,rosterHead,pairingId,mac}` with
-`mac=HMAC-SHA256(s,D("pair-context",{householdId,phoneId,profile,ownerUserId,rosterHead,pairingId}))`.
+`{householdId,phoneId,profile,ownerUserId,ownerPrincipalId,rosterHead,pairingId,mac}` with
+`mac=HMAC-SHA256(s,D("pair-context",{householdId,phoneId,profile,ownerUserId,ownerPrincipalId,rosterHead,pairingId}))`.
 The phone verifies this MAC and ties the context to its pending pairing before
 returning the enrollment MAC and its keys. The admin verifies the latter
 before adding the phone. Both parties consume the pending pairing once.
@@ -402,7 +494,10 @@ acceptance.
 
 The paper recovery code stores a 16-byte uniformly random seed, encoded as
 RFC 4648 uppercase base32 without padding (26 symbols) in groups of
-4-4-4-4-4-4-2 after `PP-`. Reject nonzero unused bits. Record the household
+4-4-4-4-4-4-2 after `PP-`. On input, remove ASCII space, tab, CR, LF
+and ASCII hyphens, uppercase ASCII letters and require `PP` followed by
+exactly 26 base32 symbols. Reject 0 and 1 without aliasing them to O or I.
+Reject nonzero unused bits. Record the household
 ID next to the code. Derive two separate 32-byte outputs with RFC 5869
 HKDF-SHA256 using the seed as IKM, a 32-byte zero salt and
 `D("recovery",{householdId,use:"sign"})` or `D("recovery",{householdId,use:"kem"})`
@@ -448,7 +543,11 @@ IKM, 32 zero salt bytes, 32-byte output,
 `D("dedupe-key",{householdId,phoneId,epoch})` as info).
 Tag = HMAC-SHA256(dedupeKey,`D("dedupe",{kind,value})`). Use
 `kind:"app"` with exact canonical package identifier or `kind:"contact"`
-with normalized E.164 number. Contact display name is excluded from
+with a canonical E.164 number. Normalize using Google
+[libphonenumber](https://github.com/google/libphonenumber), requiring an
+international `+` number and using default region `ZZ` (no inferred country).
+Reject extensions and invalid numbers. Use the same metadata version across
+clients and use the stored canonical number for dedupe. Contact display name is excluded from
 deduplication. Never equate epoch-spanning tags.
 
 ## 5. DNS filtering
@@ -458,17 +557,33 @@ directly to the pinned ppdns HTTPS origin after obtaining authorization to
 configure that ClientID. PWA CORS and a narrowly scoped, short-lived DNS
 configuration grant are F9 requirements. The app API and its database do
 not receive the policy copy. The wire is `{header,enc,ct}`, with
-`header={v,householdId,phoneId,clientId,revision,ppdnsKeyId}`. Here
+`header={v,clientId,revision,ppdnsKeyId}`. Here
 `ppdnsKeyId` is SHA-256 of the pinned raw X25519 public key. Use base-mode
 HPKE, `info=D("dns-config",header)`, empty AAD and JCS plaintext
 `{allowDomains,blockDomains,blockedCategories}`. Each array is sorted,
 duplicate-free and contains canonical values (ASCII lower-case DNS names
 without a terminal root dot, or known category identifiers). ppdns MUST route
-only to the grant-bound ClientID, reject replayed/older revisions, and drop
-transport payloads from logs. This endpoint uses API authorization. HPKE base
+only to the grant-bound pseudonymous ClientID. Initialize at revision 1
+and require the exact successor via atomic compare-and-swap. Only an
+identical retry can reuse a revision. To recover an exhausted counter or
+a hostile revision history, provision a fresh ClientID and bind it in the
+next signed R snapshot. Never reset a revision for an existing ClientID.
+Drop transport payloads from logs. This endpoint uses API authorization. HPKE base
 mode supplies no sender authentication. The DNS operator or a compromised
 control plane can still alter the DNS filter. The phone's signed R policy
-remains independently authenticated.
+binds the intended ClientID, revision and
+`SHA-256(D("dns-policy",policy))` over the canonical DNS plaintext above.
+After publishing and periodically thereafter, the phone requests the live
+configuration digest from the pinned ppdns origin with a fresh challenge.
+The endpoint must read back the effective per-client configuration from
+the resolver, including inherited settings that alter enforcement. F9
+defines how that effective policy maps to the canonical arrays. Compare
+the returned challenge, ClientID, revision and digest against the request
+and applied R snapshot. A mismatch, missing or unverifiable response
+marks DNS protection unverified (`lockIntact:false`) and is reported in R.
+The digest comparison detects drift when the readback is honest. A
+malicious resolver that reports the intended digest while serving
+different answers can evade this check.
 
 Bundle the hosted public key with native code and the PWA release. For
 self-hosters pin the configured key at first use, preferably authenticated
@@ -521,8 +636,9 @@ roster and enrollment protocols, Self enforcement, DNS authorization and
 release delivery have received no external security audit. Upstream
 maintenance, upstream testing and conformance vectors give different
 evidence from a Plainphone audit. Public documentation must reflect this.
-F1 must consume the same JSON fixtures from both TypeScript and Kotlin,
-including real-device tests at the browser and Android support floor and
+F1 is gated on a required JVM CI job consuming both checked-in JSON files
+using the selected JVM/Android backends, with the same positive and negative
+expectations as TypeScript. F1 must also run real-device tests at the browser and Android support floor and
 an Expo build on iOS and Android. F10 must exercise adversarial cases for
 key substitution, forged or rolled-back rules, forked heads, stale or
 cross-scope envelopes, revoked signers, command replay, Self delay bypass

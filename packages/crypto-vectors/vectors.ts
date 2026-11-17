@@ -29,6 +29,8 @@ const ownerUserId = "00000000-0000-4000-8000-000000000006";
 const recipientDeviceId = "00000000-0000-4000-8000-000000000004";
 const commandIdPrefix = "00000000-0000-4000-8000-00000000000";
 
+const scalarLE = (bytes: Uint8Array) => BigInt("0x" + Buffer.from(bytes).reverse().toString("hex"));
+
 const signSeed = hex("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
 const signPub = ed25519.getPublicKey(signSeed);
 const signingKey = await subtle.importKey("pkcs8", Buffer.concat([
@@ -36,12 +38,31 @@ const signingKey = await subtle.importKey("pkcs8", Buffer.concat([
 ]), "Ed25519", false, ["sign"]);
 const verifyKey = await subtle.importKey("raw", signPub, "Ed25519", false, ["verify"]);
 
-async function signed(purpose: string, body: object) {
+async function verifyStrict(sig: Uint8Array, input: Buffer<ArrayBuffer>, pub: Uint8Array) {
+  if (sig.length !== 64 || pub.length !== 32) return false;
+  const r = sig.subarray(0, 32);
+  const order = ed25519.Point.Fn.ORDER;
+  const s = scalarLE(sig.subarray(32));
+  if (s >= order) return false;
+  try {
+    const a = ed25519.Point.fromBytes(pub, false);
+    const pointR = ed25519.Point.fromBytes(r, false);
+    if (a.isSmallOrder() || pointR.isSmallOrder()) return false;
+    const digest = await subtle.digest("SHA-512", Buffer.concat([r, pub, input]));
+    const k = scalarLE(new Uint8Array(digest)) % order;
+    return ed25519.Point.BASE.multiplyUnsafe(s).equals(pointR.add(a.multiplyUnsafe(k)));
+  } catch {
+    return false;
+  }
+}
+
+async function signed<T extends object>(purpose: string, body: T, seed?: Buffer<ArrayBuffer>) {
   const input = domain(purpose, body);
-  const sig = await subtle.sign("Ed25519", signingKey, input);
-  assert(await subtle.verify("Ed25519", verifyKey, sig, input));
-  assert(ed25519.verify(new Uint8Array(sig), input, signPub, { zip215: false }));
-  assert(!(await subtle.verify("Ed25519", verifyKey, sig, domain(purpose + "-other", body))));
+  const sig = seed ? ed25519.sign(input, seed) : new Uint8Array(await subtle.sign("Ed25519", signingKey, input));
+  const pub = seed ? ed25519.getPublicKey(seed) : signPub;
+  assert(await verifyStrict(sig, input, pub));
+  assert(!(await verifyStrict(sig, domain(purpose + "-other", body), pub)));
+  if (!seed) assert(await subtle.verify("Ed25519", verifyKey, sig, input));
   return { wire: { ...body, sig: b64(sig) }, signInput: b64(input) };
 }
 
@@ -81,10 +102,10 @@ const receiverSignSeed = Buffer.alloc(32, 0x33);
 const receiverSignPub = ed25519.getPublicKey(receiverSignSeed);
 
 async function keyEpoch(scope: string, id: string | null, key: Buffer<ArrayBuffer>, epoch = 1) {
-  return { scope, phoneId: id, epoch, keyHash: b64(await hash(key)) };
+  return { scope, phoneId: id, epoch, keyHash: b64(await hash(domain("scope-key", { scope, phoneId: id, epoch, key: b64(key) }))) };
 }
 
-async function log(seq: number, prevHash: string | null, type: string, data: object, epochs: object[]) {
+async function log<T extends object>(seq: number, prevHash: string | null, type: string, data: T, epochs: object[]) {
   const entry = await signed("log", { v: 1, householdId, seq, prevHash, type, data, epochs, signerDeviceId });
   const head = b64(await hash(domain("log-head", entry.wire)));
   return { ...entry, head };
@@ -94,7 +115,7 @@ const genesis = await log(0, null, "genesis", {
   signPub: b64(signPub), kemPub: b64(await suite.kem.serializePublicKey(signerKem.publicKey)),
 }, [await keyEpoch("H", null, hKey)]);
 const enrolled = await log(1, genesis.head, "phone.add", {
-  phoneId, profile: "self", ownerUserId, deviceId: recipientDeviceId, signPub: b64(receiverSignPub), kemPub: b64(receiverPub),
+  phoneId, profile: "self", ownerUserId, ownerPrincipalId: signerDeviceId, deviceId: recipientDeviceId, signPub: b64(receiverSignPub), kemPub: b64(receiverPub),
 }, [await keyEpoch("L", phoneId, lKey), await keyEpoch("R", phoneId, rKey)]);
 const rosterHead = enrolled.head;
 
@@ -155,13 +176,20 @@ async function aead(key: Buffer<ArrayBuffer>, nonce: Buffer<ArrayBuffer>, aad: B
 const aesGcm = await aead(Buffer.alloc(32), Buffer.alloc(12), Buffer.alloc(0), Buffer.alloc(16));
 assert.equal(aesGcm.ct, b64(hex("cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919")));
 
-async function encrypted(header: object, body: object, key: Buffer<ArrayBuffer>, nonceByte: number) {
+function pad(body: object) {
   const payload = encode(body);
   const padded = Buffer.alloc(Math.max(256, 2 ** Math.ceil(Math.log2(payload.length + 4))));
   padded.writeUInt32BE(payload.length);
   payload.copy(padded, 4);
+  return padded;
+}
+
+async function encrypted<H extends object, T extends object>(
+  header: H, body: T, key: Buffer<ArrayBuffer>, nonceByte: number, seed?: Buffer<ArrayBuffer>,
+) {
+  const padded = pad(body);
   const encryption = await aead(key, Buffer.alloc(12, nonceByte), domain("blob", header), padded);
-  const signature = await signed("record", { header, nonce: encryption.nonce, ct: encryption.ct });
+  const signature = await signed("record", { header, nonce: encryption.nonce, ct: encryption.ct }, seed);
   return { ...signature, body, encryption };
 }
 
@@ -186,13 +214,11 @@ for (const [index, body] of ([
   }, body, scope === "R" ? rKey : lKey, 0x42 + index));
 }
 
-const releaseAckBody = {
-  v: 1, householdId, phoneId, rosterHead, signerDeviceId: recipientDeviceId,
-  commandId: commandIdPrefix + "8",
-};
-const releaseAckInput = domain("release-ack", releaseAckBody);
-const releaseAckSig = ed25519.sign(releaseAckInput, receiverSignSeed);
-assert(ed25519.verify(releaseAckSig, releaseAckInput, receiverSignPub, { zip215: false }));
+const releaseCommandId = commandIdPrefix + "8";
+const releaseAck = await encrypted({
+  ...common, table: "phone_reports", scope: "R", recordId: releaseCommandId,
+  signerDeviceId: recipientDeviceId,
+}, { kind: "release-ack", commandId: releaseCommandId }, rKey, 0x46, receiverSignSeed);
 
 const trustedDeviceId = "00000000-0000-4000-8000-000000000011";
 const trustedUserId = "00000000-0000-4000-8000-000000000012";
@@ -202,35 +228,21 @@ const trustedIkm = Buffer.alloc(32, 0x62);
 const trustedKem = await suite.kem.deriveKeyPair(trustedIkm);
 const trusted = await log(2, enrolled.head, "device.add", {
   deviceId: trustedDeviceId, userId: trustedUserId, signPub: b64(trustedSignPub),
-  kemPub: b64(await suite.kem.serializePublicKey(trustedKem.publicKey)), role: "trusted", scope: [phoneId],
+  kemPub: b64(await suite.kem.serializePublicKey(trustedKem.publicKey)), role: "trusted", scope: [], relationship: "other", selfPhoneIds: [phoneId],
 }, []);
-const changeId = "00000000-0000-4000-8000-000000000013";
-const changeKey = Buffer.alloc(32, 0x63);
-const change = await encrypted({
-  ...common, rosterHead: trusted.head, table: "pending_changes", scope: "change", recordId: changeId,
-}, { op: { kind: "fixture" }, trustedUserId, effectiveAt: now + 3600000 }, changeKey, 0x64);
-const changeEnvelopeHeader = {
-  ...envelopeHeader, scope: "change", changeId, rosterHead: trusted.head, recipientDeviceId: trustedDeviceId,
-};
-const changeHpke = await hpke(domain("key-envelope", changeEnvelopeHeader), Buffer.alloc(0),
-  changeKey, trustedIkm, Buffer.alloc(32, 0x65));
-const changeEnvelope = await signed("key-envelope", {
-  header: changeEnvelopeHeader, enc: changeHpke.enc, ct: changeHpke.ct,
-});
-const approvalBody = {
-  v: 1, householdId, phoneId, changeId, rosterHead: trusted.head, signerDeviceId: trustedDeviceId,
-  recordHash: b64(await hash(domain("self-change", change.wire))), keyHash: b64(await hash(changeKey)),
-};
-const approvalInput = domain("self-approval", approvalBody);
-const approvalSig = ed25519.sign(approvalInput, trustedSeed);
-assert(ed25519.verify(approvalSig, approvalInput, trustedSignPub, { zip215: false }));
-for (const changed of [
-  { recordHash: b64(await hash(domain("self-change", { ...change.wire, nonce: b64(Buffer.alloc(12)) }))) },
-  { keyHash: b64(await hash(rKey)) },
-]) {
-  assert(!ed25519.verify(approvalSig, domain("self-approval", { ...approvalBody, ...changed }),
-    trustedSignPub, { zip215: false }));
-}
+const coParentKem = await suite.kem.deriveKeyPair(Buffer.alloc(32, 0x7e));
+const coParentKemPub = await suite.kem.serializePublicKey(coParentKem.publicKey);
+// This signed admission is on a separate valid branch. Matching the owner's
+// account identifier does not make the other person's device an owner.
+const coParent = await log(3, trusted.head, "device.add", {
+  deviceId: "00000000-0000-4000-8000-000000000019", userId: ownerUserId,
+  signPub: b64(ed25519.getPublicKey(Buffer.alloc(32, 0x7d))), kemPub: b64(coParentKemPub),
+  role: "admin", scope: "*", relationship: "other", selfPhoneIds: [] as string[],
+}, []);
+const coParentPrincipal = coParent.wire.data.relationship === "other"
+  ? coParent.wire.data.deviceId : signerDeviceId;
+assert.notEqual(coParentPrincipal, enrolled.wire.data.ownerPrincipalId);
+assert(!coParent.wire.data.selfPhoneIds.includes(phoneId));
 
 const adminDeviceId = "00000000-0000-4000-8000-000000000014";
 const adminIkm = Buffer.alloc(32, 0x66);
@@ -238,23 +250,106 @@ const adminKem = await suite.kem.deriveKeyPair(adminIkm);
 const admin = await log(3, trusted.head, "device.add", {
   deviceId: adminDeviceId, userId: ownerUserId,
   signPub: b64(ed25519.getPublicKey(Buffer.alloc(32, 0x67))),
-  kemPub: b64(await suite.kem.serializePublicKey(adminKem.publicKey)), role: "admin", scope: "*",
+  kemPub: b64(await suite.kem.serializePublicKey(adminKem.publicKey)), role: "admin", scope: "*", relationship: "own", selfPhoneIds: [phoneId],
 }, []);
+const rKey2 = Buffer.alloc(32, 0x6a);
+const lKey2 = Buffer.alloc(32, 0x69);
 const removed = await log(4, admin.head, "device.remove", { deviceId: adminDeviceId }, [
   await keyEpoch("H", null, Buffer.alloc(32, 0x68), 2),
-  await keyEpoch("L", phoneId, Buffer.alloc(32, 0x69), 2),
-  await keyEpoch("R", phoneId, Buffer.alloc(32, 0x6a), 2),
+  await keyEpoch("L", phoneId, lKey2, 2),
+  await keyEpoch("R", phoneId, rKey2, 2),
 ]);
+const ruleHeader2 = { ...common, epoch: 2, version: 2, rosterHead: removed.head,
+  table: "phone_state", scope: "R", recordId: phoneId };
+const basePolicyBody = {
+  ...rules.body,
+  rules: { ...rules.body.rules, self: { delayMs: 3600000, trustedUserId, trustedDeviceIds: [trustedDeviceId] } },
+};
+const baseRules = await encrypted(ruleHeader2, basePolicyBody, rKey2, 0x41);
+const baseRulesVersion = ruleHeader2.version;
+const baseRulesDigest = b64(await hash(domain("rules-digest", baseRules.wire)));
+const changeBody = {
+  op: { kind: "setLocationMode", value: "onRequest" }, trustedUserId, baseRulesVersion,
+  baseRulesDigest, effectiveAt: now + 3600000, expiresAt: now + 7200000,
+};
+const resultingRules = await encrypted({ ...ruleHeader2, version: 3 },
+  { ...basePolicyBody, rules: { ...basePolicyBody.rules, locationMode: changeBody.op.value } }, rKey2, 0x42);
+
+const changeId = "00000000-0000-4000-8000-000000000013";
+const changeKey = Buffer.alloc(32, 0x63);
+const change = await encrypted({
+  ...common, epoch: 2, rosterHead: removed.head, table: "pending_changes", scope: "change", recordId: changeId,
+}, changeBody, changeKey, 0x64);
+const changeEnvelopeHeader = {
+  ...envelopeHeader, epoch: 2, scope: "change", changeId, rosterHead: removed.head, recipientDeviceId: trustedDeviceId,
+};
+const changeHpke = await hpke(domain("key-envelope", changeEnvelopeHeader), Buffer.alloc(0),
+  changeKey, trustedIkm, Buffer.alloc(32, 0x65));
+const changeEnvelope = await signed("key-envelope", {
+  header: changeEnvelopeHeader, enc: changeHpke.enc, ct: changeHpke.ct,
+});
+const phoneChangeEnvelopeHeader = { ...changeEnvelopeHeader, recipientDeviceId };
+const phoneChangeHPKE = await hpke(domain("key-envelope", phoneChangeEnvelopeHeader), Buffer.alloc(0),
+  changeKey, receiverIkm, Buffer.alloc(32, 0x7c));
+const phoneChangeEnvelope = await signed("key-envelope", {
+  header: phoneChangeEnvelopeHeader, enc: phoneChangeHPKE.enc, ct: phoneChangeHPKE.ct,
+});
+const approvalBody = {
+  v: 1, householdId, phoneId, changeId, rosterHead: removed.head, signerDeviceId: trustedDeviceId,
+  recordHash: b64(await hash(domain("self-change", change.wire))),
+  keyHash: b64(await hash(domain("self-change-key", b64(changeKey)))),
+  baseRulesVersion, baseRulesDigest, expiresAt: changeBody.expiresAt,
+};
+const approvalInput = domain("self-approval", approvalBody);
+const approvalSig = ed25519.sign(approvalInput, trustedSeed);
+assert(ed25519.verify(approvalSig, approvalInput, trustedSignPub, { zip215: false }));
+for (const changed of [
+  { recordHash: b64(await hash(domain("self-change", { ...change.wire, nonce: b64(Buffer.alloc(12)) }))) },
+  { keyHash: b64(await hash(domain("self-change-key", b64(rKey)))) },
+  { baseRulesVersion: baseRulesVersion + 1 },
+  { baseRulesDigest: b64(Buffer.alloc(32)) },
+  { expiresAt: changeBody.expiresAt + 1 },
+]) {
+  assert(!ed25519.verify(approvalSig, domain("self-approval", { ...approvalBody, ...changed }),
+    trustedSignPub, { zip215: false }));
+}
+
 const rotated = await log(5, removed.head, "keys.rotate", {}, [
   await keyEpoch("R", phoneId, Buffer.alloc(32, 0x6b), 3),
 ]);
-const phoneRemoved = await log(6, rotated.head, "phone.remove", { phoneId }, []);
+const emergencySeed = Buffer.alloc(32, 0x70);
+const emergencyIkm = Buffer.alloc(32, 0x71);
+const emergencyKem = await suite.kem.deriveKeyPair(emergencyIkm);
+const emergencyDeviceId = "00000000-0000-4000-8000-000000000015";
+const emergency = await log(6, rotated.head, "device.add", {
+  deviceId: emergencyDeviceId,
+  userId: "00000000-0000-4000-8000-000000000016",
+  signPub: b64(ed25519.getPublicKey(emergencySeed)),
+  kemPub: b64(await suite.kem.serializePublicKey(emergencyKem.publicKey)),
+  role: "emergency", scope: [], relationship: "other", selfPhoneIds: [phoneId],
+}, []);
+
+const findCommandId = "00000000-0000-4000-8000-000000000018";
+const emergencyFind = await encrypted({
+  ...common, epoch: 2, rosterHead: emergency.head, signerDeviceId: emergencyDeviceId,
+  table: "commands", scope: "L", recordId: findCommandId, issuedAt: now, expiresAt: now + 120000,
+}, { kind: "locate" }, lKey2, 0x7a, emergencySeed);
+const resultHeader = {
+  v: 1, householdId, phoneId, commandId: findCommandId, epoch: 2, rosterHead: emergency.head,
+  signerDeviceId: recipientDeviceId, recipientDeviceId: emergencyDeviceId,
+};
+const resultBody = { latitudeE7: 0, longitudeE7: 0, accuracyMm: 5000, capturedAt: now + 1000 };
+const resultHPKE = await hpke(domain("command-result", resultHeader), Buffer.alloc(0),
+  pad(resultBody), emergencyIkm, Buffer.alloc(32, 0x7b));
+const findResult = await signed("command-result", {
+  header: resultHeader, enc: resultHPKE.enc, ct: resultHPKE.ct,
+}, receiverSignSeed);
 
 const secret = Buffer.alloc(16, 0x51);
-const enrollment = { householdId, phoneId, profile: "self", ownerUserId, rosterHead: genesis.head, deviceId: recipientDeviceId,
+const enrollment = { householdId, phoneId, profile: "self", ownerUserId, ownerPrincipalId: signerDeviceId, rosterHead: genesis.head, deviceId: recipientDeviceId,
   signPub: b64(receiverSignPub), kemPub: b64(receiverPub) };
 const enrollmentBytes = domain("enroll", enrollment);
-const pairing = { householdId, phoneId, profile: "self", ownerUserId, rosterHead: genesis.head,
+const pairing = { householdId, phoneId, profile: "self", ownerUserId, ownerPrincipalId: signerDeviceId, rosterHead: genesis.head,
   pairingId: "00000000-0000-4000-8000-000000000010" };
 const pairingBytes = domain("pair-context", pairing);
 const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -266,8 +361,9 @@ function encodeRecoveryCode(seed: Buffer<ArrayBuffer>) {
 }
 
 function decodeRecoveryCode(code: string) {
-  assert.match(code, /^PP-(?:[A-Z2-7]{4}-){6}[A-Z2-7]{2}$/);
-  const symbols = code.slice(3).replaceAll("-", "");
+  const normalized = code.replace(/[ \t\r\n-]/g, "").replace(/[a-z]/g, (letter) => letter.toUpperCase());
+  assert.match(normalized, /^PP[A-Z2-7]{26}$/);
+  const symbols = normalized.slice(2);
   const bits = Array.from(symbols, (symbol) => base32Alphabet.indexOf(symbol).toString(2).padStart(5, "0")).join("");
   assert.equal(bits.slice(128), "00");
   return Buffer.from(bits.slice(0, 128).match(/.{8}/g)!.map((byte) => Number.parseInt(byte, 2)));
@@ -277,6 +373,9 @@ const recoverySeed = hex("0123456789abcdef1032547698badcfe");
 const recoveryCode = encodeRecoveryCode(recoverySeed);
 assert.equal(recoveryCode, "PP-AERU-KZ4J-VPG6-6EBS-KR3J-ROW4-7Y");
 assert.deepEqual(decodeRecoveryCode(recoveryCode), recoverySeed);
+assert.deepEqual(decodeRecoveryCode(" pp aeru kz4j vpg6 6ebs kr3j row4 7y\n"), recoverySeed);
+assert.throws(() => decodeRecoveryCode(recoveryCode.replace("O", "0")));
+assert.throws(() => decodeRecoveryCode(recoveryCode.replace("O", "1")));
 assert.throws(() => decodeRecoveryCode(recoveryCode.slice(0, -1) + "Z"));
 const decodedRecoverySeed = decodeRecoveryCode(recoveryCode);
 const recoverySignInfo = domain("recovery", { householdId, use: "sign" });
@@ -284,17 +383,184 @@ const recoveryKemInfo = domain("recovery", { householdId, use: "kem" });
 const recoverySign = await hkdf(decodedRecoverySeed, recoverySignInfo, 32);
 const recoveryKem = await hkdf(decodedRecoverySeed, recoveryKemInfo, 32);
 const recoveryKeys = await suite.kem.deriveKeyPair(new Uint8Array(recoveryKem));
+const recovery = await log(7, emergency.head, "device.add", {
+  deviceId: "00000000-0000-4000-8000-000000000017", userId: ownerUserId,
+  signPub: b64(ed25519.getPublicKey(new Uint8Array(recoverySign))),
+  kemPub: b64(await suite.kem.serializePublicKey(recoveryKeys.publicKey)),
+  role: "recovery", scope: "*", relationship: "own", selfPhoneIds: [phoneId],
+}, []);
+const phoneRemoved = await log(8, recovery.head, "phone.remove", { phoneId }, []);
+
+async function joinFingerprint({ deviceId, userId, signPub, kemPub }: typeof trustedData) {
+  const fields = { v: 1, householdId, deviceId, userId, signPub, kemPub };
+  const input = domain("join-device", fields);
+  return { fields, input: b64(input), fingerprint: b64(await hash(input)) };
+}
+
+const trustedData = {
+  deviceId: trustedDeviceId, userId: trustedUserId, signPub: b64(trustedSignPub),
+  kemPub: b64(await suite.kem.serializePublicKey(trustedKem.publicKey)),
+};
+const join = await joinFingerprint(trustedData);
+const relabelledJoin = await joinFingerprint({ ...trustedData, userId: ownerUserId });
+assert.notEqual(join.fingerprint, relabelledJoin.fingerprint);
+
+const report = await encrypted({
+  ...common, table: "locations", scope: "R", recordId: phoneId,
+  signerDeviceId: recipientDeviceId, version: 2,
+}, { latitudeE7: 0, longitudeE7: 0, accuracyMm: 5000, capturedAt: now }, rKey, 0x75, receiverSignSeed);
+const householdLabel = await encrypted({ ...common, table: "households", scope: "H", phoneId: null,
+  recordId: householdId }, { name: "Fixture household" }, hKey, 0x76);
+
+const padding = [];
+for (const size of [252, 253]) {
+  const body = { text: "x".repeat(size - encode({ text: "" }).length) };
+  assert.equal(encode(body).length, size);
+  const record = await encrypted({ ...common, table: "households", scope: "H", phoneId: null,
+    recordId: householdId, version: size }, body, hKey, size);
+  assert.equal(Buffer.from(record.encryption.plaintext, "base64url").length, size === 252 ? 256 : 512);
+  padding.push(record);
+}
+
 const dedupeInfo = domain("dedupe-key", { householdId, phoneId, epoch: 1 });
 const dedupeKey = await hkdf(rKey, dedupeInfo, 32);
 const dedupeInput = domain("dedupe", { kind: "app", value: "org.example.fixture" });
-const dnsHeader = { v: 1, householdId, phoneId, clientId: "fixture", revision: 1,
+const dnsHeader = { v: 1, clientId: "fixture", revision: 1,
   ppdnsKeyId: b64(await hash(new Uint8Array(receiverPub))) };
+const dnsPolicy = { allowDomains: ["example.test"], blockDomains: [], blockedCategories: [] };
+const dnsDigest = b64(await hash(domain("dns-policy", dnsPolicy)));
 const dns = await hpke(domain("dns-config", dnsHeader), Buffer.alloc(0),
-  encode({ allowDomains: ["example.test"], blockDomains: [], blockedCategories: [] }),
+  encode(dnsPolicy),
   receiverIkm, Buffer.alloc(32, 0x35));
 
-const canonicalInput = { "€": "e\u0301", "😀": "\n", z: [3, null, true], a: "é" };
-assert.equal(encode(canonicalInput).toString(), '{"a":"é","z":[3,null,true],"€":"é","😀":"\\n"}');
+const canonicalInput = { "€": "e\u0301", "\uE000": 7, "😀": "\n", z: [3, null, true], a: "é" };
+assert.equal(encode(canonicalInput).toString(), '{"a":"é","z":[3,null,true],"€":"é","😀":"\\n","\uE000":7}');
+
+const invalidJson = [
+  { reason: "duplicate-key", json: '{"a":1,"a":1}' },
+  { reason: "negative-zero", json: '{"a":-0}' },
+  { reason: "float", json: '{"a":1.5}' },
+  { reason: "lone-surrogate", json: '{"a":"\\ud800"}' },
+] as const;
+for (const { json } of invalidJson) {
+  // For padded blobs the exact bytes must already be canonical. The wire
+  // parser must also reject duplicates before mapping noncanonical transport JSON.
+  assert.throws(() => {
+    const parsed = JSON.parse(json, (_key, value: unknown) => {
+      if (typeof value === "number") assert(Number.isSafeInteger(value) && !Object.is(value, -0));
+      if (typeof value === "string") assert(value.isWellFormed());
+      return value;
+    });
+    assert.equal(encode(parsed).toString(), json);
+  });
+}
+
+const invalidBase64url = [
+  { reason: "nonzero-unused-bits", value: "AB" },
+  { reason: "padding", value: "AA==" },
+];
+for (const { value } of invalidBase64url) {
+  assert.notEqual(b64(Buffer.from(value, "base64url")), value);
+}
+
+const identity = hex("01" + "00".repeat(31));
+const noncanonicalIdentity = hex("ee" + "ff".repeat(30) + "7f");
+const invalidScalar = hex("edd3f55c1a631258d69cf7a2def9de14" + "00".repeat(15) + "10");
+const emptySigBytes = new Uint8Array(emptySig);
+const ed25519Reject = [
+  { reason: "noncanonical-A", pub: noncanonicalIdentity, sig: emptySigBytes },
+  { reason: "noncanonical-R", pub: signPub, sig: Buffer.concat([noncanonicalIdentity, emptySigBytes.subarray(32)]) },
+  { reason: "small-order-A", pub: identity, sig: emptySigBytes },
+  { reason: "small-order-R", pub: signPub, sig: Buffer.concat([identity, emptySigBytes.subarray(32)]) },
+  { reason: "S-out-of-range", pub: signPub, sig: Buffer.concat([emptySigBytes.subarray(0, 32), invalidScalar]) },
+];
+// Construct a signature satisfying the cofactored equation only, by adding
+// the order-two point to the RFC example's R and recomputing its challenge.
+const orderTwo = ed25519.Point.fromBytes(hex("ec" + "ff".repeat(30) + "7f"), false);
+const groupOrder = ed25519.Point.Fn.ORDER;
+const alteredR = ed25519.Point.fromBytes(emptySigBytes.subarray(0, 32), false).add(orderTwo).toBytes();
+const secretHash = new Uint8Array(await subtle.digest("SHA-512", signSeed));
+const secretScalar = secretHash.slice(0, 32);
+secretScalar[0] = secretScalar[0]! & 248;
+secretScalar[31] = (secretScalar[31]! & 63) | 64;
+const nonceScalar = scalarLE(new Uint8Array(await subtle.digest("SHA-512", secretHash.slice(32)))) % groupOrder;
+const alteredChallenge = scalarLE(new Uint8Array(
+  await subtle.digest("SHA-512", Buffer.concat([alteredR, signPub])),
+)) % groupOrder;
+const alteredS = (nonceScalar + alteredChallenge * scalarLE(secretScalar)) % groupOrder;
+const alteredSig = Buffer.concat([alteredR, hex(alteredS.toString(16).padStart(64, "0")).reverse()]);
+assert(ed25519.verify(alteredSig, Buffer.alloc(0), signPub, { zip215: false }));
+ed25519Reject.push({ reason: "cofactored-equation-only", pub: signPub, sig: alteredSig });
+const invalidEd25519 = [];
+for (const { reason, pub, sig } of ed25519Reject) {
+  assert.equal(sig.length, 64);
+  assert(!(await verifyStrict(sig, Buffer.alloc(0), pub)), reason);
+  invalidEd25519.push({ reason, publicKey: b64(pub), message: "", signature: b64(sig) });
+}
+
+const lowOrderEnc = Buffer.alloc(32);
+const lowOrderEnvelope = await signed("key-envelope", {
+  header: envelopeHeader, enc: b64(lowOrderEnc), ct: envelopeCrypto.ct,
+});
+for (const backend of [suite, fallback]) {
+  const recipientKey = await backend.kem.deriveKeyPair(receiverIkm);
+  await assert.rejects(backend.createRecipientContext({
+    recipientKey, enc: lowOrderEnc, info: domain("key-envelope", envelopeHeader),
+  }));
+}
+
+const fork = await log(2, enrolled.head, "keys.rotate", {}, [
+  await keyEpoch("R", phoneId, Buffer.alloc(32, 0x79), 2),
+]);
+assert.equal(fork.wire.seq, trusted.wire.seq);
+assert.equal(fork.wire.prevHash, trusted.wire.prevHash);
+assert.notEqual(fork.head, trusted.head);
+
+const wrongScope = await encrypted({ ...common, table: "phone_state", scope: "L", recordId: phoneId },
+  rules.body, lKey, 0x77);
+const wrongRole = await encrypted({
+  ...common, rosterHead: emergency.head, epoch: 3,
+  signerDeviceId: emergencyDeviceId, table: "phone_state", scope: "R", recordId: phoneId, version: 4,
+}, rules.body, Buffer.alloc(32, 0x6b), 0x78, emergencySeed);
+
+function rulesRejection(record: typeof rules, role: string, acceptedVersion: number) {
+  const header = record.wire.header;
+  if (header.scope !== "R") return "wrong-scope";
+  if (role !== "admin") return "wrong-role";
+  if (header.version < acceptedVersion) return "old-version";
+  return null;
+}
+
+const invalidRules = [
+  { record: baseRules, role: "admin", acceptedVersion: 3, reason: "old-version" },
+  { record: wrongScope, role: "admin", acceptedVersion: 0, reason: "wrong-scope" },
+  { record: wrongRole, role: "emergency", acceptedVersion: 3, reason: "wrong-role" },
+];
+for (const { record, role, acceptedVersion, reason } of invalidRules) {
+  assert.equal(rulesRejection(record, role, acceptedVersion), reason);
+}
+
+const selfState = { version: baseRulesVersion, digest: baseRulesDigest, epoch: 2 };
+const invalidSelf = [
+  { state: { ...selfState, version: 3 }, consumed: [], reason: "wrong-base-version" },
+  { state: { ...selfState, digest: b64(Buffer.alloc(32)) }, consumed: [], reason: "wrong-base-digest" },
+  { state: { ...selfState, epoch: 3 }, consumed: [], reason: "wrong-epoch" },
+  { state: { ...selfState, version: resultingRules.wire.header.version,
+    digest: b64(await hash(domain("rules-digest", resultingRules.wire))) },
+  consumed: [changeId], reason: "replay" },
+];
+
+function selfRejection(state: typeof selfState, consumed: string[]) {
+  if (consumed.includes(changeId)) return "replay";
+  if (state.epoch !== changeEnvelopeHeader.epoch) return "wrong-epoch";
+  if (state.version !== changeBody.baseRulesVersion) return "wrong-base-version";
+  if (state.digest !== changeBody.baseRulesDigest) return "wrong-base-digest";
+  return null;
+}
+assert.equal(selfRejection(selfState, []), null);
+for (const { state, consumed, reason } of invalidSelf) {
+  assert.equal(selfRejection(state, consumed), reason);
+}
 
 const fixtures = {
   primitives: {
@@ -304,15 +570,24 @@ const fixtures = {
     hkdfSha256: { ikm: b64(hkdfIkm), salt: b64(hkdfSalt), info: b64(hkdfInfo),
       length: 42, okm: b64(hkdfOutput) },
     ed25519: { seed: b64(signSeed), publicKey: b64(signPub), message: "", signature: b64(emptySig) },
-    aesGcm, hpke: rfcHpke,
+    aesGcm, hpke: rfcHpke, negative: { json: invalidJson, base64url: invalidBase64url, ed25519: invalidEd25519 },
   },
   protocol: {
     signing: { seed: b64(signSeed), publicKey: b64(signPub) },
-    log: [genesis, enrolled, trusted, admin, removed, rotated, phoneRemoved], envelope: { ...envelope, hpke: envelopeCrypto },
-    rules, commands,
-    releaseAck: { wire: { ...releaseAckBody, sig: b64(releaseAckSig) }, signInput: b64(releaseAckInput) },
+    log: [genesis, enrolled, trusted, admin, removed, rotated, emergency, recovery, phoneRemoved], envelope: { ...envelope, hpke: envelopeCrypto },
+    rules, commands, report, householdLabel, padding, join,
+    emergencyFind: { command: emergencyFind, result: { ...findResult, body: resultBody, hpke: resultHPKE } },
+    negative: {
+      lowOrderEnc: { envelope: lowOrderEnvelope, reason: "low-order-enc" },
+      fork: { entry: fork, acceptedHead: trusted.head, reason: "fork-head" },
+      rules: invalidRules, selfChange: invalidSelf,
+      selfOwner: { admission: coParent, phoneId, ownerPrincipalId: signerDeviceId, expectedAccess: false },
+      join: { relabelled: relabelledJoin, expectedFingerprint: join.fingerprint, reason: "user-id-mismatch" },
+    },
+    releaseAck,
     selfChange: {
-      record: change, envelope: { ...changeEnvelope, hpke: changeHpke },
+      baseRules, resultingRules, record: change, envelope: { ...changeEnvelope, hpke: changeHpke },
+      phoneEnvelope: { ...phoneChangeEnvelope, hpke: phoneChangeHPKE },
       approval: { wire: { ...approvalBody, sig: b64(approvalSig) }, signInput: b64(approvalInput),
         signingSeed: b64(trustedSeed), signPub: b64(trustedSignPub) },
     },
@@ -326,7 +601,7 @@ const fixtures = {
       kemPub: b64(await suite.kem.serializePublicKey(recoveryKeys.publicKey)) },
     dedupe: { rKey: b64(rKey), info: b64(dedupeInfo), key: b64(dedupeKey), input: b64(dedupeInput),
       tag: b64(await mac(new Uint8Array(dedupeKey), dedupeInput)) },
-    dns: { wire: { header: dnsHeader, enc: dns.enc, ct: dns.ct }, hpke: dns },
+    dns: { wire: { header: dnsHeader, enc: dns.enc, ct: dns.ct }, hpke: dns, policyDigest: dnsDigest },
   },
 };
 

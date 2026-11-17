@@ -2,6 +2,7 @@
   "encoding": {
     "input": {
       "€": "é",
+      "": 7,
       "😀": "\n",
       "z": [
         3,
@@ -10,7 +11,7 @@
       ],
       "a": "é"
     },
-    "expected": "eyJhIjoiw6kiLCJ6IjpbMyxudWxsLHRydWVdLCLigqwiOiJlzIEiLCLwn5iAIjoiXG4ifQ"
+    "expected": "eyJhIjoiw6kiLCJ6IjpbMyxudWxsLHRydWVdLCLigqwiOiJlzIEiLCLwn5iAIjoiXG4iLCLugIAiOjd9"
   },
   "sha256": {
     "input": "YWJj",
@@ -51,5 +52,73 @@
     "recipientPublicKey": "Qw9LmFlmUUWmsbonQCRIe9ZvA6LdV313U8aNfX0AwAw",
     "enc": "bJPgmGnfNALXvyMb9UD63TXNVr4U-XF48JVNuUt_wlY",
     "ct": "5dhM1THPtYMJbnz6lkG9MHnPOpHNqBPFLetfUSvpkxmApB3hJaklza2FnVt6"
+  },
+  "negative": {
+    "json": [
+      {
+        "reason": "duplicate-key",
+        "json": "{\"a\":1,\"a\":1}"
+      },
+      {
+        "reason": "negative-zero",
+        "json": "{\"a\":-0}"
+      },
+      {
+        "reason": "float",
+        "json": "{\"a\":1.5}"
+      },
+      {
+        "reason": "lone-surrogate",
+        "json": "{\"a\":\"\\ud800\"}"
+      }
+    ],
+    "base64url": [
+      {
+        "reason": "nonzero-unused-bits",
+        "value": "AB"
+      },
+      {
+        "reason": "padding",
+        "value": "AA=="
+      }
+    ],
+    "ed25519": [
+      {
+        "reason": "noncanonical-A",
+        "publicKey": "7v_______________________________________38",
+        "message": "",
+        "signature": "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeOXAc-bRr0lv18FlbviRlUUFDjnoQCw"
+      },
+      {
+        "reason": "noncanonical-R",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "7v_______________________________________39fuIIVkKM7rMYeOXAc-bRr0lv18FlbviRlUUFDjnoQCw"
+      },
+      {
+        "reason": "small-order-A",
+        "publicKey": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "message": "",
+        "signature": "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVfuIIVkKM7rMYeOXAc-bRr0lv18FlbviRlUUFDjnoQCw"
+      },
+      {
+        "reason": "small-order-R",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABfuIIVkKM7rMYeOXAc-bRr0lv18FlbviRlUUFDjnoQCw"
+      },
+      {
+        "reason": "S-out-of-range",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVXt0_VcGmMSWNac96Le-d4UAAAAAAAAAAAAAAAAAAAAEA"
+      },
+      {
+        "reason": "cofactored-equation-only",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "CKm8_zyfU41veR0zf5F9dXt4gOFHGiaLJ4wfmt22_qrECcyJZ_y4DnUFmFRxIvKegpxemQXNzFT8FOCccS23Bw"
+      }
+    ]
   }
 }
