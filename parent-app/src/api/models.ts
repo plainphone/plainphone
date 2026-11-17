@@ -122,6 +122,40 @@ export interface SelfKey extends KeyInput {
   payUnlockCurrency: string;
 }
 
+export type SettingKey =
+  | "bluetooth"
+  | "wifi"
+  | "mobileNetworks"
+  | "roaming"
+  | "tethering"
+  | "nfc"
+  | "airplaneMode"
+  | "screenTimeout"
+  | "brightness"
+  | "volume"
+  | "wallpaper"
+  | "location"
+  | "camera"
+  | "screenCapture"
+  | "language";
+/** `free`: the child (or the Self user) decides. `preset`: set once. `locked`: set and kept. */
+export type SettingMode = "free" | "preset" | "locked";
+export type SettingValue = string | number;
+export interface PhoneSetting {
+  mode: SettingMode;
+  /** Only for `preset` and `locked`, and only for settings that have a value. */
+  value?: SettingValue;
+}
+/** Every setting, `free` filled in. */
+export type PhoneSettings = Record<SettingKey, PhoneSetting>;
+export interface Home {
+  layout: "list" | "grid";
+  theme: "system" | "light" | "dark";
+  palette: "grey" | "sage" | "sand";
+  /** Package names on the front page, in order. At most 8. */
+  apps: string[];
+}
+
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
@@ -132,6 +166,8 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
+  | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
+  | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }

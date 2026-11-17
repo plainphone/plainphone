@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Plainphone" parent="@android:style/Theme.DeviceDefault.DayNight" />
+
+    <!-- The home screen draws its own calm background; no wallpaper shows through. -->
+    <style name="Theme.Plainphone.Home">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
 </resources>
