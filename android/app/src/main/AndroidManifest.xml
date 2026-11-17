@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Restore the strong-mode install restriction if the process dies mid-install. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Needed to see every launchable app so the allowlist can hide the rest. -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"

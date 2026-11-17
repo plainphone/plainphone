@@ -15,10 +15,9 @@ import android.content.Context
  * decides is the policy run. Two holders at the same time cannot put the restriction back under
  * each other: it comes back only once the last lease is gone.
  *
- * A lease is also over, whatever the store says, after [MAX_MS], after a reboot, or once the app's
- * own version changed (a self-update that succeeded kills the process before its `finally` runs;
- * `MY_PACKAGE_REPLACED` then applies the lock with the lease already invalid). An alarm at the
- * expiry re-applies the lock if the holder died.
+ * A lease ends at its deadline or at reboot. A process restart invalidates its leases, except
+ * that a catalog install can outlive a Plainphone upgrade because Play owns that install.
+ * The expiry alarm reapplies the restriction even if the holder process dies.
  */
 class InstallLease(
     private val store: Store,
@@ -40,6 +39,7 @@ class InstallLease(
         fun versionCode(): Long
         /** Wakes the app at [atMs] to apply the lock in case the holder never comes back. */
         fun scheduleExpiry(holder: String, atMs: Long)
+        fun cancelExpiry(holder: String)
     }
 
     fun allowsInstall(catalogApproved: Boolean): Boolean {
@@ -68,7 +68,7 @@ class InstallLease(
     fun begin(holder: String, durationMs: Long) {
         val until = env.nowMs() + durationMs.coerceIn(1L, MAX_MS)
         synchronized(LOCK) {
-            env.scheduleExpiry(holder, until + 1_000L)
+            env.scheduleExpiry(holder, until)
             store.save(store.load() + (holder to Lease(until, env.bootCount(), env.versionCode(), env.processId())))
         }
     }
@@ -82,7 +82,9 @@ class InstallLease(
         applyLock(reason, CATALOG in expired)
         synchronized(LOCK) {
             val current = store.load()
-            store.save(current.filter { (holder, lease) -> expired[holder] != lease })
+            val removed = current.filter { (holder, lease) -> expired[holder] == lease }.keys
+            store.save(current - removed)
+            removed.forEach(env::cancelExpiry)
         }
     }
 
@@ -103,9 +105,11 @@ class InstallLease(
         val now = env.nowMs()
         val boot = env.bootCount()
         val version = env.versionCode()
-        return store.load().filterValues {
-            it.untilMs > now && it.untilMs - now <= MAX_MS && it.bootCount == boot && it.versionCode == version &&
-                it.process == env.processId()
+        return store.load().filter { (holder, lease) ->
+            val sameProcess = lease.versionCode == version && lease.process == env.processId()
+            val catalogSurvivedUpgrade = holder == CATALOG && lease.versionCode < version
+            lease.untilMs > now && lease.untilMs - now <= MAX_MS && lease.bootCount == boot &&
+                (sameProcess || catalogSurvivedUpgrade)
         }
     }
 
@@ -158,4 +162,6 @@ private class AndroidLeaseEnv(private val context: Context) : InstallLease.Env {
         org.plainphone.app.Compat.packageInfo(context.packageManager, context.packageName, 0).longVersionCode
 
     override fun scheduleExpiry(holder: String, atMs: Long) = UpdateReceiver.scheduleLeaseExpiry(context, holder, atMs)
+
+    override fun cancelExpiry(holder: String) = UpdateReceiver.cancelLeaseExpiry(context, holder)
 }

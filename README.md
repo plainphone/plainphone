@@ -111,8 +111,8 @@ In strong mode Plainphone checks daily on an unmetered connection or while charg
 installs a newer release signed with the same certificate. **Update now** on the phone's
 dashboard page requests a check as soon as the phone can receive it. In light mode the
 phone shows a quiet update notification for manual installation. See
-[Android updates](docs/android-updates.md) for the first manual update, release metadata,
-and the real-phone release check.
+[Android updates](docs/android-updates.md) for the first manual update, permission to
+schedule recovery alarms in strong mode, release metadata, and the real-phone release check.
 
 ## Roadmap
 

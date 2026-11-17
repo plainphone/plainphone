@@ -23,7 +23,9 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
         return try {
             val outcome = SelfUpdate.updater(applicationContext).run(force)
             Log.i("Plainphone", "self-update (${if (force) "requested" else "periodic"}): $outcome")
-            org.plainphone.app.sync.SyncScheduler.now(applicationContext, "update check")
+            if (outcome !is SelfUpdater.Outcome.Skipped) {
+                org.plainphone.app.sync.SyncScheduler.now(applicationContext, "update check")
+            }
             if (force && outcome is SelfUpdater.Outcome.Skipped) Result.retry() else Result.success()
         } catch (e: Exception) {
             Log.e("Plainphone", "self-update crashed", e)
@@ -63,18 +65,30 @@ object SelfUpdate {
             org.plainphone.app.sync.SyncScheduler.now(context, "update result")
         }
 
-        // WorkManager combines constraints with AND. Both schedules share one daily check in SelfUpdater.
+        val report = store.report
+        if (report?.state == SelfUpdater.STATE_PROMPTED) {
+            val host = AndroidUpdateHost(context)
+            val reconciled = report.reconcileInstalled(host.installed())
+            if (reconciled != report) {
+                store.report = reconciled
+                host.clearUpdatePrompt()
+                org.plainphone.app.sync.SyncScheduler.now(context, "manual update installed")
+            }
+        }
+
+        // WorkManager combines constraints with AND. Poll more often than the shared daily
+        // gate, so a check by one worker does not cost the other worker an entire day.
         schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
         schedule(context, "$PERIODIC-charging", Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
     }
 
     private fun schedule(context: Context, name: String, constraints: Constraints) {
-        val request = PeriodicWorkRequestBuilder<UpdateWorker>(24, TimeUnit.HOURS)
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(1, TimeUnit.HOURS)
             .setConstraints(constraints)
             .setInitialDelay(10, TimeUnit.MINUTES)
             .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
     /** Persist the work before marking the timestamp handled; a replay uses the same unique name. */
@@ -119,15 +133,16 @@ class PrefsUpdateStateStore(context: Context) : UpdateStateStore {
                 prefs.getString("detail", null),
                 prefs.getLong("checked_at", 0L).takeIf { t -> t > 0 },
                 prefs.getString("latest", null),
+                prefs.getLong("prompted_version", 0L).takeIf { code -> code > 0L },
             )
         }
         set(r) {
             val e = prefs.edit()
             if (r == null) {
-                e.remove("state").remove("detail").remove("checked_at").remove("latest")
+                e.remove("state").remove("detail").remove("checked_at").remove("latest").remove("prompted_version")
             } else {
                 e.putString("state", r.state).putString("detail", r.detail).putLong("checked_at", r.checkedAtMs ?: 0L)
-                    .putString("latest", r.latestVersionName)
+                    .putString("latest", r.latestVersionName).putLong("prompted_version", r.promptedVersionCode ?: 0L)
             }
             e.apply()
         }

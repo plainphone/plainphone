@@ -6,7 +6,10 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputType
 import android.view.WindowManager
 import android.widget.Button
@@ -17,6 +20,7 @@ import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
 import org.plainphone.app.ui.PairingActivity
+import org.plainphone.app.update.UpdateReceiver
 
 /**
  * Hidden parent screen for phase 1 testing, so a test phone can always be
@@ -120,6 +124,16 @@ class MaintenanceActivity : Activity() {
             })
         }
         val light = org.plainphone.app.light.Mode.isLight(this)
+        if (!light && Build.VERSION.SDK_INT >= 31 && !UpdateReceiver.canScheduleExactExpiry(this)) {
+            column.addView(Button(this).apply {
+                text = getString(R.string.maintenance_install_alarm_access)
+                setOnClickListener {
+                    runCatching {
+                        startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+                    }.onFailure { output.text = getString(R.string.maintenance_install_alarm_settings) }
+                }
+            })
+        }
         val releaseTitle = if (light) R.string.maintenance_release_light else R.string.maintenance_release
         column.addView(Button(this).apply {
             text = getString(releaseTitle)

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.plainphone.app.update
 
-import java.io.ByteArrayOutputStream
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -12,6 +14,8 @@ import org.plainphone.app.PolicyApplier
 import org.plainphone.app.PolicyConfig
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 class UpdateTest {
     private val installed = ApkInfo("org.plainphone.app", 10, "1.0", setOf("cert"))
@@ -27,10 +31,52 @@ class UpdateTest {
         assertTrue(UpdatePolicy.isUpToDate(installed, ReleaseInfo(9, "0.9", "https://example.org/app.apk", null)))
     }
 
-    @Test fun truncatedDownloadIsRejected() {
-        assertThrows(IOException::class.java) {
-            AndroidUpdateHost.copyVerified(byteArrayOf(1, 2).inputStream(), ByteArrayOutputStream(), 3)
+    @get:Rule val files = TemporaryFolder()
+
+    @Test fun interruptedDownloadNeverReachesTheInstallerAndLeavesNoFile() {
+        val f = Fixture()
+        val dir = files.newFolder()
+        val connection = object : HttpURLConnection(URL("https://example.org/app.apk")) {
+            override fun getResponseCode() = 200
+            override fun getContentLengthLong() = 3L
+            override fun getInputStream() = byteArrayOf(1, 2).inputStream()
+            override fun disconnect() = Unit
+            override fun usingProxy() = false
+            override fun connect() = Unit
         }
+        val store = object : UpdateStateStore {
+            override var installingVersionCode = 0L
+            override var lastCheckMs = 0L
+            override var handledRequestMs = 0L
+            override var report: UpdateReport? = null
+        }
+        val host = object : UpdateHost {
+            override fun nowMs() = 100L
+            override fun installed() = installed
+            override fun isDeviceOwner() = true
+            override fun inMaintenance() = false
+            override fun downloadAllowed() = true
+            override fun fetchLatest(): ReleaseInfo? = null
+            override fun fallbackUrl() = "https://example.org/app.apk"
+            override fun download(url: String, sha256: String?) = AndroidUpdateHost.downloadApk(dir, sha256) { connection }
+            override fun inspect(apk: File): ApkInfo = error("partial APK reached inspection")
+            override fun install(apk: File): String? = error("partial APK reached installation")
+            override fun promptUpdate(latest: ReleaseInfo) = error("unexpected light-mode prompt")
+        }
+        val outcome = SelfUpdater(host, store, f.lease).run(force = true)
+        assertTrue((outcome as SelfUpdater.Outcome.Failed).why.contains("after 2 of 3 bytes"))
+        assertEquals(SelfUpdater.STATE_FAILED, store.report?.state)
+        assertTrue(dir.listFiles()!!.isEmpty())
+        assertTrue(f.alarms.isEmpty())
+        assertTrue(f.restricted)
+    }
+
+    @Test fun manualUpdateClearsPromptWhenItsTargetWasInstalled() {
+        val prompt = UpdateReport(SelfUpdater.STATE_PROMPTED, null, 123L, "1.1", 11L)
+        assertEquals(prompt, prompt.reconcileInstalled(installed))
+        val updated = prompt.reconcileInstalled(installed.copy(versionCode = 12, versionName = "1.2"))
+        assertEquals(SelfUpdater.STATE_UP_TO_DATE, updated.state)
+        assertEquals("1.2", updated.latestVersionName)
     }
 
     private class Fixture : InstallLease.Store, InstallLease.Env {
@@ -45,13 +91,18 @@ class UpdateTest {
         }
         val restricted get() = "no_install_apps" in device.restrictions
         val alarms = mutableListOf<Long>()
+        var alarmAvailable = true
         override fun load() = saved
         override fun save(leases: Map<String, InstallLease.Lease>) { saved = leases }
         override fun nowMs() = now
         override fun processId() = process
         override fun bootCount() = boot
         override fun versionCode() = version
-        override fun scheduleExpiry(holder: String, atMs: Long) { alarms += atMs }
+        override fun scheduleExpiry(holder: String, atMs: Long) {
+            check(alarmAvailable)
+            alarms += atMs
+        }
+        override fun cancelExpiry(holder: String) = Unit
         val lease: InstallLease = InstallLease(this, this) { _, _ -> applyPolicy() }
         @Synchronized
         fun applyPolicy() {
@@ -107,6 +158,31 @@ class UpdateTest {
             exitSession.countDown()
             worker.shutdownNow()
         }
+    }
+
+    @Test fun replacementEndsSelfUpdateButPreservesTheCatalogDeadline() {
+        val f = Fixture()
+        f.lease.acquire(InstallLease.CATALOG, 900_000)
+        f.lease.acquire(InstallLease.SELF_UPDATE, 360_000)
+        val catalogExpiry = f.alarms.first()
+        f.process = "replacement"
+        f.version++
+        f.lease.recover()
+        assertFalse(f.lease.isOpen(InstallLease.SELF_UPDATE))
+        assertTrue(f.lease.isOpen(InstallLease.CATALOG))
+        assertFalse(f.restricted)
+        f.now = catalogExpiry
+        f.lease.recover()
+        assertTrue(f.restricted)
+    }
+
+    @Test fun noRestrictionIsLiftedWhenTheWatchdogCannotBeArmed() {
+        val f = Fixture().apply { alarmAvailable = false }
+        assertThrows(IllegalStateException::class.java) {
+            f.lease.hold(InstallLease.SELF_UPDATE) { error("install started without a watchdog") }
+        }
+        assertTrue(f.restricted)
+        assertTrue(f.saved.isEmpty())
     }
 
     @Test fun expiryBootAndReplacementRecoverWhenCleanupNeverRan() {

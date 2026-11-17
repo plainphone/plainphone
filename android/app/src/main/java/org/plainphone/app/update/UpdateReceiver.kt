@@ -66,16 +66,31 @@ class UpdateReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0,
         )
 
+        fun canScheduleExactExpiry(context: Context): Boolean =
+            Build.VERSION.SDK_INT < 31 ||
+                context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+
         fun scheduleLeaseExpiry(context: Context, holder: String, atMs: Long) {
-            val intent = PendingIntent.getBroadcast(
-                context,
-                3,
-                Intent(context, UpdateReceiver::class.java).setAction(ACTION_LEASE_EXPIRED)
-                    .setData(android.net.Uri.fromParts("plainphone", holder, null)),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-            checkNotNull(context.getSystemService(AlarmManager::class.java))
-                .setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
+            val alarms = checkNotNull(context.getSystemService(AlarmManager::class.java))
+            val intent = leaseExpiryIntent(context, holder)
+            if (org.plainphone.app.light.Mode.isStrong(context)) {
+                check(canScheduleExactExpiry(context)) { "Enable Alarms & reminders for Plainphone to open an install window" }
+                alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
+            } else {
+                alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
+            }
         }
+
+        fun cancelLeaseExpiry(context: Context, holder: String) {
+            context.getSystemService(AlarmManager::class.java)?.cancel(leaseExpiryIntent(context, holder))
+        }
+
+        private fun leaseExpiryIntent(context: Context, holder: String): PendingIntent = PendingIntent.getBroadcast(
+            context,
+            3,
+            Intent(context, UpdateReceiver::class.java).setAction(ACTION_LEASE_EXPIRED)
+                .setData(android.net.Uri.fromParts("plainphone", holder, null)),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 }

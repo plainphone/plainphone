@@ -7,6 +7,10 @@ On the phone, tap **Version** seven times. Enter the parent PIN and choose
 `https://app.plainphone.org/download/android`, and download the APK. Allow Chrome to
 install it if Android asks, then tap **Update**. Open Plainphone and choose **Lock now**.
 The first build with self-update must use the same signing key as the installed app.
+If the parent PIN screen shows **Allow install recovery alarms**, open it and allow
+Plainphone under **Alarms & reminders**. Android may require lifting the lock first to
+open Settings. On Android 12 and later, strong mode keeps installs blocked if it
+cannot schedule the recovery alarm.
 
 ## Release assets
 
@@ -30,9 +34,17 @@ and inspecting the APK in strong mode. Light mode needs metadata to offer an upd
 Strong mode checks the installed package name, exact current signer set, and strictly
 increasing version code before asking Android to install. When supplied, the file hash and
 version code must also match the metadata. A shared policy leaves installs open while a valid
-catalog or self-update window exists. The update window closes when the session ends.
-An elapsed-time alarm, the next process start, and the boot/package-replaced broadcasts
-cover interrupted and expired windows. Light mode shows an update on the Today screen and sends a quiet notification when permitted.
+catalog or self-update window exists. Replacing Plainphone ends the self-update window
+and preserves an approved Play Store window until its original deadline or install completion.
+Strong mode schedules an exact elapsed-time wakeup before opening a window. Process start
+and the boot/package-replaced broadcasts also recover interrupted windows.
+
+WorkManager checks eligibility hourly over unmetered internet or while charging.
+The two schedules share a 24-hour gate for automatic release checks. The dashboard's
+**Update now** request bypasses that gate. Its direct connection reconnects with backoff
+after transient failures, with rules sync as a fallback. Light mode shows an update
+on the Today screen and sends a quiet notification when permitted. Installing the
+offered version or a newer one clears the prompt.
 
 ## Real-phone release check
 
@@ -48,6 +60,8 @@ cover interrupted and expired windows. Light mode shows an update on the Today s
    tests the automatic path without a PC, ADB, or a manual update on the phone.
 4. On a phone still running the first self-updating build, request **Update now** in the
    dashboard. Confirm it updates through the direct connection or the next rules sync and that the restriction is
-   restored. Repeat with an approved catalog install overlapping an update if available.
+   restored. Repeat with an approved catalog install overlapping an update. Confirm Play
+   stays available after Plainphone restarts and the restriction returns once the catalog
+   install finishes or its original window expires.
 5. In light mode, check that the newer version produces an update notification and that
    the installed version stays the same until the user chooses to install it.

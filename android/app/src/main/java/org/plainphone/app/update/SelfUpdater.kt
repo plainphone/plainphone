@@ -83,7 +83,21 @@ interface UpdateHost {
 }
 
 /** What the dashboard sees about updates (sent with the phone's status). */
-data class UpdateReport(val state: String, val detail: String?, val checkedAtMs: Long?, val latestVersionName: String?) {
+data class UpdateReport(
+    val state: String,
+    val detail: String?,
+    val checkedAtMs: Long?,
+    val latestVersionName: String?,
+    val promptedVersionCode: Long? = null,
+) {
+    fun reconcileInstalled(installed: ApkInfo): UpdateReport {
+        if (state != SelfUpdater.STATE_PROMPTED) return this
+        val targetInstalled = promptedVersionCode?.let { installed.versionCode >= it }
+            ?: (latestVersionName == installed.versionName)
+        return if (targetInstalled) UpdateReport(SelfUpdater.STATE_UP_TO_DATE, null, checkedAtMs, installed.versionName)
+        else this
+    }
+
     fun toJson(): JSONObject = JSONObject()
         .put("state", state)
         .put("detail", detail?.take(200) ?: JSONObject.NULL)
@@ -138,7 +152,6 @@ class SelfUpdater(
             return failed("release check failed: ${e.message ?: e.javaClass.simpleName}", latest = null)
         }
         if (UpdatePolicy.isUpToDate(installed, latest)) {
-            store.lastCheckMs = now
             store.report = UpdateReport(STATE_UP_TO_DATE, null, now, latest?.versionName)
             return Outcome.UpToDate(installed.versionCode)
         }
@@ -146,8 +159,7 @@ class SelfUpdater(
             // Light mode cannot install by itself. Without metadata it cannot know there is anything new.
             if (latest == null) return failed("no release metadata on the server", latest = null)
             host.promptUpdate(latest)
-            store.lastCheckMs = now
-            store.report = UpdateReport(STATE_PROMPTED, null, now, latest.versionName)
+            store.report = UpdateReport(STATE_PROMPTED, null, now, latest.versionName, latest.versionCode)
             return Outcome.Waiting("asked the user to update")
         }
         val apk = try {
@@ -162,7 +174,6 @@ class SelfUpdater(
             }
             when (val verdict = UpdatePolicy.check(installed, candidate)) {
                 is UpdatePolicy.Verdict.Refuse -> {
-                    store.lastCheckMs = now
                     // No metadata and the newest APK is what we run: that is simply up to date.
                     val state = if (candidate == installed) STATE_UP_TO_DATE else STATE_REFUSED
                     store.report = UpdateReport(state, verdict.why.takeIf { state == STATE_REFUSED }, now, candidate.versionName)
@@ -187,7 +198,6 @@ class SelfUpdater(
             }
             store.installingVersionCode = 0L
             if (error != null) return failed("install failed: $error", latest)
-            store.lastCheckMs = now
             store.report = UpdateReport(STATE_UP_TO_DATE, null, now, candidate.versionName)
             return Outcome.Installed(candidate.versionCode)
         } finally {

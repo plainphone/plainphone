@@ -74,26 +74,8 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
 
     override fun fallbackUrl() = "$serverUrl/download/android"
 
-    override fun download(url: String, sha256: String?): File {
-        val dir = File(context.noBackupFilesDir, "update").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() } // leftovers of an interrupted run
-        val part = File(dir, "plainphone.apk.part")
-        val conn = open(url, followRedirects = true)
-        try {
-            if (conn.responseCode != 200) throw IOException("APK download: HTTP ${conn.responseCode}")
-            if (!conn.url.toString().startsWith("https://")) throw IOException("APK download left https")
-            val expected = conn.contentLengthLong
-            if (expected > MAX_APK_BYTES) throw IOException("APK is too large ($expected bytes)")
-            val digest = conn.inputStream.use { input -> part.outputStream().use { out -> copyVerified(input, out, expected) } }
-            if (sha256 != null && digest != sha256) throw IOException("APK checksum does not match the release")
-            return File(dir, "plainphone.apk").also { if (!part.renameTo(it)) throw IOException("could not store the APK") }
-        } catch (e: IOException) {
-            part.delete()
-            throw e
-        } finally {
-            conn.disconnect()
-        }
-    }
+    override fun download(url: String, sha256: String?): File =
+        downloadApk(File(context.noBackupFilesDir, "update"), sha256) { open(url, followRedirects = true) }
 
     override fun inspect(apk: File): ApkInfo? = runCatching {
         @Suppress("DEPRECATION")
@@ -158,6 +140,10 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         runCatching { nm.notify(NOTIFICATION_ID, notification) } // no POST_NOTIFICATIONS grant: the status still says so
     }
 
+    fun clearUpdatePrompt() {
+        context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+    }
+
     private fun open(url: String, followRedirects: Boolean): HttpURLConnection {
         require(url.startsWith("https://")) { "only https" }
         return (URL(url).openConnection() as HttpURLConnection).apply {
@@ -185,6 +171,28 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
 
         fun sha256Hex(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+        internal fun downloadApk(dir: File, sha256: String?, connect: () -> HttpURLConnection): File {
+            dir.mkdirs()
+            dir.listFiles()?.forEach { it.delete() } // leftovers of an interrupted run
+            val part = File(dir, "plainphone.apk.part")
+            val conn = connect()
+            try {
+                val status = conn.responseCode
+                if (status != 200) throw IOException("APK download: HTTP $status")
+                if (conn.url.protocol != "https") throw IOException("APK download left https")
+                val expected = conn.contentLengthLong
+                if (expected > MAX_APK_BYTES) throw IOException("APK is too large ($expected bytes)")
+                val digest = conn.inputStream.use { input ->
+                    part.outputStream().use { out -> copyVerified(input, out, expected) }
+                }
+                if (sha256 != null && digest != sha256) throw IOException("APK checksum does not match the release")
+                return File(dir, "plainphone.apk").also { if (!part.renameTo(it)) throw IOException("could not store the APK") }
+            } finally {
+                part.delete()
+                conn.disconnect()
+            }
+        }
 
         /**
          * Copies [input] to [out], returning the hex SHA-256. Throws when the stream ends before

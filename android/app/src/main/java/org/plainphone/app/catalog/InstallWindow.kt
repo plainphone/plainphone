@@ -2,10 +2,12 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.catalog
 
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.update.InstallLease
@@ -34,6 +36,7 @@ object InstallWindow {
     }
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
+    @SuppressLint("ApplySharedPref")
     fun open(context: Context, packageName: String) {
         val app = context.applicationContext
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
@@ -44,8 +47,19 @@ object InstallWindow {
             if (current(app) == packageName || !takeWindow(app)) {
                 false
             } else {
-                InstallLease.android(app).begin(InstallLease.CATALOG, WINDOW_MS)
-                prefs(app).edit().putString("pkg", packageName).putLong("until", System.currentTimeMillis() + WINDOW_MS).apply()
+                try {
+                    InstallLease.android(app).begin(InstallLease.CATALOG, WINDOW_MS)
+                } catch (e: Exception) {
+                    Log.w("Plainphone", "could not open catalog install window", e)
+                    return
+                }
+                if (!prefs(app).edit().putString("pkg", packageName)
+                        .putLong("until", System.currentTimeMillis() + WINDOW_MS).commit()
+                ) {
+                    InstallLease.android(app).invalidate(InstallLease.CATALOG)
+                    Lock.recoverInstallAsync(app)
+                    return
+                }
                 true
             }
         }

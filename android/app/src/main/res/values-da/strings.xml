@@ -20,6 +20,8 @@
         <item quantity="one">Løft låsen i %1$d minut</item>
         <item quantity="other">Løft låsen i %1$d minutter</item>
     </plurals>
+    <string name="maintenance_install_alarm_access">Tillad alarmer til genlåsning</string>
+    <string name="maintenance_install_alarm_settings">Åbn Indstillinger, derefter Særlig appadgang og Alarmer og påmindelser. Giv Plainphone adgang.</string>
     <string name="maintenance_reapply">Lås telefonen nu</string>
     <string name="maintenance_release">Frigiv Device Owner (testtelefoner)</string>
     <string name="maintenance_release_confirm">Det fjerner alle begrænsninger og opgiver Device Owner. Bagefter kan Plainphone afinstalleres, og telefonen kan nulstilles normalt. Fortsæt?</string>
