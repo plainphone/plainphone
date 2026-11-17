@@ -1,0 +1,58 @@
+# Time limits
+
+A parent can cap how many minutes a day the phone's apps may be used: one cap for all
+non-core apps together, and a cap per app. Core apps (phone, messages, maps, clock,
+settings and the other apps the phone reports as `core`) never get a limit, so calls and
+texts always work.
+
+## The model
+
+A **limit** is
+
+```json
+{ "minutes": 120, "days": { "6": 180, "7": 180 } }
+```
+
+`minutes` (0 to 1440) applies every day. `days` overrides it on ISO weekdays, `"1"` is Monday
+and `"7"` is Sunday. A limit of 0 blocks the app for the day.
+
+A **bonus** adds minutes to one local date, for one package or for the total (`"*"`). The
+"+15 min today" button in the parent app creates one.
+
+The limit for a date is `days[isoWeekday] ?? minutes`, plus the sum of that date's bonuses for
+the same package. A day starts at local midnight in the phone's `timezone`.
+
+## Where it is stored
+
+| Table | What |
+|---|---|
+| `time_limits` | One row per phone and package; package `*` is the total cap |
+| `time_bonuses` | One row per bonus: package, local date, minutes |
+
+The rules document sends every limit and only the bonuses for today and tomorrow (phone time
+zone, server clock), so the list stays short. Use is counted on the phone (usage access) and
+reported as `timeUsed` in `PUT /device/status`; the server keeps only the latest report.
+
+## Parent API
+
+| Route | What |
+|---|---|
+| `GET /phones/{pid}/time-limits` | `{ total, apps: [{ packageName, label, limit }], bonuses, used }` |
+| `PUT /phones/{pid}/time-limits/total` | Set the total cap (body: a limit) |
+| `DELETE /phones/{pid}/time-limits/total` | Remove it |
+| `PUT /phones/{pid}/time-limits/apps/{package}` | Set an app's cap. `400` for a core app, `404` for an app the phone has not reported |
+| `DELETE /phones/{pid}/time-limits/apps/{package}` | Remove it |
+| `POST /phones/{pid}/time-limits/bonus` | `{ packageName: "*" or a package, minutes: 5 to 240 }`, for today in the phone's time zone |
+
+All writes go through the same change pipeline as other rules (`timeLimit.set`,
+`timeLimit.bonus`), so the phone is woken at once.
+
+## Self profile
+
+On a Self phone, a change that gives more time waits for the key; one that gives less applies
+at once:
+
+- Adding a limit or lowering one: applies at once.
+- Raising the minutes on any weekday, or removing a limit: waits for the key.
+- A bonus: always waits for the key. With the delay key it may arrive after the day is over,
+  which is the point.
