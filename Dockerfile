@@ -16,7 +16,8 @@ RUN pnpm --filter @plainphone/server deploy --prod --legacy /out
 FROM dependencies AS build
 COPY server server
 COPY web web
-RUN pnpm -r build
+RUN pnpm -r build \
+ && node server/precompress-pwa.mjs web/dist/assets
 
 FROM node:24-alpine
 ENV NODE_ENV=production \

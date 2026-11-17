@@ -12,9 +12,11 @@ referenced by path in AdGuardHome.yaml.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import logging
 import os
 import tempfile
+import time
 import urllib.request
 
 log = logging.getLogger("ppdns.lists")
@@ -35,6 +37,8 @@ TAG_GAMBLING = "os_other"
 
 # First line of every list we rewrite; it also says which tag the rules carry.
 _HEADER = "! Rewritten by Plainphone ppdns: every rule applies only to clients tagged "
+
+_FORMAT_VERSION = 1
 
 HAGEZI = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock"
 
@@ -157,18 +161,67 @@ def retag_file(path: str, tag: str) -> bool:
         old = first[len(_HEADER):].strip()
         if old == tag:
             return False
-        rest = fh.readlines()
-    suffix = f"ctag={old}\n"
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".retag.")
-    with os.fdopen(fd, "w", encoding="utf-8") as out:
-        out.write(f"{_HEADER}{tag}\n")
-        out.writelines(line[: -len(suffix)] + f"ctag={tag}\n" if line.endswith(suffix) else line for line in rest)
-    os.chmod(tmp, 0o644)
-    os.replace(tmp, path)
+        suffix = f"ctag={old}\n"
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".retag.")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as out:
+                out.write(f"{_HEADER}{tag}\n")
+                out.writelines(
+                    line[:-len(suffix)] + f"ctag={tag}\n" if line.endswith(suffix) else line
+                    for line in fh
+                )
+            os.chmod(tmp, 0o644)
+            # A retag is not a download. Keep the upstream copy's age.
+            stat = os.fstat(fh.fileno())
+            os.utime(tmp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
     return True
 
 
-def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen) -> dict[str, str]:
+def _source_header(url: str) -> str:
+    url_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    return f"! ppdns format={_FORMAT_VERSION} source-sha256={url_hash}\n"
+
+
+def _download_age(path: str, source: Source) -> float | None:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            age = time.time() - os.fstat(fh.fileno()).st_mtime
+            if (
+                age >= 0
+                and fh.readline() == f"{_HEADER}{source.tag}\n"
+                and fh.readline() == _source_header(source.url)
+            ):
+                rule = fh.readline()
+                suffix = f"ctag={source.tag}\n"
+                if rule.endswith(suffix):
+                    prefix = rule[:-len(suffix)]
+                    if prefix.endswith(("$", ",")) and prefix[:-1].strip() and not prefix.startswith(("!", "#", "[")):
+                        return age
+    except (OSError, UnicodeError):
+        pass
+    return None
+
+
+def refresh_delay(lists_dir: str, interval: float, retry_at: dict[str, float]) -> float:
+    """Sleep until the next tagged download is due, including retry deadlines."""
+    now = time.time()
+    delay = interval
+    for source in SOURCES:
+        if source.tag is not None:
+            age = _download_age(local_path(lists_dir, source), source)
+            remaining = 0 if age is None else interval - age
+            delay = min(delay, max(0, remaining, retry_at.get(source.key, now) - now))
+    return delay
+
+
+def build(
+    lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen, max_age: float = 0,
+    retry_at: dict[str, float] | None = None,
+) -> dict[str, str]:
     """Download and rewrite every tagged list. Returns {key: "ok"|"kept"|"empty"}.
 
     A failed download keeps the previous file. If there is no previous file an
@@ -180,6 +233,13 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
         if source.tag is None:
             continue
         target = local_path(lists_dir, source)
+        age = _download_age(target, source) if max_age > 0 else None
+        if (age is not None and age < max_age) or (
+            retry_at is not None and time.time() < retry_at.get(source.key, 0)
+        ):
+            result[source.key] = "kept"
+            continue
+        tmp = None
         try:
             request = urllib.request.Request(source.url, headers={"User-Agent": "plainphone-ppdns"})
             with opener(request, timeout=timeout) as response:
@@ -187,17 +247,23 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
                 fd, tmp = tempfile.mkstemp(dir=lists_dir, prefix=f".{source.key}.")
                 count = 0
                 with os.fdopen(fd, "w", encoding="utf-8") as out:
-                    for rule in tag_rules(lines, source.tag):
+                    rules = tag_rules(lines, source.tag)
+                    out.write(next(rules))
+                    out.write(_source_header(source.url))
+                    for rule in rules:
                         out.write(rule)
                         count += 1
-            if count < 2:
-                os.unlink(tmp)
+            if count == 0:
                 raise ValueError("downloaded list has no rules")
             os.chmod(tmp, 0o644)
             os.replace(tmp, target)
             result[source.key] = "ok"
-            log.info("list %s: %d rules", source.key, count - 1)
+            if retry_at is not None:
+                retry_at.pop(source.key, None)
+            log.info("list %s: %d rules", source.key, count)
         except Exception as exc:  # noqa: BLE001 - keep serving with the old list
+            if retry_at is not None:
+                retry_at[source.key] = time.time() + max_age
             log.warning("list %s: download failed (%s)", source.key, exc)
             if os.path.exists(target):
                 try:
@@ -210,4 +276,7 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
                 with open(target, "w", encoding="utf-8") as out:
                     out.write("! placeholder until the first successful download\n")
                 result[source.key] = "empty"
+        finally:
+            if tmp is not None and os.path.exists(tmp):
+                os.unlink(tmp)
     return result

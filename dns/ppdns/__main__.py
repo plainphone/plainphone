@@ -19,11 +19,6 @@ import json
 import logging
 import sys
 
-from . import backup, config, lists
-from .adguard import AdGuard
-from .server import Jobs, serve
-from .service import Service
-
 
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -44,20 +39,31 @@ def main(argv=None) -> int:
     sub.add_parser("backup")
     args = parser.parse_args(argv)
 
+    from . import config
+
     settings = config.Settings.from_env()
     if args.command == "init":
+        from . import lists
+
         if config.write_first_config(settings):
             logging.info("wrote %s", settings.config_path)
         else:
             logging.info("%s exists, left as is", settings.config_path)
-        print(json.dumps(lists.build(settings.lists_dir)))
+        print(json.dumps(lists.build(settings.lists_dir, max_age=settings.lists_refresh_hours * 3600)))
         return 0
     if args.command == "backup":
+        from . import backup
+
         print(backup.run(settings.conf_dir, settings.data_dir, settings.backup_keep))
         return 0
     if args.command == "serve":
+        from .server import serve
+
         serve(settings)
         return 0
+
+    from .adguard import AdGuard
+    from .service import Service
 
     service = Service(
         AdGuard(settings.adguard_url, settings.adguard_user, settings.adguard_password),
@@ -75,6 +81,8 @@ def main(argv=None) -> int:
         service.delete(args.client_id)
         out = {"deleted": args.client_id}
     else:  # selftest
+        from .server import Jobs
+
         jobs = Jobs(settings, service)
         jobs.monitor_id = service.ensure_monitor_client()
         ok, message = jobs.selftest()
