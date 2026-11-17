@@ -64,4 +64,4 @@ at once:
 Plainphone's home screen shows the minutes left today under each app that a cap applies to,
 its own or the total, whichever is smaller, rounded up to whole minutes. An app shows "used
 up" only at zero. Core apps never show a number. Without usage access the phone counts no
-use, so the numbers are the full caps.
+use, so the home screen shows no numbers at all rather than untouched caps.

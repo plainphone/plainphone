@@ -52,10 +52,13 @@ object HomeModel {
         val prefs = rules?.home ?: HomePrefs.DEFAULT
         val windows = rules?.let { Schedules.active(it.schedules, now, it.timezone) }.orEmpty()
         val windowAllowed = Schedules.allowedDuringWindows(windows)
+        // Only what the rules allow: an app installed since the last sync is in neither list yet,
+        // and stays off the home screen until the parent allows it. Catalog picks count as allowed.
+        val allowed = rules?.let { r -> r.allowedApps + r.toInstall.map { it.packageName } }
         val visible = apps
             .asSequence()
             .filter { it.component !in fixed }
-            .filter { rules == null || it.packageName in core || it.packageName !in rules.hiddenApps }
+            .filter { allowed == null || it.packageName in core || it.packageName in allowed }
             .filter { windowAllowed == null || it.packageName in core || it.packageName in windowAllowed }
             .map { HomeApp(it.packageName, it.label, it.component, minutesLeft[it.packageName]) }
             .distinctBy { it.component }

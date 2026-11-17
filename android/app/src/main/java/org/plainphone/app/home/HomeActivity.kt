@@ -47,7 +47,13 @@ class HomeActivity : ComponentActivity() {
     private var onScreen by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        HomeGuard.starting(this)
+        if (!HomeGuard.starting(this)) {
+            super.onCreate(savedInstanceState)
+            finish()
+            // Plainphone is no longer a home app now: this lands on the maker's launcher.
+            runCatching { startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            return
+        }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
@@ -179,7 +185,8 @@ class HomeActivity : ComponentActivity() {
                 rules = rules,
                 now = now,
                 fixed = setOf("$own/$PHONE", "$own/$MESSAGES"),
-                core = runCatching { AndroidDeviceControls(context).corePackages() }.getOrDefault(emptySet()),
+                // Core apps, maps and Plainphone itself (its status screen), cached for a few minutes.
+                core = runCatching { TimeGuard.exempt(context) }.getOrDefault(setOf(own)),
                 minutesLeft = runCatching { HomeTimeLimits.source(context, apps.map { it.packageName }) }.getOrDefault(emptyMap()),
             )
             // The clock follows the phone (automatic time zone), like the status bar; schedules use the rules' zone.
@@ -216,7 +223,9 @@ class HomeActivity : ComponentActivity() {
 object HomeTimeLimits {
     @Volatile
     var source: (Context, Collection<String>) -> Map<String, Int> = { context, packages ->
-        TimeGuard.snapshot(context)?.let { minutesLeft(it.evaluation, it.exempt, packages) }.orEmpty()
+        // Without usage access no use is counted, and every cap would look untouched all day.
+        if (!TimeGuard.hasUsageAccess(context)) emptyMap()
+        else TimeGuard.snapshot(context)?.let { minutesLeft(it.evaluation, it.exempt, packages) }.orEmpty()
     }
 
     /**

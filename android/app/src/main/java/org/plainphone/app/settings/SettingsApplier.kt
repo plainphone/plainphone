@@ -102,6 +102,9 @@ class SettingsApplier(
             managedRestrictions(sdkInt).forEach(device::clearRestriction)
             controls.setCameraDisabled(false)
             controls.setScreenCaptureDisabled(false)
+            // The wallpaper can only be locked: the child may change it while unlocked, so the
+            // relock must set Plainphone's picture again instead of "set earlier".
+            presets.save(SettingKey.WALLPAPER, null)
         },
         step("let go of the home screen") { controls.setPlainphoneHome(false) },
     )

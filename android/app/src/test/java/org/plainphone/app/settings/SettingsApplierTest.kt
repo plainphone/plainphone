@@ -143,6 +143,15 @@ class SettingsApplierTest {
     }
 
     @Test
+    fun `the wallpaper is set again after a maintenance unlock`() {
+        val locked = of(SettingKey.WALLPAPER to PhoneSetting(Mode.LOCKED, "plainphone"))
+        settings.apply(locked)
+        settings.lift()
+        settings.apply(locked)
+        assertThat(controls.wallpapers).isEqualTo(2)
+    }
+
+    @Test
     fun `NFC radio can only be switched off from Android 14`() {
         val nfc = of(SettingKey.NFC to PhoneSetting(Mode.LOCKED, "off"))
         @Suppress("DEPRECATION")
