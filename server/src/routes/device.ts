@@ -17,7 +17,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { rulesDocument } from "../services/phones.js";
+import { respondWithRules } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -160,14 +160,14 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
           ),
         ),
       );
-    const { doc, etag } = await rulesDocument(ctx, phone);
+    const ifNoneMatch = c.req.header("if-none-match");
+    const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
+    const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
     c.header("ETag", etag);
     c.header("Cache-Control", "no-cache");
-    const inm = c.req.header("if-none-match");
-    if (inm && inm.split(",").some((t) => t.trim().replace(/^W\//, "") === etag)) {
-      return c.body(null, 304);
-    }
-    return c.json(doc);
+    if (rules === null) return c.body(null, 304);
+    c.header("Content-Type", "application/json");
+    return c.body(rules);
   });
 
   app.get("/update-request", async (c) => {

@@ -371,12 +371,12 @@ function RingSection({
         </p>
       ) : (
         <>
-          <label className="check">
+          <label className="check ring-option">
             <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
             <span>{t("ring.keep")}</span>
           </label>
           <p>
-            <button type="button" className="btn btn-primary" onClick={() => onRing(!keep)} disabled={busy === "ring"}>
+            <button type="button" className="btn btn-secondary" onClick={() => onRing(!keep)} disabled={busy === "ring"}>
               {busy === "ring" && <span className="spinner" aria-hidden="true" />}
               {t("ring.start")}
             </button>
@@ -485,7 +485,7 @@ function CheckinSection({
             <p className="muted">{t("checkin.noContacts")}</p>
           )}
           <p>
-            <button type="submit" className="btn btn-primary" disabled={busy === "checkin"}>
+            <button type="submit" className="btn btn-secondary" disabled={busy === "checkin"}>
               {busy === "checkin" && <span className="spinner" aria-hidden="true" />}
               {t("checkin.send")}
             </button>

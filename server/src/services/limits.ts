@@ -39,14 +39,23 @@ export function limitLoosens(before: Limit | null, after: Limit | null): boolean
   return [1, 2, 3, 4, 5, 6, 7].some((d) => minutesOn(after, d) > minutesOn(before, d));
 }
 
+// Reuse ICU formatters without retaining every time zone customers have used.
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
 /** The local calendar date (YYYY-MM-DD) in a time zone. */
 export function localDate(timezone: string, now: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
+  let formatter = dateFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    if (dateFormatters.size >= 32) dateFormatters.delete(dateFormatters.keys().next().value!);
+    dateFormatters.set(timezone, formatter);
+  }
+  const parts = formatter.formatToParts(now);
   const get = (t: string) => parts.find((p) => p.type === t)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -68,9 +77,13 @@ export async function loadTimeLimits(db: DbLike, phone: { id: string; timezone: 
   const today = localDate(phone.timezone, now);
   const days = [today, addDays(today, 1)];
   const [rows, bonusRows] = await Promise.all([
-    db.select().from(timeLimits).where(eq(timeLimits.phoneId, phone.id)).orderBy(timeLimits.packageName),
     db
-      .select()
+      .select({ packageName: timeLimits.packageName, minutes: timeLimits.minutes, days: timeLimits.days })
+      .from(timeLimits)
+      .where(eq(timeLimits.phoneId, phone.id))
+      .orderBy(timeLimits.packageName),
+    db
+      .select({ packageName: timeBonuses.packageName, day: timeBonuses.day, minutes: timeBonuses.minutes })
       .from(timeBonuses)
       .where(and(eq(timeBonuses.phoneId, phone.id), inArray(timeBonuses.day, days)))
       .orderBy(timeBonuses.day, timeBonuses.packageName, timeBonuses.createdAt),

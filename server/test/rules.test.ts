@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { locations } from "../src/db/schema.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -35,13 +35,33 @@ describe("rules delivery", () => {
     expect(first.json.dns.host).toMatch(/\.dns\.plainphone\.org$/);
     expect(first.json.pollSeconds).toBe(60);
 
-    expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+    const select = vi.spyOn(h.ctx.db, "select");
+    try {
+      expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+      const settingsReads = select.mock.calls.filter(([fields]) => fields && "settings" in fields && "home" in fields);
+      expect(settingsReads).toHaveLength(1);
+    } finally {
+      select.mockRestore();
+    }
     expect((await device.get("/api/device/rules", { "if-none-match": `W/${etag}` })).status).toBe(304);
 
     await parent.put(`/api/phones/${phoneId}/apps/com.zhiliaoapp.musically`, { allowed: true });
     const after = await device.get("/api/device/rules", { "if-none-match": etag });
     expect(after.status).toBe(200);
     expect(after.json.apps.allowed).toContain("com.zhiliaoapp.musically");
+  });
+
+  it("invalidates the rules ETag when the dashboard requests an update", async () => {
+    const { parent, phoneId, device } = await setup();
+    const first = await device.get("/api/device/rules");
+    const etag = first.headers.get("etag")!;
+    expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+
+    expect((await parent.post(`/api/phones/${phoneId}/update`, {})).status).toBe(202);
+    const after = await device.get("/api/device/rules", { "if-none-match": etag });
+    expect(after.status).toBe(200);
+    expect(after.json.update.requestedAt).toBe(h.ctx.now().toISOString());
+    expect(after.headers.get("etag")).not.toBe(etag);
   });
 
   it("wakes the phone by push when it has a token", async () => {
@@ -150,8 +170,19 @@ describe("location (D7)", () => {
     expect((await parent.post(`/api/phones/${phoneId}/locate`)).status).toBe(202);
     expect((await device.get("/api/device/rules")).json.location.requestedAt).not.toBeNull();
 
+    const { phoneId: otherPhoneId } = await pairPhone(h, parent, { name: "Second phone" });
+    const listedPhones = async () => (await parent.get("/api/phones")).json.phones;
+    expect(await listedPhones()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: phoneId, hasLocation: false }),
+      expect.objectContaining({ id: otherPhoneId, hasLocation: false }),
+    ]));
+
     const t0 = h.clock.now;
     expect((await loc(55.6, t0)).status).toBe(204);
+    expect(await listedPhones()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: phoneId, hasLocation: true }),
+      expect.objectContaining({ id: otherPhoneId, hasLocation: false }),
+    ]));
     // The Find is answered: a second, older fix is not asked for any more.
     expect((await loc(55.7, new Date(t0.getTime() - 60_000))).status).toBe(409);
     const got = await parent.get(`/api/phones/${phoneId}/location`);

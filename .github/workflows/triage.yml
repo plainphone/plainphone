@@ -1,0 +1,68 @@
+name: Triage
+
+# Labels new issues and pull requests and posts a short acknowledgement to
+# people outside the maintainer team. See docs/maintaining.md.
+#
+# Pull requests use `pull_request_target` so the job gets a token that can add
+# labels and comments to pull requests from forks. That event runs in the
+# context of the base repository, with its token, so this workflow must never
+# check out, build or run code from the pull request. It only reads the event
+# payload and calls the GitHub API. There is deliberately no checkout step and
+# no event text is interpolated into the script. Keep it that way.
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const isIssue = context.eventName === 'issues';
+            const item = isIssue ? context.payload.issue : context.payload.pull_request;
+            const isMaintainer = async (username) => {
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username });
+                return ['admin', 'maintain', 'write'].includes(data.permission);
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                return false;
+              }
+            };
+            if (item.user.type === 'Bot' || await isMaintainer(item.user.login)) return;
+
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number: item.number, labels: [isIssue ? 'needs-triage' : 'external'],
+            });
+
+            const base = `${context.serverUrl}/${owner}/${repo}`;
+            const body = (isIssue ? [
+              'Thanks for opening this. A maintainer will read it, usually within a few days. Plainphone is a small project, so now and then it takes longer.',
+              '',
+              `If this is a question rather than a bug or a concrete task, [Discussions](${base}/discussions) is the better place. What happens next is described in [how we handle your contribution](${base}/blob/main/docs/maintaining.md).`,
+              '',
+              '— the Plainphone bot',
+            ] : [
+              'Thanks for the pull request. This is what happens next:',
+              '',
+              '1. CI runs. For pull requests from forks, GitHub may require a maintainer to approve the run before it starts.',
+              '2. The change usually gets an automated review, and you may get comments to address.',
+              '3. A maintainer reads the review and decides whether to merge. Nothing from outside the team is merged automatically.',
+              '',
+              `For user-facing changes, please fill in the \`Evidence:\` line in the description. More in [how we handle your contribution](${base}/blob/main/docs/maintaining.md).`,
+              '',
+              '— the Plainphone bot',
+            ]).join('\n');
+            await github.rest.issues.createComment({ owner, repo, issue_number: item.number, body });

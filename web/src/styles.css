@@ -208,6 +208,7 @@ h1:focus {
 .header-tools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
@@ -217,7 +218,7 @@ h1:focus {
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow-x: auto;
+  flex-wrap: wrap;
 }
 
 .main-nav a {
@@ -230,7 +231,6 @@ h1:focus {
   text-decoration: none;
   font-weight: 600;
   border-bottom: 3px solid transparent;
-  white-space: nowrap;
 }
 
 .main-nav li:first-child a {
@@ -641,7 +641,7 @@ main {
   line-height: 1.25;
   text-align: center;
   text-decoration: none;
-  white-space: nowrap;
+  max-width: 100%;
   cursor: pointer;
 }
 
@@ -660,7 +660,7 @@ main {
   border-color: var(--border-strong);
 }
 
-.btn-secondary:hover:not(:disabled) {
+.btn-secondary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--tint);
 }
 
@@ -674,7 +674,8 @@ main {
   font-size: 0.9375rem;
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   cursor: progress;
   opacity: 0.65;
 }
@@ -737,6 +738,7 @@ legend {
 input:not([type="checkbox"]):not([type="radio"]),
 select {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--border-strong);
@@ -831,6 +833,7 @@ input[type="radio"] {
 }
 
 .choice:has(input:checked) {
+  background: var(--tint);
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -1023,7 +1026,7 @@ input[type="radio"] {
 
 .pay-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
   gap: 1rem;
 }
 
@@ -1656,8 +1659,8 @@ details.details-lead[open] summary::after {
 }
 
 .days-details summary {
-  display: flex;
-  align-items: center;
+  display: list-item;
+  align-content: center;
   min-height: 44px;
   width: fit-content;
   color: var(--accent);
@@ -1733,8 +1736,14 @@ details.details-lead[open] summary::after {
 
 /* App catalog --------------------------------------------------------------- */
 
-.apps-add {
-  margin-bottom: 1.5rem;
+.apps-heading {
+  align-items: start;
+  margin-bottom: 1.25rem;
+}
+
+.apps-heading .page-title {
+  flex: 1 1 20rem;
+  margin-bottom: 0;
 }
 
 .catalog-group {
@@ -2095,4 +2104,116 @@ details.details-lead[open] summary::after {
   padding: 1rem;
   border: 1px solid var(--line);
   border-radius: 0.75rem;
+}
+
+/* Dashboard hierarchy and reflow -------------------------------------------- */
+
+main {
+  overflow-wrap: break-word;
+}
+
+.phones-heading {
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.phones-heading .page-title {
+  margin-bottom: 0;
+}
+
+.phone-list,
+.phone-rules {
+  box-shadow: none;
+}
+
+.phone-list .row-link:hover,
+.phone-rules .row-link:hover {
+  background: var(--tint);
+}
+
+.phone-rules .row-link {
+  min-height: 3.75rem;
+}
+
+@media (min-width: 48rem) {
+  .phone-rules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .phone-rules > li {
+    border-top: 1px solid var(--line);
+  }
+
+  .phone-rules > li:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .phone-rules > li:nth-child(even) {
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .phone-rules > li:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .list.phone-rules > li > .row-link {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .phone-rules > li:first-child > .row-link {
+    border-start-start-radius: var(--radius);
+  }
+
+  .phone-rules > li:nth-child(2) > .row-link,
+  .phone-rules > li:only-child > .row-link {
+    border-start-end-radius: var(--radius);
+  }
+
+  .phone-rules > li:nth-last-child(-n + 2):nth-child(odd) > .row-link {
+    border-end-start-radius: var(--radius);
+  }
+
+  .phone-rules > li:last-child > .row-link {
+    border-end-end-radius: var(--radius);
+  }
+}
+
+.contacts-list .item {
+  flex-wrap: wrap;
+}
+
+.contacts-list .item > div:first-child {
+  flex: 1 1 8rem;
+}
+
+.contact-form {
+  max-width: 30rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.time-total-form {
+  margin-top: 1rem;
+}
+
+.ring-option {
+  margin-block: 0.75rem;
+}
+
+.map .maplibregl-ctrl-group button {
+  width: 44px;
+  height: 44px;
+}
+
+.map .maplibregl-ctrl button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.choice > span,
+.seg > span,
+.check > span {
+  min-width: 0;
 }

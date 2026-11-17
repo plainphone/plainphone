@@ -21,7 +21,10 @@ async function setup(profile: "child" | "self") {
 describe("release on a Child phone", () => {
   it("applies at once and tells the phone in the rules", async () => {
     const { parent, phoneId, device } = await setup("child");
-    expect((await rules(device)).release).toBe(false);
+    const before = await device.get("/api/device/rules");
+    expect(before.json.release).toBe(false);
+    const etag = before.headers.get("etag")!;
+    expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
     const listed = await parent.get("/api/phones");
     expect(listed.json.phones[0].releaseRequestedAt).toBeNull();
 
@@ -29,7 +32,10 @@ describe("release on a Child phone", () => {
     expect(r.status).toBe(200);
     expect(r.json).toEqual({ status: "applied" });
 
-    expect((await rules(device)).release).toBe(true);
+    const released = await device.get("/api/device/rules", { "if-none-match": etag });
+    expect(released.status).toBe(200);
+    expect(released.json.release).toBe(true);
+    expect(released.headers.get("etag")).not.toBe(etag);
     const after = await parent.get("/api/phones");
     expect(after.json.phones).toHaveLength(1);
     expect(after.json.phones[0].releaseRequestedAt).toBe(h.clock.now.toISOString());

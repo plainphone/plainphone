@@ -28,14 +28,18 @@ export const users = pgTable("users", {
 });
 
 /** One-time login links. Only the SHA-256 of the token is stored. */
-export const magicLinks = pgTable("magic_links", {
-  id: id(),
-  email: text("email").notNull(),
-  tokenHash: text("token_hash").notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  usedAt: timestamp("used_at", { withTimezone: true }),
-  createdAt: createdAt(),
-});
+export const magicLinks = pgTable(
+  "magic_links",
+  {
+    id: id(),
+    email: text("email").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("magic_links_expires_idx").on(t.expiresAt)],
+);
 
 export const sessions = pgTable(
   "sessions",
@@ -48,7 +52,7 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("sessions_user_idx").on(t.userId)],
+  (t) => [index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)],
 );
 
 export const households = pgTable("households", {
@@ -418,7 +422,10 @@ export const pendingChanges = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("pending_changes_phone_status_idx").on(t.phoneId, t.status)],
+  (t) => [
+    index("pending_changes_phone_status_idx").on(t.phoneId, t.status),
+    index("pending_changes_due_idx").on(t.status, t.keyType, t.effectiveAt),
+  ],
 );
 
 /**

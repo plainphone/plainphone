@@ -1,7 +1,6 @@
 # Plainphone
 
-[![Android](https://github.com/plainphone/plainphone/actions/workflows/android.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/android.yml)
-[![Server and web](https://github.com/plainphone/plainphone/actions/workflows/server.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/server.yml)
+[![CI](https://github.com/plainphone/plainphone/actions/workflows/ci.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-24604a)](LICENSE)
 
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn.
@@ -43,7 +42,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
-A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online.
+A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
 
 [docs/policies.md](docs/policies.md) lists every policy, what Android does not let us block, and links to the Android documentation.
 
@@ -81,7 +80,7 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 |---|---|
 | [`android/`](android) | The phone app (Kotlin, Jetpack Compose) for strong and light mode |
 | [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
-| [`web/`](web) | The parent web app (PWA) at app.plainphone.org |
+| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, no JavaScript) |
@@ -100,6 +99,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
 ### Signing
 
@@ -162,7 +163,7 @@ End-to-end encryption ([docs/encryption.md](docs/encryption.md)) is being specif
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Questions and ideas go to [Discussions](https://github.com/plainphone/plainphone/discussions), and [how we handle your contribution](docs/maintaining.md) says what happens next. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
