@@ -74,14 +74,14 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
       <Screen testID="login">
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.lg }}>
-          <Mark size={36} />
-          <Text variant="heading">{t("app.name")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.xxl, marginBottom: space.lg, paddingHorizontal: space.xs }}>
+          <Mark size={40} />
+          <Text variant="heading" style={{ fontSize: 20 }}>{t("app.name")}</Text>
         </View>
         {sentTo && mail !== false ? (
           <>
             <PageTitle>{t("login.sentTitle")}</PageTitle>
-            <Text>{t("native.sentBody", { email: sentTo })}</Text>
+            <Text style={{ paddingHorizontal: space.xs }}>{t("native.sentBody", { email: sentTo })}</Text>
             <Button kind="secondary" title={t("login.again")} onPress={() => setSentTo(null)} />
           </>
         ) : (

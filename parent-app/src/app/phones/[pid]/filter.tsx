@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
+import { View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
+import { Button, errorMessage, Field, List, LoadGate, Notice, PageTitle, Screen, Section, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { cleanDomain, DOMAIN_RE } from "../../../lib/validate";
@@ -52,10 +53,8 @@ function FilterScreenBody() {
         {(dns) => (
           <>
             {!dns.synced ? <Notice tone="info" text={t("filter.notSynced")} /> : null}
-            <VStack>
-              <Text variant="heading">{t("filter.categories")}</Text>
-              <Text variant="small">{t("filter.categoriesHelp")}</Text>
-              <Card style={{ gap: space.xs }}>
+            <Section title={t("filter.categories")} help={t("filter.categoriesHelp")}>
+              <List>
                 {DNS_CATEGORIES.map((cat) => (
                   <Switch
                     key={cat}
@@ -67,8 +66,8 @@ function FilterScreenBody() {
                     onValueChange={(v) => void setCategory(cat, v)}
                   />
                 ))}
-              </Card>
-            </VStack>
+              </List>
+            </Section>
             <DomainList kind="allow" domains={dns.allowDomains} onChanged={() => void res.reload()} />
             <DomainList kind="block" domains={dns.blockDomains} onChanged={() => void res.reload()} />
             <Disclosure title={t("filter.technical")}>
@@ -143,17 +142,15 @@ function DomainList({ kind, domains, onChanged }: { kind: "allow" | "block"; dom
   }
 
   return (
-    <VStack>
-      <Text variant="heading">{t(kind === "allow" ? "filter.allowTitle" : "filter.blockTitle")}</Text>
-      <Text variant="small">{t(kind === "allow" ? "filter.allowHelp" : "filter.blockHelp")}</Text>
+    <Section title={t(kind === "allow" ? "filter.allowTitle" : "filter.blockTitle")} help={t(kind === "allow" ? "filter.allowHelp" : "filter.blockHelp")}>
       {domains.length === 0 && waiting.length === 0 ? (
-        <Text variant="muted">{t(kind === "allow" ? "filter.noneAllowed" : "filter.noneBlocked")}</Text>
+        <Text variant="muted" style={{ paddingHorizontal: space.xs }}>{t(kind === "allow" ? "filter.noneAllowed" : "filter.noneBlocked")}</Text>
       ) : (
-        <VStack gap={space.sm}>
+        <List>
           {domains.map((d) => (
             <ItemRow key={d} testID={`${kind}-${d}`} title={d}>
               <Button
-                kind="secondary"
+                kind="destructive"
                 title={t("app.remove")}
                 accessibilityLabel={t("filter.removeLabel", { domain: d })}
                 busy={removing === d}
@@ -164,30 +161,33 @@ function DomainList({ kind, domains, onChanged }: { kind: "allow" | "block"; dom
           {waiting.map((d) => (
             <ItemRow key={`w-${d}`} title={d} tag={t("pending.waitingTag")} waiting />
           ))}
-        </VStack>
+        </List>
       )}
-      <Field
-        testID={`${kind}-domain`}
-        label={t("filter.domain")}
-        error={error}
-        value={value}
-        onChangeText={setValue}
-        keyboardType="url"
-        autoCapitalize="none"
-        autoCorrect={false}
-        spellCheck={false}
-        autoComplete="off"
-        placeholder={t("filter.domainPlaceholder")}
-        returnKeyType="done"
-        onSubmitEditing={() => void add()}
-      />
-      <Button
-        testID={`${kind}-add`}
-        title={t(kind === "allow" ? "filter.allowAdd" : "filter.blockAdd")}
-        busy={saving}
-        onPress={() => void add()}
-      />
-    </VStack>
+      <View style={{ gap: space.sm, marginTop: space.xs }}>
+        <Field
+          testID={`${kind}-domain`}
+          label={t("filter.domain")}
+          error={error}
+          value={value}
+          onChangeText={setValue}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={t("filter.domainPlaceholder")}
+          returnKeyType="done"
+          onSubmitEditing={() => void add()}
+        />
+        <Button
+          testID={`${kind}-add`}
+          kind="secondary"
+          title={t(kind === "allow" ? "filter.allowAdd" : "filter.blockAdd")}
+          busy={saving}
+          onPress={() => void add()}
+        />
+      </View>
+    </Section>
   );
 }
 

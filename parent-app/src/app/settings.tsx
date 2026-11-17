@@ -4,7 +4,8 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
+import { Button, Card, Choice, Notice, PageTitle, Screen, Section, Text } from "../components/ui";
+import { space } from "../lib/theme";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_HOST } from "../lib/config";
 import { enablePush, pushState, type PushState } from "../lib/notifications";
@@ -24,18 +25,17 @@ function Settings() {
 
   return (
     <Screen testID="settings">
-      <Card>
-        <Text variant="small">{me.user.email}</Text>
-        <Choice<Locale>
-          label={t("nav.language")}
-          value={locale}
-          onChange={saveLocale}
-          options={[
-            { value: "en", label: "English" },
-            { value: "da", label: "Dansk" },
-          ]}
-        />
-      </Card>
+      <PageTitle sub={me.user.email}>{t("native.settings")}</PageTitle>
+      <Choice<Locale>
+        asSection
+        label={t("nav.language")}
+        value={locale}
+        onChange={saveLocale}
+        options={[
+          { value: "en", label: "English" },
+          { value: "da", label: "Dansk" },
+        ]}
+      />
       {push && push !== "unsupported" ? (
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
@@ -59,11 +59,12 @@ function Settings() {
           )}
         </Card>
       ) : null}
-      <Card>
-        <Text variant="heading">{t("native.server")}</Text>
-        <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
-        <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
-      </Card>
+      <Section title={t("native.server")}>
+        <Card style={{ gap: space.xs }}>
+          <Text>{t("native.serverHelp", { host: SERVER_HOST })}</Text>
+          <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
+        </Card>
+      </Section>
       <Button
         kind="secondary"
         title={t("nav.logout")}

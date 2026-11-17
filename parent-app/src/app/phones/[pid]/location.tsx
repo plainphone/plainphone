@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useRef, useState } from "react";
-import { Linking, Platform } from "react-native";
+import { Linking, Platform, View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { LocationState, Phone } from "../../../api/models";
 import { MapTiles } from "../../../components/MapTiles";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
+import { Button, Card, errorMessage, List, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Section, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
+import { space } from "../../../lib/theme";
 import { useI18n } from "../../../i18n/I18n";
 import { answers, FIND_TIMEOUT_MS, POLL_MS } from "../../../lib/location";
 import { mapsUrl } from "../../../lib/maps";
@@ -44,26 +45,28 @@ function Position({ location, name, now, onError }: { location: Fix; name: strin
   }
 
   return (
-    <VStack>
+    <Card>
       {showMap ? <MapTiles lat={location.lat} lon={location.lon} accuracyM={location.accuracyM} /> : null}
-      {showMap === false ? <Text variant="small">{t("native.mapPrivacy")}</Text> : null}
-      {showMap !== null ? (
-        <Button testID="toggle-map" kind="secondary" title={t(showMap ? "native.hideMap" : "native.showMap")} onPress={toggleMap} />
-      ) : null}
-      <Text>
-        {t("loc.at", { time: formatDateTime(location.recordedAt, locale), ago: formatRelative(location.recordedAt, now, locale) })}
-      </Text>
-      {location.accuracyM !== null ? <Text>{t("loc.accuracy", { distance: formatMeters(location.accuracyM, locale) })}</Text> : null}
-      <Text variant="muted" selectable>
-        {t("loc.coords")}: {formatCoord(location.lat, locale)}, {formatCoord(location.lon, locale)}
-      </Text>
+      <VStack gap={2}>
+        <Text variant="row">
+          {t("loc.at", { time: formatDateTime(location.recordedAt, locale), ago: formatRelative(location.recordedAt, now, locale) })}
+        </Text>
+        {location.accuracyM !== null ? <Text variant="small">{t("loc.accuracy", { distance: formatMeters(location.accuracyM, locale) })}</Text> : null}
+        <Text variant="small" selectable>
+          {t("loc.coords")}: {formatCoord(location.lat, locale)}, {formatCoord(location.lon, locale)}
+        </Text>
+      </VStack>
       <Button
         testID="open-in-maps"
         kind="secondary"
         title={t(Platform.OS === "web" ? "loc.openMap" : "native.openInMaps")}
         onPress={() => void openInMaps()}
       />
-    </VStack>
+      {showMap === false ? <Text variant="small">{t("native.mapPrivacy")}</Text> : null}
+      {showMap !== null ? (
+        <Button testID="toggle-map" kind="plain" title={t(showMap ? "native.hideMap" : "native.showMap")} onPress={toggleMap} />
+      ) : null}
+    </Card>
   );
 }
 
@@ -143,7 +146,7 @@ function LocationBody() {
       <LoadGate res={res}>
         {(state) => (
           <>
-            <Card>
+            <List>
               <Switch
                 testID="location-switch"
                 label={t("loc.switch")}
@@ -152,23 +155,23 @@ function LocationBody() {
                 disabled={toggling}
                 onValueChange={(v) => void setEnabled(v)}
               />
-            </Card>
+            </List>
             <LiveStatus notice={notice} onClose={() => setNotice(null)} />
             {!state.enabled ? (
-              <VStack>
-                <Text variant="heading">{t("loc.offTitle")}</Text>
-                <Text>{t("loc.offBody")}</Text>
-              </VStack>
+              <Section title={t("loc.offTitle")}>
+                <Text style={{ paddingHorizontal: space.xs }}>{t("loc.offBody")}</Text>
+              </Section>
             ) : (
-              <VStack>
-                <Text variant="heading">{t("loc.last")}</Text>
+              <Section title={t("loc.last")}>
                 {state.location ? (
                   <Position location={state.location} name={phone.name} now={now} onError={(text) => setNotice({ tone: "error", text })} />
                 ) : (
-                  <Text variant="muted">{t("loc.none")}</Text>
+                  <Text variant="muted" style={{ paddingHorizontal: space.xs }}>{t("loc.none")}</Text>
                 )}
-                <Button testID="location-find" title={finding ? t("loc.finding") : t("loc.find")} busy={finding} onPress={() => void find()} />
-              </VStack>
+                <View style={{ marginTop: space.sm }}>
+                  <Button testID="location-find" title={finding ? t("loc.finding") : t("loc.find")} busy={finding} onPress={() => void find()} />
+                </View>
+              </Section>
             )}
           </>
         )}

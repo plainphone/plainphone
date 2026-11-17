@@ -6,10 +6,9 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { InviteResult, Members } from "../api/models";
 import { ItemRow } from "../components/parts";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, Card, errorMessage, Field, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
+import { Button, Card, errorMessage, Field, List, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Screen, Section, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useMe, useSession } from "../lib/session";
-import { space } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
 import { formatDateTime } from "../shared/lib/format";
 
@@ -121,9 +120,8 @@ function Household() {
         {(data) =>
           data && (
             <>
-              <VStack>
-                <Text variant="heading">{t("house.members")}</Text>
-                <VStack gap={space.sm}>
+              <Section title={t("house.members")}>
+                <List>
                   {data.members.map((m) => {
                     const self = m.id === me.user.id;
                     const canRemove = data.members.length > 1 && (self || isOwner);
@@ -136,7 +134,7 @@ function Household() {
                       >
                         {canRemove ? (
                           <Button
-                            kind="secondary"
+                            kind="destructive"
                             title={self ? t("house.leave") : t("app.remove")}
                             accessibilityLabel={self ? undefined : t("house.removeLabel", { email: m.email })}
                             busy={busyId === m.id}
@@ -146,16 +144,15 @@ function Household() {
                       </ItemRow>
                     );
                   })}
-                </VStack>
-              </VStack>
+                </List>
+              </Section>
               {data.invites.length > 0 ? (
-                <VStack>
-                  <Text variant="heading">{t("house.invites")}</Text>
-                  <VStack gap={space.sm}>
+                <Section title={t("house.invites")}>
+                  <List>
                     {data.invites.map((i) => (
                       <ItemRow key={i.id} title={i.email} meta={t("house.inviteExpires", { time: formatDateTime(i.expiresAt, locale) })}>
                         <Button
-                          kind="secondary"
+                          kind="destructive"
                           title={t("house.revoke")}
                           accessibilityLabel={t("house.revokeLabel", { email: i.email })}
                           busy={busyId === i.id}
@@ -163,8 +160,8 @@ function Household() {
                         />
                       </ItemRow>
                     ))}
-                  </VStack>
-                </VStack>
+                  </List>
+                </Section>
               ) : null}
             </>
           )

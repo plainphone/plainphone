@@ -42,7 +42,7 @@ CI runs all of them in [`.github/workflows/parent-app.yml`](../.github/workflows
 
 - `src/app/`: screens (Expo Router; every file is a route)
 - `src/api/`: the typed client (`client.ts`, generated `schema.d.ts`) and domain types. Paths, parameters and request bodies are checked against `openapi.yaml`; most responses are not described there yet, so their types are hand-written in `models.ts`
-- `src/components/`: building blocks (`ui.tsx`), the phone context, the map
+- `src/components/`: building blocks (`ui.tsx`: text, grouped lists, rows, buttons, fields; `parts.tsx`; `Icon.tsx`), the phone context, the map. Screens are built from grouped lists (`List` with `LinkRow`, `ItemRow`, `Switch`, `CheckRow`), one primary button per screen and a large in-page title; the header bar only holds back and actions
 - `src/i18n/`: language handling and the app-only copy; shared copy is in `src/shared/i18n`
 - `src/lib/`: session, links, notifications, storage, theme
 - `src/shared/`: verbatim copies of PWA files, never edit them here
