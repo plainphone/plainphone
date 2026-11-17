@@ -439,7 +439,8 @@ Trusted local time is a signed UTC estimate advanced by same-boot
 `elapsedRealtime()`. The phone generates a fresh 32-byte nonce, remembers
 the boot and elapsed send time and challenges an authorized admin device.
 The admin signs `D("time-anchor",{utc,nonce})` using trustworthy UTC from
-its platform, independently of the application relay. The phone verifies
+its platform, independently of the application relay. Carry the challenge
+and response inside authenticated R ciphertext. The phone verifies
 the signature, current admin permission for the phone, exact pending nonce,
 same boot and an elapsed round trip of at most 30 seconds. Consume the
 nonce on success. Use the signed UTC as the conservative estimate at
@@ -630,8 +631,10 @@ key claim concerns client H/R/L data and does not cover data disclosed to ppdns.
 
 ## 6. Library choices and verification
 
-These pins are F1 starting points. F0 installs only the TypeScript vector
-dependencies. The protocol is independent of implementation version. Changes
+F1 uses the TypeScript and Android library pins below. The F0 generator is
+kept as an independent fixture check. Android uses Bouncy Castle only in the
+JVM suite as a witness that a cofactored verifier accepts the corresponding
+negative fixture. The protocol is independent of implementation version. Changes
 of library version must pass the same cross-runtime vectors and negative cases.
 
 | Target | Selected libraries and storage | Evidence and maintenance |
@@ -667,10 +670,11 @@ roster and enrollment protocols, Self enforcement, DNS authorization and
 release delivery have received no external security audit. Upstream
 maintenance, upstream testing and conformance vectors give different
 evidence from a Plainphone audit. Public documentation must reflect this.
-F1 is gated on a required JVM CI job consuming both checked-in JSON files
-using the selected JVM/Android backends, with the same positive and negative
-expectations as TypeScript. F1 must also run real-device tests at the browser and Android support floor and
-an Expo build on iOS and Android. F10 must exercise adversarial cases for
+The F1 CI gate runs both checked-in JSON files through the TypeScript library
+and the Kotlin library in Android's `testDebugUnitTest`. F1 also requires
+real-device tests at the browser and Android support floor and Expo builds
+on iOS and Android. The CI vectors cover JVM and Node, while device tests
+cover their actual runtime bindings. F10 must exercise adversarial cases for
 key substitution, forged or rolled-back rules, forked heads, stale or
 cross-scope envelopes, revoked signers, command replay, Self delay bypass
 and data exposure in database dumps, logs, push and mail. Run the data

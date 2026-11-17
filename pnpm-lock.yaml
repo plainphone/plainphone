@@ -175,6 +175,28 @@ importers:
 
   .: {}
 
+  packages/crypto:
+    dependencies:
+      '@hpke/core':
+        specifier: 1.10.1
+        version: 1.10.1
+      '@hpke/dhkem-x25519':
+        specifier: 1.8.1
+        version: 1.8.1
+      '@noble/curves':
+        specifier: 2.4.0
+        version: 2.4.0
+      canonicalize:
+        specifier: 5.1.0
+        version: 5.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/crypto-vectors:
     devDependencies:
       '@hpke/core':

@@ -1,0 +1,10 @@
+{
+  "extends": "../../server/tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["index.ts", "encoding.ts", "vectors.test.ts"]
+}

@@ -28,7 +28,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      - name: Unit tests, lint and APK build
+      - name: Unit tests (including encryption vectors), lint and APK build
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease
 
       - name: Smoke test of the minified release APK (R8)

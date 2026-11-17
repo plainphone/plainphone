@@ -7,11 +7,14 @@ Run from the repository root with Node 24 and the pinned pnpm version.
 
 ```sh
 pnpm --filter @plainphone/crypto-vectors test
+pnpm --filter @plainphone/crypto test
+(cd android && ./gradlew --no-daemon testDebugUnitTest)
 pnpm --filter @plainphone/crypto-vectors generate
 ```
 
-The test compares the checked-in JSON with recomputed bytes and checks known
-answers and negative cases. The recursive test target runs it in CI. Use
+The generator test compares the checked-in JSON with recomputed bytes. The
+TypeScript and Kotlin crypto tests read both JSON files directly and exercise
+known answers and negative cases. Both test suites run in CI. Use
 `generate` only for deliberate changes to fixtures, then review the JSON diff.
 
 - `primitives.json` gives JCS bytes, SHA-256, RFC 4231 HMAC test 1, RFC 5869 HKDF test 1, RFC 8032 Ed25519 test 1,

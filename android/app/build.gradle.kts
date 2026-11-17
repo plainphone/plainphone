@@ -61,7 +61,10 @@ android {
         compose = true
     }
 
-    sourceSets.named("test") { resources.directories.add("../../web/test-fixtures") }
+    sourceSets.named("test") {
+        resources.directories.add("../../web/test-fixtures")
+        resources.directories.add("../../docs/encryption-test-vectors")
+    }
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -78,7 +81,7 @@ android {
 }
 
 dependencies {
-    // Phone and messages UI (phase 2). Compose is the only runtime dependency.
+    // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
@@ -88,6 +91,11 @@ dependencies {
     implementation("androidx.work:work-runtime:2.12.0")
     implementation("com.google.zxing:core:3.5.4")
 
+    implementation("com.google.crypto.tink:tink-android:1.24.0")
+    implementation("com.google.code.gson:gson:2.13.2")
+    implementation("io.github.erdtman:java-json-canonicalization:1.1")
+
+    testImplementation("org.bouncycastle:bcprov-jdk18on:1.86")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.18")
     testImplementation("androidx.test:core:1.7.0")
