@@ -26,6 +26,7 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import * as v from "../lib/validation.js";
+import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
 import {
   applyPending,
@@ -167,6 +168,27 @@ export function parentRoutes(ctx: Ctx) {
     return c.body(null, 204);
   });
 
+  // Deletes the account (#11). The body repeats the address, so a stray request cannot do it.
+  app.delete("/me", async (c) => {
+    const user = c.get("user");
+    const input = await body(c, z.object({ confirmEmail: z.string().trim().toLowerCase() }));
+    if (input.confirmEmail !== user.email) {
+      return c.json({ error: "type your own email address to confirm" }, 400);
+    }
+    const r = await deleteAccount(ctx, user.id);
+    if (r.status === "blocked") {
+      return c.json(
+        {
+          error: "remove your Self phones first; removing them goes through their key",
+          selfPhoneIds: r.selfPhoneIds,
+        },
+        409,
+      );
+    }
+    deleteCookie(c, SESSION_COOKIE, { path: "/api" });
+    return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
+  });
+
   // --- Households -------------------------------------------------------------
 
   async function requireMember(c: Context<Env>, householdId: string) {
@@ -251,25 +273,31 @@ export function parentRoutes(ctx: Ctx) {
   app.post("/invites/accept", async (c) => {
     const input = await body(c, z.object({ token: z.string().min(10).max(200) }));
     const user = c.get("user");
-    const hid = await ctx.db.transaction(async (tx) => {
-      const [invite] = await tx
-        .update(householdInvites)
-        .set({ acceptedAt: ctx.now() })
-        .where(
-          and(
-            eq(householdInvites.tokenHash, sha256(input.token)),
-            isNull(householdInvites.acceptedAt),
-            gt(householdInvites.expiresAt, ctx.now()),
-          ),
-        )
-        .returning();
-      if (!invite) return null;
-      await tx
-        .insert(householdMembers)
-        .values({ householdId: invite.householdId, userId: user.id, role: "parent" })
-        .onConflictDoNothing();
-      return invite.householdId;
-    });
+    const hid = await ctx.db
+      .transaction(async (tx) => {
+        // Deleted on acceptance (#8): the invited address is not needed once they are a member.
+        const [invite] = await tx
+          .delete(householdInvites)
+          .where(
+            and(
+              eq(householdInvites.tokenHash, sha256(input.token)),
+              isNull(householdInvites.acceptedAt),
+              gt(householdInvites.expiresAt, ctx.now()),
+            ),
+          )
+          .returning();
+        if (!invite) return null;
+        await tx
+          .insert(householdMembers)
+          .values({ householdId: invite.householdId, userId: user.id, role: "parent" })
+          .onConflictDoNothing();
+        return invite.householdId;
+      })
+      // The household was deleted (its last member deleted their account) while we waited.
+      .catch((err: { code?: string; cause?: { code?: string } }) => {
+        if (err.code === "23503" || err.cause?.code === "23503") return null;
+        throw err;
+      });
     if (!hid) return c.json({ error: "this invitation is expired or already used" }, 400);
     return c.json({ householdId: hid });
   });
@@ -281,17 +309,19 @@ export function parentRoutes(ctx: Ctx) {
     if (me.role !== "owner" && uid !== c.get("user").id) {
       throw new HTTPException(403, { message: "only the owner can remove other members" });
     }
-    const [{ n } = { n: 0 }] = await ctx.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(householdMembers)
-      .where(eq(householdMembers.householdId, hid));
-    if (n <= 1) throw new HTTPException(409, { message: "a household needs at least one member" });
-    await ctx.db.transaction(async (tx) => {
+    const ok = await ctx.db.transaction(async (tx) => {
+      // Locked like in account deletion, so two members leaving at once cannot both see two members.
+      await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+      const [{ n } = { n: 0 }] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(householdMembers)
+        .where(eq(householdMembers.householdId, hid));
+      if (n <= 1) return false;
       const [removed] = await tx
         .delete(householdMembers)
         .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, uid)))
         .returning();
-      if (removed?.role !== "owner") return;
+      if (removed?.role !== "owner") return true;
       // The household always keeps an owner: the longest-standing parent takes over.
       const [next] = await tx
         .select()
@@ -305,7 +335,9 @@ export function parentRoutes(ctx: Ctx) {
           .set({ role: "owner" })
           .where(and(eq(householdMembers.householdId, hid), eq(householdMembers.userId, next.userId)));
       }
+      return true;
     });
+    if (!ok) throw new HTTPException(409, { message: "a household needs at least one member" });
     return c.body(null, 204);
   });
 

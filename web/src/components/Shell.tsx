@@ -78,6 +78,9 @@ export function Shell() {
               <NavItem to="/household" active={loc.pathname === "/household"}>
                 {t("nav.household")}
               </NavItem>
+              <NavItem to="/settings" active={loc.pathname === "/settings"}>
+                {t("nav.settings")}
+              </NavItem>
               {(approvals > 0 || loc.pathname === "/approvals") && (
                 <NavItem to="/approvals" active={loc.pathname === "/approvals"}>
                   {t("nav.approvals")}

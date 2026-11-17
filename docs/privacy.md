@@ -5,6 +5,29 @@ Plainphone keeps as little data as it can, for as short a time as it can
 the technical basis for the [privacy policy](https://plainphone.org/privacy/) on plainphone.org,
 which also covers the parent app and the server. Change the two together.
 
+## Server and parent app (`app.plainphone.org`)
+
+The server stores accounts, households and the rules for each phone in PostgreSQL.
+Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
+
+| Data | For how long | Where it is set |
+|---|---|---|
+| Account (email address, language) | until the user deletes it (Settings) | `DELETE /api/me` |
+| Household, phones and their rules, apps, contacts, schedules, filter settings, key | until the phone is removed or the household's last member deletes their account | `DELETE /api/phones/{pid}`, `DELETE /api/me` |
+| The phone's latest status (battery, app version, lock state, DNS host) | each report replaces the last | `PUT /api/device/status` |
+| Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
+| Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
+| Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
+| Login links | 1 day after they expire | sweeper |
+| Sessions | until they expire (60 days) or the user logs out | sweeper |
+| Pairings (holds a not yet collected device token in clear text) | 1 day | sweeper |
+| ClientIDs the DNS filter must forget | until the DNS service confirms the delete | `dns_deletions`, sweeper |
+| Database backups | 30 nightly copies on the hosted service; the sample `compose.yaml` keeps 14 daily and 8 weekly | Dokploy backup (hosted), `backup` service in `compose.yaml` |
+
+IP addresses are only held in memory, for rate limits. The full rules for deletion,
+including what happens to a household with two parents, are in
+[account-deletion.md](account-deletion.md).
+
 ## DNS filter (`dns.plainphone.org`)
 
 Every web address a phone looks up passes through the filter. That is

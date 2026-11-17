@@ -1272,3 +1272,24 @@ details.details p {
     font-size: 0.8125rem;
   }
 }
+
+/* Destructive actions sit apart, at the end of a section, behind a second step. */
+.danger-zone {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.btn-link-danger {
+  padding: 0;
+  color: var(--danger);
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.plain-list li + li {
+  margin-top: 0.25rem;
+}

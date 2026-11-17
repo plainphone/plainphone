@@ -325,6 +325,25 @@ export const en = {
 
   "lang.en": "English",
   "lang.da": "Dansk",
+
+  "nav.settings": "Settings",
+  "phone.manage": "This phone",
+  "phone.name": "Name",
+  "phone.rename": "Rename",
+  "phone.remove": "Remove this phone",
+  "phone.removeConfirm": "Remove this phone? Everything stored about it is deleted. The phone keeps its last rules and its lock, but gets no new rules, and the web filter stops, until it is set up again.",
+  "phone.removeSelfConfirm": "Remove this phone? Removing it loosens the rules, so it waits for your key first. Then everything stored about it is deleted.",
+  "phone.removeYes": "Yes, remove",
+  "phone.removed": "The phone was removed.",
+  "settings.title": "Settings",
+  "settings.account": "Account",
+  "settings.signedInAs": "Signed in as {email}",
+  "settings.delete": "Delete my account",
+  "settings.deleteExplain": "This deletes your account at once. A household you share with another parent stays with them, phones included. A household only you belong to is deleted with its phones: they keep their last rules and lock, but get no new rules, and the web filter stops, until they are set up again. This cannot be undone.",
+  "settings.deleteConfirmLabel": "Type your email address to confirm",
+  "settings.deleteYes": "Delete for good",
+  "settings.deleteSelfFirst": "First remove these phones. They have a key, so removing them waits for it. Then you can delete the account.",
+  "login.deleted": "Your account is deleted.",
 } as const;
 
 export type MessageKey = keyof typeof en;
