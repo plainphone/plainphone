@@ -151,6 +151,83 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `Find sends the last known position with its original time when the lookup fails`() {
+        pair()
+        val requested = device.now
+        val old = requireNotNull(device.fix).copy(recordedAtMs = requested - 40 * 60_000L)
+        device.fix = null
+        device.lastKnownFix = old
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+        runner.run("no fix at first attempt")
+        assertThat(api.locations).containsExactly(old)
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        api.rules = RulesResult.Unchanged
+
+        val newer = old.copy(recordedAtMs = requested - 5 * 60_000L)
+        device.lastKnownFix = newer
+        device.now = requested + 15 * 60_000L
+        runner.run("no fix at last attempt")
+        assertThat(api.locations).containsExactly(old, newer).inOrder()
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        assertThat(device.positionsShown).containsExactly("find")
+    }
+
+    @Test
+    fun `a failed fifth Find upload is retried after reopening the store without another lookup`() {
+        pair()
+        val requested = device.now
+        val fix = requireNotNull(device.fix)
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+        for (minute in listOf(0, 2, 5, 10)) {
+            device.now = requested + minute * 60_000L
+            runner.run("no fix")
+            api.rules = RulesResult.Unchanged
+        }
+
+        device.now = requested + 15 * 60_000L
+        val expected = fix.copy(recordedAtMs = device.now)
+        device.fix = fix
+        api.locationFailure = IOException("offline")
+        runner.run("fifth attempt, upload fails")
+        assertThat(api.locations).isEmpty()
+        assertThat(device.locationRequests).hasSize(5)
+        assertThat(store.lastFindAttempt(requested)).isEqualTo(requested + 10 * 60_000L)
+
+        device.now += 60_000
+        device.fix = null
+        api.locationFailure = null
+        val reopened = SyncStore(context, FakeSecretBox())
+        SyncRunner(reopened, api, device).run("retry upload")
+        assertThat(api.locations).containsExactly(expected)
+        assertThat(device.locationRequests).hasSize(5)
+        assertThat(reopened.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
+    fun `Find starts when the phone clock is behind and keeps the first slot used`() {
+        pair()
+        val requested = device.now + 120_000L
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+        runner.run("clock behind")
+        assertThat(device.locationRequests).containsExactly(true)
+        api.rules = RulesResult.Unchanged
+        device.now = requested
+        runner.run("clock caught up")
+        assertThat(device.locationRequests).containsExactly(true)
+    }
+
+    @Test
     fun `indoor Find attempts only at the five planned offsets`() {
         pair()
         val requested = java.time.Instant.ofEpochMilli(device.now)

@@ -42,13 +42,89 @@ class LocationReaderTest {
 
         val executor = Executors.newSingleThreadExecutor()
         try {
-            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = true) }
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, notBeforeMs = fix.time)
+            }
             assertThat(result.get(2, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(fix.time)
             assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
             assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    @Test
+    fun `cache from before Find does not prevent an immediate lookup`() {
+        val cached = fix(gps, 30f)
+        manager.simulateLocation(cached)
+        val requestedAt = cached.time + 1
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, notBeforeMs = requestedAt)
+            }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(network, 80f).apply { time = requestedAt })
+            assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(requestedAt)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `Find keeps listening when the provider repeats a pre-request position`() {
+        val cached = fix(gps, 30f)
+        manager.simulateLocation(cached)
+        val requestedAt = cached.time + 1
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, notBeforeMs = requestedAt)
+            }
+            awaitRequests(gps, network)
+            manager.simulateLocation(cached)
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            val live = fix(gps, 60f).apply { time = requestedAt + 1_000 }
+            manager.simulateLocation(live)
+            assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(live.time)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `an unresponsive fused provider leaves time for GPS and network`() {
+        val fused = LocationManager.FUSED_PROVIDER
+        manager.setProviderEnabled(fused, true)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, timeoutMs = 3_000)
+            }
+            awaitRequests(fused)
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(gps, 75f))
+            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(75f)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `last known returns the newest original time even when the cache is too old`() {
+        val older = fix(gps, 30f)
+        manager.simulateLocation(older)
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(5))
+        val newest = fix(network, 150f).apply { time = older.time + 5 * 60_000L }
+        manager.simulateLocation(newest)
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(40))
+
+        val reader = LocationReader(context)
+        assertThat(reader.current(precise = true, timeoutMs = 0)).isNull()
+        assertThat(reader.lastKnown()?.recordedAtMs).isEqualTo(newest.time)
+        assertThat(reader.lastKnown()?.accuracyM).isEqualTo(150f)
     }
 
     @Test

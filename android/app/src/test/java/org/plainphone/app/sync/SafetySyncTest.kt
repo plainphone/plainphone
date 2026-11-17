@@ -4,6 +4,7 @@ package org.plainphone.app.sync
 
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import java.io.IOException
 import java.time.Instant
 import org.junit.Before
 import org.junit.Test
@@ -109,6 +110,27 @@ class SafetySyncTest {
         device.now += 60_000L
         runner.run("again")
         assertThat(api.locations).hasSize(1)
+    }
+
+    @Test
+    fun `a pending check-in position is dropped when the child answers`() {
+        val deadline = device.now
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
+        api.locationFailure = IOException("offline")
+        runner.run("deadline, upload fails")
+        assertThat(store.pendingLocation()?.checkInId).isEqualTo(id)
+        assertThat(device.locationRequests).containsExactly(true)
+
+        api.rules = RulesResult.Unchanged
+        api.locationFailure = null
+        device.now += 60_000
+        device.answeredCheckIns += id
+        device.pendingEvents += SafetyEvent(id, "ok")
+        runner.run("child answered before retry")
+        assertThat(store.pendingLocation()).isNull()
+        assertThat(api.safetyEvents).containsExactly(SafetyEvent(id, "ok"))
+        assertThat(api.locations).isEmpty()
+        assertThat(device.locationRequests).containsExactly(true)
     }
 
     @Test

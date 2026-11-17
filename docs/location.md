@@ -56,23 +56,29 @@ page. The parent app shows the same, on OpenStreetMap raster tiles after "Show m
 ### Location time and accuracy
 
 Each location lookup has one 30-second budget. The phone uses the fused provider when it is
-enabled. Otherwise, it asks GPS and the network provider in parallel, taking the first fix
-accurate to 100 m or better, or the most accurate available fix if neither reaches 100 m.
+enabled. If fused is unavailable or gives no fix, it asks GPS and the network provider
+within the same budget. It takes the first fix accurate to 100 m or better, or the most
+accurate available fix if neither reaches 100 m.
 Regular `always` reports use Android 12's low-power setting. On older Android versions without
 fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
 100 m or better before starting GPS. Both providers share the same deadline.
 
 The phone can reuse a cached position without starting a new lookup. For Find and check-ins it
-must be younger than 2 minutes and accurate to 100 m or better. For regular `always` reports it
-must be younger than 10 minutes and accurate to 1,000 m or better. A position answers Find only
-when its recorded time is at or after the request.
+must be younger than 2 minutes and accurate to 100 m or better. For Find it must also have
+been recorded at or after the request. For regular `always` reports a cached position must
+be younger than 10 minutes and accurate to 1,000 m or better. If a precise lookup gives no
+fix, the phone sends its newest known position with the original recorded time. A position
+older than the request leaves Find open.
 
 Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
 "Are you okay?" uses the same schedule starting at the reply deadline. Both stop after success
 or after 30 minutes, with at most five precise lookups. A delayed sync runs only the latest due
-attempt. Between Find attempts, a due `always` report can reuse a cached position that meets
-the regular age and accuracy limits without starting a new lookup. Regular reports wait
-while a missed check-in is open because the server counts any accepted position towards it.
+attempt. If an upload fails, the phone saves the position and retries the upload on the
+next sync while the request is still open, without another lookup. Find can start when
+the phone clock is up to 2 minutes behind. Between Find attempts, a due `always` report
+can reuse a cached position that meets the regular age and accuracy limits without starting
+a new lookup. Regular reports wait while a missed check-in is open because the server counts
+any accepted position towards it.
 
 ## Ring the phone
 

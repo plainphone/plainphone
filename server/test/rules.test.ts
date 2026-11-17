@@ -151,6 +151,12 @@ describe("location (D7)", () => {
     expect((await device.get("/api/device/rules")).json.location.requestedAt).not.toBeNull();
 
     const t0 = h.clock.now;
+    const lastKnown = new Date(t0.getTime() - 40 * 60_000);
+    expect((await loc(55.5, lastKnown)).status).toBe(204);
+    const pending = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(pending.location.recordedAt).toBe(lastKnown.toISOString());
+    expect(pending.requestedAt).toBe(t0.toISOString());
+
     expect((await loc(55.6, t0)).status).toBe(204);
     // The Find is answered: a second, older fix is not asked for any more.
     expect((await loc(55.7, new Date(t0.getTime() - 60_000))).status).toBe(409);

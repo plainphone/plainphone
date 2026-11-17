@@ -21,6 +21,8 @@ class FakeSyncDevice(
     var applies = mutableListOf<String>()
     var lock = LockState(deviceOwner = true, maintenance = false, failedPolicies = emptyList(), appliedAtMs = now, dnsHost = "family.adguard-dns.com")
     var cachedLocation: LocationFix? = null
+    var lastKnownFix: LocationFix? = null
+    override fun lastKnownLocation() = lastKnownFix
     override fun cachedCoarseLocation() = cachedLocation
     val locationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
@@ -39,7 +41,7 @@ class FakeSyncDevice(
         return releaseResults
     }
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
-    override fun location(precise: Boolean): LocationFix? {
+    override fun location(precise: Boolean, notBeforeMs: Long?): LocationFix? {
         locationRequests += precise
         return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
@@ -66,6 +68,7 @@ class FakeSyncApi : SyncApi {
     val safetyEvents = mutableListOf<SafetyEvent>()
     /** What PUT /device/location answers: false = 409. */
     var locationAccepted = true
+    var locationFailure: IOException? = null
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
@@ -96,7 +99,11 @@ class FakeSyncApi : SyncApi {
         return rules
     }
     override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
-    override fun reportLocation(token: String, fix: LocationFix): Boolean { locations += fix; return locationAccepted }
+    override fun reportLocation(token: String, fix: LocationFix): Boolean {
+        locationFailure?.let { throw it }
+        locations += fix
+        return locationAccepted
+    }
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {
         safetyEvents += SafetyEvent(requestId, event)
         return true
