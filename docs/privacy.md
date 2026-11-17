@@ -16,6 +16,8 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Household, phones and their rules, apps, contacts, schedules, filter settings, key | until the phone is removed or the household's last member deletes their account | `DELETE /api/phones/{pid}`, `DELETE /api/me` |
 | The phone's latest status (battery, app version, lock state, DNS host) | each report replaces the last | `PUT /api/device/status` |
 | Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
+| Location mode (off, find, checkin, always) | until the phone is removed | `phones.location_mode` |
+| "Ring the phone" and "Are you okay?" (times, the answer, and for "Call me" an approved contact's number; one of each kind per phone) | replaced by the next one; deleted a day after it ended | `safety_requests`, sweeper |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
 | Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
 | Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off, removes the device or signs out on it, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
@@ -70,3 +72,16 @@ network (Tailscale).
 
 If you run the filter yourself ([self-hosting-dns.md](self-hosting-dns.md)),
 these settings come with the first configuration ppdns writes.
+
+## Location on the phone and on the map
+
+How the four location modes work, and what the phone shows the child, is in
+[location.md](location.md). In short: a child's phone starts with "Find and an unanswered
+\"Are you okay?\"", never "always on"; each single position shows a short notice on the
+phone; "always on" shows an ongoing notification and a line on Plainphone's own screen.
+
+The PWA draws the map with MapLibre GL and tiles from OpenFreeMap (`tiles.openfreemap.org`,
+OpenStreetMap data). The tiles are loaded only on the location page, and that request tells
+OpenFreeMap the area and the parent's IP address. The server's CSP allows that one origin
+(`MAP_TILE_ORIGIN` in `server/src/app.ts`). "Drive there" links hand the coordinates to Google
+Maps or Apple Maps only when the parent taps them.

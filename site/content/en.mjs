@@ -199,9 +199,11 @@ export default {
         id: "location",
         title: "Location",
         body: [
-          "Location is a setting for each phone. It starts on for a child’s phone and off for an adult’s own phone, and a parent can change it at any time. When it is on, the phone reports its position every few minutes (five by default), and a parent can ask for a fresh one.",
+          "Location is a setting for each phone, with four choices: off; only when a parent presses Find; on Find and when an “Are you okay?” goes unanswered; or always on, every five minutes. A child’s phone starts with Find and “Are you okay?”, not always on. An adult’s own phone starts with location off, and turning it on is the owner’s choice. A parent can change it at any time.",
+          "The phone is open about it. Each time it sends a single position (Find, or an unanswered “Are you okay?”), it shows a short notice saying so. When location is always on, the phone shows that the whole time, in a notification and on Plainphone’s own screen.",
+          "“Are you okay?” asks the child to answer within a time the parent picks. If the child answers, no position is sent. If nobody answers in time, the phone sends one position. “Ring the phone” plays an alarm sound and vibrates for at most five minutes; it sends no position. The server keeps a ring or a question (times and the answer, and the approved number for “Call me”) for a day after it ends, then deletes it.",
           "The server keeps only the latest position: coordinates, accuracy and time. Each new position replaces the old one, and no history is kept. Switching location off, or removing the phone, deletes the stored position.",
-          "If a parent chooses “Open in OpenStreetMap”, the coordinates are in the link that opens, and OpenStreetMap’s own policy applies from there.",
+          "The dashboard shows the position on a map. The map tiles come from OpenFreeMap (tiles.openfreemap.org, OpenStreetMap data), so loading them tells OpenFreeMap roughly which area is being looked at, along with the parent’s IP address. The map is only loaded on the location page. The parent app on a phone uses OpenStreetMap’s tile servers, and only after the parent taps Show map. If a parent chooses “Drive there” with Google Maps or Apple Maps, or copies the position, the coordinates go to that app, and its own policy applies from there.",
         ],
       },
       {

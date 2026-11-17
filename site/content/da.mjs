@@ -197,9 +197,11 @@ export default {
         id: "placering",
         title: "Placering",
         body: [
-          "Placering er en indstilling for hver telefon. Den er slået til fra start på et barns telefon og slået fra på en voksens egen telefon, og en forælder kan ændre det når som helst. Når den er slået til, sender telefonen sin position med få minutters mellemrum (som standard fem), og en forælder kan bede om en ny.",
+          "Placering er en indstilling for hver telefon med fire valg: fra; kun når en forælder trykker Find; ved Find og når et »Er du okay?« ikke bliver besvaret; eller altid tændt, hvert femte minut. Et barns telefon starter med Find og »Er du okay?«, ikke altid tændt. En voksens egen telefon starter med placering slået fra, og det er ejerens eget valg at slå den til. En forælder kan ændre det når som helst.",
+          "Telefonen er åben om det. Hver gang den sender en enkelt position (Find eller et ubesvaret »Er du okay?«), viser den en kort besked om det. Når placering er altid tændt, viser telefonen det hele tiden, i en notifikation og på Plainphones egen skærm.",
+          "»Er du okay?« beder barnet svare inden for en tid, forælderen vælger. Svarer barnet, sendes der ingen position. Svarer ingen i tide, sender telefonen én position. »Ring telefonen« spiller en alarmlyd og vibrerer i højst fem minutter; den sender ingen position. Serveren gemmer en ringning eller et spørgsmål (tidspunkter og svaret og det godkendte nummer til »Ring til mig«) i et døgn efter, at det er slut, og sletter det så.",
           "Serveren gemmer kun den seneste position: koordinater, nøjagtighed og tidspunkt. Hver ny position erstatter den gamle, og der gemmes ingen historik. Slår du placering fra, eller fjerner du telefonen, bliver den gemte position slettet.",
-          "Vælger en forælder »Åbn i OpenStreetMap«, står koordinaterne i det link, der åbnes, og så gælder OpenStreetMaps egen politik.",
+          "Dashboardet viser positionen på et kort. Kortfliserne kommer fra OpenFreeMap (tiles.openfreemap.org, data fra OpenStreetMap), så når de hentes, får OpenFreeMap at vide, cirka hvilket område der kigges på, og forælderens IP-adresse. Kortet hentes kun på placeringssiden. Forældreappen på en telefon bruger OpenStreetMaps egne fliseservere og først, når forælderen trykker Vis kort. Vælger en forælder »Kør derhen« med Google Maps eller Apple Kort, eller kopierer positionen, går koordinaterne til den app, og så gælder dens egen politik.",
         ],
       },
       {
