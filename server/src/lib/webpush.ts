@@ -139,6 +139,8 @@ export async function sendWebPush(
   const body = encryptPayload(target, Buffer.from(JSON.stringify(payload)));
   const res = await fetch(target.endpoint, {
     method: "POST",
+    // Only the checked push host gets the message; never follow it elsewhere.
+    redirect: "error",
     headers: {
       authorization: vapidAuthorization(target.endpoint, keys, subject),
       "content-encoding": "aes128gcm",

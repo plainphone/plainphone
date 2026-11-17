@@ -181,7 +181,7 @@ export default {
               "school time and bedtime, and the apps allowed during them",
               "on an adult’s own phone: the settings of the key (a delay, or the email address of a trusted person) and the changes that wait for the key. A change that has been applied, cancelled or rejected is kept for 30 days and then deleted",
               "requests the phone sends: an app from its own list, or a contact (name and number) someone on the phone asks to add. Each request is kept while it is open, and for 30 days after a parent allows or declines it",
-              "for each parent: whether they want notifications about the phone, and after how many hours of silence it counts as quiet",
+              "after how many hours of silence the phone counts as quiet (one setting per phone, shared by its parents), and for each parent whether they want notifications about it",
             ],
           },
           "A trusted person you name gets an email. Once signed in, they can see the phone’s name, what is being asked for, and your email address.",
@@ -232,8 +232,8 @@ export default {
         body: [
           "plainphone.org sets no cookies, runs no analytics and loads no scripts, fonts or images from other sites. It is hosted on Cloudflare Pages, so Cloudflare, like any web host, handles your IP address and the address you ask for when it delivers a page. Links to other sites, such as GitHub, are ordinary links. Once you follow one, that site’s policy applies.",
           "The parent app at app.plainphone.org sets one cookie, pp_session. It keeps you signed in, is only sent to our own server, cannot be read by scripts on the page (HttpOnly), is only sent on same-site requests (SameSite=Strict) and lasts 60 days at most. You need it to sign in, so there is no cookie banner.",
-          "The app also remembers, in your browser, your language choice (local storage) and, only while you sign in, where to go afterwards and an invitation or pairing code (session storage, cleared when the tab closes). A service worker keeps a copy of the app’s own files so it opens without a network. It never stores your data.",
-          "If you turn on notifications, your browser gives us an address at its push service (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) and two keys. We store them, with a short label such as “Chrome · Android”, until you turn notifications off, remove the device under Settings, the push service says the address is no longer valid, or you delete your account. Each notification is encrypted for your device before it leaves our server, so the push service can deliver it but not read it. It does see that a notification was sent, when, and to which address.",
+          "The app also remembers, in your browser, your language choice and, if you turn on notifications, the id of this device’s notification address (local storage) and, only while you sign in, where to go afterwards and an invitation or pairing code (session storage, cleared when the tab closes). A service worker keeps a copy of the app’s own files so it opens without a network. It never stores your data.",
+          "If you turn on notifications, your browser gives us an address at its push service (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) and two keys. We store them, with a short label such as “Chrome · Android”, until you turn notifications off, sign out on that device, remove the device under Settings, the push service says the address is no longer valid, or you delete your account. Each notification is encrypted for your device before it leaves our server, so the push service can deliver it but not read it. It does see that a notification was sent, when, and to which address.",
         ],
       },
       {
@@ -290,7 +290,7 @@ export default {
                 ],
                 [
                   "Notification addresses (one per device)",
-                  "Until you turn notifications off on that device or remove it, the push service rejects it, or you delete your account",
+                  "Until you turn notifications off or sign out on that device, or remove it, the push service rejects it, or you delete your account",
                 ],
                 [
                   "Invitations",

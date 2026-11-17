@@ -67,6 +67,22 @@ describe("push subscriptions", () => {
     expect((await mum.get("/api/notifications")).json.subscriptions).toHaveLength(0);
   });
 
+  it("replaces a rotated subscription and keeps its label", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "old");
+    const r = await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys, replaces: EP + "old" });
+    expect(r.status).toBe(201);
+    const subs = (await mum.get("/api/notifications")).json.subscriptions;
+    expect(subs).toHaveLength(1);
+    expect(subs[0]).toMatchObject({ id: r.json.id });
+    // Re-registering the same endpoint without a label keeps the old label.
+    await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys });
+    expect((await mum.get("/api/notifications")).json.subscriptions[0].label).toBeNull();
+    await subscribe(mum, "new");
+    await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys });
+    expect((await mum.get("/api/notifications")).json.subscriptions[0].label).toBe("Chrome on Android");
+  });
+
   it("moves a browser to whoever signs in on it", async () => {
     const mum = await signIn(h, "mum@example.org");
     const dad = await signIn(h, "dad@example.org");
@@ -163,7 +179,7 @@ describe("offline (#22)", () => {
     await sweep(h.ctx);
     expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma has not been in touch for 12 hours"]);
     // 12:00 UTC is 13:00 in Copenhagen, the phone's time zone.
-    expect(h.parentPush.sent[0]!.msg.body).toBe("Last contact Mon 13:00. It may be switched off, out of battery or reset.");
+    expect(h.parentPush.sent[0]!.msg.body).toBe("Last contact Mon 16 Nov, 13:00. It may be switched off, out of battery or reset.");
     // And one calm mail, in the shared layout.
     const sent = h.mail.outbox.slice(mails);
     expect(sent.map((m) => [m.to, m.subject])).toEqual([["mum@example.org", "Alma has not been in touch for 12 hours"]]);
@@ -174,6 +190,17 @@ describe("offline (#22)", () => {
     h.clock.advance(13 * 3_600_000);
     await sweep(h.ctx);
     expect(h.parentPush.sent).toHaveLength(2);
+  });
+
+  it("says how long the phone has really been quiet, in days after two days", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    const { device } = await pairPhone(h, mum, { name: "Alma" });
+    await device.get("/api/device/rules");
+    // The server was down for three days: the alert tells the real silence.
+    h.clock.advance(3 * 86_400_000 + 3_600_000);
+    await sweep(h.ctx);
+    expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma has not been in touch for 3 days"]);
   });
 });
 
@@ -189,7 +216,7 @@ describe("offline time per phone", () => {
     await b.device.get("/api/device/rules");
     h.clock.advance(3 * 3_600_000);
     await sweep(h.ctx);
-    expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma har ikke været i kontakt i 2 timer"]);
+    expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma har ikke været i kontakt i 3 timer"]);
     h.clock.advance(100 * 3_600_000);
     await sweep(h.ctx);
     expect(h.parentPush.sent).toHaveLength(1);

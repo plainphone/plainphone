@@ -102,6 +102,11 @@ export async function phoneRequestList(ctx: Ctx, phoneId: string) {
     .orderBy(desc(phoneRequests.createdAt));
   return rows.map(({ r, changeStatus, effectiveAt }) => ({
     ...requestJson(r),
+    // An approval that the key then turned down (or that failed) never took effect.
+    status:
+      r.status === "approved" && (changeStatus === "rejected" || changeStatus === "cancelled" || changeStatus === "failed")
+        ? ("rejected" as const)
+        : r.status,
     // On a Self phone an approval can still wait for the key.
     waitingForKey: r.status === "approved" && changeStatus === "pending",
     effectiveAt: changeStatus === "pending" ? (effectiveAt?.toISOString() ?? null) : null,

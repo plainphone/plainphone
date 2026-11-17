@@ -6,9 +6,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, LiveStatus, type Notice, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type NotificationSettings, type Phone } from "../lib/api";
-import { currentEndpoint, disablePush, enablePush, PermissionDenied, pushSupport } from "../lib/push";
-
-const DEVICE_KEY = "pp_push_id";
+import { currentEndpoint, disablePush, enablePush, PermissionDenied, PUSH_ID_KEY as DEVICE_KEY, pushSupport } from "../lib/push";
 const HOURS = [1, 3, 6, 12, 24, 48];
 
 export function NotificationsSection() {
@@ -34,15 +32,24 @@ export function NotificationsSection() {
   useEffect(() => {
     if (!data) return;
     const stored = localStorage.getItem(DEVICE_KEY);
-    void currentEndpoint().then((ep) => {
+    void currentEndpoint().then(async (ep) => {
       const known = stored && data.settings.subscriptions.some((s) => s.id === stored);
-      setThisId(ep && known ? stored : null);
+      if (ep && known) return setThisId(stored);
+      setThisId(null);
+      // Subscribed in the browser but unknown here (the service worker re-registered it):
+      // register again quietly, which returns the current id.
+      if (ep && data.settings.webPushPublicKey && Notification.permission === "granted") {
+        const r = await enablePush(data.settings.webPushPublicKey).catch(() => null);
+        if (r) {
+          localStorage.setItem(DEVICE_KEY, r.id);
+          setThisId(r.id);
+        }
+      }
     });
   }, [data]);
 
   if (!data) return null;
   const { settings, phones } = data;
-  if (!settings.webPushEnabled) return null;
   const others = settings.subscriptions.filter((s) => s.id !== thisId);
 
   async function turnOn() {
@@ -117,7 +124,9 @@ export function NotificationsSection() {
       <p className="muted">{t("notif.intro")}</p>
 
       <div className="notif-device">
-        {support === "ios-install" ? (
+        {!settings.webPushEnabled ? (
+          <p className="notice notice-info">{t("notif.serverOff")}</p>
+        ) : support === "ios-install" ? (
           <div className="notice notice-info">
             <p className="row-title">{t("notif.iosTitle")}</p>
             <ol className="plain-list">
@@ -179,13 +188,17 @@ export function NotificationsSection() {
                     <label className="inline-select">
                       <span>{t("notif.quietAfter")}</span>
                       <select value={p.offlineAlertHours ?? ""} onChange={(e) => void setHours(p.id, e.target.value)}>
-                        <option value="">{t("notif.hoursDefault", { n: p.offlineAlertHoursDefault })}</option>
+                        <option value="">
+                          {p.offlineAlertHoursDefault === 0
+                            ? t("notif.neverDefault")
+                            : t("notif.hoursDefault", { n: p.offlineAlertHoursDefault })}
+                        </option>
                         {HOURS.filter((h) => h !== p.offlineAlertHoursDefault).map((h) => (
                           <option key={h} value={h}>
                             {t(h === 1 ? "notif.hour" : "notif.hours", { n: h })}
                           </option>
                         ))}
-                        <option value="0">{t("notif.never")}</option>
+                        {p.offlineAlertHoursDefault !== 0 && <option value="0">{t("notif.never")}</option>}
                       </select>
                     </label>
                   )}

@@ -128,7 +128,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ platform: "web", ...sub.toJSON() }),
+        body: JSON.stringify({ platform: "web", ...sub.toJSON(), replaces: event.oldSubscription.endpoint }),
       }),
     ),
   );

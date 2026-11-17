@@ -370,7 +370,7 @@ export const en = {
   "notif.never": "Never",
   "notif.mailToo": "When protection is removed or a phone goes quiet, you also get an email.",
 
-  "requests.title": "{name} is asking",
+  "requests.title": "{name} asks for",
   "requests.app": "Wants to use this app",
   "requests.contactName": "New contact, {number}",
   "requests.approve": "Allow",
@@ -379,6 +379,9 @@ export const en = {
   "requests.rejected": "Declined. The phone will show the answer.",
   "phones.requestCount": "1 request",
   "phones.requestCountMany": "{n} requests",
+
+  "notif.serverOff": "Push notifications are not set up on this server. Alerts still come by email.",
+  "notif.neverDefault": "Never (standard)",
 } as const;
 
 export type MessageKey = keyof typeof en;

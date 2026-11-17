@@ -369,7 +369,7 @@ export const da: Messages = {
   "notif.never": "Aldrig",
   "notif.mailToo": "Når beskyttelsen fjernes, eller en telefon bliver stille, får du også en mail.",
 
-  "requests.title": "{name} spørger",
+  "requests.title": "{name} beder om",
   "requests.app": "Vil gerne bruge appen",
   "requests.contactName": "Ny kontakt, {number}",
   "requests.approve": "Tillad",
@@ -378,4 +378,7 @@ export const da: Messages = {
   "requests.rejected": "Afvist. Telefonen viser svaret.",
   "phones.requestCount": "1 anmodning",
   "phones.requestCountMany": "{n} anmodninger",
+
+  "notif.serverOff": "Push-notifikationer er ikke sat op på denne server. Advarsler kommer stadig på mail.",
+  "notif.neverDefault": "Aldrig (standard)",
 };

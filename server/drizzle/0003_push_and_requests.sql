@@ -42,4 +42,6 @@ ALTER TABLE "phone_requests" ADD CONSTRAINT "phone_requests_change_id_pending_ch
 ALTER TABLE "phone_requests" ADD CONSTRAINT "phone_requests_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "phone_requests_phone_status_idx" ON "phone_requests" USING btree ("phone_id","status");--> statement-breakpoint
-CREATE INDEX "push_subscriptions_user_idx" ON "push_subscriptions" USING btree ("user_id");
+CREATE INDEX "push_subscriptions_user_idx" ON "push_subscriptions" USING btree ("user_id");--> statement-breakpoint
+-- Phones that were already quiet before alerts existed should not all alert at once.
+UPDATE "phones" SET "offline_alerted_at" = now() WHERE "last_seen_at" < now() - interval '12 hours';

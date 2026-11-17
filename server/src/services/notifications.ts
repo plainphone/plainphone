@@ -26,6 +26,8 @@ function lastSeen(e: { lastSeenAt: Date; timezone: string }, locale: Locale): st
   const fmt = (tz: string) =>
     new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
       weekday: "short",
+      day: "numeric",
+      month: "short",
       hour: "2-digit",
       minute: "2-digit",
       timeZone: tz,
@@ -35,6 +37,16 @@ function lastSeen(e: { lastSeenAt: Date; timezone: string }, locale: Locale): st
   } catch {
     return fmt("UTC");
   }
+}
+
+/** How long a phone has been quiet: hours, or whole days from two days on. */
+function silence(hours: number, locale: Locale): string {
+  if (hours >= 48) {
+    const d = Math.floor(hours / 24);
+    return locale === "da" ? `${d} dage` : `${d} days`;
+  }
+  if (locale === "da") return hours === 1 ? "1 time" : `${hours} timer`;
+  return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
 const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body">> = {
@@ -50,7 +62,7 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
         };
       case "offline":
         return {
-          title: `${e.phoneName} has not been in touch for ${e.hours} hours`,
+          title: `${e.phoneName} has not been in touch for ${silence(e.hours, "en")}`,
           body: `Last contact ${lastSeen(e, "en")}. It may be switched off, out of battery or reset.`,
         };
       case "approval":
@@ -76,7 +88,7 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
         };
       case "offline":
         return {
-          title: `${e.phoneName} har ikke været i kontakt i ${e.hours} timer`,
+          title: `${e.phoneName} har ikke været i kontakt i ${silence(e.hours, "da")}`,
           body: `Sidst i kontakt ${lastSeen(e, "da")}. Den kan være slukket, løbet tør for strøm eller nulstillet.`,
         };
       case "approval":
@@ -251,7 +263,11 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
       type: "offline",
       phoneId: p.id,
       phoneName: p.name,
-      hours: p.hours ?? ctx.cfg.OFFLINE_ALERT_HOURS,
+      // The real silence, not the threshold: after a server pause it can be much longer.
+      hours: Math.max(
+        p.hours ?? ctx.cfg.OFFLINE_ALERT_HOURS,
+        Math.floor((ctx.now().getTime() - p.lastSeenAt!.getTime()) / 3_600_000),
+      ),
       lastSeenAt: p.lastSeenAt!,
       timezone: p.timezone,
     });

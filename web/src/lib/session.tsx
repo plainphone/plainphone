@@ -2,6 +2,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Locale, type Me, setUnauthorizedHandler } from "./api";
+import { disablePush, PUSH_ID_KEY } from "./push";
 
 /** Where to go after the login round trip. Kept per tab, never a credential. */
 export const NEXT_KEY = "pp.next";
@@ -71,6 +72,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const logout = useCallback(async () => {
+    // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
+    const pushId = localStorage.getItem(PUSH_ID_KEY);
+    if (pushId) {
+      await disablePush(pushId).catch(() => undefined);
+      localStorage.removeItem(PUSH_ID_KEY);
+    }
     try {
       await api.post("/auth/logout");
     } finally {

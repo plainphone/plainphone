@@ -86,8 +86,11 @@ export function PhonesPage() {
                       )}
                     </span>
                     {phone.openRequests > 0 && (
-                      <span className="count-badge" aria-label={t(phone.openRequests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: phone.openRequests })}>
-                        {phone.openRequests}
+                      <span className="count-badge">
+                        <span aria-hidden="true">{phone.openRequests}</span>
+                        <span className="sr-only">
+                          {t(phone.openRequests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: phone.openRequests })}
+                        </span>
                       </span>
                     )}
                     <Chevron />

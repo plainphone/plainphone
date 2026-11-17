@@ -242,8 +242,10 @@ export function parentRoutes(ctx: Ctx) {
           endpoint: z.string().max(2000),
           keys: z.object({ p256dh: z.string().min(80).max(100), auth: z.string().min(16).max(40) }),
           label,
+          // The browser rotated the subscription: the old endpoint this one replaces.
+          replaces: z.string().max(2000).optional(),
         }),
-        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(4096), label }),
+        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label }),
       ]),
     );
     if (input.platform === "web" && !ctx.parentPush.webPublicKey) {
@@ -262,9 +264,20 @@ export function parentRoutes(ctx: Ctx) {
       .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
       .onConflictDoUpdate({
         target: pushSubscriptions.endpoint,
-        set: { userId: user.id, platform: input.platform, label: input.label ?? null, failures: 0, ...values },
+        set: {
+          userId: user.id,
+          platform: input.platform,
+          label: sql`coalesce(excluded.label, ${pushSubscriptions.label})`,
+          failures: 0,
+          ...values,
+        },
       })
       .returning();
+    if (input.platform === "web" && input.replaces && input.replaces !== input.endpoint) {
+      await ctx.db
+        .delete(pushSubscriptions)
+        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces)));
+    }
     return c.json(subscriptionJson(row!), 201);
   });
 

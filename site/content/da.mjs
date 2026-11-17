@@ -179,7 +179,7 @@ export default {
               "skoletid og sengetid og de apps, der er tilladt i dem",
               "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og de ændringer, der venter på nøglen. En ændring, der er gennemført, annulleret eller afvist, gemmes i 30 dage og slettes derefter",
               "anmodninger fra telefonen: en app fra dens egen liste eller en kontakt (navn og nummer), som den, der har telefonen, beder om at få tilføjet. En anmodning gemmes, mens den er åben, og i 30 dage efter, at en forælder har tilladt eller afvist den",
-              "for hver forælder: om de vil have notifikationer om telefonen, og efter hvor mange timers tavshed den regnes for stille",
+              "efter hvor mange timers tavshed telefonen regnes for stille (én indstilling pr. telefon, fælles for dens forældre), og for hver forælder om de vil have notifikationer om den",
             ],
           },
           "En betroet person, du udpeger, får en mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
@@ -230,8 +230,8 @@ export default {
         body: [
           "plainphone.org sætter ingen cookies, bruger ingen statistik og indlæser hverken scripts, skrifter eller billeder fra andre sider. Siden ligger hos Cloudflare Pages, så Cloudflare behandler, som enhver webhost, din IP-adresse og den adresse, du beder om, når en side leveres. Links til andre sider, fx GitHub, er almindelige links. Når du følger et, gælder den anden sides politik.",
           "Forældreappen på app.plainphone.org sætter én cookie, pp_session. Den holder dig logget ind, sendes kun til vores egen server, kan ikke læses af scripts på siden (HttpOnly), sendes kun ved forespørgsler fra samme side (SameSite=Strict) og varer højst 60 dage. Du har brug for den for at kunne logge ind, så der er intet cookiebanner.",
-          "Appen husker desuden i din browser dit valg af sprog (lokal lagring) og, kun mens du logger ind, hvor du skal hen bagefter samt en invitations- eller parringskode (sessionslagring, som bliver ryddet, når fanen lukkes). En service worker gemmer en kopi af appens egne filer, så den kan åbnes uden net. Den gemmer aldrig dine oplysninger.",
-          "Slår du notifikationer til, giver din browser os en adresse hos dens push-tjeneste (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) og to nøgler. Vi gemmer dem med en kort betegnelse som “Chrome · Android”, indtil du slår notifikationer fra, fjerner enheden under Indstillinger, push-tjenesten melder, at adressen ikke længere gælder, eller du sletter din konto. Hver notifikation krypteres til din enhed, før den forlader vores server, så push-tjenesten kan levere den, men ikke læse den. Den kan se, at der blev sendt en notifikation, hvornår, og til hvilken adresse.",
+          "Appen husker desuden i din browser dit valg af sprog og, hvis du slår notifikationer til, id’et på denne enheds notifikationsadresse (lokal lagring) og, kun mens du logger ind, hvor du skal hen bagefter samt en invitations- eller parringskode (sessionslagring, som bliver ryddet, når fanen lukkes). En service worker gemmer en kopi af appens egne filer, så den kan åbnes uden net. Den gemmer aldrig dine oplysninger.",
+          "Slår du notifikationer til, giver din browser os en adresse hos dens push-tjeneste (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) og to nøgler. Vi gemmer dem med en kort betegnelse som “Chrome · Android”, indtil du slår notifikationer fra, logger ud på enheden, fjerner enheden under Indstillinger, push-tjenesten melder, at adressen ikke længere gælder, eller du sletter din konto. Hver notifikation krypteres til din enhed, før den forlader vores server, så push-tjenesten kan levere den, men ikke læse den. Den kan se, at der blev sendt en notifikation, hvornår, og til hvilken adresse.",
         ],
       },
       {
@@ -288,7 +288,7 @@ export default {
                 ],
                 [
                   "Adresser til notifikationer (én pr. enhed)",
-                  "Indtil du slår notifikationer fra på enheden eller fjerner den, push-tjenesten afviser adressen, eller du sletter din konto",
+                  "Indtil du slår notifikationer fra eller logger ud på enheden, fjerner den, push-tjenesten afviser adressen, eller du sletter din konto",
                 ],
                 [
                   "Invitationer",

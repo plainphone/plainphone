@@ -77,6 +77,9 @@ export async function currentEndpoint(): Promise<string | null> {
   return sub?.endpoint ?? null;
 }
 
+/** Where this browser keeps its subscription's id on the server. */
+export const PUSH_ID_KEY = "pp_push_id";
+
 export class PermissionDenied extends Error {}
 
 /** Asks for permission (must run from a tap), subscribes and registers with the server. */

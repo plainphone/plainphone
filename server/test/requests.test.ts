@@ -98,6 +98,19 @@ describe("requests from the phone", () => {
     expect((await device.get("/api/device/requests")).json.requests[0].waitingForKey).toBe(false);
   });
 
+  it("on a Self phone, a cancelled key change shows as declined, not approved", async () => {
+    const { mum, phoneId, device } = await setup("self");
+    const r = await device.post("/api/device/requests", { kind: "app", packageName: "com.example.game" });
+    const ok = await mum.post(`/api/phones/${phoneId}/requests/${r.json.id}/approve`, {});
+    expect(ok.json.status).toBe("pending");
+    expect((await mum.post(`/api/changes/${ok.json.change.id}/cancel`, {})).status).toBe(204);
+    const mine = (await device.get("/api/device/requests")).json.requests;
+    expect(mine[0]).toMatchObject({ status: "rejected", waitingForKey: false });
+    h.clock.advance(DAY);
+    await sweep(h.ctx);
+    expect(await allowed(device)).not.toContain("com.example.game");
+  });
+
   it("another household cannot see or answer the requests", async () => {
     const { phoneId, device } = await setup();
     const r = await device.post("/api/device/requests", { kind: "app", packageName: "com.example.game" });

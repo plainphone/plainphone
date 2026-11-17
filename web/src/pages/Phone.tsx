@@ -439,8 +439,13 @@ function RequestsSection() {
     setBusy(r.id);
     const name = names[r.id]?.trim();
     const body = r.kind === "contact" && name && name !== r.name ? { name } : {};
-    await run(() => api.post<ChangeResult>(`/phones/${phone.id}/requests/${r.id}/approve`, body), t("requests.approved"));
-    setBusy(null);
+    try {
+      await run(() => api.post<ChangeResult>(`/phones/${phone.id}/requests/${r.id}/approve`, body), t("requests.approved"));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(null);
+    }
     await done().catch(() => undefined);
   }
 

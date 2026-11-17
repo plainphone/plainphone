@@ -18,9 +18,9 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
 | Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
-| Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off or removes the device, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
+| Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off, removes the device or signs out on it, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
 | Per parent and phone: notifications muted (one row when off) | until switched back on, the phone is removed or the account is deleted | `notification_mutes` |
-| Per phone: hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
+| Per phone (shared by its parents): hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
 | Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
 | Login links | 1 day after they expire | sweeper |
 | Sessions | until they expire (60 days) or the user logs out | sweeper |
