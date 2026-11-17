@@ -16,12 +16,15 @@ CHECKS = {"android", "e2e", "server", "parent", "dns", "site"}
 class ChangeDetectionTests(unittest.TestCase):
     def test_changed_paths(self):
         cases = {
-            "packages/crypto-vectors/vectors.ts": {"server", "e2e"},
-            "docs/encryption-test-vectors/primitives.json": {"server"},
-            "docs/encryption-test-vectors/protocol.json": {"server"},
+            "packages/crypto/index.ts": {"android", "server", "e2e"},
+            "packages/crypto-vectors/vectors.ts": {"android", "server", "e2e"},
+            "packages/other/index.ts": {"server", "e2e"},
+            "docs/encryption-test-vectors/primitives.json": {"android", "server"},
+            "docs/encryption-test-vectors/protocol.json": {"android", "server"},
             "pnpm-lock.yaml": {"server", "e2e"},
             "server/openapi.yaml": {"server", "e2e", "parent"},
             "web/src/lib/settings.ts": {"server", "parent"},
+            "web/test-fixtures/light-setup-intent.txt": {"android", "server"},
             "server/catalog/dk.json": {"server", "e2e"},
             "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns"},
             "dns/ppdns/profiles.py": {"dns"},
