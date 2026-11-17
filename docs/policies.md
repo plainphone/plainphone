@@ -144,6 +144,26 @@ when Plainphone opens.
 
 The phone shows a warning on its status screen for the results that are not `verified` or `unverifiable`.
 
+## Home screen and phone settings from the dashboard
+
+The full list of settings, their three modes (the child decides, set, set and locked) and the
+Android calls behind them is in [phone-settings.md](phone-settings.md). The code is in
+[`SettingsApplier.kt`](../android/app/src/main/java/org/plainphone/app/settings/SettingsApplier.kt).
+
+| Policy | What it does | Reference |
+|---|---|---|
+| `addPersistentPreferredActivity` (HOME) | Plainphone's calm home screen is the one Android always opens. Lifted during a maintenance unlock and on release (`clearPackagePersistentPreferredActivities`). The maker's launcher stays installed, as a fallback. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#addPersistentPreferredActivity(android.content.ComponentName,%20android.content.IntentFilter,%20android.content.ComponentName)) |
+| `setCameraDisabled`, `setScreenCaptureDisabled` | Camera and screenshots off, when the parent locks them | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setCameraDisabled(android.content.ComponentName,%20boolean)) |
+| `setSystemSetting` | Screen timeout and brightness, set once (preset) or on every sync (locked) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setSystemSetting(android.content.ComponentName,%20java.lang.String,%20java.lang.String)) |
+| `DISALLOW_BLUETOOTH` or `DISALLOW_CONFIG_BLUETOOTH` + `DISALLOW_BLUETOOTH_SHARING`, `DISALLOW_CONFIG_WIFI`, `DISALLOW_CONFIG_MOBILE_NETWORKS`, `DISALLOW_DATA_ROAMING`, `DISALLOW_CONFIG_SCREEN_TIMEOUT`, `DISALLOW_CONFIG_BRIGHTNESS`, `DISALLOW_ADJUST_VOLUME`, `DISALLOW_SET_WALLPAPER`, `DISALLOW_CONFIG_LOCALE`, `DISALLOW_CONFIG_TETHERING`, `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` / `DISALLOW_OUTGOING_BEAM`, `DISALLOW_AIRPLANE_MODE` | Only while the parent has the matching setting locked; cleared as soon as it is set free again | [UserManager](https://developer.android.com/reference/android/os/UserManager) |
+
+Things to know:
+
+- **Locking the volume mutes the phone.** That is how Android implements `DISALLOW_ADJUST_VOLUME`. The dashboard calls it "silent".
+- **Language** can only be locked as it is. A Device Owner cannot choose the system language after setup.
+- **Location for "Find" wins.** When the parent has location on, location is on and locked whatever the location setting says.
+- **Self profile:** loosening a locked setting goes through the key, like every other loosening.
+
 ## What Android does not let us block
 
 - **Factory reset from recovery mode** (button combination at boot), and on Samsung also flashing in Download mode. No app can stop this. What protects the phone afterwards is Factory Reset Protection (FRP): the phone asks for a Google account that was on it before the reset. See below.

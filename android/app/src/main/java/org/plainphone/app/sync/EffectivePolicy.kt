@@ -46,7 +46,11 @@ object EffectivePolicy {
             allowedPackages = windowAllowed?.let { it intersect allowed } ?: allowed,
             // The parents' accounts from the dashboard join any from the QR code (#20).
             frpAccountIds = qr.frpAccountIds + rules.frpAccountIds,
-            server = ServerOverlay(windowActive = windows.isNotEmpty(), locationRequired = rules.locationEnabled),
+            server = ServerOverlay(
+                windowActive = windows.isNotEmpty(),
+                locationRequired = rules.locationEnabled,
+                settings = rules.settings,
+            ),
             timeBlocked = timeBlocked,
             installing = install,
             installAccountsAllowed = install != null && installAccountsAllowed,
@@ -61,6 +65,7 @@ object EffectivePolicy {
             config.server?.windowActive.toString(),
             config.server?.locationRequired.toString(),
             config.frpAccountIds.sorted().joinToString(","),
+            config.server?.settings?.canonical().orEmpty(),
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
             config.installAccountsAllowed.toString(),

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.light
 
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -41,6 +42,7 @@ import org.plainphone.app.MainActivity
 import org.plainphone.app.MaintenanceActivity
 import org.plainphone.app.R
 import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.home.HomeGuard
 import org.plainphone.app.sync.CatalogInstall
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
@@ -88,23 +90,29 @@ class HomeActivity : ComponentActivity() {
         } else emptyList()
         // Strong mode: everything else is set by Device Owner; usage access only by the user.
         val needsUsage = !light && snapshot != null && !TimeGuard.hasUsageAccess(context)
+        // Light mode cannot pin the home screen, so it offers Android's "choose home app" dialog.
+        val offerHome = light && missing.isEmpty() && !needsUsage && canAskToBeHome(context)
         CalmScreen(
             eyebrow = stringResource(R.string.app_name),
             title = stringResource(R.string.today_title),
             body = when {
                 needsUsage -> stringResource(R.string.light_step_usage_body)
                 missing.isNotEmpty() -> stringResource(R.string.today_protection_missing)
+                offerHome -> stringResource(R.string.home_make_default_body)
                 snapshot == null -> stringResource(R.string.today_no_limits)
                 else -> null
             },
             primary = when {
                 needsUsage -> stringResource(R.string.light_step_usage_action)
                 missing.isNotEmpty() -> stringResource(R.string.today_fix)
+                offerHome -> stringResource(R.string.home_make_default_button)
                 else -> null
             },
             onPrimary = {
                 if (needsUsage) {
                     runCatching { startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                } else if (offerHome) {
+                    askToBeHome()
                 } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context)) {
                     // Repairing is the parent's job, and the guard closes those screens outside the PIN window.
                     startActivity(Intent(context, org.plainphone.app.MaintenanceActivity::class.java))
@@ -125,6 +133,17 @@ class HomeActivity : ComponentActivity() {
                 modifier = Modifier.clickable { onVersionTapped() }.padding(vertical = 12.dp),
             )
         }
+    }
+
+    private fun canAskToBeHome(context: Context): Boolean {
+        val roles = context.getSystemService(RoleManager::class.java) ?: return false
+        return HomeGuard.isEnabled(context) && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)
+    }
+
+    private fun askToBeHome() {
+        val roles = getSystemService(RoleManager::class.java) ?: return
+        @Suppress("DEPRECATION") // A plain result-less request; onResume refreshes the screen.
+        runCatching { startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_HOME), 1) }
     }
 
     @Composable

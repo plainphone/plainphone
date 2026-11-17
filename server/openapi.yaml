@@ -187,6 +187,15 @@ components:
             schedule: { $ref: "#/components/schemas/ScheduleInput" }
         - type: object
           properties:
+            type: { const: setting.set }
+            key: { $ref: "#/components/schemas/PhoneSettingKey" }
+            setting: { $ref: "#/components/schemas/PhoneSetting" }
+        - type: object
+          properties:
+            type: { const: home.set }
+            home: { $ref: "#/components/schemas/Home" }
+        - type: object
+          properties:
             type: { const: key.set }
             key: { $ref: "#/components/schemas/Key" }
         - type: object
@@ -305,6 +314,65 @@ components:
         en: { type: string }
         da: { type: string }
 
+    PhoneSettingKey:
+      type: string
+      description: A phone setting the parent can set or lock. See docs/phone-settings.md for what each one does on Android.
+      enum:
+        - airplaneMode
+        - bluetooth
+        - brightness
+        - camera
+        - language
+        - location
+        - mobileNetworks
+        - nfc
+        - roaming
+        - screenCapture
+        - screenTimeout
+        - tethering
+        - volume
+        - wallpaper
+        - wifi
+
+    PhoneSetting:
+      type: object
+      required: [mode]
+      description: |
+        What one setting is set to. `free`: the child (or the Self user) decides and Plainphone does
+        not touch it. `preset`: Plainphone sets the value once, each time the parent changes it.
+        `locked`: Plainphone sets it and blocks it in Android's Settings. `value` is only present
+        for `preset` and `locked`, and only for settings that have one.
+      properties:
+        mode: { enum: [free, preset, locked] }
+        value:
+          oneOf: [{ type: string }, { type: integer }]
+          description: |
+            Per setting. `bluetooth` (locked): `off` or `noNewDevices`. `location` (preset, locked): `on` or `off`.
+            `screenTimeout` (preset, locked): 15, 30, 60, 120, 300 or 600 seconds.
+            `brightness` (preset, locked): `auto` or a percentage 10 to 100.
+            `volume`: preset is a percentage 0 to 100, locked is `muted`.
+            `roaming`, `camera`, `screenCapture`, `tethering`, `nfc`, `airplaneMode` (locked): `off`.
+            `wallpaper` (locked): `plainphone`. `wifi`, `mobileNetworks` and `language` (locked) take no value.
+      examples:
+        - { mode: locked, value: "off" }
+        - { mode: preset, value: 60 }
+        - { mode: locked }
+
+    Home:
+      type: object
+      required: [layout, theme, palette, apps]
+      description: How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed.
+      properties:
+        layout: { enum: [list, grid], default: list }
+        theme: { enum: [system, light, dark], default: system }
+        palette: { enum: [grey, sage, sand], default: sage }
+        apps:
+          type: array
+          description: Package names on the front page, in order. At most 8, no duplicates.
+          maxItems: 8
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/PackageName" }
+
     ChangeApplied:
       type: object
       required: [status]
@@ -343,7 +411,7 @@ components:
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, pendingChanges, pollSeconds]
+      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
         profile: { enum: [child, self] }
@@ -469,6 +537,18 @@ components:
                 deadline: { type: string, format: date-time }
                 callNumber: { type: [string, "null"], description: "An approved contact for the \"Call me\" button." }
                 sendLocation: { type: boolean }
+        settings:
+          type: object
+          description: The phone settings that are not `free`, keys in alphabetical order. A missing key is `free`. Needs Device Owner, so a light-mode phone ignores it.
+          propertyNames: { $ref: "#/components/schemas/PhoneSettingKey" }
+          additionalProperties: { $ref: "#/components/schemas/PhoneSetting" }
+          examples:
+            - camera: { mode: locked, value: "off" }
+              screenTimeout: { mode: preset, value: 60 }
+              wifi: { mode: locked }
+        home:
+          description: The home screen. Defaults are filled in; an older server without this field means the defaults.
+          $ref: "#/components/schemas/Home"
         pendingChanges:
           type: array
           description: Self profile; show them with a countdown on the phone.
@@ -1797,6 +1877,82 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/settings:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesSettings
+      summary: Get the phone settings
+      description: Every setting, with `free` filled in for those that are not set. Works the same for Child and Self phones.
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: All settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [settings]
+                properties:
+                  settings:
+                    type: object
+                    propertyNames: { $ref: "#/components/schemas/PhoneSettingKey" }
+                    additionalProperties: { $ref: "#/components/schemas/PhoneSetting" }
+        "404": { description: "Unknown phone, or not in your household" }
+  /phones/{pid}/settings/{key}:
+    put:
+      operationId: putPhonesSettings
+      summary: Set, lock or free one phone setting
+      description: |
+        A setting that is not supported in the given mode, or a value it does not accept, answers `400`
+        (a missing value too, and a value for a setting that takes none). An unknown `key` answers `404`.
+        On a Self phone, leaving `locked` or changing the value of a locked setting answers `202` and waits
+        for the key (Bluetooth from `noNewDevices` to `off` excepted); everything else applies at once.
+        The server stores light-mode phones' settings too, but the phone ignores them there.
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: key, in: path, required: true, schema: { $ref: "#/components/schemas/PhoneSettingKey" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PhoneSetting" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Unknown phone or unknown setting key" }
+  /phones/{pid}/home:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesHome
+      summary: Get the home screen
+      description: Defaults are filled in.
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: The home screen
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Home" }
+    put:
+      operationId: putPhonesHome
+      summary: Change the home screen
+      description: Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Home" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "400": { $ref: "#/components/responses/Error" }
 
   /phones/{pid}/contacts:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

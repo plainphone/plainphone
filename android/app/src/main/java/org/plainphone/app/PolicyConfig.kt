@@ -176,4 +176,6 @@ data class ServerOverlay(
     val windowActive: Boolean = false,
     /** The parent turned location on: Plainphone gets the location permission and location stays on. */
     val locationRequired: Boolean = false,
+    /** Phone settings the parent set or locked (camera, Wi-Fi, screen timeout ...). */
+    val settings: org.plainphone.app.settings.PhoneSettings = org.plainphone.app.settings.PhoneSettings.NONE,
 )

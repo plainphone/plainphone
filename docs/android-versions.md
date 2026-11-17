@@ -39,6 +39,19 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 | Notification permission granted | yes | Android 13 only; Android 12 has no such permission | not needed | not needed |
 | Sync with the dashboard (WorkManager), token in Keystore (AES-GCM) | yes | yes | yes | yes |
 | Schedules (school time, bedtime) | yes | yes | yes | yes |
+| Plainphone as the home screen (`addPersistentPreferredActivity` for HOME) | yes | yes | yes | yes |
+| Phone settings from the dashboard (Bluetooth, Wi-Fi, mobile networks, roaming, camera, screenshots, screen timeout, brightness, volume, wallpaper, language, tethering, airplane mode) | yes | yes | yes | yes (every restriction used exists since Android 9 or earlier) |
+| NFC switched off (`DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO`) | yes | no: only `DISALLOW_OUTGOING_BEAM`, NFC payments keep working | same | same |
+| Location setting without "Find" | `setLocationEnabled` | same | same | `LOCATION_MODE` through `setSecureSetting` |
+
+The phone settings and their modes are described in [phone-settings.md](phone-settings.md).
+
+## Light mode (no Device Owner)
+
+Without Device Owner none of the phone settings can be set or locked, and the home screen cannot be
+forced. In light mode the home screen shows a quiet card that opens Android's own "choose a home
+app" dialog (`RoleManager.ROLE_HOME`); the child can switch back in Settings at any time. The
+dashboard disables the phone settings page for a light-mode phone and says why.
 
 ## The phone app on Android 10 to 13
 
