@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Outlet, useLocation, useParams } from "react-router";
-import { ErrorState, errorMessage, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
+import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { T } from "../i18n/translate";
-import { api, ApiError, type App, type ChangeResult, type Locale, type PendingChange, type Phone } from "../lib/api";
+import type { MessageKey, T } from "../i18n/translate";
+import {
+  api,
+  ApiError,
+  type App,
+  type ChangeResult,
+  type Locale,
+  type PendingChange,
+  type Phone,
+  PROTECTIONS,
+  type Protection,
+} from "../lib/api";
 import { formatDateTime, formatDuration, formatList, formatRelative } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
@@ -349,6 +359,7 @@ export function PhoneOverview() {
   }, [phone.id]);
   const items: { to: string; label: string; hint: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
+    { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
     { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
     { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
     { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
@@ -377,8 +388,6 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
-      {phone.mode === "light" && <p className="notice notice-info">{t("mode.lightNote")}</p>}
-
       <PhoneStatusBlock phone={phone} now={now} />
 
       {(phone.profile === "self" || pending.length > 0) && (
@@ -413,7 +422,138 @@ export function PhoneOverview() {
           </li>
         </ul>
       </section>
+
+      {phone.mode === "light" && <LightModeSection phone={phone} />}
+      <ManagePhone />
     </>
+  );
+}
+
+/** Protections that must be on for light mode to hold. The others are shown only when off. */
+const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"];
+
+/** Light mode, honestly: what is live right now, and what is weaker than strong mode. */
+function LightModeSection({ phone }: { phone: Phone }) {
+  const { t, locale } = useI18n();
+  const p = phone.status?.protections;
+  const rows = p
+    ? PROTECTIONS.filter((k) => k !== "deviceOwner" && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
+        (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
+      )
+    : [];
+  const missing = rows.filter((r) => !r.ok).sort((a, b) => Number(b.required) - Number(a.required));
+  const on = rows.filter((r) => r.ok);
+  return (
+    <section className="section light-mode" aria-labelledby="light-h">
+      <h2 id="light-h">{t("mode.light")}</h2>
+      <p className="help">{t("light.intro")}</p>
+      {p ? (
+        <>
+          <h3 className="h3 light-sub">{t("light.protections")}</h3>
+          {missing.length === 0 && <p className="light-allok">{t("light.allOk")}</p>}
+          {missing.length > 0 && (
+            <ul className="list protection-list">
+              {missing.map((r) => (
+                <li key={r.key} className={r.required ? "prot prot-missing" : "prot prot-optional"}>
+                  <div className="prot-main">
+                    <p className="row-title">{t(`prot.${r.key}` as MessageKey)}</p>
+                    <p className="prot-why">{t(`prot.${r.key}.missing` as MessageKey)}</p>
+                  </div>
+                  <span className={r.required ? "tag tag-alert" : "tag tag-waiting"}>{t("light.missing")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {on.length > 0 && missing.length > 0 && (
+            <p className="help light-on">
+              {t("light.onList", { list: formatList(on.map((r) => t(`prot.${r.key}` as MessageKey)), locale) })}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="muted">{t("light.noReport")}</p>
+      )}
+      <h3 className="h3 light-sub">{t("light.weakerTitle")}</h3>
+      <ul className="weaker">
+        {(["1", "2", "3", "4", "5", "6", "7"] as const).map((n) => (
+          <li key={n}>{t(`light.weaker${n}` as MessageKey)}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Rename the phone, or remove it. On a Self phone the removal waits for the key. */
+function ManagePhone() {
+  const { t } = useI18n();
+  const { phone, setPhone, run, notify } = usePhone();
+  const navigate = useNavigate();
+  const [name, setName] = useState(phone.name);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const trimmed = name.trim();
+  const questionRef = useRef<HTMLParagraphElement>(null);
+  // The button that opened the question is gone; move focus to the question itself.
+  useEffect(() => {
+    if (confirming) questionRef.current?.focus();
+  }, [confirming]);
+
+  async function rename(e: FormEvent) {
+    e.preventDefault();
+    if (!trimmed || trimmed === phone.name) return;
+    setSaving(true);
+    try {
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { name: trimmed }));
+      notify({ tone: "success", text: t("app.saved") });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setRemoving(true);
+    const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}`), t("phone.removed"));
+    setRemoving(false);
+    setConfirming(false);
+    if (r?.status === "applied") navigate("/", { replace: true, state: { notice: t("phone.removed") } });
+  }
+
+  return (
+    <section className="section" aria-labelledby="manage-h">
+      <h2 id="manage-h">{t("phone.manage")}</h2>
+      <form onSubmit={rename} noValidate className="inline-form">
+        <Field label={t("phone.name")}>
+          {(p) => (
+            <input {...p} type="text" maxLength={40} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+          )}
+        </Field>
+        <button type="submit" className="btn btn-secondary" disabled={saving || !trimmed || trimmed === phone.name}>
+          {saving ? t("app.saving") : t("phone.rename")}
+        </button>
+      </form>
+      <div className="danger-zone">
+        {confirming ? (
+          <div className="stack-sm" role="group" aria-labelledby="remove-q">
+            <p id="remove-q" tabIndex={-1} ref={questionRef}>{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
+            <div className="actions">
+              <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={removing}>
+                {t("phone.removeYes")}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)} disabled={removing}>
+                {t("app.cancel")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn-link btn-link-danger" onClick={() => setConfirming(true)}>
+            {t("phone.remove")}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

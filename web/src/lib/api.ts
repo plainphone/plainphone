@@ -32,9 +32,29 @@ export interface PhoneStatus {
   rulesEtag: string | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
+  /** Missing on older phones, which are strong mode. */
+  mode?: "strong" | "light";
+  /** What is active on the phone right now. */
+  protections?: Partial<Record<Protection, boolean>>;
+  /** Minutes used today per limited package; "*" is the total. */
+  timeUsed?: Record<string, number>;
   /** When the server received the report. */
   reportedAt: string;
 }
+export const PROTECTIONS = [
+  "deviceAdmin",
+  "accessibility",
+  "usageAccess",
+  "vpn",
+  "alwaysOnVpn",
+  "phoneRole",
+  "smsRole",
+  "notifications",
+  "batteryUnrestricted",
+  "privateDnsOk",
+  "deviceOwner",
+] as const;
+export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
   id: string;
   name: string;
@@ -57,6 +77,35 @@ export interface App {
   label: string;
   allowed: boolean;
   core: boolean;
+}
+/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
+export interface Limit {
+  minutes: number;
+  days: Partial<Record<string, number>>;
+}
+export interface Bonus {
+  packageName: string;
+  date: string;
+  minutes: number;
+}
+export interface TimeLimits {
+  total: Limit | null;
+  apps: { packageName: string; label: string; limit: Limit }[];
+  bonuses: Bonus[];
+  used: Record<string, number> | null;
+}
+export type CatalogState = "installed-allowed" | "installed-hidden" | "requested" | "none";
+export interface CatalogApp {
+  packageName: string;
+  name: string;
+  category: string;
+  source: string;
+  state: CatalogState;
+}
+export interface PhoneCatalog {
+  country: string | null;
+  categories: { id: string; name: { en: string; da: string } }[];
+  apps: CatalogApp[];
 }
 export interface Contact {
   id: string;
@@ -110,7 +159,11 @@ export type Op =
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
   | { type: "key.set"; key: KeyInput }
-  | { type: "phone.remove"; dnsClientId: string };
+  | { type: "phone.remove"; dnsClientId: string }
+  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
+  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
+  | { type: "catalog.add"; packageName: string; label: string }
+  | { type: "catalog.remove"; packageName: string };
 
 export interface PendingChange {
   id: string;
@@ -152,6 +205,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly issues: Issue[] = [],
+    /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
+    readonly data: { selfPhoneIds?: string[] } = {},
   ) {
     super(message);
   }
@@ -195,9 +250,9 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[] };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[] };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
-    throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? []);
+    throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }
   if (res.status === 202 || res.status === 200 || res.status === 201) {
     // Change endpoints answer 200 {status:"applied"} or 202 {status:"pending"}.
@@ -211,7 +266,7 @@ export const api = {
   post: <T>(p: string, b?: unknown) => request<T>("POST", p, b),
   put: <T>(p: string, b?: unknown) => request<T>("PUT", p, b),
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
-  del: <T>(p: string) => request<T>("DELETE", p),
+  del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
 
 /** Mail is configured on this server. Works without a session via /api/health. */

@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   doublePrecision,
   index,
   integer,
@@ -101,7 +102,29 @@ export interface DeviceStatus {
   rulesAppliedAt: string | null;
   /** The private DNS host the phone actually uses. */
   dnsHost: string | null;
+  /** Missing on phones that predate light mode: strong. */
+  mode?: "strong" | "light";
+  /** What is active on the phone right now (light mode reports all of them). */
+  protections?: Partial<Record<Protection, boolean>>;
+  /** Minutes used today per limited package; "*" is the total. */
+  timeUsed?: Record<string, number>;
 }
+
+/** The protections a phone can report in `PUT /device/status`. */
+export const PROTECTIONS = [
+  "deviceOwner",
+  "deviceAdmin",
+  "accessibility",
+  "usageAccess",
+  "vpn",
+  "alwaysOnVpn",
+  "phoneRole",
+  "smsRole",
+  "notifications",
+  "batteryUnrestricted",
+  "privateDnsOk",
+] as const;
+export type Protection = (typeof PROTECTIONS)[number];
 
 export const phones = pgTable(
   "phones",
@@ -174,9 +197,44 @@ export const phoneApps = pgTable(
     /** Reported by the phone: dialer, messages, settings, launcher... Never hidden. */
     core: boolean("core").notNull().default(false),
     installed: boolean("installed").notNull().default(true),
+    /** The parent picked it from the app catalog; the phone offers to install it. */
+    requested: boolean("requested").notNull().default(false),
     reportedAt: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.phoneId, t.packageName] })],
+);
+
+/** Weekday overrides of a limit: ISO weekday ("1" = Monday) to minutes. */
+export type LimitDays = Partial<Record<"1" | "2" | "3" | "4" | "5" | "6" | "7", number>>;
+
+/** Daily time limits. packageName "*" is the cap for all non-core apps together. */
+export const timeLimits = pgTable(
+  "time_limits",
+  {
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    packageName: text("package_name").notNull(),
+    minutes: integer("minutes").notNull(),
+    days: jsonb("days").$type<LimitDays>().notNull().default({}),
+  },
+  (t) => [primaryKey({ columns: [t.phoneId, t.packageName] })],
+);
+
+/** Extra minutes for one local date (the phone's time zone). packageName "*" is the total cap. */
+export const timeBonuses = pgTable(
+  "time_bonuses",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    packageName: text("package_name").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    minutes: integer("minutes").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("time_bonuses_phone_day_idx").on(t.phoneId, t.day)],
 );
 
 export const contacts = pgTable(
@@ -297,5 +355,17 @@ export const unlockPayments = pgTable("unlock_payments", {
   provider: text("provider").notNull(),
   providerRef: text("provider_ref"),
   status: text("status", { enum: ["created", "succeeded", "failed", "refunded"] }).notNull(),
+  createdAt: createdAt(),
+});
+
+/**
+ * ClientIDs the DNS service must forget. A row is written in the same transaction that
+ * deletes a phone, so the sweeper can retry the delete until the DNS service confirms it
+ * (204 or 404). Holds no personal data: only the random ClientID.
+ */
+export const dnsDeletions = pgTable("dns_deletions", {
+  clientId: text("client_id").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
   createdAt: createdAt(),
 });

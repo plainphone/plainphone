@@ -8,6 +8,7 @@ import { rememberNext, SessionProvider, useSession } from "./lib/session";
 import { ApprovalsPage } from "./pages/Approvals";
 import { AppsPage } from "./pages/Apps";
 import { AuthCallbackPage } from "./pages/AuthCallback";
+import { CatalogPage } from "./pages/Catalog";
 import { ContactsPage } from "./pages/Contacts";
 import { FilterPage } from "./pages/Filter";
 import { HouseholdPage } from "./pages/Household";
@@ -19,6 +20,8 @@ import { PairPage } from "./pages/Pair";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
+import { SettingsPage } from "./pages/Settings";
+import { TimePage } from "./pages/Time";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { state } = useSession();
@@ -44,9 +47,12 @@ function AppRoutes() {
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
         <Route path="/household" element={<RequireAuth><HouseholdPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth><ApprovalsPage /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/phones/:pid" element={<RequireAuth><PhoneLayout /></RequireAuth>}>
           <Route index element={<PhoneOverview />} />
           <Route path="apps" element={<AppsPage />} />
+          <Route path="apps/add" element={<CatalogPage />} />
+          <Route path="time" element={<TimePage />} />
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="filter" element={<FilterPage />} />
           <Route path="schedules" element={<SchedulesPage />} />

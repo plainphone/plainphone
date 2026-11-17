@@ -14,6 +14,7 @@ import {
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
+import { loadTimeLimits } from "./limits.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -23,21 +24,8 @@ export const POLL_SECONDS = 60;
 /** How often the phone reports its position when location is on (spec: every 5 minutes). */
 export const LOCATION_INTERVAL_MINUTES = 5;
 
-/**
- * Apps allowed from the start when a phone reports them (spec: starter packs per
- * country). Package names are from the Play Store listings; check them on a real
- * phone before relying on them.
- */
-export const STARTER_PACKS: Record<string, string[]> = {
-  dk: [
-    "dk.danskebank.mobilepay", // MobilePay
-    "dk.mitid.app.android", // MitID
-    "de.hafas.android.rejseplanen", // Rejseplanen
-    "com.netcompany.aulanativeprivate", // Aula
-    "dk.dr.radio", // DR LYD
-    "com.spotify.music", // Spotify
-  ],
-};
+/** Starter packs now come from the app catalog (`starter: true`). Re-exported for older imports. */
+export { STARTER_PACKS } from "./catalog.js";
 
 export async function createPhone(
   ctx: Ctx,
@@ -92,8 +80,8 @@ function hhmm(minute: number): string {
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 export async function rulesDocument(ctx: Ctx, phone: Phone) {
-  const [apps, contactRows, scheduleRows, dnsRow, pending] = await Promise.all([
-    ctx.db.select().from(phoneApps).where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true))),
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits] = await Promise.all([
+    ctx.db.select().from(phoneApps).where(eq(phoneApps.phoneId, phone.id)).orderBy(phoneApps.packageName),
     ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name, contacts.number),
     ctx.db.select().from(schedules).where(eq(schedules.phoneId, phone.id)).orderBy(schedules.createdAt),
     ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id)),
@@ -102,7 +90,9 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       .from(pendingChanges)
       .where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending")))
       .orderBy(pendingChanges.createdAt),
+    loadTimeLimits(ctx.db, phone, ctx.now()),
   ]);
+  const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
@@ -112,7 +102,12 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
+      // Picked from the catalog but not installed yet: the phone offers to install them.
+      toInstall: allApps
+        .filter((a) => a.requested && a.allowed && !a.installed)
+        .map((a) => ({ packageName: a.packageName, label: a.label })),
     },
+    timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
     contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
