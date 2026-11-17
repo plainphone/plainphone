@@ -6,6 +6,7 @@
 // (https://source.android.com/docs/security/features/keystore/attestation#schema). Verification
 // only ever happens here, never on the phone. No serial number or IMEI is attested or stored.
 
+import { spawnSync } from "node:child_process";
 import { randomBytes, X509Certificate } from "node:crypto";
 import { GOOGLE_ATTESTATION_ROOTS } from "../lib/attestation-roots.js";
 import { asBool, asInt, asOctets, certificateExtension, children, readTlv, type Tlv } from "../lib/der.js";
@@ -38,6 +39,17 @@ export interface AttestationResult {
 
 export class ChallengeMismatch extends Error {}
 
+export const UNVERIFIABLE_ATTESTATION: AttestationResult = {
+  state: "unverifiable",
+  securityLevel: null,
+  deviceLocked: null,
+  verifiedBootState: null,
+  osPatchLevel: null,
+  revocationChecked: false,
+};
+
+export const ATTESTATION_MAX_AGE_MS = 48 * 60 * 60_000;
+
 const BOOT_STATES = ["verified", "self-signed", "unverified", "failed"] as const;
 const LEVELS = ["software", "tee", "strongbox"] as const;
 
@@ -59,7 +71,7 @@ function explicitField(list: Tlv, tag: number): Tlv | null {
  * Verifies a chain (leaf first) for [challenge]. Throws [ChallengeMismatch] when the record was
  * made for another challenge, and plain errors for a chain that does not parse or does not link up.
  */
-export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked: Set<string> | null): AttestationResult {
+export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked: Set<string> | null, now = Date.now()): AttestationResult {
   if (chainDer.length < 2) throw new Error("chain too short");
   const certs = chainDer.map((d) => new X509Certificate(d));
   for (let i = 0; i < certs.length - 1; i++) {
@@ -79,17 +91,11 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
 
   const revocationChecked = revoked !== null;
   const base = { securityLevel: level, revocationChecked };
-  const unverifiable: AttestationResult = {
-    ...base,
-    state: "unverifiable",
-    deviceLocked: null,
-    verifiedBootState: null,
-    osPatchLevel: null,
-  };
+  const unverifiable = { ...UNVERIFIABLE_ATTESTATION, ...base };
   const rootKey = root.publicKey.export({ type: "spki", format: "der" }).toString("base64");
   if (!rootKeys.includes(rootKey)) return unverifiable;
   if (revoked && certs.some((c) => revoked.has(serialKey(c)))) return { ...unverifiable, state: "revoked" };
-  if (level === "software" || level === null) return unverifiable;
+  if (level === "software" || level === null || !validCertificatePath(certs, now)) return unverifiable;
 
   const hardware = desc[7]!;
   const rot = explicitField(hardware, TAG_ROOT_OF_TRUST);
@@ -108,11 +114,36 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   return { ...base, state, deviceLocked, verifiedBootState: bootState, osPatchLevel };
 }
 
+/** Verify CA constraints, key usage, validity, and critical extensions against the pinned root. */
+function validCertificatePath(certs: X509Certificate[], now: number): boolean {
+  if (certs.some((cert) => now < Date.parse(cert.validFrom) || now > Date.parse(cert.validTo))) return false;
+
+  // Pass PEM through anonymous pipes. The chain never needs a file or a command-line argument.
+  const verify = `
+    IFS= read -r -d '' leaf
+    IFS= read -r -d '' root
+    IFS= read -r -d '' intermediates
+    if [[ -n "$intermediates" ]]; then
+      openssl verify -trusted <(printf '%s' "$root") -untrusted <(printf '%s' "$intermediates") -attime "$1" <(printf '%s' "$leaf")
+    else
+      openssl verify -trusted <(printf '%s' "$root") -attime "$1" <(printf '%s' "$leaf")
+    fi`;
+  const input = [
+    certs[0]!.toString(),
+    certs.at(-1)!.toString(),
+    certs.slice(1, -1).map((cert) => cert.toString()).join(""),
+    "",
+  ].join("\0");
+  const result = spawnSync("bash", ["-c", verify, "verify", String(Math.floor(now / 1000))], { input, timeout: 3000 });
+  if (result.error) throw result.error;
+  return result.status === 0;
+}
+
 export function newChallenge(): Buffer {
   return randomBytes(32);
 }
 
-/** Google's revocation list, cached for an hour. On a failed fetch the last good list stays. */
+/** Google's revocation list, cached for an hour. Once stale, a failed refresh leaves no usable list. */
 export class RevocationList {
   private cached: { at: number; serials: Set<string> } | null = null;
 
@@ -129,6 +160,7 @@ export class RevocationList {
       this.cached = { at: now, serials };
     } catch (err) {
       console.error(`attestation revocation list: ${(err as Error).message}`);
+      return null;
     }
     return this.cached?.serials ?? null;
   }

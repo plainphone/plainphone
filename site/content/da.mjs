@@ -174,6 +174,8 @@ export default {
             list: [
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
               "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
+              "hvis du slår beskyttelse mod nulstilling til, gemmer husstanden dit numeriske Google-konto-id og tidspunktet, hvor kontoen blev tilknyttet. Du kan slette id'et ved at fjerne tilknytningen i husstandens indstillinger eller slette din Plainphone-konto. Vi gemmer hverken din Google-mailadresse eller dine login-tokens til funktionen",
+              "for en telefon i stærk tilstand gemmer vi det seneste systemtjek, herunder om bootloaderen er låst, sikkerhedsopdateringens niveau og tidspunktet for tjekket. Hvert tjek erstatter det forrige. Når telefonen fjernes, slettes tjekket. Vi gemmer ikke dens certifikatkæde",
               "de apps, der er på telefonen (navn og pakkenavn), og hvilke af dem der er tilladt",
               "godkendte kontakter: de navne og numre, en forælder selv skriver ind i forældreappen. Serveren har ikke andet fra telefonens kontakter",
               "webfilterets indstillinger: hvilke kategorier der er blokeret, og de domæner, forælderen tillader eller blokerer",

@@ -54,8 +54,14 @@ class AttestationRunner(
         store.attestedAtMs = now
         return try {
             val challenge = api.challenge(token)
-            val chain = attester.attest(Base64.getUrlDecoder().decode(challenge))
-            api.submit(token, challenge, chain).also { store.state = it }
+            val challengeBytes = Base64.getUrlDecoder().decode(challenge)
+            val chain = runCatching { attester.attest(challengeBytes) }.getOrElse {
+                Log.w(TAG, "key attestation unavailable: ${it.javaClass.simpleName}")
+                emptyList()
+            }
+            // A keystore without a certificate path cannot prove a hardware-backed key.
+            val evidence = chain.takeIf { it.size >= 2 }.orEmpty()
+            api.submit(token, challenge, evidence).also { store.state = it }
         } catch (e: Exception) {
             Log.w(TAG, "attestation failed: ${e.javaClass.simpleName}: ${e.message}")
             null

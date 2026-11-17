@@ -209,10 +209,10 @@ class TimeLimitApplierTest {
     @Test
     fun `the install window lifts the install restriction and shows Play, then closes`() {
         applier.apply(config.copy(installing = "dk.mitid.app.android"))
-        assertThat(device.restrictions).doesNotContain("no_install_apps")
+        assertThat(device.restrictions).containsNoneOf("no_install_apps", "no_modify_accounts")
         assertThat(device.hidden).doesNotContain("com.android.vending")
         applier.apply(config)
-        assertThat(device.restrictions).contains("no_install_apps")
+        assertThat(device.restrictions).containsAtLeast("no_install_apps", "no_modify_accounts")
         assertThat(device.hidden).contains("com.android.vending")
     }
 

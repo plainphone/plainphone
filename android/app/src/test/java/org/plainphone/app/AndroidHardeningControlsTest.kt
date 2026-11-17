@@ -50,6 +50,15 @@ class AndroidHardeningControlsTest {
     }
 
     @Test
+    fun `removing the last admin account restores the Google Play services defaults`() {
+        installPlayServices()
+        val hardening = Hardening(AndroidHardeningControls(context), 29)
+        hardening.resetProtection(setOf("1234567890"))
+        assertThat(hardening.resetProtection(emptySet()).ok).isTrue()
+        assertThat(dpm.getApplicationRestrictions(admin, AndroidHardeningControls.GMS_PACKAGE).isEmpty).isTrue()
+    }
+
+    @Test
     fun `release switches the Android 10 configuration off`() {
         installPlayServices()
         val controls = AndroidHardeningControls(context)

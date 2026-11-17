@@ -906,9 +906,8 @@ paths:
                 challenge: { type: string, maxLength: 100 }
                 chain:
                   type: array
-                  minItems: 2
                   maxItems: 10
-                  description: DER certificates, base64, leaf first.
+                  description: Two or more DER certificates, base64, leaf first. Empty when the keystore cannot provide an attestation chain.
                   items: { type: string, maxLength: 12000 }
       responses:
         "200":

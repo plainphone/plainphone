@@ -20,7 +20,7 @@ interface HardeningControls {
 
     /**
      * Android 10: the documented legacy path, the `factoryResetProtectionAdmin` managed configuration
-     * of `com.google.android.gms`. Null switches it off (`disableFactoryResetProtectionAdmin`).
+     * of `com.google.android.gms`. Null disables FRP for release. An empty list restores the default policy.
      */
     fun setLegacyFrpConfig(accountIds: List<String>?)
 
@@ -122,7 +122,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
             return StepResult(RESET_PROTECTION, ids.isEmpty(), "${ResetProtection.NO_PLAY_SERVICES.wire}: no Google Play services")
         }
         return try {
-            setFrp(ids.ifEmpty { null })
+            setFrp(ids)
             val path = if (sdkInt >= 30) "policy" else "Play services configuration (Android 10)"
             if (ids.isEmpty()) {
                 StepResult(RESET_PROTECTION, true, "${ResetProtection.OFF.wire}: no parent account; Android's own FRP applies")
@@ -130,17 +130,22 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
                 StepResult(RESET_PROTECTION, true, "${ResetProtection.ON.wire}: ${ids.size} account(s), $path")
             }
         } catch (e: Exception) {
-            // Clearing is best effort: a device without FRP has nothing to clear.
-            if (ids.isEmpty()) {
-                StepResult(RESET_PROTECTION, true, "${ResetProtection.OFF.wire}: ${e.javaClass.simpleName}")
-            } else {
-                StepResult(RESET_PROTECTION, false, "${ResetProtection.FAILED.wire}: ${e.javaClass.simpleName}: ${e.message}")
-            }
+            StepResult(RESET_PROTECTION, false, "${ResetProtection.FAILED.wire}: ${e.javaClass.simpleName}")
         }
     }
 
     private fun setFrp(ids: List<String>?) {
-        if (sdkInt >= 30) controls.setFrpPolicy(ids) else controls.setLegacyFrpConfig(ids)
+        if (sdkInt < 30) {
+            controls.setLegacyFrpConfig(ids)
+        } else if (ids?.isEmpty() == true) {
+            try {
+                controls.setFrpPolicy(null)
+            } catch (_: UnsupportedOperationException) {
+                // Android documents this exception for devices with no FRP support.
+            }
+        } else {
+            controls.setFrpPolicy(ids)
+        }
         controls.notifyFrpChanged()
     }
 

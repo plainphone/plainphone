@@ -13,6 +13,7 @@ import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
+import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
@@ -62,6 +63,11 @@ object Lock {
 
     /** Blocking. Never call on the main thread. */
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
+        if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
+            return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
+                saveReport(context, "apply ($reason)", it)
+            }
+        }
         val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {

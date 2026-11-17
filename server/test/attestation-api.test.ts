@@ -17,6 +17,7 @@ function chainB64(name: string): string[] {
 
 describe("attestation API", () => {
   beforeEach(() => {
+    h.clock.now = new Date("2024-10-01T00:00:00Z");
     // The recorded chains were made for the challenge "challenge".
     h.ctx.attestation = { challenge: () => Buffer.from("challenge"), revocations: new RevocationList(async () => ({ entries: {} })) };
     h.app = createApp(h.ctx);
@@ -27,6 +28,12 @@ describe("attestation API", () => {
     const { phoneId, device } = await pairPhone(h, parent);
     expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation).toBeNull();
 
+    const green = {
+      appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
+      maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,
+    };
+    expect((await device.put("/api/device/status", green)).status).toBe(204);
+    const mailCount = h.mail.outbox.length;
     const ch = await device.post("/api/device/attestation/challenge");
     expect(ch.status).toBe(200);
     const r = await device.put("/api/device/attestation", { challenge: ch.json.challenge, chain: chainB64("akita-TEE_EC_NONE") });
@@ -36,14 +43,44 @@ describe("attestation API", () => {
     expect(summary.attestation).toMatchObject({ state: "unlocked", deviceLocked: false, revocationChecked: true });
     expect(summary.attestation.checkedAt).toBe(h.clock.now.toISOString());
 
-    // The phone says its lock is intact, but an unlocked bootloader overrides that in the dashboard.
-    await device.put("/api/device/status", {
-      appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
-      maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,
-    });
+    expect(h.mail.outbox).toHaveLength(mailCount + 1);
+    // An ordinary green report must neither clear the broken lock nor repeat the alert.
+    expect((await device.put("/api/device/status", green)).status).toBe(204);
+    const next = await device.post("/api/device/attestation/challenge");
+    expect((await device.put("/api/device/attestation", {
+      challenge: next.json.challenge, chain: chainB64("akita-TEE_EC_NONE"),
+    })).status).toBe(200);
+    expect(h.mail.outbox).toHaveLength(mailCount + 1);
     const status = (await parent.get(`/api/phones/${phoneId}`)).json.status;
     expect(status.lockIntact).toBe(false);
     expect(status.failedPolicies).toEqual(["hardware attestation: unlocked"]);
+  });
+
+  it("reports missing hardware evidence as unverifiable", async () => {
+    const parent = await signIn(h, "mum@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const ch = await device.post("/api/device/attestation/challenge");
+    expect((await device.put("/api/device/attestation", { challenge: ch.json.challenge, chain: [] })).json)
+      .toMatchObject({ state: "unverifiable", revocationChecked: false });
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
+      .toMatchObject({ state: "unverifiable", checkedAt: h.clock.now.toISOString() });
+  });
+
+  it("expires a positive result after 48 hours and keeps the actual check time", async () => {
+    const challenge = Buffer.from("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy", "base64");
+    h.ctx.attestation = { ...h.ctx.attestation!, challenge: () => challenge };
+    h.app = createApp(h.ctx);
+    h.clock.now = new Date("2026-11-16T00:00:00Z");
+    const parent = await signIn(h, "mum@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const ch = await device.post("/api/device/attestation/challenge");
+    const checkedAt = h.clock.now.toISOString();
+    expect((await device.put("/api/device/attestation", {
+      challenge: ch.json.challenge, chain: chainB64("frankel-TEE_EC_2026"),
+    })).json.state).toBe("verified");
+    h.clock.advance(48 * 60 * 60_000);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
+      .toMatchObject({ state: "unverifiable", checkedAt });
   });
 
   it("uses each challenge once and refuses unknown ones", async () => {

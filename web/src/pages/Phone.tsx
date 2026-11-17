@@ -364,6 +364,9 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
       ) : (
         <p className="muted">{t("phone.statusNone")}</p>
       )}
+      {phone.attestation?.checkedAt && (
+        <p className="help status-updated">{t("phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
+      )}
       {!phone.dnsReady && <p className="notice notice-info status-dns">{t("phone.dnsWaiting")}</p>}
     </section>
   );

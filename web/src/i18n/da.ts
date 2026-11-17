@@ -120,6 +120,7 @@ export const da: Messages = {
   "phone.lastSeen": "Sidst set {when}",
   "phone.status": "Telefonens status",
   "phone.statusNone": "Ingen status fra telefonen endnu",
+  "phone.attCheckedAt": "Systemet blev tjekket {when}",
   "phone.statusUpdated": "Status opdateret {when}",
   "phone.lockIntact": "Lås intakt",
   "phone.lockBroken": "Låsen er ikke intakt",

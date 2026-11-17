@@ -2,13 +2,15 @@
 //
 // Hardware key attestation from the phone (#23). Contract: server/openapi.yaml, tag "device".
 
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { phones } from "../db/schema.js";
+import type { phones } from "../db/schema.js";
 import { body, RateLimiter } from "../lib/http.js";
-import { ChallengeMismatch, newChallenge, RevocationList, verifyAttestation } from "../services/attestation.js";
+import { ChallengeMismatch, newChallenge, RevocationList, UNVERIFIABLE_ATTESTATION, verifyAttestation } from "../services/attestation.js";
+import { notifyHousehold, protectionLost } from "../services/notifications.js";
+import { withAttestation } from "../services/phones.js";
 import type { Ctx } from "../services/context.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -40,7 +42,7 @@ export function attestationRoutes(ctx: Ctx) {
         c,
         z.object({
           challenge: z.string().min(1).max(100),
-          chain: z.array(z.string().min(1).max(12_000)).min(2).max(10),
+          chain: z.array(z.string().min(1).max(12_000)).max(10).refine((chain) => chain.length !== 1),
         }),
       );
       const open = challenges.get(phone.id);
@@ -51,16 +53,30 @@ export function attestationRoutes(ctx: Ctx) {
       challenges.delete(phone.id);
       let result;
       try {
-        result = verifyAttestation(
+        result = input.chain.length === 0 ? UNVERIFIABLE_ATTESTATION : verifyAttestation(
           input.chain.map((s) => Buffer.from(s, "base64")),
           open.value,
           await revocations.get(now),
+          now,
         );
       } catch (err) {
         if (err instanceof ChallengeMismatch) return c.json({ error: err.message }, 400);
         return c.json({ error: `chain does not verify: ${(err as Error).message}` }, 400);
       }
-      await ctx.db.update(phones).set({ attestation: result, attestedAt: ctx.now() }).where(eq(phones.id, phone.id));
+      // Read previous evidence and the current report under the same row lock as the write.
+      const [previous] = await ctx.db.execute<{ attestation: Phone["attestation"]; status: Phone["deviceStatus"] }>(sql`
+        with old as (select attestation, device_status from phones where id = ${phone.id} for update)
+        update phones set attestation = ${JSON.stringify(result)}::jsonb,
+          attested_at = ${ctx.now().toISOString()}::timestamptz
+        from old where phones.id = ${phone.id}
+        returning old.attestation as attestation, old.device_status as status`);
+      if (previous?.status) {
+        const lost = protectionLost(
+          withAttestation(previous.status, previous.attestation),
+          withAttestation(previous.status, result),
+        );
+        if (lost) await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
+      }
       return c.json(result);
     });
   };

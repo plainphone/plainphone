@@ -17,6 +17,7 @@ import {
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
+import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
 import { loadTimeLimits } from "./limits.js";
 
@@ -169,7 +170,14 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     hasLocation: Boolean(loc),
     // Hardware attestation of the boot state (#23); null until the phone attested once.
     attestation: phone.attestation
-      ? { ...phone.attestation, checkedAt: phone.attestedAt?.toISOString() ?? null }
+      ? {
+          ...phone.attestation,
+          state: phone.attestation.state === "verified" &&
+            (!phone.attestedAt || ctx.now().getTime() - phone.attestedAt.getTime() >= ATTESTATION_MAX_AGE_MS)
+            ? "unverifiable" as const
+            : phone.attestation.state,
+          checkedAt: phone.attestedAt?.toISOString() ?? null,
+        }
       : null,
     openRequests: open?.n ?? 0,
     /** Null means the server default (`offlineAlertHoursDefault`). */
@@ -186,7 +194,7 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
 const UNTRUSTED_BOOT = new Set(["unlocked", "failed-boot", "revoked"]);
 
 /** An unlocked bootloader (or a failed or revoked one) counts as a broken lock in the dashboard. */
-function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
+export function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
   if (!attestation || !UNTRUSTED_BOOT.has(attestation.state)) return status;
   return {
     ...status,

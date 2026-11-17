@@ -68,7 +68,9 @@ switch to the built-in dialer:
   without it Android skips screening for numbers saved in the phone's contacts.
 
 Plainphone also listens for `ACTION_DEFAULT_DIALER_CHANGED` while it runs. A switch re-checks the lock at
-once and reports it to the dashboard within about a minute instead of 15. Both roles can also be changed
+once and queues a report to the dashboard. Android sends this as an implicit broadcast, which cannot
+wake a stopped Plainphone process through a manifest receiver. The next periodic policy check catches
+the change in that case. Both roles can also be changed
 under Settings → Default apps, so a child has to change three settings; each shows as a failed step.
 
 ## Not yet tested on a real phone

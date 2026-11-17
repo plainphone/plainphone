@@ -11,6 +11,7 @@ class FakeHardening : HardeningControls {
     var policyWritten = false
     var legacyFrp: List<String>? = null
     var legacyFrpSet = false
+    var legacyWriteRefused = false
     var broadcasts = 0
     var accounts = mutableListOf<String>()
     var noUserControl: List<String> = emptyList()
@@ -30,6 +31,7 @@ class FakeHardening : HardeningControls {
         policyWritten = true
     }
     override fun setLegacyFrpConfig(accountIds: List<String>?) {
+        check(!legacyWriteRefused) { "managed configuration refused" }
         legacyFrp = accountIds
         legacyFrpSet = true
     }

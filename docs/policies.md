@@ -30,7 +30,7 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
-| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock or an approved install window lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
 | `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
@@ -43,7 +43,7 @@ The lock is applied:
 | `setPermissionGrantState` | Grants Plainphone's own phone, call log, SMS and notification permissions | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback). On Android 10 to 13 the extra dialers are hidden even without the role | [contacts.md](contacts.md) |
 
-The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. Releasing Device Owner gives the roles back to the system dialer and the maker's SMS app. The approved-contacts rule itself is described in [contacts.md](contacts.md).
+The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. On release, Plainphone restores the SMS app and, on Android 14+, the system dialer. On Android 10 to 13, choose the system dialer and clear any retained call screening or redirection roles in Settings. Those optional services stop filtering when Device Owner is removed. The approved-contacts rule itself is described in [contacts.md](contacts.md).
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
@@ -81,7 +81,7 @@ Each is its own status step, so the parent sees exactly what held.
 
 | Step | What it does | Android | Reference |
 |---|---|---|---|
-| `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails only when an account is set and cannot be applied | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
+| `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails when setting or clearing the policy is refused | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
 | `accounts on the phone` | Lists account types (`com.google`, a maker's account), no names | all | |
 | `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, which reduces delays from App Standby for re-lock and sync | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
 | `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Reports a failed check when an extra profile was found, including whether removal succeeded. Reports counts only. In headless system-user mode, reports without removing users to protect the main interactive user | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
@@ -106,6 +106,8 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
 - **On the phone:** Android 11+ uses `setFactoryResetProtectionPolicy`; Android 10 uses the legacy path Google
   documents, the managed configuration `factoryResetProtectionAdmin` of `com.google.android.gms`. Both are
   followed by the broadcast `FRP_CONFIG_CHANGED`, which Play services needs to pick up the change.
+  On Android 10, removing the last account clears Plainphone's managed configuration so normal
+  Android FRP can apply. Permanent release explicitly disables the legacy configuration.
 - **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard shows
   "Protects from" the time the account was linked plus 72 hours.
 - **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
@@ -114,17 +116,23 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
 - **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** Plainphone sets FRP and notifies Play services before blocking account changes. The FRP policy does not need the parent's account to be
   on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
   accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
-  maintenance unlock.
+  maintenance unlock or an approved Play install window.
 
 ## Hardware attestation of the boot state (#23)
 
 Once a day (and right after pairing) the phone asks the server for a challenge, makes a key in its
 TEE or StrongBox with it (`setAttestationChallenge`) and sends the certificate chain to
-`PUT /device/attestation`. The **server** checks that each certificate is signed by the next, that the
-last one carries one of Google's attestation root keys, and that none is on Google's revocation list,
-and reads `RootOfTrust` (`deviceLocked`, `verifiedBootState`) and the OS patch level. Play Integrity is not
+`PUT /device/attestation`. The **server** validates the certificate path against a pinned Google
+attestation root with OpenSSL and checks a revocation list refreshed hourly. An unavailable fresh
+list prevents a positive verdict. The server reads `RootOfTrust` (`deviceLocked`, `verifiedBootState`)
+and the OS patch level. Play Integrity is not
 used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is requested. Only the verification result and its timestamp are stored.
-When Android exposes a local unlocked-bootloader signal, Plainphone warns before Android 12+ QR provisioning proceeds. Android 10 and 11 can apply policies before showing the status screen, where the same warning is displayed.
+If the keystore cannot provide a chain, the phone reports an unverifiable check. A positive verdict
+expires after 48 hours, and the dashboard shows the time of the last system check separately from
+ordinary sync. A change to a boot state that breaks an intact lock triggers the existing protection alert.
+When Android exposes a local unlocked-bootloader signal, strong-mode policies wait until the user
+acknowledges the warning. Android 12+ shows it during provisioning. On Android 10 and 11 it appears
+when Plainphone opens.
 
 | Result | Dashboard |
 |---|---|

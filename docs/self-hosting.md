@@ -45,6 +45,9 @@ pairing QR code.
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | | Optional. A Google OAuth client of type "Web application" for "Protect against reset" (factory reset protection with the parent's Google account). Create it in the Google Cloud console under Google Auth Platform → Clients, with the redirect URI `<PUBLIC_URL>/api/reset-protection/google/callback`. Enable **People API** for the Google Cloud project. Set both variables in the server environment. The server uses the `openid` and profile scopes to read only the numeric account ID from `people/me` and never requests an email address. Without it the dashboard says the feature is not set up |
 | `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |
 
+The server image includes Bash and OpenSSL for Android system checks. If you run the server outside
+the image, install both on a Unix host so certificate path verification can run via anonymous pipes.
+
 ## Backups
 
 The compose file has a `backup` service that writes a `pg_dump` (custom format) to `./backups`

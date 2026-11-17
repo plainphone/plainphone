@@ -45,6 +45,27 @@ class HardeningTest {
     }
 
     @Test
+    fun `Android 10 restores normal FRP when the last account is removed`() {
+        val h = Hardening(controls, 29)
+        apply(h, withAccount)
+        assertThat(h.resetProtection(emptySet()).ok).isTrue()
+        assertThat(controls.legacyFrp).isEmpty()
+        assertThat(controls.broadcasts).isEqualTo(2)
+    }
+
+    @Test
+    fun `refused Android 10 FRP cleanup reports failure`() {
+        val h = Hardening(controls, 29)
+        apply(h, withAccount)
+        controls.legacyWriteRefused = true
+        val result = h.resetProtection(emptySet())
+        assertThat(result.ok).isFalse()
+        assertThat(Hardening.resetProtectionState(listOf(result))).isEqualTo(ResetProtection.FAILED)
+        assertThat(controls.legacyFrp).containsExactly("118000000000000000001")
+        assertThat(controls.broadcasts).isEqualTo(1)
+    }
+
+    @Test
     fun `account IDs that are not numbers are never sent`() {
         apply(Hardening(controls, 34), PolicyConfig(frpAccountIds = setOf("parent@example.org", "42")))
         assertThat(controls.policyAccounts).containsExactly("42")

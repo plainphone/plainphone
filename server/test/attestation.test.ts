@@ -14,20 +14,24 @@ function chain(name: string): Buffer[] {
 }
 const b64 = (s: string) => Buffer.from(s, "base64");
 
+const sonyTime = Date.parse("2026-05-23T00:00:00Z");
+const akitaTime = Date.parse("2024-10-01T00:00:00Z");
+const frankelTime = Date.parse("2026-11-16T00:00:00Z");
+
 describe("key attestation", () => {
-  it("reads a locked phone with the maker's system as verified (RSA root)", () => {
-    const r = verifyAttestation(chain("sony-xperia10-iii-TEE_EC"), b64("Pq/k1d0AkN5aQrQytCSBr1zimWNlayWExZpJLeFtAMk="), new Set());
+  it("rejects a signed path whose intermediate has no certificate signing authority", () => {
+    const r = verifyAttestation(chain("sony-xperia10-iii-TEE_EC"), b64("Pq/k1d0AkN5aQrQytCSBr1zimWNlayWExZpJLeFtAMk="), new Set(), sonyTime);
+    expect(r.state).toBe("unverifiable");
+  });
+
+  it("accepts the 2026 EC root", () => {
+    const r = verifyAttestation(chain("frankel-TEE_EC_2026"), b64("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy"), new Set(), frankelTime);
     expect(r).toMatchObject({ state: "verified", securityLevel: "tee", deviceLocked: true, verifiedBootState: "verified" });
     expect(r.osPatchLevel).toBeGreaterThan(202000);
   });
 
-  it("accepts the 2026 EC root", () => {
-    const r = verifyAttestation(chain("frankel-TEE_EC_2026"), b64("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy"), new Set());
-    expect(r.state).toBe("verified");
-  });
-
   it("reports an unlocked bootloader", () => {
-    const r = verifyAttestation(chain("akita-TEE_EC_NONE"), Buffer.from("challenge"), new Set());
+    const r = verifyAttestation(chain("akita-TEE_EC_NONE"), Buffer.from("challenge"), new Set(), akitaTime);
     expect(r).toMatchObject({ state: "unlocked", deviceLocked: false, verifiedBootState: "unverified" });
   });
 
@@ -53,11 +57,33 @@ describe("key attestation", () => {
 
   it("does not mark a locked phone verified without a revocation list", () => {
     const result = verifyAttestation(
-      chain("sony-xperia10-iii-TEE_EC"),
-      b64("Pq/k1d0AkN5aQrQytCSBr1zimWNlayWExZpJLeFtAMk="),
+      chain("frankel-TEE_EC_2026"),
+      b64("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy"),
       null,
+      frankelTime,
     );
     expect(result).toMatchObject({ state: "unverifiable", revocationChecked: false });
+  });
+
+  it("rejects a valid chain after its issuing certificates expire", () => {
+    const result = verifyAttestation(
+      chain("frankel-TEE_EC_2026"),
+      b64("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy"),
+      new Set(),
+      Date.parse("2026-11-22T00:00:00Z"),
+    );
+    expect(result.state).toBe("unverifiable");
+  });
+
+  it("drops a cached revocation list once its refresh fails", async () => {
+    let offline = false;
+    const list = new RevocationList(async () => {
+      if (offline) throw new Error("offline");
+      return { entries: {} };
+    });
+    expect(await list.get(0)).toEqual(new Set());
+    offline = true;
+    expect(await list.get(60 * 60_000)).toBeNull();
   });
 
   it("says when the revocation list could not be fetched", async () => {

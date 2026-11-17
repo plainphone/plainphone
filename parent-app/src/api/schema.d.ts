@@ -2195,7 +2195,7 @@ export interface operations {
             content: {
                 "application/json": {
                     challenge: string;
-                    /** @description DER certificates, base64, leaf first. */
+                    /** @description Two or more DER certificates, base64, leaf first. Empty when the keystore cannot provide an attestation chain. */
                     chain: string[];
                 };
             };

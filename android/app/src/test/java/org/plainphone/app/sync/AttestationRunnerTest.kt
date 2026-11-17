@@ -25,7 +25,7 @@ class AttestationRunnerTest {
         }
         override fun submit(token: String, challenge: String, chain: List<ByteArray>): String {
             submitted = challenge to chain
-            return "unlocked"
+            return if (chain.isEmpty()) "unverifiable" else "unlocked"
         }
     }
 
@@ -39,6 +39,16 @@ class AttestationRunnerTest {
         assertThat(String(seen!!)).isEqualTo("server-challenge")
         assertThat(api.submitted!!.first).isEqualTo(api.challenge)
         assertThat(store.state).isEqualTo("unlocked")
+    }
+
+    @Test
+    fun `keystore failure is reported as unverifiable`() {
+        val api = FakeApi()
+        val store = MemStore()
+        val runner = AttestationRunner(api, { error("no hardware key") }, store, nowMs = { 10 * AttestationRunner.EVERY_MS })
+        assertThat(runner.runIfDue("t")).isEqualTo("unverifiable")
+        assertThat(api.submitted!!.second).isEmpty()
+        assertThat(store.state).isEqualTo("unverifiable")
     }
 
     @Test

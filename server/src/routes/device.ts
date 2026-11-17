@@ -15,6 +15,7 @@ import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
+import { withAttestation } from "../services/phones.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { rulesDocument } from "../services/phones.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
@@ -295,14 +296,17 @@ export function deviceRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
     // The newest report replaces the one before; no history is kept. Times are stored in UTC.
     // The previous report is read in the same statement, so two reports racing each other
     // cannot both see "was protected" and alert twice.
-    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus }>(sql`
-      with old as (select device_status from phones where id = ${phone.id} for update)
+    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus; attestation: typeof phone.attestation }>(sql`
+      with old as (select device_status, attestation from phones where id = ${phone.id} for update)
       update phones set
         device_status = ${JSON.stringify({ ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null })}::jsonb,
         status_reported_at = ${ctx.now().toISOString()}::timestamptz
       from old where phones.id = ${phone.id}
-      returning old.device_status as status`);
-    const lost = protectionLost(prev?.status ?? null, { ...input, lockIntact });
+      returning old.device_status as status, old.attestation as attestation`);
+    const lost = protectionLost(
+      prev?.status ? withAttestation(prev.status, prev.attestation) : null,
+      withAttestation({ ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null }, prev?.attestation ?? null),
+    );
     if (lost) {
       await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
     }

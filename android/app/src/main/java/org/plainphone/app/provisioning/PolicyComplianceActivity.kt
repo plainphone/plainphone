@@ -23,6 +23,14 @@ class PolicyComplianceActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PlainphoneAdminReceiver.saveConfigFrom(this, intent)
+        BootloaderWarning.confirm(this, ::applyForProvisioning)?.apply {
+            setOnDismissListener {
+                if (BootloaderWarning.needsAcknowledgement(this@PolicyComplianceActivity)) finish()
+            }
+        }
+    }
+
+    private fun applyForProvisioning() {
         Lock.applyAsync(this, "provisioning (policy compliance)") {
             runOnUiThread { if (!askForCallRole()) done() }
         }

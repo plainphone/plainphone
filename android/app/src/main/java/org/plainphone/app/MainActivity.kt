@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.app.AlertDialog
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.app.role.RoleManager
@@ -98,10 +99,22 @@ class MainActivity : Activity() {
         setContentView(ScrollView(this).apply { addView(column) })
     }
 
+    private var bootWarningDialog: AlertDialog? = null
+
     override fun onResume() {
         super.onResume()
         taps = 0
         refresh()
+        if (isDeviceOwner() && BootloaderWarning.needsAcknowledgement(this)) {
+            if (bootWarningDialog?.isShowing != true) {
+                bootWarningDialog = BootloaderWarning.confirm(this, ::applyOnOpen)
+            }
+            return
+        }
+        applyOnOpen()
+    }
+
+    private fun applyOnOpen() {
         // Self-healing: every time the app is opened the lock is re-applied,
         // unless a parent has lifted it for maintenance.
         val justProvisioned = intent?.action == DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL

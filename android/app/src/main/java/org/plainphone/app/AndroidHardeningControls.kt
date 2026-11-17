@@ -41,10 +41,10 @@ class AndroidHardeningControls(private val context: Context) : HardeningControls
         // https://developer.android.com/work/dpc/security#enable_enterprise_frp (devices that cannot use
         // setFactoryResetProtectionPolicy). Plainphone sets no other Play services configuration.
         val bundle = Bundle()
-        if (accountIds != null) {
+        if (!accountIds.isNullOrEmpty()) {
             bundle.putStringArray(KEY_FRP_ADMIN, accountIds.toTypedArray())
             bundle.putBoolean(KEY_FRP_DISABLE, false)
-        } else {
+        } else if (accountIds == null) {
             bundle.putBoolean(KEY_FRP_DISABLE, true)
         }
         dpm.setApplicationRestrictions(admin, GMS_PACKAGE, bundle)
