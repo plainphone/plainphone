@@ -36,38 +36,72 @@ jobs:
             const base = `${context.serverUrl}/${owner}/${repo}`;
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
             const isNew = (date) => new Date(date) >= since;
-            const maintainer = (a) => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(a);
+            const maintainerByLogin = new Map();
+            const isMaintainer = async (username) => {
+              if (!username) return false;
+              const login = username.toLowerCase();
+              if (!maintainerByLogin.has(login)) {
+                let maintainer = false;
+                try {
+                  const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username });
+                  maintainer = ['admin', 'maintain', 'write'].includes(data.permission);
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+                maintainerByLogin.set(login, maintainer);
+              }
+              return maintainerByLogin.get(login);
+            };
+            const outside = async (items) => {
+              const result = [];
+              for (const item of items) {
+                if (!await isMaintainer(item.user?.login ?? item.author?.login)) result.push(item);
+              }
+              return result;
+            };
             const hasLabel = (item, name) => item.labels.some((l) => (typeof l === 'string' ? l : l.name) === name);
-            const escape = (s) => s.replace(/[\\`*_~|>\[\]<@]/g, '\\$&').slice(0, 90);
-            const line = (i, extra = '') => `#${i.number} ${escape(i.title)} (${escape(i.user?.login ?? i.author?.login ?? 'ghost')})${extra} <${i.html_url ?? i.url}>`;
+            const escape = (s) => s.replace(/[\\`*_~|>\[\]<@]/g, '\\$&');
+            const safeTitle = (title) => escape(Array.from(title.replace(/\s+/g, ' ').trim()).slice(0, 90).join(''))
+              .replaceAll('://', ':\u200b//');
+            const line = (i, extra = '') => `#${i.number} ${safeTitle(i.title)} (${escape(i.user?.login ?? i.author?.login ?? 'ghost')})${extra} <${i.html_url ?? i.url}>`;
 
             const open = await github.paginate(github.rest.issues.listForRepo, {
               owner, repo, state: 'open', per_page: 100,
             });
-            const issues = open.filter((i) => !i.pull_request);
-            const pulls = open.filter((i) => i.pull_request);
+            const outsideItems = await outside(open);
+            const issues = outsideItems.filter((i) => !i.pull_request);
+            const pulls = outsideItems.filter((i) => i.pull_request);
 
-            const { repository } = await github.graphql(
-              `query($owner: String!, $repo: String!) {
-                repository(owner: $owner, name: $repo) {
-                  discussions(first: 50, orderBy: { field: CREATED_AT, direction: DESC }) {
-                    nodes { number title url createdAt closed isAnswered authorAssociation
-                      author { login } category { name isAnswerable } comments { totalCount } }
+            const openDiscussions = [];
+            let cursor = null;
+            do {
+              const { repository } = await github.graphql(
+                `query($owner: String!, $repo: String!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    discussions(first: 100, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes { number title url createdAt closed isAnswered
+                        author { login } category { name isAnswerable } comments { totalCount } }
+                    }
                   }
-                }
-              }`,
-              { owner, repo },
-            );
-            const discussions = repository.discussions.nodes.filter((d) => !d.closed);
+                }`,
+                { owner, repo, cursor },
+              );
+              const { nodes, pageInfo } = repository.discussions;
+              openDiscussions.push(...nodes.filter((d) => !d.closed));
+              cursor = pageInfo.hasNextPage ? pageInfo.endCursor : null;
+            } while (cursor);
+            const discussions = await outside(openDiscussions);
 
             const newIssues = issues.filter((i) => isNew(i.created_at));
             const newPulls = pulls.filter((i) => isNew(i.created_at));
             const waiting = pulls.filter((i) => hasLabel(i, 'awaiting-maintainer'));
             const needsTriage = issues.filter((i) => hasLabel(i, 'needs-triage'));
-            const unansweredIssues = issues.filter((i) => !maintainer(i.author_association) && i.comments <= 1);
+            // A single comment may be the bot acknowledgement, so this is only an estimate.
+            const unansweredIssues = issues.filter((i) => i.comments <= 1);
             const newDiscussions = discussions.filter((d) => isNew(d.createdAt));
             const unanswered = discussions.filter((d) => d.comments.totalCount === 0
-              || (d.category.isAnswerable && !d.isAnswered && !maintainer(d.authorAssociation)));
+              || (d.category.isAnswerable && !d.isAnswered));
 
             const somethingNew = newIssues.length || newPulls.length || newDiscussions.length
               || waiting.some((i) => isNew(i.updated_at));
@@ -100,7 +134,7 @@ jobs:
               `Open issues needing triage: ${needsTriage.length} <${base}/issues?q=is%3Aopen+label%3Aneeds-triage>`,
               `Open issues from outside without a reply: ${unansweredIssues.length}`,
               `Open discussions without an answer: ${unanswered.length}`,
-              `Open pull requests: ${pulls.length}`,
+              `Open pull requests from outside: ${pulls.length}`,
             ];
             let content = [...lines, ...counts].join('\n');
             if (content.length > 1900) content = `${content.slice(0, 1900)}\n(cut short, see ${base})`;

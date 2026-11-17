@@ -74,11 +74,13 @@ jobs:
               core.setFailed('number must be a positive issue, pull request or discussion number.');
               return;
             }
-            const body = process.env.BODY || '';
-            if (!body.trim()) {
+            const reply = (process.env.BODY || '').trimEnd();
+            if (!reply.trim()) {
               core.setFailed('body must not be empty.');
               return;
             }
+            const signature = '— the Plainphone bot';
+            const body = reply.endsWith(signature) ? reply : `${reply}\n\n${signature}`;
             const add = split(process.env.LABELS);
             const remove = split(process.env.REMOVE_LABELS);
             const close = process.env.CLOSE;
@@ -94,6 +96,17 @@ jobs:
               if (close !== 'no' && item.pull_request) {
                 core.setFailed('close only works on issues, not pull requests.');
                 return;
+              }
+              if (add.length || remove.length) {
+                const repoLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+                  owner, repo, per_page: 100,
+                });
+                const known = new Set(repoLabels.map(({ name }) => name));
+                const unknown = [...new Set([...add, ...remove])].filter((name) => !known.has(name));
+                if (unknown.length) {
+                  core.setFailed(`Unknown repository labels: ${unknown.join(', ')}`);
+                  return;
+                }
               }
               const { data: comment } = await github.rest.issues.createComment({
                 owner, repo, issue_number: number, body,

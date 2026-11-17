@@ -41,7 +41,7 @@ CI runs the same checks for every pull request. To run the server and the web ap
 - Write commit subjects in English, in the imperative, and keep them short: "Keep the parent PIN on the phone during light setup".
 - Keep one logical change per commit, and explain the why in the body when it is not obvious.
 - Fill in the pull request template, including how you verified the change and the `Evidence:` line.
-- CI for pull requests from outside contributors starts after a maintainer approves the run. Every pull request then gets an automated review, and a maintainer decides on the merge.
+- CI for pull requests from outside contributors starts after the maintainers approve the run. A pull request usually gets an automated review. When CI is green and the review has no open blocking findings, it is usually labelled `awaiting-maintainer`. The maintainers decide whether to merge it.
 - Update the documentation in `docs/` in the same pull request when behaviour changes.
 - Copy for parents and children is calm and plain. Avoid judging language, streaks and rewards (principle 7).
 
