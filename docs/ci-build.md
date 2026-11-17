@@ -1,24 +1,33 @@
 # CI and build
 
-The Android, Server and web, Parent app, DNS and Site workflows start on every
-pull request and push to main. Each workflow detects changes before running its
-checks. On an unrelated change, the existing jobs take a short success path
-without checking out the repository, restoring caches or starting PostgreSQL.
-If change detection fails, the existing checks also fail. A workflow edit runs all five
-sets of checks. The Site deploy workflow has its own main-only trigger.
+The CI workflow starts on every pull request and push to main. One job
+computes the tree diff for the run. On pull requests it compares the checked-out
+merge commit with its first parent, so reruns use the same changed files even
+after the pull request moves. On pushes it compares the previous and current
+commit, and runs all checks when the previous commit is unavailable. Workflow
+and detector changes run all checks. Site deploy has its own main-only trigger.
+
+Each check job reports success on unrelated changes without checking out the
+repository, restoring caches or starting PostgreSQL. A detector failure fails
+the check jobs. A docs-only change starts seven runners (one detector and six
+short check jobs), down from twelve in the initial split-workflow version.
+Before path filtering, the same change started four runners that ran the full
+Android and server workflows. These counts include the short success jobs.
+Elapsed and billed time also depend on queue and runner startup time.
 
 Android APK builds also watch the provisioning QR and release smoke scripts.
-The phone sync integration test additionally watches the server, root workspace
-inputs and its test driver. Parent app checks watch the OpenAPI spec and the PWA
-files copied by `pnpm sync:shared`. Jobs for different components run in
-parallel. Android debug and release checks share one Gradle invocation so they
-can share setup and compilation. The server test and Docker smoke jobs also
-run concurrently, with `pnpm -r build` running in Docker only.
+Phone sync additionally watches the server, root workspace inputs and its
+test driver. Parent app checks watch the OpenAPI spec and the PWA files copied
+by `pnpm sync:shared`. Independent jobs run in parallel. Debug and release APK
+checks share one Gradle invocation. The Docker smoke job runs concurrently
+with server, web and phone sync checks, with `pnpm -r build` running in Docker only.
 
-The pnpm cache is scoped to each workspace lockfile. The server and web test
-job saves the root store. Phone sync restores it and installs only the server
-workspace, so a partial install cannot populate the shared key. The separate
-Expo workspace uses its own lockfile and install. The Docker build uses its own layer cache and runs a frozen install
+Server and web tests share the installed root workspace and one PostgreSQL
+service with phone sync. Each test suite uses its own database. The root
+workspace install saves the pnpm store under its lockfile key. On phone-only
+changes, a filtered install restores the same store without saving a partial
+store under that key. The separate Expo workspace uses its own lockfile and
+install. The Docker build uses its own layer cache and runs a frozen install
 before building either workspace package. The `pnpm deploy --prod` output is
 cached separately from the application source. The image contains its production
 dependencies, compiled server, migrations, catalog and built PWA. It runs as
@@ -28,7 +37,7 @@ cache to GitHub Actions. PR builds can restore it.
 Gradle keeps its local build and configuration caches with `--no-daemon`.
 `setup-gradle` restores Gradle user-home data in CI. Configuration-cache entries
 are local to the workspace unless an encryption key is configured for CI
-transfer. The Android workflows cache the requested platform and build-tools
+transfer. The Android jobs cache the requested platform and build-tools
 directories when the hosted runner does not already have them.
 
 ## Baseline and comparison
@@ -74,20 +83,22 @@ not measure a change in hosted Android job time.
 
 ## First GitHub runs
 
-1. On the CI PR, check that all existing job names complete and all checks run.
-   Check Android debug and minified release APKs, both lint variants, QR tests,
-   phone sync against PostgreSQL, and the APK and site artifacts. Compare job and
-   step times against the baseline above.
+1. On the CI PR, verify all six check jobs (`android`, `server-and-phone-sync`,
+   `docker`, `parent-app`, `dns` and `site`) and the `changes` job. Confirm debug and minified release APKs, both lint variants, QR
+   tests, phone sync against PostgreSQL, and APK and site artifacts. Compare
+   job and step times against the baseline above, including job setup.
 2. Check that Buildx loads the image and that health, the PWA and pairing pass.
    The first main build populates the Docker cache. On the next eligible run,
    check the GHA cache import and whether the dependency layers are cached.
    Compare Android SDK cache restore time against SDK setup time and check
    Gradle and pnpm cache hits for both lockfiles.
-3. On a later docs-only PR, verify that the existing required job names report
-   success via “No relevant changes” and neither PostgreSQL service starts.
-   On a server-only PR, verify that phone sync still runs and the APK build
-   takes the success path. On an external-fork PR, verify that the change
-   detector can read changed files with the read-only token.
+3. On a docs-only PR, verify that all check jobs report success via
+   “No relevant changes” and PostgreSQL does not start. On a server-only PR,
+   verify that phone sync shares the root pnpm install with server and web
+   checks while the APK build takes the success path. On a fork PR, confirm
+   that the read-only checkout can diff the merge commit. Push a new revision
+   that removes a previously tested Android change, then rerun the earlier
+   revision and confirm it still runs the Android checks.
 4. Push another update to a test PR while checks are running and verify the
-   older run cancels. Confirm the protected branch still requires the same
-   checks. Main pushes use separate groups rather than cancelling each other.
+   older run cancels. If branch protection or a ruleset requires status checks,
+   use the current CI job names. Main pushes have separate concurrency groups.
