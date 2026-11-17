@@ -4,6 +4,7 @@ package org.plainphone.app.sync
 
 import java.io.IOException
 import java.util.Base64
+import org.plainphone.app.StepResult
 
 /** Reversible stand-in for the Android Keystore, which Robolectric does not have. */
 class FakeSecretBox : SecretBox {
@@ -22,12 +23,19 @@ class FakeSyncDevice(
     val locationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L
+    /** What the next [release] reports; make a step fail to play a release that did not hold. */
+    var releaseResults: List<StepResult> = listOf(StepResult("give up Device Owner", true))
+    var releases = 0
 
     override fun nowMs() = now
     override fun appVersion() = "0.1.2"
     override fun installedApps() = apps
     override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) { applies += reason }
     override fun lockState() = lock
+    override fun release(): List<StepResult> {
+        releases++
+        return releaseResults
+    }
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
     override fun location(precise: Boolean): LocationFix? {
         locationRequests += precise
@@ -50,6 +58,10 @@ class FakeSyncApi : SyncApi {
     var enrollFailure: IOException? = null
     val enrollCalls: MutableList<Pair<String, String>> = java.util.Collections.synchronizedList(mutableListOf())
     var enrollDelayMs = 0L
+    /** What the server answers to "Plainphone is off": true = deleted (204/401), false = 409. */
+    var ackResult = true
+    var ackFailure: IOException? = null
+    val acks = mutableListOf<String>()
 
     override fun startPairing(mode: String, deviceInfo: Map<String, String>) = pairing
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
@@ -71,6 +83,11 @@ class FakeSyncApi : SyncApi {
     override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
     override fun reportLocation(token: String, fix: LocationFix): Boolean { locations += fix; return true }
     override fun reportStatus(token: String, status: DeviceStatus) { statuses += status }
+    override fun ackReleased(token: String): Boolean {
+        acks += token
+        ackFailure?.let { throw it }
+        return ackResult
+    }
 }
 
 /** A rules document like the server's (server/src/services/phones.ts). */
@@ -85,9 +102,11 @@ fun rulesJson(
     timezone: String = "Europe/Copenhagen",
     toInstall: String? = null,
     timeLimits: String? = null,
+    release: Boolean? = null,
 ): String {
     val install = toInstall?.let { ""","toInstall":$it""" } ?: ""
     val limits = timeLimits?.let { ""","timeLimits":$it""" } ?: ""
+    val rel = release?.let { ""","release":$it""" } ?: ""
     val ready = dnsReady?.let { ""","ready":$it""" } ?: ""
     val req = requestedAt?.let { "\"$it\"" } ?: "null"
     return """
@@ -97,7 +116,7 @@ fun rulesJson(
      "schedules":$schedules,
      "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready,"blockedCategories":["adult"]},
      "location":{"enabled":$locationEnabled,"intervalMinutes":5,"requestedAt":$req},
-     "pendingChanges":[],
+     "pendingChanges":[]$rel,
      "pollSeconds":60$limits}
     """.trimIndent()
 }

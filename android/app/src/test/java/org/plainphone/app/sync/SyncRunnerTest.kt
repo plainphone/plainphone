@@ -9,6 +9,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.SyncedContactPolicySource
 import org.robolectric.RobolectricTestRunner
 
@@ -231,5 +232,137 @@ class SyncRunnerTest {
         assertThat(source.rules().contacts).containsExactly(ApprovedContact("Mum", "+4512345678"))
         assertThat(source.add(ApprovedContact("Sneaky", "+4599999999")).isFailure).isTrue()
         assertThat(source.rules().contacts.map { it.name }).containsExactly("Mum")
+    }
+
+    // --- Released by a parent (docs/sync-api.md, "Releasing the phone") ---------------------
+
+    @Test
+    fun `a release switches Plainphone off before the lock, tells the server and ends as removed`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        assertThat(runner.run("release")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(api.acks).containsExactly("pp_d_token")
+        // The lock is never applied for these rules, and nothing is reported to the parent.
+        assertThat(device.applies).isEmpty()
+        assertThat(api.statuses).isEmpty()
+        assertThat(api.locations).isEmpty()
+        assertThat(store.released).isTrue()
+        assertThat(store.removed).isTrue()
+        assertThat(store.isPaired).isFalse()
+        // Nothing more happens afterwards.
+        val calls = api.tokensUsed.size
+        assertThat(runner.run("later")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(api.tokensUsed).hasSize(calls)
+        assertThat(device.releases).isEqualTo(1)
+    }
+
+    @Test
+    fun `without release in the rules nothing is released, also from an older server`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        runner.run("a")
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(release = false))
+        runner.run("b")
+        assertThat(device.releases).isEqualTo(0)
+        assertThat(api.acks).isEmpty()
+        assertThat(store.released).isFalse()
+    }
+
+    @Test
+    fun `when the server cannot be told, the release is kept and the lock never comes back`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        api.ackFailure = IOException("no network")
+        assertThat(runner.run("release")).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(store.released).isTrue()
+        assertThat(store.removed).isFalse()
+
+        // Still offline: only the acknowledgement is tried. No rules, no apps, no lock, no second release.
+        val fetches = api.etagsSent.size
+        val reported = api.appsReported.size
+        assertThat(runner.run("still offline")).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(api.etagsSent).hasSize(fetches)
+        assertThat(api.appsReported).hasSize(reported)
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(device.applies).isEmpty()
+        assertThat(api.acks).hasSize(2)
+
+        api.ackFailure = null
+        assertThat(runner.run("online again")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(api.acks).hasSize(3)
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(device.applies).isEmpty()
+        assertThat(store.removed).isTrue()
+    }
+
+    @Test
+    fun `a release that did not hold is not acknowledged and is tried again, also offline`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        device.releaseResults = listOf(StepResult("show hidden apps", true), StepResult("give up Device Owner", false, "some apps are still hidden"))
+        val out = runner.run("release")
+        assertThat(out).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(api.acks).isEmpty()
+        assertThat(store.released).isFalse()
+        assertThat(store.removed).isFalse()
+        assertThat(device.applies).isEmpty()
+        assertThat(api.statuses).isEmpty()
+
+        // Unchanged rules still say release: it is tried again at the next sync.
+        api.rules = RulesResult.Unchanged
+        runner.run("again")
+        assertThat(device.releases).isEqualTo(2)
+        // Even without a network the stored rules finish the job locally.
+        api.failRules = IOException("no network")
+        runner.run("offline")
+        assertThat(device.releases).isEqualTo(3)
+        assertThat(device.applies).isEmpty()
+
+        api.failRules = null
+        device.releaseResults = listOf(StepResult("give up Device Owner", true))
+        api.rules = RulesResult.Unchanged
+        assertThat(runner.run("now it holds")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(api.acks).hasSize(1)
+        assertThat(store.released).isTrue()
+    }
+
+    @Test
+    fun `a release that crashes counts as not held`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        val crashing = object : SyncDevice by device {
+            override fun release(): List<StepResult> = throw IllegalStateException("boom")
+        }
+        assertThat(SyncRunner(store, api, crashing).run("release")).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(api.acks).isEmpty()
+        assertThat(store.released).isFalse()
+    }
+
+    @Test
+    fun `when the server says nobody asked, the phone goes on syncing with the real rules`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        api.ackResult = false
+        assertThat(runner.run("release")).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(store.released).isFalse()
+        assertThat(store.removed).isFalse()
+
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(release = false))
+        assertThat(runner.run("next")).isEqualTo(SyncRunner.Outcome.Synced(changed = true, pollSeconds = 60))
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(device.applies.last()).startsWith("new rules")
+    }
+
+    @Test
+    fun `a new pairing clears the release, so the phone can be locked again`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        runner.run("release")
+        assertThat(store.released).isTrue()
+        store.savePaired("phone-2", "pp_d_token2")
+        assertThat(store.released).isFalse()
+        assertThat(store.removed).isFalse()
+        assertThat(store.isPaired).isTrue()
     }
 }

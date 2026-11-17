@@ -117,6 +117,7 @@
     <string name="status_sync_never">Parret. Venter på de første regler fra serveren.</string>
     <string name="status_sync_ok">Parret. Sidst synkroniseret: %1$s</string>
     <string name="status_sync_removed">Fjernet i forælderens oversigt. De sidste regler gælder stadig. Par igen fra vedligeholdelsesskærmen.</string>
+    <string name="status_sync_released">Slået fra af en forælder. Plainphone låser ikke længere telefonen og kan afinstalleres.</string>
     <string name="status_sync_no_rules">Ingen regler fra serveren endnu: QR-kodens regler gælder.</string>
     <string name="maintenance_pair">Par med en forælder</string>
     <string name="maintenance_sync_now">Synkronisér med serveren nu</string>

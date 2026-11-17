@@ -120,6 +120,7 @@
     <string name="status_sync_never">Paired. Waiting for the first rules from the server.</string>
     <string name="status_sync_ok">Paired. Last sync: %1$s</string>
     <string name="status_sync_removed">Removed in the parent\'s dashboard. The last rules still apply. Pair again from the maintenance screen.</string>
+    <string name="status_sync_released">Switched off by a parent. Plainphone no longer locks this phone and can be uninstalled.</string>
     <string name="status_sync_no_rules">No rules from the server yet: the QR code\'s rules apply.</string>
     <string name="maintenance_pair">Pair with a parent</string>
     <string name="maintenance_sync_now">Sync with the server now</string>

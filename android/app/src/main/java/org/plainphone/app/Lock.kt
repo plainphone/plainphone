@@ -69,6 +69,8 @@ object Lock {
 
     /** Blocking. Never call on the main thread. */
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
+        // A parent released this phone: nothing locks it again, whatever wakes us (boot, an alarm, the screen).
+        if (SyncStore(context).released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
         val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {
@@ -91,6 +93,7 @@ object Lock {
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
+        if (SyncStore(context).released) return null
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
         if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
@@ -207,16 +210,22 @@ object Lock {
 
     fun releaseAsync(context: Context, done: (List<StepResult>) -> Unit) {
         val app = context.applicationContext
-        executor.execute {
-            val results = guarded("release") {
-                cancelRelock(app)
-                if (Mode.isLight(app)) {
-                    LightRelease.release(app).also { saveReport(app, "light mode switched off", it) }
-                } else {
-                    applier(app).release().also { saveReport(app, "released Device Owner", it) }
-                }
-            }
-            done(results)
+        executor.execute { done(guarded("release") { releaseNow(app) }) }
+    }
+
+    /**
+     * Gives the phone back for good: cancels the relock and the school-time alarm, then undoes the
+     * lock the way the mode needs (light mode: device admin, VPN, guard; strong mode: policies and
+     * Device Owner). The maintenance screen and a parent's release from the dashboard both end here.
+     * Blocking. Never call on the main thread.
+     */
+    fun releaseNow(context: Context): List<StepResult> = synchronized(APPLY_LOCK) {
+        cancelRelock(context)
+        context.getSystemService(AlarmManager::class.java).cancel(windowIntent(context))
+        if (Mode.isLight(context)) {
+            LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
+        } else {
+            applier(context).release().also { saveReport(context, "released Device Owner", it) }
         }
     }
 

@@ -40,6 +40,11 @@ data class ServerRules(
     val toInstall: List<CatalogInstall> = emptyList(),
     /** Daily minutes per app and in total (docs/time-limits.md). */
     val timeLimits: TimeLimits = TimeLimits.NONE,
+    /**
+     * The parents released the phone: switch Plainphone off, never lock again and tell the
+     * server (docs/sync-api.md, "Releasing the phone"). Missing from older servers: false.
+     */
+    val release: Boolean = false,
 ) {
     companion object {
         const val MIN_POLL_SECONDS = 30
@@ -81,6 +86,7 @@ data class ServerRules(
                     CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
+                release = j.optBoolean("release", false),
             )
         }
 

@@ -37,8 +37,8 @@ false and the parent sees which one. The phone also reports `mode: "light"` and 
 
 A parent can switch light mode off from the dashboard with **Release the phone**. The next sync
 reads `release: true`, switches Plainphone off the same way the maintenance screen does, and
-tells the server, which then removes the phone from the dashboard. Because it is the parent's
-own choice, the parent is not told about the protections going. See
+tells the server, which then removes the phone from the dashboard. The phone reports nothing
+about the protections going, since the parent asked for it. See
 [sync-api.md](sync-api.md#releasing-the-phone).
 
 ## The parent is told when protection is removed
