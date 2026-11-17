@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from "react";
+import { View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -162,28 +163,30 @@ function DomainList({ kind, domains, onChanged }: { kind: "allow" | "block"; dom
           ))}
         </List>
       )}
-      <Field
-        testID={`${kind}-domain`}
-        label={t("filter.domain")}
-        error={error}
-        value={value}
-        onChangeText={setValue}
-        keyboardType="url"
-        autoCapitalize="none"
-        autoCorrect={false}
-        spellCheck={false}
-        autoComplete="off"
-        placeholder={t("filter.domainPlaceholder")}
-        returnKeyType="done"
-        onSubmitEditing={() => void add()}
-      />
-      <Button
-        testID={`${kind}-add`}
-        kind="secondary"
-        title={t(kind === "allow" ? "filter.allowAdd" : "filter.blockAdd")}
-        busy={saving}
-        onPress={() => void add()}
-      />
+      <View style={{ gap: space.sm, marginTop: space.xs }}>
+        <Field
+          testID={`${kind}-domain`}
+          label={t("filter.domain")}
+          error={error}
+          value={value}
+          onChangeText={setValue}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={t("filter.domainPlaceholder")}
+          returnKeyType="done"
+          onSubmitEditing={() => void add()}
+        />
+        <Button
+          testID={`${kind}-add`}
+          kind="secondary"
+          title={t(kind === "allow" ? "filter.allowAdd" : "filter.blockAdd")}
+          busy={saving}
+          onPress={() => void add()}
+        />
+      </View>
     </Section>
   );
 }

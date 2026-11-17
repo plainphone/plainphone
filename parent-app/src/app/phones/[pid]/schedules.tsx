@@ -207,7 +207,7 @@ function Editor({ initial, apps, onDone }: { initial?: Schedule; apps: App[]; on
 
   return (
     <VStack gap={space.xl}>
-      <Text variant="heading">{initial ? `${t("sched.editTitle")}: ${kindLabel(initial.kind, t)}` : t("sched.newTitle")}</Text>
+      <Text variant="heading" style={{ paddingHorizontal: space.xs }}>{initial ? `${t("sched.editTitle")}: ${kindLabel(initial.kind, t)}` : t("sched.newTitle")}</Text>
       <Choice<ScheduleKind>
         label={t("sched.kind")}
         value={kind}

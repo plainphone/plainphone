@@ -364,8 +364,8 @@ export function LinkRow({
 export function Badge({ text }: { text: string }) {
   const c = useColors();
   return (
-    <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.warnLine }} />
+    <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 4 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.warnLine, marginTop: 6 }} />
       <Text variant="small" style={{ color: c.ink, fontWeight: "600" }}>
         {text}
       </Text>
