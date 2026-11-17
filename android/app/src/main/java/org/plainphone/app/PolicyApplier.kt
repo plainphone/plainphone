@@ -2,6 +2,8 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.update.InstallLease
+
 /** One line in the status report: what was attempted and whether it held. */
 data class StepResult(val name: String, val ok: Boolean, val detail: String = "") {
     override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
@@ -22,6 +24,8 @@ class PolicyApplier(
     private val device: DeviceControls,
     private val hiddenStore: HiddenAppsStore,
     private val sdkInt: Int,
+    /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
+    private val installsAllowed: () -> Boolean = { false },
 ) {
 
     fun apply(config: PolicyConfig): List<StepResult> {
@@ -34,6 +38,12 @@ class PolicyApplier(
         results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         for (key in LockPolicy.restrictions(sdkInt)) {
+            if (key == InstallLease.RESTRICTION && installsAllowed()) {
+                // Device Owner installs (self-update) are blocked by this restriction too. Lifted only
+                // while a short lease is open; the lease's end (or its expiry alarm) applies the lock again.
+                results += step("installs allowed during lease") { device.clearRestriction(key) }
+                continue
+            }
             results += step("restriction $key") { device.addRestriction(key) }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }

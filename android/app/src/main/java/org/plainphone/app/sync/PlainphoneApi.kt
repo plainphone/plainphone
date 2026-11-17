@@ -58,6 +58,8 @@ data class DeviceStatus(
     val rulesEtag: String?,
     val rulesAppliedAtMs: Long?,
     val dnsHost: String?,
+    val appVersionCode: Long? = null,
+    val update: org.plainphone.app.update.UpdateReport? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -70,6 +72,10 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .apply {
+            appVersionCode?.let { put("appVersionCode", it) }
+            update?.let { put("update", it.toJson()) }
+        }
 }
 
 internal fun iso(ms: Long): String = java.time.Instant.ofEpochMilli(ms).toString()

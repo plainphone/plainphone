@@ -30,6 +30,8 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** Set when a parent pressed "Update now"; the phone checks for a new app version at once. */
+    val updateRequestedAt: Instant? = null,
 ) {
     companion object {
         const val MIN_POLL_SECONDS = 30
@@ -64,6 +66,10 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                // Older servers do not send "update".
+                updateRequestedAt = j.optJSONObject("update")?.optString("requestedAt", "")
+                    ?.takeIf { it.isNotEmpty() && it != "null" }
+                    ?.let { Instant.parse(it) },
             )
         }
 

@@ -28,6 +28,7 @@ object Lock {
         AndroidDeviceControls(context.applicationContext),
         PrefsHiddenAppsStore(context.applicationContext),
         Build.VERSION.SDK_INT,
+        installsAllowed = { org.plainphone.app.update.InstallLease.android(context).isOpen() },
     )
 
     /** Applies the lock on a background thread (private DNS does network I/O). */

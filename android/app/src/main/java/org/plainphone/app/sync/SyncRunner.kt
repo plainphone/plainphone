@@ -21,6 +21,12 @@ interface SyncDevice {
     fun battery(): Pair<Int?, Boolean?>
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean): LocationFix?
+    /** The installed versionCode, for the dashboard's "update available". */
+    fun appVersionCode(): Long? = null
+    /** The self-update's last outcome (update/SelfUpdater.kt). */
+    fun updateReport(): org.plainphone.app.update.UpdateReport? = null
+    /** The parent pressed "Update now" at [requestedAtMs]; starts a check once per press. */
+    fun requestUpdate(requestedAtMs: Long) = Unit
 }
 
 data class LockState(
@@ -95,6 +101,7 @@ class SyncRunner(
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
+        rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
         guarded("report status") { reportStatus(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
@@ -142,6 +149,8 @@ class SyncRunner(
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
+            appVersionCode = device.appVersionCode(),
+            update = device.updateReport(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null).toString())
