@@ -1,0 +1,117 @@
+name: Daily digest
+
+# Posts a short summary of new and waiting issues, pull requests and
+# discussions to the maintainers' Discord channel. Uses only public data:
+# numbers, titles, links and GitHub usernames. Sends nothing when nothing is
+# new, and skips with a notice when the DISCORD_WEBHOOK_URL secret is not set.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: read
+      pull-requests: read
+      discussions: read
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        with:
+          script: |
+            const webhook = process.env.DISCORD_WEBHOOK_URL;
+            if (!webhook) {
+              core.notice('DISCORD_WEBHOOK_URL is not set, so no digest was sent.');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const base = `${context.serverUrl}/${owner}/${repo}`;
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const isNew = (date) => new Date(date) >= since;
+            const maintainer = (a) => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(a);
+            const hasLabel = (item, name) => item.labels.some((l) => (typeof l === 'string' ? l : l.name) === name);
+            const escape = (s) => s.replace(/[\\`*_~|>\[\]<@]/g, '\\$&').slice(0, 90);
+            const line = (i, extra = '') => `#${i.number} ${escape(i.title)} (${escape(i.user?.login ?? i.author?.login ?? 'ghost')})${extra} <${i.html_url ?? i.url}>`;
+
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', per_page: 100,
+            });
+            const issues = open.filter((i) => !i.pull_request);
+            const pulls = open.filter((i) => i.pull_request);
+
+            const { repository } = await github.graphql(
+              `query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  discussions(first: 50, orderBy: { field: CREATED_AT, direction: DESC }) {
+                    nodes { number title url createdAt closed isAnswered authorAssociation
+                      author { login } category { name isAnswerable } comments { totalCount } }
+                  }
+                }
+              }`,
+              { owner, repo },
+            );
+            const discussions = repository.discussions.nodes.filter((d) => !d.closed);
+
+            const newIssues = issues.filter((i) => isNew(i.created_at));
+            const newPulls = pulls.filter((i) => isNew(i.created_at));
+            const waiting = pulls.filter((i) => hasLabel(i, 'awaiting-maintainer'));
+            const needsTriage = issues.filter((i) => hasLabel(i, 'needs-triage'));
+            const unansweredIssues = issues.filter((i) => !maintainer(i.author_association) && i.comments <= 1);
+            const newDiscussions = discussions.filter((d) => isNew(d.createdAt));
+            const unanswered = discussions.filter((d) => d.comments.totalCount === 0
+              || (d.category.isAnswerable && !d.isAnswered && !maintainer(d.authorAssociation)));
+
+            const somethingNew = newIssues.length || newPulls.length || newDiscussions.length
+              || waiting.some((i) => isNew(i.updated_at));
+            if (!somethingNew) {
+              core.notice('Nothing new in the last 24 hours, so no digest was sent.');
+              return;
+            }
+
+            const section = (title, items, render, link) => {
+              if (!items.length) return [];
+              const shown = items.slice(0, 8).map(render);
+              if (items.length > shown.length) shown.push(`and ${items.length - shown.length} more: <${link}>`);
+              return [`**${title} (${items.length})**`, ...shown, ''];
+            };
+            const tags = (i) => {
+              const t = ['external', 'awaiting-maintainer'].filter((n) => hasLabel(i, n));
+              return t.length ? ` [${t.join(', ')}]` : '';
+            };
+
+            const lines = [
+              `**Plainphone, last 24 hours** <${base}>`,
+              '',
+              ...section('New issues', newIssues, (i) => line(i), `${base}/issues`),
+              ...section('New pull requests', newPulls, (i) => line(i, tags(i)), `${base}/pulls`),
+              ...section('Pull requests waiting for a maintainer decision', waiting, (i) => line(i, tags(i)),
+                `${base}/pulls?q=is%3Aopen+label%3Aawaiting-maintainer`),
+              ...section('New discussions', newDiscussions, (d) => line(d, ` in ${d.category.name}`), `${base}/discussions`),
+            ];
+            const counts = [
+              `Open issues needing triage: ${needsTriage.length} <${base}/issues?q=is%3Aopen+label%3Aneeds-triage>`,
+              `Open issues from outside without a reply: ${unansweredIssues.length}`,
+              `Open discussions without an answer: ${unanswered.length}`,
+              `Open pull requests: ${pulls.length}`,
+            ];
+            let content = [...lines, ...counts].join('\n');
+            if (content.length > 1900) content = `${content.slice(0, 1900)}\n(cut short, see ${base})`;
+
+            const response = await fetch(webhook, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }),
+            });
+            if (!response.ok) {
+              core.setFailed(`Discord answered ${response.status}.`);
+              return;
+            }
+            core.notice('Digest sent.');
