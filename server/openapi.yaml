@@ -804,10 +804,10 @@ paths:
       operationId: postDeviceEnroll
       security: []
       tags: [device]
-      summary: Pair with the setup token from a dashboard QR code (phone)
+      summary: Pair with a dashboard setup token (phone)
       description: |
-        A provisioning QR code made in the dashboard carries a one-time enrollment token
-        (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+        A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
+        setup link carries a one-time enrollment token. After setup the phone sends it here and gets
         its device token, with no code to type. The token is bound to the phone entry the parent made,
         works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
         may ask again for 60 minutes; it then gets a new device token and the earlier one stops
@@ -1435,11 +1435,11 @@ paths:
     post:
       operationId: postPhonesEnroll
       tags: [phones]
-      summary: Add a phone for setup with a provisioning QR code
+      summary: Add a phone for setup from the dashboard
       description: |
         Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
-        token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
-        token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+        token, valid 24 hours. The browser builds a provisioning QR code in strong mode or a
+        download and setup link in light mode from `provisioning`, the token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
         iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
         its hash never reach the server. Rate limited to 30 per day per user.
       security: [{ session: [] }, { cookie: [] }]
@@ -1452,6 +1452,7 @@ paths:
               required: [name, profile]
               properties:
                 name: { type: string, maxLength: 40 }
+                mode: { type: string, enum: [strong, light], default: strong }
                 profile: { enum: [child, self] }
                 householdId: { type: string, format: uuid }
                 timezone: { type: string, examples: [Europe/Copenhagen] }

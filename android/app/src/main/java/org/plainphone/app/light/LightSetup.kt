@@ -33,9 +33,9 @@ object LightSetup {
         FILTER(R.string.light_step_filter_title, R.string.light_step_filter_body, R.string.light_step_filter_action),
         USAGE(R.string.light_step_usage_title, R.string.light_step_usage_body, R.string.light_step_usage_action),
         ADMIN(R.string.light_step_admin_title, R.string.light_step_admin_body, R.string.light_step_admin_action),
+        GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
         RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action, optional = true),
         LOCATION(R.string.light_step_location_title, R.string.light_step_location_body, R.string.light_step_location_action, optional = true),
-        GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
         ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
         PAIR(R.string.light_step_pair_title, R.string.light_step_pair_body, R.string.light_step_pair_action),
     }
@@ -53,7 +53,19 @@ object LightSetup {
             context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
         Step.GUARD -> Protections.isGuardEnabled(context)
         Step.ALWAYS_ON -> org.plainphone.app.light.vpn.PlainphoneVpnService.isAlwaysOn(context)
-        Step.PAIR -> SyncStore(context).isPaired
+        Step.PAIR -> SyncStore(context).let { store ->
+            if (hasDashboardPin(context) && !isComplete(context)) hasDashboardRules(store) else store.isPaired
+        }
+    }
+
+    internal fun hasDashboardRules(store: SyncStore): Boolean =
+        store.isPaired && store.etag != null && store.rules() != null
+
+    fun hasDashboardPin(context: Context) = prefs(context).getBoolean("dashboardPin", false)
+
+    @SuppressLint("ApplySharedPref") // Must survive going back to Chrome to renew an expired link.
+    fun markDashboardPin(context: Context) {
+        prefs(context).edit().putBoolean("dashboardPin", true).commit()
     }
 
     fun isSkipped(context: Context, step: Step) = step.optional && prefs(context).getBoolean("skip_${step.name}", false)
@@ -62,8 +74,39 @@ object LightSetup {
         prefs(context).edit().putBoolean("skip_${step.name}", true).apply()
     }
 
+    fun skipOptions(context: Context) {
+        val edit = prefs(context).edit()
+        for (step in Step.entries) {
+            if (step.optional) edit.putBoolean("skip_${step.name}", true)
+        }
+        edit.apply()
+    }
+
+    fun batteryMaker(): Int? = when (Build.MANUFACTURER.lowercase(java.util.Locale.ROOT)) {
+        "oneplus" -> R.string.light_battery_oneplus
+        "xiaomi", "redmi", "poco" -> R.string.light_battery_xiaomi
+        "samsung" -> R.string.light_battery_samsung
+        else -> null
+    }
+
+    fun batteryMakerSettings(context: Context): Intent = if (batteryMaker() == R.string.light_battery_samsung) {
+        Intent("com.samsung.android.sm.ACTION_OPEN_CHECKABLE_LISTACTIVITY")
+            .setPackage("com.samsung.android.lool")
+            .putExtra("activity_type", 2) // Samsung's documented Never sleeping apps screen.
+    } else {
+        appDetails(context)
+    }
+
+    fun finishBatteryMakerHelp(context: Context) {
+        prefs(context).edit().putBoolean("batteryMakerHelpSeen", true).apply()
+    }
+
     /** The first step that still needs doing, or null when everything is set up. */
-    fun next(context: Context): Step? = Step.entries.firstOrNull { !isDone(context, it) && !isSkipped(context, it) }
+    fun next(context: Context): Step? = Step.entries.firstOrNull { step ->
+        !isSkipped(context, step) && (!isDone(context, step) ||
+            (step == Step.RUNNING && !isComplete(context) && batteryMaker() != null &&
+                !prefs(context).getBoolean("batteryMakerHelpSeen", false)))
+    }
 
     /** Setup counts as complete once it was finished once; afterwards the guard protects the screens. */
     fun isComplete(context: Context): Boolean = prefs(context).getBoolean("complete", false)
@@ -73,10 +116,15 @@ object LightSetup {
         LightRelease.clear(context)
     }
 
-    fun savePin(context: Context, pin: String) {
+    fun savePin(context: Context, pin: String, server: String? = null) {
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val store = ConfigStore(context)
-        store.save(store.load().copy(pinHashHex = MaintenancePin.hash(pin, salt), pinSaltHex = salt))
+        val config = store.load()
+        store.save(config.copy(
+            pinHashHex = MaintenancePin.hash(pin, salt),
+            pinSaltHex = salt,
+            serverUrl = server ?: config.serverUrl,
+        ))
     }
 
     /** What the step's button opens. Null when the step is handled inside Plainphone (PIN, pairing). */
@@ -86,7 +134,7 @@ object LightSetup {
         Step.PHONE -> roleIntent(context, android.app.role.RoleManager.ROLE_DIALER)
         Step.SMS -> roleIntent(context, android.app.role.RoleManager.ROLE_SMS)
         Step.FILTER -> VpnService.prepare(context)
-        Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}"))
         Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))
             .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(R.string.light_admin_explanation))
@@ -99,6 +147,9 @@ object LightSetup {
         Step.GUARD -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         Step.ALWAYS_ON -> Intent(Settings.ACTION_VPN_SETTINGS)
     }
+
+    fun appDetails(context: Context) =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
 
     fun notificationsAllowed(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED

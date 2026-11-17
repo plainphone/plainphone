@@ -309,6 +309,8 @@ object SyncScheduler {
 
     /** Pairs in the background with the QR code's enrollment token, if one is waiting. */
     fun enrollIfNeeded(context: Context) {
+        // Light setup redeems in the foreground after Android permissions are granted.
+        if (org.plainphone.app.light.Mode.isLight(context)) return
         val store = SyncStore(context)
         if (store.isPaired || store.enrollToken() == null) return
         val request = OneTimeWorkRequestBuilder<EnrollWorker>()

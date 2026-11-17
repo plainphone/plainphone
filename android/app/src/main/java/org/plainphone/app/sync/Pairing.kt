@@ -31,7 +31,7 @@ class PairingController(
      * Returns null when there is no token (or the phone is already paired). A refused token is dropped,
      * so the phone falls back to showing a code. Network errors throw and keep the token for a retry.
      */
-    fun enroll(): EnrollResult? = synchronized(ENROLL_LOCK) {
+    fun enroll(): EnrollResult? = synchronized(enrollmentLock) {
         // One at a time per process: the pairing screen and EnrollWorker may both try. Two requests
         // with the same token would each get a device token (the retry path), and the one saved
         // last could be the one the server already replaced.
@@ -65,7 +65,7 @@ class PairingController(
     }
 
     companion object {
-        private val ENROLL_LOCK = Any()
+        internal val enrollmentLock = Any()
         private const val MIN_REMAINING_MS = 60_000L
         /** A phone that has never been paired can be paired without the PIN this long after setup. */
         const val FREE_PAIRING_MS = 60 * 60_000L

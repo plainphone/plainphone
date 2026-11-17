@@ -28,7 +28,7 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 
 ## What phase 4 adds
 
-- **Pairing.** After the QR setup the phone shows a pairing code and QR code; the parent claims it in the dashboard ([`web/`](web)). The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+- **Pairing.** Phones added in the dashboard pair automatically. Phones configured with the provisioning script can still show a pairing code which the parent claims in the dashboard ([`web/`](web)). The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 - **Rules from the server.** The phone fetches the parent's rules (WorkManager every 15 minutes, at boot and on network changes, every minute while the screen is on) and applies the app list, approved contacts, school time and bedtime, its own DNS address (only once the DNS service has confirmed it) and location. Offline, the last rules keep applying; an error never loosens anything.
 - **Find.** When the parent presses Find, the phone sends one position (platform fused location, no Play services library). Only the latest position is kept.
 - **Status.** Battery, last sync, app version and whether the lock is intact are shown in the dashboard.
@@ -39,6 +39,7 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 
 ## Documents
 
+- [docs/dashboard-setup.md](docs/dashboard-setup.md): set up from the dashboard in strong or light mode, with on-phone PIN entry in light mode
 - [Design principles](docs/design-principles.md) and [evidence by feature](docs/evidence.md)
 - [Contributing](CONTRIBUTING.md)
 - [docs/setup-test-phone.md](docs/setup-test-phone.md): set up a test phone step by step, and how to get out again
@@ -52,7 +53,8 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/time-limits.md](docs/time-limits.md) and [docs/app-catalog.md](docs/app-catalog.md): daily time limits and the per-country app catalog
 - [parent-app/](parent-app): the native parent app for iOS and Android (Expo) on the same API; [docs/parent-app.md](docs/parent-app.md) covers builds, app links and push
 - [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
-- [SECURITY.md](SECURITY.md): how to report a bypass
+- [docs/encryption.md](docs/encryption.md): planned end-to-end encryption, shared test vectors and F1 interoperability requirements
+- [SECURITY.md](SECURITY.md): how to report a security issue
 
 ## Build
 
@@ -85,7 +87,14 @@ Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug 
 
 ### QR code
 
-Parents make the QR code in the dashboard: **Add phone** asks who the phone is for and for a maintenance PIN, then shows the provisioning QR code. The browser hashes the PIN (PBKDF2; neither the PIN nor its hash reaches the server), and the code carries a one-time token, so the phone pairs itself after setup. The code points at `https://app.plainphone.org/download/android`, which redirects to the newest release, so it does not go stale when a new version comes out.
+In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one already in
+use (light mode). Choose a parent PIN and scan the private code with the phone being set up.
+Strong mode uses Android's welcome screen and can include Wi-Fi in the code. Light mode keeps
+the phone's existing data and uses Chrome to install the app and open it with the setup link.
+Both modes pair automatically using a one-time token tied to that phone. The browser hashes
+the PIN before handing it to the phone. The server receives neither the PIN nor its hash.
+On a phone in light mode, confirm the dashboard address and parent PIN after opening the setup link.
+See [dashboard setup](docs/dashboard-setup.md) or the [illustrated public guide](https://plainphone.org/setup/).
 
 For self-hosting, tests and phones without an account there is a script with the same format:
 

@@ -50,6 +50,34 @@ describe("provisioning QR", () => {
     expect(version).toBeLessThanOrEqual(18);
   });
 
+  it("adds Wi-Fi only to the provisioning payload", () => {
+    const base = { enrollmentToken: "pp_e_x", pinHash: "a".repeat(64), pinSalt: "b".repeat(32) };
+    const network = { ssid: "Test network", password: "example-passphrase" };
+    const withWifi = provisioningPayload(info, { ...base, wifi: network });
+    const withoutWifi = provisioningPayload(info, base);
+    expect(withWifi).toMatchObject({
+      "android.app.extra.PROVISIONING_WIFI_SSID": network.ssid,
+      "android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE": "WPA",
+      "android.app.extra.PROVISIONING_WIFI_PASSWORD": network.password,
+    });
+    expect(withoutWifi).not.toHaveProperty(["android.app.extra.PROVISIONING_WIFI_SSID"]);
+    expect(provisioningPayload(info, { ...base, wifi: { ...network, password: "" } }))
+      .toHaveProperty(["android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"], "NONE");
+  });
+
+  it("keeps the QR within version 23 with the longest Wi-Fi fields", () => {
+    const payload = provisioningPayload(info, {
+      enrollmentToken: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg",
+      pinHash: "a".repeat(64),
+      pinSalt: "b".repeat(32),
+      countryCode: "+45",
+      wifi: { ssid: "s".repeat(32), password: "p".repeat(63) },
+    });
+    const qr = provisioningQr(payload);
+    expect(qr.version).toBeLessThanOrEqual(23);
+    expect(qr.size).toBeLessThanOrEqual(109);
+  });
+
   it("names a self-hoster's server and DNS in the code", () => {
     const own = { ...info, serverUrl: "https://pp.example.org", dnsHost: "dns.example.org", downloadUrl: "https://pp.example.org/download/android" };
     const p = provisioningPayload(own, { enrollmentToken: "pp_e_x", pinHash: "a".repeat(64), pinSalt: "b".repeat(32) });
