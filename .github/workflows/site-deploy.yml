@@ -1,7 +1,7 @@
 name: Site deploy
 
 # Publishes plainphone.org (Cloudflare Pages project "plainphone") when site/ changes on main.
-# Pull requests are built and checked by site.yml and never deploy.
+# Pull requests are built and checked by ci.yml and never deploy.
 
 on:
   push:
