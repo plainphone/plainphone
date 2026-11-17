@@ -228,10 +228,19 @@ describe("are you okay?", () => {
 
     await parent.post(`/api/phones/${phoneId}/locate`);
     const requestedAt = h.clock.now.getTime();
+    h.clock.advance(60_001);
+    const overlap = (await device.get("/api/device/rules")).json;
+    expect(overlap.location.requestedAt).toBe(new Date(requestedAt).toISOString());
+    expect(overlap.checkIn).toMatchObject({ id: checkin.id, locationDue: true });
+    expect(Date.parse(overlap.checkIn.deadline)).toBeLessThan(h.clock.now.getTime());
+
     expect((await device.put("/api/device/location", {
       ...fix(h.clock.now), purpose: `find:${requestedAt}`,
     })).status).toBe(204);
     expect((await status()).locatedAt).toBeNull();
+    const afterFind = (await device.get("/api/device/rules")).json;
+    expect(afterFind.location.requestedAt).toBeNull();
+    expect(afterFind.checkIn).toMatchObject({ id: checkin.id, locationDue: true });
 
     h.clock.advance(1);
     await parent.post(`/api/phones/${phoneId}/locate`);
