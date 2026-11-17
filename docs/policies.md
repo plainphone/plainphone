@@ -133,18 +133,31 @@ anonymous SMS support but does not publish a direct SMS number children can
 use from Plainphone. The Help screen offers direct alternatives, including
 BørneTelefonen and headspace.
 
-The approved-contacts rule makes an exception for each listed call and SMS
-number, in both directions and both modes. For 112, Android handles emergency
-calls and Plainphone keeps the existing emergency callback window, which also
-covers callers with a hidden number. The Phone and Help screens are exempt
-from time limits and stay available at school time and bedtime. You still
-need a working connection and the service must be open to reply.
+The approved-contacts rule makes an outgoing exception for listed call and SMS
+numbers. Each catalogue channel declares whether it accepts incoming replies.
+On phones that enforce approved contacts, a reply-only channel can receive from
+the same number and channel for 24 hours after the child makes contact.
+Ungekontakten has a five-day window because its published response time is one
+to two working days. The phone opens the SMS window after Android reports a
+successful send. Reply windows close on reboot. The phone stores the time
+locally and never syncs it. Other incoming
+communications follow ordinary contact rules. SMS sender IDs must be numeric
+to qualify, and the reply window does not authenticate the sender.
+
+For 112, Android handles emergency calls and Plainphone keeps the existing
+emergency callback window, which also covers callers with a hidden number.
+The Phone and Help screens are exempt from time limits and stay available at
+school time and bedtime. You still need a working connection and the service
+must be open to reply.
 
 The Help screen and links in Plainphone's Messages open catalogue sites inside
 Plainphone, including during school time and bedtime. HTTP links are upgraded
-to HTTPS. The Help view allows navigation only on catalogue domains and their
-subdomains, including the listed headspace chat hosts. Time in Help is exempt
-from screen-time limits and parent reports. ppdns also lets the verified help,
+to HTTPS. Help loads pages and resources only from the catalogue, including
+iframe destinations. Third-party chat entries match exact hosts. A tapped
+telephone or SMS link opens the matching Help action when the number is
+listed for that channel. Leaving a Help page clears its WebView cookies and
+site storage. Time in Help is exempt from screen-time limits and parent reports.
+ppdns also lets the verified help,
 health, body, sexuality and LGBT+ sites through the web filter.
 
 Plainphone can accept catalogue links from other apps when Android hands them
@@ -155,12 +168,14 @@ cap and any total screen-time limit and appears as browser use in reports.
 [Android link handling](https://developer.android.com/training/app-links/create-deeplinks).
 
 Plainphone excludes help contacts from its parent-facing blocked log and
-sends no call or SMS history to the server. Android's own recent calls and
-SMS conversations can still be visible locally on the phone. ppdns keeps
+sends no call or SMS history to the server. Help SMS notifications are hidden
+on the lock screen. Android's own recent calls and SMS conversations can still
+be visible locally on the phone. ppdns keeps
 query logging off and excludes protected domains from DNS statistics.
 
-[UN Committee on the Rights of the Child, General Comment No. 25, paragraph 76](https://digitallibrary.un.org/record/3906061?ln=en)
-describes how monitoring can prevent children from seeking help.
+The UN Committee on the Rights of the Child recommends confidential access to
+psychological counselling in paragraph 94. Paragraph 76 warns that monitoring
+can prevent children from reaching a helpline. [General Comment No. 25](https://digitallibrary.un.org/record/3906061).
 [Przybylski and Nash (2018)](https://doi.org/10.1089/cyber.2017.0466)
 discuss the risk that internet filtering can restrict access to useful sexual
 health information.

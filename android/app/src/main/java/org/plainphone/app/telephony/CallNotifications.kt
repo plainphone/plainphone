@@ -94,7 +94,9 @@ object CallNotifications {
         runCatching { context.getSystemService(NotificationManager::class.java).notify(ID_BLOCKED, n) }
     }
 
-    fun showMessage(context: Context, name: String, number: String, body: String) {
+    fun showMessage(
+        context: Context, name: String, number: String, body: String, privateOnLockScreen: Boolean = false,
+    ) {
         createChannels(context)
         val open = PendingIntent.getActivity(
             context, number.hashCode(),
@@ -109,6 +111,7 @@ object CallNotifications {
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setContentIntent(open)
             .setAutoCancel(true)
+            .apply { if (privateOnLockScreen) setVisibility(Notification.VISIBILITY_SECRET) }
             .build()
         runCatching { context.getSystemService(NotificationManager::class.java).notify(ID_MESSAGE_BASE + (number.hashCode() and 0xffff), n) }
     }

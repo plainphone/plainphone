@@ -10,7 +10,7 @@ import java.net.URISyntaxException
 import java.util.Locale
 
 internal class HelpLinks(context: Context) {
-    private val directories = PhoneNumbers.COUNTRIES.values.distinct().map { Helplines.forCountry(context, it) }
+    private val directories = PhoneNumbers.COUNTRIES.values.distinct().associateWith { Helplines.forCountry(context, it) }
 
     fun secureUrl(url: String?): String? {
         if (url == null) return null
@@ -21,7 +21,7 @@ internal class HelpLinks(context: Context) {
         }
         val scheme = uri.scheme?.lowercase(Locale.ROOT)
         val host = uri.host ?: return null
-        if (uri.rawUserInfo != null || directories.none { it.allowsHost(host) }) return null
+        if (uri.rawUserInfo != null || directories.values.none { it.allowsHost(host) }) return null
         val defaultPort = when (scheme) {
             "https" -> 443
             "http" -> 80
@@ -36,6 +36,14 @@ internal class HelpLinks(context: Context) {
 
     fun allowsNavigation(uri: Uri): Boolean =
         uri.scheme == "https" && secureUrl(uri.toString()) != null
+
+    fun contactForLink(uri: Uri, channel: Channel): ApprovedContact? {
+        if (!uri.isOpaque || uri.fragment != null) return null
+        val number = Uri.decode(uri.encodedSchemeSpecificPart?.substringBefore('?'))
+        return directories.entries.firstNotNullOfOrNull { (country, directory) ->
+            directory.contactFor(number, country, channel)
+        }
+    }
 
     fun intent(context: Context, url: String): Intent? =
         secureUrl(url)?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it), context, HelpActivity::class.java) }

@@ -13,11 +13,15 @@ import android.os.IBinder
 import android.provider.Telephony
 import android.telephony.SmsManager
 import android.util.Log
+import android.telephony.SmsMessage as PlatformSms
+import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.plainphone.app.Compat
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
+import org.plainphone.app.contacts.ContactRules
+import org.plainphone.app.contacts.HelpReplies
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Decision
 import org.plainphone.app.contacts.Direction
@@ -44,6 +48,15 @@ object SmsStore {
     }
 
     private const val RECENT_LIMIT = 2000
+    private const val HELP_REPLY_IDS = "help_reply_ids"
+
+    private fun helpReplyIds(context: Context) =
+        context.getSharedPreferences("plainphone_sms", Context.MODE_PRIVATE)
+            .getStringSet(HELP_REPLY_IDS, emptySet()).orEmpty()
+
+    private fun contactFor(message: SmsMessage, rules: ContactRules, helpReplyIds: Set<String>): ApprovedContact? =
+        if (message.outgoing || message.id.toString() in helpReplyIds) rules.smsContact(message.number)
+        else rules.contactFor(message.number)
 
     /** The newest messages, newest first. Only approved contacts are shown in the UI, see [conversations]. */
     fun recent(context: Context): List<SmsMessage> {
@@ -76,8 +89,9 @@ object SmsStore {
     /** One conversation per approved contact that has messages, newest first. Other senders stay hidden. */
     fun conversations(context: Context): List<Conversation> {
         val rules = ContactPolicySources.get(context).rules()
+        val helpReplies = helpReplyIds(context)
         return recent(context)
-            .mapNotNull { m -> rules.smsContact(m.number)?.let { it to m } }
+            .mapNotNull { m -> contactFor(m, rules, helpReplies)?.let { it to m } }
             .groupBy({ it.first.number }, { it })
             .map { (_, items) ->
                 Conversation(items.first().first, items.first().second, items.count { !it.second.outgoing && !it.second.read })
@@ -88,7 +102,8 @@ object SmsStore {
     /** Messages with [contact], oldest first. */
     fun thread(context: Context, contact: ApprovedContact): List<SmsMessage> {
         val rules = ContactPolicySources.get(context).rules()
-        return recent(context).filter { rules.smsContact(it.number)?.number == contact.number }.reversed()
+        val helpReplies = helpReplyIds(context)
+        return recent(context).filter { contactFor(it, rules, helpReplies)?.number == contact.number }.reversed()
     }
 
     fun markRead(context: Context, messages: List<SmsMessage>) {
@@ -106,7 +121,9 @@ object SmsStore {
         notifyChanged()
     }
 
-    fun insertIncoming(context: Context, number: String, body: String, atMs: Long, subId: Int) {
+    fun insertIncoming(
+        context: Context, number: String, body: String, atMs: Long, subId: Int, helpReply: Boolean = false,
+    ) {
         val values = ContentValues().apply {
             put(Telephony.Sms.ADDRESS, number)
             put(Telephony.Sms.BODY, body)
@@ -116,8 +133,15 @@ object SmsStore {
             put(Telephony.Sms.SEEN, 0)
             put(Telephony.Sms.SUBSCRIPTION_ID, subId)
         }
-        runCatching { context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values) }
+        val id = runCatching { context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values) }
             .onFailure { Log.e(TAG, "cannot store incoming SMS", it) }
+            .getOrNull()?.lastPathSegment?.toLongOrNull()
+        if (helpReply && id != null) {
+            val ids = (helpReplyIds(context).mapNotNull(String::toLongOrNull) + id)
+                .sortedDescending().take(RECENT_LIMIT).map(Long::toString).toSet()
+            context.getSharedPreferences("plainphone_sms", Context.MODE_PRIVATE)
+                .edit().putStringSet(HELP_REPLY_IDS, ids).apply()
+        }
         notifyChanged()
     }
 
@@ -146,9 +170,8 @@ object SmsStore {
 object SmsSender {
     fun send(context: Context, number: String, body: String): Decision {
         val text = body.trim()
-        val decision = contactPolicy(context).decide(
-            ContactPolicySources.get(context).rules(), Channel.SMS, Direction.OUTGOING, number,
-        )
+        val rules = ContactPolicySources.get(context).rules()
+        val decision = contactPolicy(context).decide(rules, Channel.SMS, Direction.OUTGOING, number)
         if (!decision.allowed) {
             TelephonyLog(context).recordBlocked(Channel.SMS, Direction.OUTGOING, number)
             return decision
@@ -156,8 +179,10 @@ object SmsSender {
         if (text.isEmpty()) return Decision.Block("empty message")
         val uri = SmsStore.insertOutgoing(context, number, text)
         val sent = PendingIntent.getBroadcast(
-            context, (uri?.hashCode() ?: 0),
-            Intent(context, SmsSentReceiver::class.java).setData(uri),
+            context, 0,
+            Intent(context, SmsSentReceiver::class.java)
+                .setIdentifier(UUID.randomUUID().toString()).setData(uri)
+                .putExtra("helpReplyNumber", rules.replyHelpContact(number, Channel.SMS)?.number),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         try {
@@ -183,9 +208,12 @@ object SmsSender {
 /** Marks an outgoing message as sent or failed. Not exported. */
 class SmsSentReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val uri = intent.data ?: return
-        val type = if (resultCode == android.app.Activity.RESULT_OK) Telephony.Sms.MESSAGE_TYPE_SENT else Telephony.Sms.MESSAGE_TYPE_FAILED
-        SmsStore.setType(context, uri, type)
+        val sent = resultCode == android.app.Activity.RESULT_OK
+        if (sent) {
+            intent.getStringExtra("helpReplyNumber")?.let { HelpReplies(context).record(Channel.SMS, it) }
+        }
+        val type = if (sent) Telephony.Sms.MESSAGE_TYPE_SENT else Telephony.Sms.MESSAGE_TYPE_FAILED
+        intent.data?.let { SmsStore.setType(context, it, type) }
     }
 }
 
@@ -203,19 +231,37 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         val policy = context.contactPolicy()
         val rules = ContactPolicySources.get(context).rules()
         // One broadcast can hold several parts of one long message.
-        for ((sender, msgs) in parts.groupBy { it.displayOriginatingAddress.orEmpty() }) {
-            val decision = policy.decide(rules, Channel.SMS, Direction.INCOMING, sender.ifBlank { null })
+        val format = intent.getStringExtra("format")
+        for ((key, msgs) in parts.groupBy { it.originatingAddress.orEmpty() to it.isNumericHelpSender(format) }) {
+            val (sender, numeric) = key
+            val decision = policy.decide(rules, Channel.SMS, Direction.INCOMING, sender.ifBlank { null }, numeric)
             if (!decision.allowed) {
                 Log.i(TAG, "dropped incoming SMS: $decision")
                 TelephonyLog(context).recordBlocked(Channel.SMS, Direction.INCOMING, sender)
                 continue
             }
             val body = msgs.joinToString("") { it.displayMessageBody.orEmpty() }
-            SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId)
-            val contact = rules.smsContact(sender)
-            CallNotifications.showMessage(context, contact?.name ?: sender, contact?.number ?: sender, body)
+            val helpReply = if (numeric) rules.incomingHelpContact(sender, Channel.SMS) else null
+            SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId, helpReply != null)
+            val contact = helpReply ?: rules.contactFor(sender)
+            CallNotifications.showMessage(
+                context, contact?.name ?: sender, contact?.number ?: sender, body,
+                privateOnLockScreen = rules.isHelpNumber(sender),
+            )
         }
     }
+}
+
+private fun PlatformSms.isNumericHelpSender(format: String?): Boolean =
+    format == "3gpp" && hasNumericGsmOrigin(pdu)
+
+// A GSM alphanumeric address can decode to digits alone. Check the address type on the wire.
+internal fun hasNumericGsmOrigin(pdu: ByteArray): Boolean {
+    val serviceCentreLength = pdu.firstOrNull()?.toInt()?.and(0xff) ?: return false
+    val firstOctet = pdu.getOrNull(serviceCentreLength + 1)?.toInt() ?: return false
+    if (firstOctet and 0x03 != 0) return false // SMS-DELIVER
+    val addressType = pdu.getOrNull(serviceCentreLength + 3)?.toInt() ?: return false
+    return addressType and 0x80 != 0 && addressType and 0x70 != 0x50
 }
 
 /**

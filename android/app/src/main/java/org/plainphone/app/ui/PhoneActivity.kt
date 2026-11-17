@@ -99,6 +99,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
+import org.plainphone.app.contacts.HelpReplies
 import org.plainphone.app.contacts.HelpLinks
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
@@ -168,9 +169,8 @@ class PhoneActivity : ComponentActivity() {
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
 fun placeCall(context: Context, number: String): String? {
-    val decision = context.contactPolicy().decide(
-        ContactPolicySources.get(context).rules(), Channel.CALL, Direction.OUTGOING, number,
-    )
+    val rules = ContactPolicySources.get(context).rules()
+    val decision = context.contactPolicy().decide(rules, Channel.CALL, Direction.OUTGOING, number)
     if (!decision.allowed) {
         TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
         return context.getString(R.string.call_not_allowed)
@@ -180,6 +180,7 @@ fun placeCall(context: Context, number: String): String? {
     }
     return runCatching {
         context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", number, null), Bundle())
+        rules.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }
 }

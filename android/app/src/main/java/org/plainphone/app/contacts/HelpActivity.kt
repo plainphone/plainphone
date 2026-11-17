@@ -9,6 +9,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Telephony
 import android.telecom.TelecomManager
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import android.webkit.WebResourceResponse
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -73,7 +75,7 @@ class HelpActivity : ComponentActivity() {
                         val view = remember(url) { helpWebView(links, url) }
                         AndroidView(factory = { view }, modifier = Modifier.padding(padding).fillMaxSize())
                         DisposableEffect(view) {
-                            onDispose { view.stopLoading(); view.destroy() }
+                            onDispose { closeHelpWebView(view) }
                         }
                     } else {
                         LazyColumn(
@@ -131,19 +133,44 @@ class HelpActivity : ComponentActivity() {
             .onFailure { Toast.makeText(this, error, Toast.LENGTH_LONG).show() }
     }
 
+    private fun closeHelpWebView(view: WebView) {
+        view.stopLoading()
+        view.clearHistory()
+        view.destroy()
+        WebStorage.getInstance().deleteAllData()
+        CookieManager.getInstance().removeAllCookies { CookieManager.getInstance().flush() }
+    }
+
     @SuppressLint("SetJavaScriptEnabled") // Official help sites use JavaScript for chat and accessibility.
     private fun helpWebView(links: HelpLinks, url: String): WebView = WebView(this).apply {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+        CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                !links.allowsNavigation(request.url)
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val channel = when (request.url.scheme?.lowercase(java.util.Locale.ROOT)) {
+                    "tel" -> Channel.CALL
+                    "sms", "smsto" -> Channel.SMS
+                    else -> return !links.allowsNavigation(request.url)
+                }
+                if (request.hasGesture()) {
+                    val destination = links.contactForLink(request.url, channel)
+                    if (destination != null) {
+                        when (channel) {
+                            Channel.CALL -> callHelpLine(destination.number)
+                            Channel.SMS -> textHelpLine(destination.number)
+                        }
+                    }
+                }
+                return true
+            }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                // Navigation callbacks do not cover form submissions.
-                if (request.isForMainFrame && !links.allowsNavigation(request.url)) {
+                // Initial iframe loads and form submissions can bypass the navigation callback.
+                if (!links.allowsNavigation(request.url)) {
                     return WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), null)
                 }
                 return null

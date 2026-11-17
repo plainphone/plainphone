@@ -87,6 +87,7 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
             contacts = ContactCodec.decode(prefs.getString(KEY_CONTACTS, null)),
             country = country,
             help = Helplines.forCountry(app, Helplines.country(country)),
+            replyAgeMs = HelpReplies(app)::ageMs,
         )
     }
 

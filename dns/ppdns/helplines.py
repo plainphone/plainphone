@@ -9,16 +9,17 @@ if not CATALOGUE.is_dir():
     CATALOGUE = Path(__file__).resolve().parents[2] / "server/catalog/helplines"
 
 
-def domains() -> list[str]:
-    domains = set()
+def host_patterns() -> list[str]:
+    patterns = set()
     files = sorted(CATALOGUE.glob("*.json"))
     if not files:
         raise RuntimeError("Protected help-site catalogue is missing")
     for path in files:
         data = json.loads(path.read_text(encoding="utf-8"))
         for entry in data["helplines"] + data["information"]:
-            domains.update(entry["domains"])
-    return sorted(domains)
+            patterns.update(f"||{domain}^" for domain in entry["domains"])
+            patterns.update(f"|{host}^" for host in entry.get("exactHosts", []))
+    return sorted(patterns)
 
 
 _BEGIN = "! Plainphone protected help sites"
@@ -34,8 +35,8 @@ _LEGACY_DOMAINS = {
 }
 
 
-def filter_rules(domains: list[str]) -> list[str]:
-    return [_BEGIN, *(f"@@||{domain}^$important" for domain in domains), _END]
+def filter_rules(patterns: list[str]) -> list[str]:
+    return [_BEGIN, *(f"@@{pattern}$important" for pattern in patterns), _END]
 
 
 def split_rules(rules: list[str]) -> tuple[list[str], set[str]]:
@@ -48,10 +49,10 @@ def split_rules(rules: list[str]) -> tuple[list[str], set[str]]:
         elif rule == _END:
             managed = False
         else:
-            if rule.startswith("@@||") and rule.endswith("^$important"):
-                domain = rule.removeprefix("@@||").removesuffix("^$important")
-                if managed or domain in _LEGACY_DOMAINS:
-                    previous.add(domain)
+            if rule.startswith("@@|") and rule.endswith("^$important"):
+                pattern = rule.removeprefix("@@").removesuffix("$important")
+                if managed or pattern.removeprefix("||").removesuffix("^") in _LEGACY_DOMAINS:
+                    previous.add(pattern)
                     continue
             kept.append(rule)
     return kept, previous

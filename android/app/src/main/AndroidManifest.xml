@@ -218,7 +218,6 @@
                 <data android:host="bornetelefonen.dk" />
                 <data android:host="*.bornetelefonen.dk" />
                 <data android:host="c.basechat.com" />
-                <data android:host="*.c.basechat.com" />
                 <data android:host="headspace.dk" />
                 <data android:host="*.headspace.dk" />
                 <data android:host="lgbt.dk" />
@@ -226,7 +225,6 @@
                 <data android:host="livslinien.dk" />
                 <data android:host="*.livslinien.dk" />
                 <data android:host="phs.basechat.com" />
-                <data android:host="*.phs.basechat.com" />
                 <data android:host="politi.dk" />
                 <data android:host="*.politi.dk" />
                 <data android:host="regionh.dk" />

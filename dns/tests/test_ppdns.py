@@ -369,18 +369,37 @@ class ServiceTest(unittest.TestCase):
         out = self.svc.create("child", block_domains=["bornetelefonen.dk", "sundhed.dk"])
         self.assertEqual(out["block_domains"], ["bornetelefonen.dk", "sundhed.dk"])
         self.assertEqual(out["allow_domains"], [])
-        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk", "phs.basechat.com", "c.basechat.com"):
+        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"):
             self.assertEqual(self.ag.user_rules().count(f"@@||{domain}^$important"), 1)
             self.assertIn(f"||{domain}^", self.ag.stats_exclusions)
+
+        for host in ("phs.basechat.com", "c.basechat.com"):
+            self.assertEqual(self.ag.user_rules().count(f"@@|{host}^$important"), 1)
+            self.assertNotIn(f"@@||{host}^$important", self.ag.user_rules())
+            self.assertIn(f"|{host}^", self.ag.stats_exclusions)
+
+    def test_old_basechat_wildcard_is_replaced_with_exact_host(self):
+        self.ag.rules.extend((
+            "! Plainphone protected help sites",
+            "@@||phs.basechat.com^$important",
+            "@@||c.basechat.com^$important",
+            "! End Plainphone protected help sites",
+        ))
+        self.ag.stats_exclusions = ["||phs.basechat.com^", "||c.basechat.com^"]
+        self.svc.install_helpline_rules()
+        self.assertNotIn("@@||phs.basechat.com^$important", self.ag.rules)
+        self.assertNotIn("||phs.basechat.com^", self.ag.stats_exclusions)
+        self.assertIn("@@|phs.basechat.com^$important", self.ag.rules)
+        self.assertIn("|phs.basechat.com^", self.ag.stats_exclusions)
 
     def test_removed_help_domain_loses_its_exception_after_restart(self):
         self.ag.rules.extend(("@@||manual.example^$important", "@@||backop.dk^$important"))
         self.ag.stats_exclusions = ["||backop.dk^", "||manual.example^"]
-        with patch.object(service_mod.helplines, "domains", return_value=["old.example", "keep.example"]):
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||old.example^", "||keep.example^"]):
             self.svc.install_helpline_rules()
         self.svc.create("child", client_id="child-phone-123456", block_domains=["old.example"])
         restarted = Service(self.ag, "dns.example.org", self.tmp.name)
-        with patch.object(service_mod.helplines, "domains", return_value=["keep.example"]):
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||keep.example^"]):
             restarted.install_helpline_rules()
         self.assertNotIn("@@||old.example^$important", self.ag.rules)
         self.assertIn("@@||keep.example^$important", self.ag.rules)

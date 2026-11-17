@@ -107,14 +107,11 @@ class Service:
 
     def install_helpline_rules(self) -> None:
         with self._lock:
-            domains = helplines.domains()
+            patterns = helplines.host_patterns()
             existing = self.adguard.user_rules()
             kept, previous = helplines.split_rules(existing)
-            fixed = helplines.filter_rules(domains)
-            self.adguard.exclude_from_stats(
-                [f"||{domain}^" for domain in domains],
-                obsolete=[f"||{domain}^" for domain in sorted(previous - set(domains))],
-            )
+            fixed = helplines.filter_rules(patterns)
+            self.adguard.exclude_from_stats(patterns, obsolete=sorted(previous - set(patterns)))
             wanted = kept + fixed
             if wanted != existing:
                 self.adguard.set_user_rules(wanted)

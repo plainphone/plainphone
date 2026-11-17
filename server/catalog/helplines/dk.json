@@ -9,16 +9,24 @@
       "source": "https://politi.dk/112",
       "domains": [
         "politi.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "BørneTelefonen",
       "phone": "116111",
       "sms": "116111",
       "source": "https://bornetelefonen.dk/kontakt-os/",
+      "smsSource": "https://bornetelefonen.dk/brevkasse/oevrigt/toer-ikke-at-ringe-til-boernetelefonen-ekstremt-genert/",
       "domains": [
         "bornetelefonen.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none",
+        "sms": "replyOnly"
+      }
     },
     {
       "name": "Livslinien",
@@ -27,7 +35,10 @@
       "source": "https://www.livslinien.dk/om-livslinien/kontakt",
       "domains": [
         "livslinien.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "headspace",
@@ -36,7 +47,12 @@
       "source": "https://headspace.dk/chatten/",
       "smsSource": "https://headspace.dk/book-en-samtale/",
       "domains": [
-        "headspace.dk",
+        "headspace.dk"
+      ],
+      "inbound": {
+        "sms": "replyOnly"
+      },
+      "exactHosts": [
         "phs.basechat.com",
         "c.basechat.com"
       ]
@@ -46,9 +62,14 @@
       "phone": "+4589405200",
       "sms": "+4525800058",
       "source": "https://ungekontakten.aarhus.dk/chat-eller-sms-med-os",
+      "smsReplyHours": 120,
       "domains": [
         "ungekontakten.aarhus.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none",
+        "sms": "replyOnly"
+      }
     },
     {
       "name": "Sexlinien",
@@ -57,7 +78,10 @@
       "source": "https://www.sexlinien.dk/",
       "domains": [
         "sexlinien.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "LGBT+ Danmark",
@@ -66,7 +90,10 @@
       "source": "https://lgbt.dk/raadgivning/",
       "domains": [
         "lgbt.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "Akuttelefonen (Region Hovedstaden)",
@@ -75,7 +102,10 @@
       "source": "https://www.regionh.dk/sundhed/akut/praktisk_information/sider/1813.aspx",
       "domains": [
         "regionh.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "Lægevagten (Region Sjælland)",
@@ -84,7 +114,10 @@
       "source": "https://www.regionsjaelland.dk/sundhed/akuthjaelp/laegevagten-ring-1818",
       "domains": [
         "regionsjaelland.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "Lægevagten (Region Syddanmark)",
@@ -93,7 +126,10 @@
       "source": "https://regionsyddanmark.dk/patienter-og-parorende/akuthjaelp/laegevagt-i-region-syddanmark/adresser-pa-laegevagten-i-region-syddanmark",
       "domains": [
         "regionsyddanmark.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "Lægevagten (Region Midtjylland)",
@@ -102,7 +138,10 @@
       "source": "https://www.sundhed.rm.dk/akuthjalp/lagevagten/",
       "domains": [
         "sundhed.rm.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     },
     {
       "name": "Lægevagten (Region Nordjylland)",
@@ -111,7 +150,10 @@
       "source": "https://rn.dk/da/Sundhed/Akut-sygdom",
       "domains": [
         "rn.dk"
-      ]
+      ],
+      "inbound": {
+        "phone": "none"
+      }
     }
   ],
   "information": [

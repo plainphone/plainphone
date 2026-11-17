@@ -87,12 +87,15 @@ does not contribute to screen time or usage reports.
 Time spent viewing a protected site in a separate browser counts as browser
 use. See [Help lines](policies.md#help-lines) for when Android hands off links.
 Android can still show calls in its own recent calls and keep SMS conversations
-on the phone. Calls, messages and websites are subject to the provider's own
-privacy practices.
+on the phone. The reply window uses a timestamp stored only on the phone, and
+Help SMS notifications are hidden on the lock screen. Leaving a Help page
+clears its WebView cookies and site storage. Calls, messages and websites are
+subject to the provider's own privacy practices.
 
 ppdns allows the verified help and information sites through the web filter and
-excludes their domains and subdomains from DNS statistics. As with other
-lookups, ppdns does not keep a query log.
+excludes the allowed domains from DNS statistics. Third-party chat services
+are matched by exact hostname. As with other lookups, ppdns does not keep a
+query log.
 
 ## Location on the phone and on the map
 

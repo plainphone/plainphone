@@ -60,7 +60,7 @@ class TelephonyLog(context: Context) {
     fun recordEmergencyCall() {
         prefs.edit()
             .putLong(KEY_EMERGENCY_ELAPSED, SystemClock.elapsedRealtime())
-            .putLong(KEY_EMERGENCY_BOOT, bootId())
+            .putLong(KEY_EMERGENCY_BOOT, app.telephonyBootId())
             .apply()
     }
 
@@ -68,13 +68,9 @@ class TelephonyLog(context: Context) {
     fun sinceLastEmergencyMs(): Long? {
         if (!prefs.contains(KEY_EMERGENCY_ELAPSED)) return null
         // elapsedRealtime restarts at boot: an older value belongs to a previous boot.
-        if (prefs.getLong(KEY_EMERGENCY_BOOT, -1) != bootId()) return null
+        if (prefs.getLong(KEY_EMERGENCY_BOOT, -1) != app.telephonyBootId()) return null
         return SystemClock.elapsedRealtime() - prefs.getLong(KEY_EMERGENCY_ELAPSED, 0)
     }
-
-    /** Android's boot counter: changes on every reboot, unlike the wall clock it cannot be set. */
-    private fun bootId(): Long =
-        Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, 0).toLong()
 
     companion object {
         const val HIDDEN = "hidden number"
@@ -84,6 +80,10 @@ class TelephonyLog(context: Context) {
         private const val KEY_EMERGENCY_BOOT = "emergency_boot"
     }
 }
+
+/** Android's boot counter changes on every reboot. */
+internal fun Context.telephonyBootId(): Long =
+    Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, 0).toLong()
 
 /** Wires the policy to this phone's emergency list and call-back window. */
 fun Context.contactPolicy(): ContactPolicy {
