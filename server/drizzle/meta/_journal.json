@@ -15,6 +15,13 @@
       "when": 1794867007640,
       "tag": "0001_phone_status",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794942598562,
+      "tag": "0002_light_mode",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
+import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { parentRoutes } from "./routes/parent.js";
 import type { Config } from "./config.js";
@@ -78,6 +79,8 @@ export function createApp(ctx: Ctx) {
   });
 
   app.route("/api/device", deviceRoutes(ctx));
+  // Public, so it is mounted before the parent API and its session check.
+  app.route("/api/catalog", publicCatalogRoutes());
   app.route("/api", parentRoutes(ctx));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 

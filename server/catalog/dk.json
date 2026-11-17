@@ -1,0 +1,115 @@
+{
+  "country": "dk",
+  "name": {
+    "en": "Denmark",
+    "da": "Danmark"
+  },
+  "verifiedAt": "2026-11-17",
+  "categories": [
+    {
+      "id": "bank",
+      "name": {
+        "en": "Banking and payments",
+        "da": "Bank og betaling"
+      }
+    },
+    {
+      "id": "public",
+      "name": {
+        "en": "MitID and public services",
+        "da": "MitID og det offentlige"
+      }
+    },
+    {
+      "id": "transport",
+      "name": {
+        "en": "Transport",
+        "da": "Transport"
+      }
+    },
+    {
+      "id": "school",
+      "name": {
+        "en": "School",
+        "da": "Skole"
+      }
+    },
+    {
+      "id": "music",
+      "name": {
+        "en": "Music and audio",
+        "da": "Musik og lyd"
+      }
+    },
+    {
+      "id": "health",
+      "name": {
+        "en": "Health",
+        "da": "Sundhed"
+      }
+    },
+    {
+      "id": "everyday",
+      "name": {
+        "en": "Everyday",
+        "da": "Hverdag"
+      }
+    }
+  ],
+  "apps": [
+    {
+      "packageName": "dk.danskebank.mobilepay",
+      "name": "MobilePay",
+      "category": "bank",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=dk.danskebank.mobilepay",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "MobilePay"
+    },
+    {
+      "packageName": "dk.mitid.app.android",
+      "name": "MitID",
+      "category": "public",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=dk.mitid.app.android",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "MitID"
+    },
+    {
+      "packageName": "de.hafas.android.rejseplanen",
+      "name": "Rejseplanen",
+      "category": "transport",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=de.hafas.android.rejseplanen",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Rejseplan"
+    },
+    {
+      "packageName": "com.netcompany.aulanativeprivate",
+      "name": "Aula",
+      "category": "school",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=com.netcompany.aulanativeprivate",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Aula for forældre og elever"
+    },
+    {
+      "packageName": "dk.dr.radio",
+      "name": "DR LYD",
+      "category": "music",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=dk.dr.radio",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "DR LYD"
+    },
+    {
+      "packageName": "com.spotify.music",
+      "name": "Spotify",
+      "category": "music",
+      "starter": true,
+      "source": "https://play.google.com/store/apps/details?id=com.spotify.music",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Spotify: Music and Podcasts"
+    }
+  ]
+}
