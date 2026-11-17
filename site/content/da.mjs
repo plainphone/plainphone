@@ -120,7 +120,7 @@ export default {
     lead:
       "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
     status:
-      "Plainphone er i en tidlig udgave. Forældreappen og serveren findes, men Plainphone-appen på telefonen forbinder endnu ikke til dem, så i dag sender den ikke noget til serveren. Hvor noget først gælder, når telefonerne er koblet på, står det her. En telefon kan allerede sættes op til at bruge webfilteret, som er beskrevet nedenfor.",
+      "Plainphone er i en tidlig udgave. Forældreappen, serveren, webfilteret og Plainphone-appen på telefonen virker sammen, men det er endnu ikke klar til daglig brug. Når det, Plainphone gemmer, ændrer sig, bliver denne side ændret først.",
     tocLabel: "På denne side",
     short: {
       title: "Kort fortalt",
@@ -158,7 +158,7 @@ export default {
               "din e-mailadresse og dit sprog (dansk eller engelsk)",
               "det link til at logge ind, du har bedt om: din e-mailadresse, et udløbstidspunkt og et fingeraftryk (hash) af linket. Det bliver slettet omkring et døgn efter, at det er udløbet, også når der ikke findes en konto til adressen",
               "din session: et fingeraftryk (hash) af den nøgle, din browser har, og hvornår den udløber (højst 60 dage, eller når du logger ud). Vi gemmer ikke din IP-adresse eller din enhed",
-              "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato",
+              "din husstand: dens navn, hvem der er med, og de invitationer, du har sendt, med den inviterede e-mailadresse og udløbsdato. En invitation bliver slettet, når den tages imod, og et døgn efter at den er udløbet",
             ],
           },
           "Alle i en husstand kan se hinandens e-mailadresser og styre alle husstandens telefoner. Links til at logge ind, sessioner og de nøgler, telefonerne bruger, gemmes som hashes.",
@@ -172,12 +172,12 @@ export default {
           {
             list: [
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
-              "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion",
+              "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
               "de apps, der er på telefonen (navn og pakkenavn), og hvilke af dem der er tilladt",
               "godkendte kontakter: de navne og numre, en forælder selv skriver ind i forældreappen. Serveren har ikke andet fra telefonens kontakter",
               "webfilterets indstillinger: hvilke kategorier der er blokeret, og de domæner, forælderen tillader eller blokerer",
               "skoletid og sengetid og de apps, der er tilladt i dem",
-              "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og en oversigt over de ændringer, der har ventet på nøglen",
+              "på en voksens egen telefon: nøglens indstillinger (en forsinkelse eller e-mailadressen på en betroet person) og de ændringer, der venter på nøglen. En ændring, der er gennemført, annulleret eller afvist, gemmes i 30 dage og slettes derefter",
             ],
           },
           "En betroet person, du udpeger, får en mail. Når personen er logget ind, kan vedkommende se telefonens navn, hvad der bedes om, og din e-mailadresse.",
@@ -264,11 +264,11 @@ export default {
                 ],
                 [
                   "Din konto (e-mailadresse, sprog)",
-                  "Til kontoen bliver slettet. Der er endnu ingen knap til at slette den, så bed os om det (se Dine rettigheder)",
+                  "Til du sletter kontoen under Indstillinger i appen, eller beder os om det",
                 ],
                 [
                   "Husstand, telefoner, apps, kontakter, skoletid, filterindstillinger",
-                  "Til telefonen eller husstanden fjernes. Der er endnu ingen knap til nogen af delene i appen, så bed os om det. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
+                  "Til telefonen fjernes (på telefonens side i appen), eller din konto bliver slettet. En husstand bliver slettet sammen med kontoen for dens sidste medlem. En fjernet kontakt eller tidsplan bliver slettet, når fjernelsen træder i kraft",
                 ],
                 [
                   "Seneste position",
@@ -276,11 +276,11 @@ export default {
                 ],
                 [
                   "Ændringer, der har ventet på nøglen på en voksens egen telefon",
-                  "Til telefonen fjernes",
+                  "Mens de venter, og 30 dage efter at de er gennemført, annulleret eller afvist",
                 ],
                 [
                   "Invitationer",
-                  "De holder op med at virke efter 7 dage. Posten bliver endnu ikke slettet automatisk. Du kan trække en åben invitation tilbage, og vi kan fjerne resten, når du beder om det",
+                  "Slettes, når de tages imod. Ellers holder de op med at virke efter 7 dage og slettes et døgn senere. Du kan altid trække en åben invitation tilbage",
                 ],
                 ["Webfilterets tællere", "24 timer"],
                 [
@@ -305,11 +305,13 @@ export default {
               "ændre en telefons kontakter, apps, webfilter og tidsplaner",
               "slå placering fra, så den gemte position bliver slettet",
               "trække en åben invitation tilbage",
-              "forlade en husstand (det sidste medlem kan ikke forlade den)",
+              "omdøbe eller fjerne en telefon. Når den fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID, indtil det bekræfter. På en voksens egen telefon venter fjernelsen på nøglen",
+              "forlade en husstand (det sidste medlem kan ikke forlade den, men kan slette sin konto)",
+              "slette din konto under Indstillinger. En husstand, du deler med en anden forælder, bliver hos dem med sine telefoner. En husstand, kun du er med i, bliver slettet med sine telefoner. Er du betroet person for en anden, bliver deres nøgle i stedet en forsinkelse. Telefoner med din egen nøgle (en voksens egen telefon) skal først fjernes gennem nøglen",
               "logge ud, så sessionen slutter",
             ],
           },
-          "Der er endnu ingen knap til at omdøbe eller fjerne en telefon, slette din konto, hente dine oplysninger eller fjerne en udløbet invitation. Bed os om det (se Hvem er ansvarlig). Når en telefon fjernes, bliver alt, der er gemt om den, slettet, og webfilteret bliver bedt om at glemme dens ClientID. Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
+          "Der er endnu ingen knap til at hente dine oplysninger. Bed os om det eller om noget andet på listen (se Hvem er ansvarlig). Vi tjekker, at du har adgang til e-mailadressen, før vi ændrer eller sletter noget, og vi sigter mod at svare inden for en måned.",
         ],
       },
       {

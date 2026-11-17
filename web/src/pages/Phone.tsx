@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Outlet, useLocation, useParams } from "react-router";
-import { ErrorState, errorMessage, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
+import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "../i18n/translate";
 import { api, ApiError, type App, type ChangeResult, type Locale, type PendingChange, type Phone } from "../lib/api";
@@ -413,7 +413,78 @@ export function PhoneOverview() {
           </li>
         </ul>
       </section>
+
+      <ManagePhone />
     </>
+  );
+}
+
+/** Rename the phone, or remove it. On a Self phone the removal waits for the key. */
+function ManagePhone() {
+  const { t } = useI18n();
+  const { phone, setPhone, run, notify } = usePhone();
+  const navigate = useNavigate();
+  const [name, setName] = useState(phone.name);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const trimmed = name.trim();
+
+  async function rename(e: FormEvent) {
+    e.preventDefault();
+    if (!trimmed || trimmed === phone.name) return;
+    setSaving(true);
+    try {
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { name: trimmed }));
+      notify({ tone: "success", text: t("app.saved") });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setRemoving(true);
+    const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}`), t("phone.removed"));
+    setRemoving(false);
+    setConfirming(false);
+    if (r?.status === "applied") navigate("/", { replace: true });
+  }
+
+  return (
+    <section className="section" aria-labelledby="manage-h">
+      <h2 id="manage-h">{t("phone.manage")}</h2>
+      <form onSubmit={rename} noValidate className="inline-form">
+        <Field label={t("phone.name")}>
+          {(p) => (
+            <input {...p} type="text" maxLength={40} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
+          )}
+        </Field>
+        <button type="submit" className="btn btn-secondary" disabled={saving || !trimmed || trimmed === phone.name}>
+          {saving ? t("app.saving") : t("phone.rename")}
+        </button>
+      </form>
+      <div className="danger-zone">
+        {confirming ? (
+          <div className="stack-sm" role="group" aria-labelledby="remove-q">
+            <p id="remove-q">{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
+            <div className="actions">
+              <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={removing}>
+                {t("phone.removeYes")}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)} disabled={removing}>
+                {t("app.cancel")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn-link btn-link-danger" onClick={() => setConfirming(true)}>
+            {t("phone.remove")}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
