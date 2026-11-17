@@ -2,7 +2,7 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, isNull, lt, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -12,6 +12,7 @@ import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName } from "../lib/validation.js";
 import { applyDueChanges } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
+import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { rulesDocument, STARTER_PACKS } from "../services/phones.js";
 
 export const PAIRING_MINUTES = 15;
@@ -114,11 +115,16 @@ export function deviceRoutes(ctx: Ctx) {
     // Throttle last-seen writes to one a minute.
     await ctx.db
       .update(phones)
-      .set({ lastSeenAt: ctx.now() })
+      .set({ lastSeenAt: ctx.now(), offlineAlertedAt: null })
       .where(
         and(
           eq(phones.id, phone.id),
-          or(isNull(phones.lastSeenAt), lt(phones.lastSeenAt, new Date(ctx.now().getTime() - 60_000))),
+          or(
+            isNull(phones.lastSeenAt),
+            lt(phones.lastSeenAt, new Date(ctx.now().getTime() - 60_000)),
+            // Back after an offline alert: re-arm it at once.
+            isNotNull(phones.offlineAlertedAt),
+          ),
         ),
       );
     const { doc, etag } = await rulesDocument(ctx, phone);
@@ -235,13 +241,19 @@ export function deviceRoutes(ctx: Ctx) {
       return c.json({ error: "rulesAppliedAt is in the future" }, 400);
     }
     // The newest report replaces the one before; no history is kept. Times are stored in UTC.
-    await ctx.db
-      .update(phones)
-      .set({
-        deviceStatus: { ...input, rulesAppliedAt: appliedAt?.toISOString() ?? null },
-        statusReportedAt: ctx.now(),
-      })
-      .where(eq(phones.id, phone.id));
+    // The previous report is read in the same statement, so two reports racing each other
+    // cannot both see "was protected" and alert twice.
+    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus }>(sql`
+      with old as (select device_status from phones where id = ${phone.id} for update)
+      update phones set
+        device_status = ${JSON.stringify({ ...input, rulesAppliedAt: appliedAt?.toISOString() ?? null })}::jsonb,
+        status_reported_at = ${ctx.now()}
+      from old where phones.id = ${phone.id}
+      returning old.device_status as status`);
+    const lost = protectionLost(prev?.status ?? null, input);
+    if (lost) {
+      await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
+    }
     return c.body(null, 204);
   });
 

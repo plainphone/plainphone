@@ -14,14 +14,18 @@ import {
   householdMembers,
   households,
   locations,
+  notificationMutes,
   pairings,
   pendingChanges,
   phoneApps,
   phones,
+  pushSubscriptions,
   schedules,
   selfKeys,
   users,
 } from "../db/schema.js";
+import { DEFAULT_PUSH_HOSTS, pushHostAllowed } from "../providers/parent-push.js";
+import { notifyUsers } from "../services/notifications.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
@@ -187,6 +191,95 @@ export function parentRoutes(ctx: Ctx) {
     }
     deleteCookie(c, SESSION_COOKIE, { path: "/api" });
     return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
+  });
+
+  // --- Notifications (Web Push now; APNs/FCM tokens can be stored for the native apps) ---
+
+  const pushHosts = [
+    ...DEFAULT_PUSH_HOSTS,
+    ...ctx.cfg.PUSH_EXTRA_HOSTS.split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  ];
+  const pushTestLimit = new RateLimiter(10, 60 * 60_000);
+  const subscriptionJson = (s: typeof pushSubscriptions.$inferSelect) => ({
+    id: s.id,
+    platform: s.platform,
+    label: s.label,
+    createdAt: s.createdAt.toISOString(),
+    lastSuccessAt: s.lastSuccessAt?.toISOString() ?? null,
+  });
+
+  app.get("/notifications", async (c) => {
+    const user = c.get("user");
+    const subs = await ctx.db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, user.id))
+      .orderBy(pushSubscriptions.createdAt);
+    const muted = await ctx.db
+      .select({ phoneId: notificationMutes.phoneId })
+      .from(notificationMutes)
+      .where(eq(notificationMutes.userId, user.id));
+    return c.json({
+      webPushEnabled: Boolean(ctx.parentPush.webPublicKey),
+      webPushPublicKey: ctx.parentPush.webPublicKey,
+      offlineAlertHours: ctx.cfg.OFFLINE_ALERT_HOURS,
+      subscriptions: subs.map(subscriptionJson),
+      mutedPhoneIds: muted.map((m) => m.phoneId),
+    });
+  });
+
+  app.post("/notifications/subscriptions", async (c) => {
+    const user = c.get("user");
+    const label = z.string().trim().max(60).optional();
+    const input = await body(
+      c,
+      z.discriminatedUnion("platform", [
+        z.object({
+          platform: z.literal("web"),
+          endpoint: z.string().max(2000),
+          keys: z.object({ p256dh: z.string().min(80).max(100), auth: z.string().min(16).max(40) }),
+          label,
+        }),
+        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(4096), label }),
+      ]),
+    );
+    if (input.platform === "web" && !ctx.parentPush.webPublicKey) {
+      return c.json({ error: "notifications are not set up on this server" }, 409);
+    }
+    if (input.platform === "web" && !pushHostAllowed(input.endpoint, pushHosts)) {
+      return c.json({ error: "unknown push service" }, 400);
+    }
+    const values =
+      input.platform === "web"
+        ? { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth }
+        : { endpoint: input.token, p256dh: null, auth: null };
+    // The same browser or app install signing in as someone else takes the row over.
+    const [row] = await ctx.db
+      .insert(pushSubscriptions)
+      .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: { userId: user.id, platform: input.platform, label: input.label ?? null, failures: 0, ...values },
+      })
+      .returning();
+    return c.json(subscriptionJson(row!), 201);
+  });
+
+  app.delete("/notifications/subscriptions/:sid", async (c) => {
+    await ctx.db
+      .delete(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.id, param(c, "sid")), eq(pushSubscriptions.userId, c.get("user").id)));
+    return c.body(null, 204);
+  });
+
+  app.post("/notifications/test", async (c) => {
+    const user = c.get("user");
+    const input = await body(c, z.object({ subscriptionId: z.uuid().optional() }));
+    if (!pushTestLimit.take(user.id)) throw new HTTPException(429, { message: "too many test notifications" });
+    const sent = await notifyUsers(ctx, [user.id], { type: "test" }, { subscriptionId: input.subscriptionId });
+    return c.json({ sent });
   });
 
   // --- Households -------------------------------------------------------------
@@ -453,6 +546,21 @@ export function parentRoutes(ctx: Ctx) {
   app.delete("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
     return change(c, phone, { type: "phone.remove", dnsClientId: phone.dnsClientId });
+  });
+
+  // Whether this parent gets notifications about this phone (default on).
+  app.put("/phones/:pid/notifications", async (c) => {
+    const phone = await requirePhone(c);
+    const input = await body(c, z.object({ enabled: z.boolean() }));
+    const userId = c.get("user").id;
+    if (input.enabled) {
+      await ctx.db
+        .delete(notificationMutes)
+        .where(and(eq(notificationMutes.userId, userId), eq(notificationMutes.phoneId, phone.id)));
+    } else {
+      await ctx.db.insert(notificationMutes).values({ userId, phoneId: phone.id }).onConflictDoNothing();
+    }
+    return c.body(null, 204);
   });
 
   // Apps
