@@ -21,6 +21,7 @@ interface SyncDevice {
     fun battery(): Pair<Int?, Boolean?>
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean): LocationFix?
+    fun cachedCoarseLocation(): LocationFix?
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
     fun timeUsed(): Map<String, Int>? = null
 
@@ -165,14 +166,19 @@ class SyncRunner(
                 return
             }
         } else {
-            // The server would count a regular report towards an open Find or check-in.
-            if (requested != null || checkIn != null) return
+            // The server counts any accepted position towards an open check-in.
+            if (checkIn != null) return
             val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
                 (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
                 now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
             if (!alwaysDue) return
         }
-        val fix = device.location(precise)
+        val fix = if (!precise && requested != null) {
+            // A scheduled report can use the cache during Find backoff without waking GPS.
+            device.cachedCoarseLocation() ?: return
+        } else {
+            device.location(precise)
+        }
         if (fix == null) {
             Log.w(TAG, "no position available")
             return
@@ -182,14 +188,15 @@ class SyncRunner(
         if (checkIn != null) store.locatedCheckInId = checkIn.id
         // Only a fix taken after the parent pressed Find answers it (the server and dashboard
         // compare the same way). An older last-known position is sent, but the phone keeps trying.
-        if (requested != null && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
+        val answeredFind = requested?.takeIf { fix.recordedAtMs >= it }
+        if (answeredFind != null) store.answeredLocateMs = answeredFind
         // Every position goes to the phone's own log; single ones also get a notice
         // ("always" has its own ongoing one).
         // One Find is one line and one notice, however many retries it takes to get a fresh fix.
         if (!stored) return
         when {
             checkIn != null -> device.positionSent("checkin")
-            requested != null -> if (store.shownLocateMs != requested) {
+            requested != null && (precise || answeredFind != null) -> if (store.shownLocateMs != requested) {
                 store.shownLocateMs = requested
                 device.positionSent("find")
             }

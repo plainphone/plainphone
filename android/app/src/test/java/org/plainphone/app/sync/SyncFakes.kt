@@ -19,6 +19,8 @@ class FakeSyncDevice(
     var now = 1_800_000_000_000L
     var applies = mutableListOf<String>()
     var lock = LockState(deviceOwner = true, maintenance = false, failedPolicies = emptyList(), appliedAtMs = now, dnsHost = "family.adguard-dns.com")
+    var cachedLocation: LocationFix? = null
+    override fun cachedCoarseLocation() = cachedLocation
     val locationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L

@@ -30,7 +30,7 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 
 - **Pairing.** After the QR setup the phone shows a pairing code and QR code; the parent claims it in the dashboard ([`web/`](web)). The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 - **Rules from the server.** The phone fetches the parent's rules (WorkManager every 15 minutes, at boot and on network changes, every minute while the screen is on) and applies the app list, approved contacts, school time and bedtime, its own DNS address (only once the DNS service has confirmed it) and location. Offline, the last rules keep applying; an error never loosens anything.
-- **Find.** When the parent presses Find, the phone sends one position (platform fused location, no Play services library). Only the latest position is kept.
+- **Find.** When the parent presses Find, the phone sends one position (platform fused location, no Play services library). Only the latest position is kept. See [lookup and retry limits](docs/location.md#location-time-and-accuracy).
 - **Status.** Battery, last sync, app version and whether the lock is intact are shown in the dashboard.
 
 See [docs/phone-sync.md](docs/phone-sync.md) for how it works and what is not done yet.

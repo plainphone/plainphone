@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.HandlerThread
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -93,6 +94,7 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 
     override fun location(precise: Boolean): LocationFix? = LocationReader(context).current(precise)
+    override fun cachedCoarseLocation(): LocationFix? = LocationReader(context).current(precise = false, timeoutMs = 0)
 
     override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
     override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()
@@ -123,19 +125,18 @@ class LocationReader(private val context: Context) {
             precise -> listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
         }.filter { it in enabled }
-        val maxAgeMs = if (precise) 2 * 60_000L else 10 * 60_000L
+        val maxAge = TimeUnit.MINUTES.toNanos(if (precise) 2 else 10)
         val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
-        val now = System.currentTimeMillis()
-        val cached = providers.mapNotNull { provider ->
+        val cachedLocations = providers.mapNotNull { provider ->
             runCatching { lm.getLastKnownLocation(provider) }.getOrNull()
-        }.filter { now - it.time in 0 until maxAgeMs && it.accuracyOrUnknown() <= maxAccuracy }
-            .maxByOrNull { it.time }
-        if (cached != null) return cached.toFix()
-
-        if (!precise && Build.VERSION.SDK_INT < 31) {
-            // Older Android cannot request low power. Give the network provider a head start.
-            return providers.firstNotNullOfOrNull { await(lm, listOf(it), precise, deadline) }?.toFix()
         }
+        val now = SystemClock.elapsedRealtimeNanos()
+        val cached = cachedLocations
+            .filter { now - it.elapsedRealtimeNanos in 0 until maxAge && it.accuracyOrUnknown() <= maxAccuracy }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+        if (cached != null) return cached.toFix()
+        if (timeoutMs <= 0) return null
+
         return await(lm, providers, precise, deadline)?.toFix()
     }
 
@@ -146,12 +147,24 @@ class LocationReader(private val context: Context) {
         val results = LinkedBlockingQueue<Result>()
         val cancellations = mutableListOf<CancellationSignal>()
         var best: Location? = null
+        var pending = 0
         try {
-            for (provider in providers) {
+            for ((index, provider) in providers.withIndex()) {
+                if (index == 1 && !precise && Build.VERSION.SDK_INT < 31) {
+                    // Allow a quick network fix to avoid waking GPS, while leaving time for GPS.
+                    val headStart = minOf(TimeUnit.MILLISECONDS.toNanos(500), (deadline - System.nanoTime()) / 2)
+                    val network = results.poll(headStart.coerceAtLeast(0L), TimeUnit.NANOSECONDS)
+                    if (network != null) {
+                        pending--
+                        best = network.location
+                        if (best != null && best.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return best
+                    }
+                }
                 val remaining = deadline - System.nanoTime()
                 if (remaining <= 0) break
                 val cancel = CancellationSignal()
                 cancellations += cancel
+                pending++
                 val done: (Location?) -> Unit = { results.add(Result(it)) }
                 try {
                     when {
@@ -170,7 +183,7 @@ class LocationReader(private val context: Context) {
                     done(null)
                 }
             }
-            repeat(cancellations.size) {
+            repeat(pending) {
                 val remaining = (deadline - System.nanoTime()).coerceAtLeast(0L)
                 val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return best
                 val fix = result.location ?: return@repeat

@@ -91,11 +91,13 @@ is also re-checked whenever the screen turns on.
 ## Location provider
 
 The platform's `fused` provider is used when the phone has one. On phones with Google Play
-services it is backed by Google's fused location; without them the phone falls back to GPS and
-the network provider via `LocationManager`. A "Find" counts as answered only by a fix taken
-after the parent pressed it; until then the phone keeps trying on every sync, for at most 30 minutes. The app does not include the Play services library.
-If no fresh fix comes within 30 seconds, the newest known position is sent with its real time,
-so the parent sees how old it is. Only the latest position is stored on the server (D7).
+services it is backed by Google's fused location. Without fused, the app uses GPS and the
+network provider via `LocationManager`. The app does not include the Play services library.
+
+Lookups share a 30-second budget and can reuse cached fixes that meet the age and accuracy
+limits. Find and missed check-ins use the retry schedule in [Location time and
+accuracy](location.md#location-time-and-accuracy). A position answers Find if it was
+recorded at or after the request. Only the latest position is stored on the server (D7).
 
 ## Status
 

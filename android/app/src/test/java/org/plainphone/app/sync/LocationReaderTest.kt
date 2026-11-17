@@ -6,8 +6,10 @@ import android.app.Application
 import android.location.Location
 import android.location.LocationManager
 import android.location.LocationRequest
+import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.junit.Before
@@ -16,6 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29])
@@ -102,6 +105,83 @@ class LocationReaderTest {
         }
     }
 
+    @Test
+    fun `cache-only always reads a coarse fix and never starts a lookup`() {
+        val device = AndroidSyncDevice(context)
+        assertThat(device.cachedCoarseLocation()).isNull()
+
+        val cached = fix(network, 900f)
+        manager.simulateLocation(cached)
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(9))
+        assertThat(device.cachedCoarseLocation()?.recordedAtMs).isEqualTo(cached.time)
+
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
+        assertThat(device.cachedCoarseLocation()).isNull()
+        assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+    }
+
+    @Test
+    fun `always gets a GPS fix when the older network provider stays silent`() {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = false) }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(gps, 75f))
+            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(75f)
+            assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `a cache entry with a recent wall time but old elapsed time is ignored`() {
+        val stale = fix(gps, 50f)
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(10))
+        stale.time = System.currentTimeMillis()
+        manager.simulateLocation(stale)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = true) }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(network, 90f))
+            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(90f)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `the first precise fix cancels the silent provider`() {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = true) }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(network, 100f))
+            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(100f)
+            assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `a precise lookup keeps a 150 m fix when GPS times out`() {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, timeoutMs = 1_000)
+            }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(network, 150f))
+            assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(150f)
+            assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     private fun awaitRequests(vararg providers: String) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
         while (System.nanoTime() < deadline && providers.any { manager.getLegacyLocationRequests(it).isEmpty() }) {
@@ -114,6 +194,7 @@ class LocationReaderTest {
 
     private fun fix(provider: String, meters: Float) = Location(provider).apply {
         time = System.currentTimeMillis()
+        elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
         accuracy = meters
     }
 }

@@ -168,6 +168,31 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `always reports cached positions during Find backoff without starting a lookup`() {
+        pair()
+        val fix = requireNotNull(device.fix).copy(recordedAtMs = device.now - 1)
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(requestedAt = java.time.Instant.ofEpochMilli(device.now).toString()))
+        runner.run("initial Find with no fix")
+        api.rules = RulesResult.Unchanged
+
+        device.now += 30_000
+        runner.run("always with no cached fix")
+        assertThat(api.locations).isEmpty()
+
+        device.cachedLocation = fix
+        device.now += 30_000
+        runner.run("always with an older cached fix")
+        assertThat(api.locations).containsExactly(fix)
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(device.positionsShown).containsExactly("always")
+
+        device.now += 60_000
+        runner.run("second Find attempt")
+        assertThat(device.locationRequests).containsExactly(true, true)
+    }
+
+    @Test
     fun `an unanswerable Find is given up after 30 minutes`() {
         pair()
         val pressed = java.time.Instant.parse("2027-01-04T10:00:00Z").toEpochMilli()

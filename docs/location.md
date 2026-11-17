@@ -59,7 +59,8 @@ Each location lookup has one 30-second budget. The phone uses the fused provider
 enabled. Otherwise, it asks GPS and the network provider in parallel, taking the first fix
 accurate to 100 m or better, or the most accurate available fix if neither reaches 100 m.
 Regular `always` reports use Android 12's low-power setting. On older Android versions without
-fused, regular reports try the network provider first, then give GPS any remaining time.
+fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
+100 m or better before starting GPS. Both providers share the same deadline.
 
 The phone can reuse a cached position without starting a new lookup. For Find and check-ins it
 must be younger than 2 minutes and accurate to 100 m or better. For regular `always` reports it
@@ -69,8 +70,9 @@ when its recorded time is at or after the request.
 Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
 "Are you okay?" uses the same schedule starting at the reply deadline. Both stop after success
 or after 30 minutes, with at most five precise lookups. A delayed sync runs only the latest due
-attempt. Regular `always` reports wait while a Find or missed check-in is still open, since
-the server can count any report towards an open request.
+attempt. Between Find attempts, a due `always` report can reuse a cached position that meets
+the regular age and accuracy limits without starting a new lookup. Regular reports wait
+while a missed check-in is open because the server counts any accepted position towards it.
 
 ## Ring the phone
 

@@ -130,6 +130,7 @@ class SafetySyncTest {
     @Test
     fun `always waits during check-in backoff and resumes at expiry`() {
         val deadline = device.now
+        device.cachedLocation = requireNotNull(device.fix).copy(recordedAtMs = deadline - 1)
         device.fix = null
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "always", checkIn = checkIn(deadline)))
         runner.run("deadline")
@@ -138,6 +139,7 @@ class SafetySyncTest {
         device.now = deadline + 60_000L
         runner.run("backoff")
         assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).isEmpty()
 
         device.now = deadline + SyncRunner.FIND_RETRY_MS
         runner.run("expired")
