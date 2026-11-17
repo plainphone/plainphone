@@ -1,0 +1,35 @@
+name: Feature idea
+description: Suggest a change to how Plainphone works.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plainphone is built on [design principles](https://github.com/plainphone/plainphone/blob/main/docs/design-principles.md) backed by an [evidence review](https://github.com/plainphone/plainphone/blob/main/docs/evidence.md). Please read them first; ideas that work against them, such as hidden monitoring or engagement features, will not be added.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is this for, a parent, a child or an adult on their own phone, and what is hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should Plainphone do? What should it not do?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Cite a study, review or official recommendation and how it applies, or write "no direct evidence, reason …".
+      placeholder: "Evidence: "
+    validations:
+      required: true
+  - type: textarea
+    id: child
+    attributes:
+      label: What the child sees
+      description: For features on a child's phone, how will the child know about it? (Principles 1 and 2.)
