@@ -149,6 +149,9 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       keyType: c.keyType,
       effectiveAt: c.effectiveAt?.toISOString() ?? null,
     })),
+    // True once the parents have released the phone: it switches Plainphone off and then
+    // calls POST /device/released. Older phones ignore the field.
+    release: phone.releaseRequestedAt !== null,
     pollSeconds: POLL_SECONDS,
   };
   const etag = `"${createHash("sha256").update(JSON.stringify(doc)).digest("base64url").slice(0, 27)}"`;
@@ -169,6 +172,8 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     timezone: phone.timezone,
     locationEnabled: phone.locationEnabled,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
+    /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
+    releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,

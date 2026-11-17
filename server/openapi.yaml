@@ -201,6 +201,10 @@ components:
             type: { const: phone.remove }
             dnsClientId: { type: string }
         - type: object
+          description: Loosening on a phone that has paired. Switches Plainphone off on the phone.
+          properties:
+            type: { const: phone.release }
+        - type: object
           description: Loosening when any weekday gets more minutes, or the limit is removed (limit null).
           properties:
             type: { const: timeLimit.set }
@@ -409,7 +413,7 @@ components:
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, pollSeconds]
+      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
         profile: { enum: [child, self] }
@@ -521,6 +525,13 @@ components:
           type: array
           description: Self profile; show them with a countdown on the phone.
           items: { $ref: "#/components/schemas/PendingChange" }
+        release:
+          type: boolean
+          description: |
+            True once the parents have released the phone. The phone then switches Plainphone off
+            (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
+            Plainphone off"), never locks again, and calls `POST /device/released`. An older
+            server without this field means false.
         pollSeconds:
           type: integer
           description: Poll interval for GET /device/rules.
@@ -536,6 +547,10 @@ components:
         timezone: { type: string }
         locationEnabled: { type: boolean }
         pairedAt: { type: [string, "null"], format: date-time }
+        releaseRequestedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
         lastSeenAt: { type: [string, "null"], format: date-time }
         dnsHost: { type: string }
         dnsSynced: { type: boolean }
@@ -831,6 +846,23 @@ paths:
       responses:
         "204": { description: "Stored" }
         "400": { $ref: "#/components/responses/Error" }
+
+  /device/released:
+    post:
+      operationId: postDeviceReleased
+      tags: [device]
+      summary: Tell the server Plainphone is switched off (phone)
+      description: |
+        Sent by the phone after it has switched Plainphone off because the rules said
+        `release: true`. The server deletes the phone and its DNS client, so the device token is
+        unknown from then on (401, which the phone reads as "removed"). Answers 409 when nobody
+        asked for a release. Send it again after a network error; 401 on a retry means it
+        already went through. See docs/sync-api.md.
+      security: [{ device: [] }]
+      responses:
+        "204": { description: "The phone is deleted" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /device/requests:
     post:
@@ -1366,11 +1398,30 @@ paths:
       operationId: deletePhone
       summary: Remove a phone
       tags: [phones]
-      description: Removes the phone, its rules and its DNS client. The device token stops working; the lock on the phone stays until released there. On a Self phone removal goes through the key.
+      description: Removes the phone, its rules and its DNS client. The device token stops working; the lock on the phone stays until released there (to switch it off from the dashboard, use `POST /phones/{pid}/release` instead). On a Self phone removal goes through the key.
       security: [{ session: [] }, { cookie: [] }]
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/release:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneRelease
+      summary: Release the phone
+      tags: [phones]
+      description: |
+        Switches Plainphone off on the phone, with the same effect as the maintenance screen's
+        "Release Device Owner" (strong mode) or light mode's "Switch Plainphone off": the lock and
+        the filters stop, and Plainphone is an ordinary app that can be uninstalled. The phone is
+        told in its rules (`release: true`), does it the next time it is online, and then
+        disappears from the dashboard. Until then `releaseRequestedAt` is set on the phone. On a
+        Self phone this goes through the key. A phone that never paired answers 400: remove it instead.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { $ref: "#/components/responses/Error" }
 
   /phones/{pid}/apps:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

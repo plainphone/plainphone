@@ -50,6 +50,13 @@
       "when": 1794947674266,
       "tag": "0006_phone_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794948149235,
+      "tag": "0007_phone_release",
+      "breakpoints": true
     }
   ]
 }

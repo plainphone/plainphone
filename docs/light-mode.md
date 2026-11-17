@@ -33,6 +33,14 @@ Every protection is a step in the lock. A missing one is a failed policy, so `lo
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
 
+## Releasing from the dashboard
+
+A parent can switch light mode off from the dashboard with **Release the phone**. The next sync
+reads `release: true`, switches Plainphone off the same way the maintenance screen does, and
+tells the server, which then removes the phone from the dashboard. Because it is the parent's
+own choice, the parent is not told about the protections going. See
+[sync-api.md](sync-api.md#releasing-the-phone).
+
 ## The parent is told when protection is removed
 
 - **VPN switched off:** `onRevoke` fires in the running app, which syncs at once and reports the
