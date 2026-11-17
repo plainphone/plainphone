@@ -24,7 +24,7 @@ interface PhoneCtx {
   phone: Phone;
   setPhone: (p: Phone) => void;
   pending: PendingChange[];
-  reloadPending: () => Promise<void>;
+  reloadPending: (beforeUpdate?: (changes: PendingChange[]) => void) => Promise<void>;
   appLabel: (pkg: string) => string;
   setApps: (apps: App[]) => void;
   /**
@@ -71,9 +71,10 @@ export function PhoneLayout() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [banner, setBanner] = useState<PendingChange | null>(null);
 
-  const reloadPending = useCallback(async () => {
+  const reloadPending = useCallback(async (beforeUpdate?: (changes: PendingChange[]) => void) => {
     try {
       const r = await api.get<{ changes: PendingChange[] }>(`/phones/${pid}/changes`);
+      beforeUpdate?.(r.changes);
       setPending(r.changes);
     } catch {
       // the overview shows its own error; banners keep working without the list
@@ -253,22 +254,25 @@ function ChangeBar({
   );
 }
 
-export function PendingList() {
+function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
   const { t, locale } = useI18n();
   const { pending, reloadPending, appLabel, notify } = usePhone();
   const now = useNow(30_000);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function cancel(c: PendingChange) {
-    setBusyId(c.id);
+  async function cancel(c: PendingChange, button: HTMLButtonElement) {
+    if (busy) return;
+    setBusy(true);
     try {
       await api.post(`/changes/${c.id}/cancel`);
       notify({ tone: "success", text: t("pending.cancelled") });
     } catch (err) {
       notify({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t("pending.gone") : errorMessage(err, t) });
     } finally {
-      setBusyId(null);
-      await reloadPending();
+      await reloadPending((changes) => {
+        if (document.activeElement === button && !changes.some((change) => change.id === c.id)) onCancelFocus();
+      });
+      setBusy(false);
     }
   }
 
@@ -280,7 +284,12 @@ export function PendingList() {
             <p className="row-title">{describeOp(c.op, t, locale, appLabel)}</p>
             <p className="row-meta">{pendingWhen(c, now, t, locale)}</p>
           </div>
-          <button type="button" className="btn btn-secondary btn-small" onClick={() => void cancel(c)} disabled={busyId === c.id}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            onClick={(event) => void cancel(c, event.currentTarget)}
+            aria-disabled={busy}
+          >
             {t("pending.cancel")}
           </button>
         </li>
@@ -343,6 +352,7 @@ export function PhoneOverview() {
   const navigate = useNavigate();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
+  const rulesHeading = useRef<HTMLHeadingElement>(null);
 
   // The phone reports in the background: fetch it again while this page is open, so the
   // battery and the lock state are not as old as the moment the parent opened the app.
@@ -352,18 +362,24 @@ export function PhoneOverview() {
   const releasing = Boolean(phone.releaseRequestedAt);
   const releasedText = t("phone.released");
   useEffect(() => {
+    let active = true;
     const refresh = () =>
       api
         .get<Phone>(`/phones/${phone.id}`)
-        .then((p) => setPhoneRef.current(p))
+        .then((p) => {
+          if (active) setPhoneRef.current(p);
+        })
         .catch((err) => {
-          if (releasing && err instanceof ApiError && err.status === 404) {
-            navigate("/", { replace: true, state: { notice: releasedText } });
+          if (active && err instanceof ApiError && err.status === 404) {
+            navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
           }
         });
     void refresh();
     const id = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(id);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
   }, [phone.id, releasing, releasedText, navigate]);
   const items: { to: string; label: string; hint: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
@@ -418,12 +434,12 @@ export function PhoneOverview() {
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">
           <h2 id="pending-h">{t("phone.pendingTitle")}</h2>
-          <PendingList />
+          <PendingList onCancelFocus={() => rulesHeading.current?.focus()} />
         </section>
       )}
 
       <section className="section" aria-labelledby="rules-h">
-        <h2 id="rules-h">{t("phone.rules")}</h2>
+        <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
         <ul className="list phone-rules">
           {items.map((i) => (
             <li key={i.to}>
@@ -643,8 +659,11 @@ function ManagePhone() {
       // The phone stays in the list until it has switched Plainphone off.
       try {
         setPhone(await api.get<Phone>(`/phones/${phone.id}`));
-      } catch {
-        // the overview refreshes the phone every minute
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          navigate("/", { replace: true, state: { notice: t("phone.released") } });
+        }
+        // Other failures are retried by the overview refresh.
       }
     }
     setWorking(false);

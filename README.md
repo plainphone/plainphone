@@ -43,7 +43,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
-A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online.
+A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
 
 [docs/policies.md](docs/policies.md) lists every policy, what Android does not let us block, and links to the Android documentation.
 

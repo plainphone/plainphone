@@ -652,7 +652,7 @@ main {
   border-color: var(--border-strong);
 }
 
-.btn-secondary:hover:not(:disabled) {
+.btn-secondary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--tint);
 }
 
@@ -666,7 +666,8 @@ main {
   font-size: 0.9375rem;
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   cursor: progress;
   opacity: 0.65;
 }
