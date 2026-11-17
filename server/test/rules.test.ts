@@ -152,13 +152,18 @@ describe("location (D7)", () => {
 
     const t0 = h.clock.now;
     expect((await loc(55.6, t0)).status).toBe(204);
-    expect((await loc(55.7, new Date(t0.getTime() - 60_000))).status).toBe(204); // older fix, ignored
+    // The Find is answered: a second, older fix is not asked for any more.
+    expect((await loc(55.7, new Date(t0.getTime() - 60_000))).status).toBe(409);
     const got = await parent.get(`/api/phones/${phoneId}/location`);
     expect(got.json.location.lat).toBe(55.6);
     expect(got.json.requestedAt).toBeNull();
 
+    // Without a Find the default mode refuses positions; "always" takes the 5-minute reports.
     h.clock.advance(5 * 60_000);
-    await loc(55.8, h.clock.now);
+    expect((await loc(55.75, h.clock.now)).status).toBe(409);
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always" });
+    expect((await loc(55.8, h.clock.now)).status).toBe(204);
+    expect((await loc(55.85, new Date(h.clock.now.getTime() - 60_000))).status).toBe(204); // older fix, ignored
     const rows = await h.ctx.db.select().from(locations).where(eq(locations.phoneId, phoneId));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.lat).toBe(55.8);

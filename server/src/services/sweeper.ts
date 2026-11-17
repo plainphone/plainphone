@@ -3,6 +3,7 @@ import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { householdInvites, magicLinks, pairings, pendingChanges, sessions } from "../db/schema.js";
 import { applyDueChanges } from "./changes.js";
 import type { Ctx } from "./context.js";
+import { deleteOldSafetyRequests } from "./safety.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 
 const DAY = 86_400_000;
@@ -15,7 +16,7 @@ export interface SweepResult {
   applied: number;
   dns: number;
   dnsDeleted: number;
-  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number };
+  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; safety: number };
 }
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
@@ -61,6 +62,8 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
         )
         .returning({ id: pendingChanges.id }),
     ),
+    // Rings and "Are you okay?" requests, a day after they ended.
+    safety: await deleteOldSafetyRequests(ctx),
   };
   return { applied, dns, dnsDeleted, deleted };
 }
@@ -68,10 +71,10 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
 /** Logs only counts, never ids or addresses, and only when something happened. */
 export function logSweep(r: SweepResult, always = false) {
   const d = r.deleted;
-  const total = r.applied + r.dnsDeleted + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes;
+  const total = r.applied + r.dnsDeleted + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.safety;
   if (total === 0 && !always) return;
   console.log(
-    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes}`,
+    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} safety=${d.safety}`,
   );
 }
 

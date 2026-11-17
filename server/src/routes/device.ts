@@ -6,7 +6,7 @@ import { and, eq, isNull, lt, lte, notInArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { locations, pairings, phoneApps, phones, PROTECTIONS } from "../db/schema.js";
+import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName } from "../lib/validation.js";
@@ -16,6 +16,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { rulesDocument } from "../services/phones.js";
+import { checkinLocationDue, loadSafety } from "../services/safety.js";
 
 export const PAIRING_MINUTES = 15;
 export const DEVICE_PREFIX = "pp_d_";
@@ -217,7 +218,14 @@ export function deviceRoutes(ctx: Ctx) {
         recordedAt: z.iso.datetime({ offset: true }),
       }),
     );
-    if (!phone.locationEnabled) return c.json({ error: "location is off for this phone" }, 409);
+    if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
+    // Outside "always" the phone sends a position only when asked: a Find, or an unanswered
+    // "Are you okay?". The server holds it to that.
+    const { checkin } = await loadSafety(ctx, phone.id);
+    const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
+    if (phone.locationMode !== "always" && !phone.locateRequestedAt && !forCheckin) {
+      return c.json({ error: "no position was asked for" }, 409);
+    }
     const recordedAt = new Date(input.recordedAt);
     if (recordedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
       return c.json({ error: "recordedAt is in the future" }, 400);
@@ -237,6 +245,42 @@ export function deviceRoutes(ctx: Ctx) {
         .update(phones)
         .set({ locateRequestedAt: null })
         .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
+    }
+    if (forCheckin) {
+      await ctx.db
+        .update(safetyRequests)
+        .set({ locatedAt: ctx.now() })
+        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)));
+    }
+    return c.body(null, 204);
+  });
+
+  // The phone reports what happened to a ring or an "Are you okay?" (docs/location.md).
+  app.post("/safety/:rid", async (c) => {
+    const phone = c.get("phone");
+    const { event } = await body(c, z.object({ event: z.enum(["shown", "here", "ok", "call"]) }));
+    const rid = z.uuid().safeParse(c.req.param("rid"));
+    if (!rid.success) return c.json({ error: "not found" }, 404);
+    const [req] = await ctx.db
+      .select()
+      .from(safetyRequests)
+      .where(and(eq(safetyRequests.id, rid.data), eq(safetyRequests.phoneId, phone.id)));
+    if (!req) return c.json({ error: "not found" }, 404);
+    if (event !== "shown" && (event === "here") !== (req.kind === "ring")) {
+      return c.json({ error: `${event} does not answer a ${req.kind}` }, 400);
+    }
+    const now = ctx.now();
+    if (event === "shown") {
+      await ctx.db
+        .update(safetyRequests)
+        .set({ shownAt: now })
+        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.shownAt)));
+    } else {
+      // The first answer counts. A late answer is still recorded: the parent wants to know.
+      await ctx.db
+        .update(safetyRequests)
+        .set({ answeredAt: now, answer: event, shownAt: req.shownAt ?? now })
+        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.answeredAt)));
     }
     return c.body(null, 204);
   });

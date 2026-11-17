@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// "Ring the phone" and "Are you okay?" (docs/location.md). Only the latest request of each kind
+// per phone exists; the phone learns about it through the rules document.
+
+import { and, eq, isNotNull, lt, or } from "drizzle-orm";
+import { type LocationMode, phones, safetyRequests } from "../db/schema.js";
+import type { Ctx } from "./context.js";
+
+type Phone = typeof phones.$inferSelect;
+export type SafetyRequest = typeof safetyRequests.$inferSelect;
+
+/** The sound stops by itself after this, whatever happens. */
+export const RING_MINUTES = 5;
+/** Reply times a parent can pick for "Are you okay?". */
+export const CHECKIN_MIN_MINUTES = 1;
+export const CHECKIN_MAX_MINUTES = 120;
+/** After an unanswered deadline the phone has this long to send its one position. */
+export const CHECKIN_LOCATE_WINDOW_MS = 30 * 60_000;
+/** The phone polls this often while a ring or a check-in is open, so stops and replies travel fast. */
+export const FAST_POLL_SECONDS = 10;
+/** Finished requests are deleted after this (sweeper). */
+export const SAFETY_KEEP_MS = 24 * 60 * 60_000;
+/** The phone's clock may be a little ahead: accept the check-in position this early. */
+const CLOCK_SLACK_MS = 2 * 60_000;
+
+/** Modes in which an unanswered "Are you okay?" sends a position. */
+export function checkinSendsLocation(mode: LocationMode): boolean {
+  return mode === "checkin" || mode === "always";
+}
+
+export function ringActive(r: SafetyRequest | undefined, now: Date): r is SafetyRequest {
+  return Boolean(r && !r.stoppedAt && now < r.endsAt && !(r.answeredAt && r.stopOnAnswer));
+}
+
+export type CheckinStatus = "waiting" | "answered" | "cancelled" | "noReply";
+
+export function checkinStatus(r: SafetyRequest, now: Date): CheckinStatus {
+  if (r.answeredAt) return "answered";
+  if (r.stoppedAt) return "cancelled";
+  return now < r.endsAt ? "waiting" : "noReply";
+}
+
+/** True while the phone should (still) send its one position for an unanswered check-in. */
+export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationMode, now: Date): boolean {
+  if (!r || r.answeredAt || r.stoppedAt || r.locatedAt || !checkinSendsLocation(mode)) return false;
+  const t = now.getTime();
+  return t >= r.endsAt.getTime() - CLOCK_SLACK_MS && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
+}
+
+export async function loadSafety(ctx: Ctx, phoneId: string) {
+  const rows = await ctx.db.select().from(safetyRequests).where(eq(safetyRequests.phoneId, phoneId));
+  return { ring: rows.find((r) => r.kind === "ring"), checkin: rows.find((r) => r.kind === "checkin") };
+}
+
+/** What the phone needs to know, as part of the rules document. */
+export function safetyForPhone(phone: Phone, s: Awaited<ReturnType<typeof loadSafety>>, now: Date) {
+  const ring = ringActive(s.ring, now)
+    ? { id: s.ring.id, endsAt: s.ring.endsAt.toISOString(), stopOnAnswer: s.ring.stopOnAnswer, answered: s.ring.answeredAt !== null }
+    : null;
+  const c = s.checkin;
+  const open = c && (checkinStatus(c, now) === "waiting" || checkinLocationDue(c, phone.locationMode, now));
+  const checkIn = open
+    ? {
+        id: c.id,
+        deadline: c.endsAt.toISOString(),
+        callNumber: c.callNumber,
+        sendLocation: checkinSendsLocation(phone.locationMode),
+      }
+    : null;
+  return { ring, checkIn, fast: ring !== null || checkIn !== null };
+}
+
+/** What the parent sees. */
+export function ringJson(r: SafetyRequest | undefined, now: Date) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    active: ringActive(r, now),
+    stopOnAnswer: r.stopOnAnswer,
+    createdAt: r.createdAt.toISOString(),
+    endsAt: r.endsAt.toISOString(),
+    shownAt: r.shownAt?.toISOString() ?? null,
+    answeredAt: r.answeredAt?.toISOString() ?? null,
+    stoppedAt: r.stoppedAt?.toISOString() ?? null,
+  };
+}
+
+export function checkinJson(r: SafetyRequest | undefined, mode: LocationMode, now: Date) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    status: checkinStatus(r, now),
+    createdAt: r.createdAt.toISOString(),
+    deadline: r.endsAt.toISOString(),
+    callNumber: r.callNumber,
+    sendsLocation: checkinSendsLocation(mode),
+    shownAt: r.shownAt?.toISOString() ?? null,
+    answeredAt: r.answeredAt?.toISOString() ?? null,
+    answer: r.answer,
+    stoppedAt: r.stoppedAt?.toISOString() ?? null,
+    locatedAt: r.locatedAt?.toISOString() ?? null,
+  };
+}
+
+/** A new request replaces the phone's previous one of the same kind. */
+export async function startRequest(
+  ctx: Ctx,
+  phoneId: string,
+  userId: string,
+  input: { kind: "ring"; stopOnAnswer: boolean } | { kind: "checkin"; minutes: number; callNumber: string | null },
+): Promise<SafetyRequest> {
+  const now = ctx.now();
+  const values = {
+    phoneId,
+    kind: input.kind,
+    createdBy: userId,
+    endsAt: new Date(now.getTime() + (input.kind === "ring" ? RING_MINUTES : input.minutes) * 60_000),
+    stopOnAnswer: input.kind === "ring" ? input.stopOnAnswer : true,
+    callNumber: input.kind === "checkin" ? input.callNumber : null,
+    shownAt: null,
+    answeredAt: null,
+    answer: null,
+    stoppedAt: null,
+    locatedAt: null,
+    createdAt: now,
+  };
+  return ctx.db.transaction(async (tx) => {
+    await tx
+      .delete(safetyRequests)
+      .where(and(eq(safetyRequests.phoneId, phoneId), eq(safetyRequests.kind, input.kind)));
+    const [row] = await tx.insert(safetyRequests).values(values).returning();
+    return row!;
+  });
+}
+
+/** Deletes finished requests older than a day (data minimisation). */
+export async function deleteOldSafetyRequests(ctx: Ctx): Promise<number> {
+  const cutoff = new Date(ctx.now().getTime() - SAFETY_KEEP_MS);
+  const rows = await ctx.db
+    .delete(safetyRequests)
+    .where(
+      or(
+        lt(safetyRequests.endsAt, new Date(cutoff.getTime() - CHECKIN_LOCATE_WINDOW_MS)),
+        and(isNotNull(safetyRequests.stoppedAt), lt(safetyRequests.stoppedAt, cutoff)),
+      ),
+    )
+    .returning({ id: safetyRequests.id });
+  return rows.length;
+}
