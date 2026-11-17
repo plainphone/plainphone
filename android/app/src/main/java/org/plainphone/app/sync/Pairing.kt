@@ -3,8 +3,9 @@
 package org.plainphone.app.sync
 
 /**
- * Pairs the phone with a parent account. The phone shows a code and a QR code; the parent
- * claims it in the dashboard; the phone polls and receives its device token exactly once.
+ * Pairs the phone with a parent account. With a provisioning QR code made in the dashboard the
+ * phone pairs itself with the code's one-time token ([enroll]). Otherwise the phone shows a code and
+ * a QR code; the parent claims it in the dashboard; the phone polls and receives its device token once.
  * Pure logic around [SyncApi] and [SyncStore], unit-tested with a fake API.
  */
 class PairingController(
@@ -21,6 +22,28 @@ class PairingController(
         check(!store.isPaired) { "already paired" }
         current()?.let { return it }
         return api.startPairing("strong", deviceInfo).also(store::savePairing)
+    }
+
+    /**
+     * Pairs with the enrollment token from the provisioning QR code, if there is one: no code to type.
+     * Returns null when there is no token (or the phone is already paired). A refused token is dropped,
+     * so the phone falls back to showing a code. Network errors throw and keep the token for a retry.
+     */
+    fun enroll(): EnrollResult? = synchronized(ENROLL_LOCK) {
+        // One at a time per process: the pairing screen and EnrollWorker may both try. Two requests
+        // with the same token would each get a device token (the retry path), and the one saved
+        // last could be the one the server already replaced.
+        if (store.isPaired) {
+            store.saveEnrollToken(null)
+            return null
+        }
+        val token = store.enrollToken() ?: return null
+        val result = api.enroll(token, store.installId(), deviceInfo)
+        when (result) {
+            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken)
+            EnrollResult.Rejected -> store.saveEnrollToken(null)
+        }
+        return result
     }
 
     /** One poll. On [PairPoll.Paired] the token is stored and the pairing cleared. */
@@ -40,6 +63,7 @@ class PairingController(
     }
 
     companion object {
+        private val ENROLL_LOCK = Any()
         private const val MIN_REMAINING_MS = 60_000L
         /** A phone that has never been paired can be paired without the PIN this long after setup. */
         const val FREE_PAIRING_MS = 60 * 60_000L

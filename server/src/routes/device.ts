@@ -11,6 +11,7 @@ import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName } from "../lib/validation.js";
 import { applyDueChanges } from "../services/changes.js";
+import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
@@ -41,6 +42,7 @@ export function deviceRoutes(ctx: Ctx) {
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
+  const enrollLimit = new RateLimiter(20, 60 * 60_000);
 
   // --- Pairing (no device token yet) -------------------------------------------
 
@@ -99,6 +101,22 @@ export function deviceRoutes(ctx: Ctx) {
     if (result.status === 410) return c.json({ error: "expired" }, 410);
     if (result.status === 202) return c.json({ status: "waiting" }, 202);
     return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken }, 200);
+  });
+
+  // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
+  app.post("/enroll", async (c) => {
+    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    const input = await body(
+      c,
+      z.object({
+        token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
+        installId: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
+        deviceInfo: deviceInfo.optional(),
+      }),
+    );
+    const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
+    if (r.status !== 200) return c.json({ error: r.error }, r.status);
+    return c.json({ status: "paired", phoneId: r.phoneId, deviceToken: r.deviceToken }, 200);
   });
 
   // --- Everything below needs the device token ------------------------------

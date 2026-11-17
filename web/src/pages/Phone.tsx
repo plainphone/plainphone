@@ -388,6 +388,18 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
+      {!phone.pairedAt && (
+        <section className="section panel" aria-labelledby="setup-h">
+          <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
+          <p className="muted">{t("setup.pendingBody")}</p>
+          <p>
+            <Link to={`${base}/setup`} className="btn btn-primary">
+              {t("setup.showQr")}
+            </Link>
+          </p>
+        </section>
+      )}
+
       <PhoneStatusBlock phone={phone} now={now} />
 
       {(phone.profile === "self" || pending.length > 0) && (

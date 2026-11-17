@@ -369,3 +369,25 @@ export const dnsDeletions = pgTable("dns_deletions", {
   lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+/**
+ * One-time enrollment token in a provisioning QR code made in the dashboard. The phone sends it
+ * after setup and is paired with [phoneId] without a code. Only the SHA-256 of the token is stored.
+ */
+export const enrollments = pgTable(
+  "enrollments",
+  {
+    id: id(),
+    tokenHash: text("token_hash").notNull().unique(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** SHA-256 of the phone's install id, so a lost answer can be retried by the same phone. */
+    installIdHash: text("install_id_hash"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("enrollments_phone_idx").on(t.phoneId)],
+);

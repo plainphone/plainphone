@@ -83,14 +83,18 @@ Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug 
 
 ### QR code
 
+Parents make the QR code in the dashboard: **Add phone** asks who the phone is for and for a maintenance PIN, then shows the provisioning QR code. The browser hashes the PIN (PBKDF2; neither the PIN nor its hash reaches the server), and the code carries a one-time token, so the phone pairs itself after setup. The code points at `https://app.plainphone.org/download/android`, which redirects to the newest release, so it does not go stale when a new version comes out.
+
+For self-hosting, tests and phones without an account there is a script with the same format:
+
 ```sh
 scripts/provisioning-qr.py \
   --apk android/app/build/outputs/apk/release/app-release.apk \
-  --apk-url https://github.com/plainphone/plainphone/releases/download/<tag>/<file>.apk \
+  --apk-url https://example.org/plainphone.apk \
   --ask-pin --out dist/provisioning-qr
 ```
 
-The script reads the signing certificate checksum from the APK, asks for or generates the maintenance PIN (6+ digits), hashes it (PBKDF2; the PIN itself never goes into the QR code) and writes `dist/provisioning-qr.json` and `.png`. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps and FRP accounts. A QR code with a Wi-Fi password in it must not be published.
+The script reads the signing certificate checksum from the APK (or takes `--checksum`), asks for or generates the maintenance PIN (6+ digits), hashes it and writes `dist/provisioning-qr.json` and `.png`. Without `--apk-url` it uses the stable download address. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps, FRP accounts and `--enroll-token`. A QR code with a Wi-Fi password in it must not be published.
 
 Phase 2 options:
 

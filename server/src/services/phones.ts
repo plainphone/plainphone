@@ -35,7 +35,8 @@ export async function createPhone(
     name: string;
     profile: "child" | "self";
     mode: "strong" | "light";
-    deviceTokenHash: string;
+    /** Null for a phone made for a provisioning QR code: it pairs itself later (enrollment). */
+    deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
   },
@@ -54,7 +55,7 @@ export async function createPhone(
       // D7 and spec 11: location is on for a child, off by default for an adult.
       locationEnabled: input.profile === "child",
       timezone: input.timezone ?? "Europe/Copenhagen",
-      pairedAt: ctx.now(),
+      pairedAt: input.deviceTokenHash ? ctx.now() : null,
     })
     .returning();
   // Spec 6: every category is blocked by default.

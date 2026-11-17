@@ -17,6 +17,7 @@ import { KeyPage } from "./pages/Key";
 import { LocationPage } from "./pages/Location";
 import { LoginPage } from "./pages/Login";
 import { PairPage } from "./pages/Pair";
+import { AddPhonePage, SetupPhonePage } from "./pages/AddPhone";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
@@ -45,6 +46,8 @@ function AppRoutes() {
         <Route path="/invite" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
+        <Route path="/add" element={<RequireAuth><AddPhonePage /></RequireAuth>} />
+        <Route path="/phones/:pid/setup" element={<RequireAuth><SetupPhonePage /></RequireAuth>} />
         <Route path="/household" element={<RequireAuth><HouseholdPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth><ApprovalsPage /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />

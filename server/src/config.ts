@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { z } from "zod";
 
+/** Compose files pass unset variables as "": treat that as unset, so the default applies. */
+const unsetIfEmpty = <T extends z.ZodType>(t: T) => z.preprocess((v) => (v === "" ? undefined : v), t);
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().default(8080),
@@ -30,6 +33,22 @@ const schema = z.object({
   ANDROID_APP_PACKAGE: z.string().default("org.plainphone.parent"),
   /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
   ANDROID_APP_CERT_SHA256: z.string().default(""),
+  /**
+   * Strong-mode setup (provisioning QR made in the dashboard). The phone downloads the app from
+   * `${PUBLIC_URL}/download/android`, which redirects to APK_DOWNLOAD_URL when set, otherwise to
+   * the newest APK released on GitHub in APK_RELEASES_REPO. Self-hosters with their own build set
+   * APK_DOWNLOAD_URL and APK_SIGNATURE_CHECKSUM (base64url SHA-256 of the signing certificate).
+   */
+  APK_DOWNLOAD_URL: unsetIfEmpty(z.url().optional()),
+  APK_RELEASES_REPO: unsetIfEmpty(z.string().regex(/^[\w.-]+\/[\w.-]+$/).default("plainphone/plainphone")),
+  APK_SIGNATURE_CHECKSUM: unsetIfEmpty(
+    z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/)
+      .default("mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM"),
+  ),
+  /** Private DNS the phone uses from setup until its own filter host is ready. */
+  PROVISIONING_DNS_HOST: unsetIfEmpty(z.string().default("family.adguard-dns.com")),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
   PAYMENTS_ENABLED: z
     .enum(["true", "false"])

@@ -53,6 +53,7 @@ export default {
         body: "Pick which apps show, who can call, and when school time or quiet hours start. A stricter rule will apply at once.",
       },
     ],
+    guide: "Want to try it? <a href=\"/setup/\">Follow the step-by-step guide</a>.",
     note:
       "Today, steps 1 and 2 work on test phones. The place where you choose the rules is being built.",
   },
@@ -74,7 +75,7 @@ export default {
   phones: {
     title: "Tested phones",
     body:
-      "None yet. A phone goes on this list only after it has passed every test in our <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass checklist</a> on real hardware. Until then, please treat Plainphone as an experiment.",
+      "One so far: a OnePlus 5T on Android 10. Setup, the lock and the connection to the dashboard work, as the <a href=\"/setup/#tested\">setup guide</a> shows. It has not been through our <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass checklist</a> on real hardware yet, and a phone counts as fully tested only after it has passed every test on that list. Until then, please treat Plainphone as an experiment.",
   },
   open: {
     title: "Free and open source",
@@ -332,8 +333,130 @@ export default {
       },
     ],
   },
+  setup: {
+    path: "/setup/",
+    title: "Set up a phone: Plainphone",
+    description:
+      "How to set up a phone with Plainphone: choose a PIN in the dashboard, scan a QR code on the reset phone, and let the phone lock itself. About ten minutes.",
+    h1: "Set up a phone",
+    lead:
+      "You set up a phone with a QR code from the dashboard. It takes about ten minutes, and you need no computer.",
+    needTitle: "What you need",
+    need: [
+      "An Android phone with Android 10 or newer that you may reset. Setup erases everything on it, so save what you want to keep first. The version is under Settings → About phone.",
+      "Wi-Fi without a login page. Hotel and school networks that ask you to sign in do not work during setup.",
+      "About ten minutes.",
+      "The dashboard open on another device, such as your own phone or a computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    ],
+    stepsTitle: "Step by step",
+    steps: [
+      {
+        title: "Add the phone",
+        body: [
+          "In the dashboard, choose <strong>Add phone</strong>. Say who the phone is for, a child or yourself, and give it a name. Only you see the name.",
+        ],
+        fig: "who",
+      },
+      {
+        title: "Choose a maintenance PIN",
+        body: [
+          "Choose a PIN of at least 6 digits and type it twice. It opens a hidden maintenance screen on the phone: tap <strong>Version</strong> 7 times, then enter the PIN. Keep it somewhere safe, because Plainphone cannot show it again.",
+          "The PIN never leaves your browser. Only a scrambled (hashed) copy goes into the QR code.",
+        ],
+        fig: "pin",
+      },
+      {
+        title: "Show the QR code",
+        body: [
+          "The dashboard now shows a QR code. It works once, and for 24 hours. Do not share it, and keep the page open.",
+        ],
+        fig: "qr",
+      },
+      {
+        title: "Reset the phone",
+        body: [
+          "Factory reset the phone: Settings → System → Reset → Erase all data. Or use a new phone. Wait until the welcome screen appears.",
+          "The menu names differ a little between brands. If a Google account is on the phone, remove it first (Settings → Accounts), or the phone asks for it after the reset.",
+        ],
+        fig: "reset",
+      },
+      {
+        title: "Tap the welcome screen 6 times",
+        body: [
+          "On the first welcome screen, tap the same empty spot 6 times in a row, quickly. Do not press Start. A QR reader opens. On some phones it first asks to download it.",
+        ],
+        fig: "welcome",
+      },
+      {
+        title: "Scan the QR code",
+        body: [
+          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, makes it the device owner and locks itself.",
+          "If the phone says it will be managed by an organisation, that is Plainphone. Accept: it is how the lock works.",
+        ],
+        fig: "scan",
+      },
+      {
+        title: "Android 10 to 13 only: set the default phone app",
+        body: [
+          "During setup or just after, the phone asks <em>Set Plainphone as your default phone app?</em> Tap <strong>Set as default</strong>. Missed it? Open the Plainphone app and it asks again.",
+          "On Android 14 and newer this happens by itself.",
+        ],
+        fig: "dialog",
+      },
+      {
+        title: "Done",
+        body: [
+          "The phone connects to the dashboard by itself. There is no code to type. When it is connected, the dashboard says so. Then choose its apps and contacts.",
+        ],
+        fig: "done",
+      },
+    ],
+    figs: {
+      who: "The dashboard page “Who is the phone for?” with the choices Child and Self, a Name field and a Next button.",
+      pin: "The dashboard page “Choose a maintenance PIN” with two PIN fields and the button “Make the QR code”.",
+      qr: "The dashboard page “Set up Alma’s phone”. A box where the QR code appears, and below it “Waiting for the phone” and a note that the code works once.",
+      done: "The dashboard says the phone is connected and offers a button to open it.",
+      reset: "A drawing of a phone showing a settings list, with the row for erasing all data marked.",
+      welcome: "A drawing of a phone on its first welcome screen. Six taps in the same empty spot, marked “6×”.",
+      scan: "Two drawings of a phone. On the first, a QR reader frames a QR code. On the second, a list of Wi-Fi networks with one chosen.",
+      dialog: "A drawing of a phone with a dialog that has two buttons, “Set as default” and “Cancel”.",
+    },
+    drawing: { taps: "6×", set: "Set as default", cancel: "Cancel" },
+    troubleTitle: "If something goes wrong",
+    trouble: [
+      [
+        "The QR code has expired or does not work",
+        "A code works once, and for 24 hours. Open the phone in the dashboard and choose <strong>Show the setup QR code</strong> to get a new one. A new code stops the old one from working.",
+      ],
+      [
+        "The phone says “Can’t set up device”",
+        "Check that the phone has Android 10 or newer (Settings → About phone). Older phones cannot be used.",
+      ],
+      [
+        "The phone shows a code instead of connecting",
+        "In the dashboard, choose <strong>Add phone</strong>, then <strong>Type the code</strong> at the bottom, and enter the code the phone shows.",
+      ],
+      [
+        "Tapping 6 times does nothing",
+        "The phone must be on its very first welcome screen. Tap one spot in the middle, quickly, and do not press Start.",
+      ],
+    ],
+    help: "Still stuck? <a href=\"https://github.com/plainphone/plainphone/issues\">Open an issue on GitHub</a>.",
+    testedTitle: "Tested phones",
+    tested: {
+      caption: "Phones that Plainphone has been set up on",
+      cols: ["Phone", "Android", "Result"],
+      rows: [["OnePlus 5T (A5010)", "Android 10", "Works"]],
+      body: [
+        "Works means that setup, the lock and the connection to the dashboard are confirmed on this phone. It has not been through the full bypass checklist yet.",
+        "Android 14 or newer is recommended. It does everything by itself and locks the phone app in Settings.",
+        "Android 10 to 13 has one known gap: the child can switch to the built-in phone app in Settings. Calls are then not filtered until Plainphone is chosen again. The dashboard shows it within 15 minutes.",
+      ],
+    },
+  },
   footer: {
     maintained: "Plainphone is maintained by <a href=\"https://mahoje.dk\">Mahoje</a> in Denmark.",
+    setup: "Guide: <a href=\"/setup/\">Set up a phone</a>.",
     privacy: "This site sets no cookies and runs no analytics. <a href=\"/privacy/\">Privacy policy</a>.",
     license: "Code under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Font: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
