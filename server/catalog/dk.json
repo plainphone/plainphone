@@ -58,6 +58,231 @@
   ],
   "apps": [
     {
+      "packageName": "dk.bec.android.mb1.b00048.prod",
+      "name": "Andelskassen",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00048.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Andelskassen"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00020.prod",
+      "name": "Arbejdernes Landsbank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00020.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "AL Mobilbank Privat"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00888.prod",
+      "name": "Coop Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00888.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Coop Bank"
+    },
+    {
+      "packageName": "com.danskebank.mobilebank3.dk",
+      "name": "Danske Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.danskebank.mobilebank3.dk",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Mobilbank DK – Danske Bank"
+    },
+    {
+      "packageName": "com.danskebank.pocketmoney.dk.prod",
+      "name": "Danske Bank Lommepenge",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.danskebank.pocketmoney.dk.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lommepenge - Danske Bank"
+    },
+    {
+      "packageName": "dk.dragsholm.netbank.mobile",
+      "name": "Dragsholm Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.dragsholm.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Dragsholm Sparekasse Mobilbank"
+    },
+    {
+      "packageName": "dk.facit.netbank.mobile",
+      "name": "Facit Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.facit.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Facit Bank DK"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00082.prod",
+      "name": "FasterOikos",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00082.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "FasterOikos"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00067.prod",
+      "name": "Frørup Andelskasse (privat)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00067.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Frørup Privat"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00062.prod",
+      "name": "Frøslev-Mollerup",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00062.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Frøslev-Mollerup"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00338.prod",
+      "name": "Fynske Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00338.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Fynske Bank"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00041.prod",
+      "name": "Fælleskassen",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00041.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Fælleskassen"
+    },
+    {
+      "packageName": "se.veckopengen.app",
+      "name": "Gimi (Nordea lommepenge)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=se.veckopengen.app",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Gimi - Pocket money app"
+    },
+    {
+      "packageName": "com.google.android.apps.walletnfcrel",
+      "name": "Google Wallet",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.google.android.apps.walletnfcrel",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Google Wallet"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00025.prod",
+      "name": "Hvidbjerg Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00025.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Hvidbjerg Bank"
+    },
+    {
+      "packageName": "dk.jyskebank.drb",
+      "name": "Jyske Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.jyskebank.drb",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Jyske Bank"
+    },
+    {
+      "packageName": "dk.jyskebank.childapp",
+      "name": "Jyske Bank Pengeklog",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.jyskebank.childapp",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Pengeklog"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00095.prod",
+      "name": "Lollands Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00095.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lollands Bank"
+    },
+    {
+      "packageName": "com.lunarway.app",
+      "name": "Lunar",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.lunarway.app",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lunar"
+    },
+    {
+      "packageName": "app.lunar.kids",
+      "name": "Lunar Youth",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=app.lunar.kids",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lunar Youth"
+    },
+    {
+      "packageName": "dk.sdc.a.mobilbank.lanspar",
+      "name": "Lån & Spar Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sdc.a.mobilbank.lanspar",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Mobilbank - Lån & Spar Bank"
+    },
+    {
+      "packageName": "dk.lsb.minepenge",
+      "name": "Lån & Spar Bank Mine Penge",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.lsb.minepenge",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Mine Penge - Lån & Spar Bank"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00030.prod",
+      "name": "Lægernes Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00030.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lægernes Bank"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00087.prod",
+      "name": "Merkur Andelskasse (privat)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00087.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Merkur Privat"
+    },
+    {
+      "packageName": "dk.midspar.netbank",
+      "name": "Middelfart Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.midspar.netbank",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Mobilbank MiddelfartSparekasse"
+    },
+    {
       "packageName": "dk.danskebank.mobilepay",
       "name": "MobilePay",
       "category": "bank",
@@ -67,6 +292,204 @@
       "playTitle": "MobilePay"
     },
     {
+      "packageName": "dk.bec.android.mb1.b00055.prod",
+      "name": "Møns Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00055.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Møns Bank"
+    },
+    {
+      "packageName": "dk.nordea.mobilebank",
+      "name": "Nordea Mobile DK",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.nordea.mobilebank",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Nordea Mobile - Denmark"
+    },
+    {
+      "packageName": "dk.nebel.netbank.mobile",
+      "name": "Nr. Nebel Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.nebel.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Nr Nebel Sparekasse"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00032.prod",
+      "name": "Nykredit & Spar Nord",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00032.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Nykredit & Spar Nord"
+    },
+    {
+      "packageName": "dk.landbobanken.drb",
+      "name": "Ringkjøbing Landbobank og Nordjyske Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.landbobanken.drb",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Landbobanken og Nordjyske Bank"
+    },
+    {
+      "packageName": "dk.risesparekasse.netbank.mobile",
+      "name": "Rise Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.risesparekasse.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Rise Sparekasse."
+    },
+    {
+      "packageName": "dk.balling.netbank.mobile",
+      "name": "Sparekassen Balling",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.balling.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Mobilbank Sparekassen Balling"
+    },
+    {
+      "packageName": "dk.bredebro.netbank.mobile",
+      "name": "Sparekassen Bredebro",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bredebro.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sparekassen-Bredebro"
+    },
+    {
+      "packageName": "dk.sparekassendanmark.netbank.mobile",
+      "name": "Sparekassen Danmark",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sparekassendanmark.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sparekassen Danmark Mobilbank"
+    },
+    {
+      "packageName": "dk.sparekassenkronjylland.netbank.mobile",
+      "name": "Sparekassen Kronjylland (SparKron)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sparekassenkronjylland.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "SparKron - Mobilbank"
+    },
+    {
+      "packageName": "dk.spks.drb",
+      "name": "Sparekassen Sjælland-Fyn (SJF Bank)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.spks.drb",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "SJF Bank"
+    },
+    {
+      "packageName": "dk.sparekassenthy.netbank.mobile",
+      "name": "Sparekassen Thy",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sparekassenthy.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sparekassen Thy"
+    },
+    {
+      "packageName": "dk.sparkron.lommepenge",
+      "name": "SparKron Lommepenge",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sparkron.lommepenge",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "SparKron - Lommepenge"
+    },
+    {
+      "packageName": "dk.stadil.netbank.mobile",
+      "name": "Stadil Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.stadil.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Stadil Sparekasse Mobilbank"
+    },
+    {
+      "packageName": "dk.sydbank.drb",
+      "name": "Sydbank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sydbank.drb",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sydbanks Mobilbank Privat"
+    },
+    {
+      "packageName": "dk.sydjysksparekasse.netbank.mobile",
+      "name": "Sydjysk Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sydjysksparekasse.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sydjysk Sparekasse mobilbank"
+    },
+    {
+      "packageName": "dk.sonderhaahorsted.netbank.mobile",
+      "name": "Sønderhå-Hørsted Sparekasse",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sonderhaahorsted.netbank.mobile",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sønderhå-Hørsted Mobilbank"
+    },
+    {
+      "packageName": "dk.bec.android.mb1.b00019.prod",
+      "name": "Vestjysk Bank",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bec.android.mb1.b00019.prod",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Vestjysk Bank"
+    },
+    {
+      "packageName": "dk.youngmoney.youngmoney",
+      "name": "Young Money (Sydbank, Nykredit, Spar Nord)",
+      "category": "bank",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.youngmoney.youngmoney",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Young Money"
+    },
+    {
+      "packageName": "dk.digst.DigitalPost",
+      "name": "Digital Post",
+      "category": "public",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.digst.DigitalPost",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Digital Post"
+    },
+    {
+      "packageName": "com.eboks.activities",
+      "name": "e-Boks",
+      "category": "public",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.eboks.activities",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "e-Boks.dk"
+    },
+    {
+      "packageName": "dk.digst.mdl",
+      "name": "Kørekort",
+      "category": "public",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.digst.mdl",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Kørekort"
+    },
+    {
       "packageName": "dk.mitid.app.android",
       "name": "MitID",
       "category": "public",
@@ -74,6 +497,69 @@
       "source": "https://play.google.com/store/apps/details?id=dk.mitid.app.android",
       "verifiedAt": "2026-11-17",
       "playTitle": "MitID"
+    },
+    {
+      "packageName": "dk.dsb.nda.android",
+      "name": "DSB",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.dsb.nda.android",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "DSB"
+    },
+    {
+      "packageName": "com.google.android.apps.maps",
+      "name": "Google Maps",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.google.android.apps.maps",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Google Maps"
+    },
+    {
+      "packageName": "dk.m.metroselskabetapp",
+      "name": "Metroen",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.m.metroselskabetapp",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Metroen"
+    },
+    {
+      "packageName": "dk.midttrafik.live",
+      "name": "Midttrafik Live",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.midttrafik.live",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Midttrafik live"
+    },
+    {
+      "packageName": "dk.movia.buster",
+      "name": "Movia Buster",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.movia.buster",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Buster - track your bus live"
+    },
+    {
+      "packageName": "dk.rejsekort.rejsebillet",
+      "name": "Rejsebillet",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.rejsekort.rejsebillet",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Rejsebillet"
+    },
+    {
+      "packageName": "dk.rejsekort.digitalrejsekort",
+      "name": "Rejsekort",
+      "category": "transport",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.rejsekort.digitalrejsekort",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "rejsekort"
     },
     {
       "packageName": "de.hafas.android.rejseplanen",
@@ -94,6 +580,33 @@
       "playTitle": "Aula for forældre og elever"
     },
     {
+      "packageName": "com.netcompany.aulanativestaff",
+      "name": "Aula for medarbejdere",
+      "category": "school",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.netcompany.aulanativestaff",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Aula for medarbejdere"
+    },
+    {
+      "packageName": "com.google.android.apps.classroom",
+      "name": "Google Classroom",
+      "category": "school",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.google.android.apps.classroom",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Google Classroom"
+    },
+    {
+      "packageName": "com.audible.application",
+      "name": "Audible",
+      "category": "music",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.audible.application",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Audible: Audiobooks & Podcasts"
+    },
+    {
       "packageName": "dk.dr.radio",
       "name": "DR LYD",
       "category": "music",
@@ -103,6 +616,33 @@
       "playTitle": "DR LYD"
     },
     {
+      "packageName": "dk.redia.eReolen",
+      "name": "eReolen",
+      "category": "music",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.redia.eReolen",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "eReolen"
+    },
+    {
+      "packageName": "io.gonative.android.wlqm.staging",
+      "name": "eReolen GO!",
+      "category": "music",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=io.gonative.android.wlqm.staging",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "eReolen GO!"
+    },
+    {
+      "packageName": "com.podimo",
+      "name": "Podimo",
+      "category": "music",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.podimo",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Podimo - Podcasts & Audiobooks"
+    },
+    {
       "packageName": "com.spotify.music",
       "name": "Spotify",
       "category": "music",
@@ -110,6 +650,168 @@
       "source": "https://play.google.com/store/apps/details?id=com.spotify.music",
       "verifiedAt": "2026-11-17",
       "playTitle": "Spotify: Music and Podcasts"
+    },
+    {
+      "packageName": "grit.storytel.app",
+      "name": "Storytel",
+      "category": "music",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=grit.storytel.app",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Storytel - Audiobooks & Books"
+    },
+    {
+      "packageName": "com.cube.gdpc.fa",
+      "name": "Førstehjælp (Røde Kors)",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.cube.gdpc.fa",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "First Aid - IFRC"
+    },
+    {
+      "packageName": "dk.minsp",
+      "name": "Min Sundhedsplatform (MinSP)",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.minsp",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "MinSP"
+    },
+    {
+      "packageName": "com.trifork.minlaege",
+      "name": "MinLæge",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.trifork.minlaege",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Min Læge"
+    },
+    {
+      "packageName": "dk.sundhed.minsundhed",
+      "name": "Sundhed.dk (MinSundhed)",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sundhed.minsundhed",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "MinSundhed"
+    },
+    {
+      "packageName": "dk.digst.hc",
+      "name": "Sundhedskortet",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.digst.hc",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Sundhedskortet"
+    },
+    {
+      "packageName": "dk.sundhed.videokonsultation",
+      "name": "VideoKonsultation",
+      "category": "health",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.sundhed.videokonsultation",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "VideoKonsultation"
+    },
+    {
+      "packageName": "dk.bilka.app.release",
+      "name": "Bilka Plus",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.bilka.app.release",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Bilka Plus | Scan&Go"
+    },
+    {
+      "packageName": "dk.coop.coopplus",
+      "name": "Coop",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.coop.coopplus",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Coop – Scan & Pay, App offers"
+    },
+    {
+      "packageName": "dk.dmi.byvejret",
+      "name": "DMI Vejr",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.dmi.byvejret",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "DMI Vejr"
+    },
+    {
+      "packageName": "dk.dsg.foetex",
+      "name": "føtex plus",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.dsg.foetex",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "føtex plus"
+    },
+    {
+      "packageName": "com.lidl.eci.lidlplus",
+      "name": "Lidl Plus",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.lidl.eci.lidlplus",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Lidl Plus"
+    },
+    {
+      "packageName": "dk.dsg.netto",
+      "name": "Netto+",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.dsg.netto",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Netto+ | Scan&Go"
+    },
+    {
+      "packageName": "dk.rema1000.app",
+      "name": "REMA 1000",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.rema1000.app",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "REMA 1000 – Scan Selv"
+    },
+    {
+      "packageName": "com.app.tgtg",
+      "name": "Too Good To Go",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.app.tgtg",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Too Good To Go: End Food Waste"
+    },
+    {
+      "packageName": "com.umsalert.hjertelober",
+      "name": "TrygFonden Hjerteløber",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=com.umsalert.hjertelober",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "TrygFonden Hjerteløber"
+    },
+    {
+      "packageName": "dk.trygfonden.hjertestart",
+      "name": "TrygFonden Hjertestarter",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=dk.trygfonden.hjertestart",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "TrygFonden Hjertestarter"
+    },
+    {
+      "packageName": "no.nrk.yr",
+      "name": "Yr",
+      "category": "everyday",
+      "starter": false,
+      "source": "https://play.google.com/store/apps/details?id=no.nrk.yr",
+      "verifiedAt": "2026-11-17",
+      "playTitle": "Yr"
     }
   ]
 }
