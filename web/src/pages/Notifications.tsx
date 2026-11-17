@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, LiveStatus, type Notice, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type NotificationSettings, type Phone } from "../lib/api";
-import { currentEndpoint, disablePush, enablePush, PermissionDenied, PUSH_ID_KEY as DEVICE_KEY, pushSupport } from "../lib/push";
+import { currentEndpoint, disablePush, enablePush, PermissionDenied, PUSH_ID_KEY as DEVICE_KEY, pushSupport, sha256Hex } from "../lib/push";
 const HOURS = [1, 3, 6, 12, 24, 48];
 
 export function NotificationsSection() {
@@ -31,20 +31,14 @@ export function NotificationsSection() {
   const data = res.data;
   useEffect(() => {
     if (!data) return;
-    const stored = localStorage.getItem(DEVICE_KEY);
+    // This device is the row whose endpoint matches the browser's subscription. Never
+    // register on its own: a device removed elsewhere stays removed until someone taps.
     void currentEndpoint().then(async (ep) => {
-      const known = stored && data.settings.subscriptions.some((s) => s.id === stored);
-      if (ep && known) return setThisId(stored);
-      setThisId(null);
-      // Subscribed in the browser but unknown here (the service worker re-registered it):
-      // register again quietly, which returns the current id.
-      if (ep && data.settings.webPushPublicKey && Notification.permission === "granted") {
-        const r = await enablePush(data.settings.webPushPublicKey).catch(() => null);
-        if (r) {
-          localStorage.setItem(DEVICE_KEY, r.id);
-          setThisId(r.id);
-        }
-      }
+      const hash = ep ? await sha256Hex(ep) : null;
+      const mine = hash ? data.settings.subscriptions.find((s) => s.endpointHash === hash) : undefined;
+      if (mine) localStorage.setItem(DEVICE_KEY, mine.id);
+      else localStorage.removeItem(DEVICE_KEY);
+      setThisId(mine?.id ?? null);
     });
   }, [data]);
 

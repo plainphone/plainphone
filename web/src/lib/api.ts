@@ -62,6 +62,8 @@ export interface PushSubscriptionInfo {
   id: string;
   platform: "web" | "apns" | "fcm";
   label: string | null;
+  /** SHA-256 (hex) of the endpoint, so this browser can find its own row. */
+  endpointHash: string;
   createdAt: string;
   lastSuccessAt: string | null;
 }

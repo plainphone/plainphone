@@ -94,6 +94,9 @@ components:
         id: { type: string, format: uuid }
         platform: { enum: [web, apns, fcm] }
         label: { type: [string, "null"] }
+        endpointHash:
+          type: string
+          description: SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned.
         createdAt: { type: string, format: date-time }
         lastSuccessAt: { type: [string, "null"], format: date-time }
     Error:
@@ -809,11 +812,14 @@ paths:
                         p256dh: { type: string }
                         auth: { type: string }
                     label: { type: string, maxLength: 60 }
+                    replaces:
+                      type: string
+                      description: The endpoint of the subscription this one replaces (sent by the service worker after the browser rotated it). That row is deleted and its label kept.
                 - type: object
                   required: [platform, token]
                   properties:
                     platform: { enum: [apns, fcm] }
-                    token: { type: string }
+                    token: { type: string, maxLength: 1024 }
                     label: { type: string, maxLength: 60 }
       responses:
         "201":

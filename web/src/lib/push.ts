@@ -80,6 +80,11 @@ export async function currentEndpoint(): Promise<string | null> {
 /** Where this browser keeps its subscription's id on the server. */
 export const PUSH_ID_KEY = "pp_push_id";
 
+export async function sha256Hex(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export class PermissionDenied extends Error {}
 
 /** Asks for permission (must run from a tap), subscribes and registers with the server. */

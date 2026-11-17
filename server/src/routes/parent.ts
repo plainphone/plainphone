@@ -6,6 +6,7 @@ import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   contacts,
@@ -207,6 +208,8 @@ export function parentRoutes(ctx: Ctx) {
     id: s.id,
     platform: s.platform,
     label: s.label,
+    // Lets a browser recognise its own row without the endpoint (a capability) leaving the server.
+    endpointHash: createHash("sha256").update(s.endpoint).digest("hex"),
     createdAt: s.createdAt.toISOString(),
     lastSuccessAt: s.lastSuccessAt?.toISOString() ?? null,
   });
@@ -274,9 +277,15 @@ export function parentRoutes(ctx: Ctx) {
       })
       .returning();
     if (input.platform === "web" && input.replaces && input.replaces !== input.endpoint) {
-      await ctx.db
+      const [old] = await ctx.db
         .delete(pushSubscriptions)
-        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces)));
+        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces)))
+        .returning({ label: pushSubscriptions.label });
+      // The service worker cannot tell the device's name; keep the one the old row had.
+      if (old?.label && !row!.label) {
+        row!.label = old.label;
+        await ctx.db.update(pushSubscriptions).set({ label: old.label }).where(eq(pushSubscriptions.id, row!.id));
+      }
     }
     return c.json(subscriptionJson(row!), 201);
   });

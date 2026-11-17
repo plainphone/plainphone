@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { sweep } from "../src/services/sweeper.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
@@ -73,12 +74,11 @@ describe("push subscriptions", () => {
     const r = await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys, replaces: EP + "old" });
     expect(r.status).toBe(201);
     const subs = (await mum.get("/api/notifications")).json.subscriptions;
-    expect(subs).toHaveLength(1);
-    expect(subs[0]).toMatchObject({ id: r.json.id });
-    // Re-registering the same endpoint without a label keeps the old label.
-    await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys });
-    expect((await mum.get("/api/notifications")).json.subscriptions[0].label).toBeNull();
-    await subscribe(mum, "new");
+    expect(subs).toEqual([expect.objectContaining({ id: r.json.id, label: "Chrome on Android" })]);
+    // The browser finds its own row by a hash of its endpoint; the endpoint itself never comes back.
+    expect(subs[0].endpointHash).toBe(createHash("sha256").update(EP + "new").digest("hex"));
+    expect(JSON.stringify(subs)).not.toContain(EP);
+    // Re-registering the same endpoint without a label keeps the label.
     await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: EP + "new", keys });
     expect((await mum.get("/api/notifications")).json.subscriptions[0].label).toBe("Chrome on Android");
   });

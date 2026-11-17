@@ -73,11 +73,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
-    const pushId = localStorage.getItem(PUSH_ID_KEY);
-    if (pushId) {
-      await disablePush(pushId).catch(() => undefined);
-      localStorage.removeItem(PUSH_ID_KEY);
-    }
+    // Unsubscribe the browser even if the id was lost; the server row then goes as gone.
+    await disablePush(localStorage.getItem(PUSH_ID_KEY)).catch(() => undefined);
+    localStorage.removeItem(PUSH_ID_KEY);
     try {
       await api.post("/auth/logout");
     } finally {
