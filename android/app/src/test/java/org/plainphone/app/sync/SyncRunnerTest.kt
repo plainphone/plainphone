@@ -139,7 +139,7 @@ class SyncRunnerTest {
         runner.run("find, stale")
         assertThat(api.locations).hasSize(1)
         api.rules = RulesResult.Unchanged
-        device.now += 60_000
+        device.now += 5 * 60_000
         device.fixAgeMs = 0
         runner.run("find, fresh")
         assertThat(device.locationRequests).containsExactly(true, true).inOrder()
@@ -147,6 +147,24 @@ class SyncRunnerTest {
         device.now += 60_000
         runner.run("answered")
         assertThat(device.locationRequests).hasSize(2)
+    }
+
+    @Test
+    fun `indoor Find attempts only at the five planned offsets`() {
+        pair()
+        val requested = java.time.Instant.ofEpochMilli(device.now)
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = requested.toString()))
+        val attempts = (0..30).filter { minute ->
+            device.now = requested.toEpochMilli() + minute * 60_000L
+            val before = device.locationRequests.size
+            // A new runner and store must pick up the same retry schedule.
+            SyncRunner(SyncStore(context, FakeSecretBox()), api, device).run("indoor")
+            api.rules = RulesResult.Unchanged
+            device.locationRequests.size > before
+        }
+        assertThat(attempts).containsExactly(0, 2, 5, 10, 15).inOrder()
+        assertThat(device.locationRequests).containsExactly(true, true, true, true, true)
     }
 
     @Test

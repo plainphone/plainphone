@@ -5,6 +5,7 @@ package org.plainphone.app.sync
 import android.app.Application
 import android.location.Location
 import android.location.LocationManager
+import android.location.LocationRequest
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.Executors
@@ -33,10 +34,7 @@ class LocationReaderTest {
 
     @Test
     fun `a fresh accurate cached fix returns without a new request`() {
-        val fix = Location(gps).apply {
-            time = System.currentTimeMillis()
-            accuracy = 50f
-        }
+        val fix = fix(gps, 50f)
         manager.simulateLocation(fix)
 
         val executor = Executors.newSingleThreadExecutor()
@@ -54,21 +52,68 @@ class LocationReaderTest {
     fun `two unresponsive providers share the 30 second budget and are cancelled`() {
         val executor = Executors.newSingleThreadExecutor()
         try {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(32)
             val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = true) }
-            val registrationDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
-            while (System.nanoTime() < registrationDeadline &&
-                (manager.getLegacyLocationRequests(gps).isEmpty() || manager.getLegacyLocationRequests(network).isEmpty())
-            ) {
-                Thread.sleep(10)
-            }
-            assertThat(manager.getLegacyLocationRequests(gps)).hasSize(1)
-            assertThat(manager.getLegacyLocationRequests(network)).hasSize(1)
-            val remaining = registrationDeadline + TimeUnit.SECONDS.toNanos(30) - System.nanoTime()
+            awaitRequests(gps, network)
+            val remaining = deadline - System.nanoTime()
             assertThat(result.get(remaining, TimeUnit.NANOSECONDS)).isNull()
             assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
             assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `always asks only fused and uses low power when fused is enabled`() {
+        val fused = LocationManager.FUSED_PROVIDER
+        manager.setProviderEnabled(fused, true)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = false) }
+            awaitRequests(fused)
+            assertThat(manager.getLocationRequests(fused).single().quality).isEqualTo(LocationRequest.QUALITY_LOW_POWER)
+            assertThat(manager.getLocationRequests(gps)).isEmpty()
+            assertThat(manager.getLocationRequests(network)).isEmpty()
+
+            manager.simulateLocation(fix(fused, 250f))
+            assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(250f)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `without a good fix the reader returns the most accurate of the two providers`() {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = false) }
+            awaitRequests(gps, network)
+            assertThat(manager.getLocationRequests(gps).single().quality).isEqualTo(LocationRequest.QUALITY_LOW_POWER)
+            assertThat(manager.getLocationRequests(network).single().quality).isEqualTo(LocationRequest.QUALITY_LOW_POWER)
+
+            manager.simulateLocation(fix(network, 500f))
+            manager.simulateLocation(fix(gps, 200f))
+            assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(200f)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    private fun awaitRequests(vararg providers: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (System.nanoTime() < deadline && providers.any { manager.getLegacyLocationRequests(it).isEmpty() }) {
+            Thread.sleep(10)
+        }
+        for (provider in providers) {
+            assertThat(manager.getLegacyLocationRequests(provider)).hasSize(1)
+        }
+    }
+
+    private fun fix(provider: String, meters: Float) = Location(provider).apply {
+        time = System.currentTimeMillis()
+        accuracy = meters
     }
 }

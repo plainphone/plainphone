@@ -146,37 +146,50 @@ class SyncRunner(
     private fun reportLocation(token: String, rules: ServerRules) {
         if (!rules.locationEnabled || rules.locationMode == ServerRules.LOCATION_OFF) return
         val now = device.nowMs()
-        val requested = rules.locateRequestedAt?.toEpochMilli()
-        // A Find nobody can answer with a fresh fix (indoors, no GPS) is given up after a while,
-        // so the phone does not burn its battery on precise attempts every minute.
-        val find = requested != null && requested != store.answeredLocateMs && now - requested < FIND_RETRY_MS
-        // "Are you okay?" without an answer by the deadline: one position, once.
-        val c = rules.checkIn
-        val checkIn = c != null && c.sendLocation && now >= c.deadline.toEpochMilli() &&
-            c.id != store.locatedCheckInId && !device.checkInAnswered(c.id)
-        // "always" ends at alwaysUntil even if the phone has not heard from the server since.
-        val due = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
-            (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
-            now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
-        if (!find && !checkIn && !due) return
-        val fix = device.location(precise = find || checkIn)
+        val requested = rules.locateRequestedAt?.toEpochMilli()?.takeIf {
+            it != store.answeredLocateMs && now - it in 0 until FIND_RETRY_MS
+        }
+        // An unanswered check-in starts its retry window at the deadline.
+        val checkIn = rules.checkIn?.takeIf {
+            it.sendLocation && now - it.deadline.toEpochMilli() in 0 until FIND_RETRY_MS &&
+                it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
+        }
+        val findAttempt = requested?.takeIf { locationAttemptDue(it, now, store.lastFindAttempt(it)) }
+        val checkInAttempt = checkIn?.takeIf {
+            locationAttemptDue(it.deadline.toEpochMilli(), now, store.lastCheckInAttempt(it.id))
+        }
+        val precise = findAttempt != null || checkInAttempt != null
+        if (precise) {
+            if (!store.recordLocationAttempts(findAttempt, checkInAttempt?.id, now)) {
+                Log.w(TAG, "could not record location attempts")
+                return
+            }
+        } else {
+            // The server would count a regular report towards an open Find or check-in.
+            if (requested != null || checkIn != null) return
+            val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
+                (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
+                now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
+            if (!alwaysDue) return
+        }
+        val fix = device.location(precise)
         if (fix == null) {
             Log.w(TAG, "no position available")
             return
         }
         val stored = api.reportLocation(token, fix)
         store.locationAtMs = now
-        if (checkIn) store.locatedCheckInId = c.id
+        if (checkIn != null) store.locatedCheckInId = checkIn.id
         // Only a fix taken after the parent pressed Find answers it (the server and dashboard
         // compare the same way). An older last-known position is sent, but the phone keeps trying.
-        if (find && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
+        if (requested != null && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
         // Every position goes to the phone's own log; single ones also get a notice
         // ("always" has its own ongoing one).
         // One Find is one line and one notice, however many retries it takes to get a fresh fix.
         if (!stored) return
         when {
-            checkIn -> device.positionSent("checkin")
-            find -> if (store.shownLocateMs != requested) {
+            checkIn != null -> device.positionSent("checkin")
+            requested != null -> if (store.shownLocateMs != requested) {
                 store.shownLocateMs = requested
                 device.positionSent("find")
             }
@@ -227,6 +240,15 @@ class SyncRunner(
         const val APPLY_MAX_AGE_MS = 15 * 60_000L
         const val STATUS_EVERY_MS = 15 * 60_000L
         const val FIND_RETRY_MS = 30 * 60_000L
+        private val LOCATION_RETRY_OFFSETS_MS = longArrayOf(0, 2 * 60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000)
+
+        internal fun locationAttemptDue(startMs: Long, nowMs: Long, lastAttemptMs: Long?): Boolean {
+            val age = nowMs - startMs
+            if (age !in 0 until FIND_RETRY_MS) return false
+            // A late sync uses the latest due slot. Earlier slots are not replayed.
+            val offset = LOCATION_RETRY_OFFSETS_MS.last { it <= age }
+            return lastAttemptMs == null || lastAttemptMs < startMs + offset
+        }
 
         fun sha256(text: String): String =
             MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }

@@ -56,15 +56,21 @@ page. The parent app shows the same, on OpenStreetMap raster tiles after "Show m
 ### Location time and accuracy
 
 Each location lookup has one 30-second budget. The phone uses the fused provider when it is
-enabled. Otherwise, a precise lookup asks GPS and the network provider in parallel, taking the
-first fix accurate to 100 m or better, or the most accurate available fix if neither reaches
-100 m. For regular `always` reports, Android 12 and later request low-power location. Without a
-fused provider, the network provider goes first and GPS can use any time left in the budget.
+enabled. Otherwise, it asks GPS and the network provider in parallel, taking the first fix
+accurate to 100 m or better, or the most accurate available fix if neither reaches 100 m.
+Regular `always` reports use Android 12's low-power setting. On older Android versions without
+fused, regular reports try the network provider first, then give GPS any remaining time.
 
 The phone can reuse a cached position without starting a new lookup. For Find and check-ins it
 must be younger than 2 minutes and accurate to 100 m or better. For regular `always` reports it
 must be younger than 10 minutes and accurate to 1,000 m or better. A position answers Find only
 when its recorded time is at or after the request.
+
+Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
+"Are you okay?" uses the same schedule starting at the reply deadline. Both stop after success
+or after 30 minutes, with at most five precise lookups. A delayed sync runs only the latest due
+attempt. Regular `always` reports wait while a Find or missed check-in is still open, since
+the server can count any report towards an open request.
 
 ## Ring the phone
 
@@ -89,8 +95,9 @@ optionally `callNumber`, one of the phone's approved contacts.
 - The phone shows a calm full screen: "Are you okay?", "Yes, I'm okay" and, with a number,
   "Call me" (which answers and calls that contact).
 - An answer is sent to the parent, and no position is sent.
-- No answer by the deadline: in modes `checkin` and `always` the phone takes one precise position
-  and sends it; in `find` and `off` nothing is sent. Either way the parent is told.
+- No answer by the deadline: in modes `checkin` and `always` the phone follows the precise lookup
+  schedule above until it sends one position or the window expires. In `find` and `off` the phone
+  sends no position. Either way the parent is told that the check-in went unanswered.
 
 ## Parent notifications
 

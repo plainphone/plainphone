@@ -132,9 +132,11 @@ class LocationReader(private val context: Context) {
             .maxByOrNull { it.time }
         if (cached != null) return cached.toFix()
 
-        if (precise) return await(lm, providers, precise, deadline)?.toFix()
-        // Give the network provider a chance to answer without waking GPS on a non-fused phone.
-        return providers.firstNotNullOfOrNull { await(lm, listOf(it), precise, deadline) }?.toFix()
+        if (!precise && Build.VERSION.SDK_INT < 31) {
+            // Older Android cannot request low power. Give the network provider a head start.
+            return providers.firstNotNullOfOrNull { await(lm, listOf(it), precise, deadline) }?.toFix()
+        }
+        return await(lm, providers, precise, deadline)?.toFix()
     }
 
     private class Result(val location: Location?)
@@ -172,7 +174,7 @@ class LocationReader(private val context: Context) {
                 val remaining = (deadline - System.nanoTime()).coerceAtLeast(0L)
                 val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return best
                 val fix = result.location ?: return@repeat
-                if (!precise || fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
+                if (fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
                 val previous = best
                 if (previous == null || fix.accuracyOrUnknown() < previous.accuracyOrUnknown()) best = fix
             }

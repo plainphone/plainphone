@@ -71,8 +71,9 @@ class SafetySyncTest {
         device.fixAgeMs = 10 * 60_000L // indoors: only an older last-known position
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(device.now)))
         runner.run("find")
-        repeat(2) {
-            device.now += 60_000L
+        val requested = device.now
+        for (minute in listOf(2, 5)) {
+            device.now = requested + minute * 60_000L
             runner.run("retry")
         }
         assertThat(api.locations).hasSize(3)
@@ -108,6 +109,39 @@ class SafetySyncTest {
         device.now += 60_000L
         runner.run("again")
         assertThat(api.locations).hasSize(1)
+    }
+
+    @Test
+    fun `indoor check-in uses the same five offsets starting at the deadline`() {
+        val deadline = device.now + 5 * 60_000L
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
+        val attempts = (-1..30).filter { minute ->
+            device.now = deadline + minute * 60_000L
+            val before = device.locationRequests.size
+            runner.run("indoor")
+            api.rules = RulesResult.Unchanged
+            device.locationRequests.size > before
+        }
+        assertThat(attempts).containsExactly(0, 2, 5, 10, 15).inOrder()
+        assertThat(device.locationRequests).containsExactly(true, true, true, true, true)
+    }
+
+    @Test
+    fun `always waits during check-in backoff and resumes at expiry`() {
+        val deadline = device.now
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "always", checkIn = checkIn(deadline)))
+        runner.run("deadline")
+        api.rules = RulesResult.Unchanged
+
+        device.now = deadline + 60_000L
+        runner.run("backoff")
+        assertThat(device.locationRequests).containsExactly(true)
+
+        device.now = deadline + SyncRunner.FIND_RETRY_MS
+        runner.run("expired")
+        assertThat(device.locationRequests).containsExactly(true, false).inOrder()
     }
 
     @Test

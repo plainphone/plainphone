@@ -42,6 +42,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             .putBoolean(KEY_REMOVED, false)
             // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
             .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
+            .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
+            .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
             .remove(KEY_PAIRING)
             .remove(KEY_ENROLL)
             .commit()
@@ -139,6 +141,27 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         get() = prefs.getString(KEY_CHECKIN_LOCATED, null)
         set(v) { prefs.edit().putString(KEY_CHECKIN_LOCATED, v).apply() }
 
+    fun lastFindAttempt(requestedAtMs: Long): Long? =
+        if (prefs.getLong(KEY_FIND_ATTEMPT_REQUEST, Long.MIN_VALUE) == requestedAtMs) {
+            prefs.getLong(KEY_FIND_ATTEMPT_AT, Long.MIN_VALUE)
+        } else null
+
+    fun lastCheckInAttempt(id: String): Long? =
+        if (prefs.getString(KEY_CHECKIN_ATTEMPT_ID, null) == id) {
+            prefs.getLong(KEY_CHECKIN_ATTEMPT_AT, Long.MIN_VALUE)
+        } else null
+
+    @SuppressLint("ApplySharedPref") // Persist before activating location, even if the process is killed.
+    fun recordLocationAttempts(requestedAtMs: Long?, checkInId: String?, nowMs: Long): Boolean =
+        prefs.edit().apply {
+            if (requestedAtMs != null) {
+                putLong(KEY_FIND_ATTEMPT_REQUEST, requestedAtMs).putLong(KEY_FIND_ATTEMPT_AT, nowMs)
+            }
+            if (checkInId != null) {
+                putString(KEY_CHECKIN_ATTEMPT_ID, checkInId).putLong(KEY_CHECKIN_ATTEMPT_AT, nowMs)
+            }
+        }.commit()
+
     companion object {
         private const val TAG = "Plainphone"
         const val PREFS = "plainphone_sync"
@@ -159,5 +182,9 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_LOCATE_SHOWN = "locate_shown"
         private const val KEY_LOCATION_AT = "location_at"
         private const val KEY_CHECKIN_LOCATED = "checkin_located"
+        private const val KEY_FIND_ATTEMPT_REQUEST = "find_attempt_request"
+        private const val KEY_FIND_ATTEMPT_AT = "find_attempt_at"
+        private const val KEY_CHECKIN_ATTEMPT_ID = "checkin_attempt_id"
+        private const val KEY_CHECKIN_ATTEMPT_AT = "checkin_attempt_at"
     }
 }
