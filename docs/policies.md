@@ -73,6 +73,26 @@ phone syncs is in [phone-sync.md](phone-sync.md).
 | `setPermissionGrantState` (location) | Fine, coarse and background location for Plainphone, only while the parent has location on | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | `setLocationEnabled` + `DISALLOW_CONFIG_LOCATION` | Location on and locked on while the parent has location on; the restriction is lifted when it is turned off | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setLocationEnabled(android.content.ComponentName,%20boolean)) |
 
+## Home screen and phone settings from the dashboard
+
+The full list of settings, their three modes (the child decides, set, set and locked) and the
+Android calls behind them is in [phone-settings.md](phone-settings.md). The code is in
+[`SettingsApplier.kt`](../android/app/src/main/java/org/plainphone/app/settings/SettingsApplier.kt).
+
+| Policy | What it does | Reference |
+|---|---|---|
+| `addPersistentPreferredActivity` (HOME) | Plainphone's calm home screen is the one Android always opens. Lifted during a maintenance unlock and on release (`clearPackagePersistentPreferredActivities`). The maker's launcher stays installed, as a fallback. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#addPersistentPreferredActivity(android.content.ComponentName,%20android.content.IntentFilter,%20android.content.ComponentName)) |
+| `setCameraDisabled`, `setScreenCaptureDisabled` | Camera and screenshots off, when the parent locks them | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setCameraDisabled(android.content.ComponentName,%20boolean)) |
+| `setSystemSetting` | Screen timeout and brightness, set once (preset) or on every sync (locked) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setSystemSetting(android.content.ComponentName,%20java.lang.String,%20java.lang.String)) |
+| `DISALLOW_BLUETOOTH` or `DISALLOW_CONFIG_BLUETOOTH` + `DISALLOW_BLUETOOTH_SHARING`, `DISALLOW_CONFIG_WIFI`, `DISALLOW_CONFIG_MOBILE_NETWORKS`, `DISALLOW_DATA_ROAMING`, `DISALLOW_CONFIG_SCREEN_TIMEOUT`, `DISALLOW_CONFIG_BRIGHTNESS`, `DISALLOW_ADJUST_VOLUME`, `DISALLOW_SET_WALLPAPER`, `DISALLOW_CONFIG_LOCALE`, `DISALLOW_CONFIG_TETHERING`, `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` / `DISALLOW_OUTGOING_BEAM`, `DISALLOW_AIRPLANE_MODE` | Only while the parent has the matching setting locked; cleared as soon as it is set free again | [UserManager](https://developer.android.com/reference/android/os/UserManager) |
+
+Things to know:
+
+- **Locking the volume mutes the phone.** That is how Android implements `DISALLOW_ADJUST_VOLUME`. The dashboard calls it "silent".
+- **Language** can only be locked as it is. A Device Owner cannot choose the system language after setup.
+- **Location for "Find" wins.** When the parent has location on, location is on and locked whatever the location setting says.
+- **Self profile:** loosening a locked setting goes through the key, like every other loosening.
+
 ## What Android does not let us block
 
 - **Factory reset from recovery mode** (button combination at boot), and on Samsung also flashing in Download mode. No app can stop this. What protects the phone afterwards is Factory Reset Protection (FRP): the phone asks for a Google account that was on it before the reset. See below.
@@ -89,7 +109,7 @@ Tap "Version" seven times on the Plainphone status screen and enter the parent P
 
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.
-- **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally.
+- **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally. A parent can do the same from the dashboard with **Release the phone**: the rules then carry `release: true`, the phone releases itself the next time it syncs and tells the server ([sync-api.md](sync-api.md#releasing-the-phone)).
 - **Pair with a parent** (phase 4, only when the phone is not paired) shows the pairing code. Outside the first hour after setup this is the only way to pair.
 - **Sync with the server now** (phase 4, when paired) fetches the rules at once.
 

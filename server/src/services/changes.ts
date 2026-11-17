@@ -11,6 +11,7 @@ import {
   type DnsCategory,
   pendingChanges,
   phoneApps,
+  phoneSettings,
   phones,
   schedules,
   selfKeys,
@@ -19,6 +20,15 @@ import {
   users,
 } from "../db/schema.js";
 import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
+import {
+  checkSetting,
+  type Home,
+  homeInput,
+  isSettingKey,
+  type SettingKey,
+  type SettingState,
+  settingLoosens,
+} from "../lib/phone-settings.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
@@ -37,8 +47,11 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
+  | { type: "setting.set"; key: SettingKey; setting: SettingState }
+  | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
+  | { type: "phone.release" }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }
@@ -119,9 +132,21 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "schedule.create":
       return showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
     case "phone.remove":
-      // Removing a Self phone and pairing it again as a Child would drop the key. A phone
-      // that never paired (a setup QR nobody scanned) has nothing to escape from.
+    case "phone.release":
+      // Removing a Self phone and pairing it again as a Child would drop the key. Releasing
+      // it frees the phone altogether. A phone that never paired (a setup QR nobody
+      // scanned) has nothing to escape from.
       return phone.pairedAt !== null;
+    case "setting.set": {
+      const [row] = await db
+        .select({ settings: phoneSettings.settings })
+        .from(phoneSettings)
+        .where(eq(phoneSettings.phoneId, phone.id));
+      return settingLoosens(op.key, row?.settings?.[op.key], op.setting);
+    }
+    case "home.set":
+      // The home screen only arranges apps the rules already allow.
+      return false;
     case "schedule.delete":
       return true;
     case "schedule.update": {
@@ -187,6 +212,19 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
     case "key.set":
       if (phone.profile !== "self") throw new ChangeError(400, "only Self phones have a key");
       return;
+    case "phone.release":
+      // Nothing is installed on a phone that never paired, so there is nothing to release.
+      if (phone.pairedAt === null) throw new ChangeError(400, "this phone has not paired yet; remove it instead");
+      return;
+    case "setting.set": {
+      if (!isSettingKey(op.key)) throw new ChangeError(400, "unknown setting");
+      const checked = checkSetting(op.key, op.setting);
+      if (!checked.ok) throw new ChangeError(400, checked.error);
+      return;
+    }
+    case "home.set":
+      if (!homeInput.safeParse(op.home).success) throw new ChangeError(400, "invalid home screen");
+      return;
     case "timeLimit.set":
     case "timeLimit.bonus": {
       if (op.type === "timeLimit.bonus") {
@@ -216,6 +254,18 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
     default:
       return;
   }
+}
+
+/**
+ * Deletes a phone with everything that hangs on it. The DNS tombstone is written in the same
+ * transaction as the delete, so the sweeper can retry until the DNS service has forgotten
+ * the ClientID. Returns the ClientID, or null when the phone was already gone.
+ */
+export async function deletePhone(db: DbLike, phoneId: string): Promise<string | null> {
+  const [gone] = await db.delete(phones).where(eq(phones.id, phoneId)).returning({ clientId: phones.dnsClientId });
+  if (!gone) return null;
+  await queueDnsDeletions(db, [gone.clientId]);
+  return gone.clientId;
 }
 
 /** Applies an op. Idempotent where it can be, since a delayed op may meet a changed state. */
@@ -302,13 +352,42 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
       return { dns: false };
     }
-    case "phone.remove": {
-      // The tombstone is written with the delete, so the sweeper can retry until the DNS
-      // service has forgotten the ClientID.
-      const [gone] = await db.delete(phones).where(eq(phones.id, phone.id)).returning({ clientId: phones.dnsClientId });
-      if (gone) await queueDnsDeletions(db, [gone.clientId]);
+    case "setting.set": {
+      // One statement, so two changes to different settings never overwrite each other.
+      // The object only holds settings that are not free.
+      const key = op.key;
+      const { setting } = op;
+      if (setting.mode === "free") {
+        await db
+          .insert(phoneSettings)
+          .values({ phoneId: phone.id })
+          .onConflictDoUpdate({ target: phoneSettings.phoneId, set: { settings: sql`${phoneSettings.settings} - ${key}::text` } });
+      } else {
+        const stored = { mode: setting.mode, ...(setting.value === undefined ? {} : { value: setting.value }) };
+        await db
+          .insert(phoneSettings)
+          .values({ phoneId: phone.id, settings: { [key]: stored } })
+          .onConflictDoUpdate({
+            target: phoneSettings.phoneId,
+            set: { settings: sql`${phoneSettings.settings} || ${JSON.stringify({ [key]: stored })}::jsonb` },
+          });
+      }
       return { dns: false };
     }
+    case "home.set":
+      await db
+        .insert(phoneSettings)
+        .values({ phoneId: phone.id, home: op.home })
+        .onConflictDoUpdate({ target: phoneSettings.phoneId, set: { home: op.home } });
+      return { dns: false };
+    case "phone.remove":
+      await deletePhone(db, phone.id);
+      return { dns: false };
+    case "phone.release":
+      // The phone is woken by the caller (see submitChange). It switches Plainphone off and
+      // then calls POST /device/released, which deletes the phone (see deletePhone).
+      await db.update(phones).set({ releaseRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
+      return { dns: false };
     case "timeLimit.set": {
       const where = and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName));
       if (!op.limit) {

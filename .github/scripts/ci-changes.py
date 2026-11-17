@@ -8,7 +8,7 @@ import sys
 from fnmatch import fnmatchcase
 
 WORKFLOWS = (".github/workflows/*", ".github/scripts/*")
-WORKSPACE = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*")
+WORKSPACE = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*", "packages/*")
 ANDROID = (
     "android/*",
     "scripts/provisioning-qr.py",
@@ -18,7 +18,9 @@ ANDROID = (
 FILTERS = {
     "android": ANDROID,
     "e2e": ANDROID + WORKSPACE + ("server/*", "scripts/e2e-phone-sync.sh"),
-    "server": WORKSPACE + ("server/*", "web/*", "Dockerfile", ".dockerignore"),
+    "server": WORKSPACE + (
+        "server/*", "web/*", "Dockerfile", ".dockerignore", "docs/encryption-test-vectors/*",
+    ),
     "parent": (
         "parent-app/*",
         "server/openapi.yaml",
@@ -26,7 +28,7 @@ FILTERS = {
         "web/src/lib/format.ts",
         "web/src/lib/ops.ts",
     ),
-    "dns": ("dns/*",),
+    "dns": ("dns/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*",),
 }
 

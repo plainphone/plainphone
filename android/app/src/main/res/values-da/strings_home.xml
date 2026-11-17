@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="home_label">Plainphone-hjem</string>
+    <string name="home_phone">Telefon</string>
+    <string name="home_messages">Beskeder</string>
+    <string name="home_emergency">Nødopkald</string>
+    <string name="home_all_apps">Alle apps</string>
+    <string name="home_back">Tilbage</string>
+    <string name="home_no_apps">Ingen andre apps lige nu.</string>
+    <string name="home_school_until">Skoletid til %1$s</string>
+    <string name="home_bedtime_until">Sengetid til %1$s</string>
+    <string name="home_time_used">Ikke mere i dag</string>
+    <plurals name="home_minutes_left">
+        <item quantity="one">%d min tilbage</item>
+        <item quantity="other">%d min tilbage</item>
+    </plurals>
+    <string name="home_make_default_title">Brug Plainphone som hjemmeskærm</string>
+    <string name="home_make_default_body">Så er det kun de valgte apps, der ligger på skærmen.</string>
+    <string name="home_make_default_button">Vælg Plainphone</string>
+</resources>

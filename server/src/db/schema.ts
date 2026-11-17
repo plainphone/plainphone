@@ -15,6 +15,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -170,6 +171,12 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
+    /**
+     * Set when the parents asked to release the phone: it switches Plainphone off on its own
+     * and then calls `POST /device/released`, which deletes this row. Until then the rules
+     * document carries `release: true`.
+     */
+    releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
@@ -304,6 +311,19 @@ export const schedules = pgTable(
   },
   (t) => [index("schedules_phone_idx").on(t.phoneId)],
 );
+
+/**
+ * What the parent set for the phone's own settings, and how the home screen looks
+ * (docs/phone-settings.md). `settings` only holds settings that are not free.
+ */
+export const phoneSettings = pgTable("phone_settings", {
+  phoneId: uuid("phone_id")
+    .primaryKey()
+    .references(() => phones.id, { onDelete: "cascade" }),
+  settings: jsonb("settings").$type<StoredSettings>().notNull().default({}),
+  /** The home screen choices. May be empty: the defaults are filled in when read. */
+  home: jsonb("home").$type<Partial<Home>>().notNull().default({}),
+});
 
 /** Only the latest known position per phone (decision D7). No history. */
 export const locations = pgTable("locations", {

@@ -9,8 +9,9 @@ and detector changes run all checks. Site deploy has its own main-only trigger.
 
 Each check job reports success on unrelated changes without checking out the
 repository, restoring caches or starting PostgreSQL. A detector failure fails
-the check jobs. A docs-only change starts seven runners (one detector and six
-short check jobs), down from twelve in the initial split-workflow version.
+the check jobs, including when the detector emits missing or invalid outputs.
+A docs-only change starts seven runners (one detector and six short check
+jobs), down from twelve in the initial split-workflow version.
 Before path filtering, the same change started four runners that ran the full
 Android and server workflows. These counts include the short success jobs.
 Elapsed and billed time also depend on queue and runner startup time.
@@ -18,9 +19,12 @@ Elapsed and billed time also depend on queue and runner startup time.
 Android APK builds also watch the provisioning QR and release smoke scripts.
 Phone sync additionally watches the server, root workspace inputs and its
 test driver. Parent app checks watch the OpenAPI spec and the PWA files copied
-by `pnpm sync:shared`. Independent jobs run in parallel. Debug and release APK
-checks share one Gradle invocation. The Docker smoke job runs concurrently
-with server, web and phone sync checks, with `pnpm -r build` running in Docker only.
+by `pnpm sync:shared`. Server checks also watch the root workspace packages
+and encryption test vectors. DNS checks watch the server schema and validation
+files mirrored by `dns/ppdns/profiles.py`. Independent jobs run in parallel.
+Debug and release APK checks share one Gradle invocation. The Docker smoke job
+runs concurrently with server, web and phone sync checks, with `pnpm -r build`
+running in Docker only.
 
 Server and web tests share the installed root workspace and one PostgreSQL
 service with phone sync. Each test suite uses its own database. The root

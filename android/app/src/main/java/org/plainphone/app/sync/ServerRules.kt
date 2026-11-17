@@ -9,6 +9,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.home.HomePrefs
+import org.plainphone.app.settings.PhoneSettings
 
 /**
  * The rules document from `GET /device/rules` (server/openapi.yaml, docs/sync-api.md).
@@ -30,10 +32,19 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** Phone settings the parent set or locked (docs/phone-settings.md). Empty from older servers. */
+    val settings: PhoneSettings = PhoneSettings.NONE,
+    /** How the home screen looks. Defaults from older servers. */
+    val home: HomePrefs = HomePrefs.DEFAULT,
     /** Apps the parent picked from the catalog that are not installed yet. Treated as allowed. */
     val toInstall: List<CatalogInstall> = emptyList(),
     /** Daily minutes per app and in total (docs/time-limits.md). */
     val timeLimits: TimeLimits = TimeLimits.NONE,
+    /**
+     * The parents released the phone: switch Plainphone off, never lock again and tell the
+     * server (docs/sync-api.md, "Releasing the phone"). Missing from older servers: false.
+     */
+    val release: Boolean = false,
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
@@ -82,11 +93,14 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                settings = PhoneSettings.parse(j.optJSONObject("settings")),
+                home = HomePrefs.parse(j.optJSONObject("home")),
                 // Both are newer than the first servers: missing means none.
                 toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
                     CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
+                release = j.optBoolean("release", false),
                 locationMode = locationMode(location),
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }

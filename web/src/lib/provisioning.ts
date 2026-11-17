@@ -49,9 +49,14 @@ export async function hashPin(pin: string, saltHex: string): Promise<string> {
  * The JSON the phone's QR reader gets. Only the extras the app needs: everything else keeps the
  * app's defaults, so the code stays small enough for an old camera to read off a screen.
  */
+export interface SetupWifi {
+  ssid: string;
+  password: string;
+}
+
 export function provisioningPayload(
   info: ProvisioningInfo,
-  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null },
+  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null; wifi?: SetupWifi },
 ) {
   const extras: Record<string, string> = {
     "plainphone.pin_hash": opts.pinHash,
@@ -69,6 +74,11 @@ export function provisioningPayload(
     // Keep the maker's dialer, messages, camera and clock installed; Plainphone hides the rest.
     [PREFIX + "PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED"]: true,
     [PREFIX + "PROVISIONING_ADMIN_EXTRAS_BUNDLE"]: extras,
+    ...(opts.wifi && {
+      [PREFIX + "PROVISIONING_WIFI_SSID"]: opts.wifi.ssid,
+      [PREFIX + "PROVISIONING_WIFI_SECURITY_TYPE"]: opts.wifi.password ? "WPA" : "NONE",
+      ...(opts.wifi.password && { [PREFIX + "PROVISIONING_WIFI_PASSWORD"]: opts.wifi.password }),
+    }),
   };
 }
 

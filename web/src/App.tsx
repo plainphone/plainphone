@@ -11,7 +11,9 @@ import { AuthCallbackPage } from "./pages/AuthCallback";
 import { CatalogPage } from "./pages/Catalog";
 import { ContactsPage } from "./pages/Contacts";
 import { FilterPage } from "./pages/Filter";
+import { HomeScreenPage } from "./pages/HomeScreen";
 import { HouseholdPage } from "./pages/Household";
+import { InstallPhonePage } from "./pages/InstallPhone";
 import { InvitePage } from "./pages/Invite";
 import { KeyPage } from "./pages/Key";
 import { LocationPage } from "./pages/Location";
@@ -19,6 +21,7 @@ import { LoginPage } from "./pages/Login";
 import { PairPage } from "./pages/Pair";
 import { AddPhonePage, SetupPhonePage } from "./pages/AddPhone";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
+import { PhoneSettingsPage } from "./pages/PhoneSettings";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
 import { SettingsPage } from "./pages/Settings";
@@ -43,6 +46,7 @@ function AppRoutes() {
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         {/* Links mailed to the native app; without the app installed they log in here. */}
         <Route path="/auth/app" element={<AuthCallbackPage />} />
+        <Route path="/install-phone" element={<InstallPhonePage />} />
         <Route path="/invite" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
@@ -60,6 +64,8 @@ function AppRoutes() {
           <Route path="filter" element={<FilterPage />} />
           <Route path="schedules" element={<SchedulesPage />} />
           <Route path="location" element={<LocationPage />} />
+          <Route path="settings" element={<PhoneSettingsPage />} />
+          <Route path="home" element={<HomeScreenPage />} />
           <Route path="key" element={<KeyPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

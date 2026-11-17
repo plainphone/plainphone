@@ -11,3 +11,18 @@ We aim to answer within a week. No filter or lock is perfect, and we will say so
 ## Supported versions
 
 Only the newest release is supported. Phase 1 builds are test builds signed with a test key and are not meant for real use.
+
+## End-to-end encryption
+
+The [encryption specification](docs/encryption.md) defines the model under
+development. It has no operator-held decryption key, backdoor or emergency
+override. The planned service can disclose retained account and household
+metadata, delivery and sync times, the lock-integrity flag, ciphertext and
+DNS configuration available to its DNS service. The hosted service is
+currently a test version with readable data in its application database.
+Plainphone has received no external security audit.
+
+Use the private reporting channel above for flaws that let the server,
+another household or a removed device read protected data or alter accepted
+state. The specification also describes the APK certificate pin and the
+limits of verifying web releases.

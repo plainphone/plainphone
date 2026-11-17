@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Add phone: three quiet steps, then one large QR code. The code is the one bold thing here. */
+/* Setup choices, progress and QR handoff. */
 
 .small {
   font-size: 0.9375rem;
@@ -34,7 +34,7 @@
   max-width: 30rem;
 }
 
-/* One quiet column: the code first, the four steps under it. */
+/* On small screens, show the code before the checklist. */
 .setup-grid {
   display: grid;
   gap: 2rem;
@@ -133,5 +133,40 @@
   .steps,
   .setup-wait {
     display: none;
+  }
+}
+
+.setup-options {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.setup-options .choice {
+  display: grid;
+  width: 100%;
+  gap: 0.25rem;
+  text-align: start;
+  min-height: 3rem;
+}
+
+.setup-links {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0;
+}
+
+.setup-wifi summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+
+@media (min-width: 54rem) {
+  .setup {
+    max-width: 50rem;
+  }
+
+  .setup-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
   }
 }

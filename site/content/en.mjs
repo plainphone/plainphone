@@ -5,7 +5,7 @@ export default {
   path: "/",
   title: "Plainphone: a calm phone made from an ordinary Android",
   description:
-    "Free, open-source software that turns an ordinary Android phone into a calm one: calls, messages, camera and the apps you choose. No feeds, no ads.",
+    "Free, open-source software for an Android phone with calls, messages, a camera and the apps you choose.",
   ogAlt: "Plainphone: your phone, minus the noise.",
   skip: "Skip to content",
   nav: { label: "Main", source: "Source code", switchLabel: "Dansk", switchLang: "da" },
@@ -13,27 +13,27 @@ export default {
   hero: {
     title: "Your phone, minus the noise.",
     lead:
-      "Plainphone turns an ordinary Android phone into a calm one. It keeps what you need and quietly removes the rest. It is free, and the code is open.",
+      "Plainphone turns an ordinary Android phone into a calm one. Choose which apps stay available. It is free, and the code is open.",
     staysLabel: "What stays",
     stays: ["Calls", "Messages", "Camera", "Maps, music and the apps you choose"],
     goesLabel: "What goes",
-    goes: ["Social media feeds", "Ads", "Games", "Porn and gambling sites", "App stores, unless you allow them"],
+    goes: ["Social media apps and games you leave off the list", "Selected websites, with the web filter", "App stores, unless you allow them"],
   },
   who: {
     title: "Who it is for",
-    lead: "Anyone who wants a quieter life with a phone in it. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
+    lead: "Families and adults who want to choose what’s available on their phone. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
     paths: [
       {
         id: "child",
         title: "For my child",
         body:
-          "A first phone that can call, text, find the way home and play music, without the parts that swallow an afternoon. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
+          "A first phone that can call, text, find the way home and play music. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
       },
       {
         id: "self",
         title: "For myself",
         body:
-          "Less screen, without giving up maps, banking or your camera. You will hold the key yourself, with a delay: loosening a rule takes effect after, say, 24 hours, so a weak moment passes. Or let a person you trust approve it.",
+          "Keep maps, banking and your camera available. Set a delay before changes that loosen your rules take effect. Or let a person you trust approve it.",
       },
     ],
   },
@@ -41,16 +41,16 @@ export default {
     title: "How it works",
     steps: [
       {
-        title: "Reset the phone",
-        body: "An Android phone with Android 10 or newer (see tested phones below). Setup erases it, so save what you want to keep first.",
+        title: "Choose how to set up",
+        body: "An Android phone with Android 10 or newer (see tested phones below). You can set up a phone already in use without erasing it.",
       },
       {
-        title: "Scan a QR code",
-        body: "Tap six times on the welcome screen and scan the code. The phone installs Plainphone and locks itself before it is ever used.",
+        title: "Install and connect",
+        body: "On a phone already in use, open the setup link, install Plainphone and follow the prompts. On a new or reset phone, tap the welcome screen six times and scan the setup code.",
       },
       {
         title: "Choose the rules",
-        body: "Pick which apps show, who can call, and when school time or quiet hours start. A stricter rule will apply at once.",
+        body: "Pick which apps show, who can call, and when school time or bedtime starts. The phone applies changes when it next syncs with the server.",
       },
     ],
     guide: "Want to try it? <a href=\"/setup/\">Follow the step-by-step guide</a>.",
@@ -60,12 +60,12 @@ export default {
   compare: {
     title: "Compared with the usual options",
     lead:
-      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column describes the goal; today only the lock works.",
+      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column includes features still in development.",
     caption: "Plainphone compared with a basic phone, a kids’ smartwatch and built-in parental controls",
     cols: ["Basic phone", "Kids’ smartwatch", "Built-in parental controls", "Plainphone"],
     rows: [
       ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick (planned)"],
-      ["Web filter that also works inside apps", "No internet", "No internet", "Partly", "Yes, for most apps (planned)"],
+      ["Web filter for selected domains", "No internet", "No internet", "Partly", "Blocks matching web addresses once configured"],
       ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts (planned)"],
       ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 10+"],
       ["For adults too", "Yes", "No", "Mostly for children", "Yes (planned)"],
@@ -97,7 +97,7 @@ export default {
       },
       {
         q: "What does Plainphone know about me or my child?",
-        a: "As little as it can. When location arrives, only the phone’s last known position will be kept, never a history. No tracking, no ads, nothing sold. For adults managing their own phone, location will be off by default. Today the app on the phone sends nothing to a server. If you sign in to the parent app, it stores your email address and the rules you set. The <a href=\"/privacy/\">privacy policy</a> has the details.",
+        a: "A paired phone reports device status to the server so you can see things like its battery level. When location is on, the phone sends its position periodically and when you use Find. The server keeps only the latest position. Location starts on for child profiles and off for Self profiles. We store your account email address and the rules you set. We show no ads and sell no data. The <a href=\"/privacy/\">privacy policy</a> has the details.",
       },
       {
         q: "What does it cost?",
@@ -111,6 +111,33 @@ export default {
         q: "What about WhatsApp, Snapchat and other chat apps?",
         a: "Chat apps stay hidden unless you allow them, and approved contacts will cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
       },
+    ],
+  },
+  why: {
+    path: "/why/",
+    h1: "Why Plainphone works the way it does",
+    lead: "Plainphone is for families who want their child to have a phone while they wait to give them a full smartphone. Research helps us choose what to build.",
+    sections: [
+      ["Bedtime", "Having a phone in the bedroom is linked to poorer sleep in children and teens. Plainphone’s bedtime schedule limits which apps are available. The Danish Health Authority recommends leaving the phone outside the bedroom."],
+      ["What the research can tell us", "Large studies find small average links between technology use and well-being. A National Academies review found too little evidence to establish a causal effect of social media on adolescent health across the population. We don’t know whether a restricted phone like Plainphone improves well-being. The Danish Wellbeing Commission recommends waiting until 13 for a smartphone or a tablet of the child’s own."],
+      ["School time", "You choose when the schedule runs and which apps are available. Research on school phone rules is mixed, and we don’t know whether a schedule like this improves well-being."],
+      ["Web filtering", "When configured, the filter blocks requests to web addresses in the categories you choose. It can reduce some exposure, and studies have found little evidence that filters change how often teens encounter sexual material. Filters can also block useful health information. Talk with your child about what they might come across."],
+      ["Privacy, help and growing independence", "Children should be able to understand the rules, see when their location is shared and reach help privately. We use these principles when designing Plainphone. Revisit the rules together as your child grows."],
+      ["For adults", "In a short study of a different app, a pause and the option to cancel gave people a chance to change their mind about opening an app. People cancelled less often as the study went on. That’s a reason to make cancelling easy when we design a pause."],
+    ],
+    sourcesTitle: "Sources",
+    sources: [
+      ["Carter et al. on devices and sleep", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
+      ["Danish Health Authority screen-use advice", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Danish Wellbeing Commission recommendations", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
+      ["National Academies review of social media and adolescent health", "https://www.nationalacademies.org/read/27396/chapter/2"],
+      ["Orben and Przybylski on digital technology and well-being", "https://www.nature.com/articles/s41562-018-0506-1"],
+      ["Goodyear et al. on school phone policies", "https://doi.org/10.1016/j.lanepe.2025.101211"],
+      ["Przybylski and Nash on internet filtering", "https://pubmed.ncbi.nlm.nih.gov/29995533/"],
+      ["Richardson et al. on filters and access to health information", "https://doi.org/10.1001/jama.288.22.2887"],
+      ["European Commission guidelines on minors", "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52025XC05519"],
+      ["UN Committee on the Rights of the Child, General Comment No. 25", "https://www.ohchr.org/en/documents/general-comments-and-recommendations/general-comment-no-25-2021-childrens-rights-relation"],
+      ["Grüning et al. on the one sec app", "https://www.pnas.org/doi/10.1073/pnas.2213114120"],
     ],
   },
   privacy: {
@@ -226,7 +253,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations, the messages a trusted person gets, and an alert when a phone’s protection is removed or it has been quiet for a long time. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations, the messages a trusted person gets, and an alert when a phone reports a required setting was switched off or it has been quiet for a long time. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {
@@ -350,46 +377,36 @@ export default {
   setup: {
     path: "/setup/",
     title: "Set up a phone: Plainphone",
-    description:
-      "How to set up a phone with Plainphone: choose a PIN in the dashboard, scan a QR code on the reset phone, and let the phone lock itself. About ten minutes.",
     h1: "Set up a phone",
-    lead:
-      "You set up a phone with a QR code from the dashboard. It takes about ten minutes, and you need no computer.",
-    needTitle: "What you need",
-    need: [
-      "An Android phone with Android 10 or newer that you may reset. Setup erases everything on it, so save what you want to keep first. The version is under Settings → About phone.",
-      "Wi-Fi without a login page. Hotel and school networks that ask you to sign in do not work during setup.",
-      "About ten minutes.",
-      "The dashboard open on another device, such as your own phone or a computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    description: "Set up Plainphone on a new Android phone or one already in use, with a private setup code from your dashboard.",
+    lead: "You need an Android 10 or newer phone and the dashboard open on a second device.",
+    question: "Is the phone new or already in use?",
+    strong: "It is new or reset",
+    strongHelp: "Recommended. Plainphone can protect more settings on a fresh phone.",
+    light: "It is already in use",
+    lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
+    startStrong: "Start setup for a new or reset phone",
+    startLight: "Start setup for a phone in use",
+    start: "In the dashboard, say who the phone is for and create a setup link.",
+    strongTitle: "New or reset phone",
+    lightTitle: "Phone already in use",
+    lightSteps: [
+      ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
+      ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
+      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address, then choose a parent PIN of 6 to 12 digits and enter it twice on the phone. Follow the prompts until the phone has received your rules.", "permissions"],
     ],
-    stepsTitle: "Step by step",
+    lightHelpItems: [
+      ["Android says a setting is restricted", "In Plainphone, open the help below the guard step. From App info, tap the three dots and pick Allow restricted settings. Return to Plainphone and try again. The guard closes apps you haven’t allowed."],
+      ["Android asks to start a VPN connection", "Tap OK. That is how Plainphone checks web addresses against your web filter."],
+      ["I opened the app from the installer", "Go back to Chrome and tap Open Plainphone on the setup page. If you already entered a PIN on the phone, use that same PIN in the dashboard."],
+    ],
+    nextTitle: "Once the phone is connected",
+    next: "In the dashboard, add contacts, choose apps from the catalog or set school hours.",
     steps: [
-      {
-        title: "Add the phone",
-        body: [
-          "In the dashboard, choose <strong>Add phone</strong>. Say who the phone is for, a child or yourself, and give it a name. Only you see the name.",
-        ],
-        fig: "who",
-      },
-      {
-        title: "Choose a maintenance PIN",
-        body: [
-          "Choose a PIN of at least 6 digits and type it twice. It opens a hidden maintenance screen on the phone: tap <strong>Version</strong> 7 times, then enter the PIN. Keep it somewhere safe, because Plainphone cannot show it again.",
-          "The PIN never leaves your browser. Only a scrambled (hashed) copy goes into the QR code.",
-        ],
-        fig: "pin",
-      },
-      {
-        title: "Show the QR code",
-        body: [
-          "The dashboard now shows a QR code. It works once, and for 24 hours. Do not share it, and keep the page open.",
-        ],
-        fig: "qr",
-      },
       {
         title: "Reset the phone",
         body: [
-          "Factory reset the phone: Settings → System → Reset → Erase all data. Or use a new phone. Wait until the welcome screen appears.",
+          "On a phone you need to reset, back up anything you want to keep, then choose Settings → System → Reset → Erase all data. Wait until the welcome screen appears.",
           "The menu names differ a little between brands. If a Google account is on the phone, remove it first (Settings → Accounts), or the phone asks for it after the reset.",
         ],
         fig: "reset",
@@ -404,7 +421,7 @@ export default {
       {
         title: "Scan the QR code",
         body: [
-          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, makes it the device owner and locks itself.",
+          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, applies the lock before you start using the phone.",
           "If the phone says it will be managed by an organisation, that is Plainphone. Accept: it is how the lock works.",
         ],
         fig: "scan",
@@ -417,19 +434,11 @@ export default {
         ],
         fig: "dialog",
       },
-      {
-        title: "Done",
-        body: [
-          "The phone connects to the dashboard by itself. There is no code to type. When it is connected, the dashboard says so. Then choose its apps and contacts.",
-        ],
-        fig: "done",
-      },
     ],
     figs: {
-      who: "The dashboard page “Who is the phone for?” with the choices Child and Self, a Name field and a Next button.",
-      pin: "The dashboard page “Choose a maintenance PIN” with two PIN fields and the button “Make the QR code”.",
-      qr: "The dashboard page “Set up Alma’s phone”. A box where the QR code appears, and below it “Waiting for the phone” and a note that the code works once.",
-      done: "The dashboard says the phone is connected and offers a button to open it.",
+      lightScan: "A phone camera framing a setup code.",
+      download: "A phone screen with a download arrow.",
+      permissions: "A phone screen with two settings switches.",
       reset: "A drawing of a phone showing a settings list, with the row for erasing all data marked.",
       welcome: "A drawing of a phone on its first welcome screen. Six taps in the same empty spot, marked “6×”.",
       scan: "Two drawings of a phone. On the first, a QR reader frames a QR code. On the second, a list of Wi-Fi networks with one chosen.",

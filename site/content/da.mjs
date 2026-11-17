@@ -5,7 +5,7 @@ export default {
   path: "/da/",
   title: "Plainphone: en rolig telefon lavet af en almindelig Android",
   description:
-    "Gratis open source-software, der gør en almindelig Android-telefon rolig: opkald, sms, kamera og de apps, du vælger. Ingen feeds, ingen reklamer.",
+    "Gratis open source-software til en Android-telefon med opkald, sms, kamera og de apps, du vælger.",
   ogAlt: "Plainphone: din telefon, uden støjen.",
   skip: "Gå til indholdet",
   nav: { label: "Hovedmenu", source: "Kildekode", switchLabel: "English", switchLang: "en" },
@@ -13,27 +13,27 @@ export default {
   hero: {
     title: "Din telefon, uden støjen.",
     lead:
-      "Plainphone gør en almindelig Android-telefon rolig. Den beholder det, du har brug for, og fjerner stille og roligt resten. Det er gratis, og koden er åben.",
+      "Plainphone gør en almindelig Android-telefon rolig. Du vælger, hvilke apps der er tilgængelige. Det er gratis, og koden er åben.",
     staysLabel: "Det beholder du",
     stays: ["Opkald", "Sms", "Kamera", "Kort, musik og de apps, du vælger"],
     goesLabel: "Det ryger",
-    goes: ["Feeds fra sociale medier", "Reklamer", "Spil", "Porno og spil om penge", "App-butikker, medmindre du giver adgang"],
+    goes: ["Sociale medier og spil, du ikke giver adgang til", "Udvalgte hjemmesider, med webfilteret", "App-butikker, medmindre du giver adgang"],
   },
   who: {
     title: "Hvem det er til",
-    lead: "Alle, der vil have et roligere liv med en telefon i. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
+    lead: "Familier og voksne, der vil vælge, hvad der er tilgængeligt på telefonen. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
     paths: [
       {
         id: "child",
         title: "Til mit barn",
         body:
-          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik, uden de dele, der sluger en eftermiddag. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
+          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
       },
       {
         id: "self",
         title: "Til mig selv",
         body:
-          "Mindre skærmtid, uden at give slip på kort, netbank eller kamera. Du får selv nøglen, med en forsinkelse: når du løsner en regel, træder den først i kraft efter fx 24 timer, så et svagt øjeblik når at gå over. Eller lad en, du stoler på, godkende det.",
+          "Behold kort, netbank og kamera. Vælg, hvor længe der skal gå, før en lempelse af dine regler træder i kraft. Eller lad en, du stoler på, godkende det.",
       },
     ],
   },
@@ -41,16 +41,16 @@ export default {
     title: "Sådan virker det",
     steps: [
       {
-        title: "Nulstil telefonen",
-        body: "En Android-telefon med Android 10 eller nyere (se testede telefoner nedenfor). Opsætningen sletter den, så gem det, du vil beholde, først.",
+        title: "Vælg, hvordan du vil sætte telefonen op",
+        body: "Du skal bruge Android 10 eller nyere. Du kan sætte en telefon i brug op uden at slette den.",
       },
       {
-        title: "Scan en QR-kode",
-        body: "Tryk seks gange på velkomstskærmen, og scan koden. Telefonen installerer Plainphone og låser sig selv, før den bliver taget i brug.",
+        title: "Installér og forbind",
+        body: "På en telefon i brug åbner du opsætningslinket, installerer Plainphone og følger trinene. På en ny eller nulstillet telefon trykker du seks gange på velkomstskærmen og scanner opsætningskoden.",
       },
       {
         title: "Vælg reglerne",
-        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel kommer til at gælde med det samme.",
+        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. Telefonen bruger de nye regler, næste gang den synkroniserer med serveren.",
       },
     ],
     guide: "Har du lyst til at prøve? <a href=\"/da/setup/\">Følg trin-for-trin-guiden</a>.",
@@ -59,12 +59,12 @@ export default {
   },
   compare: {
     title: "Sammenlignet med de typiske alternativer",
-    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone viser målet; i dag virker kun låsen.",
+    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone omfatter også funktioner under udvikling.",
     caption: "Plainphone sammenlignet med en simpel telefon, et børneur og indbygget forældrekontrol",
     cols: ["Simpel telefon", "Børneur", "Indbygget forældrekontrol", "Plainphone"],
     rows: [
       ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger (planlagt)"],
-      ["Webfilter, der også virker inde i apps", "Intet internet", "Intet internet", "Delvist", "Ja, i de fleste apps (planlagt)"],
+      ["Webfilter til udvalgte domæner", "Intet internet", "Intet internet", "Delvist", "Blokerer tilsvarende webadresser efter opsætning"],
       ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms (planlagt)"],
       ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 10+"],
       ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja (planlagt)"],
@@ -95,7 +95,7 @@ export default {
       },
       {
         q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag sender appen på telefonen ikke noget til en server. Logger du ind i forældreappen, gemmer den din e-mailadresse og de regler, du sætter. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
+        a: "Når du har tilknyttet en telefon, sender den status til serveren, så du f.eks. kan se batteriniveauet. Når placering er slået til, sender telefonen sin position med jævne mellemrum, og når du bruger Find. Serveren gemmer kun den seneste position. Placering er som standard slået til for børneprofiler og fra, hvis du styrer din egen telefon. Vi gemmer din kontos e-mailadresse og de regler, du vælger. Vi viser ingen reklamer og sælger ingen data. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
       },
       {
         q: "Hvad koster det?",
@@ -109,6 +109,33 @@ export default {
         q: "Hvad med WhatsApp, Snapchat og de andre chatapps?",
         a: "Chatapps er skjult, medmindre du giver adgang til dem, og godkendte kontakter kommer til at dække opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software det ikke. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
       },
+    ],
+  },
+  why: {
+    path: "/da/hvorfor/",
+    h1: "Hvorfor Plainphone gør, som det gør",
+    lead: "Plainphone er til familier, der vil give deres barn en telefon og vente med den fulde smartphone. Forskningen hjælper os med at vælge, hvad vi bygger.",
+    sections: [
+      ["Sengetid", "En telefon i soveværelset hænger sammen med dårligere søvn hos børn og unge. Med sengetid i Plainphone kan du begrænse, hvilke apps der er tilgængelige. Sundhedsstyrelsen anbefaler, at telefonen bliver uden for soveværelset."],
+      ["Hvad forskningen kan fortælle os", "Store studier finder i gennemsnit små sammenhænge mellem brug af teknologi og trivsel. En forskningsgennemgang fra de amerikanske videnskabsakademier fandt ikke grundlag for at fastslå, at sociale medier ændrer unges sundhed på befolkningsniveau. Vi ved ikke, om en begrænset telefon som Plainphone forbedrer trivslen. Trivselskommissionen anbefaler at vente med egen smartphone eller tablet, til barnet er fyldt 13 år."],
+      ["Skoletid", "Du vælger, hvornår skoletid gælder, og hvilke apps der er tilgængelige. Studier af skolers mobilregler peger i forskellige retninger, og vi ved ikke, om en tidsplan som denne forbedrer trivslen."],
+      ["Webfilter", "Når filteret er sat op, blokerer det forespørgsler til webadresser i de kategorier, du vælger. Det kan mindske sandsynligheden for at møde noget af indholdet. Studier finder kun svagt belæg for, at filtre gør en forskel for, hvor tit unge møder seksuelt indhold. Filtre kan også blokere nyttig sundhedsoplysning. Tal med dit barn om, hvad det kan støde på."],
+      ["Privatliv, hjælp og mere frihed", "Børn skal kunne forstå reglerne, se, hvornår deres placering deles, og søge hjælp fortroligt. Det er principper, vi bruger, når vi udvikler Plainphone. Se på reglerne sammen, efterhånden som dit barn bliver ældre."],
+      ["Til voksne", "I et kort studie af en anden app gav en pause og en mulighed for at fortryde folk tid til at ombestemme sig, før en app åbnede. De sprang sjældnere en åbning over, efterhånden som studiet skred frem. Det taler for at gøre det nemt at fortryde, når vi designer en pause."],
+    ],
+    sourcesTitle: "Kilder",
+    sources: [
+      ["Carter m.fl. om skærme og søvn", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
+      ["Sundhedsstyrelsens råd om skærmbrug", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Trivselskommissionens anbefalinger", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
+      ["De amerikanske videnskabsakademier om sociale medier og unges sundhed", "https://www.nationalacademies.org/read/27396/chapter/2"],
+      ["Orben og Przybylski om digital teknologi og trivsel", "https://www.nature.com/articles/s41562-018-0506-1"],
+      ["Goodyear m.fl. om skolers mobilregler", "https://doi.org/10.1016/j.lanepe.2025.101211"],
+      ["Przybylski og Nash om webfiltre", "https://pubmed.ncbi.nlm.nih.gov/29995533/"],
+      ["Richardson m.fl. om filtre og adgang til sundhedsoplysning", "https://doi.org/10.1001/jama.288.22.2887"],
+      ["Europa-Kommissionens retningslinjer om mindreårige", "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52025XC05519"],
+      ["FN’s Børnekomités generelle kommentar nr. 25", "https://www.ohchr.org/en/documents/general-comments-and-recommendations/general-comment-no-25-2021-childrens-rights-relation"],
+      ["Grüning m.fl. om appen one sec", "https://www.pnas.org/doi/10.1073/pnas.2213114120"],
     ],
   },
   privacy: {
@@ -224,7 +251,7 @@ export default {
         id: "mail",
         title: "Mail",
         body: [
-          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer, de beskeder, en betroet person får, og en advarsel, når en telefons beskyttelse fjernes, eller den har været stille længe. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer, de beskeder, en betroet person får, og en advarsel, når en telefon melder, at en nødvendig indstilling er slået fra, eller den har været stille længe. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
         ],
       },
       {
@@ -348,46 +375,36 @@ export default {
   setup: {
     path: "/da/setup/",
     title: "Sæt en telefon op: Plainphone",
-    description:
-      "Sådan sætter du en telefon op med Plainphone: vælg en PIN i dashboardet, scan en QR-kode på den nulstillede telefon, og lad telefonen låse sig selv. Omkring ti minutter.",
     h1: "Sæt en telefon op",
-    lead:
-      "Du sætter en telefon op med en QR-kode fra dashboardet. Det tager omkring ti minutter, og du skal ikke bruge en computer.",
-    needTitle: "Det skal du bruge",
-    need: [
-      "En Android-telefon med Android 10 eller nyere, som du må nulstille. Opsætningen sletter alt på den, så gem det, du vil beholde, først. Versionen står under Indstillinger → Om telefonen.",
-      "Wi-Fi uden loginside. Netværk på hoteller og skoler, hvor man skal logge ind, virker ikke under opsætningen.",
-      "Omkring ti minutter.",
-      "Dashboardet åbent på en anden enhed, fx din egen telefon eller en computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    description: "Sæt Plainphone op på en ny Android-telefon eller en telefon i brug med en privat kode fra dit dashboard.",
+    lead: "Du skal bruge en telefon med Android 10 eller nyere og dashboardet åbent på en anden enhed.",
+    question: "Er telefonen ny eller allerede i brug?",
+    strong: "Den er ny eller nulstillet",
+    strongHelp: "Anbefalet. Plainphone kan beskytte flere indstillinger på en ny eller nulstillet telefon.",
+    light: "Den er allerede i brug",
+    lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
+    startStrong: "Start opsætning af en ny eller nulstillet telefon",
+    startLight: "Start opsætning af en telefon i brug",
+    start: "Vælg i dashboardet, hvem telefonen er til, og lav et opsætningslink.",
+    strongTitle: "Ny eller nulstillet telefon",
+    lightTitle: "Telefonen er allerede i brug",
+    lightSteps: [
+      ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
+      ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
+      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Tjek adressen på dit dashboard. Vælg en forælder-PIN på 6 til 12 cifre, og indtast den to gange på telefonen. Følg trinene, indtil telefonen har hentet dine regler.", "permissions"],
     ],
-    stepsTitle: "Trin for trin",
+    lightHelpItems: [
+      ["Android siger, at en indstilling er begrænset", "Åbn hjælpen under trinet med vagten i Plainphone. Tryk på de tre prikker i Appinfo, og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen. Vagten lukker apps, du ikke har tilladt."],
+      ["Android spørger, om den må forbinde til et VPN", "Tryk på OK. Så kan Plainphone tjekke webadresser med dit webfilter."],
+      ["Jeg åbnede appen fra installationsvinduet", "Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden. Hvis du allerede har indtastet en PIN-kode på telefonen, skal du bruge den samme i dashboardet."],
+    ],
+    nextTitle: "Når telefonen er forbundet",
+    next: "Tilføj kontakter, vælg apps fra kataloget, eller sæt skoletid i dashboardet.",
     steps: [
-      {
-        title: "Tilføj telefonen",
-        body: [
-          "Vælg <strong>Tilføj telefon</strong> i dashboardet. Sig, hvem telefonen er til, et barn eller dig selv, og giv den et navn. Det er kun dig, der kan se navnet.",
-        ],
-        fig: "who",
-      },
-      {
-        title: "Vælg en vedligeholds-PIN",
-        body: [
-          "Vælg en PIN på mindst 6 cifre, og skriv den to gange. Den åbner en skjult vedligeholdelsesskærm på telefonen: tryk 7 gange på <strong>Version</strong>, og indtast PIN’en. Gem den et sikkert sted, for Plainphone kan ikke vise den igen.",
-          "PIN’en forlader aldrig din browser. Kun en tilsløret udgave (et hash) kommer med i QR-koden.",
-        ],
-        fig: "pin",
-      },
-      {
-        title: "Se QR-koden",
-        body: [
-          "Dashboardet viser nu en QR-kode. Den virker én gang og i 24 timer. Del den ikke med andre, og hold siden åben.",
-        ],
-        fig: "qr",
-      },
       {
         title: "Nulstil telefonen",
         body: [
-          "Nulstil telefonen til fabriksindstillinger: Indstillinger → System → Nulstil → Slet alle data. Eller brug en ny telefon. Vent, til velkomstskærmen vises.",
+          "Gem først det, du vil beholde, hvis telefonen skal nulstilles. Vælg derefter Indstillinger → System → Nulstil → Slet alle data. Vent, til velkomstskærmen vises.",
           "Menuernes navne varierer lidt fra mærke til mærke. Er der en Google-konto på telefonen, så fjern den først (Indstillinger → Konti). Ellers beder telefonen om kontoen efter nulstillingen.",
         ],
         fig: "reset",
@@ -402,7 +419,7 @@ export default {
       {
         title: "Scan QR-koden",
         body: [
-          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone, gør den til enhedsejer (device owner) og låser sig selv.",
+          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone og slår låsen til, før du tager telefonen i brug.",
           "Siger telefonen, at den bliver styret af en organisation, er det Plainphone. Accepter det: det er sådan, låsen virker.",
         ],
         fig: "scan",
@@ -415,19 +432,11 @@ export default {
         ],
         fig: "dialog",
       },
-      {
-        title: "Færdig",
-        body: [
-          "Telefonen forbinder sig selv til dashboardet. Du skal ikke skrive en kode. Når den er forbundet, siger dashboardet det. Vælg derefter dens apps og kontakter.",
-        ],
-        fig: "done",
-      },
     ],
     figs: {
-      who: "Siden i dashboardet »Hvem er telefonen til?« med valgene Barn og Mig selv, et felt til navn og knappen Næste.",
-      pin: "Siden i dashboardet »Vælg en vedligeholds-PIN« med to felter til PIN og knappen »Lav QR-koden«.",
-      qr: "Siden i dashboardet »Sæt telefonen op: Alma«. En boks, hvor QR-koden vises, og under den »Venter på telefonen« og en note om, at koden virker én gang.",
-      done: "Dashboardet siger, at telefonen er forbundet, og har en knap til at åbne den.",
+      lightScan: "En telefonskærm med et kamera, der scanner en kode.",
+      download: "En telefonskærm med en pil, der viser, hvor du henter appen.",
+      permissions: "En telefonskærm med to kontakter til indstillinger.",
       reset: "Tegning af en telefon med en liste over indstillinger, hvor rækken til at slette alle data er markeret.",
       welcome: "Tegning af en telefon på den første velkomstskærm. Seks tryk på det samme tomme sted, markeret »6×«.",
       scan: "To tegninger af en telefon. På den første indrammer en QR-læser en QR-kode. På den anden en liste over Wi-Fi-netværk, hvor ét er valgt.",
