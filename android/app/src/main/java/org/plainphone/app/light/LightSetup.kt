@@ -53,8 +53,13 @@ object LightSetup {
             context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
         Step.GUARD -> Protections.isGuardEnabled(context)
         Step.ALWAYS_ON -> org.plainphone.app.light.vpn.PlainphoneVpnService.isAlwaysOn(context)
-        Step.PAIR -> SyncStore(context).isPaired
+        Step.PAIR -> SyncStore(context).let { store ->
+            if (hasDashboardPin(context) && !isComplete(context)) hasDashboardRules(store) else store.isPaired
+        }
     }
+
+    internal fun hasDashboardRules(store: SyncStore): Boolean =
+        store.isPaired && store.etag != null && store.rules() != null
 
     fun hasDashboardPin(context: Context) = prefs(context).getBoolean("dashboardPin", false)
 
@@ -77,8 +82,31 @@ object LightSetup {
         edit.apply()
     }
 
+    fun batteryMaker(): Int? = when (Build.MANUFACTURER.lowercase(java.util.Locale.ROOT)) {
+        "oneplus" -> R.string.light_battery_oneplus
+        "xiaomi", "redmi", "poco" -> R.string.light_battery_xiaomi
+        "samsung" -> R.string.light_battery_samsung
+        else -> null
+    }
+
+    fun batteryMakerSettings(context: Context): Intent = if (batteryMaker() == R.string.light_battery_samsung) {
+        Intent("com.samsung.android.sm.ACTION_OPEN_CHECKABLE_LISTACTIVITY")
+            .setPackage("com.samsung.android.lool")
+            .putExtra("activity_type", 2) // Samsung's documented Never sleeping apps screen.
+    } else {
+        appDetails(context)
+    }
+
+    fun finishBatteryMakerHelp(context: Context) {
+        prefs(context).edit().putBoolean("batteryMakerHelpSeen", true).apply()
+    }
+
     /** The first step that still needs doing, or null when everything is set up. */
-    fun next(context: Context): Step? = Step.entries.firstOrNull { !isDone(context, it) && !isSkipped(context, it) }
+    fun next(context: Context): Step? = Step.entries.firstOrNull { step ->
+        !isSkipped(context, step) && (!isDone(context, step) ||
+            (step == Step.RUNNING && !isComplete(context) && batteryMaker() != null &&
+                !prefs(context).getBoolean("batteryMakerHelpSeen", false)))
+    }
 
     /** Setup counts as complete once it was finished once; afterwards the guard protects the screens. */
     fun isComplete(context: Context): Boolean = prefs(context).getBoolean("complete", false)

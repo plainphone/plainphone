@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.plainphone.app.Lock
 import org.plainphone.app.R
+import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.PairingActivity
@@ -46,6 +47,7 @@ import org.plainphone.app.ui.PlainphoneTheme
  */
 class LightSetupActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
+    private var pendingLink by mutableStateOf<LightEnrollment.Link?>(null)
     private var batteryPromptOpened by mutableStateOf(false)
 
     private val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
@@ -58,17 +60,67 @@ class LightSetupActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        receiveLink(intent)
         enableEdgeToEdge()
         setContent {
             PlainphoneTheme {
                 @Suppress("UNUSED_EXPRESSION") refresh // recompose after every return from Settings
+                val link = pendingLink
                 val step = LightSetup.next(this)
-                if (step == null) {
+                if (link != null) {
+                    key(link) { ConfirmLink(link) }
+                } else if (step == null) {
                     Done(onFinish = ::finishSetup)
                 } else {
                     key(step) { StepScreen(step) }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        receiveLink(intent)
+    }
+
+    private fun receiveLink(intent: Intent) {
+        pendingLink = LightEnrollment.parse(intent.data)?.takeIf { LightEnrollment.canImport(this) }
+    }
+
+    private fun dismissLink() {
+        intent = Intent(this, LightSetupActivity::class.java)
+        pendingLink = null
+        refresh++
+    }
+
+    @Composable
+    private fun ConfirmLink(link: LightEnrollment.Link) {
+        var pin by remember { mutableStateOf("") }
+        var failed by remember { mutableStateOf(false) }
+        CalmScreen(
+            eyebrow = null,
+            title = stringResource(R.string.light_confirm_link_title),
+            body = stringResource(R.string.light_confirm_link_body, link.server),
+            primary = stringResource(R.string.light_confirm_link_action),
+            onPrimary = {
+                if (LightEnrollment.accept(this, link, pin)) dismissLink() else failed = true
+            },
+            secondary = stringResource(android.R.string.cancel),
+            onSecondary = ::dismissLink,
+        ) {
+            PinField(
+                value = pin,
+                onChange = {
+                    pin = it.filter { digit -> digit in '0'..'9' }.take(12)
+                    failed = false
+                },
+                label = stringResource(R.string.light_pin_label),
+            )
+            if (failed) Text(
+                stringResource(R.string.light_confirm_link_error),
+                color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+            )
         }
     }
 
@@ -91,7 +143,7 @@ class LightSetupActivity : ComponentActivity() {
         val dashboard = LightSetup.hasDashboardPin(this) && step != LightSetup.Step.PIN
         val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
         val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
-        if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this) && !SyncStore(this).everPaired) {
+        if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this)) {
             DashboardPairStep()
             return
         }
@@ -99,33 +151,43 @@ class LightSetupActivity : ComponentActivity() {
             PinStep(index, total)
             return
         }
-        val batteryHelp = step == LightSetup.Step.RUNNING &&
-            android.os.Build.MANUFACTURER.lowercase(java.util.Locale.ROOT) in setOf("oneplus", "xiaomi", "samsung")
+        val batteryDone = step == LightSetup.Step.RUNNING && LightSetup.isDone(this, step)
+        val batteryHelp = if (step == LightSetup.Step.RUNNING && LightSetup.notificationsAllowed(this) &&
+            (batteryDone || batteryPromptOpened)
+        ) LightSetup.batteryMaker() else null
         val backgroundLocationSettings = step == LightSetup.Step.LOCATION &&
             Build.VERSION.SDK_INT >= 30 && fineLocationAllowed()
-        val appBatterySettings = batteryHelp && batteryPromptOpened && LightSetup.notificationsAllowed(this)
         var guardHelp by rememberSaveable { mutableStateOf(false) }
         CalmScreen(
             eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
             title = stringResource(step.title),
             body = stringResource(when {
-                appBatterySettings -> R.string.light_step_battery_maker
+                batteryHelp != null -> batteryHelp
                 backgroundLocationSettings -> R.string.light_step_location_settings
                 else -> step.body
             }),
-            primary = stringResource(if (appBatterySettings || backgroundLocationSettings) R.string.light_app_info else step.action),
+            primary = stringResource(when {
+                batteryHelp != null -> R.string.light_battery_settings
+                backgroundLocationSettings -> R.string.light_app_info
+                else -> step.action
+            }),
             onPrimary = {
-                if (appBatterySettings) open(LightSetup.appDetails(this))
-                else act(step)
+                if (batteryHelp != null) {
+                    open(LightSetup.batteryMakerSettings(this))
+                } else act(step)
             },
             secondary = when {
+                batteryHelp != null && batteryDone -> stringResource(R.string.light_battery_continue)
                 step.optional -> stringResource(if (dashboard) R.string.light_skip_options else R.string.light_skip)
                 step == LightSetup.Step.GUARD && Build.VERSION.SDK_INT >= 33 ->
                     stringResource(if (guardHelp) R.string.light_app_info else R.string.light_guard_help)
                 else -> null
             },
             onSecondary = {
-                if (step.optional) {
+                if (batteryHelp != null && batteryDone) {
+                    LightSetup.finishBatteryMakerHelp(this)
+                    refresh++
+                } else if (step.optional) {
                     if (dashboard) LightSetup.skipOptions(this) else LightSetup.skip(this, step)
                     refresh++
                 } else {
@@ -142,33 +204,43 @@ class LightSetupActivity : ComponentActivity() {
 
     @Composable
     private fun DashboardPairStep() {
-        val linkAvailable = SyncStore(this).enrollToken() != null
+        val store = SyncStore(this)
+        val linkAvailable = store.enrollToken() != null
+        val paired = store.isPaired
+        val canConnect = linkAvailable || paired
         var attempt by remember { mutableIntStateOf(0) }
         var failed by remember { mutableStateOf(false) }
-        LaunchedEffect(linkAvailable, attempt) {
-            if (!linkAvailable) return@LaunchedEffect
+        LaunchedEffect(attempt) {
+            if (!canConnect) return@LaunchedEffect
             try {
-                withContext(Dispatchers.IO) {
-                    PairingActivity.controller(this@LightSetupActivity).enroll()
-                    if (SyncStore(this@LightSetupActivity).isPaired) {
-                        LightSetup.markComplete(this@LightSetupActivity)
-                        SyncScheduler.ensurePeriodic(this@LightSetupActivity)
-                        SyncScheduler.now(this@LightSetupActivity, "light setup paired")
+                val app = applicationContext
+                if (!paired) {
+                    withContext(Dispatchers.IO) { PairingActivity.controller(app).enroll() }
+                    refresh++
+                }
+                if (store.isPaired) {
+                    withContext(Dispatchers.IO) {
+                        SyncScheduler.ensurePeriodic(app)
+                        Sync.runner(app).run("initial light setup")
                     }
                 }
+                failed = store.isPaired && !LightSetup.hasDashboardRules(store)
                 refresh++
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 failed = true
+                refresh++
             }
         }
         CalmScreen(
             eyebrow = null,
             title = stringResource(R.string.light_step_pair_title),
             body = stringResource(when {
-                !linkAvailable -> R.string.light_link_expired
                 failed -> R.string.light_link_network
+                paired -> R.string.light_link_rules
+                store.everPaired -> R.string.light_link_removed
+                !linkAvailable -> R.string.light_link_expired
                 else -> R.string.light_link_connecting
             }),
             primary = if (failed) stringResource(R.string.light_link_retry) else null,
@@ -222,7 +294,8 @@ class LightSetupActivity : ComponentActivity() {
         try {
             launcher.launch(intent)
         } catch (_: ActivityNotFoundException) {
-            // Some makers lack a screen (e.g. usage access); the general settings are the next best place.
+            runCatching { launcher.launch(fallback) }
+        } catch (_: SecurityException) {
             runCatching { launcher.launch(fallback) }
         }
     }

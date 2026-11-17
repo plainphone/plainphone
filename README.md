@@ -90,6 +90,7 @@ Strong mode uses Android's welcome screen and can include Wi-Fi in the code. Lig
 the phone's existing data and uses Chrome to install the app and open it with the setup link.
 Both modes pair automatically using a one-time token tied to that phone. The browser hashes
 the PIN before handing it to the phone. The server receives neither the PIN nor its hash.
+On a phone in light mode, confirm the dashboard address and parent PIN after opening the setup link.
 See [dashboard setup](docs/dashboard-setup.md) or the [illustrated public guide](https://plainphone.org/setup/).
 
 For self-hosting, tests and phones without an account there is a script with the same format:

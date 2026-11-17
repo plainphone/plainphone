@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { api, type Approval } from "../lib/api";
@@ -15,6 +15,7 @@ export function Shell() {
   const loc = useLocation();
   const navigate = useNavigate();
   const signedIn = state.status === "in";
+  const main = useRef<HTMLElement>(null);
   const [approvals, setApprovals] = useState(0);
 
   // The Approvals page only shows up for someone who is a trusted person with something waiting.
@@ -39,7 +40,10 @@ export function Shell() {
 
   return (
     <>
-      <a className="skip" href="#main">
+      <a className="skip" href="#main" onClick={(event) => {
+        event.preventDefault();
+        main.current?.focus();
+      }}>
         {t("app.skip")}
       </a>
       <header className="site-header">
@@ -91,7 +95,7 @@ export function Shell() {
           </nav>
         )}
       </header>
-      <main id="main" className="wrap">
+      <main id="main" className="wrap" ref={main} tabIndex={-1}>
         <Outlet />
       </main>
       <footer className="wrap site-footer">

@@ -309,7 +309,6 @@ for (const t of pages) {
 }
 writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
-cpSync(join(src, "img"), join(dist, "img"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
 for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", "og-en.png", "og-da.png"]) {
@@ -345,9 +344,6 @@ writeFileSync(
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 /fonts/*
-  Cache-Control: public, max-age=604800
-
-/img/*
   Cache-Control: public, max-age=604800
 `,
 );

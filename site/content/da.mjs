@@ -45,8 +45,8 @@ export default {
         body: "Du skal bruge Android 10 eller nyere. Du kan sætte en telefon i brug op uden at slette den.",
       },
       {
-        title: "Scan en QR-kode",
-        body: "Tryk seks gange på velkomstskærmen, og scan koden. Telefonen installerer Plainphone og låser sig selv, før den bliver taget i brug.",
+        title: "Installér og forbind",
+        body: "På en telefon i brug åbner du opsætningslinket, installerer Plainphone og følger trinene. På en ny eller nulstillet telefon trykker du seks gange på velkomstskærmen og scanner opsætningskoden.",
       },
       {
         title: "Vælg reglerne",
@@ -362,12 +362,12 @@ export default {
     lightSteps: [
       ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
       ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
-      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Følg trinene på telefonen. Den forbinder selv til dashboardet, når de nødvendige indstillinger er slået til.", "permissions"],
+      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Tjek adressen på dit dashboard, og bekræft med den forælder-PIN, du valgte der. Følg trinene, indtil telefonen har hentet dine regler.", "permissions"],
     ],
     lightHelpItems: [
       ["Android siger, at en indstilling er begrænset", "Åbn hjælpen under trinet med vagten i Plainphone. Tryk på de tre prikker i Appinfo, og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen. Vagten lukker apps, du ikke har tilladt."],
       ["Android spørger, om den må forbinde til et VPN", "Tryk på OK. Så kan Plainphone tjekke webadresser med dit webfilter."],
-      ["Jeg åbnede appen fra installationsvinduet", "Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden. Så følger din forælder-PIN og forbindelsen med."],
+      ["Jeg åbnede appen fra installationsvinduet", "Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden. Hvis du allerede har indtastet en PIN-kode på telefonen, skal du bruge den samme i dashboardet."],
     ],
     nextTitle: "Når telefonen er forbundet",
     next: "Tilføj kontakter, vælg apps fra kataloget, eller sæt skoletid i dashboardet.",

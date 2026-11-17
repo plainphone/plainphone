@@ -45,8 +45,8 @@ export default {
         body: "An Android phone with Android 10 or newer (see tested phones below). You can set up a phone already in use without erasing it.",
       },
       {
-        title: "Scan a QR code",
-        body: "Tap six times on the welcome screen and scan the code. The phone installs Plainphone and locks itself before it is ever used.",
+        title: "Install and connect",
+        body: "On a phone already in use, open the setup link, install Plainphone and follow the prompts. On a new or reset phone, tap the welcome screen six times and scan the setup code.",
       },
       {
         title: "Choose the rules",
@@ -364,12 +364,12 @@ export default {
     lightSteps: [
       ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
       ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
-      ["Return to Chrome and tap Open Plainphone", "Follow the instructions on the phone. It connects to your dashboard by itself when the required settings are ready.", "permissions"],
+      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address and confirm with the parent PIN you chose there. Follow the prompts until the phone has received your rules.", "permissions"],
     ],
     lightHelpItems: [
       ["Android says a setting is restricted", "In Plainphone, open the help below the guard step. From App info, tap the three dots and pick Allow restricted settings. Return to Plainphone and try again. The guard closes apps you haven’t allowed."],
       ["Android asks to start a VPN connection", "Tap OK. That is how Plainphone checks web addresses against your web filter."],
-      ["I opened the app from the installer", "Go back to Chrome and tap Open Plainphone on the setup page to bring your parent PIN and connection along."],
+      ["I opened the app from the installer", "Go back to Chrome and tap Open Plainphone on the setup page. If you already entered a PIN on the phone, use that same PIN in the dashboard."],
     ],
     nextTitle: "Once the phone is connected",
     next: "In the dashboard, add contacts, choose apps from the catalog or set school hours.",

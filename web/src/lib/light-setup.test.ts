@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
+import androidIntent from "../../test-fixtures/light-setup-intent.txt?raw";
+import { hashPin } from "./provisioning";
 import { lightSetupIntent, lightSetupLink } from "./light-setup";
 
 const origin = "https://pp.example.org";
@@ -8,12 +10,11 @@ const hash = "a".repeat(64);
 const salt = "b".repeat(32);
 
 describe("light setup handoff", () => {
-  it("keeps setup credentials out of the HTTP request and builds an Android intent", () => {
-    const url = new URL(lightSetupLink(origin, token, hash, salt, "da"));
+  it("keeps credentials out of HTTP and emits the intent Android resolves and imports", async () => {
+    const pinHash = await hashPin("123456", salt);
+    const url = new URL(lightSetupLink(origin, token, pinHash, salt, "da"));
     expect(url.origin + url.pathname + url.search).toBe(origin + "/install-phone");
-    expect(lightSetupIntent(url)).toBe(
-      `intent://setup?token=${token}&pinHash=${hash}&pinSalt=${salt}&server=https%3A%2F%2Fpp.example.org#Intent;scheme=plainphone;package=org.plainphone.app;end`,
-    );
+    expect(lightSetupIntent(url)).toBe(androidIntent.trim());
   });
 
   it("refuses to open Plainphone without all three setup credentials", () => {

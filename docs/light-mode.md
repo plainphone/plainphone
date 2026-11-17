@@ -75,18 +75,21 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 2. Download the APK and open it. If Android blocks it, tap **Settings**, switch on **Allow from
    this source**, go back and tap **Install**. After installing, return to the Chrome page and
    tap **Open Plainphone** there. This transfers the salted PIN hash and one-time token without
-   sending either to the server as part of the download.
+   sending either to the server as part of the download. Check the dashboard address and confirm
+   with the PIN you chose there.
 3. Plainphone walks through the default phone app and messages app, web filter, time limits,
    uninstall protection and guard. On Android 13+ use the help under the guard if Android reports
    a restricted setting. Android settings vary by manufacturer.
 4. The optional steps cover background operation, location and always-on VPN. You can continue without extras in one tap. For always-on
    VPN, leave **Block connections without VPN** off. The filter carries only web lookups
    ([light-mode-vpn.md](light-mode-vpn.md)).
-5. The phone connects to the dashboard automatically. Switch off Chrome's **Allow from this
-   source** in Android settings after installing.
+5. The phone connects to the dashboard automatically and waits for the first rules before
+   showing that setup is complete. Switch off Chrome's **Allow from this source** in Android
+   settings after installing.
 
 Opening Plainphone from the APK installer without the setup link still gives you the local PIN
-and pairing-code flow. For dashboard setup return to Chrome before choosing a PIN on the phone.
+and pairing-code flow. For dashboard setup return to Chrome. If you already set a PIN locally, the
+dashboard PIN must match it.
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 
 ## Google Play policies per part

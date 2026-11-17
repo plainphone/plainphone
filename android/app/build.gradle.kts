@@ -61,6 +61,8 @@ android {
         compose = true
     }
 
+    sourceSets.named("test") { resources.directories.add("../../web/test-fixtures") }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
