@@ -32,7 +32,9 @@ phone                                      server                         parent
   |                                          |<---------------------------------|
 ```
 
-1. **Pairing.** The phone starts a pairing and shows the 8-character code and a QR code of
+1. **Pairing.** A QR code made in the dashboard carries a one-time enrollment token (see
+   [Setup from the dashboard](#setup-from-the-dashboard) below): the phone pairs with it by itself.
+   Otherwise the phone starts a pairing and shows the 8-character code and a QR code of
    `qrUrl`. The parent's phone camera opens the PWA with the code filled in. Codes live 15
    minutes. The phone polls with its `pollSecret`; the device token comes back exactly once
    (`410` afterwards). Store it in encrypted storage (Android Keystore-backed).
@@ -68,6 +70,46 @@ phone                                      server                         parent
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again
    as a Child phone and leave the key behind.
+
+### Setup from the dashboard
+
+The parent adds a phone in the dashboard before the phone is set up:
+
+```
+parent (PWA)                                server                          phone
+  | POST /phones/enroll {name, profile}       |                                 |
+  |------------------------------------------>|  phone entry (pairedAt null)    |
+  |  201 {phone, enrollment{token,expiresAt}, |  + DNS ClientID registered      |
+  |       provisioning{downloadUrl, ...}}     |                                 |
+  |  hash PIN in the browser, show the QR ----------------- scanned at setup ----->|
+  |                                           |  POST /device/enroll            |
+  |                                           |  {token, installId, deviceInfo} |
+  |                                           |<--------------------------------|
+  |  GET /phones/{id} -> pairedAt set         |  200 {phoneId, deviceToken}     |
+```
+
+- The QR code holds what `scripts/provisioning-qr.py` puts in it (admin component, signature
+  checksum, download URL, PIN hash and salt, country code, and the server and start DNS when they
+  differ from the app's defaults) plus `plainphone.enroll`. The browser hashes the PIN with the
+  script's parameters (PBKDF2-HMAC-SHA256, 120,000 iterations, 32 bytes, 16-byte salt); the shared
+  test vector is in `web/src/lib/provisioning.test.ts`, `MaintenancePinTest.kt` and
+  `scripts/test_provisioning_qr.py`. The server stores no PIN and no PIN hash.
+- The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
+  24 hours and is bound to the phone entry. `POST /phones/{pid}/enrollment` makes a new one for a
+  phone that is not set up yet; older tokens for it stop working.
+- `404` (unknown) and `410` (used, expired, or the entry is already paired) are final: the phone
+  drops the token and falls back to the code pairing above. If the `200` answer is lost, the same
+  phone (same `installId`) may ask again for 60 minutes and gets a new device token.
+- Code pairing keeps working, for QR codes made with the script and for self-hosters.
+- A phone entry that was never set up can be removed at once, also on a Self phone (there is no
+  key to escape from yet).
+
+**Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
+answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up
+at most every 10 minutes and kept when GitHub is unreachable, or to `APK_DOWNLOAD_URL` when a
+self-hoster sets it. Android's provisioning downloader follows redirects. The QR code pins the
+signing certificate (`APK_SIGNATURE_CHECKSUM`), not the file, so a QR code keeps working across
+releases signed with the same key.
 
 ### Rules the phone enforces
 
