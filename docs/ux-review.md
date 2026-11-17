@@ -47,8 +47,8 @@ The shared header wraps with large type so navigation remains visible. The skip 
 
 ## Verification
 
-Playwright captured 160 before and 160 after views across 20 routes. Seven routes overflowed at 390 px and 200% text in both themes before the change. All 160 after views fit the viewport. The after screenshots were taken before the main-branch copy update and the final accessible-name change on Screen time.
+Playwright captured 160 before and 160 after views across 20 routes. Seven routes overflowed at 390 px and 200% text in both themes before the change. All 160 final views fit the viewport after merging main. Axe reported zero violations for the selected WCAG A and AA rules across the 24 mobile views of the priority screens. A separate pass measured rendered buttons, links, disclosure controls and clickable option labels against the 44 px target. The inline code link on Add phone was the remaining exception.
 
-Browser interaction checks passed for the skip link, keyboard navigation to a phone and its Apps page, app search and switching, contact validation and creation, the weekday expander, an empty app list, and Location loading, error, retry and map fallback. The route matrix included empty approvals and schedules plus the missing-token states for invitations and sign-in callbacks. Real devices, mail delivery, successful app-link handoff, push permission and map tiles remain open.
+Browser interaction checks passed for the skip link, keyboard navigation to a phone and its Apps page, app search and switching, contact validation and creation, the weekday expander, an empty app list, and Location loading, error, retry and map fallback. Both zoom controls measured 44 × 44 px and responded to Enter with a local map style fixture. The route matrix included empty approvals and schedules plus the missing-token states for invitations and sign-in callbacks. Real devices, mail delivery, successful app-link handoff, push permission and map tiles remain open.
 
 The automated checks sampled the rendered controls and text. Manual screen-reader testing remains open.
