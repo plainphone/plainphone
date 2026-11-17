@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="admin_description">Holder telefonen rolig: blokerer app-installation, nulstilling, fejlsikret tilstand og ændring af DNS.</string>
+    <string name="admin_description">Anvender telefonens regler for appinstallation, fabriksnulstilling, sikker tilstand og DNS-indstillinger.</string>
     <string name="phase_notice">Fase 4: regler fra forælderens oversigt. Endnu ikke til rigtig brug.</string>
     <string name="status_owner">Låst: Plainphone er Device Owner.</string>
     <string name="status_not_owner">Ikke låst: Plainphone er ikke Device Owner. Sæt telefonen op med QR-koden.</string>
@@ -127,10 +127,10 @@
     <!-- Let tilstand (docs/light-mode.md) -->
     <string name="guard_label">Plainphone-vagt</string>
     <string name="guard_summary">Lukker apps, din forælder ikke har tilladt, og apps, hvor tiden er brugt.</string>
-    <string name="guard_description">Plainphone bruger dette til at se, hvilken app der er åben, så den kan lukke apps, der ikke er tilladt, eller hvor tiden er brugt, og så dens egen beskyttelse ikke kan slås fra. Den læser intet andet og sender intet om, hvad du laver, ud over brugte minutter for apps med en tidsgrænse.</string>
+    <string name="guard_description">Plainphone ser, hvilken app der er åben, så den kan lukke apps, der er blokeret, eller hvor tiden er brugt. For at genkende sider, hvor Plainphone kan slås fra, læser den skærmtekst og beskrivelser i Androids indstillinger og på relaterede systemskærme. Det sker direkte på telefonen, og teksten sendes ikke til serveren. Telefonen kan sende antal brugte minutter for apps med en tidsgrænse.</string>
     <string name="light_admin_description">Plainphone bruger dette, så den skal slås fra her, før den kan afinstalleres.</string>
     <string name="light_admin_explanation">Når dette er slået til, kan Plainphone ikke bare afinstalleres. Forælderen får besked, hvis det slås fra.</string>
-    <string name="light_admin_disable_warning">Slår du dette fra, fjernes Plainphones beskyttelse. Forælderen får besked.</string>
+    <string name="light_admin_disable_warning">Slår du dette fra, kan Plainphone afinstalleres. Din forælder kan få besked.</string>
     <string name="light_step_counter">Trin %1$d af %2$d</string>
     <string name="light_skip">Ikke nu</string>
     <string name="light_step_pin_title">Vælg en forælder-PIN</string>
@@ -147,12 +147,12 @@
     <string name="light_step_sms_body">Sms\'er til og fra numre, der ikke er godkendt, bliver stoppet.</string>
     <string name="light_step_sms_action">Vælg som besked-app</string>
     <string name="light_step_filter_title">Slå webfilteret til</string>
-    <string name="light_step_filter_body">Android kalder det et VPN. Det slår kun webadresser op gennem Plainphones filter. Ingen anden trafik går igennem det.</string>
+    <string name="light_step_filter_body">Android kalder det en VPN. Plainphone slår webadresser op for at blokere nogle sider. Noget indhold slipper stadig igennem. Ingen anden trafik går gennem filteret.</string>
     <string name="light_step_filter_action">Slå til</string>
     <string name="light_step_usage_title">Giv adgang til brug</string>
     <string name="light_step_usage_body">Det skal til for tidsgrænser. Find Plainphone på listen, og slå den til.</string>
     <string name="light_step_usage_action">Åbn indstillinger</string>
-    <string name="light_step_admin_title">Beskyt mod afinstallering</string>
+    <string name="light_step_admin_title">Slå enhedsadministrator til</string>
     <string name="light_step_admin_body">Når dette er slået til, kan Plainphone ikke bare fjernes. Forælderen får besked, hvis det slås fra.</string>
     <string name="light_step_admin_action">Slå til</string>
     <string name="light_step_running_title">Hold Plainphone kørende</string>
@@ -178,12 +178,12 @@
     <string name="blocked_time_title">Tiden er brugt for i dag</string>
     <string name="blocked_time_body">Den åbner igen i morgen. Opkald og beskeder virker som altid.</string>
     <string name="blocked_protection_title">Denne indstilling er låst</string>
-    <string name="blocked_protection_body">Plainphones beskyttelse kan kun ændres med forælderens PIN.</string>
+    <string name="blocked_protection_body">Brug din forælders PIN for at ændre denne indstilling.</string>
     <string name="blocked_ok">OK</string>
     <string name="blocked_enter_pin">Indtast PIN</string>
     <string name="today_title">I dag</string>
     <string name="today_no_limits">Ingen tidsgrænser i dag.</string>
-    <string name="today_protection_missing">Noget af beskyttelsen er slået fra.</string>
+    <string name="today_protection_missing">Nogle af de indstillinger, Plainphone bruger til at anvende reglerne, er slået fra.</string>
     <string name="today_fix">Slå den til igen</string>
     <string name="today_left_total">Tid tilbage i dag</string>
     <string name="today_used_up">Brugt</string>
