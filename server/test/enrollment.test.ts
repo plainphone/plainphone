@@ -69,6 +69,19 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await parent.post(`/api/phones/${phone.id}/enrollment`)).status).toBe(409);
   });
 
+  it("keeps light mode when an existing phone redeems its setup link", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const out = await parent.post("/api/phones/enroll", { name: "Test phone", profile: "child", mode: "light" });
+    expect(out.status).toBe(201);
+    expect(out.json.phone.mode).toBe("light");
+    const { phone, enrollment } = out.json;
+    const result = await enroll(enrollment.token);
+    expect(result.status).toBe(200);
+    expect(result.json.phoneId).toBe(phone.id);
+    expect((await parent.get(`/api/phones/${phone.id}`)).json.mode).toBe("light");
+    expect((await enroll(enrollment.token, "another-install-id-000000")).status).toBe(410);
+  });
+
   it("lets the same phone ask again when the answer was lost, and the first token stops working", async () => {
     const parent = await signIn(h, "p@example.org");
     const { enrollment } = await addPhone(parent);

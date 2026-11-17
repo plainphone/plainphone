@@ -33,9 +33,9 @@ object LightSetup {
         FILTER(R.string.light_step_filter_title, R.string.light_step_filter_body, R.string.light_step_filter_action),
         USAGE(R.string.light_step_usage_title, R.string.light_step_usage_body, R.string.light_step_usage_action),
         ADMIN(R.string.light_step_admin_title, R.string.light_step_admin_body, R.string.light_step_admin_action),
+        GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
         RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action, optional = true),
         LOCATION(R.string.light_step_location_title, R.string.light_step_location_body, R.string.light_step_location_action, optional = true),
-        GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
         ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
         PAIR(R.string.light_step_pair_title, R.string.light_step_pair_body, R.string.light_step_pair_action),
     }
@@ -56,10 +56,25 @@ object LightSetup {
         Step.PAIR -> SyncStore(context).isPaired
     }
 
+    fun hasDashboardPin(context: Context) = prefs(context).getBoolean("dashboardPin", false)
+
+    @SuppressLint("ApplySharedPref") // Must survive going back to Chrome to renew an expired link.
+    fun markDashboardPin(context: Context) {
+        prefs(context).edit().putBoolean("dashboardPin", true).commit()
+    }
+
     fun isSkipped(context: Context, step: Step) = step.optional && prefs(context).getBoolean("skip_${step.name}", false)
 
     fun skip(context: Context, step: Step) {
         prefs(context).edit().putBoolean("skip_${step.name}", true).apply()
+    }
+
+    fun skipOptions(context: Context) {
+        val edit = prefs(context).edit()
+        for (step in Step.entries) {
+            if (step.optional) edit.putBoolean("skip_${step.name}", true)
+        }
+        edit.apply()
     }
 
     /** The first step that still needs doing, or null when everything is set up. */
@@ -86,7 +101,7 @@ object LightSetup {
         Step.PHONE -> roleIntent(context, android.app.role.RoleManager.ROLE_DIALER)
         Step.SMS -> roleIntent(context, android.app.role.RoleManager.ROLE_SMS)
         Step.FILTER -> VpnService.prepare(context)
-        Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}"))
         Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))
             .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(R.string.light_admin_explanation))
@@ -99,6 +114,9 @@ object LightSetup {
         Step.GUARD -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         Step.ALWAYS_ON -> Intent(Settings.ACTION_VPN_SETTINGS)
     }
+
+    fun appDetails(context: Context) =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
 
     fun notificationsAllowed(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED

@@ -20,6 +20,7 @@ import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.light.HomeActivity
+import org.plainphone.app.light.LightEnrollment
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.ui.PairingActivity
@@ -47,6 +48,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
         if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
+            if (intent?.action == Intent.ACTION_VIEW) LightEnrollment.accept(this, intent.data)
             startActivity(if (LightSetup.isComplete(this)) HomeActivity.intent(this) else LightSetupActivity.intent(this))
             finish()
             return

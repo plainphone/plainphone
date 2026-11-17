@@ -6,7 +6,9 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,29 +18,43 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.plainphone.app.Lock
 import org.plainphone.app.R
+import org.plainphone.app.sync.SyncScheduler
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.PairingActivity
 import org.plainphone.app.ui.PlainphoneTheme
 
 /**
  * Light-mode setup on a phone already in use: one protection per screen, in an order where each
- * step still works (the guard comes last, because it protects the very screens used before it).
+ * step still works (the guard starts protecting Settings once setup is complete).
  */
 class LightSetupActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
+    private var batteryPromptOpened by mutableStateOf(false)
 
     private val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
-    private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
+    private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.POST_NOTIFICATIONS] == true &&
+            !LightSetup.isDone(this, LightSetup.Step.RUNNING)
+        ) requestBatteryAccess()
+        refresh++
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +66,7 @@ class LightSetupActivity : ComponentActivity() {
                 if (step == null) {
                     Done(onFinish = ::finishSetup)
                 } else {
-                    StepScreen(step)
+                    key(step) { StepScreen(step) }
                 }
             }
         }
@@ -72,22 +88,95 @@ class LightSetupActivity : ComponentActivity() {
 
     @Composable
     private fun StepScreen(step: LightSetup.Step) {
-        val index = LightSetup.Step.entries.indexOf(step)
-        val total = LightSetup.Step.entries.size
+        val dashboard = LightSetup.hasDashboardPin(this) && step != LightSetup.Step.PIN
+        val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
+        val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
+        if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this) && !SyncStore(this).everPaired) {
+            DashboardPairStep()
+            return
+        }
         if (step == LightSetup.Step.PIN) {
             PinStep(index, total)
             return
         }
+        val batteryHelp = step == LightSetup.Step.RUNNING &&
+            android.os.Build.MANUFACTURER.lowercase(java.util.Locale.ROOT) in setOf("oneplus", "xiaomi", "samsung")
+        val backgroundLocationSettings = step == LightSetup.Step.LOCATION &&
+            Build.VERSION.SDK_INT >= 30 && fineLocationAllowed()
+        val appBatterySettings = batteryHelp && batteryPromptOpened && LightSetup.notificationsAllowed(this)
+        var guardHelp by rememberSaveable { mutableStateOf(false) }
         CalmScreen(
             eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
             title = stringResource(step.title),
-            body = stringResource(step.body),
-            primary = stringResource(step.action),
-            onPrimary = { act(step) },
-            secondary = if (step.optional) stringResource(R.string.light_skip) else null,
-            onSecondary = { LightSetup.skip(this, step); refresh++ },
+            body = stringResource(when {
+                appBatterySettings -> R.string.light_step_battery_maker
+                backgroundLocationSettings -> R.string.light_step_location_settings
+                else -> step.body
+            }),
+            primary = stringResource(if (appBatterySettings || backgroundLocationSettings) R.string.light_app_info else step.action),
+            onPrimary = {
+                if (appBatterySettings) open(LightSetup.appDetails(this))
+                else act(step)
+            },
+            secondary = when {
+                step.optional -> stringResource(if (dashboard) R.string.light_skip_options else R.string.light_skip)
+                step == LightSetup.Step.GUARD && Build.VERSION.SDK_INT >= 33 ->
+                    stringResource(if (guardHelp) R.string.light_app_info else R.string.light_guard_help)
+                else -> null
+            },
+            onSecondary = {
+                if (step.optional) {
+                    if (dashboard) LightSetup.skipOptions(this) else LightSetup.skip(this, step)
+                    refresh++
+                } else {
+                    guardHelp = true
+                    open(LightSetup.appDetails(this))
+                }
+            },
             progress = (index + 1f) / total,
-        )
+        ) {
+            PermissionIllustration(step)
+            if (guardHelp) Text(stringResource(R.string.light_guard_help_body))
+        }
+    }
+
+    @Composable
+    private fun DashboardPairStep() {
+        val linkAvailable = SyncStore(this).enrollToken() != null
+        var attempt by remember { mutableIntStateOf(0) }
+        var failed by remember { mutableStateOf(false) }
+        LaunchedEffect(linkAvailable, attempt) {
+            if (!linkAvailable) return@LaunchedEffect
+            try {
+                withContext(Dispatchers.IO) {
+                    PairingActivity.controller(this@LightSetupActivity).enroll()
+                    if (SyncStore(this@LightSetupActivity).isPaired) {
+                        LightSetup.markComplete(this@LightSetupActivity)
+                        SyncScheduler.ensurePeriodic(this@LightSetupActivity)
+                        SyncScheduler.now(this@LightSetupActivity, "light setup paired")
+                    }
+                }
+                refresh++
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                failed = true
+            }
+        }
+        CalmScreen(
+            eyebrow = null,
+            title = stringResource(R.string.light_step_pair_title),
+            body = stringResource(when {
+                !linkAvailable -> R.string.light_link_expired
+                failed -> R.string.light_link_network
+                else -> R.string.light_link_connecting
+            }),
+            primary = if (failed) stringResource(R.string.light_link_retry) else null,
+            onPrimary = { failed = false; attempt++ },
+            progress = 1f,
+        ) {
+            PermissionIllustration(LightSetup.Step.PAIR)
+        }
     }
 
     private fun act(step: LightSetup.Step) {
@@ -99,22 +188,33 @@ class LightSetupActivity : ComponentActivity() {
                 if (!LightSetup.notificationsAllowed(this)) { // only false on Android 13+
                     permissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 } else {
-                    open(LightSetup.intent(this, step))
+                    requestBatteryAccess()
                 }
+            LightSetup.Step.USAGE ->
+                open(LightSetup.intent(this, step), Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
             else -> open(LightSetup.intent(this, step))
         }
     }
 
-    /** Android asks for background location separately, after the foreground one. */
-    private fun askLocation() {
-        val fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        permissions.launch(
-            if (!fine) arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            else arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-        )
+    private fun requestBatteryAccess() {
+        batteryPromptOpened = true
+        open(LightSetup.intent(this, LightSetup.Step.RUNNING), LightSetup.appDetails(this))
     }
 
-    private fun open(intent: Intent?) {
+    private fun fineLocationAllowed() =
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    private fun askLocation() {
+        when {
+            !fineLocationAllowed() -> permissions.launch(arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+            ))
+            Build.VERSION.SDK_INT >= 30 -> open(LightSetup.appDetails(this))
+            else -> permissions.launch(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+        }
+    }
+
+    private fun open(intent: Intent?, fallback: Intent = Intent(android.provider.Settings.ACTION_SETTINGS)) {
         if (intent == null) {
             refresh++
             return
@@ -123,7 +223,7 @@ class LightSetupActivity : ComponentActivity() {
             launcher.launch(intent)
         } catch (_: ActivityNotFoundException) {
             // Some makers lack a screen (e.g. usage access); the general settings are the next best place.
-            runCatching { launcher.launch(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+            runCatching { launcher.launch(fallback) }
         }
     }
 
@@ -152,6 +252,7 @@ class LightSetupActivity : ComponentActivity() {
         ) {
             PinField(first, { first = it.filter(Char::isDigit).take(12) }, stringResource(R.string.light_pin_label))
             PinField(second, { second = it.filter(Char::isDigit).take(12) }, stringResource(R.string.light_pin_again))
+            Text(stringResource(R.string.light_pin_dashboard_help))
             error?.let { Text(stringResource(it), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
         }
     }

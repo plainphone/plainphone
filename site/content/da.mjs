@@ -41,8 +41,8 @@ export default {
     title: "Sådan virker det",
     steps: [
       {
-        title: "Nulstil telefonen",
-        body: "En Android-telefon med Android 10 eller nyere (se testede telefoner nedenfor). Opsætningen sletter den, så gem det, du vil beholde, først.",
+        title: "Vælg, hvordan du vil sætte telefonen op",
+        body: "Du skal bruge Android 10 eller nyere. Du kan sætte en telefon i brug op uden at slette den.",
       },
       {
         title: "Scan en QR-kode",
@@ -346,46 +346,36 @@ export default {
   setup: {
     path: "/da/setup/",
     title: "Sæt en telefon op: Plainphone",
-    description:
-      "Sådan sætter du en telefon op med Plainphone: vælg en PIN i dashboardet, scan en QR-kode på den nulstillede telefon, og lad telefonen låse sig selv. Omkring ti minutter.",
     h1: "Sæt en telefon op",
-    lead:
-      "Du sætter en telefon op med en QR-kode fra dashboardet. Det tager omkring ti minutter, og du skal ikke bruge en computer.",
-    needTitle: "Det skal du bruge",
-    need: [
-      "En Android-telefon med Android 10 eller nyere, som du må nulstille. Opsætningen sletter alt på den, så gem det, du vil beholde, først. Versionen står under Indstillinger → Om telefonen.",
-      "Wi-Fi uden loginside. Netværk på hoteller og skoler, hvor man skal logge ind, virker ikke under opsætningen.",
-      "Omkring ti minutter.",
-      "Dashboardet åbent på en anden enhed, fx din egen telefon eller en computer: <a href=\"https://app.plainphone.org\">app.plainphone.org</a>.",
+    description: "Sæt Plainphone op på en ny Android-telefon eller en telefon i brug med en privat kode fra dit dashboard.",
+    lead: "Du skal bruge en telefon med Android 10 eller nyere og dashboardet åbent på en anden enhed.",
+    question: "Er telefonen ny eller allerede i brug?",
+    strong: "Den er ny eller nulstillet",
+    strongHelp: "Anbefalet. Plainphone kan beskytte flere indstillinger på en ny eller nulstillet telefon.",
+    light: "Den er allerede i brug",
+    lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
+    startStrong: "Start opsætning af en ny eller nulstillet telefon",
+    startLight: "Start opsætning af en telefon i brug",
+    start: "Vælg i dashboardet, hvem telefonen er til, og lav en forælder-PIN på 6 til 12 cifre.",
+    strongTitle: "Ny eller nulstillet telefon",
+    lightTitle: "Telefonen er allerede i brug",
+    lightSteps: [
+      ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
+      ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
+      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Følg trinene på telefonen. Den forbinder selv til dashboardet, når de nødvendige indstillinger er slået til.", "permissions"],
     ],
-    stepsTitle: "Trin for trin",
+    lightHelpItems: [
+      ["Android siger, at en indstilling er begrænset", "Åbn hjælpen under trinet med vagten i Plainphone. Tryk på de tre prikker i Appinfo, og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen. Vagten lukker apps, du ikke har tilladt."],
+      ["Android spørger, om den må forbinde til et VPN", "Tryk på OK. Så kan Plainphone tjekke webadresser med dit webfilter."],
+      ["Jeg åbnede appen fra installationsvinduet", "Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden. Så følger din forælder-PIN og forbindelsen med."],
+    ],
+    nextTitle: "Når telefonen er forbundet",
+    next: "Tilføj kontakter, vælg apps fra kataloget, eller sæt skoletid i dashboardet.",
     steps: [
-      {
-        title: "Tilføj telefonen",
-        body: [
-          "Vælg <strong>Tilføj telefon</strong> i dashboardet. Sig, hvem telefonen er til, et barn eller dig selv, og giv den et navn. Det er kun dig, der kan se navnet.",
-        ],
-        fig: "who",
-      },
-      {
-        title: "Vælg en vedligeholds-PIN",
-        body: [
-          "Vælg en PIN på mindst 6 cifre, og skriv den to gange. Den åbner en skjult vedligeholdelsesskærm på telefonen: tryk 7 gange på <strong>Version</strong>, og indtast PIN’en. Gem den et sikkert sted, for Plainphone kan ikke vise den igen.",
-          "PIN’en forlader aldrig din browser. Kun en tilsløret udgave (et hash) kommer med i QR-koden.",
-        ],
-        fig: "pin",
-      },
-      {
-        title: "Se QR-koden",
-        body: [
-          "Dashboardet viser nu en QR-kode. Den virker én gang og i 24 timer. Del den ikke med andre, og hold siden åben.",
-        ],
-        fig: "qr",
-      },
       {
         title: "Nulstil telefonen",
         body: [
-          "Nulstil telefonen til fabriksindstillinger: Indstillinger → System → Nulstil → Slet alle data. Eller brug en ny telefon. Vent, til velkomstskærmen vises.",
+          "Gem først det, du vil beholde, hvis telefonen skal nulstilles. Vælg derefter Indstillinger → System → Nulstil → Slet alle data. Vent, til velkomstskærmen vises.",
           "Menuernes navne varierer lidt fra mærke til mærke. Er der en Google-konto på telefonen, så fjern den først (Indstillinger → Konti). Ellers beder telefonen om kontoen efter nulstillingen.",
         ],
         fig: "reset",
@@ -400,7 +390,7 @@ export default {
       {
         title: "Scan QR-koden",
         body: [
-          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone, gør den til enhedsejer (device owner) og låser sig selv.",
+          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone og slår låsen til, før du tager telefonen i brug.",
           "Siger telefonen, at den bliver styret af en organisation, er det Plainphone. Accepter det: det er sådan, låsen virker.",
         ],
         fig: "scan",
@@ -413,19 +403,11 @@ export default {
         ],
         fig: "dialog",
       },
-      {
-        title: "Færdig",
-        body: [
-          "Telefonen forbinder sig selv til dashboardet. Du skal ikke skrive en kode. Når den er forbundet, siger dashboardet det. Vælg derefter dens apps og kontakter.",
-        ],
-        fig: "done",
-      },
     ],
     figs: {
-      who: "Siden i dashboardet »Hvem er telefonen til?« med valgene Barn og Mig selv, et felt til navn og knappen Næste.",
-      pin: "Siden i dashboardet »Vælg en vedligeholds-PIN« med to felter til PIN og knappen »Lav QR-koden«.",
-      qr: "Siden i dashboardet »Sæt telefonen op: Alma«. En boks, hvor QR-koden vises, og under den »Venter på telefonen« og en note om, at koden virker én gang.",
-      done: "Dashboardet siger, at telefonen er forbundet, og har en knap til at åbne den.",
+      lightScan: "En telefonskærm med et kamera, der scanner en kode.",
+      download: "En telefonskærm med en pil, der viser, hvor du henter appen.",
+      permissions: "En telefonskærm med to kontakter til indstillinger.",
       reset: "Tegning af en telefon med en liste over indstillinger, hvor rækken til at slette alle data er markeret.",
       welcome: "Tegning af en telefon på den første velkomstskærm. Seks tryk på det samme tomme sted, markeret »6×«.",
       scan: "To tegninger af en telefon. På den første indrammer en QR-læser en QR-kode. På den anden en liste over Wi-Fi-netværk, hvor ét er valgt.",

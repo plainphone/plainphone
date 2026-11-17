@@ -12,6 +12,7 @@ import { CatalogPage } from "./pages/Catalog";
 import { ContactsPage } from "./pages/Contacts";
 import { FilterPage } from "./pages/Filter";
 import { HouseholdPage } from "./pages/Household";
+import { InstallPhonePage } from "./pages/InstallPhone";
 import { InvitePage } from "./pages/Invite";
 import { KeyPage } from "./pages/Key";
 import { LocationPage } from "./pages/Location";
@@ -43,6 +44,7 @@ function AppRoutes() {
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         {/* Links mailed to the native app; without the app installed they log in here. */}
         <Route path="/auth/app" element={<AuthCallbackPage />} />
+        <Route path="/install-phone" element={<InstallPhonePage />} />
         <Route path="/invite" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
