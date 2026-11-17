@@ -24,6 +24,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "pnpm-lock.yaml": {"server", "e2e"},
             "server/openapi.yaml": {"server", "e2e", "parent"},
             "web/src/lib/settings.ts": {"server", "parent"},
+            "web/test-fixtures/light-setup-intent.txt": {"android", "server"},
             "server/catalog/dk.json": {"server", "e2e"},
             "dns/ppdns/profiles.py": {"dns"},
             "server/src/db/schema.ts": {"server", "e2e", "dns"},

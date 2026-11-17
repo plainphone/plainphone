@@ -17,7 +17,7 @@ ANDROID = (
     "scripts/smoke-release-apk.sh",
 )
 FILTERS = {
-    "android": ANDROID + CRYPTO_VECTORS + ("packages/crypto*",),
+    "android": ANDROID + CRYPTO_VECTORS + ("packages/crypto*", "web/test-fixtures/*"),
     "e2e": ANDROID + WORKSPACE + ("server/*", "scripts/e2e-phone-sync.sh"),
     "server": WORKSPACE + CRYPTO_VECTORS + (
         "server/*", "web/*", "Dockerfile", ".dockerignore",
