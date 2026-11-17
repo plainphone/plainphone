@@ -124,9 +124,9 @@ Light mode, where none of this is available, is described in [light-mode.md](lig
 
 ## Help lines
 
-On the phone, **Do you need someone to talk to?** is available from Phone
-and Today. It lists verified services for the phone's country, starting with
-[Denmark](../server/catalog/helplines/dk.json). The catalogue includes each
+On the phone, **Do you need someone to talk to?** is available from the
+Plainphone home screen, Phone and Today. It lists verified services for the
+phone's country, starting with [Denmark](../server/catalog/helplines/dk.json). The catalogue includes each
 service's own source and verification date. BackOp replaced Cyberhus in
 October 2026. [BackOp's support page](https://backop.dk/ny-app/) describes
 anonymous SMS support but does not publish a direct SMS number children can
@@ -140,11 +140,19 @@ covers callers with a hidden number. The Phone and Help screens are exempt
 from time limits and stay available at school time and bedtime. You still
 need a working connection and the service must be open to reply.
 
-The Help screen opens listed HTTPS sites inside Plainphone, so a browser cap
-does not cut off access. ppdns lets the verified help, health, body, sexuality
-and LGBT+ sites through even when a filter category or a parent's rule would
-block them. Opening the same site in a separate browser is subject to that
-browser's app limit and package-level screen-time reporting.
+The Help screen and links in Plainphone's Messages open catalogue sites inside
+Plainphone, including during school time and bedtime. HTTP links are upgraded
+to HTTPS. The Help view allows navigation only on catalogue domains and their
+subdomains, including the listed headspace chat hosts. Time in Help is exempt
+from screen-time limits and parent reports. ppdns also lets the verified help,
+health, body, sexuality and LGBT+ sites through the web filter.
+
+Plainphone can accept catalogue links from other apps when Android hands them
+over. On Android 12 and later, this requires Android to approve Plainphone for
+the domain. If another app keeps the link in its own browser, or a child types
+the address directly there, the time still counts towards the browser's own
+cap and any total screen-time limit and appears as browser use in reports.
+[Android link handling](https://developer.android.com/training/app-links/create-deeplinks).
 
 Plainphone excludes help contacts from its parent-facing blocked log and
 sends no call or SMS history to the server. Android's own recent calls and

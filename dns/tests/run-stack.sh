@@ -52,7 +52,8 @@ PPDNS_ADGUARD_PASSWORD_HASH='$HASH'
 PPDNS_API_TOKEN=$TOKEN
 PPDNS_ADMIN_BIND=127.0.0.1
 PPDNS_API_BIND=127.0.0.1
-PPDNS_SELFTEST_MINUTES=1
+# Keep background probes out of the stats assertions. Run a self-test explicitly below.
+PPDNS_SELFTEST_MINUTES=0
 ENV
 
 compose up -d --build --wait --wait-timeout 600

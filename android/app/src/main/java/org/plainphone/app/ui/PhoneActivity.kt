@@ -80,7 +80,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +99,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
+import org.plainphone.app.contacts.HelpLinks
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
 import org.plainphone.app.telephony.CallNotifications
@@ -512,7 +518,7 @@ private fun Bubble(m: SmsMessage) {
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text(m.body, style = MaterialTheme.typography.bodyLarge)
+                MessageBody(m.body)
                 Text(
                     if (m.failed) stringResource(R.string.message_failed) else DateUtils.getRelativeTimeSpanString(m.atMs).toString(),
                     style = MaterialTheme.typography.labelSmall,
@@ -521,6 +527,32 @@ private fun Bubble(m: SmsMessage) {
             }
         }
     }
+}
+
+@Composable
+internal fun MessageBody(body: String) {
+    val context = LocalContext.current
+    val color = MaterialTheme.colorScheme.primary
+    val links = remember(context) { HelpLinks(context) }
+    val text = remember(body, links, color) {
+        buildAnnotatedString {
+            append(body)
+            val matches = android.util.Patterns.WEB_URL.matcher(body)
+            while (matches.find()) {
+                val intent = links.intent(context, matches.group()) ?: continue
+                addLink(
+                    LinkAnnotation.Clickable(
+                        tag = "help",
+                        styles = TextLinkStyles(style = SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
+                        linkInteractionListener = { context.startActivity(intent) },
+                    ),
+                    matches.start(),
+                    matches.end(),
+                )
+            }
+        }
+    }
+    Text(text, style = MaterialTheme.typography.bodyLarge)
 }
 
 @Composable

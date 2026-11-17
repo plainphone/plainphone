@@ -6,6 +6,16 @@ import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performFirstLinkClick
+import androidx.core.view.allViews
 import android.os.Process
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -13,7 +23,13 @@ import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Before
 import org.junit.Test
+import org.junit.Rule
 import org.junit.runner.RunWith
+import org.plainphone.app.R
+import org.plainphone.app.home.HomeActivity as LauncherActivity
+import org.plainphone.app.light.HomeActivity
+import org.plainphone.app.ui.PhoneActivity
+import org.plainphone.app.ui.MessageBody
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.FakeDevice
 import org.plainphone.app.MemoryHiddenStore
@@ -35,9 +51,16 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowUsageStatsManager.EventBuilder
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], qualifiers = "w393dp-h852dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class HelplinesTest {
+    @get:Rule
+    val compose = createEmptyComposeRule()
+
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
     @Before
@@ -128,32 +151,95 @@ class HelplinesTest {
         assertThat(payload.toString()).doesNotContain("116111")
     }
 
-    @Test
-    fun `help screen opens during active school and bedtime windows in both modes`() {
+    @Test fun phoneHelpDuringSchool() = checkHelpEntry(PhoneActivity::class.java, "school")
+    @Test fun phoneHelpAtBedtime() = checkHelpEntry(PhoneActivity::class.java, "bedtime")
+    @Test fun todayHelpDuringSchool() = checkHelpEntry(HomeActivity::class.java, "school")
+    @Test fun todayHelpAtBedtime() = checkHelpEntry(HomeActivity::class.java, "bedtime")
+    @Test fun launcherHelpDuringSchool() = checkHelpEntry(LauncherActivity::class.java, "school")
+    @Test fun launcherHelpAtBedtime() = checkHelpEntry(LauncherActivity::class.java, "bedtime")
+
+    private fun <T : android.app.Activity> checkHelpEntry(screen: Class<T>, kind: String) {
         val own = context.packageName
         val game = "com.game"
-        val now = Instant.parse("2026-11-17T12:00:00Z")
-        for (kind in listOf("school", "bedtime")) {
-            val schedule = """[{"id":"test","kind":"$kind","days":[2],"start":"11:00","end":"14:00","allowedPackages":[]}]"""
-            val body = rulesJson(allowed = listOf(game), schedules = schedule, timezone = "UTC")
-            val rules = ServerRules.parse(body)
-            val config = EffectivePolicy.merge(PolicyConfig(), rules, now, timeBlocked = setOf(own, game))
-            assertThat(config.server?.windowActive).isTrue()
-            val strong = FakeDevice(launchable = mutableSetOf(own, game), core = emptySet())
-            PolicyApplier(strong, MemoryHiddenStore(), sdkInt = 35).apply(config)
-            assertThat(strong.hidden).contains(game)
-            assertThat(strong.hidden).doesNotContain(own)
-            assertThat(strong.suspended).doesNotContain(own)
-            val light = LightPlan.build(
-                launchable = setOf(own, game), core = emptySet(), allowed = config.allowedPackages,
-                ownPackage = own, telephony = emptySet(), timeBlocked = config.timeBlocked, installing = null,
-            )
-            assertThat(light.why(game)).isEqualTo(LightPlan.Why.NOT_ALLOWED)
-            assertThat(light.why(own)).isNull()
+        val now = Instant.now()
+        val zone = if (now.atOffset(ZoneOffset.UTC).hour in 6..17) "UTC" else "+12:00"
+        val schedule = """[{"id":"test","kind":"$kind","days":[1,2,3,4,5,6,7],"start":"06:00","end":"19:00","allowedPackages":[]}]"""
+        val body = rulesJson(allowed = listOf(game), schedules = schedule, timezone = zone)
+        val rules = ServerRules.parse(body)
+        val config = EffectivePolicy.merge(PolicyConfig(), rules, now, timeBlocked = setOf(own, game))
+        assertThat(config.server?.windowActive).isTrue()
+        val strong = FakeDevice(launchable = mutableSetOf(own, game), core = emptySet())
+        PolicyApplier(strong, MemoryHiddenStore(), sdkInt = 35).apply(config)
+        assertThat(strong.hidden).contains(game)
+        assertThat(strong.hidden).doesNotContain(own)
+        assertThat(strong.suspended).doesNotContain(own)
+        val light = LightPlan.build(
+            launchable = setOf(own, game), core = emptySet(), allowed = config.allowedPackages,
+            ownPackage = own, telephony = emptySet(), timeBlocked = config.timeBlocked, installing = null,
+        )
+        assertThat(light.why(game)).isEqualTo(LightPlan.Why.NOT_ALLOWED)
+        assertThat(light.why(own)).isNull()
 
-            SyncStore(context, FakeSecretBox()).saveRules("test", body, now.toEpochMilli())
-            Robolectric.buildActivity(HelpActivity::class.java).setup().use { controller ->
-                assertThat(controller.get().isFinishing).isFalse()
+        SyncStore(context, FakeSecretBox()).saveRules("test", body, now.toEpochMilli())
+        Robolectric.buildActivity(screen).setup().use { controller ->
+            compose.onNodeWithText(context.getString(R.string.help_lines_title)).performClick()
+            val launched = shadowOf(controller.get()).nextStartedActivity
+            assertThat(launched.component?.className).isEqualTo(HelpActivity::class.java.name)
+            Robolectric.buildActivity(HelpActivity::class.java, launched).setup().use { help ->
+                assertThat(help.get().isFinishing).isFalse()
+            }
+        }
+    }
+
+    @Test
+    fun `catalogue links match the Android help link filter`() {
+        val directory = ContactPolicySources.get(context).rules().help
+        fun matches(url: String): Boolean {
+            val link = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
+            return context.packageManager.queryIntentActivities(link, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+                .any { it.activityInfo.name == HelpActivity::class.java.name }
+        }
+        for (domain in directory.domains) {
+            assertThat(matches("https://$domain/help")).isTrue()
+            assertThat(matches("http://www.$domain/help")).isTrue()
+        }
+        assertThat(matches("https://bornetelefonen.dk.example.org/help")).isFalse()
+        assertThat(matches("https://example.org/help")).isFalse()
+    }
+
+    @Test
+    fun `tapping a help link in a message opens it over HTTPS inside Help`() {
+        val body = "Talk to someone: http://bornetelefonen.dk/kontakt-os/"
+        Robolectric.buildActivity(ComponentActivity::class.java).setup().use { message ->
+            message.get().setContent { MessageBody(body) }
+            compose.onNodeWithText(body).performFirstLinkClick()
+            val launched = shadowOf(message.get()).nextStartedActivity
+            assertThat(launched.component?.className).isEqualTo(HelpActivity::class.java.name)
+            val expected = "https://bornetelefonen.dk/kontakt-os/"
+            assertThat(launched.dataString).isEqualTo(expected)
+            Robolectric.buildActivity(HelpActivity::class.java, launched).setup().use { help ->
+                compose.waitForIdle()
+                val web = help.get().window.decorView.allViews.filterIsInstance<WebView>().single()
+                assertThat(shadowOf(web).lastLoadedUrl).isEqualTo(expected)
+            }
+        }
+    }
+
+    @Test
+    fun `help accepts chat hosts and rejects other destinations`() {
+        val links = HelpLinks(context)
+        assertThat(links.allowsNavigation(Uri.parse("https://phs.basechat.com/chat"))).isTrue()
+        for (url in listOf(
+            "https://example.org/",
+            "https://bornetelefonen.dk.example.org/",
+            "https://example.org@bornetelefonen.dk/",
+            "https://bornetelefonen.dk:8443/",
+            "file:///data/help",
+        )) {
+            assertThat(links.allowsNavigation(Uri.parse(url))).isFalse()
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url), context, HelpActivity::class.java)
+            Robolectric.buildActivity(HelpActivity::class.java, intent).create().use { help ->
+                assertThat(help.get().isFinishing).isTrue()
             }
         }
     }

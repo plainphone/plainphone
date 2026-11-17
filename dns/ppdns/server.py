@@ -313,7 +313,8 @@ class Jobs:
     def start(self) -> None:
         _every(self.s.lists_refresh_hours * 3600, self.refresh_lists, "lists")
         _every(300, self.reload_cert, "cert")
-        _every(self.s.selftest_minutes * 60, self.push, "selftest")
+        if self.s.selftest_minutes > 0:
+            _every(self.s.selftest_minutes * 60, self.push, "selftest")
         _every(24 * 3600, self.backup, "backup")
 
 

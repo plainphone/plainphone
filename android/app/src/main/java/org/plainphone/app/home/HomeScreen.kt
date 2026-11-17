@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +67,7 @@ class HomeActions(
     val messages: () -> Unit = {},
     val emergency: () -> Unit = {},
     val makeDefault: () -> Unit = {},
+    val help: () -> Unit = {},
 )
 
 @Composable
@@ -270,16 +272,29 @@ private fun Dock(actions: HomeActions) {
             DockButton(stringResource(R.string.home_phone), c.accent, c.onAccent, Modifier.weight(1f), icon = true, onClick = actions.phone)
             DockButton(stringResource(R.string.home_messages), c.surface, c.ink, Modifier.weight(1f), onClick = actions.messages)
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(role = Role.Button, onClick = actions.emergency)
-                .heightIn(min = 48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(stringResource(R.string.home_emergency), color = c.muted, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        }
+        DockTextButton(stringResource(R.string.help_lines_title), actions.help)
+        DockTextButton(stringResource(R.string.home_emergency), actions.emergency)
+    }
+}
+
+@Composable
+private fun DockTextButton(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = LocalHomeColors.current.muted,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
