@@ -35,6 +35,8 @@ The shared header wraps with large type so navigation remains visible. The skip 
 | P3 | Household | Member details and invitation already have separate headings. Exercise the populated multi-member, duplicate-invitation and permission states. |
 | P2 | Approvals | The empty state explains the purpose. Review a populated queue with a second account, including focus after approve or decline. |
 | P2 | Settings | Notification controls and account removal are visually distinct. Verify browser permission denial and device-specific push enrollment. |
+| P2 | Phone settings | The four groups and expandable help make the page navigable. Three-way controls break long labels into narrow columns at 200% text. Review a stacked control layout and focus after saving a setting. |
+| P2 | Home screen | The preview makes the effect of layout and palette choices visible. Check focus when reordering a populated list and clarify that changes reach the phone on sync. |
 | P2 | Add phone | The ownership choice is clear. Review the complete multi-step path with a screen reader. The inline code link measures under 44 px at standard text size. |
 | P2 | Finish phone setup | PIN inputs have visible labels and help. Verify QR scanning, token expiry and keyboard focus after the step changes. |
 | P3 | Pair a phone | Code and profile are labelled. The code's example and error copy need checking with a phone showing a live pairing code. |
@@ -47,7 +49,7 @@ The shared header wraps with large type so navigation remains visible. The skip 
 
 ## Verification
 
-Playwright captured 160 before and 160 after views across 20 routes. Seven routes overflowed at 390 px and 200% text in both themes before the change. All 160 final views fit the viewport after merging main. Axe reported zero violations for the selected WCAG A and AA rules across the 24 mobile views of the priority screens. A separate pass measured rendered buttons, links, disclosure controls and clickable option labels against the 44 px target. The inline code link on Add phone was the remaining exception.
+Playwright captured 160 baseline views across 20 routes. Seven routes overflowed at 390 px and 200% text in both themes before the change. The final matrix covers 176 views across 22 routes, including Home screen and Phone settings, which arrived on main during the review. All 176 fit the viewport. Axe reported zero violations for the selected WCAG A and AA rules across the 24 mobile views of the priority screens. A separate pass measured rendered buttons, links, disclosure controls and clickable option labels against the 44 px target. The inline code link on Add phone was the remaining exception.
 
 Browser interaction checks passed for the skip link, keyboard navigation to a phone and its Apps page, app search and switching, contact validation and creation, the weekday expander, an empty app list, and Location loading, error, retry and map fallback. Both zoom controls measured 44 × 44 px and responded to Enter with a local map style fixture. The route matrix included empty approvals and schedules plus the missing-token states for invitations and sign-in callbacks. Real devices, mail delivery, successful app-link handoff, push permission and map tiles remain open.
 
