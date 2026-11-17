@@ -123,7 +123,7 @@ export default {
     lead:
       "Plainphone keeps as little as it can, for as short a time as it can. This page says what that means in practice. It is written to be read, not to hide things.",
     status:
-      "Plainphone is early. The parent app and the server exist, but the Plainphone app on the phone does not connect to them yet, so today it sends nothing to the server. Where something only starts once phones are connected, this page says so. A phone can already be set up to use the web filter, which is covered below.",
+      "Plainphone is early. The parent app, the server, the web filter and the Plainphone app on the phone all work together, but it is not ready for everyday use yet. When what Plainphone stores changes, this page changes first.",
     tocLabel: "On this page",
     short: {
       title: "The short version",
@@ -161,7 +161,7 @@ export default {
               "your email address and your language (English or Danish)",
               "the sign-in link you asked for: your email address, an expiry time and a hash of the link. It is deleted about a day after it expires, also when no account exists for that address",
               "your session: a hash of the key your browser holds and when it ends (60 days at most, or when you log out). We do not store your IP address or your device",
-              "your household: its name, who is in it, and the invitations you have sent, with the invited email address and expiry date",
+              "your household: its name, who is in it, and the invitations you have sent, with the invited email address and expiry date. An invitation is deleted when it is accepted, and a day after it expires",
             ],
           },
           "Everyone in a household can see each other’s email addresses and manage all of its phones. Sign-in links, sessions and the keys that phones use are stored as hashes.",
@@ -175,12 +175,12 @@ export default {
           {
             list: [
               "the name the adult gives the phone, whether it is a child’s or an adult’s own phone, its time zone and when it last contacted the server",
-              "a few short facts the phone reports when it pairs, such as its model and Android version",
+              "a few short facts the phone reports when it pairs, such as its model and Android version, and its latest status: battery level, app version, whether its lock is intact and which web filter address it uses. Each report replaces the one before",
               "the apps on the phone (name and package name) and which of them are allowed",
               "approved contacts: the names and numbers a parent types into the parent app. The server holds nothing else from the phone’s contacts",
               "web filter settings: which categories are blocked, and the domains the parent allows or blocks",
               "school time and bedtime, and the apps allowed during them",
-              "on an adult’s own phone: the settings of the key (a delay, or the email address of a trusted person) and a record of the changes that waited for the key",
+              "on an adult’s own phone: the settings of the key (a delay, or the email address of a trusted person) and the changes that wait for the key. A change that has been applied, cancelled or rejected is kept for 30 days and then deleted",
             ],
           },
           "A trusted person you name gets an email. Once signed in, they can see the phone’s name, what is being asked for, and your email address.",
@@ -267,11 +267,11 @@ export default {
                 ],
                 [
                   "Your account (email address, language)",
-                  "Until the account is deleted. There is no delete button yet, so ask us (see Your rights)",
+                  "Until you delete the account under Settings in the app, or ask us to",
                 ],
                 [
                   "Household, phones, apps, contacts, school time, filter settings",
-                  "Until the phone or the household is removed. There is no button for either in the app yet, so ask us. A removed contact or schedule is deleted when the removal takes effect",
+                  "Until the phone is removed (on the phone’s page in the app) or your account is deleted. A household is deleted with the account of its last member. A removed contact or schedule is deleted when the removal takes effect",
                 ],
                 [
                   "Latest position",
@@ -279,11 +279,11 @@ export default {
                 ],
                 [
                   "Changes that waited for the key on an adult’s own phone",
-                  "Until the phone is removed",
+                  "While they wait, and 30 days after they were applied, cancelled or rejected",
                 ],
                 [
                   "Invitations",
-                  "They stop working after 7 days. The record is not deleted automatically yet. You can withdraw an open invitation, and we can remove the rest when you ask",
+                  "Deleted when accepted. Otherwise they stop working after 7 days and are deleted a day later. You can withdraw an open invitation at any time",
                 ],
                 ["Web filter counters", "24 hours"],
                 [
@@ -308,11 +308,13 @@ export default {
               "change a phone’s contacts, apps, web filter and schedules",
               "switch location off, which deletes the stored position",
               "withdraw an open invitation",
-              "leave a household (the last member cannot leave)",
+              "rename or remove a phone. Removing it deletes everything stored about it, and the web filter is asked to forget its ClientID until it confirms. On an adult’s own phone the removal waits for the key",
+              "leave a household (the last member cannot leave, but can delete their account)",
+              "delete your account under Settings. A household you share with another parent stays with them, with its phones. A household only you belong to is deleted with its phones. If you are someone’s trusted person, their key becomes a delay instead. In a household only you belong to, phones with a key (an adult’s own phone) must be removed first, through the key",
               "log out, which ends the session",
             ],
           },
-          "There is no button yet to rename or remove a phone, delete your account, download your data or remove an expired invitation. Ask us for these (see Who is responsible). Removing a phone deletes everything stored about it and asks the web filter to forget its ClientID. We check that you control the email address before we change or delete anything, and we aim to answer within a month.",
+          "There is no button yet to download your data. Ask us for that, or for anything else on this list (see Who is responsible). We check that you control the email address before we change or delete anything, and we aim to answer within a month.",
         ],
       },
       {

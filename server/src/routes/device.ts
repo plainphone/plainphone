@@ -6,14 +6,16 @@ import { and, eq, isNull, lt, lte, notInArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { locations, pairings, phoneApps, phones } from "../db/schema.js";
+import { locations, pairings, phoneApps, phones, PROTECTIONS } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName } from "../lib/validation.js";
 import { applyDueChanges } from "../services/changes.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
-import { rulesDocument, STARTER_PACKS } from "../services/phones.js";
+import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
+import { limitTarget } from "../services/limits.js";
+import { rulesDocument } from "../services/phones.js";
 
 export const PAIRING_MINUTES = 15;
 export const DEVICE_PREFIX = "pp_d_";
@@ -25,8 +27,16 @@ const deviceInfo = z.record(z.string().max(40), z.string().max(200)).refine((r) 
 
 function starterPack(timezone: string): Set<string> {
   // Good enough until the parent picks a country: Danish time zone means Danish pack.
-  return new Set(timezone === "Europe/Copenhagen" ? STARTER_PACKS.dk : []);
+  const country = phoneCountry(timezone);
+  return new Set(country ? STARTER_PACKS[country] : []);
 }
+
+/** Light mode cannot be intact without these (docs/sync-api.md). */
+const LIGHT_LOCK = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"] as const;
+
+const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k, z.boolean().optional()]))) as z.ZodType<
+  Partial<Record<(typeof PROTECTIONS)[number], boolean>>
+>;
 
 export function deviceRoutes(ctx: Ctx) {
   const app = new Hono<Env>();
@@ -246,17 +256,35 @@ export function deviceRoutes(ctx: Ctx) {
         rulesEtag: z.string().max(100).nullable(),
         rulesAppliedAt: z.iso.datetime({ offset: true }).nullable(),
         dnsHost: z.string().max(253).nullable(),
+        mode: z.enum(["strong", "light"]).optional(),
+        protections: protections.optional(),
+        timeUsed: z
+          .record(limitTarget, z.number().int().min(0).max(1440))
+          .refine((r) => Object.keys(r).length <= 200, "at most 200 entries")
+          .optional(),
       }),
     );
     const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;
     if (appliedAt && appliedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
       return c.json({ error: "rulesAppliedAt is in the future" }, 400);
     }
+    // A light-mode phone (paired as light, or reporting light) is only intact when all six
+    // light protections are on, no policy failed and no maintenance unlock runs, whatever
+    // it says about lockIntact. The server only ever makes this stricter.
+    const p = input.protections;
+    const light = phone.mode === "light" || input.mode === "light";
+    const lockIntact =
+      input.lockIntact &&
+      (!light ||
+        (p !== undefined &&
+          LIGHT_LOCK.every((k) => p[k] === true) &&
+          input.failedPolicies.length === 0 &&
+          !input.maintenance));
     // The newest report replaces the one before; no history is kept. Times are stored in UTC.
     await ctx.db
       .update(phones)
       .set({
-        deviceStatus: { ...input, rulesAppliedAt: appliedAt?.toISOString() ?? null },
+        deviceStatus: { ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null },
         statusReportedAt: ctx.now(),
       })
       .where(eq(phones.id, phone.id));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Link } from "react-router";
-import { LoadGate, PageTitle, useLoad, useNow } from "../components/ui";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
 import { formatRelative } from "../lib/format";
@@ -13,6 +14,15 @@ interface Row {
 export function PhonesPage() {
   const { t, locale } = useI18n();
   const now = useNow(60_000);
+  // A note handed over by the page that sent us here, such as "The phone was removed."
+  const loc = useLocation();
+  const navigate = useNavigate();
+  const handed = (loc.state as { notice?: string } | null)?.notice;
+  const [notice, setNotice] = useState<Notice | null>(handed ? { tone: "success", text: handed } : null);
+  // Shown once: not again after a reload or going back.
+  useEffect(() => {
+    if (handed) navigate(".", { replace: true, state: null });
+  }, [handed, navigate]);
   const res = useLoad(async (): Promise<Row[]> => {
     const { phones } = await api.get<{ phones: Phone[] }>("/phones");
     return Promise.all(
@@ -38,6 +48,7 @@ export function PhonesPage() {
           </Link>
         )}
       </div>
+      <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(rows) =>
           rows.length === 0 ? (

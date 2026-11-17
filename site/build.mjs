@@ -248,7 +248,7 @@ function webpSize(file) {
   if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WEBP" || b.toString("ascii", 12, 16) !== "VP8 ") {
     throw new Error(`${file}: not a lossy WebP`);
   }
-  return { width: (b.readUInt16LE(26) & 0x3fff) / 2, height: (b.readUInt16LE(28) & 0x3fff) / 2 };
+  return { width: Math.round((b.readUInt16LE(26) & 0x3fff) / 2), height: Math.round((b.readUInt16LE(28) & 0x3fff) / 2) };
 }
 
 // The setup guide: numbered steps, each with a dashboard screenshot (img/) or a schematic phone (figures.mjs).

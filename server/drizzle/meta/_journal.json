@@ -19,8 +19,22 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1794942330225,
-      "tag": "0002_enrollments",
+      "when": 1794942177558,
+      "tag": "0002_dns_deletions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794944051679,
+      "tag": "0003_light_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794944510866,
+      "tag": "0004_enrollments",
       "breakpoints": true
     }
   ]
