@@ -2,7 +2,7 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, notInArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { respondWithRules } from "../services/phones.js";
+import { installOverrunFromStatus, isInstallOverrun, respondWithRules } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -387,17 +387,27 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
           LIGHT_LOCK.every((k) => p[k] === true) &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
-    // The newest report replaces the one before; no history is kept. Times are stored in UTC.
-    // The previous report is read in the same statement, so two reports racing each other
-    // cannot both see "was protected" and alert twice.
-    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus }>(sql`
-      with old as (select device_status from phones where id = ${phone.id} for update)
-      update phones set
-        device_status = ${JSON.stringify({ ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null })}::jsonb,
-        status_reported_at = ${ctx.now().toISOString()}::timestamptz
-      from old where phones.id = ${phone.id}
-      returning old.device_status as status`);
-    const lost = protectionLost(prev?.status ?? null, { ...input, lockIntact });
+    const status = { ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
+    const policy = input.failedPolicies.find(isInstallOverrun);
+    const lost = await ctx.db.transaction(async (tx) => {
+      // Serialize reports so retries keep the original expiry and only one report sees protection lost.
+      const [prev] = await tx.select({
+        status: phones.deviceStatus,
+        reportedAt: phones.statusReportedAt,
+      }).from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!prev) return null;
+      const now = ctx.now();
+      const previousOverrun = installOverrunFromStatus(prev.status, prev.reportedAt);
+      const installOverrun = policy && (policy !== previousOverrun?.policy ||
+        !prev.status?.failedPolicies.includes(policy))
+        ? { policy, receivedAt: now.toISOString() }
+        : previousOverrun;
+      await tx.update(phones).set({
+        deviceStatus: { ...status, installOverrun },
+        statusReportedAt: now,
+      }).where(eq(phones.id, phone.id));
+      return protectionLost(prev.status, status);
+    });
     if (lost) {
       await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
     }

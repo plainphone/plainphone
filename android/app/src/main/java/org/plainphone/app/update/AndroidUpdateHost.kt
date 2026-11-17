@@ -191,7 +191,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                 if (status != 200) throw IOException("APK download: HTTP $status")
                 if (conn.url.protocol != "https") throw IOException("APK download left https")
                 val expected = conn.contentLengthLong
-                if (expected > MAX_APK_BYTES) throw IOException("APK is too large ($expected bytes)")
+                if (expected > MAX_APK_BYTES) throw UpdateMetadataException("APK is too large ($expected bytes)")
                 val digest = conn.inputStream.use { input ->
                     part.outputStream().use { out -> copyVerified(input, out, expected) }
                 }
@@ -215,7 +215,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                 val n = input.read(buf)
                 if (n < 0) break
                 total += n
-                if (total > MAX_APK_BYTES) throw IOException("APK is too large")
+                if (total > MAX_APK_BYTES) throw UpdateMetadataException("APK is too large")
                 digest.update(buf, 0, n)
                 out.write(buf, 0, n)
             }

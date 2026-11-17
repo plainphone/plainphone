@@ -360,6 +360,17 @@ class UpdateAlarmTest {
         )
     }
 
+    @Test fun legacyOverrunSurvivesUpgradeAndExpiresFromFirstRead() {
+        assertTrue(leasePrefs.edit().putString("last_overrun", "40,3").commit())
+        val start = System.currentTimeMillis()
+        val store = SyncStore(context, FakeSecretBox())
+        assertEquals(40L, store.installWindowOverrun(start)?.seconds)
+        assertEquals(3L, store.installWindowOverrun(start)?.sequence)
+        assertNull(store.installWindowOverrun(start + Duration.ofDays(7).toMillis()))
+        store.acknowledgeInstallOverrun(3)
+        assertNull(store.installWindowOverrun(start))
+    }
+
     @Test fun overrunExpiresEvenWithoutAcknowledgement() {
         restoreOverdueLease(overrunMs = 40_000)
         Lock.recoverInstall(context)

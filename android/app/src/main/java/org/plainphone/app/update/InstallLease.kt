@@ -319,8 +319,8 @@ class InstallLease(
         // Android creates a new InstallLease for each recovery entry point.
         private val pendingClosures = mutableMapOf<Pair<String, Lease>, Lease>()
 
-        internal fun latestOverrun(context: Context): InstallWindowOverrun? = synchronized(LOCK) {
-            PrefsLeaseStore(context).latestOverrun()
+        internal fun latestOverrun(context: Context, nowMs: Long): InstallWindowOverrun? = synchronized(LOCK) {
+            PrefsLeaseStore(context).latestOverrun(nowMs)
         }
 
         /** Binds the durable leases to the Device Owner restriction and recovery entry points. */
@@ -379,11 +379,18 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
         lease?.let { holder to it }
     }.toMap()
 
-    fun latestOverrun(): InstallWindowOverrun? {
+    @SuppressLint("ApplySharedPref")
+    fun latestOverrun(nowMs: Long): InstallWindowOverrun? {
         val parts = prefs.getString(OVERRUN, null)?.split(',') ?: return null
         val seconds = parts.getOrNull(0)?.toLongOrNull() ?: return null
         val sequence = parts.getOrNull(1)?.toLongOrNull() ?: return null
-        val recordedAtMs = parts.getOrNull(2)?.toLongOrNull() ?: return null
+        val recordedAtMs = if (parts.size == 2) {
+            // Legacy records have no event time. Start their expiry at first observation.
+            prefs.edit().putString(OVERRUN, "$seconds,$sequence,$nowMs").commit()
+            nowMs
+        } else {
+            parts.getOrNull(2)?.toLongOrNull() ?: return null
+        }
         return InstallWindowOverrun(seconds, sequence, recordedAtMs)
     }
 

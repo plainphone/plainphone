@@ -202,7 +202,9 @@ export const phones = pgTable(
     releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
-    deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
+    deviceStatus: jsonb("device_status").$type<DeviceStatus & {
+      installOverrun?: { policy: string; receivedAt: string };
+    }>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
     /** When the parents were told the phone is offline; cleared when it is seen again. */

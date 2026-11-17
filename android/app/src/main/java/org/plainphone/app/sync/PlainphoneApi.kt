@@ -107,7 +107,12 @@ class HttpError(val status: Int, message: String) : IOException("HTTP $status: $
  * Plain [HttpURLConnection] client, no dependencies. Blocking: call it from a worker thread.
  * Network failures surface as [IOException]; nothing here ever changes the lock.
  */
-class PlainphoneApi(baseUrl: String) : SyncApi {
+class PlainphoneApi internal constructor(
+    baseUrl: String,
+    private val openConnection: (URL) -> HttpURLConnection,
+) : SyncApi {
+    constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
+
     private companion object {
         // Disconnect can block on I/O. Keep it off the screen broadcast thread.
         val disconnects = Executors.newSingleThreadExecutor()
@@ -126,7 +131,7 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         readTimeoutMs: Int = 30_000,
         cancellation: CancellationSignal? = null,
     ): Response {
-        val conn = URL(base + path).openConnection() as HttpURLConnection
+        val conn = openConnection(URL(base + path))
         try {
             conn.requestMethod = method
             conn.connectTimeout = 15_000

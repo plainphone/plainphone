@@ -278,10 +278,31 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
   return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0);
 }
 
+const INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000;
+
+export function isInstallOverrun(policy: string): boolean {
+  return /^install window overran: \d+s$/.test(policy);
+}
+
+export function installOverrunFromStatus(status: Phone["deviceStatus"], reportedAt: Date | null) {
+  if (status?.installOverrun) return status.installOverrun;
+  // Older snapshots kept the notice in failedPolicies with only the status timestamp.
+  const policy = status?.failedPolicies.find(isInstallOverrun);
+  return policy && reportedAt ? { policy, receivedAt: reportedAt.toISOString() } : undefined;
+}
+
+function summaryStatus(phone: Phone, now: Date) {
+  if (!phone.deviceStatus || !phone.statusReportedAt) return null;
+  const { installOverrun: _storedOverrun, ...status } = phone.deviceStatus;
+  const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
+  const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < INSTALL_OVERRUN_TTL_MS;
+  const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
+  // Reserve the last slot for the notice only when the current report leaves room.
+  if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
+  return { ...status, failedPolicies, reportedAt: phone.statusReportedAt.toISOString() };
+}
+
 function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {
-  const status = phone.deviceStatus;
-  const reportedAt = phone.statusReportedAt;
-  const showOverrun = reportedAt && ctx.now().getTime() - reportedAt.getTime() < 7 * 24 * 60 * 60_000;
   return {
     id: phone.id,
     name: phone.name,
@@ -302,11 +323,6 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
-    status: status && reportedAt ? {
-      ...status,
-      failedPolicies: showOverrun ? status.failedPolicies
-        : status.failedPolicies.filter((policy) => !/^install window overran: \d+s$/.test(policy)),
-      reportedAt: reportedAt.toISOString(),
-    } : null,
+    status: summaryStatus(phone, ctx.now()),
   };
 }

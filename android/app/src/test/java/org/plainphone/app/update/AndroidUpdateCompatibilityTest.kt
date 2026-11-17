@@ -6,6 +6,13 @@ import android.content.pm.PackageInfo
 import android.content.pm.Signature
 import android.os.PowerManager
 import androidx.test.core.app.ApplicationProvider
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit.SECONDS
+import java.util.concurrent.atomic.AtomicBoolean
+import org.plainphone.app.sync.PlainphoneApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -54,6 +61,44 @@ class AndroidUpdateCompatibilityTest {
         listener.wake()
         tasks.removeFirst().run()
         assertEquals(1, polls)
+    }
+
+    @Test fun screenOffDisconnectsAnInFlightUpdateRequest() {
+        val interactive = AtomicBoolean(true)
+        val waitingForResponse = CountDownLatch(1)
+        val disconnected = CountDownLatch(1)
+        val finished = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        val api = PlainphoneApi("https://example.org") { url ->
+            object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun usingProxy() = false
+                override fun disconnect() = disconnected.countDown()
+                override fun getResponseCode(): Int {
+                    waitingForResponse.countDown()
+                    disconnected.await()
+                    throw IOException("disconnected")
+                }
+            }
+        }
+        try {
+            val listener = InteractiveUpdatePoll(interactive::get, executor) { session ->
+                try {
+                    api.waitForUpdateRequest("token", 0, session.cancellation)
+                } catch (_: IOException) {
+                    finished.countDown()
+                }
+            }
+            listener.wake()
+            assertTrue(waitingForResponse.await(5, SECONDS))
+            interactive.set(false)
+            listener.sleep()
+            assertTrue("The HTTP call should be disconnected on screen-off", finished.await(5, SECONDS))
+        } finally {
+            disconnected.countDown()
+            executor.shutdown()
+            assertTrue(executor.awaitTermination(5, SECONDS))
+        }
     }
 
     @Test fun conflictIsRetried() {

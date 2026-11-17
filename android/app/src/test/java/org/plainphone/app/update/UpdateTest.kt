@@ -34,11 +34,23 @@ class UpdateTest {
     @get:Rule val files = TemporaryFolder()
 
     @Test fun interruptedDownloadNeverReachesTheInstallerAndLeavesNoFile() {
+        assertRejectedDownload(3L, "after 2 of 3 bytes", UpdateErrorCode.NETWORK)
+    }
+
+    @Test fun oversizedDownloadIsReportedAsAValidationFailure() {
+        assertRejectedDownload(
+            AndroidUpdateHost.MAX_APK_BYTES + 1,
+            "APK is too large",
+            UpdateErrorCode.METADATA_MISMATCH,
+        )
+    }
+
+    private fun assertRejectedDownload(size: Long, detail: String, code: UpdateErrorCode) {
         val f = Fixture()
         val dir = files.newFolder()
         val connection = object : HttpURLConnection(URL("https://example.org/app.apk")) {
             override fun getResponseCode() = 200
-            override fun getContentLengthLong() = 3L
+            override fun getContentLengthLong() = size
             override fun getInputStream() = byteArrayOf(1, 2).inputStream()
             override fun disconnect() = Unit
             override fun usingProxy() = false
@@ -64,8 +76,9 @@ class UpdateTest {
             override fun promptUpdate(latest: ReleaseInfo) = error("unexpected light-mode prompt")
         }
         val outcome = SelfUpdater(host, store).run(force = true)
-        assertTrue((outcome as SelfUpdater.Outcome.Failed).why.contains("after 2 of 3 bytes"))
+        assertTrue((outcome as SelfUpdater.Outcome.Failed).why.contains(detail))
         assertEquals(SelfUpdater.STATE_FAILED, store.report?.state)
+        assertEquals(code, store.report?.errorCode)
         assertTrue(dir.listFiles()!!.isEmpty())
         assertTrue(f.alarms.isEmpty())
         assertTrue(f.restricted)

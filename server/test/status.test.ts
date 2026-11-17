@@ -61,8 +61,28 @@ it("hides an install overrun from an old status snapshot", async () => {
   const path = `/api/phones/${phoneId}`;
   expect((await parent.get(path)).json.status.failedPolicies).toEqual(failedPolicies);
   await h.ctx.db.update(phones)
-    .set({ statusReportedAt: new Date(h.clock.now.getTime() - 7 * 24 * 60 * 60_000) })
+    .set({
+      deviceStatus: report({ failedPolicies }),
+      statusReportedAt: new Date(h.clock.now.getTime() - 7 * 24 * 60 * 60_000),
+    })
     .where(eq(phones.id, phoneId));
+  expect((await parent.get(path)).json.status.failedPolicies).toEqual(["another policy failed"]);
+});
+
+it("keeps the acknowledged install overrun through later reports until its original expiry", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const path = `/api/phones/${phoneId}`;
+  const notice = "install window overran: 45s";
+  const firstReport = h.clock.now.getTime();
+  expect((await device.put("/api/device/status", report({ failedPolicies: [notice] }))).status).toBe(204);
+  h.clock.now = new Date(firstReport + 6 * 24 * 60 * 60_000);
+  expect((await device.put("/api/device/status", report({ failedPolicies: [notice] }))).status).toBe(204);
+  expect((await device.put("/api/device/status", report({ failedPolicies: ["another policy failed"] }))).status).toBe(204);
+  const { status } = (await parent.get(path)).json;
+  expect(status.failedPolicies).toEqual([notice, "another policy failed"]);
+  expect(status.reportedAt).toBe(h.clock.now.toISOString());
+  h.clock.now = new Date(firstReport + 7 * 24 * 60 * 60_000);
   expect((await parent.get(path)).json.status.failedPolicies).toEqual(["another policy failed"]);
 });
 

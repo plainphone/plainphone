@@ -74,9 +74,9 @@ attempt to coincide with that window. Plainphone records a late relock when it h
 more than 30 seconds after the deadline, or when startup or boot recovers an expired
 lease. The latest incident survives restarts. The phone includes it in status reports
 until the server acknowledges storage with HTTP 204, or for up to seven days after
-recording it. The dashboard and parent app show it until the next report without the
-incident. If the phone goes offline, the server stops showing the incident seven days
-after receiving it. Across a reboot, the delay is
+recording it. Older records have no timestamp, so their seven days start when the
+upgraded app first reads them. The dashboard and parent app show the received notice
+for seven days, including after newer status reports omit it. Across a reboot, the delay is
 estimated from the phone's wall clock. For older lease records without a wall-clock
 deadline, recovery reports the incident with a zero-second lower bound because the
 previous boot's elapsed clock cannot be compared with the new one.
