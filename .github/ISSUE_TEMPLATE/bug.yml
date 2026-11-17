@@ -1,0 +1,55 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A way around the lock, or a way to read someone else's data, is a security issue. Please report it privately as described in [SECURITY.md](https://github.com/plainphone/plainphone/blob/main/SECURITY.md), not here.
+
+        Leave out names, phone numbers, addresses and other personal data, including in screenshots.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options:
+        - Phone app, strong mode
+        - Phone app, light mode
+        - Parent web app (app.plainphone.org)
+        - Parent app (iOS or Android)
+        - Server or self-hosting
+        - Filter DNS
+        - Website or documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: input
+    id: phone
+    attributes:
+      label: Phone
+      description: For phone issues, the model, Android version and security patch level.
+      placeholder: e.g. Pixel 7, Android 16, patch 2026-10-05
+  - type: input
+    id: version
+    attributes:
+      label: Plainphone version
+      placeholder: e.g. v0.1.7
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove personal data first.
