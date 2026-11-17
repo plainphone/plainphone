@@ -21,7 +21,9 @@ object LightRelease {
             PlainphoneVpnService.stop(context)
         })
         add(step("guard off") {
-            check(GuardService.disable()) { "switch it off in Settings > Accessibility" }
+            // Already off in Settings: nothing to switch off. Enabled but not running yet (the process
+            // has just started): fails, and the next try finds it running.
+            if (Protections.isGuardEnabled(context)) check(GuardService.disable()) { "switch it off in Settings > Accessibility" }
         })
         context.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE).edit().clear().apply()
     }

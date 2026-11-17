@@ -176,6 +176,7 @@ class MainActivity : Activity() {
             val sync = SyncStore(this@MainActivity)
             appendLine(
                 when {
+                    sync.released -> getString(R.string.status_sync_released)
                     sync.removed -> getString(R.string.status_sync_removed)
                     sync.isPaired -> sync.lastSyncAtMs
                         ?.let { getString(R.string.status_sync_ok, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))) }

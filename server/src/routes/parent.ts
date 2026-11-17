@@ -635,6 +635,14 @@ export function parentRoutes(ctx: Ctx) {
     return change(c, phone, { type: "phone.remove", dnsClientId: phone.dnsClientId });
   });
 
+  // Switches Plainphone off on the phone, like the phone's own maintenance screen does. The
+  // phone then calls POST /device/released and disappears from the dashboard. It goes through
+  // the key on a Self phone, like removing it.
+  app.post("/phones/:pid/release", async (c) => {
+    const phone = await requirePhone(c);
+    return change(c, phone, { type: "phone.release" });
+  });
+
   // Requests from the phone: an app from its list, or a contact.
   app.get("/phones/:pid/requests", async (c) => {
     const phone = await requirePhone(c);

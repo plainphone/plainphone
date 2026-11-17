@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "release_requested_at" timestamp with time zone;
