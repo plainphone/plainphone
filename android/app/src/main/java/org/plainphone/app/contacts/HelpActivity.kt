@@ -42,6 +42,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.plainphone.app.R
+import org.plainphone.app.telephony.SmsThread
+import org.plainphone.app.telephony.SmsThreadKind
 import org.plainphone.app.ui.PhoneActivity
 import org.plainphone.app.ui.PlainphoneTheme
 import org.plainphone.app.ui.placeCall
@@ -72,10 +74,14 @@ class HelpActivity : ComponentActivity() {
                 }) { padding ->
                     val url = website
                     if (url != null) {
-                        val view = remember(url) { helpWebView(links, url) }
+                        val view = remember(url) { helpWebView(links) }
                         AndroidView(factory = { view }, modifier = Modifier.padding(padding).fillMaxSize())
                         DisposableEffect(view) {
-                            onDispose { closeHelpWebView(view) }
+                            val cancelLoad = helpSessions.open { view.loadUrl(url) }
+                            onDispose {
+                                cancelLoad()
+                                closeHelpWebView(view)
+                            }
                         }
                     } else {
                         LazyColumn(
@@ -121,7 +127,7 @@ class HelpActivity : ComponentActivity() {
     private fun textHelpLine(number: String) {
         val smsApp = Telephony.Sms.getDefaultSmsPackage(this)
         val intent = if (smsApp == null || smsApp == packageName) {
-            PhoneActivity.conversationIntent(this, number)
+            PhoneActivity.conversationIntent(this, SmsThread(number, SmsThreadKind.HELP))
         } else {
             Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null)).setPackage(smsApp)
         }
@@ -137,12 +143,11 @@ class HelpActivity : ComponentActivity() {
         view.stopLoading()
         view.clearHistory()
         view.destroy()
-        WebStorage.getInstance().deleteAllData()
-        CookieManager.getInstance().removeAllCookies { CookieManager.getInstance().flush() }
+        helpSessions.clear()
     }
 
     @SuppressLint("SetJavaScriptEnabled") // Official help sites use JavaScript for chat and accessibility.
-    private fun helpWebView(links: HelpLinks, url: String): WebView = WebView(this).apply {
+    private fun helpWebView(links: HelpLinks): WebView = WebView(this).apply {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
@@ -169,13 +174,48 @@ class HelpActivity : ComponentActivity() {
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                // Initial iframe loads and form submissions can bypass the navigation callback.
-                if (!links.allowsNavigation(request.url)) {
+                // WebView skips the navigation callback for POST and interception for redirects.
+                // Reject submissions before the network can preserve their method across redirects.
+                if ((request.method != "GET" && request.method != "HEAD") || !links.allowsNavigation(request.url)) {
                     return WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", emptyMap(), null)
                 }
                 return null
             }
         }
-        loadUrl(url)
     }
+}
+
+/** Main-thread gate shared by all Help activities, including a quick close and reopen. */
+internal class HelpSessions(private val clearStorage: (() -> Unit) -> Unit) {
+    private var clearing = false
+    private val pending = ArrayDeque<() -> Unit>()
+
+    fun clear() = enqueue {}
+
+    fun open(load: () -> Unit): () -> Unit {
+        var cancelled = false
+        enqueue { if (!cancelled) load() }
+        return { cancelled = true }
+    }
+
+    private fun enqueue(then: () -> Unit) {
+        pending.addLast(then)
+        drain()
+    }
+
+    private fun drain() {
+        if (clearing || pending.isEmpty()) return
+        clearing = true
+        val then = pending.removeFirst()
+        clearStorage {
+            then()
+            clearing = false
+            drain()
+        }
+    }
+}
+
+private val helpSessions = HelpSessions { complete ->
+    WebStorage.getInstance().deleteAllData()
+    CookieManager.getInstance().removeAllCookies { complete() }
 }

@@ -96,11 +96,13 @@ object CallNotifications {
 
     fun showMessage(
         context: Context, name: String, number: String, body: String, privateOnLockScreen: Boolean = false,
+        helpReply: Boolean = false,
     ) {
         createChannels(context)
+        val thread = SmsThread(number, if (helpReply) SmsThreadKind.HELP else SmsThreadKind.CONTACT)
         val open = PendingIntent.getActivity(
-            context, number.hashCode(),
-            PhoneActivity.conversationIntent(context, number),
+            context, thread.hashCode(),
+            PhoneActivity.conversationIntent(context, thread).setIdentifier("${thread.kind}:$number"),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = Notification.Builder(context, CHANNEL_MESSAGES)
@@ -113,12 +115,15 @@ object CallNotifications {
             .setAutoCancel(true)
             .apply { if (privateOnLockScreen) setVisibility(Notification.VISIBILITY_SECRET) }
             .build()
-        runCatching { context.getSystemService(NotificationManager::class.java).notify(ID_MESSAGE_BASE + (number.hashCode() and 0xffff), n) }
+        runCatching { context.getSystemService(NotificationManager::class.java).notify(messageId(thread), n) }
     }
 
-    fun cancelMessage(context: Context, number: String) {
-        context.getSystemService(NotificationManager::class.java).cancel(ID_MESSAGE_BASE + (number.hashCode() and 0xffff))
+    fun cancelMessage(context: Context, thread: SmsThread) {
+        context.getSystemService(NotificationManager::class.java).cancel(messageId(thread))
     }
+
+    private fun messageId(thread: SmsThread): Int =
+        ID_MESSAGE_BASE + 2 * (thread.number.hashCode() and 0xffff) + if (thread.kind == SmsThreadKind.HELP) 1 else 0
 
     /** Answering opens the call screen, so it is an activity intent (Android blocks notification trampolines). */
     private fun answerIntent(context: Context): PendingIntent = PendingIntent.getActivity(

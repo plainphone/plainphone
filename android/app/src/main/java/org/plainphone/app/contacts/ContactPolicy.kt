@@ -33,8 +33,6 @@ data class ContactRules(
 
     fun isHelpNumber(number: String?): Boolean = help.contains(number, Helplines.country(country))
 
-    fun smsContact(number: String?): ApprovedContact? = helpContact(number, Channel.SMS) ?: contactFor(number)
-
     /** The approved contact behind [number], if any. */
     fun contactFor(number: String?): ApprovedContact? {
         val key = PhoneNumbers.normalize(number, country) ?: return null

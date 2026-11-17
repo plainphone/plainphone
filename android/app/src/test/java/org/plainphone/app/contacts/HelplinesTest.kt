@@ -284,18 +284,56 @@ class HelplinesTest {
     }
 
     @Test
+    fun `ordinary notification opens the approved contact heading even for a catalogue number`() {
+        val number = "+4554541245"
+        LocalContactPolicySource(context).add(ApprovedContact("Approved contact", number)).getOrThrow()
+        CallNotifications.showMessage(context, "Approved contact", number, "Ordinary SMS", privateOnLockScreen = true)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val open = shadowOf(manager.activeNotifications.single().notification.contentIntent).savedIntent
+        Robolectric.buildActivity(PhoneActivity::class.java, open).setup().use {
+            compose.onNodeWithText("Approved contact").assertExists()
+            compose.onNodeWithText("headspace").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `reopening Help waits for the previous session cookie removal`() {
+        val callbacks = ArrayDeque<() -> Unit>()
+        val sessions = HelpSessions { complete -> callbacks.addLast(complete) }
+        val loads = mutableListOf<String>()
+
+        val close = sessions.open { loads += "first" }
+        callbacks.removeFirst()()
+        assertThat(loads).containsExactly("first")
+        close()
+        sessions.clear()
+
+        val cancel = sessions.open { loads += "closed before loading" }
+        cancel()
+        sessions.clear()
+        sessions.open { loads += "reopened" }
+
+        repeat(3) {
+            callbacks.removeFirst()()
+            assertThat(loads).containsExactly("first")
+        }
+        callbacks.removeFirst()()
+        assertThat(loads).containsExactly("first", "reopened").inOrder()
+    }
+
+    @Test
     fun `initial iframe requests are restricted to catalogue hosts`() {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://headspace.dk/chatten/"), context, HelpActivity::class.java)
         Robolectric.buildActivity(HelpActivity::class.java, intent).setup().use { help ->
             compose.waitForIdle()
             val web = help.get().window.decorView.allViews.filterIsInstance<WebView>().single()
 
-            fun frame(url: String) = object : WebResourceRequest {
+            fun frame(url: String, method: String = "GET") = object : WebResourceRequest {
                 override fun getUrl() = Uri.parse(url)
                 override fun isForMainFrame() = false
                 override fun isRedirect() = false
                 override fun hasGesture() = false
-                override fun getMethod() = "GET"
+                override fun getMethod() = method
                 override fun getRequestHeaders() = emptyMap<String, String>()
             }
 
@@ -305,6 +343,8 @@ class HelplinesTest {
             assertThat(web.webViewClient.shouldOverrideUrlLoading(web, external)).isTrue()
             assertThat(web.webViewClient.shouldInterceptRequest(web, chat)).isNull()
             assertThat(web.webViewClient.shouldOverrideUrlLoading(web, chat)).isFalse()
+            assertThat(web.webViewClient.shouldInterceptRequest(web, frame(chat.url.toString(), "POST"))?.statusCode)
+                .isEqualTo(403)
         }
     }
 

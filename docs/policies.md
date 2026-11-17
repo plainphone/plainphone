@@ -138,11 +138,15 @@ numbers. Each catalogue channel declares whether it accepts incoming replies.
 On phones that enforce approved contacts, a reply-only channel can receive from
 the same number and channel for 24 hours after the child makes contact.
 Ungekontakten has a five-day window because its published response time is one
-to two working days. The phone opens the SMS window after Android reports a
-successful send. Reply windows close on reboot. The phone stores the time
-locally and never syncs it. Other incoming
+to two working days. The phone opens the SMS window after Android reports
+that every part of the message was sent successfully. Reply windows close on
+reboot. The phone stores the time locally and never syncs it. Other incoming
 communications follow ordinary contact rules. SMS sender IDs must be numeric
 to qualify, and the reply window does not authenticate the sender.
+Ordinary contacts and catalogue replies use separate SMS threads, even when
+they share a number. Older incoming messages without sender-type information
+can be read in a thread titled with the number if there is a prior sent message
+to that reply-only helpline in the retained SMS history.
 
 For 112, Android handles emergency calls and Plainphone keeps the existing
 emergency callback window, which also covers callers with a hidden number.
@@ -152,11 +156,15 @@ must be open to reply.
 
 The Help screen and links in Plainphone's Messages open catalogue sites inside
 Plainphone, including during school time and bedtime. HTTP links are upgraded
-to HTTPS. Help loads pages and resources only from the catalogue, including
-iframe destinations. Third-party chat entries match exact hosts. A tapped
-telephone or SMS link opens the matching Help action when the number is
-listed for that channel. Leaving a Help page clears its WebView cookies and
-site storage. Time in Help is exempt from screen-time limits and parent reports.
+to HTTPS. Help checks navigation and initial resource requests against the
+catalogue, including iframe requests. It blocks POST and other submission
+methods because Android WebView can follow their redirects without checking the
+destination. Chats that require those methods need another channel, such as
+calling or texting the listed service. Third-party chat entries match exact
+hosts. A tapped telephone or SMS link opens the matching Help action when the
+number is listed for that channel. Leaving a Help page clears its WebView cookies and
+site storage. A new Help page waits for cookie removal before its first request.
+Time in Help is exempt from screen-time limits and parent reports.
 ppdns also lets the verified help,
 health, body, sexuality and LGBT+ sites through the web filter.
 

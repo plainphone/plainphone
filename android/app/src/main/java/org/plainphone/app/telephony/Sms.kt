@@ -30,9 +30,55 @@ import org.plainphone.app.contacts.contactPolicy
 
 private const val TAG = "Plainphone"
 
-data class SmsMessage(val id: Long, val number: String, val body: String, val atMs: Long, val outgoing: Boolean, val failed: Boolean, val read: Boolean)
+data class SmsMessage(
+    val id: Long,
+    val number: String,
+    val body: String,
+    val atMs: Long,
+    val outgoing: Boolean,
+    val failed: Boolean,
+    val read: Boolean,
+    val sent: Boolean = false,
+)
 
-data class Conversation(val contact: ApprovedContact, val last: SmsMessage, val unread: Int)
+enum class SmsThreadKind { CONTACT, HELP, LEGACY }
+
+data class SmsThread(val number: String, val kind: SmsThreadKind = SmsThreadKind.CONTACT) {
+    fun contact(rules: ContactRules): ApprovedContact? = when (kind) {
+        SmsThreadKind.CONTACT -> rules.contactFor(number)
+        SmsThreadKind.HELP -> rules.helpContact(number, Channel.SMS)
+        SmsThreadKind.LEGACY -> rules.replyHelpContact(number, Channel.SMS)?.let { ApprovedContact(it.number, it.number) }
+    }
+}
+
+data class Conversation(val thread: SmsThread, val contact: ApprovedContact, val last: SmsMessage, val unread: Int)
+
+internal fun smsThreads(
+    messages: List<SmsMessage>, rules: ContactRules, helpReplyIds: Set<String>, legacyThrough: Long,
+    ordinaryOutgoingIds: Set<String> = emptySet(),
+): List<Pair<SmsThread, SmsMessage>> {
+    val firstLegacySend = messages.asSequence()
+        .filter { it.sent && it.id <= legacyThrough }
+        .mapNotNull { message -> rules.replyHelpContact(message.number, Channel.SMS)?.number?.let { it to message.id } }
+        .groupingBy { it.first }
+        .fold(Long.MAX_VALUE) { first, entry -> minOf(first, entry.second) }
+
+    return messages.mapNotNull { message ->
+        val help = rules.helpContact(message.number, Channel.SMS)
+        val ordinary = rules.contactFor(message.number)
+        val thread = when {
+            help != null && ((message.outgoing && message.id.toString() !in ordinaryOutgoingIds) ||
+                message.id.toString() in helpReplyIds) ->
+                SmsThread(help.number, SmsThreadKind.HELP)
+            ordinary != null -> SmsThread(ordinary.number)
+            help != null && message.id <= legacyThrough &&
+                message.id > (firstLegacySend[help.number] ?: Long.MAX_VALUE) ->
+                SmsThread(help.number, SmsThreadKind.LEGACY)
+            else -> null
+        }
+        thread?.let { it to message }
+    }
+}
 
 /**
  * Reads and writes the phone's SMS store. As the default SMS app, Plainphone
@@ -50,13 +96,33 @@ object SmsStore {
     private const val RECENT_LIMIT = 2000
     private const val HELP_REPLY_IDS = "help_reply_ids"
 
-    private fun helpReplyIds(context: Context) =
-        context.getSharedPreferences("plainphone_sms", Context.MODE_PRIVATE)
-            .getStringSet(HELP_REPLY_IDS, emptySet()).orEmpty()
+    private const val ORDINARY_OUTGOING_IDS = "ordinary_outgoing_ids"
+    private const val LEGACY_THROUGH = "legacy_through"
 
-    private fun contactFor(message: SmsMessage, rules: ContactRules, helpReplyIds: Set<String>): ApprovedContact? =
-        if (message.outgoing || message.id.toString() in helpReplyIds) rules.smsContact(message.number)
-        else rules.contactFor(message.number)
+    private fun preferences(context: Context) = context.getSharedPreferences("plainphone_sms", Context.MODE_PRIVATE)
+
+    private fun helpReplyIds(context: Context) = preferences(context).getStringSet(HELP_REPLY_IDS, emptySet()).orEmpty()
+
+    @Synchronized
+    private fun legacyThrough(context: Context): Long {
+        val prefs = preferences(context)
+        if (prefs.contains(LEGACY_THROUGH)) return prefs.getLong(LEGACY_THROUGH, 0)
+        val lastId = runCatching {
+            context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID), null, null, "${Telephony.Sms._ID} DESC LIMIT 1",
+            )?.use { if (it.moveToFirst()) it.getLong(0) else 0L }
+        }.getOrNull() ?: 0L
+        // Persist the boundary before this version inserts any new messages.
+        return if (prefs.edit().putLong(LEGACY_THROUGH, lastId).commit()) lastId else 0L
+    }
+
+    private fun classified(context: Context, rules: ContactRules): List<Pair<SmsThread, SmsMessage>> {
+        val cutoff = legacyThrough(context)
+        return smsThreads(
+            recent(context), rules, helpReplyIds(context), cutoff,
+            preferences(context).getStringSet(ORDINARY_OUTGOING_IDS, emptySet()).orEmpty(),
+        )
+    }
 
     /** The newest messages, newest first. Only approved contacts are shown in the UI, see [conversations]. */
     fun recent(context: Context): List<SmsMessage> {
@@ -79,6 +145,7 @@ object SmsStore {
                         outgoing = type != Telephony.Sms.MESSAGE_TYPE_INBOX,
                         failed = type == Telephony.Sms.MESSAGE_TYPE_FAILED,
                         read = c.getInt(5) != 0,
+                        sent = type == Telephony.Sms.MESSAGE_TYPE_SENT,
                     )
                 }
             }
@@ -89,21 +156,20 @@ object SmsStore {
     /** One conversation per approved contact that has messages, newest first. Other senders stay hidden. */
     fun conversations(context: Context): List<Conversation> {
         val rules = ContactPolicySources.get(context).rules()
-        val helpReplies = helpReplyIds(context)
-        return recent(context)
-            .mapNotNull { m -> contactFor(m, rules, helpReplies)?.let { it to m } }
-            .groupBy({ it.first.number }, { it })
-            .map { (_, items) ->
-                Conversation(items.first().first, items.first().second, items.count { !it.second.outgoing && !it.second.read })
+        return classified(context, rules)
+            .groupBy({ it.first }, { it.second })
+            .mapNotNull { (thread, messages) ->
+                thread.contact(rules)?.let { contact ->
+                    Conversation(thread, contact, messages.first(), messages.count { !it.outgoing && !it.read })
+                }
             }
             .sortedByDescending { it.last.atMs }
     }
 
-    /** Messages with [contact], oldest first. */
-    fun thread(context: Context, contact: ApprovedContact): List<SmsMessage> {
+    /** Messages belonging to the same sender identity, oldest first. */
+    fun thread(context: Context, thread: SmsThread): List<SmsMessage> {
         val rules = ContactPolicySources.get(context).rules()
-        val helpReplies = helpReplyIds(context)
-        return recent(context).filter { contactFor(it, rules, helpReplies)?.number == contact.number }.reversed()
+        return classified(context, rules).mapNotNull { (key, message) -> message.takeIf { key == thread } }.reversed()
     }
 
     fun markRead(context: Context, messages: List<SmsMessage>) {
@@ -124,6 +190,7 @@ object SmsStore {
     fun insertIncoming(
         context: Context, number: String, body: String, atMs: Long, subId: Int, helpReply: Boolean = false,
     ) {
+        legacyThrough(context)
         val values = ContentValues().apply {
             put(Telephony.Sms.ADDRESS, number)
             put(Telephony.Sms.BODY, body)
@@ -136,16 +203,20 @@ object SmsStore {
         val id = runCatching { context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values) }
             .onFailure { Log.e(TAG, "cannot store incoming SMS", it) }
             .getOrNull()?.lastPathSegment?.toLongOrNull()
-        if (helpReply && id != null) {
-            val ids = (helpReplyIds(context).mapNotNull(String::toLongOrNull) + id)
-                .sortedDescending().take(RECENT_LIMIT).map(Long::toString).toSet()
-            context.getSharedPreferences("plainphone_sms", Context.MODE_PRIVATE)
-                .edit().putStringSet(HELP_REPLY_IDS, ids).apply()
-        }
+        if (helpReply && id != null) rememberId(context, HELP_REPLY_IDS, id)
         notifyChanged()
     }
 
-    fun insertOutgoing(context: Context, number: String, body: String): Uri? {
+    @Synchronized
+    private fun rememberId(context: Context, key: String, id: Long) {
+        val prefs = preferences(context)
+        val ids = (prefs.getStringSet(key, emptySet()).orEmpty().mapNotNull(String::toLongOrNull) + id)
+            .sortedDescending().take(RECENT_LIMIT).map(Long::toString).toSet()
+        prefs.edit().putStringSet(key, ids).apply()
+    }
+
+    fun insertOutgoing(context: Context, number: String, body: String, ordinary: Boolean): Uri? {
+        legacyThrough(context)
         val values = ContentValues().apply {
             put(Telephony.Sms.ADDRESS, number)
             put(Telephony.Sms.BODY, body)
@@ -155,6 +226,7 @@ object SmsStore {
             put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_OUTBOX)
         }
         val uri = runCatching { context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values) }.getOrNull()
+        if (ordinary) uri?.lastPathSegment?.toLongOrNull()?.let { rememberId(context, ORDINARY_OUTGOING_IDS, it) }
         notifyChanged()
         return uri
     }
@@ -168,7 +240,7 @@ object SmsStore {
 
 /** Sends SMS, but only to approved contacts (and emergency numbers that accept SMS). */
 object SmsSender {
-    fun send(context: Context, number: String, body: String): Decision {
+    fun send(context: Context, number: String, body: String, kind: SmsThreadKind? = null): Decision {
         val text = body.trim()
         val rules = ContactPolicySources.get(context).rules()
         val decision = contactPolicy(context).decide(rules, Channel.SMS, Direction.OUTGOING, number)
@@ -177,24 +249,27 @@ object SmsSender {
             return decision
         }
         if (text.isEmpty()) return Decision.Block("empty message")
-        val uri = SmsStore.insertOutgoing(context, number, text)
-        val sent = PendingIntent.getBroadcast(
-            context, 0,
-            Intent(context, SmsSentReceiver::class.java)
-                .setIdentifier(UUID.randomUUID().toString()).setData(uri)
-                .putExtra("helpReplyNumber", rules.replyHelpContact(number, Channel.SMS)?.number),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val ordinary = kind == SmsThreadKind.CONTACT && rules.contactFor(number) != null
+        val uri = SmsStore.insertOutgoing(context, number, text, ordinary && rules.helpContact(number, Channel.SMS) != null)
+        val sendId = UUID.randomUUID().toString()
+        val receipts = SmsSendReceipts(context)
         try {
             val sms = Compat.smsManager(context)
             val parts = sms.divideMessage(text)
-            // Only the last part reports back; the message counts as sent when all parts are.
-            val intents = ArrayList<PendingIntent?>(parts.size).apply {
-                repeat(parts.size - 1) { add(null) }
-                add(sent)
-            }
+            check(receipts.start(sendId, parts.size)) { "could not track SMS submission" }
+            val intents = ArrayList(parts.indices.map { part ->
+                PendingIntent.getBroadcast(
+                    context, 0,
+                    Intent(context, SmsSentReceiver::class.java)
+                        .setIdentifier("$sendId:$part").setData(uri)
+                        .putExtra("sendId", sendId).putExtra("part", part)
+                        .putExtra("helpReplyNumber", rules.replyHelpContact(number, Channel.SMS)?.number),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT,
+                )
+            })
             sms.sendMultipartTextMessage(number, null, parts, intents, null)
         } catch (e: Exception) {
+            receipts.cancel(sendId)
             Log.e(TAG, "SMS send failed", e)
             uri?.let { SmsStore.setType(context, it, Telephony.Sms.MESSAGE_TYPE_FAILED) }
             return Decision.Block("could not send: ${e.javaClass.simpleName}")
@@ -208,7 +283,10 @@ object SmsSender {
 /** Marks an outgoing message as sent or failed. Not exported. */
 class SmsSentReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val sent = resultCode == android.app.Activity.RESULT_OK
+        val sendId = intent.getStringExtra("sendId") ?: return
+        val sent = SmsSendReceipts(context).receive(
+            sendId, intent.getIntExtra("part", -1), resultCode == android.app.Activity.RESULT_OK,
+        ) ?: return
         if (sent) {
             intent.getStringExtra("helpReplyNumber")?.let { HelpReplies(context).record(Channel.SMS, it) }
         }
@@ -247,6 +325,7 @@ class SmsDeliverReceiver : BroadcastReceiver() {
             CallNotifications.showMessage(
                 context, contact?.name ?: sender, contact?.number ?: sender, body,
                 privateOnLockScreen = rules.isHelpNumber(sender),
+                helpReply = helpReply != null,
             )
         }
     }
