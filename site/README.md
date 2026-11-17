@@ -21,6 +21,7 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 | Path | What |
 |---|---|
 | `content/en.mjs`, `content/da.mjs` | All copy. Change text here, keep the two languages in step. |
+| `why` in the same files | The research and design page (`/why/`, `/da/hvorfor/`). See the [evidence review](../docs/evidence.md) for source checks and limitations. |
 | `privacy` in the same files | The privacy policy (`/privacy/`, `/da/privacy/`). Change it in the same pull request as anything that changes what the server stores, and update the date in `updated`. The technical basis is [`docs/privacy.md`](../docs/privacy.md) |
 | `setup` in the same files | The setup guide (`/setup/`, `/da/setup/`). The dashboard links to exactly these two addresses, so they must keep existing. Change the steps in the same pull request as anything in the dashboard's Add phone flow or the setup QR code |
 | `figures.mjs` | The schematic phone drawings in the guide: inline SVG, coloured by the page's own custom properties |
