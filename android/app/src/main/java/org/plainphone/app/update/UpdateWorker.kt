@@ -90,7 +90,7 @@ object SelfUpdate {
     }
 
     private fun schedule(context: Context, name: String, constraints: Constraints) {
-        val request = PeriodicWorkRequestBuilder<UpdateWorker>(1, TimeUnit.HOURS)
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(6, TimeUnit.HOURS)
             .setConstraints(constraints)
             .setInitialDelay(10, TimeUnit.MINUTES)
             .build()

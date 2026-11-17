@@ -35,7 +35,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
 
     override fun nowMs() = System.currentTimeMillis()
 
-    override fun installed(): ApkInfo = apkInfo(Compat.packageInfo(pm, context.packageName, certFlags()))
+    override fun installed(): ApkInfo = apkInfo(Compat.packageInfo(pm, context.packageName, PackageManager.GET_SIGNING_CERTIFICATES))
 
     override fun isDeviceOwner(): Boolean =
         context.getSystemService(android.app.admin.DevicePolicyManager::class.java)?.isDeviceOwnerApp(context.packageName) == true
@@ -79,8 +79,8 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
 
     override fun inspect(apk: File): ApkInfo? = runCatching {
         @Suppress("DEPRECATION")
-        val info = pm.getPackageArchiveInfo(apk.path, certFlags())
-        info?.let(::apkInfo)
+        val flags = PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+        pm.getPackageArchiveInfo(apk.path, flags)?.let { apkInfo(it) }
     }.getOrNull()
 
     override fun install(apk: File): String? {
@@ -160,19 +160,21 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         }
     }
 
-    private fun certFlags() = PackageManager.GET_SIGNING_CERTIFICATES
-
-    private fun apkInfo(info: PackageInfo): ApkInfo {
-        val certs = info.signingInfo?.apkContentsSigners.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
-        return ApkInfo(info.packageName, info.longVersionCode, info.versionName ?: "", certs)
-    }
-
     companion object {
         const val CHANNEL = "updates"
         private const val NOTIFICATION_ID = 33
         const val MAX_APK_BYTES = 100L * 1024 * 1024
         private const val MAX_METADATA = 16 * 1024
         private const val INSTALL_TIMEOUT_MIN = 5L
+
+        @Suppress("DEPRECATION")
+        internal fun apkInfo(info: PackageInfo, sdk: Int = Build.VERSION.SDK_INT): ApkInfo {
+            // Android 10's archive parser only collects certificates with GET_SIGNATURES.
+            val signers = info.signingInfo?.apkContentsSigners
+                ?: if (sdk < 30 && info.signingInfo == null) info.signatures else null
+            val certs = signers.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
+            return ApkInfo(info.packageName, info.longVersionCode, info.versionName ?: "", certs)
+        }
 
         fun sha256Hex(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }

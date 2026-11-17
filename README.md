@@ -145,7 +145,8 @@ A phone configured with the script can show a pairing code, which the parent cla
 In strong mode Plainphone checks daily on an unmetered connection or while charging and
 installs a newer release signed with the same certificate when Android allows Plainphone
 to run without battery optimization. **Update now** on the phone's
-dashboard page requests a check as soon as the phone can receive it. In light mode the
+dashboard page uses a direct connection while the screen is on, and push and rules sync
+deliver the request with the screen off. In light mode the
 phone shows a quiet update notification for manual installation. See
 [Android updates](docs/android-updates.md) for the first manual update, the foreground
 watchdog, deadline recovery even when lease storage fails, release metadata, and the

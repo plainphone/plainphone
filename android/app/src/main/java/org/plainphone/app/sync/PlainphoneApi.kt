@@ -2,9 +2,11 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import android.os.CancellationSignal
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -106,6 +108,11 @@ class HttpError(val status: Int, message: String) : IOException("HTTP $status: $
  * Network failures surface as [IOException]; nothing here ever changes the lock.
  */
 class PlainphoneApi(baseUrl: String) : SyncApi {
+    private companion object {
+        // Disconnect can block on I/O. Keep it off the screen broadcast thread.
+        val disconnects = Executors.newSingleThreadExecutor()
+    }
+
     private val base = baseUrl.trimEnd('/') + "/api"
 
     private class Response(val status: Int, val body: String, val etag: String?)
@@ -117,6 +124,7 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         body: JSONObject? = null,
         headers: Map<String, String> = emptyMap(),
         readTimeoutMs: Int = 30_000,
+        cancellation: CancellationSignal? = null,
     ): Response {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         try {
@@ -133,17 +141,22 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             }
+            cancellation?.setOnCancelListener { disconnects.execute { conn.disconnect() } }
+            cancellation?.throwIfCanceled()
             val status = conn.responseCode
             val stream = if (status >= 400) conn.errorStream else conn.inputStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return Response(status, text, conn.getHeaderField("ETag"))
         } finally {
+            cancellation?.setOnCancelListener(null)
             conn.disconnect()
         }
     }
 
-    fun waitForUpdateRequest(token: String, afterMs: Long): Long? {
-        val response = call("GET", "/device/update-request?after=$afterMs", token, readTimeoutMs = 65_000)
+    fun waitForUpdateRequest(token: String, afterMs: Long, cancellation: CancellationSignal): Long? {
+        val response = call(
+            "GET", "/device/update-request?after=$afterMs", token, readTimeoutMs = 65_000, cancellation = cancellation,
+        )
         return when (response.status) {
             200 -> JSONObject(response.body).getLong("requestedAtMs").also {
                 if (it <= afterMs) throw IOException("update request was already handled")

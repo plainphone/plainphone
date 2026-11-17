@@ -83,10 +83,14 @@ and [AOSP's alarm permission handling](https://github.com/aosp-mirror/platform_f
 
 ### Checking for releases
 
-WorkManager checks eligibility hourly over unmetered internet or while charging.
+WorkManager checks eligibility every six hours over unmetered internet or while charging.
 The two schedules share a 24-hour gate for automatic release checks. The dashboard's
-**Update now** request bypasses that gate. Its direct connection reconnects with backoff
-after transient failures, with rules sync as a fallback. Light mode shows an update
+**Update now** request bypasses that gate. The phone long-polls only while Android is
+interactive. It cancels the poll on screen-off and restarts on screen-on or unlock.
+Transient errors, including HTTP 409 from an earlier waiter, retry with exponential
+backoff from 1 second up to 60 seconds. Push wakes rules sync when the screen is off.
+The next ordinary rules sync also delivers the request when push is unavailable.
+Light mode shows an update
 on the Today screen and sends a quiet notification when permitted. Installing the
 offered version or a newer one clears the prompt.
 
