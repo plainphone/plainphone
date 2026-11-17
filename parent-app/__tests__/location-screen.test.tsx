@@ -463,7 +463,7 @@ describe("location sharing", () => {
     expect(screen.getByText("Choose when the phone sends its position. The child's phone always shows when it does.")).toBeTruthy();
     expect(screen.getByText("Only when I press Find")).toBeTruthy();
     expect(screen.getByText("One position each time you press Find.")).toBeTruthy();
-    expect(screen.getByText("Always on (every 5 minutes)")).toBeTruthy();
+    expect(screen.getByText("Always on, for a while (every 5 minutes)")).toBeTruthy();
     const checked = (["off", "find", "checkin", "always"] as const).map((m) => screen.getByTestId(`mode-${m}`).props.accessibilityState.checked);
     expect(checked).toEqual([false, false, true, false]);
     expect(screen.getByTestId("mode-always").props.accessibilityRole).toBe("radio");
