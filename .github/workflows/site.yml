@@ -34,12 +34,19 @@ jobs:
 
   build:
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
         working-directory: site
     steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
       - name: No relevant changes
         if: needs.changes.outputs.site == 'false'
         working-directory: .

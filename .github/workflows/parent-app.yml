@@ -38,12 +38,19 @@ jobs:
 
   check:
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
         working-directory: parent-app
     steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
       - name: No relevant changes
         if: needs.changes.outputs.parent == 'false'
         working-directory: .

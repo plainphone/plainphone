@@ -4,7 +4,7 @@ The Android, Server and web, Parent app, DNS and Site workflows start on every
 pull request and push to main. Each workflow detects changes before running its
 checks. On an unrelated change, the existing jobs take a short success path
 without checking out the repository, restoring caches or starting PostgreSQL.
-If change detection fails, the workflow fails. A workflow edit runs all five
+If change detection fails, the existing checks also fail. A workflow edit runs all five
 sets of checks. The Site deploy workflow has its own main-only trigger.
 
 Android APK builds also watch the provisioning QR and release smoke scripts.

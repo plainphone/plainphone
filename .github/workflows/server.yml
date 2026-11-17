@@ -42,11 +42,12 @@ jobs:
 
   test:
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
       postgres:
-        image: ${{ needs.changes.outputs.server != 'false' && 'postgres:18' || '' }}
+        image: ${{ needs.changes.result == 'success' && needs.changes.outputs.server != 'false' && 'postgres:18' || '' }}
         env:
           POSTGRES_USER: plainphone
           POSTGRES_PASSWORD: plainphone
@@ -56,6 +57,12 @@ jobs:
           --health-cmd "pg_isready -U plainphone -d plainphone_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
       - name: No relevant changes
         if: needs.changes.outputs.server == 'false'
         working-directory: .
@@ -92,9 +99,16 @@ jobs:
 
   docker:
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
       - name: No relevant changes
         if: needs.changes.outputs.server == 'false'
         working-directory: .
