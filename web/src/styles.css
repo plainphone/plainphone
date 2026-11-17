@@ -168,6 +168,7 @@ h1:focus {
 
 .header-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -1329,7 +1330,7 @@ details.details p {
 
 .day-limits {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
   gap: 0.75rem 1rem;
 }
 
@@ -1395,8 +1396,56 @@ details.details p {
   margin-bottom: 1.5rem;
 }
 
-.catalog-group:first-of-type {
-  margin-top: 0;
+.catalog-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.catalog-group + .catalog-group {
+  margin-top: 0.75rem;
+}
+
+.catalog-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  list-style: none;
+}
+
+.catalog-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.catalog-group > summary:hover .row-title {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.catalog-group > summary .chevron {
+  transition: transform 0.15s ease;
+}
+
+.catalog-group[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+
+.catalog-group > .list {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-group > summary .chevron {
+    transition: none;
+  }
 }
 
 .play-link {
@@ -1444,14 +1493,31 @@ details.details p {
   border-radius: var(--radius);
 }
 
+.prot-optional {
+  background: var(--warn-bg);
+}
+
+.list > li.prot-optional:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.list > li.prot-optional:last-child,
+.list > li.prot-missing:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.list > li.prot-optional:only-child,
+.list > li.prot-missing:only-child {
+  border-radius: var(--radius);
+}
+
+.light-on {
+  margin-top: 0.5rem;
+}
+
 .prot-why {
   margin-top: 0.125rem;
   font-size: 0.9375rem;
-}
-
-.tag-ok {
-  background: var(--tint);
-  border-color: transparent;
 }
 
 .weaker {

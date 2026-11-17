@@ -132,7 +132,6 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
   const { t, locale } = useI18n();
   const { phone, run } = usePhone();
   const waiting = useWaiting();
-  const w = minuteWords(t);
   const today = todayIn(phone.timezone);
   const current = limits.total;
   const [on, setOn] = useState(current !== null);
@@ -190,7 +189,7 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
         {current && <UsedToday used={limits.used?.[TOTAL]} allowed={allowedToday} t={t} />}
         <Switch
           label={t("time.totalSwitch")}
-          description={current ? t("time.perDay", { time: formatMinutes(current.minutes, w) }) : t("time.totalOff")}
+          description={on ? undefined : t("time.totalOff")}
           checked={on}
           onChange={setOn}
         />
@@ -233,9 +232,6 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
             </button>
           )}
         </div>
-        {current && daysSummary(current, locale, t) && (
-          <p className="help">{t("time.daysNow", { days: daysSummary(current, locale, t)! })}</p>
-        )}
       </form>
     </section>
   );
@@ -286,8 +282,11 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                     </p>
                     <p className="row-meta">
                       {t("time.perDay", { time: formatMinutes(a.limit.minutes, w) })}
-                      {used !== undefined && <span>{t("time.usedShort", { used: formatMinutes(used, w), allowed: formatMinutes(allowed, w) })}</span>}
+                      {daysSummary(a.limit, locale, t) && `, ${daysSummary(a.limit, locale, t)}`}
                     </p>
+                    {used !== undefined && (
+                      <p className="row-meta">{t("time.usedShort", { used: formatMinutes(used, w), allowed: formatMinutes(allowed, w) })}</p>
+                    )}
                   </div>
                   {!isEditing && (
                     <div className="sched-actions">

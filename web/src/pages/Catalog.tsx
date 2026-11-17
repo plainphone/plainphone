@@ -4,6 +4,7 @@ import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type CatalogApp, type CatalogState, type ChangeResult, type PhoneCatalog } from "../lib/api";
 import { usePhone } from "./Phone";
+import { Chevron } from "./Phones";
 
 const added = (s: CatalogState) => s === "installed-allowed" || s === "requested";
 
@@ -41,7 +42,7 @@ export function CatalogPage() {
       case "requested":
         return t("catalog.requested");
       case "none":
-        return t("catalog.none");
+        return "";
     }
   }
 
@@ -65,9 +66,19 @@ export function CatalogPage() {
                 </div>
               )}
               {groups.length === 0 && <p className="empty-inline">{t("apps.noMatch", { q })}</p>}
-              {groups.map((g) => (
-                <section key={g.id} className="section catalog-group" aria-labelledby={`cat-${g.id}`}>
-                  <h2 id={`cat-${g.id}`}>{locale === "da" ? g.name.da : g.name.en}</h2>
+              {groups.map((g) => {
+                const n = g.apps.filter((a) => added(a.state)).length;
+                return (
+                <details key={`${g.id}-${needle ? "q" : ""}`} className="catalog-group" open={needle ? true : undefined}>
+                  <summary>
+                    <span className="row-main">
+                      <span className="row-title">{locale === "da" ? g.name.da : g.name.en}</span>
+                      <span className="row-meta">
+                        {n > 0 ? t("catalog.countAdded", { n: g.apps.length, added: n }) : t("catalog.count", { n: g.apps.length })}
+                      </span>
+                    </span>
+                    <Chevron />
+                  </summary>
                   <ul className="list switch-list">
                     {g.apps.map((a) => (
                       <li key={a.packageName}>
@@ -82,7 +93,7 @@ export function CatalogPage() {
                               ) : (
                                 stateText(a)
                               )}
-                              {phone.mode === "light" && !a.state.startsWith("installed") && (
+                              {phone.mode === "light" && a.state === "requested" && (
                                 <>
                                   {" "}
                                   <a href={a.source} target="_blank" rel="noopener noreferrer" className="play-link">
@@ -98,8 +109,9 @@ export function CatalogPage() {
                       </li>
                     ))}
                   </ul>
-                </section>
-              ))}
+                </details>
+                );
+              })}
               <p className="help catalog-foot">{t(phone.mode === "light" ? "catalog.howLight" : "catalog.howStrong")}</p>
             </>
           );

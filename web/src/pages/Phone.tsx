@@ -390,8 +390,6 @@ export function PhoneOverview() {
       </PageTitle>
       <PhoneStatusBlock phone={phone} now={now} />
 
-      {phone.mode === "light" && <LightModeSection phone={phone} />}
-
       {(phone.profile === "self" || pending.length > 0) && (
         <section className="section" aria-labelledby="pending-h">
           <h2 id="pending-h">{t("phone.pendingTitle")}</h2>
@@ -424,6 +422,8 @@ export function PhoneOverview() {
           </li>
         </ul>
       </section>
+
+      {phone.mode === "light" && <LightModeSection phone={phone} />}
     </>
   );
 }
@@ -433,14 +433,15 @@ const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAcce
 
 /** Light mode, honestly: what is live right now, and what is weaker than strong mode. */
 function LightModeSection({ phone }: { phone: Phone }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const p = phone.status?.protections;
   const rows = p
     ? PROTECTIONS.filter((k) => k !== "deviceOwner" && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
         (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
       )
     : [];
-  const missing = rows.filter((r) => !r.ok);
+  const missing = rows.filter((r) => !r.ok).sort((a, b) => Number(b.required) - Number(a.required));
+  const on = rows.filter((r) => r.ok);
   return (
     <section className="section light-mode" aria-labelledby="light-h">
       <h2 id="light-h">{t("mode.light")}</h2>
@@ -449,17 +450,24 @@ function LightModeSection({ phone }: { phone: Phone }) {
         <>
           <h3 className="h3 light-sub">{t("light.protections")}</h3>
           {missing.length === 0 && <p className="light-allok">{t("light.allOk")}</p>}
-          <ul className="list protection-list">
-            {[...missing, ...rows.filter((r) => r.ok)].map((r) => (
-              <li key={r.key} className={r.ok ? "prot" : "prot prot-missing"}>
-                <div className="prot-main">
-                  <p className="row-title">{t(`prot.${r.key}` as MessageKey)}</p>
-                  {!r.ok && <p className="prot-why">{t(`prot.${r.key}.missing` as MessageKey)}</p>}
-                </div>
-                <span className={r.ok ? "tag tag-ok" : "tag tag-alert"}>{t(r.ok ? "light.ok" : "light.missing")}</span>
-              </li>
-            ))}
-          </ul>
+          {missing.length > 0 && (
+            <ul className="list protection-list">
+              {missing.map((r) => (
+                <li key={r.key} className={r.required ? "prot prot-missing" : "prot prot-optional"}>
+                  <div className="prot-main">
+                    <p className="row-title">{t(`prot.${r.key}` as MessageKey)}</p>
+                    <p className="prot-why">{t(`prot.${r.key}.missing` as MessageKey)}</p>
+                  </div>
+                  <span className={r.required ? "tag tag-alert" : "tag tag-waiting"}>{t("light.missing")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {on.length > 0 && missing.length > 0 && (
+            <p className="help light-on">
+              {t("light.onList", { list: formatList(on.map((r) => t(`prot.${r.key}` as MessageKey)), locale) })}
+            </p>
+          )}
         </>
       ) : (
         <p className="muted">{t("light.noReport")}</p>
