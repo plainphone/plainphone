@@ -193,3 +193,23 @@ kdig @dns.plainphone.org +tls-ca +tls-hostname=<client-id>.dns.plainphone.org po
 
 A blocked name answers `0.0.0.0` (or `::` for AAAA). SafeSearch shows up as a
 CNAME to `forcesafesearch.google.com` or `restrict.youtube.com`.
+
+## List download cost
+
+On init, ppdns reuses a tagged list younger than
+`PPDNS_LISTS_REFRESH_HOURS` (12 hours by default) when its header matches the
+current tag, format version, and SHA-256 hash of the source URL and is
+followed by a complete rule with the expected tag. Missing, stale, legacy,
+and incomplete files take the download path. The scheduler preserves
+each tagged list's download deadline across startup and fetches only lists
+that are due. A failed download retries after one
+refresh interval, while the other lists keep their own deadlines. Startup
+still asks AdGuard to reload its filters.
+If a download fails, retagging a legacy copy streams it to an atomic replacement
+while retaining the age of the last upstream download.
+
+On a Linux worker with Python 3.13, a synthetic 300,000-rule legacy list peaked
+at 46.5 MiB RSS before streaming and 20.9 MiB afterwards. Nine cold-process
+runs of `PYTHONPATH=dns python3 -m ppdns --help` had median wall times of 155.8 ms
+before deferring command imports and 56.9 ms afterwards. This measures CLI
+startup, excluding network and AdGuard initialization.

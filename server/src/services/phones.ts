@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   contacts,
   DNS_CATEGORIES,
@@ -83,9 +83,17 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: "rules" | "lo
   }
 }
 
+async function readPhoneSettings(db: Ctx["db"], phoneId: string) {
+  const [row] = await db
+    .select({ settings: phoneSettings.settings, home: phoneSettings.home })
+    .from(phoneSettings)
+    .where(eq(phoneSettings.phoneId, phoneId));
+  return row;
+}
+
 /** The phone's own settings and home screen, with the defaults filled in. */
 export async function loadPhoneSettings(db: Ctx["db"], phoneId: string) {
-  const [row] = await db.select().from(phoneSettings).where(eq(phoneSettings.phoneId, phoneId));
+  const row = await readPhoneSettings(db, phoneId);
   return { stored: row?.settings ?? {}, settings: fullSettings(row?.settings), home: fullHome(row?.home) };
 }
 
@@ -93,23 +101,90 @@ function hhmm(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 }
 
-/** The rules document the phone fetches. Its ETag is a hash of the content. */
-export async function rulesDocument(ctx: Ctx, phone: Phone) {
+async function loadRulesInputs(ctx: Ctx, phone: Phone) {
   const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own] = await Promise.all([
-    ctx.db.select().from(phoneApps).where(eq(phoneApps.phoneId, phone.id)).orderBy(phoneApps.packageName),
-    ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name, contacts.number),
-    ctx.db.select().from(schedules).where(eq(schedules.phoneId, phone.id)).orderBy(schedules.createdAt),
-    ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id)),
     ctx.db
-      .select()
+      .select({
+        packageName: phoneApps.packageName,
+        label: phoneApps.label,
+        installed: phoneApps.installed,
+        core: phoneApps.core,
+        allowed: phoneApps.allowed,
+        requested: phoneApps.requested,
+      })
+      .from(phoneApps)
+      .where(
+        and(
+          eq(phoneApps.phoneId, phone.id),
+          or(eq(phoneApps.installed, true), and(eq(phoneApps.requested, true), eq(phoneApps.allowed, true))),
+        ),
+      )
+      .orderBy(phoneApps.packageName),
+    ctx.db
+      .select({ name: contacts.name, number: contacts.number })
+      .from(contacts)
+      .where(eq(contacts.phoneId, phone.id))
+      .orderBy(contacts.name, contacts.number),
+    ctx.db
+      .select({
+        id: schedules.id,
+        kind: schedules.kind,
+        days: schedules.days,
+        startMinute: schedules.startMinute,
+        endMinute: schedules.endMinute,
+        allowedPackages: schedules.allowedPackages,
+      })
+      .from(schedules)
+      .where(eq(schedules.phoneId, phone.id))
+      .orderBy(schedules.createdAt),
+    ctx.db
+      .select({ blockedCategories: dnsSettings.blockedCategories })
+      .from(dnsSettings)
+      .where(eq(dnsSettings.phoneId, phone.id)),
+    ctx.db
+      .select({
+        id: pendingChanges.id,
+        op: pendingChanges.op,
+        keyType: pendingChanges.keyType,
+        effectiveAt: pendingChanges.effectiveAt,
+      })
       .from(pendingChanges)
       .where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending")))
       .orderBy(pendingChanges.createdAt),
     loadTimeLimits(ctx.db, phone, ctx.now()),
     loadSafety(ctx, phone.id),
-    loadPhoneSettings(ctx.db, phone.id),
+    readPhoneSettings(ctx.db, phone.id),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
+  return {
+    phone: {
+      id: phone.id,
+      profile: phone.profile,
+      mode: phone.mode,
+      timezone: phone.timezone,
+      dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      dnsReady: phone.dnsConfirmedAt !== null,
+      locationEnabled: phone.locationEnabled,
+      locationMode: phone.locationMode,
+      locationAlwaysUntil: phone.locationAlwaysUntil,
+      locateRequestedAt: phone.locateRequestedAt,
+      releaseRequestedAt: phone.releaseRequestedAt,
+    },
+    allApps,
+    contactRows,
+    scheduleRows,
+    dnsRow,
+    pending,
+    limits,
+    safety,
+    own,
+  };
+}
+
+type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
+
+/** The rules document the phone fetches. Its ETag is a hash of the content. */
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own }: RulesInputs) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
@@ -136,10 +211,10 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       allowedPackages: sorted(s.allowedPackages),
     })),
     dns: {
-      host: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      host: phone.dnsHost,
       // The phone switches to `host` only when this is true: the DNS service refuses ClientIDs
       // it has not accepted yet, and a phone on a refusing resolver has no DNS at all.
-      ready: phone.dnsConfirmedAt !== null,
+      ready: phone.dnsReady,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
     location: {
@@ -152,8 +227,8 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       requestedAt: phone.locationEnabled ? (phone.locateRequestedAt?.toISOString() ?? null) : null,
     },
     // Only settings that are not free, keys in alphabetical order (a stable ETag).
-    settings: rulesSettings(own.stored),
-    home: own.home,
+    settings: rulesSettings(own?.settings ?? {}),
+    home: fullHome(own?.home),
     ring: safety.ring,
     checkIn: safety.checkIn,
     pendingChanges: pending.map((c) => ({
@@ -167,16 +242,41 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
     release: phone.releaseRequestedAt !== null,
     pollSeconds: safety.fast ? FAST_POLL_SECONDS : POLL_SECONDS,
   };
-  const etag = `"${createHash("sha256").update(JSON.stringify(doc)).digest("base64url").slice(0, 27)}"`;
-  return { doc, etag };
+  const body = JSON.stringify(doc);
+  const etag = `"${createHash("sha256").update(body).digest("base64url").slice(0, 27)}"`;
+  return { body, etag };
+}
+
+export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
+  const { body, etag } = rulesDocument(await loadRulesInputs(ctx, phone));
+  return { etag, body: candidates.includes(etag) ? null : body };
+}
+
+function summaryFields() {
+  // Qualify the outer reference even in Drizzle's single-table select.
+  const phoneId = sql`${phones}.${sql.identifier(phones.id.name)}`;
+  return {
+    hasLocation: sql<boolean>`exists (select 1 from ${locations} where ${locations.phoneId} = ${phoneId})`,
+    openRequests: sql<number>`(select count(*)::int from ${phoneRequests}
+      where ${phoneRequests.phoneId} = ${phoneId} and ${phoneRequests.status} = 'pending')`,
+  };
+}
+
+export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
+  const rows = await ctx.db
+    .select({ phone: phones, ...summaryFields() })
+    .from(phones)
+    .where(inArray(phones.householdId, householdIds))
+    .orderBy(phones.createdAt);
+  return rows.map(({ phone, hasLocation, openRequests }) => summaryJson(ctx, phone, hasLocation, openRequests));
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [loc] = await ctx.db.select().from(locations).where(eq(locations.phoneId, phone.id));
-  const [open] = await ctx.db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(phoneRequests)
-    .where(and(eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")));
+  const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
+  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0);
+}
+
+function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {
   return {
     id: phone.id,
     name: phone.name,
@@ -192,8 +292,8 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
-    hasLocation: Boolean(loc),
-    openRequests: open?.n ?? 0,
+    hasLocation,
+    openRequests,
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
