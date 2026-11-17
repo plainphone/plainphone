@@ -920,7 +920,7 @@ paths:
                 recordedAt: { type: string, format: date-time }
                 purpose:
                   type: string
-                  description: "Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Older clients may omit this field."
+                  description: "Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. For older clients that omit purpose, an active Find takes precedence. Without an active Find, only a fix recorded at or after the deadline and newer than the saved position can complete a check-in."
       responses:
         "204": { description: "Stored (or ignored if older than the stored one)" }
         "409": { description: "Location is off for this phone, or no position was asked for; stop reporting." }

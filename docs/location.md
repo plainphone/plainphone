@@ -63,13 +63,12 @@ Regular `always` reports use Android 12's low-power setting. On older Android ve
 fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
 100 m or better before starting GPS. Both providers share the same deadline.
 
-The phone can reuse a cached position without starting a new lookup. For Find and check-ins it
-must be younger than 2 minutes and accurate to 100 m or better. For Find it must also have
-been recorded at or after the request. A check-in only accepts a position taken after its
-creation. Regular `always` reports can reuse a cached position younger than 10 minutes and
-accurate to 1,000 m or better. If a precise or scheduled coarse
-lookup gives no fix, the phone can send its newest known position with the original recorded time.
-A position older than the request leaves Find open.
+Find can reuse a cached position recorded at or after the request if it is younger than
+2 minutes and accurate to 100 m or better. Regular `always` reports can reuse a cached
+position younger than 10 minutes and accurate to 1,000 m or better. If either lookup
+gives no fix, the phone can send its newest known position with the original recorded time.
+A position older than the request leaves Find open. Check-in lookups only accept a fix
+taken during the lookup and after the check-in was created.
 
 Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
 "Are you okay?" uses the same schedule relative to the reply deadline. When the server opens the upload
@@ -79,7 +78,8 @@ If an upload fails temporarily, the phone keeps the position and retries the upl
 on the next sync while the request is still open. If the server rejects the payload as
 invalid, the phone discards it and can look again without losing a retry slot. A newly due
 check-in takes priority and makes its own lookup. The phone tags each upload with its
-request so a Find and a check-in can complete independently.
+request and keeps pending uploads separately, so Find can resume with its saved position
+after the check-in.
 Find can start when the phone clock is up to 2 minutes behind, and the phone keeps a pending
 upload for up to 2 extra minutes in case its clock is ahead. Between Find attempts, a due
 `always` report can reuse a cached position that meets the regular age and accuracy limits
@@ -108,6 +108,8 @@ optionally `callNumber`, one of the phone's approved contacts.
 - The phone shows a calm full screen: "Are you okay?", "Yes, I'm okay" and, with a number,
   "Call me" (which answers and calls that contact).
 - The phone sends the child’s answer to the parent and cancels any remaining check-in uploads.
+- The parent can cancel while the question is waiting for an answer, even if its position
+  arrived before the reply deadline.
 - While a check-in is unanswered and the upload window is open, modes `checkin` and `always`
   follow the lookup schedule above until one position is sent or the window expires. Modes
   `find` and `off` send no check-in position.

@@ -27,7 +27,7 @@ interface SyncDevice {
      */
     fun release(): List<StepResult>
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
-    fun location(precise: Boolean, notBeforeMs: Long? = null): LocationFix?
+    fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
     fun lastKnownLocation(): LocationFix?
     fun cachedCoarseLocation(): LocationFix?
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
@@ -206,7 +206,8 @@ class SyncRunner(
 
     private fun reportLocation(token: String, rules: ServerRules) {
         if (!rules.locationEnabled || rules.locationMode == ServerRules.LOCATION_OFF) {
-            store.clearPendingLocation()
+            store.clearPendingLocation(checkIn = false)
+            store.clearPendingLocation(checkIn = true)
             return
         }
         val now = device.nowMs()
@@ -217,11 +218,16 @@ class SyncRunner(
             val due = it.locationDue ?: (now - it.deadline.toEpochMilli() in -CLOCK_SLACK_MS until FIND_RETRY_MS)
             it.sendLocation && due && it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
         }
+        val findPurpose = requested?.let { "find:$it" }
+        val checkInPurpose = checkIn?.let { "checkin:${it.id}" }
+        val pendingFind = store.pendingLocation()?.takeIf { it.purpose == findPurpose }
+        val pendingCheckIn = store.pendingLocation(checkIn = true)?.takeIf { it.purpose == checkInPurpose }
+        if (pendingFind == null) store.clearPendingLocation(checkIn = false)
+        if (pendingCheckIn == null) store.clearPendingLocation(checkIn = true)
+
         val find = requested?.takeIf { checkIn == null }
-        val purpose = checkIn?.let { "checkin:${it.id}" } ?: find?.let { "find:$it" }
-        val saved = store.pendingLocation()
-        var pending = saved?.takeIf { it.purpose == purpose }
-        if (saved != null && pending == null) store.clearPendingLocation()
+        val purpose = checkInPurpose ?: findPurpose
+        var pending = if (checkIn != null) pendingCheckIn else pendingFind
         val fix = if (pending != null) {
             pending.fix
         } else {
@@ -234,13 +240,13 @@ class SyncRunner(
                 locationAttemptDue(deadline, retryTime, store.lastCheckInAttempt(it.id))
             }
             if (purpose != null && (findAttempt != null || checkInAttempt != null)) {
-                val createdAt = checkInAttempt?.createdAt?.toEpochMilli()
-                val previousFixAt = saved?.fix?.recordedAtMs
-                val freshAfter = listOfNotNull(createdAt, previousFixAt).maxOrNull()
-                val notBefore = listOfNotNull(find, freshAfter?.plus(1)).maxOrNull()
-                val position = (device.location(precise = true, notBeforeMs = notBefore)
-                    ?: device.lastKnownLocation())?.takeIf {
-                    freshAfter == null || it.recordedAtMs > freshAfter
+                val position = if (checkInAttempt != null) {
+                    val createdAt = checkInAttempt.createdAt?.toEpochMilli()
+                    device.location(precise = true, fresh = true)?.takeIf {
+                        createdAt == null || it.recordedAtMs > createdAt
+                    }
+                } else {
+                    device.location(precise = true, notBeforeMs = find) ?: device.lastKnownLocation()
                 }
                 if (position == null) {
                     if (!store.recordLocationAttempts(findAttempt, checkInAttempt?.id, now)) {
@@ -273,7 +279,7 @@ class SyncRunner(
             api.reportLocation(token, fix, pending?.purpose ?: "always")
         } catch (e: HttpError) {
             // An invalid payload cannot succeed on retry. Leave the lookup slot available.
-            if (e.status == 400 && pending != null) store.clearPendingLocation()
+            if (e.status == 400 && pending != null) store.clearPendingLocation(checkIn = checkIn != null)
             throw e
         }
         if (pending == null || stored) store.locationAtMs = now

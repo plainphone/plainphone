@@ -3,7 +3,7 @@
 // Parent API for location, "Ring the phone" and "Are you okay?" (docs/location.md). Mounted by
 // parentRoutes, behind its session and household checks.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 import type { Context, Env, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -18,7 +18,6 @@ import {
   CHECKIN_MAX_MINUTES,
   CHECKIN_MIN_MINUTES,
   checkinJson,
-  checkinStatus,
   loadSafety,
   ringActive,
   ringJson,
@@ -133,9 +132,15 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
   app.delete("/phones/:pid/checkin", async (c) => {
     const phone = await requirePhone(c);
     const { checkin } = await loadSafety(ctx, phone.id);
-    if (checkin && !checkin.stoppedAt && !checkin.locatedAt && checkinStatus(checkin, ctx.now()) !== "answered") {
-      await ctx.db.update(safetyRequests).set({ stoppedAt: ctx.now() }).where(eq(safetyRequests.id, checkin.id));
-      await wakePhone(ctx, phone.id, "rules");
+    if (checkin) {
+      const now = ctx.now();
+      const stopped = await ctx.db.update(safetyRequests).set({ stoppedAt: now }).where(and(
+        eq(safetyRequests.id, checkin.id),
+        isNull(safetyRequests.stoppedAt),
+        isNull(safetyRequests.answeredAt),
+        or(gt(safetyRequests.endsAt, now), isNull(safetyRequests.locatedAt)),
+      )).returning({ id: safetyRequests.id });
+      if (stopped.length) await wakePhone(ctx, phone.id, "rules");
     }
     return c.json({ checkin: checkinJson((await loadSafety(ctx, phone.id)).checkin, phone.locationMode, ctx.now()) });
   });

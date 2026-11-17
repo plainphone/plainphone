@@ -95,6 +95,27 @@ class LocationReaderTest {
 
     @Test
     @Config(sdk = [31])
+    fun `a fresh lookup ignores a cached position repeated by the provider`() {
+        val cached = fix(gps, 30f)
+        manager.simulateLocation(cached)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, fresh = true)
+            }
+            awaitRequests(gps, network)
+            manager.simulateLocation(cached)
+            ShadowSystemClock.advanceBy(Duration.ofSeconds(1))
+            val live = fix(gps, 60f)
+            manager.simulateLocation(live)
+            assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(live.time)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
     fun `an unresponsive fused provider leaves time for GPS and network`() {
         val fused = LocationManager.FUSED_PROVIDER
         manager.setProviderEnabled(fused, true)

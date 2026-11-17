@@ -25,6 +25,7 @@ class FakeSyncDevice(
     override fun lastKnownLocation() = lastKnownFix
     override fun cachedCoarseLocation() = cachedLocation
     val locationRequests = mutableListOf<Boolean>()
+    val freshLocationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L
     /** What the next [release] reports; make a step fail to play a release that did not hold. */
@@ -41,8 +42,9 @@ class FakeSyncDevice(
         return releaseResults
     }
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
-    override fun location(precise: Boolean, notBeforeMs: Long?): LocationFix? {
+    override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? {
         locationRequests += precise
+        freshLocationRequests += fresh
         return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
 

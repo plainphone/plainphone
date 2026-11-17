@@ -78,14 +78,49 @@ class SafetySyncTest {
             locationMode = "checkin", requestedAt = iso(requested),
             checkIn = checkIn(deadline, locationDue = true),
         ))
+        runner.run("check-in is due before its deadline, upload fails")
+        assertThat(store.pendingLocation()?.purpose).isEqualTo("find:$requested")
+        assertThat(store.pendingLocation(checkIn = true)?.purpose).isEqualTo("checkin:$id")
         api.locationFailure = null
-        runner.run("check-in is due before its deadline")
+        api.rules = RulesResult.Unchanged
+        runner = SyncRunner(SyncStore(context, FakeSecretBox()), api, device)
+        runner.run("retry the check-in upload after restarting")
         assertThat(device.locationRequests).containsExactly(true, true)
         assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = device.now))
         assertThat(device.positionsShown).containsExactly("checkin")
         assertThat(store.answeredLocateMs).isNotEqualTo(requested)
         assertThat(api.locationPurposes).containsExactly("checkin:$id")
         assertThat(store.locatedCheckInId).isEqualTo(id)
+
+        runner.run("resume Find")
+        assertThat(device.locationRequests).containsExactly(true, true)
+        assertThat(api.locationPurposes).containsExactly("checkin:$id", "find:$requested").inOrder()
+        assertThat(api.locations.last()).isEqualTo(device.lastKnownFix)
+    }
+
+    @Test
+    fun `check-in retries never send the cached Find position`() {
+        val requested = device.now
+        val deadline = requested + 5 * 60_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", requestedAt = iso(requested)))
+        api.locationFailure = IOException("offline")
+        runner.run("save fresh Find fix")
+        device.lastKnownFix = requireNotNull(store.pendingLocation()).fix
+        device.fix = null
+        api.locationFailure = null
+        device.now = deadline - 60_000L
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline, locationDue = true),
+        ))
+        runner.run("first check-in lookup")
+        device.now = deadline + 2 * 60_000L
+        api.rules = RulesResult.Unchanged
+        runner = SyncRunner(SyncStore(context, FakeSecretBox()), api, device)
+        runner.run("retry after restarting")
+
+        assertThat(device.locationRequests).containsExactly(true, true, true)
+        assertThat(device.freshLocationRequests).containsExactly(false, true, true).inOrder()
+        assertThat(api.locations).isEmpty()
     }
 
     @Test
@@ -203,7 +238,7 @@ class SafetySyncTest {
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
         api.locationFailure = IOException("offline")
         runner.run("deadline, upload fails")
-        assertThat(store.pendingLocation()?.purpose).isEqualTo("checkin:$id")
+        assertThat(store.pendingLocation(checkIn = true)?.purpose).isEqualTo("checkin:$id")
         assertThat(device.locationRequests).containsExactly(true)
 
         api.rules = RulesResult.Unchanged
@@ -212,7 +247,7 @@ class SafetySyncTest {
         device.answeredCheckIns += id
         device.pendingEvents += SafetyEvent(id, "ok")
         runner.run("child answered before retry")
-        assertThat(store.pendingLocation()).isNull()
+        assertThat(store.pendingLocation(checkIn = true)).isNull()
         assertThat(api.safetyEvents).containsExactly(SafetyEvent(id, "ok"))
         assertThat(api.locations).isEmpty()
         assertThat(device.locationRequests).containsExactly(true)

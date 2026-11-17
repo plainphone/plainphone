@@ -2288,7 +2288,7 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
-                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Older clients may omit this field. */
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. For older clients that omit purpose, an active Find takes precedence. Without an active Find, only a fix recorded at or after the deadline and newer than the saved position can complete a check-in. */
                     purpose?: string;
                 };
             };

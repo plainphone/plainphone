@@ -250,13 +250,13 @@ export function deviceRoutes(ctx: Ctx) {
     const now = ctx.now();
     const { purpose } = input;
     const requestedAt = phone.locateRequestedAt;
-    // Older clients omit the purpose. Match tagged uploads to their exact request.
-    const forCheckin =
-      checkin !== undefined && checkinLocationDue(checkin, phone.locationMode, now) &&
-      (purpose === undefined || purpose === `checkin:${checkin.id}`);
     const forFind =
       requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
       (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
+    // An untagged upload can answer at most one request. Legacy clients wait for the deadline.
+    const forCheckin =
+      checkin !== undefined && checkinLocationDue(checkin, phone.locationMode, now) &&
+      (purpose === `checkin:${checkin.id}` || (purpose === undefined && !forFind && now >= checkin.endsAt));
     const always =
       phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
       (purpose === undefined || purpose === "always");
@@ -271,22 +271,25 @@ export function deviceRoutes(ctx: Ctx) {
       return c.json({ error: "recordedAt must be after check-in creation" }, 400);
     }
     const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: ctx.now() };
+    // A repeated untagged Find fix must not complete a check-in after Find has cleared.
+    const legacyCheckin = forCheckin && purpose === undefined;
     // One row per phone (D7). An older fix never overwrites a newer one.
-    await ctx.db
+    const stored = await ctx.db
       .insert(locations)
       .values({ phoneId: phone.id, ...values })
       .onConflictDoUpdate({
         target: locations.phoneId,
         set: values,
-        setWhere: lte(locations.recordedAt, recordedAt),
-      });
+        setWhere: legacyCheckin ? lt(locations.recordedAt, recordedAt) : lte(locations.recordedAt, recordedAt),
+      })
+      .returning({ phoneId: locations.phoneId });
     if (forFind && recordedAt >= requestedAt) {
       await ctx.db
         .update(phones)
         .set({ locateRequestedAt: null })
         .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
     }
-    if (forCheckin && recordedAt > checkin.createdAt) {
+    if (forCheckin && recordedAt > checkin.createdAt && (!legacyCheckin || (recordedAt >= checkin.endsAt && stored.length > 0))) {
       const first = await ctx.db
         .update(safetyRequests)
         .set({ locatedAt: ctx.now() })

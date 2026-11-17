@@ -97,8 +97,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
         return pct to plugged?.takeIf { it >= 0 }?.let { it != 0 }
     }
 
-    override fun location(precise: Boolean, notBeforeMs: Long?): LocationFix? =
-        LocationReader(context).current(precise, notBeforeMs = notBeforeMs)
+    override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? =
+        LocationReader(context).current(precise, notBeforeMs = notBeforeMs, fresh = fresh)
     override fun lastKnownLocation(): LocationFix? = LocationReader(context).lastKnown()
     override fun cachedCoarseLocation(): LocationFix? = LocationReader(context).current(precise = false, timeoutMs = 0)
 
@@ -121,7 +121,12 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 class LocationReader(private val context: Context) {
 
     @SuppressLint("MissingPermission") // Granted by Device Owner when the parent turns location on.
-    fun current(precise: Boolean, timeoutMs: Long = BUDGET_MS, notBeforeMs: Long? = null): LocationFix? {
+    fun current(
+        precise: Boolean,
+        timeoutMs: Long = BUDGET_MS,
+        notBeforeMs: Long? = null,
+        fresh: Boolean = false,
+    ): LocationFix? {
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, BUDGET_MS))
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         if (!lm.isLocationEnabled) return null
@@ -133,21 +138,25 @@ class LocationReader(private val context: Context) {
         val maxAge = TimeUnit.MINUTES.toNanos(if (precise) 2 else 10)
         val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
         val fused = listOf(FUSED).filter { it in enabled }
-        val cachedLocations = knownLocations(lm, fused + providers)
-        val now = SystemClock.elapsedRealtimeNanos()
-        val cached = cachedLocations
-            .filter {
-                (notBeforeMs == null || it.time >= notBeforeMs) &&
-                    now - it.elapsedRealtimeNanos in 0 until maxAge && it.accuracyOrUnknown() <= maxAccuracy
-            }
-            .maxByOrNull { it.elapsedRealtimeNanos }
-        if (cached != null) return cached.toFix()
+        if (!fresh) {
+            val cachedLocations = knownLocations(lm, fused + providers)
+            val now = SystemClock.elapsedRealtimeNanos()
+            val cached = cachedLocations
+                .filter {
+                    (notBeforeMs == null || it.time >= notBeforeMs) &&
+                        now - it.elapsedRealtimeNanos in 0 until maxAge && it.accuracyOrUnknown() <= maxAccuracy
+                }
+                .maxByOrNull { it.elapsedRealtimeNanos }
+            if (cached != null) return cached.toFix()
+        }
         if (timeoutMs <= 0) return null
 
-        // getCurrentLocation may immediately return a recent fix from before Find.
+        // getCurrentLocation can return a cached fix even after an explicit lookup.
         val lookupStarted = SystemClock.elapsedRealtimeNanos()
-        val acceptUpdate: ((Location) -> Boolean)? = notBeforeMs?.let { requestedAt ->
-            { fix -> fix.time >= requestedAt || fix.elapsedRealtimeNanos > lookupStarted }
+        val acceptUpdate: ((Location) -> Boolean)? = when {
+            fresh -> { fix -> fix.elapsedRealtimeNanos > lookupStarted }
+            notBeforeMs != null -> { fix -> fix.time >= notBeforeMs || fix.elapsedRealtimeNanos > lookupStarted }
+            else -> null
         }
         if (fused.isNotEmpty()) {
             val fallbackBudget = if (providers.isEmpty()) 0L else

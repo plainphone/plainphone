@@ -215,7 +215,7 @@ describe("are you okay?", () => {
     expect(before.json.checkIn.locationDue).toBe(false);
     h.clock.advance(4 * 60_000);
 
-    expect((await device.put("/api/device/location", stale)).status).toBe(204);
+    expect((await device.put("/api/device/location", stale)).status).toBe(409);
     const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
     expect((await status()).locatedAt).toBeNull();
     expect((await device.put("/api/device/location", {
@@ -240,6 +240,40 @@ describe("are you okay?", () => {
     })).status).toBe(204);
     expect((await status()).locatedAt).not.toBeNull();
     expect((await device.get("/api/device/rules")).json.location.requestedAt).toBe(h.clock.now.toISOString());
+  });
+
+  it("attributes a legacy upload to Find when the check-in is also due", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
+    h.clock.advance(4 * 60_000);
+    const earlyFix = fix(h.clock.now);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
+    let rules = (await device.get("/api/device/rules")).json;
+    expect(rules.location.requestedAt).toBeNull();
+    expect(rules.checkIn.locationDue).toBe(true);
+
+    h.clock.advance(2 * 60_000);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const lateFix = fix(h.clock.now);
+    expect((await device.put("/api/device/location", lateFix)).status).toBe(204);
+    expect((await device.put("/api/device/location", lateFix)).status).toBe(204);
+    expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
+    rules = (await device.get("/api/device/rules")).json;
+    expect(rules.location.requestedAt).toBeNull();
+    expect(rules.checkIn.locationDue).toBe(true);
+  });
+
+  it("can cancel a waiting check-in after its early position arrives", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    h.clock.advance(4 * 60_000);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
+    const stop = await parent.del(`/api/phones/${phoneId}/checkin`);
+    expect(stop.json.checkin).toMatchObject({ status: "cancelled", locatedAt: expect.any(String) });
+    expect((await device.get("/api/device/rules")).json.checkIn).toBeNull();
   });
 
   it("sends no position in Find-only mode, and the phone gives up after 30 minutes", async () => {
