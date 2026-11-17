@@ -12,6 +12,8 @@ import {
   type Contact,
   LOCATION_MODES,
   type LocationMode,
+  ALWAYS_FOR,
+  type AlwaysFor,
   type LocationState,
   type Ring,
 } from "../lib/api";
@@ -43,7 +45,9 @@ export function countdown(ms: number): string {
 }
 
 export function LocationPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [pickAlways, setPickAlways] = useState(false);
+  const [alwaysFor, setAlwaysFor] = useState<AlwaysFor>("hour");
   const { phone, setPhone } = usePhone();
   const now = useNow(1000);
   const res = useLoad(() => api.get<LocationState>(`/phones/${phone.id}/location`), [phone.id]);
@@ -90,11 +94,17 @@ export function LocationPage() {
 
   const merge = (patch: Partial<LocationState>) => (res.data ? { ...res.data, ...patch } : undefined);
 
-  async function setMode(mode: LocationMode) {
+  async function setMode(mode: LocationMode, forHow?: AlwaysFor) {
+    // "always" is time-boxed: picking it first asks for how long.
+    if (mode === "always" && !forHow) {
+      setPickAlways(true);
+      return;
+    }
+    setPickAlways(false);
     await act(
       "mode",
       async () => {
-        const r = await api.put<LocationState>(`/phones/${phone.id}/location/mode`, { mode });
+        const r = await api.put<LocationState>(`/phones/${phone.id}/location/mode`, forHow ? { mode, alwaysFor: forHow } : { mode });
         setPhone({ ...phone, locationEnabled: mode !== "off", locationMode: mode });
         return r;
       },
@@ -192,14 +202,50 @@ export function LocationPage() {
                 <legend className="sr-only">{t("loc.mode.title")}</legend>
                 {LOCATION_MODES.map((m) => (
                   <label key={m} className="choice">
-                    <input type="radio" name="loc-mode" value={m} checked={state.mode === m} onChange={() => void setMode(m)} />
+                    <input
+                      type="radio"
+                      name="loc-mode"
+                      value={m}
+                      checked={pickAlways ? m === "always" : state.mode === m}
+                      onChange={() => void setMode(m)}
+                    />
                     <span>
                       <span className="choice-title">{t(`loc.mode.${m}`)}</span>
                       <span className="choice-desc">{t(`loc.mode.${m}.help`)}</span>
+                      {m === "always" && <span className="choice-note">{t("loc.mode.always.teen")}</span>}
                     </span>
                   </label>
                 ))}
               </fieldset>
+              {(pickAlways || state.mode === "always") && (
+                <div className="always-for">
+                  {state.mode === "always" && state.alwaysUntil && (
+                    <p className="status-line status-live">
+                      {t("loc.always.until", { time: formatDateTime(state.alwaysUntil, locale) })}
+                    </p>
+                  )}
+                  <fieldset className="segmented" disabled={busy === "mode"}>
+                    <legend>{t(state.mode === "always" ? "loc.always.change" : "loc.always.for")}</legend>
+                    {ALWAYS_FOR.map((f) => (
+                      <label key={f} className="seg">
+                        <input type="radio" name="always-for" value={f} checked={alwaysFor === f} onChange={() => setAlwaysFor(f)} />
+                        <span>{t(`loc.always.${f}`)}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <p className="actions">
+                    <button type="button" className="btn btn-primary" disabled={busy === "mode"} onClick={() => void setMode("always", alwaysFor)}>
+                      {t(state.mode === "always" ? "loc.always.restart" : "loc.always.start")}
+                    </button>
+                    {pickAlways && (
+                      <button type="button" className="btn btn-secondary" onClick={() => setPickAlways(false)}>
+                        {t("loc.always.cancel")}
+                      </button>
+                    )}
+                  </p>
+                  <p className="muted">{t("loc.always.fallback")}</p>
+                </div>
+              )}
             </section>
           </>
         )}

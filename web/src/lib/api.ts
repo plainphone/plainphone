@@ -200,9 +200,13 @@ export interface Position {
   accuracyM: number | null;
   recordedAt: string;
 }
+export const ALWAYS_FOR = ["hour", "today", "week"] as const;
+export type AlwaysFor = (typeof ALWAYS_FOR)[number];
 export interface LocationState {
   enabled: boolean;
   mode: LocationMode;
+  /** End of "always" (it falls back to "checkin" by itself); null in other modes. */
+  alwaysUntil: string | null;
   requestedAt: string | null;
   location: Position | null;
   ring: Ring | null;
