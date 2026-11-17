@@ -91,8 +91,8 @@ export async function retryDnsDeletions(ctx: Ctx, only?: string[]): Promise<numb
     .where(
       only
         ? inArray(dnsDeletions.clientId, only.length ? only : [""])
-        : // Back off: wait 2^attempts minutes (at most an hour) between tries.
-          sql`${dnsDeletions.lastAttemptAt} is null or ${dnsDeletions.lastAttemptAt} < ${ctx.now().toISOString()}::timestamptz - make_interval(mins => least(power(2, ${dnsDeletions.attempts})::int, 60))`,
+        : // Back off: wait 2^attempts minutes (2 … 64) between tries.
+          sql`${dnsDeletions.lastAttemptAt} is null or ${dnsDeletions.lastAttemptAt} < ${ctx.now().toISOString()}::timestamptz - make_interval(mins => power(2, least(${dnsDeletions.attempts}, 6))::int)`,
     )
     .orderBy(sql`${dnsDeletions.lastAttemptAt} asc nulls first`)
     .limit(100);

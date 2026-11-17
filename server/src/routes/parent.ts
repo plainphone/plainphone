@@ -273,25 +273,31 @@ export function parentRoutes(ctx: Ctx) {
   app.post("/invites/accept", async (c) => {
     const input = await body(c, z.object({ token: z.string().min(10).max(200) }));
     const user = c.get("user");
-    const hid = await ctx.db.transaction(async (tx) => {
-      // Deleted on acceptance (#8): the invited address is not needed once they are a member.
-      const [invite] = await tx
-        .delete(householdInvites)
-        .where(
-          and(
-            eq(householdInvites.tokenHash, sha256(input.token)),
-            isNull(householdInvites.acceptedAt),
-            gt(householdInvites.expiresAt, ctx.now()),
-          ),
-        )
-        .returning();
-      if (!invite) return null;
-      await tx
-        .insert(householdMembers)
-        .values({ householdId: invite.householdId, userId: user.id, role: "parent" })
-        .onConflictDoNothing();
-      return invite.householdId;
-    });
+    const hid = await ctx.db
+      .transaction(async (tx) => {
+        // Deleted on acceptance (#8): the invited address is not needed once they are a member.
+        const [invite] = await tx
+          .delete(householdInvites)
+          .where(
+            and(
+              eq(householdInvites.tokenHash, sha256(input.token)),
+              isNull(householdInvites.acceptedAt),
+              gt(householdInvites.expiresAt, ctx.now()),
+            ),
+          )
+          .returning();
+        if (!invite) return null;
+        await tx
+          .insert(householdMembers)
+          .values({ householdId: invite.householdId, userId: user.id, role: "parent" })
+          .onConflictDoNothing();
+        return invite.householdId;
+      })
+      // The household was deleted (its last member deleted their account) while we waited.
+      .catch((err: { code?: string; cause?: { code?: string } }) => {
+        if (err.code === "23503" || err.cause?.code === "23503") return null;
+        throw err;
+      });
     if (!hid) return c.json({ error: "this invitation is expired or already used" }, 400);
     return c.json({ householdId: hid });
   });

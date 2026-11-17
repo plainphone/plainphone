@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { Link, useNavigate } from "react-router";
 import { api, ApiError, type Phone } from "../lib/api";
 import { useMe, useSession } from "../lib/session";
 

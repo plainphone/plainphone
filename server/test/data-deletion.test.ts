@@ -105,6 +105,13 @@ describe("DNS delete retry (#10)", () => {
     expect(await h.ctx.db.select().from(dnsDeletions)).toHaveLength(0);
   });
 
+  it("keeps sweeping after many failed DNS deletes", async () => {
+    await h.ctx.db.insert(dnsDeletions).values({ clientId: "abc", attempts: 40, lastAttemptAt: h.clock.now });
+    await sweep(h.ctx);
+    h.clock.advance(65 * 60_000);
+    expect((await sweep(h.ctx)).dnsDeleted).toBe(1);
+  });
+
   it("deletes at once when the DNS service answers", async () => {
     const mum = await signIn(h, "mum@example.org");
     const { phoneId } = await pairPhone(h, mum);

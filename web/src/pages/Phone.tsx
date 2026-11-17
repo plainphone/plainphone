@@ -429,6 +429,11 @@ function ManagePhone() {
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const trimmed = name.trim();
+  const questionRef = useRef<HTMLParagraphElement>(null);
+  // The button that opened the question is gone; move focus to the question itself.
+  useEffect(() => {
+    if (confirming) questionRef.current?.focus();
+  }, [confirming]);
 
   async function rename(e: FormEvent) {
     e.preventDefault();
@@ -468,7 +473,7 @@ function ManagePhone() {
       <div className="danger-zone">
         {confirming ? (
           <div className="stack-sm" role="group" aria-labelledby="remove-q">
-            <p id="remove-q" tabIndex={-1} ref={(el) => el?.focus()}>{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
+            <p id="remove-q" tabIndex={-1} ref={questionRef}>{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
             <div className="actions">
               <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={removing}>
                 {t("phone.removeYes")}
