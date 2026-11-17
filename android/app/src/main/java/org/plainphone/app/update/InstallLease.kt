@@ -12,6 +12,8 @@ import java.util.UUID
  * A clear can run outside LOCK. While clearing, closing leases stay on disk even
  * after the watchdog relocks. The last clear completes recovery under LOCK.
  * Closing preserves the deadline and any observed overrun until retirement reports it.
+ * If storage fails, the closing state also stays in memory so recovery can relock
+ * immediately and retry retirement without losing the overrun.
  */
 class InstallLease(
     private val store: Store,
@@ -59,7 +61,7 @@ class InstallLease(
     }
 
     private fun allowsInstallLocked(catalogApproved: Boolean): Boolean {
-        val open = valid(store.load())
+        val open = valid(loadLocked())
         return SELF_UPDATE in open || (catalogApproved && CATALOG in open)
     }
 
@@ -73,8 +75,11 @@ class InstallLease(
             clear()
         } finally {
             val catalogChanged = synchronized(LOCK) {
-                clearsInFlight--
-                recoverLocked("install restriction clear finished")
+                try {
+                    recoverLocked("install restriction clear finished", finishingClear = true)
+                } finally {
+                    clearsInFlight--
+                }
             }
             catalogChanged?.let(onRecovered)
         }
@@ -114,19 +119,30 @@ class InstallLease(
         var started: Lease? = null
         var catalogChanged: Boolean? = null
         try {
+            // A catalog target change shares the existing deadline and watchdog.
+            if (holder == CATALOG) {
+                synchronized(LOCK) {
+                    check(clearsInFlight == 0) { "Install restriction clear still in progress" }
+                    val current = loadLocked()
+                    val open = valid(current)
+                    if (current.keys == open.keys) {
+                        open[holder]?.let { return it }
+                    }
+                }
+            }
+
             // The service acknowledges on the main thread. Do not wait for it under LOCK.
             env.prepareExpiry(holder, until)
             env.persistWithWatchdog(holder, until) {
                 synchronized(LOCK) {
                     check(clearsInFlight == 0) { "Install restriction clear still in progress" }
                     catalogChanged = recoverLocked("recover before opening install lease")
-                    val current = store.load()
+                    val current = loadLocked()
                     val open = valid(current)
                     check(current.keys == open.keys) { "Previous install window still needs recovery" }
                     val existing = open[holder]
                     if (existing != null) {
                         check(holder == CATALOG) { "Install window already open: $holder" }
-                        // Catalog targets may change within the current window.
                         started = existing
                     } else {
                         check(until > env.nowMs()) { "Install watchdog started after its deadline" }
@@ -144,10 +160,10 @@ class InstallLease(
         return checkNotNull(started)
     }
 
-    fun isOpen(holder: String): Boolean = synchronized(LOCK) { holder in valid(store.load()) }
+    fun isOpen(holder: String): Boolean = synchronized(LOCK) { holder in valid(loadLocked()) }
 
     private fun isOpen(holder: String, id: String?): Boolean = synchronized(LOCK) {
-        val lease = valid(store.load())[holder]
+        val lease = valid(loadLocked())[holder]
         lease != null && lease.id == id
     }
 
@@ -160,9 +176,15 @@ class InstallLease(
     }
 
     /** Returns whether catalog policy needs refreshing, or null when nothing changed. */
-    private fun recoverLocked(reason: String, force: Boolean = false): Boolean? {
-        val current = store.load()
-        val open = if (force) emptyMap() else valid(current)
+    private fun recoverLocked(
+        reason: String,
+        force: Boolean = false,
+        finishingClear: Boolean = false,
+        closingHolder: String? = null,
+    ): Boolean? {
+        val durable = store.load()
+        val current = withPendingClosures(durable)
+        val open = if (force) emptyMap() else valid(current).filterKeys { it != closingHolder }
         val closing = current - open.keys
         if (closing.isEmpty() && (open.isNotEmpty() || !restrictionLifted())) return null
 
@@ -170,9 +192,17 @@ class InstallLease(
         val wasLifted = closing.isNotEmpty() && open.isEmpty() &&
             runCatching(restrictionLifted).getOrDefault(false)
         val track = open.isEmpty() && closing.isNotEmpty() && tracksOverruns()
-        val pending = closing.mapValues { (_, lease) -> closingLease(lease, track, wasLifted) }
+        val pending = closing.mapValues { (holder, lease) ->
+            val marker = if (holder == closingHolder) lease.copy(invalidated = true) else lease
+            closingLease(marker, track, wasLifted)
+        }
         val marked = open + pending
-        if (marked != current) store.save(marked)
+        val writeFailure = try {
+            if (marked != durable) saveClosingLocked(marked)
+            null
+        } catch (e: Exception) {
+            e
+        }
 
         if (open.isEmpty()) {
             if (relockNow == null) applyLock(reason, CATALOG in closing)
@@ -183,11 +213,19 @@ class InstallLease(
         // Include time spent in the policy write. A clear can take effect again
         // after that write, so retain its closing record until it returns.
         val completed = pending.mapValues { (_, lease) -> closingLease(lease, track && wasLifted, wasLifted) }
-        if (completed != pending) store.save(open + completed)
-        if (clearsInFlight != 0) return false
+        if (writeFailure != null) {
+            rememberClosures(completed)
+            throw writeFailure
+        }
+        if (completed != pending) saveClosingLocked(open + completed)
+        val otherClears = clearsInFlight - if (finishingClear) 1 else 0
+        if (otherClears != 0) return false
         val overrun = completed.values.mapNotNull { it.pendingOverrunMs }.maxOrNull()
         store.retire(open, overrun?.let { (it + 999) / 1_000 })
-        closing.keys.forEach(env::cancelExpiry)
+        closing.forEach { (holder, lease) ->
+            pendingClosures.remove(closureKey(holder, lease))
+            env.cancelExpiry(holder)
+        }
         return CATALOG in closing
     }
 
@@ -197,6 +235,30 @@ class InstallLease(
         return lease.copy(invalidated = true, pendingOverrunMs = overrun)
     }
 
+    private fun loadLocked() = withPendingClosures(store.load())
+
+    private fun withPendingClosures(leases: Map<String, Lease>) =
+        leases.mapValues { (holder, lease) -> pendingClosures[closureKey(holder, lease)] ?: lease }
+
+    private fun closureKey(holder: String, lease: Lease) =
+        holder to lease.copy(invalidated = false, pendingOverrunMs = null)
+
+    private fun rememberClosures(leases: Map<String, Lease>) {
+        leases.forEach { (holder, lease) ->
+            if (lease.invalidated) pendingClosures[closureKey(holder, lease)] = lease
+        }
+    }
+
+    private fun saveClosingLocked(leases: Map<String, Lease>) {
+        try {
+            store.save(leases)
+        } catch (e: Exception) {
+            rememberClosures(leases)
+            throw e
+        }
+        leases.forEach { (holder, lease) -> pendingClosures.remove(closureKey(holder, lease)) }
+    }
+
     fun hasMarkers(): Boolean = synchronized(LOCK) { store.load().isNotEmpty() }
 
     /** Drops [holder]'s lease and applies the lock; the restriction returns unless another lease is open. */
@@ -204,24 +266,22 @@ class InstallLease(
 
     private fun close(holder: String, reason: String, matches: ((Lease) -> Boolean)? = null) {
         val catalogChanged = synchronized(LOCK) {
-            val current = store.load()
-            val lease = current[holder]
+            val lease = loadLocked()[holder]
             if (matches != null && (lease == null || !matches(lease))) return
-            if (lease != null) invalidateLocked(current, holder, lease)
-            recoverLocked(reason)
+            recoverLocked(reason, closingHolder = holder)
         }
         catalogChanged?.let(onRecovered)
     }
 
     fun invalidate(holder: String): Boolean = synchronized(LOCK) {
-        val current = store.load()
+        val current = loadLocked()
         val lease = current[holder] ?: return@synchronized false
         invalidateLocked(current, holder, lease)
         true
     }
 
     private fun invalidateLocked(current: Map<String, Lease>, holder: String, lease: Lease) {
-        if (!lease.invalidated) store.save(current + (holder to lease.copy(invalidated = true)))
+        if (!lease.invalidated) saveClosingLocked(current + (holder to lease.copy(invalidated = true)))
     }
 
     private fun overrunMs(lease: Lease, wasLifted: Boolean): Long? {
@@ -256,6 +316,8 @@ class InstallLease(
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
         private var clearsInFlight = 0
+        // Android creates a new InstallLease for each recovery entry point.
+        private val pendingClosures = mutableMapOf<Pair<String, Lease>, Lease>()
 
         internal fun latestOverrun(context: Context): InstallWindowOverrun? = synchronized(LOCK) {
             PrefsLeaseStore(context).latestOverrun()
