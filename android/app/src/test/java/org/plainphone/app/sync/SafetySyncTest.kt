@@ -267,6 +267,27 @@ class SafetySyncTest {
     }
 
     @Test
+    fun `Find sends its cached position before a slow check-in can exhaust its window`() {
+        val deadline = device.now
+        val requested = deadline - SyncRunner.FIND_RETRY_MS + 10_000L
+        val oldFix = requireNotNull(device.fix).copy(recordedAtMs = requested - 1)
+        device.lastKnownFix = oldFix
+        device.fix = null
+        device.locationDelayMs = 30_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested),
+            checkIn = checkIn(deadline, locationDue = true),
+        ))
+
+        runner.run("Find is about to expire")
+
+        assertThat(device.freshLocationRequests).containsExactly(true)
+        assertThat(api.locationPurposes).containsExactly("find:$requested")
+        assertThat(api.locations).containsExactly(oldFix)
+        assertThat(store.lastCheckInAttempt(id)).isEqualTo(deadline)
+    }
+
+    @Test
     fun `Find sends its last known fix while a due check-in has no fix`() {
         val deadline = device.now
         val requested = deadline - 1_000L

@@ -2288,13 +2288,13 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
-                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits purpose, one fix can answer both an active Find and a due check-in. The fix must be recorded at or after the Find request to answer Find. To answer the check-in, both the server time and the fix time must be at or after the deadline minus two minutes, and the fix must be recorded after the check-in was created. */
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits the purpose, one fix can answer both an active Find and a due check-in. To answer Find, the fix must be recorded at or after the Find request. To answer a check-in, the server and fix times must be at or after the deadline minus two minutes, and the fix must follow check-in creation. If Find or always also authorizes the upload, the fix time must reach the check-in deadline to count for the check-in. */
                     purpose?: string;
                 };
             };
         };
         responses: {
-            /** @description Stored (or ignored if older than the stored one) */
+            /** @description Accepted. A check-in fix is held for publication after the reply grace period. */
             204: {
                 headers: {
                     [name: string]: unknown;

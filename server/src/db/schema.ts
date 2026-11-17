@@ -366,6 +366,10 @@ export const safetyRequests = pgTable(
     answer: text("answer", { enum: ["here", "ok", "call"] }),
     /** The parent stopped or cancelled it. */
     stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    /** Check-in: hold the fix privately while an answer can still arrive. */
+    pendingLocation: jsonb("pending_location").$type<{
+      lat: number; lon: number; accuracyM: number | null; recordedAt: string; receivedAt: string;
+    }>(),
     /** Check-in: the position sent because nobody answered. */
     locatedAt: timestamp("located_at", { withTimezone: true }),
     /** Check-in: the parents were told nobody answered by the deadline. */

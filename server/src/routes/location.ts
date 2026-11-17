@@ -18,6 +18,7 @@ import {
   CHECKIN_MAX_MINUTES,
   CHECKIN_MIN_MINUTES,
   checkinJson,
+  checkinSendsLocation,
   loadSafety,
   ringActive,
   ringJson,
@@ -134,7 +135,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
     const { checkin } = await loadSafety(ctx, phone.id);
     if (checkin) {
       const now = ctx.now();
-      const stopped = await ctx.db.update(safetyRequests).set({ stoppedAt: now }).where(and(
+      const stopped = await ctx.db.update(safetyRequests).set({ stoppedAt: now, pendingLocation: null }).where(and(
         eq(safetyRequests.id, checkin.id),
         isNull(safetyRequests.stoppedAt),
         isNull(safetyRequests.answeredAt),
@@ -154,15 +155,20 @@ export async function setLocationMode(
   alwaysFor?: AlwaysFor,
 ) {
   const until = mode === "always" ? alwaysUntil(alwaysFor ?? "hour", phone.timezone, ctx.now()) : null;
-  await ctx.db
-    .update(phonesTable)
-    .set({
+  await ctx.db.transaction(async (tx) => {
+    await tx.update(phonesTable).set({
       locationMode: mode,
       locationEnabled: mode !== "off",
       locationAlwaysUntil: until,
       ...(mode === "off" ? { locateRequestedAt: null } : {}),
-    })
-    .where(eq(phonesTable.id, phone.id));
-  if (mode === "off") await ctx.db.delete(locations).where(eq(locations.phoneId, phone.id));
+    }).where(eq(phonesTable.id, phone.id));
+    if (!checkinSendsLocation(mode)) {
+      await tx.update(safetyRequests).set({ pendingLocation: null }).where(and(
+        eq(safetyRequests.phoneId, phone.id),
+        eq(safetyRequests.kind, "checkin"),
+      ));
+    }
+    if (mode === "off") await tx.delete(locations).where(eq(locations.phoneId, phone.id));
+  });
   if (mode !== phone.locationMode || until) await wakePhone(ctx, phone.id, "rules");
 }

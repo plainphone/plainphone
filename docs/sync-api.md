@@ -56,14 +56,17 @@ phone                                      server                         parent
    Retry a saved upload only for its original request. Any unrequested position gets `409`,
    as does every position when location is off. Each tag answers only its matching request.
 
-   Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits
-   purpose, one fix can answer both an active Find and a due check-in. The fix must be recorded at
-   or after the Find request to answer Find. To answer the check-in, both the server time and the
-   fix time must be at or after the deadline minus two minutes, and the fix must be recorded after
-   the check-in was created.
-   The two-minute allowance accounts for clock differences on older phones. The server
-   sends an unanswered check-in notification only after the server deadline, if it still
-   has no answer.
+   If an older client omits the purpose, one fix can answer both an active Find and a due
+   check-in. To answer Find, the fix must be recorded at or after the Find request. To answer a
+   check-in, the server and fix times must be at or after the deadline minus two minutes, and
+   the fix must follow check-in creation. If Find or always also authorizes the upload, the fix
+   time must reach the check-in deadline to count for the check-in.
+
+   The server holds check-in fixes privately until at least one second after both the reply
+   deadline and receipt of the fix. The next sweeper pass publishes the fix if the check-in
+   still has no answer and has not been cancelled. A separately authorized Find or always
+   position is available immediately.
+
    Phones from before `mode` only know `enabled`; the server sends them
    `intervalMinutes: 1440` outside `always`. After `location.alwaysUntil`, the server refuses
    scheduled reports and the mode becomes `checkin`.

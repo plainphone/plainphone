@@ -78,7 +78,15 @@ If an upload fails temporarily, the phone keeps the position and retries the upl
 on the next sync while the request is still open. If the server rejects the payload as
 invalid, the phone discards it and waits for the next retry slot. Find and check-in
 each have their own lookup, purpose tag and pending upload. A check-in with no fix
-does not prevent Find from sending its own fix or last known position.
+does not prevent Find from sending its own fix or last known position. In the last
+30 seconds of Find, the phone handles Find first and prefers the last known position
+if available, so a check-in lookup cannot consume the rest of the window.
+
+The server holds a check-in fix privately for at least one second after both receipt
+and the server deadline. The next sweeper pass publishes it if the check-in still
+has no answer and has not been cancelled. Find and regular positions remain available
+as soon as the server accepts them.
+
 Find can start when the phone clock is up to 2 minutes behind, and the phone keeps a pending
 upload for up to 2 extra minutes in case its clock is ahead. Between Find attempts, a due
 `always` report can reuse a cached position that meets the regular age and accuracy limits

@@ -5,7 +5,7 @@
 
 import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { localDate } from "./limits.js";
-import { type LocationMode, phones, safetyRequests } from "../db/schema.js";
+import { type LocationMode, locations, phones, safetyRequests } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { notifyHousehold, type SafetyNews } from "./notifications.js";
 
@@ -27,6 +27,8 @@ export const FAST_POLL_SECONDS = 10;
 export const SAFETY_KEEP_MS = 24 * 60 * 60_000;
 /** The phone's clock may be a little ahead: accept the check-in position this early. */
 const CLOCK_SLACK_MS = 2 * 60_000;
+/** A reply arriving within a second of the deadline or upload can still win. */
+const CHECKIN_REPLY_GRACE_MS = 1_000;
 
 /** How long a parent can turn "always" on for. It always ends by itself (docs/location.md). */
 export const ALWAYS_FOR = ["hour", "today", "week"] as const;
@@ -85,7 +87,7 @@ export function checkinStatus(r: SafetyRequest, now: Date): CheckinStatus {
 
 /** True while the phone should (still) send its one position for an unanswered check-in. */
 export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationMode, now: Date, slackMs = 0): boolean {
-  if (!r || r.answeredAt || r.stoppedAt || r.locatedAt || !checkinSendsLocation(mode)) return false;
+  if (!r || r.answeredAt || r.stoppedAt || r.locatedAt || r.pendingLocation || !checkinSendsLocation(mode)) return false;
   const t = now.getTime();
   return t >= r.endsAt.getTime() - slackMs && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
 }
@@ -210,12 +212,65 @@ export async function notifySafety(ctx: Ctx, phone: Pick<Phone, "id" | "name">, 
   }
 }
 
+type Transaction = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
+type LocationValues = Omit<typeof locations.$inferInsert, "phoneId">;
+
+/** Only the latest position is kept. An older fix never overwrites a newer one. */
+export async function storeLatestLocation(tx: Transaction, phoneId: string, values: LocationValues) {
+  await tx.insert(locations).values({ phoneId, ...values }).onConflictDoUpdate({
+    target: locations.phoneId,
+    set: values,
+    setWhere: lte(locations.recordedAt, values.recordedAt),
+  });
+}
+
+/** Publish staged fixes only after replies and cancellations have had time to arrive. */
+async function publishCheckinLocations(ctx: Ctx, cutoff: Date): Promise<number> {
+  const pending = await ctx.db
+    .select({ id: safetyRequests.id, phoneId: safetyRequests.phoneId })
+    .from(safetyRequests)
+    .where(and(lte(safetyRequests.endsAt, cutoff), isNotNull(safetyRequests.pendingLocation)));
+  let sent = 0;
+  for (const { id, phoneId } of pending) {
+    const phone = await ctx.db.transaction(async (tx) => {
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("no key update");
+      if (!phone) return null;
+      const [req] = await tx.select().from(safetyRequests).where(and(
+        eq(safetyRequests.id, id),
+        isNull(safetyRequests.answeredAt),
+        isNull(safetyRequests.stoppedAt),
+        isNotNull(safetyRequests.pendingLocation),
+      )).for("update");
+      const fix = req?.pendingLocation;
+      if (!fix || new Date(fix.receivedAt) > cutoff) return null;
+
+      if (!checkinSendsLocation(phone.locationMode)) {
+        await tx.update(safetyRequests).set({ pendingLocation: null }).where(eq(safetyRequests.id, id));
+        return null;
+      }
+      const receivedAt = new Date(fix.receivedAt);
+      await storeLatestLocation(tx, phone.id, { ...fix, recordedAt: new Date(fix.recordedAt), receivedAt });
+      await tx.update(safetyRequests)
+        .set({ locatedAt: receivedAt, pendingLocation: null, noReplyNotifiedAt: ctx.now() })
+        .where(eq(safetyRequests.id, id));
+      return phone;
+    });
+    if (phone) {
+      await notifySafety(ctx, phone, "located");
+      sent++;
+    }
+  }
+  return sent;
+}
+
 /**
  * Sweeper: tells the parents once when an "Are you okay?" passed its deadline unanswered.
- * The position itself (if the mode sends one) is announced when it arrives.
+ * A position, if ready, takes the place of the initial no-reply notification.
  */
 export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
   const now = ctx.now();
+  const cutoff = new Date(now.getTime() - CHECKIN_REPLY_GRACE_MS);
+  let sent = await publishCheckinLocations(ctx, cutoff);
   const rows = await ctx.db
     .select({ req: safetyRequests, phone: phones })
     .from(safetyRequests)
@@ -223,13 +278,13 @@ export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
     .where(
       and(
         eq(safetyRequests.kind, "checkin"),
-        lte(safetyRequests.endsAt, now),
+        lte(safetyRequests.endsAt, cutoff),
+        isNull(safetyRequests.pendingLocation),
         isNull(safetyRequests.answeredAt),
         isNull(safetyRequests.stoppedAt),
         isNull(safetyRequests.noReplyNotifiedAt),
       ),
     );
-  let sent = 0;
   for (const { req, phone } of rows) {
     // Claim it first, so two sweeps never notify twice.
     const claimed = await ctx.db
@@ -238,6 +293,7 @@ export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
       .where(and(
         eq(safetyRequests.id, req.id),
         isNull(safetyRequests.noReplyNotifiedAt),
+        isNull(safetyRequests.pendingLocation),
         isNull(safetyRequests.answeredAt),
         isNull(safetyRequests.stoppedAt),
       ))

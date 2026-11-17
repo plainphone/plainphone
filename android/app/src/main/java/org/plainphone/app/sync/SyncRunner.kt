@@ -7,6 +7,8 @@ import java.io.IOException
 import java.security.MessageDigest
 import org.plainphone.app.StepResult
 
+internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
+
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
     fun nowMs(): Long
@@ -214,8 +216,30 @@ class SyncRunner(
         val requested = rules.locateRequestedAt?.toEpochMilli()?.takeIf {
             it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until (FIND_RETRY_MS + CLOCK_SLACK_MS)
         }
+        fun findNearExpiry(at: Long, start: Long) = at - start >= FIND_RETRY_MS - LOCATION_LOOKUP_BUDGET_MS
+        val findFirst = requested != null && findNearExpiry(now, requested)
+        var attemptedFind = false
+        fun reportFind() {
+            if (requested == null) {
+                store.clearPendingLocation(checkIn = false)
+                return
+            }
+            guarded("report Find location") {
+                attemptedFind = true
+                val findNow = device.nowMs()
+                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, findNow) {
+                    // Near expiry, send the cached position before spending the remaining time on GPS.
+                    (if (findNearExpiry(findNow, requested)) device.lastKnownLocation() else null)
+                        ?: device.location(precise = true, notBeforeMs = requested)
+                        ?: device.lastKnownLocation()
+                }
+            }
+        }
+        if (findFirst) reportFind()
+
+        val checkInNow = device.nowMs()
         val checkIn = rules.checkIn?.takeIf {
-            val age = now - it.deadline.toEpochMilli()
+            val age = checkInNow - it.deadline.toEpochMilli()
             it.sendLocation && it.locationDue != false && age in 0 until FIND_RETRY_MS &&
                 it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
         }
@@ -224,7 +248,7 @@ class SyncRunner(
         } else {
             guarded("report check-in location") {
                 reportRequestedLocation(
-                    token, "checkin:${checkIn.id}", checkIn.deadline.toEpochMilli(), now, checkInId = checkIn.id,
+                    token, "checkin:${checkIn.id}", checkIn.deadline.toEpochMilli(), checkInNow, checkInId = checkIn.id,
                 ) {
                     val createdAt = checkIn.createdAt?.toEpochMilli()
                     device.location(precise = true, fresh = true)?.takeIf {
@@ -234,17 +258,7 @@ class SyncRunner(
             }
         }
 
-        var attemptedFind = false
-        if (requested == null) {
-            store.clearPendingLocation(checkIn = false)
-        } else {
-            guarded("report Find location") {
-                attemptedFind = true
-                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, device.nowMs()) {
-                    device.location(precise = true, notBeforeMs = requested) ?: device.lastKnownLocation()
-                }
-            }
-        }
+        if (!findFirst) reportFind()
 
         if (checkIn != null || attemptedFind) return
         val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&

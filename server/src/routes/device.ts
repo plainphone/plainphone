@@ -2,11 +2,11 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests } from "../db/schema.js";
+import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
@@ -18,7 +18,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { respondWithRules } from "../services/phones.js";
-import { checkinLocationDue, FIND_WINDOW_MS, legacyCheckinLocationDue, notifySafety } from "../services/safety.js";
+import { checkinLocationDue, FIND_WINDOW_MS, legacyCheckinLocationDue, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 export const PAIRING_MINUTES = 15;
@@ -234,7 +234,7 @@ export function deviceRoutes(ctx: Ctx) {
   });
 
   app.put("/location", async (c) => {
-    const phone = c.get("phone");
+    const phoneId = c.get("phone").id;
     const input = await body(
       c,
       z.object({
@@ -245,19 +245,22 @@ export function deviceRoutes(ctx: Ctx) {
         purpose: z.string().regex(/^(always|find:\d+|checkin:[0-9a-f-]{36})$/i).optional(),
       }),
     );
-    if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
     const now = ctx.now();
     const { purpose } = input;
     const recordedAt = new Date(input.recordedAt);
-    const requestedAt = phone.locateRequestedAt;
-    const forFind =
-      requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
-      (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
-    const always =
-      phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
-      (purpose === undefined || purpose === "always");
     const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: now };
     const result = await ctx.db.transaction(async (tx) => {
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("no key update");
+      if (!phone || phone.locationMode === "off") {
+        return { status: 409, error: "location is off for this phone" } as const;
+      }
+      const requestedAt = phone.locateRequestedAt;
+      const forFind =
+        requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
+        (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
+      const always =
+        phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
+        (purpose === undefined || purpose === "always");
       const [checkin] = purpose === undefined || purpose.startsWith("checkin:")
         ? await tx.select().from(safetyRequests).where(and(
             eq(safetyRequests.phoneId, phone.id),
@@ -265,7 +268,8 @@ export function deviceRoutes(ctx: Ctx) {
           ))
         : [];
       const forCheckin = checkin !== undefined && (purpose === undefined
-        ? legacyCheckinLocationDue(checkin, phone.locationMode, now, recordedAt)
+        ? legacyCheckinLocationDue(checkin, phone.locationMode, now, recordedAt) &&
+          ((!always && !forFind) || recordedAt >= checkin.endsAt)
         : purpose === `checkin:${checkin.id}` && checkinLocationDue(checkin, phone.locationMode, now));
       if (!always && !forFind && !forCheckin) return { status: 409 } as const;
       if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
@@ -274,50 +278,35 @@ export function deviceRoutes(ctx: Ctx) {
       if (forCheckin && recordedAt <= checkin.createdAt && !always && !forFind) {
         return { status: 400, error: "recordedAt must be after check-in creation" } as const;
       }
-      let located = false;
+      let staged = false;
       if (forCheckin && recordedAt > checkin.createdAt &&
           (purpose === undefined || recordedAt >= checkin.endsAt)) {
-        // Win the conditional update before storing a fix authorised only by the check-in.
+        // An answer or cancellation can still discard this fix before it becomes visible.
         const claimed = await tx
           .update(safetyRequests)
-          .set({ locatedAt: now })
+          .set({ pendingLocation: { ...values, recordedAt: recordedAt.toISOString(), receivedAt: now.toISOString() } })
           .where(and(
             eq(safetyRequests.id, checkin.id),
             isNull(safetyRequests.locatedAt),
+            isNull(safetyRequests.pendingLocation),
             isNull(safetyRequests.answeredAt),
             isNull(safetyRequests.stoppedAt),
           ))
           .returning({ id: safetyRequests.id });
-        located = claimed.length > 0;
+        staged = claimed.length > 0;
       }
-      if (!always && !forFind && !located) return { status: 409 } as const;
-      // One row per phone (D7). An older fix never overwrites a newer one.
-      await tx
-        .insert(locations)
-        .values({ phoneId: phone.id, ...values })
-        .onConflictDoUpdate({
-          target: locations.phoneId,
-          set: values,
-          setWhere: lte(locations.recordedAt, recordedAt),
-        });
+      if (!always && !forFind && !staged) return { status: 409 } as const;
       if (forFind && recordedAt >= requestedAt) {
         await tx
           .update(phones)
           .set({ locateRequestedAt: null })
           .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
       }
-      return { status: 204, notifyId: located && checkin && now >= checkin.endsAt ? checkin.id : null } as const;
+      if (always || forFind) await storeLatestLocation(tx, phone.id, values);
+      return { status: 204 } as const;
     });
-    if (result.status === 409) return c.json({ error: "no position was asked for" }, 409);
+    if (result.status === 409) return c.json({ error: result.error ?? "no position was asked for" }, 409);
     if (result.status === 400) return c.json({ error: result.error }, 400);
-    if (result.notifyId) {
-      const [unanswered] = await ctx.db.select({ id: safetyRequests.id }).from(safetyRequests).where(and(
-        eq(safetyRequests.id, result.notifyId),
-        isNull(safetyRequests.answeredAt),
-        isNull(safetyRequests.stoppedAt),
-      ));
-      if (unanswered) await notifySafety(ctx, phone, "located");
-    }
     return c.body(null, 204);
   });
 
@@ -337,10 +326,10 @@ export function deviceRoutes(ctx: Ctx) {
         .returning({ id: safetyRequests.id });
       if (shown.length) return c.body(null, 204);
     } else {
-      // Record the answer in one statement so it can win against an in-flight location upload.
+      // Clear any unpublished fix in the same update that records the answer.
       const first = await ctx.db
         .update(safetyRequests)
-        .set({ answeredAt: now, answer: event, shownAt: sql`coalesce(${safetyRequests.shownAt}, ${now.toISOString()}::timestamptz)` })
+        .set({ answeredAt: now, answer: event, pendingLocation: null, shownAt: sql`coalesce(${safetyRequests.shownAt}, ${now.toISOString()}::timestamptz)` })
         .where(and(request, eq(safetyRequests.kind, event === "here" ? "ring" : "checkin"), isNull(safetyRequests.answeredAt)))
         .returning({ stoppedAt: safetyRequests.stoppedAt });
       if (first.length) {

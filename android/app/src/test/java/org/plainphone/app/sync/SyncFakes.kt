@@ -28,6 +28,7 @@ class FakeSyncDevice(
     val freshLocationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L
+    var locationDelayMs = 0L
     /** What the next [release] reports; make a step fail to play a release that did not hold. */
     var releaseResults: List<StepResult> = listOf(StepResult("give up Device Owner", true))
     var releases = 0
@@ -45,6 +46,7 @@ class FakeSyncDevice(
     override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? {
         locationRequests += precise
         freshLocationRequests += fresh
+        now += locationDelayMs
         return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
 

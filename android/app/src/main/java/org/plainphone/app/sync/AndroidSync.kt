@@ -123,11 +123,11 @@ class LocationReader(private val context: Context) {
     @SuppressLint("MissingPermission") // Granted by Device Owner when the parent turns location on.
     fun current(
         precise: Boolean,
-        timeoutMs: Long = BUDGET_MS,
+        timeoutMs: Long = LOCATION_LOOKUP_BUDGET_MS,
         notBeforeMs: Long? = null,
         fresh: Boolean = false,
     ): LocationFix? {
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, BUDGET_MS))
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, LOCATION_LOOKUP_BUDGET_MS))
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         if (!lm.isLocationEnabled) return null
         val enabled = lm.allProviders.filter(lm::isProviderEnabled)
@@ -301,7 +301,6 @@ class LocationReader(private val context: Context) {
 
     private companion object {
         const val FUSED = "fused"
-        const val BUDGET_MS = 30_000L
         const val PRECISE_ACCURACY_METERS = 100f
         val DIRECT_EXECUTOR = Executor { it.run() }
     }
