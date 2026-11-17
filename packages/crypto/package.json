@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "test": "node --test vectors.test.ts"
   },
   "dependencies": {

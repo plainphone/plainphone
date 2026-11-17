@@ -10,6 +10,7 @@ import com.google.gson.Strictness
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import org.erdtman.jcs.JsonCanonicalizer
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.Base64
 
@@ -38,7 +39,7 @@ internal object WireEncoding {
         return wrapped.copyOfRange(1, wrapped.size - 1)
     }
 
-    fun parseCanonical(bytes: ByteArray): JsonElement {
+    fun parseCanonical(bytes: ByteArray): JsonElement = try {
         val text = Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
         val value = JsonReader(text.reader()).use { reader ->
             reader.strictness = Strictness.STRICT
@@ -47,7 +48,9 @@ internal object WireEncoding {
             result
         }
         require(canonical(value).contentEquals(bytes)) { "Noncanonical JSON" }
-        return value
+        value
+    } catch (e: IOException) {
+        throw IllegalArgumentException("Invalid UTF-8 or JSON", e)
     }
 
     private fun readJson(reader: JsonReader): JsonElement = when (reader.peek()) {

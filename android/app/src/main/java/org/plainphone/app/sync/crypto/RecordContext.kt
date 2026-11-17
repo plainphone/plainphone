@@ -10,6 +10,10 @@ data class RulesRevision(val version: Long, val digest: String)
 
 fun rulesRejection(header: JsonObject, role: String, receivedDigest: String, accepted: RulesRevision?): String? {
     if (header["table"] != JsonPrimitive("phone_state") || header["scope"] != JsonPrimitive("R")) return "wrong-scope"
+    val wireVersion = header["v"] as? JsonPrimitive
+    if (wireVersion == null || !wireVersion.isNumber || wireVersion.asString != "1") return "wrong-wire-version"
+    val phoneId = header["phoneId"] as? JsonPrimitive
+    if (phoneId == null || !phoneId.isString || header["recordId"] != phoneId) return "wrong-record-id"
     if (role != "admin") return "wrong-role"
     val version = header["version"] as? JsonPrimitive
     if (version == null || !version.isNumber) return "old-version"

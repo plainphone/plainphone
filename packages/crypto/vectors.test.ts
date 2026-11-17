@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { base64url, unbase64url, canonical, parseCanonical, CryptoCore, rulesRejection, selfBaseRejection, hasSelfScope } from "./index.ts";
+import type { JsonObject } from "./index.ts";
 
 const fixture = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../docs/encryption-test-vectors/${name}.json`, import.meta.url), "utf8"));
@@ -101,6 +102,15 @@ for (const backend of ["native", "noble"] as const) {
     const revisedWire = await core.sealRecord(sample.wire.header, { schema: 1, rules: {} }, r1, bytes(protocol.signing.seed));
     assert.deepEqual(await core.openRecord(revisedWire, sample.wire.header, admin, r1), { schema: 1, rules: {} });
     assert.equal(rulesRejection(sample.wire.header, "admin", accepted.digest, accepted), null);
+    for (const v of [undefined, "1", 2]) {
+      const header: JsonObject = { ...sample.wire.header };
+      if (v === undefined) delete header.v;
+      else header.v = v;
+      assert.equal(rulesRejection(header, "admin", accepted.digest, accepted), "wrong-wire-version");
+    }
+    for (const ids of [{ recordId: "other" }, { recordId: null, phoneId: null }]) {
+      assert.equal(rulesRejection({ ...sample.wire.header, ...ids }, "admin", accepted.digest, accepted), "wrong-record-id");
+    }
     assert.equal(rulesRejection(revisedWire.header, "admin", await revisionDigest(revisedWire), accepted), "revision-conflict");
     for (const { record, role, acceptedVersion, reason } of protocol.negative.rules) {
       await signed(core, "record", record, role === "admin" ? admin : emergency);
@@ -172,6 +182,11 @@ for (const backend of ["native", "noble"] as const) {
     for (const [purpose, value] of [["enroll", protocol.enrollment], ["pair-context", protocol.pairing]]) {
       eq(core.domain(purpose, value.fields), value.input);
       eq(await core.hmac(bytes(value.secret), bytes(value.input)), value.mac);
+      const tag = bytes(value.mac);
+      assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag), true);
+      assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag.subarray(1)), false);
+      tag[0] = tag[0]! ^ 1;
+      assert.equal(await core.hmacVerify(bytes(value.secret), bytes(value.input), tag), false);
     }
     const { dedupe, dns, recovery } = protocol;
     eq(await core.hkdf(r1, key(0), bytes(dedupe.info), 32), dedupe.key);

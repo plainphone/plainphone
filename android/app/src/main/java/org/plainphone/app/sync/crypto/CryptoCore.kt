@@ -24,6 +24,7 @@ import java.math.BigInteger
 import java.security.GeneralSecurityException
 import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
@@ -52,6 +53,9 @@ class CryptoCore {
         init(SecretKeySpec(key, "HmacSHA256"))
         doFinal(input)
     }
+
+    fun hmacVerify(key: ByteArray, input: ByteArray, tag: ByteArray): Boolean =
+        tag.size == 32 && MessageDigest.isEqual(hmac(key, input), tag)
 
     fun hkdf(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
         require(length in 1..255 * 32)
@@ -84,7 +88,11 @@ class CryptoCore {
     fun hpkeOpen(privateKey: ByteArray, publicKey: ByteArray, info: ByteArray,
                  enc: ByteArray, ct: ByteArray): ByteArray {
         require(enc.size == 32 && ct.size >= 16)
-        return HpkeDecrypt.create(hpkePrivate(privateKey, publicKey)).decrypt(enc + ct, info)
+        return try {
+            HpkeDecrypt.create(hpkePrivate(privateKey, publicKey)).decrypt(enc + ct, info)
+        } catch (e: GeneralSecurityException) {
+            throw IllegalArgumentException("Invalid HPKE ciphertext or recipient key", e)
+        }
     }
 
     // The protocol uses empty AAD. The RFC 9180 primitive fixture exercises nonempty AAD.
@@ -104,7 +112,11 @@ class CryptoCore {
         aes(Cipher.ENCRYPT_MODE, key, nonce, aad, plaintext)
 
     fun decrypt(key: ByteArray, nonce: ByteArray, aad: ByteArray, ciphertext: ByteArray) =
-        aes(Cipher.DECRYPT_MODE, key, nonce, aad, ciphertext)
+        try {
+            aes(Cipher.DECRYPT_MODE, key, nonce, aad, ciphertext)
+        } catch (e: BadPaddingException) {
+            throw IllegalArgumentException("Invalid AES-GCM authentication tag", e)
+        }
 
     private fun aes(mode: Int, key: ByteArray, nonce: ByteArray, aad: ByteArray, bytes: ByteArray): ByteArray {
         require(key.size == 32 && nonce.size == 12)
@@ -189,8 +201,9 @@ class CryptoCore {
         if (previous == null) require(seq == 0L && post["prevHash"] == JsonNull.INSTANCE && type == "genesis")
         else require(seq == previous.seq + 1 && household == previous.householdId &&
             string(post["prevHash"]) == previous.head && type != "genesis")
-        val data = post["data"].asJsonObject
-        logPayload(type, data, post["epochs"].asJsonArray)
+        val data = post["data"] as? JsonObject ?: throw IllegalArgumentException("Expected a log data object")
+        val epochs = post["epochs"] as? JsonArray ?: throw IllegalArgumentException("Expected a log epochs array")
+        logPayload(type, data, epochs)
         if (previous == null) {
             require(data["deviceId"] == post["signerDeviceId"] && string(data["signPub"]) == base64url(signer))
         }
@@ -202,7 +215,7 @@ class CryptoCore {
         require(data.keySet() == logFields[type]) { "Invalid log payload" }
         var previous = ""
         for (value in epochs) {
-            val entry = value.asJsonObject
+            val entry = value as? JsonObject ?: throw IllegalArgumentException("Expected a log epoch object")
             require(entry.keySet() == setOf("scope", "phoneId", "epoch", "keyHash"))
             val scope = string(entry["scope"])
             val phoneId = if (scope == "H") {

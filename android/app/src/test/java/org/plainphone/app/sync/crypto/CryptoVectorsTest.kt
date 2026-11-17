@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.plainphone.app.sync.crypto
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonNull
+import com.google.gson.JsonPrimitive
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -12,7 +15,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigInteger
-import java.security.GeneralSecurityException
 import java.security.MessageDigest
 
 class CryptoVectorsTest {
@@ -32,6 +34,10 @@ class CryptoVectorsTest {
         val aes = primitives.obj("aesGcm")
         equal(aes.text("plaintext"), core.decrypt(aes.bytes("key"), aes.bytes("nonce"), aes.bytes("aad"), aes.bytes("ct")))
         equal(aes.text("ct"), core.encrypt(aes.bytes("key"), aes.bytes("nonce"), aes.bytes("aad"), aes.bytes("plaintext")))
+        val corrupt = aes.bytes("ct").apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
+        assertThrows(IllegalArgumentException::class.java) {
+            core.decrypt(aes.bytes("key"), aes.bytes("nonce"), aes.bytes("aad"), corrupt)
+        }
         val sig = primitives.obj("ed25519")
         assertTrue(core.verify(sig.bytes("publicKey"), sig.bytes("message"), sig.bytes("signature")))
         equal(sig.text("signature"), core.sign(sig.bytes("seed"), sig.bytes("message")))
@@ -40,7 +46,7 @@ class CryptoVectorsTest {
             assertFalse(row.text("reason"), core.verify(row.bytes("publicKey"), row.bytes("message"), row.bytes("signature")))
         }
         for (row in negatives.rows("json")) {
-            assertThrows(Exception::class.java) { core.parseCanonical(row.text("json").encodeToByteArray()) }
+            assertThrows(IllegalArgumentException::class.java) { core.parseCanonical(row.text("json").encodeToByteArray()) }
         }
         for (row in negatives.rows("base64url")) {
             assertThrows(IllegalArgumentException::class.java) { core.unbase64url(row.text("value")) }
@@ -63,6 +69,20 @@ class CryptoVectorsTest {
         assertFalse(hasSelfScope("phone", emptyList()))
         assertFalse(hasSelfScope("phone", listOf("another-phone")))
         assertTrue(hasSelfScope("phone", listOf("phone")))
+    }
+
+    @Test fun rejectsInvalidLogTypes() {
+        val genesis = protocol.rows("log").first().obj("wire")
+        val signer = protocol.obj("signing").bytes("publicKey")
+        val invalidEpochs = JsonArray().apply { add("not an object") }
+        for ((field, value) in listOf(
+            "data" to JsonArray(),
+            "epochs" to JsonObject(),
+            "epochs" to invalidEpochs,
+        )) {
+            val post = genesis.deepCopy().apply { add(field, value) }
+            assertThrows(IllegalArgumentException::class.java) { core.verifyLog(post, null, signer) }
+        }
     }
 
     @Test fun protocolVectors() {
@@ -112,6 +132,21 @@ class CryptoVectorsTest {
         val revisedWire = core.sealRecord(sampleHeader, revisedBody, sampleKey, seed)
         assertEquals(revisedBody, core.openRecord(revisedWire, sampleHeader, admin, sampleKey))
         assertEquals(null, rulesRejection(sampleHeader, "admin", accepted.digest, accepted))
+        for (v in listOf(null, JsonPrimitive("1"), JsonPrimitive(2))) {
+            val invalidHeader = sampleHeader.deepCopy().apply {
+                if (v == null) remove("v") else add("v", v)
+            }
+            assertEquals("wrong-wire-version", rulesRejection(invalidHeader, "admin", accepted.digest, accepted))
+        }
+        for (invalidHeader in listOf(
+            sampleHeader.deepCopy().apply { addProperty("recordId", "other") },
+            sampleHeader.deepCopy().apply {
+                add("recordId", JsonNull.INSTANCE)
+                add("phoneId", JsonNull.INSTANCE)
+            },
+        )) {
+            assertEquals("wrong-record-id", rulesRejection(invalidHeader, "admin", accepted.digest, accepted))
+        }
         assertEquals("revision-conflict",
             rulesRejection(revisedWire.obj("header"), "admin", revisionDigest(revisedWire), accepted))
         for (row in negative.rows("rules")) {
@@ -166,7 +201,7 @@ class CryptoVectorsTest {
         val sk = keyVector.bytes("recipientPrivateKey")
         val fresh = core.sealEnvelope(header, keyVector.bytes("plaintext"), pk, seed)
         equal(keyVector.text("plaintext"), core.openEnvelope(fresh, header, admin, sk, pk, commitment))
-        assertThrows(GeneralSecurityException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             core.openEnvelope(negative.obj("lowOrderEnc").obj("envelope").obj("wire"), header, admin, sk, pk, commitment)
         }
         assertThrows(IllegalArgumentException::class.java) {
@@ -204,6 +239,11 @@ class CryptoVectorsTest {
         for ((purpose, row) in listOf("enroll" to protocol.obj("enrollment"), "pair-context" to protocol.obj("pairing"))) {
             equal(row.text("input"), core.domain(purpose, row["fields"]))
             equal(row.text("mac"), core.hmac(row.bytes("secret"), row.bytes("input")))
+            val tag = row.bytes("mac")
+            assertTrue(core.hmacVerify(row.bytes("secret"), row.bytes("input"), tag))
+            assertFalse(core.hmacVerify(row.bytes("secret"), row.bytes("input"), tag.copyOf(31)))
+            tag[0] = (tag[0].toInt() xor 1).toByte()
+            assertFalse(core.hmacVerify(row.bytes("secret"), row.bytes("input"), tag))
         }
         val dedupe = protocol.obj("dedupe")
         equal(dedupe.text("key"), core.hkdf(dedupe.bytes("rKey"), ByteArray(32), dedupe.bytes("info"), 32))

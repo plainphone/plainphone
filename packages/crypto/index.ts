@@ -114,6 +114,12 @@ export class CryptoCore {
     return new Uint8Array(await crypto.subtle.sign("HMAC", imported, input));
   }
 
+  async hmacVerify(key: Bytes, input: Bytes, tag: Bytes): Promise<boolean> {
+    if (tag.length !== 32) return false;
+    const imported = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    return crypto.subtle.verify("HMAC", imported, tag, input);
+  }
+
   async hkdf(ikm: Bytes, salt: Bytes, info: Bytes, length: number): Promise<Bytes> {
     if (!Number.isInteger(length) || length < 1 || length > 255 * 32) throw new Error("Invalid HKDF length");
     const imported = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);

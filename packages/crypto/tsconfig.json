@@ -6,5 +6,5 @@
     "outDir": "dist",
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["index.ts", "encoding.ts", "vectors.test.ts"]
+  "include": ["index.ts", "encoding.ts", "context.ts"]
 }
