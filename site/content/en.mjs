@@ -387,13 +387,13 @@ export default {
     lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
     startStrong: "Start setup for a new or reset phone",
     startLight: "Start setup for a phone in use",
-    start: "In the dashboard, say who the phone is for and choose a parent PIN of 6 to 12 digits.",
+    start: "In the dashboard, say who the phone is for and create a setup link.",
     strongTitle: "New or reset phone",
     lightTitle: "Phone already in use",
     lightSteps: [
       ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
       ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
-      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address and confirm with the parent PIN you chose there. Follow the prompts until the phone has received your rules.", "permissions"],
+      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address, then choose a parent PIN of 6 to 12 digits and enter it twice on the phone. Follow the prompts until the phone has received your rules.", "permissions"],
     ],
     lightHelpItems: [
       ["Android says a setting is restricted", "In Plainphone, open the help below the guard step. From App info, tap the three dots and pick Allow restricted settings. Return to Plainphone and try again. The guard closes apps you haven’t allowed."],

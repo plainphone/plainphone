@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { lightSetupIntent } from "../lib/light-setup";
 import { PageTitle } from "../components/ui";
@@ -8,6 +8,11 @@ import "./add-phone.css";
 export function InstallPhonePage() {
   const { t, setLocale } = useI18n();
   const [url] = useState(() => new URL(window.location.href));
+  useLayoutEffect(() => {
+    if (window.location.hash) {
+      window.history.replaceState(window.history.state, "", url.pathname + url.search);
+    }
+  }, [url]);
   useEffect(() => {
     const lang = new URLSearchParams(url.hash.slice(1)).get("lang");
     if (lang === "da" || lang === "en") setLocale(lang);

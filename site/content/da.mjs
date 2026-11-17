@@ -385,13 +385,13 @@ export default {
     lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
     startStrong: "Start opsætning af en ny eller nulstillet telefon",
     startLight: "Start opsætning af en telefon i brug",
-    start: "Vælg i dashboardet, hvem telefonen er til, og lav en forælder-PIN på 6 til 12 cifre.",
+    start: "Vælg i dashboardet, hvem telefonen er til, og lav et opsætningslink.",
     strongTitle: "Ny eller nulstillet telefon",
     lightTitle: "Telefonen er allerede i brug",
     lightSteps: [
       ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
       ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
-      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Tjek adressen på dit dashboard, og bekræft med den forælder-PIN, du valgte der. Følg trinene, indtil telefonen har hentet dine regler.", "permissions"],
+      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Tjek adressen på dit dashboard. Vælg en forælder-PIN på 6 til 12 cifre, og indtast den to gange på telefonen. Følg trinene, indtil telefonen har hentet dine regler.", "permissions"],
     ],
     lightHelpItems: [
       ["Android siger, at en indstilling er begrænset", "Åbn hjælpen under trinet med vagten i Plainphone. Tryk på de tre prikker i Appinfo, og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen. Vagten lukker apps, du ikke har tilladt."],

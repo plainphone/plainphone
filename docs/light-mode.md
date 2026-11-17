@@ -69,14 +69,14 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 
 ## Installing it (no reset)
 
-1. In the dashboard, choose **Add phone → It is already in use**, give it a name and choose the
-   parent PIN. Scan the resulting QR code with the phone you are setting up or open the private
+1. In the dashboard, choose **Add phone → It is already in use**, give it a name and create a
+   setup link. Scan the resulting QR code with the phone you are setting up or open the private
    link in Chrome on that phone.
 2. Download the APK and open it. If Android blocks it, tap **Settings**, switch on **Allow from
    this source**, go back and tap **Install**. After installing, return to the Chrome page and
-   tap **Open Plainphone** there. This transfers the salted PIN hash and one-time token without
-   sending either to the server as part of the download. Check the dashboard address and confirm
-   with the PIN you chose there.
+   tap **Open Plainphone** there. The page clears the link fragment from Chrome’s address bar and
+   passes the one-time token to the app. Check the dashboard address, then choose and enter a
+   parent PIN twice. Plainphone hashes the PIN on the phone.
 3. Plainphone walks through the default phone app and messages app, web filter, time limits,
    uninstall protection and guard. On Android 13+ use the help under the guard if Android reports
    a restricted setting. Android settings vary by manufacturer.
@@ -88,8 +88,8 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    settings after installing.
 
 Opening Plainphone from the APK installer without the setup link still gives you the local PIN
-and pairing-code flow. For dashboard setup return to Chrome. If you already set a PIN locally, the
-dashboard PIN must match it.
+and pairing-code flow. For dashboard setup return to Chrome. If the link expires or you need to replace it before pairing, create a new one in the dashboard.
+Open it on the phone and set the parent PIN again to replace the previous setup link.
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 
 ## Google Play policies per part

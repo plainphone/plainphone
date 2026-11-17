@@ -116,10 +116,15 @@ object LightSetup {
         LightRelease.clear(context)
     }
 
-    fun savePin(context: Context, pin: String) {
+    fun savePin(context: Context, pin: String, server: String? = null) {
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val store = ConfigStore(context)
-        store.save(store.load().copy(pinHashHex = MaintenancePin.hash(pin, salt), pinSaltHex = salt))
+        val config = store.load()
+        store.save(config.copy(
+            pinHashHex = MaintenancePin.hash(pin, salt),
+            pinSaltHex = salt,
+            serverUrl = server ?: config.serverUrl,
+        ))
     }
 
     /** What the step's button opens. Null when the step is handled inside Plainphone (PIN, pairing). */

@@ -31,28 +31,24 @@ class LightEnrollmentTest {
     private val config = ConfigStore(context)
     private val token = "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"
     private val pin = "123456"
-    private val salt = "b".repeat(32)
-    private val hash = MaintenancePin.hash(pin, salt)
     private val origin = "https://pp.example.org"
 
-    private fun link(server: String = origin, pinHash: String = hash): Uri = Uri.Builder()
+    private fun link(server: String = origin, enrollmentToken: String = token): Uri = Uri.Builder()
         .scheme("plainphone")
         .authority("setup")
-        .appendQueryParameter("token", token)
-        .appendQueryParameter("pinHash", pinHash)
-        .appendQueryParameter("pinSalt", salt)
+        .appendQueryParameter("token", enrollmentToken)
         .appendQueryParameter("server", server)
         .build()
 
-    private fun confirm(uri: Uri?, enteredPin: String): Boolean =
-        LightEnrollment.parse(uri)?.let { LightEnrollment.accept(context, it, enteredPin, sync) } ?: false
+    private fun confirm(uri: Uri?, enteredPin: String, repeatedPin: String = enteredPin): Boolean =
+        LightEnrollment.parse(uri)?.let { LightEnrollment.accept(context, it, enteredPin, repeatedPin, sync) } ?: false
 
     @Test
-    fun `import the dashboard PIN and leave pairing pending`() {
+    fun `hash the parent PIN locally and leave pairing pending`() {
         confirm(link(), pin)
 
-        assertThat(config.load().pinHashHex).isEqualTo(hash)
-        assertThat(config.load().pinSaltHex).isEqualTo(salt)
+        assertThat(MaintenancePin.verify(pin, config.load())).isTrue()
+        assertThat(config.load().pinSaltHex).matches("[0-9a-f]{32}")
         assertThat(config.load().serverUrl).isEqualTo(origin)
         assertThat(LightSetup.next(context)).isNotEqualTo(LightSetup.Step.PIN)
         assertThat(sync.enrollToken()).isEqualTo(token)
@@ -75,32 +71,19 @@ class LightEnrollmentTest {
     }
 
     @Test
-    fun `invalid origin or hash cannot set the PIN`() {
+    fun `invalid origin or token cannot set the PIN`() {
         confirm(link(server = "http://example.org"), pin)
         confirm(link(server = "https://example.org/api"), pin)
-        confirm(link(pinHash = "123456"), pin)
+        confirm(link(enrollmentToken = "123456"), pin)
 
         assertThat(config.load().usesDefaultPin).isTrue()
         assertThat(sync.enrollToken()).isNull()
     }
 
     @Test
-    fun `dashboard handoff can resume after entering the same PIN locally`() {
-        LightSetup.savePin(context, pin)
-        val original = config.load()
-        val differentPin = "654321"
-        assertThat(confirm(link(pinHash = MaintenancePin.hash(differentPin, salt)), differentPin)).isFalse()
-        assertThat(config.load()).isEqualTo(original)
-        assertThat(sync.enrollToken()).isNull()
-
-        assertThat(confirm(link(), pin)).isTrue()
-        assertThat(config.load().pinHashHex).isEqualTo(hash)
-        assertThat(sync.enrollToken()).isEqualTo(token)
-    }
-
-    @Test
     fun `unconfirmed links cannot stage enrollment and paired phones reject links`() {
-        confirm(link(), "654321")
+        assertThat(confirm(link(), "654321", pin)).isFalse()
+        assertThat(confirm(link(), "12345")).isFalse()
         assertThat(config.load().usesDefaultPin).isTrue()
         assertThat(sync.enrollToken()).isNull()
 
@@ -127,8 +110,8 @@ class LightEnrollmentTest {
             assertThat(confirm(next.data, pin)).isTrue()
         }
         assertThat(sync.enrollToken()).isEqualTo(token)
-        assertThat(config.load().pinHashHex).isEqualTo(hash)
-        assertThat(config.load().pinSaltHex).isEqualTo(salt)
+        assertThat(MaintenancePin.verify(pin, config.load())).isTrue()
+        assertThat(config.load().pinSaltHex).matches("[0-9a-f]{32}")
     }
 
     @Test
@@ -140,19 +123,24 @@ class LightEnrollmentTest {
     }
 
     @Test
-    fun `the parent can replace a refused token during setup`() {
-        confirm(link(), pin)
-        val newSalt = "d".repeat(32)
-        val replacement = MaintenancePin.hash(pin, newSalt)
-        val renewed = link(pinHash = replacement).buildUpon().clearQuery()
-            .appendQueryParameter("token", token).appendQueryParameter("pinHash", replacement)
-            .appendQueryParameter("pinSalt", newSalt).appendQueryParameter("server", origin).build()
-        confirm(renewed, pin)
-        assertThat(config.load().pinHashHex).isEqualTo(hash)
+    fun `the parent can replace an unused or refused token and choose a new PIN`() {
+        LightSetup.savePin(context, "987654")
+        assertThat(confirm(link(), pin)).isTrue()
+
+        val renewed = "pp_e_AAAAAAAAAAAAAAAAAAAAAA"
+        val replacementPin = "654321"
+        assertThat(confirm(link(enrollmentToken = renewed), replacementPin, pin)).isFalse()
+        assertThat(sync.enrollToken()).isEqualTo(token)
+        assertThat(MaintenancePin.verify(pin, config.load())).isTrue()
+
+        assertThat(confirm(link(enrollmentToken = renewed), replacementPin)).isTrue()
+        assertThat(sync.enrollToken()).isEqualTo(renewed)
+        assertThat(MaintenancePin.verify(replacementPin, config.load())).isTrue()
+        assertThat(MaintenancePin.verify(pin, config.load())).isFalse()
 
         sync.saveEnrollToken(null)
-        confirm(renewed, pin)
-        assertThat(config.load().pinHashHex).isEqualTo(replacement)
+        assertThat(confirm(link(), pin)).isTrue()
         assertThat(sync.enrollToken()).isEqualTo(token)
+        assertThat(MaintenancePin.verify(pin, config.load())).isTrue()
     }
 }

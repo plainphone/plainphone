@@ -13,7 +13,7 @@ async function addPhone(parent: Client, profile: "child" | "self" = "child") {
   const r = await parent.post("/api/phones/enroll", { name: "Alma", profile, timezone: "Europe/Copenhagen" });
   expect(r.status).toBe(201);
   return r.json as {
-    phone: { id: string; pairedAt: string | null; dnsHost: string };
+    phone: { id: string; pairedAt: string | null; mode: string; dnsHost: string };
     enrollment: { token: string; expiresAt: string };
     provisioning: Record<string, string>;
   };
@@ -28,6 +28,7 @@ describe("setup from the dashboard (enrollment)", () => {
     const parent = await signIn(h, "p@example.org");
     const out = await addPhone(parent);
     expect(out.phone.pairedAt).toBeNull();
+    expect(out.phone.mode).toBe("strong");
     expect(out.enrollment.token).toMatch(/^pp_e_[A-Za-z0-9_-]{22}$/);
     expect(Date.parse(out.enrollment.expiresAt) - h.clock.now.getTime()).toBe(24 * 3_600_000);
     expect(out.provisioning).toEqual({
@@ -67,6 +68,13 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await enroll(enrollment.token, "another-install-id-000000")).status).toBe(410);
     // A new QR code for a phone that is set up is refused.
     expect((await parent.post(`/api/phones/${phone.id}/enrollment`)).status).toBe(409);
+  });
+
+  it("rejects an invalid enrollment mode without creating a phone", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const out = await parent.post("/api/phones/enroll", { name: "Test phone", profile: "child", mode: "invalid" });
+    expect(out.status).toBe(400);
+    expect(await h.ctx.db.select().from(enrollments)).toHaveLength(0);
   });
 
   it("keeps light mode when an existing phone redeems its setup link", async () => {

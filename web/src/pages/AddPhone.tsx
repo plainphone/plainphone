@@ -47,11 +47,11 @@ export function AddPhonePage() {
   const [profile, setProfile] = useState<Profile>("child");
   const [qr, setQr] = useState<Qr | null>(null);
 
-  async function makeQr(pin: string) {
+  async function makeQr(pin?: string) {
     if (!mode) return;
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
-    const pinned = await hashForQr(pin);
+    const pinned = pin === undefined ? undefined : await hashForQr(pin);
     const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode });
     setQr(buildQr(out, out.phone!, pinned, locale));
     setStep(3);
@@ -63,14 +63,15 @@ export function AddPhonePage() {
         <Link to="/">{t("nav.phones")}</Link>
       </p>
       {!mode && <ModeStep onChoose={setMode} />}
-      {mode && step !== 3 && <Progress step={step} />}
+      {mode && step !== 3 && <Progress step={step} total={mode === "light" ? 2 : 3} />}
       {mode && step === 1 && (
         <WhoStep
           name={name}
           profile={profile}
           onName={setName}
           onProfile={setProfile}
-          onNext={() => setStep(2)}
+          onNext={mode === "light" ? () => makeQr() : () => setStep(2)}
+          makeLink={mode === "light"}
           onBack={() => setMode(null)}
         />
       )}
@@ -105,8 +106,9 @@ export function SetupPhonePage() {
             <QrStep qr={qr} />
           ) : (
             <PinStep
+              light={phone.mode === "light"}
               onDone={async (pin) => {
-                const pinned = await hashForQr(pin);
+                const pinned = pin === undefined ? undefined : await hashForQr(pin);
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
                 setQr(buildQr(out, phone, pinned, locale));
               }}
@@ -130,12 +132,12 @@ async function hashForQr(pin: string): Promise<{ pinHash: string; pinSalt: strin
 function buildQr(
   out: EnrollmentOut,
   phone: Phone,
-  { pinHash, pinSalt }: { pinHash: string; pinSalt: string },
+  pinned: { pinHash: string; pinSalt: string } | undefined,
   locale: string,
 ): Qr {
   const enrollmentToken = out.enrollment.token;
   const link = phone.mode === "light"
-    ? lightSetupLink(out.provisioning.serverUrl, enrollmentToken, pinHash, pinSalt, locale)
+    ? lightSetupLink(out.provisioning.serverUrl, enrollmentToken, out.provisioning.adminComponent, locale)
     : undefined;
   return {
     phoneId: phone.id,
@@ -147,8 +149,7 @@ function buildQr(
       ? encode(link, { ecc: "L", border: 0 }).data
       : provisioningQr(provisioningPayload(out.provisioning, {
         enrollmentToken,
-        pinHash,
-        pinSalt,
+        ...pinned!,
         countryCode: countryCodeForTimezone(phone.timezone),
         wifi,
       })).modules,
@@ -175,11 +176,11 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
   );
 }
 
-function Progress({ step }: { step: 1 | 2 | 3 }) {
+function Progress({ step, total = 3 }: { step: 1 | 2 | 3; total?: number }) {
   const { t } = useI18n();
   return (
-    <div className="steps" role="img" aria-label={t("add.stepOf", { n: step, total: 3 })}>
-      {[1, 2, 3].map((n) => (
+    <div className="steps" role="img" aria-label={t("add.stepOf", { n: step, total })}>
+      {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
         <span key={n} className={n <= step ? "step-on" : undefined} />
       ))}
     </div>
@@ -191,20 +192,30 @@ function WhoStep(props: {
   profile: Profile;
   onName: (v: string) => void;
   onProfile: (v: Profile) => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
+  makeLink: boolean;
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const [error, setError] = useState<string | undefined>();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     if (!props.name.trim()) {
       setError(t("pair.nameRequired"));
       nameInput.current?.focus();
       return;
     }
-    props.onNext();
+    setFormError(null);
+    setBusy(true);
+    try {
+      await props.onNext();
+    } catch (err) {
+      setFormError(errorMessage(err, t));
+      setBusy(false);
+    }
   }
   return (
     <>
@@ -238,18 +249,19 @@ function WhoStep(props: {
             />
           )}
         </Field>
+        <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
         <div>
-          <button type="submit" className="btn btn-primary">
-            {t("add.next")}
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {t(busy ? "add.making" : props.makeLink ? "add.makeLink" : "add.next")}
           </button>
         </div>
-        <button type="button" className="btn-link" onClick={props.onBack}>{t("app.back")}</button>
+        <button type="button" className="btn-link" onClick={props.onBack} disabled={busy}>{t("app.back")}</button>
       </form>
     </>
   );
 }
 
-function PinStep({ onBack, onDone }: { onBack?: () => void; onDone: (pin: string) => Promise<void> }) {
+function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void> }) {
   const { t } = useI18n();
   const [pin, setPin] = useState("");
   const [again, setAgain] = useState("");
@@ -263,14 +275,14 @@ function PinStep({ onBack, onDone }: { onBack?: () => void; onDone: (pin: string
     e.preventDefault();
     setFormError(null);
     const next: typeof errors = {};
-    if (!isValidPin(pin)) next.pin = t("add.pinInvalid");
-    else if (pin !== again) next.again = t("add.pinMismatch");
+    if (!light && !isValidPin(pin)) next.pin = t("add.pinInvalid");
+    else if (!light && pin !== again) next.again = t("add.pinMismatch");
     setErrors(next);
     if (next.pin) return pinInput.current?.focus();
     if (next.again) return againInput.current?.focus();
     setBusy(true);
     try {
-      await onDone(pin);
+      await onDone(light ? undefined : pin);
     } catch (err) {
       setFormError(err instanceof NoCryptoError ? t("add.noCrypto") : errorMessage(err, t));
       setBusy(false);
@@ -280,42 +292,46 @@ function PinStep({ onBack, onDone }: { onBack?: () => void; onDone: (pin: string
   const digits = (v: string) => v.replace(/\D/g, "").slice(0, 12);
   return (
     <>
-      <PageTitle sub={t("add.pinIntro")}>{t("add.pinTitle")}</PageTitle>
+      <PageTitle sub={t(light ? "add.lightPinOnPhone" : "add.pinIntro")}>{t(light ? "add.newLink" : "add.pinTitle")}</PageTitle>
       <form onSubmit={submit} noValidate className="stack">
-        <Field label={t("add.pin")} help={t("add.pinHelp")} error={errors.pin}>
-          {(p) => (
-            <input
-              {...p}
-              ref={pinInput}
-              className="input-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              name="pin"
-              value={pin}
-              onChange={(e) => setPin(digits(e.target.value))}
-            />
-          )}
-        </Field>
-        <Field label={t("add.pinAgain")} error={errors.again}>
-          {(p) => (
-            <input
-              {...p}
-              ref={againInput}
-              className="input-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              name="pin-again"
-              value={again}
-              onChange={(e) => setAgain(digits(e.target.value))}
-            />
-          )}
-        </Field>
+        {!light && (
+          <>
+            <Field label={t("add.pin")} help={t("add.pinHelp")} error={errors.pin}>
+              {(p) => (
+                <input
+                  {...p}
+                  ref={pinInput}
+                  className="input-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  name="pin"
+                  value={pin}
+                  onChange={(e) => setPin(digits(e.target.value))}
+                />
+              )}
+            </Field>
+            <Field label={t("add.pinAgain")} error={errors.again}>
+              {(p) => (
+                <input
+                  {...p}
+                  ref={againInput}
+                  className="input-pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  name="pin-again"
+                  value={again}
+                  onChange={(e) => setAgain(digits(e.target.value))}
+                />
+              )}
+            </Field>
+          </>
+        )}
         <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
         <div className="actions">
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? t("add.making") : t("add.makeQr")}
+            {t(busy ? "add.making" : light ? "add.makeLink" : "add.makeQr")}
           </button>
           {onBack && (
             <button type="button" className="btn-link" onClick={onBack} disabled={busy}>
@@ -341,6 +357,8 @@ function QrStep({ qr }: { qr: Qr }) {
   useEffect(() => {
     if (paired || gone) return;
     let stop = false;
+    const expiresAt = Date.parse(qr.expiresAt);
+    const expiryTimer = window.setTimeout(() => setGone("expired"), Math.max(0, expiresAt - Date.now()));
     const id = window.setInterval(async () => {
       // Only while someone looks at the page; stop for good once the code has run out.
       if (document.hidden) return;
@@ -348,7 +366,6 @@ function QrStep({ qr }: { qr: Qr }) {
         const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
         if (stop) return;
         if (p.pairedAt) setPaired(true);
-        else if (Date.now() > Date.parse(qr.expiresAt)) setGone("expired");
       } catch (err) {
         if (!stop && err instanceof ApiError && err.status === 404) setGone("removed");
         // Anything else is a network hiccup: try again on the next tick.
@@ -357,6 +374,7 @@ function QrStep({ qr }: { qr: Qr }) {
     return () => {
       stop = true;
       window.clearInterval(id);
+      window.clearTimeout(expiryTimer);
     };
   }, [qr.phoneId, qr.expiresAt, paired, gone]);
 
@@ -382,7 +400,7 @@ function QrStep({ qr }: { qr: Qr }) {
 
   return (
     <>
-      <Progress step={3} />
+      <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
       <div className="setup-grid">
         {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}

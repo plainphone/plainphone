@@ -24,6 +24,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -32,9 +33,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.plainphone.app.Lock
 import org.plainphone.app.R
+import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
@@ -97,30 +100,48 @@ class LightSetupActivity : ComponentActivity() {
     @Composable
     private fun ConfirmLink(link: LightEnrollment.Link) {
         var pin by remember { mutableStateOf("") }
-        var failed by remember { mutableStateOf(false) }
+        var repeatedPin by remember { mutableStateOf("") }
+        var error by remember { mutableStateOf<Int?>(null) }
+        var saving by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
         CalmScreen(
             eyebrow = null,
             title = stringResource(R.string.light_confirm_link_title),
             body = stringResource(R.string.light_confirm_link_body, link.server),
-            primary = stringResource(R.string.light_confirm_link_action),
+            primary = if (saving) null else stringResource(R.string.light_confirm_link_action),
             onPrimary = {
-                if (LightEnrollment.accept(this, link, pin)) dismissLink() else failed = true
+                error = when {
+                    pin.length < 6 -> R.string.light_pin_too_short
+                    pin != repeatedPin -> R.string.light_pin_mismatch
+                    else -> null
+                }
+                if (error == null) {
+                    val chosenPin = pin
+                    val confirmation = repeatedPin
+                    saving = true
+                    scope.launch {
+                        val accepted = withContext(Dispatchers.IO) {
+                            LightEnrollment.accept(applicationContext, link, chosenPin, confirmation)
+                        }
+                        saving = false
+                        if (pendingLink === link) {
+                            if (accepted) dismissLink() else error = R.string.light_confirm_link_error
+                        }
+                    }
+                }
             },
-            secondary = stringResource(android.R.string.cancel),
+            secondary = if (saving) null else stringResource(android.R.string.cancel),
             onSecondary = ::dismissLink,
         ) {
-            PinField(
-                value = pin,
-                onChange = {
-                    pin = it.filter { digit -> digit in '0'..'9' }.take(12)
-                    failed = false
-                },
-                label = stringResource(R.string.light_pin_label),
-            )
-            if (failed) Text(
-                stringResource(R.string.light_confirm_link_error),
-                color = androidx.compose.material3.MaterialTheme.colorScheme.error,
-            )
+            PinField(pin, {
+                pin = it.filter { digit -> digit in '0'..'9' }.take(12)
+                error = null
+            }, stringResource(R.string.light_pin_label))
+            PinField(repeatedPin, {
+                repeatedPin = it.filter { digit -> digit in '0'..'9' }.take(12)
+                error = null
+            }, stringResource(R.string.light_pin_again))
+            error?.let { Text(stringResource(it), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
         }
     }
 
@@ -215,7 +236,11 @@ class LightSetupActivity : ComponentActivity() {
             try {
                 val app = applicationContext
                 if (!paired) {
-                    withContext(Dispatchers.IO) { PairingActivity.controller(app).enroll() }
+                    withContext(Dispatchers.IO) {
+                        synchronized(PairingController.enrollmentLock) {
+                            PairingActivity.controller(app).enroll()
+                        }
+                    }
                     refresh++
                 }
                 if (store.isPaired) {

@@ -117,10 +117,11 @@ parent (PWA)                                server                          phon
   script's parameters (PBKDF2-HMAC-SHA256, 120,000 iterations, 32 bytes, 16-byte salt); the shared
   test vector is in `web/src/lib/provisioning.test.ts`, `MaintenancePinTest.kt` and
   `scripts/test_provisioning_qr.py`. The server stores no PIN and no PIN hash.
-- In light mode the QR code opens `/install-phone` with the PIN hash, salt and token in the
-  URL fragment. The fragment stays out of HTTP requests. This page downloads the APK and opens
-  it with a package-scoped Android intent after installation. The app sends only the enrollment
-  token and ordinary enrollment metadata once the required permissions are granted.
+- In light mode the QR code opens `/install-phone` with the token, Android package and language in
+  the URL fragment. The page removes the fragment from the current history entry and uses the
+  token in a package-scoped Android intent. The parent enters the PIN twice in the app, which
+  salts and hashes it locally. After the required permissions are granted, the app sends the
+  token and ordinary enrollment metadata.
 - `mode` defaults to `strong` for existing clients. Enrollment keeps the selected mode on
   the phone entry. The phone separately reports what Android granted in its protection status.
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after

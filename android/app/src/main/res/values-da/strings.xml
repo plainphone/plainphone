@@ -133,9 +133,9 @@
     <string name="light_guard_help_body">Tryk på de tre prikker i Appinfo, vælg Tillad begrænsede indstillinger, og gå tilbage hertil.</string>
     <string name="light_app_info">Åbn Appinfo</string>
     <string name="light_confirm_link_title">Forbind telefonen</string>
-    <string name="light_confirm_link_body">Tjek, at %1$s er dit dashboard, og indtast den forælder-PIN, du valgte der.</string>
+    <string name="light_confirm_link_body">Tjek, at %1$s er dit dashboard. Vælg en forælder-PIN på 6 til 12 cifre, og indtast den to gange.</string>
     <string name="light_confirm_link_action">Bekræft opsætning</string>
-    <string name="light_confirm_link_error">PIN-koden skal passe til dashboardet og en eventuel PIN-kode, der allerede er gemt på telefonen.</string>
+    <string name="light_confirm_link_error">Telefonen er allerede sat op. Åbn Plainphone for at fortsætte.</string>
     <string name="light_link_rules">Henter dine regler fra dashboardet…</string>
     <string name="light_link_removed">Telefonen er fjernet fra dashboardet. Bed forælderen om at forbinde den igen.</string>
     <string name="light_battery_oneplus">Åbn Batteriforbrug under Appinfo, og slå Tillad baggrundsaktivitet til for Plainphone.</string>
@@ -149,7 +149,7 @@
     <string name="light_link_connecting">Forbinder til dit dashboard…</string>
     <string name="light_step_counter">Trin %1$d af %2$d</string>
     <string name="light_skip">Ikke nu</string>
-    <string name="light_pin_dashboard_help">Har du allerede valgt en PIN i dashboardet? Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden.</string>
+    <string name="light_pin_dashboard_help">Sætter du telefonen op fra dashboardet? Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden.</string>
     <string name="light_step_pin_title">Vælg en forælder-PIN</string>
     <string name="light_step_pin_body">Du skal bruge den, når Plainphone skal ændres på telefonen senere. Mindst 6 cifre. Hold den for dig selv.</string>
     <string name="light_step_pin_action">Gem PIN</string>

@@ -136,9 +136,9 @@
     <string name="light_guard_help_body">In App info, tap the three dots, choose Allow restricted settings, then come back here.</string>
     <string name="light_app_info">Open App info</string>
     <string name="light_confirm_link_title">Connect this phone</string>
-    <string name="light_confirm_link_body">Check that %1$s is your dashboard, then enter the parent PIN you chose there.</string>
+    <string name="light_confirm_link_body">Check that %1$s is your dashboard. Choose a parent PIN with 6 to 12 digits and enter it twice.</string>
     <string name="light_confirm_link_action">Confirm setup</string>
-    <string name="light_confirm_link_error">The PIN must match the dashboard and any PIN already set on this phone.</string>
+    <string name="light_confirm_link_error">This phone is already set up. Open Plainphone to continue.</string>
     <string name="light_link_rules">Getting your rules from the dashboard…</string>
     <string name="light_link_removed">This phone was removed from the dashboard. Ask the parent to connect it again.</string>
     <string name="light_battery_oneplus">In App info, choose Battery usage and turn on Allow background activity for Plainphone.</string>
@@ -152,7 +152,7 @@
     <string name="light_link_connecting">Connecting to your dashboard…</string>
     <string name="light_step_counter">Step %1$d of %2$d</string>
     <string name="light_skip">Not now</string>
-    <string name="light_pin_dashboard_help">Already chose your PIN in the dashboard? Return to Chrome and tap Open Plainphone on the setup page.</string>
+    <string name="light_pin_dashboard_help">Setting up from the dashboard? Go back to Chrome and tap Open Plainphone on the setup page.</string>
     <string name="light_step_pin_title">Choose a parent PIN</string>
     <string name="light_step_pin_body">You need it to change Plainphone on this phone later. At least 6 digits. Keep it to yourself.</string>
     <string name="light_step_pin_action">Save PIN</string>
