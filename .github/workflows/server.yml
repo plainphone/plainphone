@@ -8,56 +8,116 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'push'
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'web/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.npmrc'
+              - 'patches/**'
+              - 'Dockerfile'
+              - '.dockerignore'
+              - '.github/workflows/**'
+
+  test:
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
-        image: postgres:18
+        image: ${{ needs.changes.outputs.server != 'false' && 'postgres:18' || '' }}
         env:
           POSTGRES_USER: plainphone
           POSTGRES_PASSWORD: plainphone
           POSTGRES_DB: plainphone_test
-        ports: ["5432:5432"]
+        ports: ["5432"]
         options: >-
           --health-cmd "pg_isready -U plainphone -d plainphone_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
-    env:
-      DATABASE_URL: postgres://plainphone:plainphone@localhost:5432/plainphone_test
     steps:
+      - name: No relevant changes
+        if: needs.changes.outputs.server == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.server != 'false'
       - uses: pnpm/action-setup@v6
+        if: needs.changes.outputs.server != 'false'
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.server != 'false'
         with:
           node-version: "24"
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        if: needs.changes.outputs.server != 'false'
       - name: Typecheck
+        if: needs.changes.outputs.server != 'false'
         run: pnpm -r typecheck
       - name: Tests (server against PostgreSQL 18, web unit tests)
+        if: needs.changes.outputs.server != 'false'
+        env:
+          DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_test
         run: pnpm -r test
-      - name: Build
-        run: pnpm -r build
 
   docker:
+    needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
+      - name: No relevant changes
+        if: needs.changes.outputs.server == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
       - uses: actions/checkout@v7
-      - name: Build the image
-        run: docker build -t plainphone:ci .
+        if: needs.changes.outputs.server != 'false'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        if: needs.changes.outputs.server != 'false'
+      - name: Build the server and web in the image
+        if: needs.changes.outputs.server != 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          load: true
+          tags: plainphone:ci
+          cache-from: type=gha,scope=plainphone-server
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=plainphone-server,ignore-error=true' || '' }}
       - name: Smoke test with Postgres
+        if: needs.changes.outputs.server != 'false'
         run: |
           docker network create pp
           docker run -d --name db --network pp -e POSTGRES_PASSWORD=pw -e POSTGRES_USER=plainphone -e POSTGRES_DB=plainphone postgres:18
-          for i in $(seq 1 30); do docker exec db pg_isready -U plainphone -d plainphone && break; sleep 1; done
-          docker run -d --name app --network pp -p 8080:8080 \
+          for _ in $(seq 1 30); do docker exec db pg_isready -U plainphone -d plainphone && break; sleep 1; done
+          docker run -d --name app --network pp -p 127.0.0.1::8080 \
             -e DATABASE_URL=postgres://plainphone:pw@db:5432/plainphone \
             -e PUBLIC_URL=http://localhost:8080 plainphone:ci
-          for i in $(seq 1 30); do curl -fsS http://localhost:8080/api/health && break; sleep 1; done
-          curl -fsS http://localhost:8080/api/health | grep '"ok":true'
-          curl -fsS http://localhost:8080/ | grep -i '<html'
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' http://localhost:8080/api/device/pairings)
+          url="http://$(docker port app 8080/tcp)"
+          for _ in $(seq 1 30); do curl -fsS "$url/api/health" && break; sleep 1; done
+          curl -fsS "$url/api/health" | grep '"ok":true'
+          curl -fsS "$url/" | grep -i '<html'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' "$url/api/device/pairings")
           test "$code" = 201
       - name: Logs on failure
-        if: failure()
+        if: failure() && needs.changes.outputs.server != 'false'
         run: docker logs app || true

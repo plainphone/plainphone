@@ -64,6 +64,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`.
 
+See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
+
 ### Signing
 
 No keys are stored in this repository. A release build reads its signing settings from a properties file outside the repository:

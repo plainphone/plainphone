@@ -3,59 +3,90 @@ name: Parent app
 on:
   push:
     branches: [main]
-    paths:
-      - "parent-app/**"
-      - "server/openapi.yaml"
-      - "web/src/i18n/**"
-      - "web/src/lib/format.ts"
-      - "web/src/lib/ops.ts"
-      - ".github/workflows/parent-app.yml"
   pull_request:
-    paths:
-      - "parent-app/**"
-      - "server/openapi.yaml"
-      - "web/src/i18n/**"
-      - "web/src/lib/format.ts"
-      - "web/src/lib/ops.ts"
-      - ".github/workflows/parent-app.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  check:
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      parent: ${{ steps.filter.outputs.parent }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'push'
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: filter
+        with:
+          filters: |
+            parent:
+              - 'parent-app/**'
+              - 'server/openapi.yaml'
+              - 'web/src/i18n/**'
+              - 'web/src/lib/format.ts'
+              - 'web/src/lib/ops.ts'
+              - '.github/workflows/**'
+
+  check:
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: parent-app
     steps:
+      - name: No relevant changes
+        if: needs.changes.outputs.parent == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.parent != 'false'
       - uses: pnpm/action-setup@v6
+        if: needs.changes.outputs.parent != 'false'
         with:
           package_json_file: parent-app/package.json
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.parent != 'false'
         with:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: parent-app/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        if: needs.changes.outputs.parent != 'false'
       # Same idea for the copy and formatting shared with the PWA: test the app with the
       # PWA's current files, and warn when the committed copy is behind (pnpm sync:shared).
       - name: Shared copy and formatting match the PWA
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm check:shared || echo "::warning::parent-app/src/shared is behind web/src; run pnpm --dir parent-app sync:shared"
       - name: Use the PWA's current shared files
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm sync:shared
       # Typecheck against the API as it is now, so a breaking change in openapi.yaml
       # fails here. A stale committed schema only warns; refresh it with pnpm gen:api.
       - name: Typed API client matches server/openapi.yaml
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm check:api || echo "::warning file=parent-app/src/api/schema.d.ts::out of date with server/openapi.yaml; run pnpm --dir parent-app gen:api"
       - name: Regenerate the API types from server/openapi.yaml
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm gen:api
       - name: Typecheck
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm typecheck
       - name: Lint
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm lint
       - name: Tests (Jest + React Native Testing Library)
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm test --ci
       - name: Export the JS bundles (iOS, Android, web)
+        if: needs.changes.outputs.parent != 'false'
         run: pnpm exec expo export --platform all --output-dir dist
