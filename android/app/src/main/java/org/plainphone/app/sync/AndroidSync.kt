@@ -94,6 +94,12 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun location(precise: Boolean): LocationFix? = LocationReader(context).current(precise)
 
+    override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
+    override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()
+    override fun safetyEventDone(event: SafetyEvent) = org.plainphone.app.safety.SafetyStore(context).done(event)
+    override fun checkInAnswered(id: String) = org.plainphone.app.safety.SafetyStore(context).checkInAnswered(id)
+    override fun positionSent(why: String) = org.plainphone.app.safety.Safety.positionSent(context, why)
+
     override fun timeUsed(): Map<String, Int>? = org.plainphone.app.time.TimeGuard.snapshot(context)?.let { s ->
         s.evaluation.usedMinutes(s.limits.apps.keys)
     }
@@ -208,7 +214,10 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
                 // #23: once a day, attest the boot state to the server. Never affects the lock.
                 runCatching { SyncStore(applicationContext).deviceToken()?.let { AttestationRunner.forContext(applicationContext).runIfDue(it) } }
                 // While someone is using the phone, keep the fast cadence (rules and "Find" within a minute).
-                if (isInteractive(applicationContext)) SyncScheduler.soon(applicationContext, outcome.pollSeconds)
+                // While a ring or an "Are you okay?" is open (pollSeconds 10), also with the screen off.
+                val open = outcome.pollSeconds < ServerRules.DEFAULT_POLL_SECONDS
+                if (isInteractive(applicationContext) || open) SyncScheduler.soon(applicationContext, outcome.pollSeconds)
+                else org.plainphone.app.safety.Safety.scheduleIdlePoll(applicationContext)
                 Result.success()
             }
             is SyncRunner.Outcome.Failed -> if (runAttemptCount < 3) Result.retry() else Result.success()
@@ -302,6 +311,8 @@ object SyncScheduler {
     fun onBoot(context: Context) {
         enrollIfNeeded(context)
         ensurePeriodic(context)
+        org.plainphone.app.safety.RingService.restoreVolume(context)
+        org.plainphone.app.safety.Safety.scheduleIdlePoll(context)
         now(context, "boot")
     }
 

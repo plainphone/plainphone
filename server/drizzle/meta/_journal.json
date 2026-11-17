@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1794948061685,
-      "tag": "0006_security_hardening",
+      "when": 1794947460291,
+      "tag": "0006_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794950495241,
+      "tag": "0007_security_hardening",
       "breakpoints": true
     }
   ]

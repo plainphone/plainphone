@@ -19,6 +19,11 @@ interface SyncApi {
     /** False when location is off for this phone (the server answers 409). */
     fun reportLocation(token: String, fix: LocationFix): Boolean
     fun reportStatus(token: String, status: DeviceStatus)
+    /**
+     * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
+     * False when the server no longer knows the request (404) or refuses the event (400): drop it.
+     */
+    fun reportSafety(token: String, requestId: String, event: String): Boolean
 }
 
 data class Pairing(val id: String, val code: String, val pollSecret: String, val qrUrl: String, val expiresAtMs: Long)
@@ -196,5 +201,15 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
     override fun reportStatus(token: String, status: DeviceStatus) {
         val r = call("PUT", "/device/status", token, status.toJson())
         if (r.status != 204) throw HttpError(r.status, r.body)
+    }
+
+    override fun reportSafety(token: String, requestId: String, event: String): Boolean {
+        require(requestId.matches(Regex("[0-9a-fA-F-]{36}"))) { "bad request id" }
+        val r = call("POST", "/device/safety/$requestId", token, JSONObject().put("event", event))
+        return when (r.status) {
+            204 -> true
+            400, 404 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
     }
 }

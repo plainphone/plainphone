@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var report: TextView
     private lateinit var pairButton: Button
     private lateinit var todayButton: Button
+    private lateinit var sharingLine: TextView
     private var taps = 0
     /** Roles asked for during this visit to the screen (phone app, and on Android 10 to 13 call screening and redirection). */
     private val askedRoles = mutableSetOf<String>()
@@ -70,6 +71,13 @@ class MainActivity : Activity() {
             textSize = 15f
             setPadding(0, pad / 2, 0, pad)
         })
+        // Strong mode's own home: "always" location is shown here too, not only in the notification.
+        sharingLine = TextView(this).apply {
+            textSize = 16f
+            setPadding(0, 0, 0, pad / 2)
+            setOnClickListener { startActivity(org.plainphone.app.safety.SharingActivity.intent(this@MainActivity)) }
+        }
+        column.addView(sharingLine)
         status = TextView(this).apply { textSize = 17f }
         column.addView(status)
         pairButton = Button(this).apply {
@@ -210,6 +218,14 @@ class MainActivity : Activity() {
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE
         todayButton.visibility = if (HomeActivity.hasContent(this)) View.VISIBLE else View.GONE
+        val safety = org.plainphone.app.safety.SafetyStore(this)
+        sharingLine.text = when {
+            !safety.sharingAlways -> getString(R.string.sharing_open)
+            safety.alwaysUntilMs != null ->
+                getString(R.string.location_always_badge_until, org.plainphone.app.safety.Safety.dateTime(this, safety.alwaysUntilMs!!))
+            else -> getString(R.string.location_always_title)
+        }
+        sharingLine.setTypeface(null, if (safety.sharingAlways) Typeface.BOLD else Typeface.NORMAL)
     }
 
     private fun onVersionTapped() {
