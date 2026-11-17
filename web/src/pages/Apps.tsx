@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, type App, type ChangeResult } from "../lib/api";
 import { usePhone } from "./Phone";
+import { Chevron } from "./Phones";
 
 export function AppsPage() {
   const { t, locale } = useI18n();
@@ -36,6 +38,17 @@ export function AppsPage() {
   return (
     <>
       <PageTitle sub={t("apps.intro")}>{t("apps.title")}</PageTitle>
+      <ul className="list nav-list apps-add">
+        <li>
+          <Link to={`/phones/${phone.id}/apps/add`} className="row-link">
+            <span className="row-main">
+              <span className="row-title">{t("catalog.entry")}</span>
+              <span className="row-meta">{t("catalog.entryHint")}</span>
+            </span>
+            <Chevron />
+          </Link>
+        </li>
+      </ul>
       <LoadGate res={res}>
         {(apps) => {
           if (apps.length === 0) return <p className="empty-inline">{t("apps.empty")}</p>;

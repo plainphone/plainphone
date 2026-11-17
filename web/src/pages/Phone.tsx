@@ -3,8 +3,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, Outlet, useLocation, useParams } from "react-router";
 import { ErrorState, errorMessage, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import type { T } from "../i18n/translate";
-import { api, ApiError, type App, type ChangeResult, type Locale, type PendingChange, type Phone } from "../lib/api";
+import type { MessageKey, T } from "../i18n/translate";
+import {
+  api,
+  ApiError,
+  type App,
+  type ChangeResult,
+  type Locale,
+  type PendingChange,
+  type Phone,
+  PROTECTIONS,
+  type Protection,
+} from "../lib/api";
 import { formatDateTime, formatDuration, formatList, formatRelative } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
@@ -349,6 +359,7 @@ export function PhoneOverview() {
   }, [phone.id]);
   const items: { to: string; label: string; hint: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
+    { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
     { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
     { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
     { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
@@ -377,9 +388,9 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
-      {phone.mode === "light" && <p className="notice notice-info">{t("mode.lightNote")}</p>}
-
       <PhoneStatusBlock phone={phone} now={now} />
+
+      {phone.mode === "light" && <LightModeSection phone={phone} />}
 
       {(phone.profile === "self" || pending.length > 0) && (
         <section className="section" aria-labelledby="pending-h">
@@ -414,6 +425,52 @@ export function PhoneOverview() {
         </ul>
       </section>
     </>
+  );
+}
+
+/** Protections that must be on for light mode to hold. The others are shown only when off. */
+const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"];
+
+/** Light mode, honestly: what is live right now, and what is weaker than strong mode. */
+function LightModeSection({ phone }: { phone: Phone }) {
+  const { t } = useI18n();
+  const p = phone.status?.protections;
+  const rows = p
+    ? PROTECTIONS.filter((k) => k !== "deviceOwner" && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
+        (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
+      )
+    : [];
+  const missing = rows.filter((r) => !r.ok);
+  return (
+    <section className="section light-mode" aria-labelledby="light-h">
+      <h2 id="light-h">{t("mode.light")}</h2>
+      <p className="help">{t("light.intro")}</p>
+      {p ? (
+        <>
+          <h3 className="h3 light-sub">{t("light.protections")}</h3>
+          {missing.length === 0 && <p className="light-allok">{t("light.allOk")}</p>}
+          <ul className="list protection-list">
+            {[...missing, ...rows.filter((r) => r.ok)].map((r) => (
+              <li key={r.key} className={r.ok ? "prot" : "prot prot-missing"}>
+                <div className="prot-main">
+                  <p className="row-title">{t(`prot.${r.key}` as MessageKey)}</p>
+                  {!r.ok && <p className="prot-why">{t(`prot.${r.key}.missing` as MessageKey)}</p>}
+                </div>
+                <span className={r.ok ? "tag tag-ok" : "tag tag-alert"}>{t(r.ok ? "light.ok" : "light.missing")}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="muted">{t("light.noReport")}</p>
+      )}
+      <h3 className="h3 light-sub">{t("light.weakerTitle")}</h3>
+      <ul className="weaker">
+        {(["1", "2", "3", "4", "5", "6", "7"] as const).map((n) => (
+          <li key={n}>{t(`light.weaker${n}` as MessageKey)}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
