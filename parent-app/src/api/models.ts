@@ -26,6 +26,7 @@ export interface Phone {
   mode: "strong" | "light";
   timezone: string;
   locationEnabled: boolean;
+  locationMode?: LocationMode;
   pairedAt: string | null;
   lastSeenAt: string | null;
   dnsHost: string;
@@ -61,10 +62,47 @@ export interface ScheduleInput {
 export interface Schedule extends ScheduleInput {
   id: string;
 }
+/** When the phone sends its position: never, on Find, on Find and an unanswered check-in, or every 5 minutes. */
+export type LocationMode = "off" | "find" | "checkin" | "always";
+export const LOCATION_MODES: LocationMode[] = ["off", "find", "checkin", "always"];
+export interface Ring {
+  id: string;
+  /** The phone should be ringing now. */
+  active: boolean;
+  stopOnAnswer: boolean;
+  createdAt: string;
+  endsAt: string;
+  shownAt: string | null;
+  answeredAt: string | null;
+  stoppedAt: string | null;
+}
+export interface Checkin {
+  id: string;
+  status: "waiting" | "answered" | "cancelled" | "noReply";
+  createdAt: string;
+  deadline: string;
+  callNumber: string | null;
+  sendsLocation: boolean;
+  shownAt: string | null;
+  answeredAt: string | null;
+  answer: "ok" | "call" | null;
+  stoppedAt: string | null;
+  /** The one position sent because nobody answered. */
+  locatedAt: string | null;
+}
+export interface Position {
+  lat: number;
+  lon: number;
+  accuracyM: number | null;
+  recordedAt: string;
+}
 export interface LocationState {
   enabled: boolean;
+  mode: LocationMode;
   requestedAt: string | null;
-  location: { lat: number; lon: number; accuracyM: number | null; recordedAt: string } | null;
+  location: Position | null;
+  ring: Ring | null;
+  checkin: Checkin | null;
 }
 export interface KeyInput {
   keyType: "delay" | "trusted";

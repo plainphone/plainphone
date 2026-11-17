@@ -64,6 +64,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair with the setup token from a dashboard QR code (phone)
+         * @description A provisioning QR code made in the dashboard carries a one-time enrollment token
+         *     (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+         *     its device token, with no code to type. The token is bound to the phone entry the parent made,
+         *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
+         *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
+         *     working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
+         *     token) pair with a code as before (`POST /device/pairings`).
+         */
+        post: operations["postDeviceEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/rules": {
         parameters: {
             query?: never;
@@ -111,10 +137,30 @@ export interface paths {
         get?: never;
         /**
          * Report the current position (phone)
-         * @description Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
+         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/safety/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report what happened to a ring or an "Are you okay?" (phone)
+         * @description `shown` when the screen appeared; `here` answers a ring; `ok` and `call` answer a check-in. The first answer counts.
+         */
+        post: operations["postDeviceSafety"];
         delete?: never;
         options?: never;
         head?: never;
@@ -379,6 +425,52 @@ export interface paths {
          * @description Case and separators in the code do not matter. Rate limited.
          */
         post: operations["postPhonesClaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a phone for setup with a provisioning QR code
+         * @description Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
+         *     token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
+         *     token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+         *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
+         *     its hash never reach the server. Rate limited to 30 per day per user.
+         */
+        post: operations["postPhonesEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New setup token for a phone that is not set up yet
+         * @description Replaces earlier tokens for the phone. `409` once the phone is set up.
+         */
+        post: operations["postPhoneEnrollment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -775,6 +867,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/location/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose when the phone sends its position
+         * @description Applies at once. `off` deletes the stored position.
+         */
+        put: operations["putPhonesLocationMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/locate": {
         parameters: {
             query?: never;
@@ -790,6 +902,52 @@ export interface paths {
          */
         post: operations["postPhonesLocate"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/ring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ring the phone
+         * @description Alarm sound at full volume and vibration, also on silent, for at most 5 minutes. With `stopOnAnswer` (default) it stops when the child taps "I'm here"; without, it rings the full 5 minutes. Replaces an earlier ring.
+         */
+        post: operations["postPhonesRing"];
+        /** Stop ringing */
+        delete: operations["deletePhonesRing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask "Are you okay?"
+         * @description The phone shows "Yes, I'm okay" and, with `callNumber`, "Call me". If nobody answers within `minutes` and the location mode is `checkin` or `always`, the phone sends one position. Replaces an earlier check-in.
+         */
+        post: operations["postPhonesCheckin"];
+        /** Cancel an open "Are you okay?" */
+        delete: operations["deletePhonesCheckin"];
         options?: never;
         head?: never;
         patch?: never;
@@ -927,6 +1085,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Enrollment: {
+            phone?: components["schemas"]["PhoneSummary"];
+            enrollment?: {
+                /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
+                token?: string;
+                /** Format: date-time */
+                expiresAt?: string;
+            };
+            /** @description Values for the provisioning QR code */
+            provisioning?: {
+                /** @example org.plainphone.app/.PlainphoneAdminReceiver */
+                adminComponent?: string;
+                /**
+                 * Format: uri
+                 * @description Stable APK address (`/download/android`, outside `/api`); redirects to the newest release.
+                 */
+                downloadUrl?: string;
+                /** @description base64url SHA-256 of the app's signing certificate */
+                signatureChecksum?: string;
+                /** Format: uri */
+                serverUrl?: string;
+                /** @description Private DNS until the phone's own filter host is ready */
+                dnsHost?: string;
+            };
+        };
         Error: {
             error: string;
             issues?: {
@@ -1171,8 +1354,13 @@ export interface components {
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
             location: {
+                /** @description `mode` is not off. Kept for phones from before `mode`. */
                 enabled?: boolean;
-                /** @example 5 */
+                mode?: components["schemas"]["LocationMode"];
+                /**
+                 * @description Report interval when `mode` is `always`. Other modes send 1440, so phones that only know `enabled` report at most once a day (and get 409).
+                 * @example 5
+                 */
                 intervalMinutes?: number;
                 /**
                  * Format: date-time
@@ -1180,13 +1368,94 @@ export interface components {
                  */
                 requestedAt?: string | null;
             };
+            /** @description An open "Ring the phone". Play the alarm sound and vibrate until `endsAt` (at most 5 minutes), or until the child taps "I'm here" when `stopOnAnswer`. Null means stop now. */
+            ring?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                endsAt: string;
+                stopOnAnswer: boolean;
+                answered: boolean;
+            };
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it. */
+            checkIn?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                deadline: string;
+                /** @description An approved contact for the "Call me" button. */
+                callNumber: string | null;
+                sendLocation: boolean;
+            };
             /** @description Self profile; show them with a countdown on the phone. */
             pendingChanges: components["schemas"]["PendingChange"][];
             /**
-             * @description Poll interval for GET /device/rules.
+             * @description Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
              * @example 60
              */
             pollSeconds: number;
+        };
+        /**
+         * @description When the phone sends its position: never; on Find; on Find and once for an unanswered "Are you okay?"; every 5 minutes (shown on the phone all the time).
+         * @enum {unknown}
+         */
+        LocationMode: "off" | "find" | "checkin" | "always";
+        Ring: {
+            /** Format: uuid */
+            id: string;
+            /** @description The phone should be ringing now. */
+            active: boolean;
+            stopOnAnswer: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+        };
+        Checkin: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            status: "waiting" | "answered" | "cancelled" | "noReply";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            deadline: string;
+            callNumber: string | null;
+            sendsLocation: boolean;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** @enum {unknown} */
+            answer: "ok" | "call" | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+            /**
+             * Format: date-time
+             * @description The one position sent because nobody answered.
+             */
+            locatedAt: string | null;
+        };
+        LocationState: {
+            enabled: boolean;
+            mode: components["schemas"]["LocationMode"];
+            /** Format: date-time */
+            requestedAt: string | null;
+            location: null | {
+                lat: number;
+                lon: number;
+                accuracyM: number | null;
+                /** Format: date-time */
+                recordedAt: string;
+            };
+            ring: null | components["schemas"]["Ring"];
+            checkin: null | components["schemas"]["Checkin"];
         };
         PhoneSummary: {
             /** Format: uuid */
@@ -1198,6 +1467,7 @@ export interface components {
             mode?: "strong" | "light";
             timezone?: string;
             locationEnabled?: boolean;
+            locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
             /** Format: date-time */
@@ -1434,6 +1704,59 @@ export interface operations {
             };
         };
     };
+    postDeviceEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @description Random id the phone makes once and keeps; only its hash is stored. */
+                    installId: string;
+                    deviceInfo?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Paired. Store `deviceToken` like a token from a pairing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status?: "paired";
+                        /** Format: uuid */
+                        phoneId?: string;
+                        deviceToken?: string;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Unknown token. Fall back to pairing with a code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     getDeviceRules: {
         parameters: {
             query?: never;
@@ -1526,8 +1849,49 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Location is off for this phone; stop reporting. */
+            /** @description Location is off for this phone, or no position was asked for; stop reporting. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceSafety: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    event: "shown" | "here" | "ok" | "call";
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The event does not fit the request's kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such request for this phone */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1972,6 +2336,82 @@ export interface operations {
             };
             /** @description Code not found or expired */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {unknown} */
+                    profile: "child" | "self";
+                    /** Format: uuid */
+                    householdId?: string;
+                    /** @example Europe/Copenhagen */
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Phone entry, token and what the QR code needs */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Household not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
+    postPhoneEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token and what the QR code needs (no `phone`) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already set up */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2582,12 +3022,42 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null */
+            /** @description The position, the location mode and the latest ring and check-in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
+            };
+        };
+    };
+    putPhonesLocationMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    mode: components["schemas"]["LocationMode"];
+                };
+            };
+        };
+        responses: {
+            /** @description The new state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
             };
         };
     };
@@ -2611,6 +3081,136 @@ export interface operations {
             };
             /** @description Location is off */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default true */
+                    stopOnAnswer?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ring?: components["schemas"]["Ring"];
+                    };
+                };
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ring, now stopped (or null) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @example 5
+                     * @example 10
+                     * @example 15
+                     * @example 30
+                     */
+                    minutes: number;
+                    /** @description One of the phone's approved contacts (400 otherwise). */
+                    callNumber?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        checkin?: components["schemas"]["Checkin"];
+                    };
+                };
+            };
+            /** @description Bad minutes, or callNumber is not an approved contact */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The check-in, now cancelled (or as it was if already answered or located) */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
