@@ -101,4 +101,17 @@ class PairingControllerTest {
         val raw = context.getSharedPreferences(SyncStore.PREFS, 0).all.values.joinToString()
         assertThat(raw).doesNotContain("pp_e_secret_token_value")
     }
+
+    @Test
+    fun `the pairing screen and the background worker never enroll at the same time`() {
+        store.saveEnrollToken("pp_e_race")
+        api.enrollResult = EnrollResult.Paired("p", "pp_d_one")
+        api.enrollDelayMs = 200
+        // Two controllers, like PairingActivity and EnrollWorker each make their own.
+        val other = PairingController(store, api, { now }, mapOf("model" to "Test"))
+        val threads = listOf(controller, other).map { c -> Thread { c.enroll() }.apply { start() } }
+        threads.forEach { it.join() }
+        assertThat(api.enrollCalls).hasSize(1)
+        assertThat(store.deviceToken()).isEqualTo("pp_d_one")
+    }
 }

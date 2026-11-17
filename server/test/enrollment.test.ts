@@ -111,10 +111,19 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await other.post("/api/phones/enroll", { name: "X", profile: "child", householdId: phone.id })).status).toBe(404);
   });
 
-  it("does not take a phone that was paired with a code meanwhile", async () => {
+  it("gives a phone entry to exactly one of two phones that redeem at the same time", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const { enrollment } = await addPhone(parent);
+    const results = await Promise.all([
+      enroll(enrollment.token, "first-install-id-000000000"),
+      enroll(enrollment.token, "second-install-id-00000000"),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 410]);
+  });
+
+  it("refuses a setup QR code for a phone that is already paired with a code", async () => {
     const parent = await signIn(h, "p@example.org");
     const { phoneId } = await pairPhone(h, parent);
-    // A paired phone cannot get a setup QR...
     expect((await parent.post(`/api/phones/${phoneId}/enrollment`)).status).toBe(409);
   });
 
@@ -165,6 +174,18 @@ describe("stable APK address", () => {
     expect(calls).toBe(1);
     up = false;
     expect((await app.request("/android")).headers.get("location")).toBe("https://github.com/x/new.apk");
+  });
+
+  it("waits a minute before asking GitHub again after a failure", async () => {
+    let calls = 0;
+    const fake = (async () => {
+      calls++;
+      return new Response("rate limited", { status: 403 });
+    }) as unknown as typeof fetch;
+    const app = downloadRoutes(h.ctx, fake);
+    expect((await app.request("/android")).status).toBe(503);
+    expect((await app.request("/android")).status).toBe(503);
+    expect(calls).toBe(1);
   });
 
   it("answers 503 when no release is known", async () => {

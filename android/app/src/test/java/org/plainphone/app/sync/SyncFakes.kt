@@ -48,7 +48,8 @@ class FakeSyncApi : SyncApi {
     val tokensUsed = mutableListOf<String>()
     var enrollResult: EnrollResult = EnrollResult.Rejected
     var enrollFailure: IOException? = null
-    val enrollCalls = mutableListOf<Pair<String, String>>()
+    val enrollCalls: MutableList<Pair<String, String>> = java.util.Collections.synchronizedList(mutableListOf())
+    var enrollDelayMs = 0L
 
     override fun startPairing(mode: String, deviceInfo: Map<String, String>) = pairing
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
@@ -57,6 +58,7 @@ class FakeSyncApi : SyncApi {
     }
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         enrollCalls += token to installId
+        if (enrollDelayMs > 0) Thread.sleep(enrollDelayMs)
         enrollFailure?.let { throw it }
         return enrollResult
     }

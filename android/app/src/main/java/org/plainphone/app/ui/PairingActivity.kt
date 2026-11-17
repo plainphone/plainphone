@@ -147,8 +147,14 @@ private fun PairingScreen(onDone: () -> Unit) {
                         return@LaunchedEffect
                     }
                     EnrollRetry -> delay(POLL_MS) // no network yet: try again
-                    else -> keepTrying = false // refused or gone: show a code below
+                    else -> keepTrying = false // refused, or EnrollWorker already paired the phone
                 }
+            }
+            if (withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
+                ui = PairingUi.Paired
+                delay(2_000)
+                onDone()
+                return@LaunchedEffect
             }
             // Still offline after a while: show a code too; the background worker keeps trying the token.
             SyncScheduler.enrollIfNeeded(context)
@@ -158,6 +164,12 @@ private fun PairingScreen(onDone: () -> Unit) {
         ui = started.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: it.javaClass.simpleName) })
         while (ui is PairingUi.Showing) {
             delay(POLL_MS)
+            // EnrollWorker may pair the phone with the QR code's token meanwhile: then stop showing
+            // a code, so nobody else can claim it.
+            if (withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
+                ui = PairingUi.Paired
+                break
+            }
             val polled = withContext(Dispatchers.IO) { runCatching { controller.poll() } }
             when (val r = polled.getOrNull()) {
                 is PairPoll.Paired -> {

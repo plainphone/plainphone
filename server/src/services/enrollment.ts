@@ -6,7 +6,7 @@
 // The maintenance PIN is hashed in the browser and never reaches the server.
 
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, lt, ne } from "drizzle-orm";
 import { enrollments, phones } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
@@ -38,6 +38,8 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
   const token = enrollmentToken();
   const expiresAt = new Date(ctx.now().getTime() + ENROLLMENT_HOURS * 3_600_000);
   await ctx.db.transaction(async (tx) => {
+    // Keep as little as possible: tokens past their retry window have no use any more.
+    await tx.delete(enrollments).where(lt(enrollments.expiresAt, new Date(ctx.now().getTime() - 3_600_000)));
     await tx.delete(enrollments).where(eq(enrollments.phoneId, phoneId));
     await tx.insert(enrollments).values({ tokenHash: sha256(token), phoneId, createdBy: userId, expiresAt });
   });

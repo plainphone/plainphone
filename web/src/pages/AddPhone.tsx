@@ -8,7 +8,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { api, type Phone, type Profile } from "../lib/api";
+import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import {
   countryCodeForTimezone,
   hashPin,
@@ -43,8 +43,10 @@ export function AddPhonePage() {
 
   async function makeQr(pin: string) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Hash first: if it fails, no phone entry is left behind.
+    const pinned = await hashForQr(pin);
     const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone });
-    setQr(await buildQr(out, out.phone!.id, out.phone!.name, pin, timezone));
+    setQr(buildQr(out, out.phone!.id, out.phone!.name, pinned, timezone));
     setStep(3);
   }
 
@@ -95,8 +97,9 @@ export function SetupPhonePage() {
           ) : (
             <PinStep
               onDone={async (pin) => {
+                const pinned = await hashForQr(pin);
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
-                setQr(await buildQr(out, phone.id, phone.name, pin, phone.timezone));
+                setQr(buildQr(out, phone.id, phone.name, pinned, phone.timezone));
               }}
             />
           )
@@ -106,9 +109,22 @@ export function SetupPhonePage() {
   );
 }
 
-async function buildQr(out: EnrollmentOut, phoneId: string, name: string, pin: string, timezone: string): Promise<Qr> {
+/** Thrown when the browser cannot hash the PIN (no Web Crypto, e.g. a dashboard served over plain http). */
+export class NoCryptoError extends Error {}
+
+async function hashForQr(pin: string): Promise<{ pinHash: string; pinSalt: string }> {
+  if (!globalThis.crypto?.subtle) throw new NoCryptoError("no Web Crypto");
   const pinSalt = newSalt();
-  const pinHash = await hashPin(pin, pinSalt);
+  return { pinHash: await hashPin(pin, pinSalt), pinSalt };
+}
+
+function buildQr(
+  out: EnrollmentOut,
+  phoneId: string,
+  name: string,
+  { pinHash, pinSalt }: { pinHash: string; pinSalt: string },
+  timezone: string,
+): Qr {
   const payload = provisioningPayload(out.provisioning, {
     enrollmentToken: out.enrollment.token,
     pinHash,
@@ -213,7 +229,7 @@ function PinStep({ onBack, onDone }: { onBack?: () => void; onDone: (pin: string
     try {
       await onDone(pin);
     } catch (err) {
-      setFormError(errorMessage(err, t));
+      setFormError(err instanceof NoCryptoError ? t("add.noCrypto") : errorMessage(err, t));
       setBusy(false);
     }
   }
@@ -276,22 +292,27 @@ function QrStep({ qr }: { qr: Qr }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Wait for the phone: it pairs itself with the token as soon as setup is done.
+  const [gone, setGone] = useState<"expired" | "removed" | null>(null);
   useEffect(() => {
-    if (paired) return;
+    if (paired || gone) return;
     let stop = false;
     const id = window.setInterval(async () => {
+      // Only while someone looks at the page; stop for good once the code has run out.
+      if (document.hidden) return;
+      if (Date.now() > Date.parse(qr.expiresAt)) return setGone("expired");
       try {
         const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
         if (!stop && p.pairedAt) setPaired(true);
-      } catch {
-        // A network hiccup: try again on the next tick.
+      } catch (err) {
+        if (!stop && err instanceof ApiError && err.status === 404) setGone("removed");
+        // Anything else is a network hiccup: try again on the next tick.
       }
     }, 4_000);
     return () => {
       stop = true;
       window.clearInterval(id);
     };
-  }, [qr.phoneId, paired]);
+  }, [qr.phoneId, qr.expiresAt, paired, gone]);
 
   useEffect(() => {
     if (paired) headingRef.current?.focus();
@@ -326,10 +347,17 @@ function QrStep({ qr }: { qr: Qr }) {
             <li>{t("add.s3")}</li>
             <li>{t("add.s4")}</li>
           </ol>
-          <p className="setup-wait" role="status">
-            <span className="pulse" aria-hidden="true" />
-            {t("add.waiting")}
-          </p>
+          {gone ? (
+            <p className="notice notice-error" role="alert">
+              {t(gone === "expired" ? "add.expired" : "add.removed")}{" "}
+              {gone === "expired" && <Link to={`/phones/${qr.phoneId}/setup`} reloadDocument>{t("setup.showQr")}</Link>}
+            </p>
+          ) : (
+            <p className="setup-wait" role="status">
+              <span className="pulse" aria-hidden="true" />
+              {t("add.waiting")}
+            </p>
+          )}
           <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>
           <p className="small">
             <a href={t("add.guideUrl")} target="_blank" rel="noreferrer">
