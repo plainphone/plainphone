@@ -1,5 +1,7 @@
 # Policies (phases 1, 2 and 4)
 
+Which policies exist on which Android version (Plainphone runs on Android 10 and newer) is in [android-versions.md](android-versions.md).
+
 Plainphone sets these policies as Device Owner. The code is in [`LockPolicy.kt`](../android/app/src/main/java/org/plainphone/app/LockPolicy.kt) and [`PolicyApplier.kt`](../android/app/src/main/java/org/plainphone/app/PolicyApplier.kt). Each step runs on its own, so if one fails (for example private DNS while the phone is offline), the others still apply. The status screen shows `OK` or `FAIL` for every step.
 
 The lock is applied:
@@ -19,7 +21,7 @@ The lock is applied:
 | `DISALLOW_SAFE_BOOT` | Booting into safe mode | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_SAFE_BOOT) |
 | `DISALLOW_ADD_USER`, `DISALLOW_USER_SWITCH` | New users, guest mode, switching users | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ADD_USER) |
 | `DISALLOW_ADD_MANAGED_PROFILE` | Work profiles (deprecated constant in API 37, still set) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ADD_MANAGED_PROFILE) |
-| `no_add_clone_profile` | App cloning (Samsung Dual Messenger, Xiaomi Dual apps). Hidden constant `DISALLOW_ADD_CLONE_PROFILE`; if a device ignores it, the bypass checklist will show it. | AOSP `UserManager.java` |
+| `no_add_clone_profile` (Android 14+) | App cloning (Samsung Dual Messenger, Xiaomi Dual apps). Hidden constant `DISALLOW_ADD_CLONE_PROFILE`; if a device ignores it, the bypass checklist will show it. | AOSP `UserManager.java` |
 | `DISALLOW_ADD_PRIVATE_PROFILE` (Android 15+) | Private space | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ADD_PRIVATE_PROFILE) |
 | `DISALLOW_DEBUGGING_FEATURES` | Developer options and adb | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_DEBUGGING_FEATURES) |
 | `DISALLOW_CONFIG_PRIVATE_DNS` | Changing private DNS | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_PRIVATE_DNS) |
@@ -27,17 +29,17 @@ The lock is applied:
 | `DISALLOW_NETWORK_RESET` | Resetting network settings | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_NETWORK_RESET) |
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
-| `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2) | Changing the default phone and SMS app (Plainphone) in Settings | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
+| `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
 ## Phone and SMS (phase 2)
 
 | Step | What it does | Android reference |
 |---|---|---|
-| `setDefaultDialerApplication` (Android 14+) | Makes Plainphone the default phone app, so its call screening and in-call service see every call | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setDefaultDialerApplication(java.lang.String)) |
+| `setDefaultDialerApplication` (Android 14+) | Makes Plainphone the default phone app, so its call screening and in-call service see every call. Android 10 to 13 have no such call: Plainphone shows Android's role dialog instead ([android-versions.md](android-versions.md)) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setDefaultDialerApplication(java.lang.String)) |
 | `setDefaultSmsApplication` | Makes Plainphone the default SMS app, so only it receives and stores SMS | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setDefaultSmsApplication(android.content.ComponentName,%20java.lang.String)) |
 | `setPermissionGrantState` | Grants Plainphone's own phone, call log, SMS and notification permissions | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
-| Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback) | [contacts.md](contacts.md) |
+| Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback). On Android 10 to 13 the extra dialers are hidden even without the role | [contacts.md](contacts.md) |
 
 The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. Releasing Device Owner gives the roles back to the system dialer and the maker's SMS app. The approved-contacts rule itself is described in [contacts.md](contacts.md).
 

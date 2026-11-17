@@ -15,6 +15,7 @@ import android.telephony.SmsManager
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.plainphone.app.Compat
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
@@ -160,7 +161,7 @@ object SmsSender {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         try {
-            val sms = context.getSystemService(SmsManager::class.java)
+            val sms = Compat.smsManager(context)
             val parts = sms.divideMessage(text)
             // Only the last part reports back; the message counts as sent when all parts are.
             val intents = ArrayList<PendingIntent?>(parts.size).apply {

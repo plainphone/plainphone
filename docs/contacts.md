@@ -8,14 +8,14 @@ This page describes how that is built, where Android sets the limits, and what i
 
 | Piece | Android API | What it does |
 |---|---|---|
-| Default phone app | `RoleManager.ROLE_DIALER`, set by `DevicePolicyManager.setDefaultDialerApplication` (Device Owner, Android 14+) | Plainphone's in-call service gets every call on the phone |
+| Default phone app | `RoleManager.ROLE_DIALER`, set by `DevicePolicyManager.setDefaultDialerApplication` (Device Owner, Android 14+; on Android 10 to 13 through Android's role dialog, see [android-versions.md](android-versions.md)) | Plainphone's in-call service gets every call on the phone |
 | Call screening | `CallScreeningService` (bound for the default phone app) | Incoming calls from numbers that are not approved, and from hidden numbers, are rejected before the phone rings. No ring, no notification, no call log entry |
 | In-call service | `InCallService` | Ends outgoing calls to numbers that are not approved, **whoever started the call** (Plainphone's keypad, the maker's dialer, a `tel:` link in Chrome, a contact card). Also a second check on incoming calls |
 | Default SMS app | `RoleManager.ROLE_SMS`, set by `DevicePolicyManager.setDefaultSmsApplication` | Only the default SMS app receives `SMS_DELIVER` and may write the SMS store |
 | Incoming SMS | `SMS_DELIVER` receiver | Messages from approved contacts are stored and shown. Others are dropped and never stored. Only the sender and time go to Plainphone's local blocked log, never the text |
 | Outgoing SMS | `SmsManager` | Plainphone's own message screen only sends to approved contacts. "Reply with a message" on the incoming-call screen (`RESPOND_VIA_MESSAGE`) checks the list too |
 | MMS | `WAP_PUSH_DELIVER` receiver | Required for the SMS role. **Phase 2 drops MMS and group messages** and logs that one arrived. See "Not covered yet" |
-| Maker's phone and SMS apps | `setApplicationHidden` | Hidden once Plainphone holds the role, except the system dialer (see "Emergency calls") and apps the parent allowed in the QR code. "SMS app" means an app that can receive `SMS_DELIVER`, not every app that opens `smsto:` links (WhatsApp does) |
+| Maker's phone and SMS apps | `setApplicationHidden` | Hidden once Plainphone holds the role (on Android 10 to 13 the extra dialers are hidden even before, see [android-versions.md](android-versions.md)), except the system dialer (see "Emergency calls") and apps the parent allowed in the QR code. "SMS app" means an app that can receive `SMS_DELIVER`, not every app that opens `smsto:` links (WhatsApp does) |
 
 When the phone is set up by QR code, Plainphone takes both roles itself before setup ends, and grants its own runtime permissions (`setPermissionGrantState`). If Android refuses a role, the status screen says so (`FAIL default phone app`), nothing telephony-related is hidden, and the rest of the lock still holds. When Device Owner is released on the maintenance screen, the roles go back to the system dialer and the maker's SMS app.
 

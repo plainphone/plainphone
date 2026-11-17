@@ -28,7 +28,7 @@ class TelephonyRolesTest {
         assertThat(results.filterNot { it.ok }).isEmpty()
         assertThat(device.dialerPackage).isEqualTo(own)
         assertThat(device.smsPackage).isEqualTo(own)
-        assertThat(device.granted).containsExactlyElementsIn(LockPolicy.TELEPHONY_PERMISSIONS)
+        assertThat(device.granted).containsExactlyElementsIn(LockPolicy.telephonyPermissions(35))
     }
 
     @Test

@@ -31,10 +31,7 @@ class PlainphoneAdminReceiver : DeviceAdminReceiver() {
 
         /** Stores the QR code's admin extras, if the intent carries them. */
         fun saveConfigFrom(context: Context, intent: Intent) {
-            val extras = intent.getParcelableExtra(
-                DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
-                PersistableBundle::class.java,
-            ) ?: return
+            val extras = Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE) ?: return
             val config = PolicyConfig.fromExtras(extras)
             ConfigStore(context).save(config)
             LocalContactPolicySource(context).seedIfEmpty(config.seedContacts)

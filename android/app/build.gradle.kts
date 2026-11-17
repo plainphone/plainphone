@@ -21,10 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "org.plainphone.app"
-        minSdk = 34
+        minSdk = 29
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     signingConfigs {

@@ -9,7 +9,7 @@ Plainphone is free and open source under the [Apache License 2.0](LICENSE). Main
 
 ## What phase 1 does
 
-The Android app in [`android/`](android) is a Device Policy Controller. It is set up by QR code on a factory-reset phone (Android 14 or newer) and becomes **Device Owner**. It then:
+The Android app in [`android/`](android) is a Device Policy Controller. It is set up by QR code on a factory-reset phone (Android 10 or newer; see [docs/android-versions.md](docs/android-versions.md)) and becomes **Device Owner**. It then:
 
 - blocks app installs (Play Store and APK files), factory reset from Settings, safe mode, new users, guest mode, private space, app cloning, developer options and adb;
 - forces private DNS (DNS-over-TLS) to a filtering resolver and stops the user from changing private DNS, VPN, network reset and user certificates;

@@ -10,6 +10,7 @@ import android.app.Person
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.telecom.Call
 import org.plainphone.app.R
 import org.plainphone.app.ui.InCallActivity
@@ -59,9 +60,18 @@ object CallNotifications {
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_CALL)
             .setOnlyAlertOnce(true)
-        if (call.details.state == Call.STATE_RINGING) {
+        if (callState(call) == Call.STATE_RINGING) {
             builder.setFullScreenIntent(screen, true)
-                .setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))
+            if (Build.VERSION.SDK_INT >= 31) {
+                builder.setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))
+            } else {
+                // Android 10 and 11 have no call style: the same two buttons as plain actions.
+                builder.setContentTitle(title)
+                    .setContentText(context.getString(R.string.call_incoming))
+                    .addPerson(person)
+                    .addAction(Notification.Action.Builder(null, context.getString(R.string.call_decline), action(context, ACTION_DECLINE)).build())
+                    .addAction(Notification.Action.Builder(null, context.getString(R.string.call_answer), answerIntent(context)).build())
+            }
         } else {
             // No full-screen intent here: it would relaunch the call screen on every state change.
             builder.setContentTitle(title)
