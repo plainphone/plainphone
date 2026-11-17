@@ -19,7 +19,7 @@ import {
 import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
-import { syncDns } from "./dns.js";
+import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
 import { wakePhone } from "./phones.js";
 
 export type Op =
@@ -253,20 +253,21 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
       return { dns: false };
     }
-    case "phone.remove":
-      await db.delete(phones).where(eq(phones.id, phone.id));
+    case "phone.remove": {
+      // The tombstone is written with the delete, so the sweeper can retry until the DNS
+      // service has forgotten the ClientID.
+      const [gone] = await db.delete(phones).where(eq(phones.id, phone.id)).returning({ clientId: phones.dnsClientId });
+      if (gone) await queueDnsDeletions(db, [gone.clientId]);
       return { dns: false };
+    }
   }
 }
 
 /** Side effects outside the database, after an op has been applied. */
 async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
   if (op.type === "phone.remove") {
-    try {
-      await ctx.dns.deleteClient(op.dnsClientId);
-    } catch (err) {
-      console.error(`DNS delete failed for ${op.dnsClientId}: ${(err as Error).message}`);
-    }
+    // Failures stay queued in dns_deletions and the sweeper retries them.
+    await retryDnsDeletions(ctx, [op.dnsClientId]);
     return;
   }
   if (op.type !== "key.set" || op.key.keyType !== "trusted" || !op.key.trustedEmail || !ctx.mail.canSend) return;

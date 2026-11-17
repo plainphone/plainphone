@@ -26,6 +26,7 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import * as v from "../lib/validation.js";
+import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
 import {
   applyPending,
@@ -167,6 +168,27 @@ export function parentRoutes(ctx: Ctx) {
     return c.body(null, 204);
   });
 
+  // Deletes the account (#11). The body repeats the address, so a stray request cannot do it.
+  app.delete("/me", async (c) => {
+    const user = c.get("user");
+    const input = await body(c, z.object({ confirmEmail: z.string().trim().toLowerCase() }));
+    if (input.confirmEmail !== user.email) {
+      return c.json({ error: "type your own email address to confirm" }, 400);
+    }
+    const r = await deleteAccount(ctx, user.id);
+    if (r.status === "blocked") {
+      return c.json(
+        {
+          error: "remove your Self phones first; removing them goes through their key",
+          selfPhoneIds: r.selfPhoneIds,
+        },
+        409,
+      );
+    }
+    deleteCookie(c, SESSION_COOKIE, { path: "/api" });
+    return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
+  });
+
   // --- Households -------------------------------------------------------------
 
   async function requireMember(c: Context<Env>, householdId: string) {
@@ -252,9 +274,9 @@ export function parentRoutes(ctx: Ctx) {
     const input = await body(c, z.object({ token: z.string().min(10).max(200) }));
     const user = c.get("user");
     const hid = await ctx.db.transaction(async (tx) => {
+      // Deleted on acceptance (#8): the invited address is not needed once they are a member.
       const [invite] = await tx
-        .update(householdInvites)
-        .set({ acceptedAt: ctx.now() })
+        .delete(householdInvites)
         .where(
           and(
             eq(householdInvites.tokenHash, sha256(input.token)),

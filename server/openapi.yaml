@@ -617,6 +617,49 @@ paths:
                 locale: { enum: [en, da] }
       responses:
         "204": { description: "Saved" }
+    delete:
+      operationId: deleteMe
+      summary: Delete my account
+      description: |
+        Deletes the account. Households shared with another parent stay, with their phones;
+        if you owned one, the longest-standing other member becomes the owner. Households
+        where you are the only member are deleted with all their phones: those phones get 401
+        on their next request and fall back as described in docs/sync-api.md. Refused with 409
+        while such a household holds a Self phone; remove those first (through their key).
+        Where you are someone's trusted person, their key falls back to the delay.
+        See docs/account-deletion.md.
+      tags: [auth]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmEmail]
+              properties:
+                confirmEmail: { type: string, description: "Your own email address, as a confirmation" }
+      responses:
+        "200":
+          description: Deleted. The session cookie is cleared.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [householdsDeleted, phonesRemoved]
+                properties:
+                  householdsDeleted: { type: integer }
+                  phonesRemoved: { type: integer }
+        "400": { description: "confirmEmail does not match" }
+        "409":
+          description: A household only you belong to holds a Self phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  selfPhoneIds: { type: array, items: { type: string, format: uuid } }
 
   # ---------------------------------------------------------------- household
   /households/{hid}:
