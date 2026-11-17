@@ -241,8 +241,11 @@ class Jobs:
         return (time.time() - newest) / 3600
 
     def refresh_lists(self) -> None:
-        self.service.install_helpline_rules()  # restore the exceptions after loading an older backup
         lists.build(self.s.lists_dir, max_age=self.s.lists_refresh_hours * 3600, retry_at=self._list_retry_at)
+        try:
+            self.service.install_helpline_rules()  # restore the exceptions after loading an older backup
+        except Exception:  # noqa: BLE001
+            log.exception("restoring helpline exceptions failed")
         self.service.adguard.refresh_filters()
         self.service.upgrade_clients()  # also catches a backup restored from an older version
 

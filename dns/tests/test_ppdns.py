@@ -755,6 +755,23 @@ class SigV4Test(unittest.TestCase):
 
 
 class JobsTest(unittest.TestCase):
+    def test_stats_timeout_does_not_skip_list_refresh(self):
+        from unittest.mock import patch
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp)
+            ag = FakeAdGuard()
+            jobs = Jobs(settings, Service(ag, settings.domain, tmp))
+            with (
+                patch.object(ag, "exclude_from_stats", side_effect=TimeoutError),
+                patch.object(lists, "build", return_value={}) as build,
+                self.assertLogs("ppdns.server", level="ERROR"),
+            ):
+                jobs.refresh_lists()
+            build.assert_called_once()
+            self.assertEqual(ag.refreshed, 1)
+
     def test_reused_lists_refresh_at_their_original_deadline(self):
         from unittest.mock import patch
         from ppdns.server import Jobs

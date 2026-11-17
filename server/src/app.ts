@@ -19,7 +19,7 @@ import type { Ctx } from "./services/context.js";
 /** Where the PWA's map loads its tiles (web/src/lib/maps.ts). */
 export const MAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
 
-function acceptedAssetEncodings(header: string | undefined, path: string): string {
+function encodingQualities(header: string | undefined): Map<string, number> {
   const quality = new Map<string, number>();
   for (const entry of header?.split(",") ?? []) {
     const [coding, ...params] = entry.toLowerCase().split(";");
@@ -27,6 +27,10 @@ function acceptedAssetEncodings(header: string | undefined, path: string): strin
     const q = weight === undefined ? 1 : Number(weight.slice(2));
     quality.set(coding!.trim(), q >= 0 && q <= 1 ? q : 0);
   }
+  return quality;
+}
+
+function acceptedAssetEncodings(quality: Map<string, number>, path: string): string {
   const wildcard = quality.get("*") ?? 0;
   const br = quality.get("br") ?? wildcard;
   const gzip = quality.get("gzip") ?? wildcard;
@@ -36,6 +40,14 @@ function acceptedAssetEncodings(header: string | undefined, path: string): strin
   // available gzip variant, using the path already validated by serveStatic.
   if (br > 0 && gzip > br && gzip >= identity && existsSync(path + ".gz")) return "gzip";
   return [br > 0 && br >= identity && "br", gzip > 0 && gzip >= identity && "gzip"].filter(Boolean).join(", ");
+}
+
+function allowsIdentity(quality: Map<string, number>): boolean {
+  return (quality.get("identity") ?? quality.get("*")) !== 0;
+}
+
+function encodingNotAcceptable(): Response {
+  return new Response(null, { status: 406, headers: { Vary: "Accept-Encoding", "Cache-Control": "no-cache" } });
 }
 
 export function createApp(ctx: Ctx) {
@@ -122,7 +134,7 @@ export function createApp(ctx: Ctx) {
       rewriteRequestPath: (filename, c) => {
         const original = c.req.raw;
         const accepted = c.req.header("accept-encoding");
-        const encodings = acceptedAssetEncodings(accepted, join(root, filename));
+        const encodings = acceptedAssetEncodings(encodingQualities(accepted), join(root, filename));
         if (accepted !== undefined && encodings !== accepted) {
           const headers = new Headers(original.headers);
           headers.set("accept-encoding", encodings);
@@ -140,7 +152,8 @@ export function createApp(ctx: Ctx) {
     }
     app.use("/*", async (c, next) => {
       const asset = c.req.path.startsWith("/assets/");
-      const handler = asset && !c.req.header("range") ? compressed : identity;
+      const identityForbidden = !allowsIdentity(encodingQualities(c.req.header("accept-encoding")));
+      const handler = asset && (!c.req.header("range") || identityForbidden) ? compressed : identity;
       const original = c.req.raw;
       const res = await handler(c, async () => {
         c.req.raw = original;
@@ -149,16 +162,22 @@ export function createApp(ctx: Ctx) {
         c.req.raw = original;
       });
       if (res) {
-        if (asset) res.headers.set("Vary", "Accept-Encoding");
+        if (identityForbidden && !res.headers.has("Content-Encoding")) {
+          await res.body?.cancel();
+          return encodingNotAcceptable();
+        }
+        res.headers.set("Vary", "Accept-Encoding");
         const hashed = /^\/assets\/[^/]+-[\w-]{8,}\.[\w]+$/.test(c.req.path);
         res.headers.set("Cache-Control", hashed ? "public, max-age=31536000, immutable" : "no-cache");
       }
       return res;
     });
     app.get("*", async (c) => {
+      if (!allowsIdentity(encodingQualities(c.req.header("accept-encoding")))) return encodingNotAcceptable();
       // Read per request (it is small), so a rebuilt web/dist is picked up without a restart.
       const indexHtml = await readFile(join(root, "index.html"), "utf8");
       c.header("Cache-Control", "no-cache");
+      c.header("Vary", "Accept-Encoding");
       return c.html(indexHtml);
     });
   }

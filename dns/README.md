@@ -205,6 +205,8 @@ each tagged list's download deadline across startup and fetches only lists
 that are due. A failed download retries after one
 refresh interval, while the other lists keep their own deadlines. Startup
 still asks AdGuard to reload its filters.
+Periodic list refreshes continue if restoring helpline rules or their statistics
+exclusions fails. ppdns logs the error and retries the restore on the next refresh.
 If a download fails, retagging a legacy copy streams it to an atomic replacement
 while retaining the age of the last upstream download.
 

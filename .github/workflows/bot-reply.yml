@@ -69,8 +69,9 @@ jobs:
               return;
             }
 
-            const number = Number.parseInt(process.env.NUMBER.trim().replace(/^#/, ''), 10);
-            if (!Number.isInteger(number) || number <= 0) {
+            const input = (process.env.NUMBER || '').trim().replace(/^#/, '');
+            const number = Number(input);
+            if (!/^\d+$/.test(input) || !Number.isSafeInteger(number) || number <= 0) {
               core.setFailed('number must be a positive issue, pull request or discussion number.');
               return;
             }
