@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
 import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, serverHasMail } from "../lib/api";
@@ -17,6 +17,7 @@ function pendingReason(): "invite" | "pair" | null {
 }
 
 export function LoginPage() {
+  const deleted = Boolean((useLocation().state as { deleted?: boolean } | null)?.deleted);
   const { t, locale } = useI18n();
   const { state, refresh } = useSession();
   const navigate = useNavigate();
@@ -83,6 +84,7 @@ export function LoginPage() {
       ) : (
         <>
           <PageTitle sub={t("login.intro")}>{t("login.title")}</PageTitle>
+          {deleted && <p className="notice notice-info" role="status">{t("login.deleted")}</p>}
           {reason && <p className="notice notice-info">{t(reason === "invite" ? "login.inviteNote" : "login.pairNote")}</p>}
           {mail === false && (
             <div className="notice notice-warn" role="note">

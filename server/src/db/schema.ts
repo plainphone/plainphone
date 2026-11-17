@@ -313,3 +313,15 @@ export const unlockPayments = pgTable("unlock_payments", {
   status: text("status", { enum: ["created", "succeeded", "failed", "refunded"] }).notNull(),
   createdAt: createdAt(),
 });
+
+/**
+ * ClientIDs the DNS service must forget. A row is written in the same transaction that
+ * deletes a phone, so the sweeper can retry the delete until the DNS service confirms it
+ * (204 or 404). Holds no personal data: only the random ClientID.
+ */
+export const dnsDeletions = pgTable("dns_deletions", {
+  clientId: text("client_id").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});

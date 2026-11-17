@@ -25,6 +25,7 @@ export interface DnsProvider {
 export class MockDnsProvider implements DnsProvider {
   readonly clients = new Map<string, DnsClientConfig>();
   failNext = 0;
+  failNextDelete = 0;
 
   async upsertClient(config: DnsClientConfig) {
     if (this.failNext > 0) {
@@ -35,6 +36,10 @@ export class MockDnsProvider implements DnsProvider {
   }
 
   async deleteClient(clientId: string) {
+    if (this.failNextDelete > 0) {
+      this.failNextDelete--;
+      throw new Error("mock DNS delete failure");
+    }
     this.clients.delete(clientId);
   }
 

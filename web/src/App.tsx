@@ -21,6 +21,7 @@ import { PhoneLayout, PhoneOverview } from "./pages/Phone";
 import { PhoneSettingsPage } from "./pages/PhoneSettings";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
+import { SettingsPage } from "./pages/Settings";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { state } = useSession();
@@ -46,6 +47,7 @@ function AppRoutes() {
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
         <Route path="/household" element={<RequireAuth><HouseholdPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth><ApprovalsPage /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/phones/:pid" element={<RequireAuth><PhoneLayout /></RequireAuth>}>
           <Route index element={<PhoneOverview />} />
           <Route path="apps" element={<AppsPage />} />
