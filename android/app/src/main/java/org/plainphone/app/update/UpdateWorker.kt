@@ -37,6 +37,7 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
             Log.e("Plainphone", "self-update crashed", e)
             PrefsUpdateStateStore(applicationContext).report = UpdateReport(
                 SelfUpdater.STATE_FAILED, e.message ?: e.javaClass.simpleName, System.currentTimeMillis(), null,
+                errorCode = UpdateErrorCode.UNKNOWN,
             )
             org.plainphone.app.sync.SyncScheduler.now(applicationContext, "update check failed")
             Result.success()
@@ -65,7 +66,10 @@ object SelfUpdate {
             store.report = if (installed.versionCode >= target) {
                 UpdateReport(SelfUpdater.STATE_UP_TO_DATE, null, System.currentTimeMillis(), installed.versionName)
             } else {
-                UpdateReport(SelfUpdater.STATE_FAILED, "installation was interrupted", System.currentTimeMillis(), store.report?.latestVersionName)
+                UpdateReport(
+                    SelfUpdater.STATE_FAILED, "installation was interrupted", System.currentTimeMillis(),
+                    store.report?.latestVersionName, errorCode = UpdateErrorCode.INSTALL_FAILED,
+                )
             }
             store.installingVersionCode = 0L
             org.plainphone.app.sync.SyncScheduler.now(context, "update result")
@@ -140,14 +144,18 @@ class PrefsUpdateStateStore(context: Context) : UpdateStateStore {
                 prefs.getLong("checked_at", 0L).takeIf { t -> t > 0 },
                 prefs.getString("latest", null),
                 prefs.getLong("prompted_version", 0L).takeIf { code -> code > 0L },
+                prefs.getString("error_code", null)?.let { code ->
+                    UpdateErrorCode.entries.firstOrNull { it.wireName == code }
+                },
             )
         }
         set(r) {
             val e = prefs.edit()
             if (r == null) {
-                e.remove("state").remove("detail").remove("checked_at").remove("latest").remove("prompted_version")
+                e.remove("state").remove("detail").remove("checked_at").remove("latest").remove("prompted_version").remove("error_code")
             } else {
-                e.putString("state", r.state).putString("detail", r.detail).putLong("checked_at", r.checkedAtMs ?: 0L)
+                e.putString("state", r.state).putString("error_code", r.errorCode?.wireName)
+                    .putString("detail", r.detail).putLong("checked_at", r.checkedAtMs ?: 0L)
                     .putString("latest", r.latestVersionName).putLong("prompted_version", r.promptedVersionCode ?: 0L)
             }
             e.apply()

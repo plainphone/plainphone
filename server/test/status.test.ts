@@ -46,7 +46,24 @@ describe("phone update requests", () => {
     };
     expect((await device.put("/api/device/status", report({ appVersionCode: 42, update }))).status).toBe(204);
     expect((await parent.get(path)).json.status).toMatchObject({ appVersion: "0.4.0", appVersionCode: 42, update });
+
+    const codedUpdate = { ...update, errorCode: "network" };
+    expect((await device.put("/api/device/status", report({ appVersionCode: 42, update: codedUpdate }))).status).toBe(204);
+    expect((await parent.get(path)).json.status.update).toEqual(codedUpdate);
   });
+});
+
+it("hides an install overrun from an old status snapshot", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const failedPolicies = ["install window overran: 45s", "another policy failed"];
+  expect((await device.put("/api/device/status", report({ failedPolicies }))).status).toBe(204);
+  const path = `/api/phones/${phoneId}`;
+  expect((await parent.get(path)).json.status.failedPolicies).toEqual(failedPolicies);
+  await h.ctx.db.update(phones)
+    .set({ statusReportedAt: new Date(h.clock.now.getTime() - 7 * 24 * 60 * 60_000) })
+    .where(eq(phones.id, phoneId));
+  expect((await parent.get(path)).json.status.failedPolicies).toEqual(["another policy failed"]);
 });
 
 describe("DNS readiness", () => {

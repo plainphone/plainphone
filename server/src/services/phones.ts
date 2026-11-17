@@ -279,6 +279,9 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
 }
 
 function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {
+  const status = phone.deviceStatus;
+  const reportedAt = phone.statusReportedAt;
+  const showOverrun = reportedAt && ctx.now().getTime() - reportedAt.getTime() < 7 * 24 * 60 * 60_000;
   return {
     id: phone.id,
     name: phone.name,
@@ -299,9 +302,11 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
-    status:
-      phone.deviceStatus && phone.statusReportedAt
-        ? { ...phone.deviceStatus, reportedAt: phone.statusReportedAt.toISOString() }
-        : null,
+    status: status && reportedAt ? {
+      ...status,
+      failedPolicies: showOverrun ? status.failedPolicies
+        : status.failedPolicies.filter((policy) => !/^install window overran: \d+s$/.test(policy)),
+      reportedAt: reportedAt.toISOString(),
+    } : null,
   };
 }

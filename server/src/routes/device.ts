@@ -6,7 +6,7 @@ import { and, eq, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzl
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests } from "../db/schema.js";
+import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
@@ -349,6 +349,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
         appVersionCode: z.number().int().positive().optional(),
         update: z.object({
           state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),
+          errorCode: z.enum(UPDATE_ERROR_CODES).optional(),
           detail: z.string().max(200).nullable(),
           checkedAt: z.iso.datetime({ offset: true }).nullable(),
           latestVersion: z.string().max(40).nullable(),

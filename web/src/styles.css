@@ -517,6 +517,18 @@ main {
   gap: 0.5rem;
 }
 
+.phone-update-details {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.phone-update-details summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+  width: fit-content;
+}
+
 .status-list > li {
   padding: 0.625rem 1rem;
 }

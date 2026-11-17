@@ -24,6 +24,7 @@ export interface PhoneStatus {
   appVersionCode?: number;
   update?: {
     state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    errorCode?: string;
     detail: string | null;
     checkedAt: string | null;
     latestVersion: string | null;

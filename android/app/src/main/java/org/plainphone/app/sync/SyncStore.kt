@@ -16,7 +16,16 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     private val app = context.applicationContext
     private val prefs: SharedPreferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    internal fun installWindowOverrun() = org.plainphone.app.update.InstallLease.latestOverrun(app)
+    internal fun installWindowOverrun(nowMs: Long) =
+        org.plainphone.app.update.InstallLease.latestOverrun(app)?.takeIf {
+            it.sequence > prefs.getLong(KEY_ACKED_INSTALL_OVERRUN, 0) &&
+                nowMs - it.recordedAtMs in 0 until INSTALL_OVERRUN_TTL_MS
+        }
+
+    @SuppressLint("ApplySharedPref")
+    internal fun acknowledgeInstallOverrun(sequence: Long) {
+        prefs.edit().putLong(KEY_ACKED_INSTALL_OVERRUN, sequence).commit()
+    }
 
     // --- Pairing -----------------------------------------------------------------
 
@@ -170,6 +179,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     companion object {
         private const val TAG = "Plainphone"
+        private const val KEY_ACKED_INSTALL_OVERRUN = "acked_install_overrun"
+        private const val INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000L
         const val PREFS = "plainphone_sync"
         private const val KEY_TOKEN = "device_token"
         private const val KEY_PHONE_ID = "phone_id"

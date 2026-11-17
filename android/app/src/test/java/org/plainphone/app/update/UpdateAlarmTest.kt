@@ -339,6 +339,38 @@ class UpdateAlarmTest {
         assertReportedOverrun(5)
     }
 
+    @Test fun overrunStopsReportingAfterAcknowledgement() {
+        restoreOverdueLease(overrunMs = 40_000)
+        Lock.recoverInstall(context)
+        val store = SyncStore(context, FakeSecretBox())
+        store.savePaired("phone", "pp_d_token")
+        val api = FakeSyncApi()
+        val runner = SyncRunner(store, api, FakeSyncDevice().apply { now = System.currentTimeMillis() })
+        val failingApi = object : org.plainphone.app.sync.SyncApi by api {
+            override fun reportStatus(token: String, status: org.plainphone.app.sync.DeviceStatus) {
+                throw java.io.IOException("offline")
+            }
+        }
+        SyncRunner(store, failingApi, FakeSyncDevice().apply { now = System.currentTimeMillis() }).run("offline")
+        runner.run("report the overrun")
+        runner.run("report without the acknowledged overrun")
+        assertEquals(
+            listOf(listOf("install window overran: 40s"), emptyList<String>()),
+            api.statuses.map { it.failedPolicies },
+        )
+    }
+
+    @Test fun overrunExpiresEvenWithoutAcknowledgement() {
+        restoreOverdueLease(overrunMs = 40_000)
+        Lock.recoverInstall(context)
+        val store = SyncStore(context, FakeSecretBox())
+        store.savePaired("phone", "pp_d_token")
+        val api = FakeSyncApi()
+        val device = FakeSyncDevice().apply { now = System.currentTimeMillis() + Duration.ofDays(7).toMillis() }
+        SyncRunner(store, api, device).run("after the overrun expired")
+        assertTrue(api.statuses.single().failedPolicies.isEmpty())
+    }
+
     private fun restoreOverdueLease(
         overrunMs: Long,
         previousProcess: Boolean = false,
@@ -367,7 +399,7 @@ class UpdateAlarmTest {
         val store = SyncStore(context, FakeSecretBox())
         store.savePaired("phone", "pp_d_token")
         val api = FakeSyncApi()
-        SyncRunner(store, api, FakeSyncDevice()).run("after install recovery")
+        SyncRunner(store, api, FakeSyncDevice().apply { now = System.currentTimeMillis() }).run("after install recovery")
         val status = api.statuses.single()
         assertEquals(listOf("install window overran: ${seconds}s"), status.failedPolicies)
         assertTrue(status.lockIntact)

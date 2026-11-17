@@ -72,8 +72,11 @@ the process and delay the recovery triggers. During a delayed self-update window
 child could attempt a separate install if they already had an APK ready and timed the
 attempt to coincide with that window. Plainphone records a late relock when it happens
 more than 30 seconds after the deadline, or when startup or boot recovers an expired
-lease. The latest incident survives restarts and appears on the phone's dashboard page
-and in the parent app after the next successful sync. Across a reboot, the delay is
+lease. The latest incident survives restarts. The phone includes it in status reports
+until the server acknowledges storage with HTTP 204, or for up to seven days after
+recording it. The dashboard and parent app show it until the next report without the
+incident. If the phone goes offline, the server stops showing the incident seven days
+after receiving it. Across a reboot, the delay is
 estimated from the phone's wall clock. For older lease records without a wall-clock
 deadline, recovery reports the incident with a zero-second lower bound because the
 previous boot's elapsed clock cannot be compared with the new one.
@@ -90,9 +93,24 @@ interactive. It cancels the poll on screen-off and restarts on screen-on or unlo
 Transient errors, including HTTP 409 from an earlier waiter, retry with exponential
 backoff from 1 second up to 60 seconds. Push wakes rules sync when the screen is off.
 The next ordinary rules sync also delivers the request when push is unavailable.
-Light mode shows an update
-on the Today screen and sends a quiet notification when permitted. Installing the
-offered version or a newer one clears the prompt.
+Light mode shows an update on the Today screen and sends a quiet notification when
+permitted. Installing the offered version or a newer one clears the prompt.
+
+### Update failures
+
+The phone reports an optional `update.errorCode` with the technical detail in
+`update.detail`. The dashboard shows a translated summary with the detail in a
+disclosure. Reports from older phones without a code use the generic failure summary.
+
+| Code | Meaning |
+| --- | --- |
+| `battery_exemption_missing` | The phone must allow Plainphone to run in the background before it can open the install window. |
+| `network` | The request for the release or APK failed. |
+| `signature_mismatch` | The certificate could not be read or the signer sets differ. |
+| `version_not_newer` | The downloaded APK must have a higher version code than the installed app. |
+| `metadata_mismatch` | Release metadata or the downloaded file could not be verified. |
+| `install_failed` | Android could not finish installing the update. |
+| `unknown` | An unexpected error interrupted the update. |
 
 ## Real-phone release check
 

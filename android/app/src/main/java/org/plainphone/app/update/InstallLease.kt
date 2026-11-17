@@ -359,7 +359,7 @@ class InstallLease(
     }
 }
 
-internal data class InstallWindowOverrun(val seconds: Long, val sequence: Long)
+internal data class InstallWindowOverrun(val seconds: Long, val sequence: Long, val recordedAtMs: Long)
 
 private class PrefsLeaseStore(context: Context) : InstallLease.Store {
     private val prefs = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
@@ -383,7 +383,8 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
         val parts = prefs.getString(OVERRUN, null)?.split(',') ?: return null
         val seconds = parts.getOrNull(0)?.toLongOrNull() ?: return null
         val sequence = parts.getOrNull(1)?.toLongOrNull() ?: return null
-        return InstallWindowOverrun(seconds, sequence)
+        val recordedAtMs = parts.getOrNull(2)?.toLongOrNull() ?: return null
+        return InstallWindowOverrun(seconds, sequence, recordedAtMs)
     }
 
     override fun save(leases: Map<String, InstallLease.Lease>) = retire(leases, null)
@@ -400,8 +401,8 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
                 l.id ?: "").joinToString(","))
         }
         if (overrunSeconds != null) {
-            val sequence = (latestOverrun()?.sequence ?: 0) + 1
-            edit.putString(OVERRUN, "$overrunSeconds,$sequence")
+            val priorSequence = previous[OVERRUN]?.split(',')?.getOrNull(1)?.toLongOrNull() ?: 0
+            edit.putString(OVERRUN, "$overrunSeconds,${priorSequence + 1},${System.currentTimeMillis()}")
         }
         if (!edit.commit()) {
             // A failed commit may have updated SharedPreferences in memory.
@@ -433,10 +434,10 @@ internal class AndroidLeaseEnv(private val context: Context) : InstallLease.Env 
     }
 
     override fun prepareExpiry(holder: String, atMs: Long) {
-        if (org.plainphone.app.light.Mode.isStrong(context)) {
-            check(InstallWatchdogService.hasBatteryExemption(context)) {
-                "Plainphone needs a battery exemption to keep the install deadline in Doze"
-            }
+        if (org.plainphone.app.light.Mode.isStrong(context) && !InstallWatchdogService.hasBatteryExemption(context)) {
+            throw BatteryExemptionMissingException(
+                "Plainphone needs a battery exemption to keep the install deadline in Doze",
+            )
         }
         InstallRecoveryWorker.schedule(context, holder, (atMs - nowMs()).coerceAtLeast(0))
     }

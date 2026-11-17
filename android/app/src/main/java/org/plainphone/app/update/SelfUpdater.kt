@@ -4,6 +4,7 @@ package org.plainphone.app.update
 
 import java.io.File
 import java.io.IOException
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -35,18 +36,19 @@ data class ApkInfo(val packageName: String, val versionCode: Long, val versionNa
 object UpdatePolicy {
     sealed interface Verdict {
         data object Install : Verdict
-        data class Refuse(val why: String) : Verdict
+        data class Refuse(val code: UpdateErrorCode, val why: String) : Verdict
     }
 
     fun check(installed: ApkInfo, candidate: ApkInfo): Verdict = when {
         candidate.packageName != installed.packageName ->
-            Verdict.Refuse("APK is ${candidate.packageName}, not ${installed.packageName}")
+            Verdict.Refuse(UpdateErrorCode.METADATA_MISMATCH, "APK is ${candidate.packageName}, not ${installed.packageName}")
         // Never downgrade, and an equal version is nothing to do.
         candidate.versionCode <= installed.versionCode ->
-            Verdict.Refuse("APK is version ${candidate.versionCode}, installed is ${installed.versionCode}")
+            Verdict.Refuse(UpdateErrorCode.VERSION_NOT_NEWER, "APK is version ${candidate.versionCode}, installed is ${installed.versionCode}")
         installed.certSha256.isEmpty() || candidate.certSha256.isEmpty() ->
-            Verdict.Refuse("signing certificate could not be read")
-        candidate.certSha256 != installed.certSha256 -> Verdict.Refuse("APK is signed with another certificate")
+            Verdict.Refuse(UpdateErrorCode.SIGNATURE_MISMATCH, "signing certificate could not be read")
+        candidate.certSha256 != installed.certSha256 ->
+            Verdict.Refuse(UpdateErrorCode.SIGNATURE_MISMATCH, "APK is signed with another certificate")
         else -> Verdict.Install
     }
 
@@ -82,6 +84,17 @@ interface UpdateHost {
     fun promptUpdate(latest: ReleaseInfo)
 }
 
+enum class UpdateErrorCode {
+    BATTERY_EXEMPTION_MISSING, NETWORK, SIGNATURE_MISMATCH, VERSION_NOT_NEWER, METADATA_MISMATCH, INSTALL_FAILED, UNKNOWN;
+
+    val wireName get() = name.lowercase()
+}
+
+internal class BatteryExemptionMissingException(message: String, cause: Throwable? = null) :
+    IllegalStateException(message, cause)
+
+internal class UpdateMetadataException(message: String) : IOException(message)
+
 /** What the dashboard sees about updates (sent with the phone's status). */
 data class UpdateReport(
     val state: String,
@@ -89,6 +102,7 @@ data class UpdateReport(
     val checkedAtMs: Long?,
     val latestVersionName: String?,
     val promptedVersionCode: Long? = null,
+    val errorCode: UpdateErrorCode? = null,
 ) {
     fun reconcileInstalled(installed: ApkInfo): UpdateReport {
         if (state != SelfUpdater.STATE_PROMPTED) return this
@@ -100,6 +114,7 @@ data class UpdateReport(
 
     fun toJson(): JSONObject = JSONObject()
         .put("state", state)
+        .put("errorCode", errorCode?.wireName)
         .put("detail", detail?.take(200) ?: JSONObject.NULL)
         .put("checkedAt", checkedAtMs?.let { java.time.Instant.ofEpochMilli(it).toString() } ?: JSONObject.NULL)
         .put("latestVersion", latestVersionName?.take(40) ?: JSONObject.NULL)
@@ -148,7 +163,12 @@ class SelfUpdater(
         val latest = try {
             host.fetchLatest()
         } catch (e: Exception) {
-            return failed("release check failed: ${e.message ?: e.javaClass.simpleName}", latest = null)
+            val code = when (e) {
+                is UpdateMetadataException, is JSONException, is IllegalArgumentException -> UpdateErrorCode.METADATA_MISMATCH
+                is IOException -> UpdateErrorCode.NETWORK
+                else -> UpdateErrorCode.UNKNOWN
+            }
+            return failed(code, "release check failed: ${e.message ?: e.javaClass.simpleName}", latest = null)
         }
         if (UpdatePolicy.isUpToDate(installed, latest)) {
             store.report = UpdateReport(STATE_UP_TO_DATE, null, now, latest?.versionName)
@@ -156,7 +176,7 @@ class SelfUpdater(
         }
         if (!host.isDeviceOwner()) {
             // Light mode cannot install by itself. Without metadata it cannot know there is anything new.
-            if (latest == null) return failed("no release metadata on the server", latest = null)
+            if (latest == null) return failed(UpdateErrorCode.METADATA_MISMATCH, "no release metadata on the server", latest = null)
             host.promptUpdate(latest)
             store.report = UpdateReport(STATE_PROMPTED, null, now, latest.versionName, latest.versionCode)
             return Outcome.Waiting("asked the user to update")
@@ -164,26 +184,40 @@ class SelfUpdater(
         val apk = try {
             host.download(latest?.url ?: host.fallbackUrl(), latest?.sha256)
         } catch (e: Exception) {
-            return failed("download failed: ${e.message ?: e.javaClass.simpleName}", latest)
+            val code = when (e) {
+                is UpdateMetadataException -> UpdateErrorCode.METADATA_MISMATCH
+                is IOException -> UpdateErrorCode.NETWORK
+                else -> UpdateErrorCode.UNKNOWN
+            }
+            return failed(code, "download failed: ${e.message ?: e.javaClass.simpleName}", latest)
         }
         try {
-            val candidate = host.inspect(apk) ?: return failed("downloaded file is not a readable APK", latest)
+            val candidate = host.inspect(apk)
+                ?: return failed(UpdateErrorCode.METADATA_MISMATCH, "downloaded file is not a readable APK", latest)
             if (latest != null && candidate.versionCode != latest.versionCode) {
-                return failed("APK is version ${candidate.versionCode}, release says ${latest.versionCode}", latest)
+                return failed(
+                    UpdateErrorCode.METADATA_MISMATCH,
+                    "APK is version ${candidate.versionCode}, release says ${latest.versionCode}", latest,
+                )
             }
             when (val verdict = UpdatePolicy.check(installed, candidate)) {
                 is UpdatePolicy.Verdict.Refuse -> {
                     // No metadata and the newest APK is what we run: that is simply up to date.
                     val state = if (candidate == installed) STATE_UP_TO_DATE else STATE_REFUSED
-                    store.report = UpdateReport(state, verdict.why.takeIf { state == STATE_REFUSED }, now, candidate.versionName)
+                    store.report = if (state == STATE_UP_TO_DATE) {
+                        UpdateReport(state, null, now, candidate.versionName)
+                    } else {
+                        UpdateReport(state, verdict.why, now, candidate.versionName, errorCode = verdict.code)
+                    }
                     return if (state == STATE_UP_TO_DATE) Outcome.UpToDate(installed.versionCode) else Outcome.Refused(verdict.why)
                 }
                 UpdatePolicy.Verdict.Install -> Unit
             }
             // Re-read after downloading, in case another installer changed the installed app.
             val current = host.installed()
-            if (UpdatePolicy.check(current, candidate) != UpdatePolicy.Verdict.Install) {
-                return failed("installed app changed during the download", latest)
+            val verdict = UpdatePolicy.check(current, candidate)
+            if (verdict is UpdatePolicy.Verdict.Refuse) {
+                return failed(verdict.code, "installed app changed during the download: ${verdict.why}", latest)
             }
             if (host.inMaintenance()) return Outcome.Skipped("maintenance unlock")
             store.report = UpdateReport(STATE_INSTALLING, null, now, candidate.versionName)
@@ -191,11 +225,14 @@ class SelfUpdater(
             // On success Android usually kills this process; the next startup reconciles the version.
             val error = try {
                 host.install(apk)
+            } catch (e: BatteryExemptionMissingException) {
+                return failed(UpdateErrorCode.BATTERY_EXEMPTION_MISSING, e.message.orEmpty(), latest)
             } catch (e: Exception) {
                 e.message ?: e.javaClass.simpleName
+            } finally {
+                store.installingVersionCode = 0L
             }
-            store.installingVersionCode = 0L
-            if (error != null) return failed("install failed: $error", latest)
+            if (error != null) return failed(UpdateErrorCode.INSTALL_FAILED, "install failed: $error", latest)
             store.report = UpdateReport(STATE_UP_TO_DATE, null, now, candidate.versionName)
             return Outcome.Installed(candidate.versionCode)
         } finally {
@@ -203,8 +240,8 @@ class SelfUpdater(
         }
     }
 
-    private fun failed(why: String, latest: ReleaseInfo?): Outcome.Failed {
-        store.report = UpdateReport(STATE_FAILED, why, host.nowMs(), latest?.versionName)
+    private fun failed(code: UpdateErrorCode, why: String, latest: ReleaseInfo?): Outcome.Failed {
+        store.report = UpdateReport(STATE_FAILED, why, host.nowMs(), latest?.versionName, errorCode = code)
         return Outcome.Failed(why)
     }
 

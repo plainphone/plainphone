@@ -59,7 +59,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                     while (true) {
                         val count = stream.read(buffer)
                         if (count == -1) break
-                        if (out.size() + count > MAX_METADATA) throw IOException("release metadata is too large")
+                        if (out.size() + count > MAX_METADATA) throw UpdateMetadataException("release metadata is too large")
                         out.write(buffer, 0, count)
                     }
                     out.toString(Charsets.UTF_8.name())
@@ -98,7 +98,9 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         } catch (e: Exception) {
             // Session creation may have succeeded before reapplying the restriction failed.
             createdSession?.let { runCatching { installer.abandonSession(it) } }
-            return "could not open and relock the install session: ${e.message}"
+            val detail = "could not open and relock the install session: ${e.message}"
+            if (e is BatteryExemptionMissingException) throw BatteryExemptionMissingException(detail, e)
+            return detail
         }
         val waiter = UpdateReceiver.expect(sessionId)
         var succeeded = false
@@ -193,7 +195,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                 val digest = conn.inputStream.use { input ->
                     part.outputStream().use { out -> copyVerified(input, out, expected) }
                 }
-                if (sha256 != null && digest != sha256) throw IOException("APK checksum does not match the release")
+                if (sha256 != null && digest != sha256) throw UpdateMetadataException("APK checksum does not match the release")
                 return File(dir, "plainphone.apk").also { if (!part.renameTo(it)) throw IOException("could not store the APK") }
             } finally {
                 part.delete()

@@ -90,12 +90,23 @@ export const householdInvites = pgTable("household_invites", {
   createdAt: createdAt(),
 });
 
+export const UPDATE_ERROR_CODES = [
+  "battery_exemption_missing",
+  "network",
+  "signature_mismatch",
+  "version_not_newer",
+  "metadata_mismatch",
+  "install_failed",
+  "unknown",
+] as const;
+
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
   appVersion: string;
   appVersionCode?: number;
   update?: {
     state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    errorCode?: (typeof UPDATE_ERROR_CODES)[number];
     detail: string | null;
     checkedAt: string | null;
     latestVersion: string | null;

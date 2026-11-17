@@ -673,6 +673,7 @@ components:
           required: [state, detail, checkedAt, latestVersion]
           properties:
             state: { enum: [upToDate, available, installing, prompted, refused, failed] }
+            errorCode: { enum: [battery_exemption_missing, network, signature_mismatch, version_not_newer, metadata_mismatch, install_failed, unknown] }
             detail: { type: [string, "null"], maxLength: 200 }
             checkedAt: { type: [string, "null"], format: date-time }
             latestVersion: { type: [string, "null"], maxLength: 40 }
@@ -995,7 +996,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/DeviceStatusInput" }
       responses:
-        "204": { description: "Stored" }
+        "204": { description: "Stored, including any install-window overrun in failedPolicies" }
         "400": { $ref: "#/components/responses/Error" }
 
   /device/released:

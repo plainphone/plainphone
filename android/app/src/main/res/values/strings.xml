@@ -21,7 +21,7 @@
         <item quantity="one">Lift the lock for %1$d minute</item>
         <item quantity="other">Lift the lock for %1$d minutes</item>
     </plurals>
-    <string name="maintenance_install_alarm_access">Allow install recovery alarms</string>
+    <string name="maintenance_install_alarm_access">Let Plainphone turn off app installation on time</string>
     <string name="maintenance_install_alarm_settings">Open Settings, then Special app access and Alarms &amp; reminders. Allow Plainphone.</string>
     <string name="maintenance_reapply">Apply the lock now</string>
     <string name="maintenance_release">Release Device Owner (test phones)</string>

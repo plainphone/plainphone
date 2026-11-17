@@ -1974,6 +1974,8 @@ export interface components {
             update?: {
                 /** @enum {unknown} */
                 state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+                /** @enum {unknown} */
+                errorCode?: "battery_exemption_missing" | "network" | "signature_mismatch" | "version_not_newer" | "metadata_mismatch" | "install_failed" | "unknown";
                 detail: string | null;
                 /** Format: date-time */
                 checkedAt: string | null;
@@ -2448,7 +2450,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Stored */
+            /** @description Stored, including any install-window overrun in failedPolicies */
             204: {
                 headers: {
                     [name: string]: unknown;
