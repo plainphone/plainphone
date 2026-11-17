@@ -93,6 +93,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 
     override fun location(precise: Boolean): LocationFix? = LocationReader(context).current(precise)
+
+    override fun timeUsed(): Map<String, Int>? = org.plainphone.app.time.TimeGuard.snapshot(context)?.let { s ->
+        s.evaluation.usedMinutes(s.limits.apps.keys)
+    }
 }
 
 /**

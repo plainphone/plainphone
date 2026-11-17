@@ -1,0 +1,113 @@
+# Light mode: Plainphone as an ordinary app
+
+Light mode puts Plainphone on a phone that is already in use: no factory reset, no QR code, no
+Device Owner. It is weaker than strong mode, and the parent's dashboard says exactly how (spec
+D2 and scope 3). This page is the reference for how it works, how to install it, what can be
+got around, and which Google Play policies each part touches.
+
+## One APK, two modes
+
+The same APK does both. Provisioned by QR as Device Owner it runs in strong mode; installed
+normally it runs in light mode. The mode follows from what Android granted
+(`light/Mode.kt`), so nothing needs configuring and a strong-mode phone can never drop into
+light mode by mistake.
+
+Why not a build flavor: a second APK doubles the releases, the signing and the testing, and the
+two modes share almost all code (rules, contacts, time limits, sync). A Play build later will
+be a flavor that leaves out what Play does not accept in a consumer app (see the table below);
+the code is already split so that is a build setting, not a rewrite.
+
+## What protects the phone
+
+| Protection | How | Without it |
+|---|---|---|
+| Web filter | A local `VpnService` that only carries DNS. Lookups go to the phone's own ClientID at `<id>.dns.plainphone.org` over DNS-over-TLS. Packets to well-known public resolvers (Google, Cloudflare, Quad9, AdGuard, NextDNS…) are routed into the tunnel and dropped, so apps fall back to the filter. No other traffic touches the VPN ([light-mode-vpn.md](light-mode-vpn.md)) | No filter. The parent is told |
+| App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead | Apps open freely. The parent is told |
+| Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog (not the update dialog, so new Plainphone APKs install), and the VPN disconnect dialog. It matches actions (uninstall, deactivate, always-on…) next to Plainphone's name, not page titles, so Network & internet and the Apps list stay usable. The maintenance PIN opens a 30-minute window; repairing a protection (Today > Fix it) asks for it first | Plainphone can be switched off from Settings |
+| Uninstall | A device admin receiver (`LightAdminReceiver`). Android will not uninstall an active device admin, so it has to be switched off first, and that screen is guarded | Plainphone can be uninstalled from the launcher |
+| Approved contacts | The phone and SMS roles via Android's own `RoleManager` dialogs, like strong mode on Android 10-13. Calls and SMS from other numbers are blocked; emergency numbers always work | Calls and SMS are unfiltered. The parent is told |
+| Time limits | Usage access (`UsageStatsManager`), counted on the phone and evaluated offline ([time-limits.md](time-limits.md)) | Time limits do not count. The parent is told when limits are set |
+| Find | Runtime location permission, "allow all the time" | No position |
+
+Every protection is a step in the lock. A missing one is a failed policy, so `lockIntact` is
+false and the parent sees which one. The phone also reports `mode: "light"` and a
+`protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
+
+## The parent is told when protection is removed
+
+- **VPN switched off:** `onRevoke` fires in the running app, which syncs at once and reports the
+  missing filter.
+- **Guard switched off:** the service's `onUnbind` starts a sync with the new status.
+- **Device admin switched off:** `onDisabled` starts a sync.
+- **Plainphone uninstalled, force stopped or the phone in safe mode:** the phone stops reporting.
+  The server marks it offline; the push to the parent is part of the push work (pp-data).
+- The 15-minute background sync reports the full protections list either way.
+
+## What can be got around
+
+Light mode adds friction. It is not a lock, and the dashboard says so:
+
+1. **Apps are closed after they open, not hidden.** The icon is there, and a quick child sees the
+   first frame before the guard closes it.
+2. **Factory reset** from Settings is allowed by Android (the guard does not block the reset
+   screen, because a parent may need it). Plainphone is gone afterwards; the parent sees the phone
+   go offline.
+3. **Safe mode** starts the phone without third-party apps, so without Plainphone. Restarting
+   normally brings it back.
+4. **Uninstalling** needs device admin switched off first. The guard closes those screens, but it
+   relies on reading screen text; an unusual Settings layout or a language the guard does not know
+   may slip through. The parent is told.
+5. **New apps can be installed.** The guard blocks a new app the moment Android announces it, until the parent allows it.
+6. **Default phone and SMS app** can be changed in Settings > Default apps (the guard closes that
+   screen when it shows Plainphone). Then calls and SMS are unfiltered until Plainphone is chosen
+   again; the parent sees it.
+7. **Private DNS** set to another resolver in strict mode sends lookups past the VPN. Plainphone
+   detects it (`LinkProperties.getPrivateDnsServerName`) and reports it as a missing protection.
+8. **Incognito and other browsers.** Chrome's managed configuration (no incognito, no secure-DNS
+   bypass) needs Device Owner. In light mode only the DNS filter applies; other browsers are blocked
+   like any app the parent has not allowed.
+9. **adb and a computer** get around everything, as in strong mode before the lock.
+
+## Installing it (no reset)
+
+Play is not an option yet (see below), so v1 is an APK from plainphone.org:
+
+1. On the phone, open the download link for the newest `plainphone-<version>.apk` in Chrome.
+2. Android asks whether Chrome may install unknown apps. Tap **Settings**, switch on **Allow from
+   this source**, go back and tap **Install**. Plainphone is signed with the same key as every
+   release, so later updates install over it.
+3. Switch **Allow from this source** off again for Chrome (Settings > Apps > Special app access >
+   Install unknown apps).
+4. Open Plainphone. It walks through one step per screen: parent PIN, phone app, messages app, web
+   filter, usage access, device admin, notifications and battery, location (optional), the guard,
+   always-on VPN (recommended) and pairing with the parent's dashboard.
+5. Recommended: in Settings > Network > VPN, tap the gear next to Plainphone and switch on
+   **Always-on VPN**. Leave **Block connections without VPN** off: the VPN only carries DNS, and
+   lockdown would block the traffic that does not go through it, including Plainphone's own
+   DNS-over-TLS ([light-mode-vpn.md](light-mode-vpn.md)). The setup step opens that screen.
+6. Android 13 and newer: an app installed from a browser may not switch on an accessibility service at first ("Restricted setting"). Open Settings > Apps > Plainphone, tap the three dots and choose **Allow restricted settings**, then switch the guard on. The guard step says this too.
+7. Pair: the parent opens app.plainphone.org, chooses "Add phone" and scans the code the phone
+   shows.
+
+Leaving light mode: maintenance screen (7 taps on the version line, PIN) > "Switch off
+Plainphone". It switches device admin, the VPN and the guard off, and nothing switches them on again until
+setup is completed anew; then Plainphone uninstalls normally.
+
+## Google Play policies per part
+
+Not submitted (needs the organisation verification and Mads' go). What each part would need:
+
+| Part | Play policy | Needed |
+|---|---|---|
+| `VpnService` DNS filter | VpnService policy: only for apps whose core purpose needs it; parental control is an accepted use | VPN declaration in Play Console, privacy policy describing the DNS-only tunnel |
+| Accessibility service (guard) | Accessibility API policy: non-accessibility uses must be disclosed and consented in the app, and declared | Prominent in-app disclosure (the guard step does this), Play Console declaration, review |
+| Device admin (`LightAdminReceiver`) | Device Admin policy: allowed for parental control apps; deprecated policies are refused for ordinary apps on Android 10+ (hence only `force-lock`) | Declaration; explain why |
+| Phone and SMS roles | SMS and Call Log permissions policy: only the default phone or SMS app, or a listed exception | Permissions declaration form; default handler is the qualifying use |
+| Background location | Location permissions policy: a clear in-app disclosure and a feature the user expects | Declaration form, a short video of "Find" |
+| `QUERY_ALL_PACKAGES` | Package visibility policy: parental control is a permitted use | Declaration |
+| `PACKAGE_USAGE_STATS` | Usage access is a special permission granted by the user | Disclosure in the time-limits step |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Allowed only when the app's core function breaks otherwise | Justification (filtering calls and rules in the background) |
+| Family | Families policy and the "parental control" app category | Teacher Approved is not needed; ads are none anyway |
+
+R3 in the spec stays: a review can take weeks and may be refused, which is why the APK path ships
+first.

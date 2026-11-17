@@ -139,6 +139,30 @@ releases signed with the same key.
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |
 | `pollSeconds` | Poll interval |
 
+### Requests (asking for an app or a contact)
+
+Spec 4 and 5: the person with the phone can ask for something the parents then approve or
+decline. The phone UI for this is not built yet; the server side is.
+
+- `POST /api/device/requests` with `{ "kind": "app", "packageName": "com.spotify.music" }` or
+  `{ "kind": "contact", "name": "Gran", "number": "+4512345678" }`.
+  - An app must be on the phone's own list (`PUT /device/apps`), installed and hidden.
+    `404` if it is not on the list, `409` if it is already allowed (or a core app).
+  - A contact number is normalised to E.164 (spaces, dashes and brackets are dropped); `409`
+    if it is already an approved contact. `400` for a number without `+` and country code.
+  - `201` with the request. Asking again for the same thing while it is open gives `200` with
+    the same request, and the parents are not notified twice.
+  - At most 10 open requests per phone (`429`). Show "wait for an answer" rather than retrying.
+- The parents get a push notification. Approving is an ordinary rule change: the app becomes
+  allowed, or the contact is added. On a Self phone the approval waits for the key like any
+  other loosening, so the phone shows it under `pendingChanges` too.
+- `GET /api/device/requests` lists open requests and those answered in the last 30 days,
+  newest first: `{ id, kind, packageName, name, number, status: pending|approved|rejected,
+  createdAt, decidedAt, waitingForKey, effectiveAt }`. `waitingForKey` is true for an approved
+  request on a Self phone whose change still waits (`effectiveAt` is its time, or null for a
+  trusted person). Poll it when the request screen is open; the rules poll already brings the
+  effect of an approval. After 30 days answered requests are deleted.
+
 ### Push (later)
 
 The server has a push abstraction. FCM is the planned layer: the phone registers its token with

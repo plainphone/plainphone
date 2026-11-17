@@ -1552,6 +1552,73 @@ details.details p {
   margin-top: 0.25rem;
 }
 
+/* Notifications: one action for this device, then a quiet list per phone. */
+.notif-device {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.notif-device .notice {
+  align-self: stretch;
+}
+
+.h-small {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.notif-phone {
+  padding: 0 1rem;
+}
+
+.notif-phone .switch-row {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.inline-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding-bottom: 0.875rem;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.9375rem;
+}
+
+.inline-select select {
+  width: auto;
+  min-width: 10rem;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4375rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.request {
+  gap: 0.75rem;
+}
+
+.request .actions {
+  margin-top: 0;
+}
+
 /* Location page: map, route links, ring and "Are you okay?" (docs/location.md) */
 .section-head {
   display: flex;

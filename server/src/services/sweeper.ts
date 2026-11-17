@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
-import { householdInvites, magicLinks, pairings, pendingChanges, sessions } from "../db/schema.js";
+import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, sessions } from "../db/schema.js";
+import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { deleteOldSafetyRequests } from "./safety.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
+import { alertOfflinePhones } from "./notifications.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -16,7 +18,8 @@ export interface SweepResult {
   applied: number;
   dns: number;
   dnsDeleted: number;
-  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; safety: number };
+  offlineAlerts: number;
+  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number; safety: number };
 }
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
@@ -25,6 +28,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
   const dnsDeleted = await retryDnsDeletions(ctx);
+  const offlineAlerts = await alertOfflinePhones(ctx);
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<unknown[]>) => (await q).length;
   const deleted = {
@@ -62,19 +66,31 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
         )
         .returning({ id: pendingChanges.id }),
     ),
+    // Answered requests hold an app name or a contact; the phone shows the answer for a while.
+    requests: await count(
+      ctx.db
+        .delete(phoneRequests)
+        .where(
+          and(
+            inArray(phoneRequests.status, ["approved", "rejected"]),
+            lt(phoneRequests.decidedAt, new Date(now.getTime() - REQUEST_HISTORY_DAYS * DAY)),
+          ),
+        )
+        .returning({ id: phoneRequests.id }),
+    ),
     // Rings and "Are you okay?" requests, a day after they ended.
     safety: await deleteOldSafetyRequests(ctx),
   };
-  return { applied, dns, dnsDeleted, deleted };
+  return { applied, dns, dnsDeleted, offlineAlerts, deleted };
 }
 
 /** Logs only counts, never ids or addresses, and only when something happened. */
 export function logSweep(r: SweepResult, always = false) {
   const d = r.deleted;
-  const total = r.applied + r.dnsDeleted + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.safety;
+  const total = r.applied + r.dnsDeleted + r.offlineAlerts + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.requests + d.safety;
   if (total === 0 && !always) return;
   console.log(
-    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} safety=${d.safety}`,
+    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} offlineAlerts=${r.offlineAlerts} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} requests=${d.requests} safety=${d.safety}`,
   );
 }
 

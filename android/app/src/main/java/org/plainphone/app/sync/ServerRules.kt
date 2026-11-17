@@ -30,6 +30,10 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** Apps the parent picked from the catalog that are not installed yet. Treated as allowed. */
+    val toInstall: List<CatalogInstall> = emptyList(),
+    /** Daily minutes per app and in total (docs/time-limits.md). */
+    val timeLimits: TimeLimits = TimeLimits.NONE,
 ) {
     companion object {
         const val MIN_POLL_SECONDS = 30
@@ -64,6 +68,11 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                // Both are newer than the first servers: missing means none.
+                toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
+                    CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))
+                },
+                timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
             )
         }
 
@@ -80,8 +89,8 @@ data class ServerRules(
             )
         }
 
-        private fun strings(a: JSONArray): Set<String> = (0 until a.length()).map { a.getString(it) }.toSet()
-        private fun objects(a: JSONArray): List<JSONObject> = (0 until a.length()).map { a.getJSONObject(it) }
+        internal fun strings(a: JSONArray): Set<String> = (0 until a.length()).map { a.getString(it) }.toSet()
+        internal fun objects(a: JSONArray): List<JSONObject> = (0 until a.length()).map { a.getJSONObject(it) }
     }
 }
 
@@ -97,3 +106,6 @@ data class Schedule(
     val end: LocalTime,
     val allowedPackages: Set<String>,
 )
+
+/** A catalog app the parent approved before it was installed. */
+data class CatalogInstall(val packageName: String, val label: String)

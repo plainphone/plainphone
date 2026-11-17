@@ -128,6 +128,21 @@ describe("status with light-mode fields", () => {
     expect((await parent.get(`/api/phones/${phoneId}`)).json.status.lockIntact).toBe(true);
   });
 
+  it("alerts the parents once when a light-mode protection is switched off", async () => {
+    const { parent, device } = await setup();
+    await parent.post("/api/notifications/subscriptions", {
+      platform: "web",
+      endpoint: "https://fcm.googleapis.com/fcm/send/parent",
+      keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) },
+    });
+    await device.put("/api/device/status", report({ mode: "light", protections: allOn }));
+    expect(h.parentPush.sent).toHaveLength(0);
+    // The phone still says lockIntact: true; the server knows better.
+    await device.put("/api/device/status", report({ mode: "light", protections: { ...allOn, vpn: false } }));
+    await device.put("/api/device/status", report({ mode: "light", protections: { ...allOn, vpn: false } }));
+    expect(h.parentPush.sent.map((s) => s.msg.tag)).toEqual([expect.stringMatching(/^lock-/)]);
+  });
+
   async function lightPhone() {
     const env = await setup();
     await h.ctx.db.update(phones).set({ mode: "light" }).where(eq(phones.id, env.phoneId));
