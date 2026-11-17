@@ -41,13 +41,14 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
 ## Measure the server footprint
 
 Run `scripts/bench-server.sh [requests] [concurrency]` from the checkout. It
-starts a disposable embedded PostgreSQL, seeds one paired phone with 300
-apps, and sends HTTP conditional requests over loopback. It reports
-throughput, Node CPU per request, and warm and peak sampled Node RSS. RSS
+starts a disposable embedded PostgreSQL, seeds one paired phone with 100
+apps to keep the input below the snapshot cache limit, and sends HTTP
+conditional requests over loopback. It reports throughput, Node CPU per request, and warm and peak sampled Node RSS. RSS
 excludes PostgreSQL and the package runner. Use the same worker, Node version
 and arguments when comparing revisions.
 
-On a shared Linux worker with Node 24.22.3, one paired run against main
+With the earlier 300-app fixture, which exceeded the cache limit, one paired
+run on a shared Linux worker with Node 24.22.3 against main
 commit `44cdda0` used 2,500 polls and eight concurrent clients:
 
 | Metric | Before | After |

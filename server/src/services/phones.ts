@@ -155,7 +155,6 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     loadTimeLimits(ctx.db, phone, ctx.now()),
     loadSafety(ctx, phone.id),
     readPhoneSettings(ctx.db, phone.id),
-    loadPhoneSettings(ctx.db, phone.id),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {

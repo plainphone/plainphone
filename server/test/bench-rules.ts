@@ -41,7 +41,7 @@ try {
       select id, 'Benchmark', 'child', 'bench', ${sha256(token)}, false from home returning id
     `);
     await db.execute(sql`insert into phone_apps (phone_id, package_name, label, installed, allowed)
-      select ${phone!.id}, 'example.app' || i, 'Benchmark', true, i % 2 = 0 from generate_series(1, 300) i`);
+      select ${phone!.id}, 'example.app' || i, 'Benchmark', true, i % 2 = 0 from generate_series(1, 100) i`);
     const app = createApp({
       db, cfg: loadConfig({ DATABASE_URL: url, PUBLIC_URL: "http://localhost", NODE_ENV: "test" }),
       dns: new MockDnsProvider(), mail: new NoMailProvider(), push: new NoPushProvider(),

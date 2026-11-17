@@ -180,15 +180,16 @@ def _list(body: dict, key: str):
 # background jobs ----------------------------------------------------------
 
 
-def _every(seconds: float, job, name: str, *, first_delay: float | None = None) -> None:
+def _every(seconds: float, job, name: str, *, delay=None) -> None:
     def loop():
-        time.sleep(seconds if first_delay is None else first_delay)
         while True:
             try:
+                time.sleep(seconds if delay is None else delay())
                 job()
             except Exception:  # noqa: BLE001
                 log.exception("%s failed", name)
-            time.sleep(seconds)
+                if delay is not None:
+                    time.sleep(seconds)
 
     threading.Thread(target=loop, name=name, daemon=True).start()
 
@@ -199,6 +200,7 @@ class Jobs:
         self.service = service
         self._cert_mtime = _mtime(settings.cert_file)
         self.monitor_id = ""
+        self._list_retry_at: dict[str, float] = {}
 
     def ensure_filters(self) -> list[str]:
         """Add lists that a newer ppdns knows but this install's config does not (upgrades)."""
@@ -239,7 +241,7 @@ class Jobs:
         return (time.time() - newest) / 3600
 
     def refresh_lists(self) -> None:
-        lists.build(self.s.lists_dir)
+        lists.build(self.s.lists_dir, max_age=self.s.lists_refresh_hours * 3600, retry_at=self._list_retry_at)
         self.service.adguard.refresh_filters()
         self.service.upgrade_clients()  # also catches a backup restored from an older version
 
@@ -312,7 +314,8 @@ class Jobs:
 
     def start(self) -> None:
         interval = self.s.lists_refresh_hours * 3600
-        _every(interval, self.refresh_lists, "lists", first_delay=lists.first_refresh_delay(self.s.lists_dir, interval))
+        _every(interval, self.refresh_lists, "lists",
+               delay=lambda: lists.refresh_delay(self.s.lists_dir, interval, self._list_retry_at))
         _every(300, self.reload_cert, "cert")
         _every(self.s.selftest_minutes * 60, self.push, "selftest")
         _every(24 * 3600, self.backup, "backup")

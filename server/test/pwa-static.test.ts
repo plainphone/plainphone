@@ -24,11 +24,19 @@ test("serves precompressed hashed assets and revalidates the PWA entry points", 
     ]);
     const app = createApp({ ...h.ctx, cfg: { ...h.ctx.cfg, WEB_DIST: dist } });
 
-    for (const encoding of ["br", "gzip", "identity"]) {
-      const res = await app.request("/assets/main-3g7DRWx0.js", { headers: { "accept-encoding": encoding } });
+    for (const [accept, encoding] of [
+      ["br", "br"],
+      ["gzip", "gzip"],
+      ["identity", null],
+      ["br;q=1.0, gzip;q=0.8", "br"],
+      ["br;q=0.3, GZip;q=0.8", "gzip"],
+      ["br;q=0, *;q=0.8", "gzip"],
+      ["br;q=0, gzip;q=0", null],
+    ] as const) {
+      const res = await app.request("/assets/main-3g7DRWx0.js", { headers: { "accept-encoding": accept } });
       expect(res.headers.get("vary")).toBe("Accept-Encoding");
       expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
-      expect(res.headers.get("content-encoding")).toBe(encoding === "identity" ? null : encoding);
+      expect(res.headers.get("content-encoding")).toBe(encoding);
       await res.arrayBuffer();
     }
     const ranged = await app.request("/assets/main-3g7DRWx0.js", {

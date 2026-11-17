@@ -18,6 +18,25 @@ import type { Ctx } from "./services/context.js";
 /** Where the PWA's map loads its tiles (web/src/lib/maps.ts). */
 export const MAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
 
+function acceptedAssetEncodings(header: string | undefined, path: string): string {
+  const quality = new Map<string, number>();
+  for (const entry of header?.split(",") ?? []) {
+    const [coding, ...params] = entry.toLowerCase().split(";");
+    const weight = params.map((param) => param.trim()).find((param) => param.startsWith("q="));
+    const q = weight === undefined ? 1 : Number(weight.slice(2));
+    quality.set(coding!.trim(), q >= 0 && q <= 1 ? q : 0);
+  }
+  const wildcard = quality.get("*") ?? 0;
+  const br = quality.get("br") ?? wildcard;
+  const gzip = quality.get("gzip") ?? wildcard;
+  const identity = quality.get("identity") ?? 0;
+
+  // serveStatic checks Brotli first. Suppress it when the client prefers an
+  // available gzip variant, using the path already validated by serveStatic.
+  if (br > 0 && gzip > br && gzip >= identity && existsSync(path + ".gz")) return "gzip";
+  return [br > 0 && br >= identity && "br", gzip > 0 && gzip >= identity && "gzip"].filter(Boolean).join(", ");
+}
+
 export function createApp(ctx: Ctx) {
   const app = new Hono();
 
@@ -96,12 +115,32 @@ export function createApp(ctx: Ctx) {
   const dist = ctx.cfg.WEB_DIST;
   if (dist && existsSync(join(dist, "index.html"))) {
     const root = normalize(dist);
-    const compressed = serveStatic({ root, precompressed: true });
+    const compressed = serveStatic({
+      root,
+      precompressed: true,
+      rewriteRequestPath: (filename, c) => {
+        const original = c.req.raw;
+        const accepted = c.req.header("accept-encoding");
+        const encodings = acceptedAssetEncodings(accepted, join(root, filename));
+        if (accepted !== undefined && encodings !== accepted) {
+          const headers = new Headers(original.headers);
+          headers.set("accept-encoding", encodings);
+          c.req.raw = new Request(original, { headers });
+        }
+        return filename;
+      },
+    });
     const identity = serveStatic({ root });
     app.use("/*", async (c, next) => {
       const asset = c.req.path.startsWith("/assets/");
       const handler = asset && !c.req.header("range") ? compressed : identity;
-      const res = await handler(c, next);
+      const original = c.req.raw;
+      const res = await handler(c, () => {
+        c.req.raw = original;
+        return next();
+      }).finally(() => {
+        c.req.raw = original;
+      });
       if (res) {
         if (asset) res.headers.set("Vary", "Accept-Encoding");
         const hashed = /^\/assets\/[^/]+-[\w-]{8,}\.[\w]+$/.test(c.req.path);

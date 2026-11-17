@@ -25,6 +25,10 @@ export interface SweepResult {
   deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number; safety: number };
 }
 
+export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
+  return db.delete(magicLinks).where(lt(magicLinks.expiresAt, new Date(now.getTime() - DAY)));
+}
+
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
@@ -37,7 +41,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<{ count: number }>) => (await q).count;
   const deleted = {
-    magicLinks: await count(ctx.db.delete(magicLinks).where(lt(magicLinks.expiresAt, dayAgo))),
+    magicLinks: await count(expiredMagicLinksDelete(ctx.db, now)),
     sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now))),
     // Pairings hold an undelivered device token in clear text; never keep them long.
     pairings: await count(

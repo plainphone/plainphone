@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { locations } from "../src/db/schema.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -35,7 +35,14 @@ describe("rules delivery", () => {
     expect(first.json.dns.host).toMatch(/\.dns\.plainphone\.org$/);
     expect(first.json.pollSeconds).toBe(60);
 
-    expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+    const select = vi.spyOn(h.ctx.db, "select");
+    try {
+      expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+      const settingsReads = select.mock.calls.filter(([fields]) => fields && "settings" in fields && "home" in fields);
+      expect(settingsReads).toHaveLength(1);
+    } finally {
+      select.mockRestore();
+    }
     expect((await device.get("/api/device/rules", { "if-none-match": `W/${etag}` })).status).toBe(304);
 
     await parent.put(`/api/phones/${phoneId}/apps/com.zhiliaoapp.musically`, { allowed: true });

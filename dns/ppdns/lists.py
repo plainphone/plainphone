@@ -189,19 +189,21 @@ def _download_age(path: str, tag: str) -> float | None:
     return None
 
 
-def first_refresh_delay(lists_dir: str, interval: float) -> float:
-    """A restart does not reset the remaining time of a still-fresh download."""
+def refresh_delay(lists_dir: str, interval: float, retry_at: dict[str, float]) -> float:
+    """Sleep until the next tagged download is due, including retry deadlines."""
+    now = time.time()
     delay = interval
     for source in SOURCES:
         if source.tag is not None:
             age = _download_age(local_path(lists_dir, source), source.tag)
-            if age is not None and age < interval:
-                delay = min(delay, interval - age)
+            remaining = 0 if age is None else interval - age
+            delay = min(delay, max(0, remaining, retry_at.get(source.key, now) - now))
     return delay
 
 
 def build(
     lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen, max_age: float = 0,
+    retry_at: dict[str, float] | None = None,
 ) -> dict[str, str]:
     """Download and rewrite every tagged list. Returns {key: "ok"|"kept"|"empty"}.
 
@@ -215,7 +217,9 @@ def build(
             continue
         target = local_path(lists_dir, source)
         age = _download_age(target, source.tag) if max_age > 0 else None
-        if age is not None and age < max_age:
+        if (age is not None and age < max_age) or (
+            retry_at is not None and time.time() < retry_at.get(source.key, 0)
+        ):
             result[source.key] = "kept"
             continue
         tmp = None
@@ -234,8 +238,12 @@ def build(
             os.chmod(tmp, 0o644)
             os.replace(tmp, target)
             result[source.key] = "ok"
+            if retry_at is not None:
+                retry_at.pop(source.key, None)
             log.info("list %s: %d rules", source.key, count - 1)
         except Exception as exc:  # noqa: BLE001 - keep serving with the old list
+            if retry_at is not None:
+                retry_at[source.key] = time.time() + max_age
             log.warning("list %s: download failed (%s)", source.key, exc)
             if os.path.exists(target):
                 try:

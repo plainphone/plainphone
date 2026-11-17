@@ -664,15 +664,37 @@ class JobsTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp, PPDNS_LISTS_REFRESH_HOURS="12")
-            source = next(s for s in lists.SOURCES if s.tag)
-            path = lists.local_path(tmp, source)
-            with open(path, "w", encoding="utf-8") as out:
-                out.writelines(lists.tag_rules(["example.org"], source.tag))
-            os.utime(path, (3600, 3600))
+            interval = 12 * 3600
+            sources = [s for s in lists.SOURCES if s.tag]
+            for i, source in enumerate(sources):
+                path = lists.local_path(tmp, source)
+                with open(path, "w", encoding="utf-8") as out:
+                    out.writelines(lists.tag_rules(["example.org"], source.tag))
+                downloaded = 3600 if i == 0 else interval
+                os.utime(path, (downloaded, downloaded))
             jobs = Jobs(settings, Service(FakeAdGuard(), settings.domain, tmp))
-            with patch("ppdns.lists.time.time", return_value=3600 * 11), patch("ppdns.server._every") as every:
+            with patch("ppdns.lists.time.time", return_value=interval), patch("ppdns.server._every") as every:
                 jobs.start()
-            self.assertEqual(every.call_args_list[0].kwargs, {"first_delay": 2 * 3600})
+            delay = every.call_args_list[0].kwargs["delay"]
+            with patch("ppdns.lists.time.time", return_value=interval):
+                self.assertEqual(delay(), 3600)
+            with patch("ppdns.lists.time.time", return_value=interval + 3601):
+                self.assertEqual(delay(), 0)
+
+            downloaded_urls = []
+
+            def build(directory, **kwargs):
+                def opener(request, **_):
+                    downloaded_urls.append(request.full_url)
+                    raise OSError("upstream unavailable")
+
+                return original_build(directory, opener=opener, **kwargs)
+
+            original_build = lists.build
+            with patch("ppdns.lists.time.time", return_value=interval + 3601), patch.object(lists, "build", build):
+                jobs.refresh_lists()
+                self.assertEqual(downloaded_urls, [sources[0].url])
+                self.assertEqual(delay(), interval - 3601)
 
     def test_reload_cert_only_when_the_file_changes_or_forced(self):
         from ppdns.server import Jobs

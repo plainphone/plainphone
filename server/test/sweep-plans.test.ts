@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { sql } from "drizzle-orm";
 import { expect, test } from "vitest";
+import { expiredMagicLinksDelete } from "../src/services/sweeper.js";
 import { useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -14,7 +15,7 @@ test("sweeper uses range indexes when few rows are due", async () => {
   const db = h.ctx.db;
   await db.execute(sql`
     insert into magic_links (email, token_hash, expires_at)
-    select 'bench@example.test', i::text, now() + (i - 3) * interval '1 hour'
+    select 'bench@example.test', i::text, ${h.clock.now.toISOString()}::timestamptz + (i - 28) * interval '1 hour'
     from generate_series(1, 20000) i
   `);
   await db.execute(sql`
@@ -36,12 +37,16 @@ test("sweeper uses range indexes when few rows are due", async () => {
   `);
 
   for (const [table, query, index] of [
-    ["magic_links", "delete from magic_links where expires_at < now() - interval '1 hour'", "magic_links_expires_idx"],
+    ["magic_links", expiredMagicLinksDelete(db, h.clock.now), "magic_links_expires_idx"],
     ["sessions", "delete from sessions where expires_at < now()", "sessions_expires_idx"],
     ["pending_changes", "select id from pending_changes where status = 'pending' and key_type = 'delay' and effective_at <= now()", "pending_changes_due_idx"],
-  ]) {
+  ] as const) {
     await db.execute(sql.raw(`analyze ${table}`));
-    const [result] = await db.execute<{ "QUERY PLAN": { Plan: Plan }[] }>(sql.raw(`explain (format json) ${query}`));
+    const statement = typeof query === "string" ? sql.raw(query) : query.getSQL();
+    const [result] = await db.execute<{ "QUERY PLAN": { Plan: Plan }[] }>(
+      sql`explain (format json) ${statement}`,
+    );
     expect(indexes(result!["QUERY PLAN"][0]!.Plan)).toContain(index);
   }
+  expect((await expiredMagicLinksDelete(db, h.clock.now)).count).toBe(3);
 });
