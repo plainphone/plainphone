@@ -63,6 +63,20 @@ phone                                      server                         parent
    | `rulesEtag`, `rulesAppliedAt` | ETag of the rules the phone last applied and when (ISO 8601 with a time zone; `400` if more than 5 minutes ahead of the server), or `null` |
    | `dnsHost` | The private DNS host the phone actually uses, or `null` |
 
+   Three fields are optional, so older phones keep working:
+
+   | Field | Meaning |
+   |---|---|
+   | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
+   | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
+   | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
+
+   In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
+   `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
+   phone paired in light mode, or a report with `mode: "light"`, the server stores
+   `lockIntact: false` when `protections` is missing, one of those six is off or missing, a
+   policy failed or maintenance runs, whatever the phone sent. The parent sees the protections on the phone's page.
+
    The answer is `204`. Invalid bodies get `400`. The parent API returns `rulesAppliedAt` in UTC.
 6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
@@ -74,6 +88,8 @@ phone                                      server                         parent
 | Field | What the phone does |
 |---|---|
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
+| `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
+| `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` turns `true` once, after the first successful sync, and never goes back to `false`, so the network never dies |

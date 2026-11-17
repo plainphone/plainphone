@@ -39,7 +39,9 @@ import {
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
 import { createPhone, phoneSummary, wakePhone } from "../services/phones.js";
+import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
+import { limitRoutes } from "./limits.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -485,6 +487,10 @@ export function parentRoutes(ctx: Ctx) {
     const input = await body(c, z.object({ allowed: z.boolean() }));
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
   });
+
+  // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
+  limitRoutes(app, ctx, { requirePhone, change });
+  phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
   app.get("/phones/:pid/contacts", async (c) => {

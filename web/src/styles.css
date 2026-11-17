@@ -168,6 +168,7 @@ h1:focus {
 
 .header-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -1272,6 +1273,262 @@ details.details p {
     font-size: 0.8125rem;
   }
 }
+
+/* Screen time --------------------------------------------------------------- */
+
+.h-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.usage-text {
+  font-size: 1.125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-bar {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--tint);
+  overflow: hidden;
+}
+
+.usage-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.usage-over > span {
+  background: var(--warn-line);
+}
+
+.days-details summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  width: fit-content;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.days-details > .help {
+  margin-bottom: 0.75rem;
+}
+
+.day-limits {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.day-limit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.day-limit label {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.limit-item {
+  padding: 0.875rem 1rem;
+}
+
+.limit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.limit-main {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.limit-main .row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limit-main .row-meta {
+  margin-top: 0.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.limit-edit {
+  margin-top: 0.75rem;
+}
+
+.list + .inline-form.form-card {
+  margin-top: 1rem;
+}
+
+.inline-form.form-card {
+  margin-top: 0;
+}
+
+.inline-form .field-short {
+  flex: 0 1 11rem;
+}
+
+/* App catalog --------------------------------------------------------------- */
+
+.apps-add {
+  margin-bottom: 1.5rem;
+}
+
+.catalog-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.catalog-group + .catalog-group {
+  margin-top: 0.75rem;
+}
+
+.catalog-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  list-style: none;
+}
+
+.catalog-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.catalog-group > summary:hover .row-title {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.catalog-group > summary .chevron {
+  transition: transform 0.15s ease;
+}
+
+.catalog-group[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+
+.catalog-group > .list {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-group > summary .chevron {
+    transition: none;
+  }
+}
+
+.play-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-weight: 600;
+}
+
+.catalog-foot {
+  margin-top: 1.5rem;
+}
+
+/* Light mode ---------------------------------------------------------------- */
+
+.light-sub {
+  margin: 1.25rem 0 0.5rem;
+}
+
+.light-allok {
+  margin-bottom: 0.5rem;
+}
+
+.prot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.prot-main {
+  min-width: 0;
+}
+
+.prot-missing {
+  background: var(--danger-bg);
+}
+
+.list > li.prot-missing:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.list > li.prot-missing:only-child {
+  border-radius: var(--radius);
+}
+
+.prot-optional {
+  background: var(--warn-bg);
+}
+
+.list > li.prot-optional:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.list > li.prot-optional:last-child,
+.list > li.prot-missing:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.list > li.prot-optional:only-child,
+.list > li.prot-missing:only-child {
+  border-radius: var(--radius);
+}
+
+.light-on {
+  margin-top: 0.5rem;
+}
+
+.prot-why {
+  margin-top: 0.125rem;
+  font-size: 0.9375rem;
+}
+
+.weaker {
+  margin: 0;
+  padding-left: 1.25rem;
+  max-width: 38rem;
+  color: var(--muted);
+}
+
+.weaker > li + li {
+  margin-top: 0.5rem;
 
 /* Destructive actions sit apart, at the end of a section, behind a second step. */
 .danger-zone {

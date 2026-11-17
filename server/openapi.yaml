@@ -35,6 +35,10 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: limits
+    description: Daily time limits (docs/time-limits.md).
+  - name: catalog
+    description: App catalog per country (docs/app-catalog.md).
 
 components:
   securitySchemes:
@@ -141,6 +145,117 @@ components:
           properties:
             type: { const: phone.remove }
             dnsClientId: { type: string }
+        - type: object
+          description: Loosening when any weekday gets more minutes, or the limit is removed (limit null).
+          properties:
+            type: { const: timeLimit.set }
+            packageName: { $ref: "#/components/schemas/LimitTarget" }
+            limit:
+              oneOf:
+                - $ref: "#/components/schemas/Limit"
+                - type: "null"
+        - type: object
+          description: Always loosening.
+          properties:
+            type: { const: timeLimit.bonus }
+            packageName: { $ref: "#/components/schemas/LimitTarget" }
+            date: { type: string, format: date, description: "The local date it was asked for. The bonus counts for the local date when it takes effect." }
+            minutes: { type: integer, minimum: 5, maximum: 240 }
+        - type: object
+          description: Always loosening.
+          properties:
+            type: { const: catalog.add }
+            packageName: { $ref: "#/components/schemas/PackageName" }
+            label: { type: string }
+        - type: object
+          description: Always tightening.
+          properties:
+            type: { const: catalog.remove }
+            packageName: { $ref: "#/components/schemas/PackageName" }
+
+    LimitTarget:
+      description: '"*" is the daily cap for all non-core apps together; otherwise one app.'
+      oneOf:
+        - { const: "*" }
+        - $ref: "#/components/schemas/PackageName"
+
+    Limit:
+      type: object
+      required: [minutes]
+      properties:
+        minutes: { type: integer, minimum: 0, maximum: 1440 }
+        days:
+          type: object
+          description: 'ISO weekday ("1" = Monday … "7" = Sunday) to minutes; overrides `minutes` on that day.'
+          propertyNames: { enum: ["1", "2", "3", "4", "5", "6", "7"] }
+          additionalProperties: { type: integer, minimum: 0, maximum: 1440 }
+          default: {}
+
+    Bonus:
+      type: object
+      properties:
+        packageName: { $ref: "#/components/schemas/LimitTarget" }
+        date: { type: string, format: date, description: Local date in the phone's time zone. }
+        minutes: { type: integer }
+
+    TimeUsed:
+      type: object
+      description: 'Minutes used today per limited package; "*" is the total. At most 200 entries.'
+      maxProperties: 200
+      propertyNames: { $ref: "#/components/schemas/LimitTarget" }
+      additionalProperties: { type: integer, minimum: 0, maximum: 1440 }
+
+    Protections:
+      type: object
+      description: What is active on the phone right now. Unknown keys are refused (400).
+      additionalProperties: false
+      properties:
+        deviceOwner: { type: boolean }
+        deviceAdmin: { type: boolean }
+        accessibility: { type: boolean }
+        usageAccess: { type: boolean }
+        vpn: { type: boolean }
+        alwaysOnVpn: { type: boolean }
+        phoneRole: { type: boolean }
+        smsRole: { type: boolean }
+        notifications: { type: boolean }
+        batteryUnrestricted: { type: boolean }
+        privateDnsOk: { type: boolean }
+
+    CatalogFile:
+      type: object
+      description: One country's catalog, as in server/catalog/<country>.json.
+      properties:
+        country: { type: string, examples: [dk] }
+        name: { $ref: "#/components/schemas/Localized" }
+        verifiedAt: { type: string, format: date }
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, examples: [bank] }
+              name: { $ref: "#/components/schemas/Localized" }
+        apps:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogApp" }
+
+    CatalogApp:
+      type: object
+      properties:
+        packageName: { $ref: "#/components/schemas/PackageName" }
+        name: { type: string }
+        category: { type: string }
+        starter: { type: boolean, description: Allowed from the start when the phone reports it. }
+        source: { type: string, format: uri, description: The Play page the package name was verified against. }
+        verifiedAt: { type: string, format: date }
+        playTitle: { type: string }
+
+    Localized:
+      type: object
+      properties:
+        en: { type: string }
+        da: { type: string }
 
     ChangeApplied:
       type: object
@@ -180,7 +295,7 @@ components:
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, contacts, schedules, dns, location, pendingChanges, pollSeconds]
+      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, pendingChanges, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
         profile: { enum: [child, self] }
@@ -199,6 +314,35 @@ components:
               type: array
               description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default.
               items: { $ref: "#/components/schemas/PackageName" }
+            toInstall:
+              type: array
+              description: Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play).
+              items:
+                type: object
+                properties:
+                  packageName: { $ref: "#/components/schemas/PackageName" }
+                  label: { type: string }
+        timeLimits:
+          type: object
+          description: Always present. The limit for a local date is `days[isoWeekday] ?? minutes` plus the bonuses for that date and package. Days start at local midnight in `timezone`. Core apps never have a limit.
+          properties:
+            total:
+              description: Daily cap for all non-core apps together; null means no cap.
+              oneOf:
+                - $ref: "#/components/schemas/Limit"
+                - type: "null"
+            apps:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Limit"
+                  - type: object
+                    properties:
+                      packageName: { $ref: "#/components/schemas/PackageName" }
+            bonuses:
+              type: array
+              description: Only today's and tomorrow's (phone time zone, server clock).
+              items: { $ref: "#/components/schemas/Bonus" }
         contacts:
           type: array
           description: Calls and SMS to or from other numbers are blocked. Emergency numbers always work.
@@ -289,7 +433,7 @@ components:
         deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
         lockIntact:
           type: boolean
-          description: Every lock policy was applied and no maintenance unlock is running.
+          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
         maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
         failedPolicies:
           type: array
@@ -308,6 +452,11 @@ components:
           type: [string, "null"]
           maxLength: 253
           description: The private DNS host the phone actually uses.
+        mode:
+          enum: [strong, light]
+          description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
+        protections: { $ref: "#/components/schemas/Protections" }
+        timeUsed: { $ref: "#/components/schemas/TimeUsed" }
 
     PhoneStatus:
       description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
@@ -848,6 +997,204 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { description: "Core apps cannot be hidden" }
+
+  /phones/{pid}/time-limits:
+    get:
+      operationId: getPhonesTimeLimits
+      tags: [limits]
+      summary: Time limits, today's and tomorrow's bonuses and today's use
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Limits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    oneOf:
+                      - $ref: "#/components/schemas/Limit"
+                      - type: "null"
+                  apps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        packageName: { $ref: "#/components/schemas/PackageName" }
+                        label: { type: string }
+                        limit: { $ref: "#/components/schemas/Limit" }
+                  bonuses: { type: array, items: { $ref: "#/components/schemas/Bonus" } }
+                  used:
+                    description: "`timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null."
+                    oneOf:
+                      - $ref: "#/components/schemas/TimeUsed"
+                      - type: "null"
+  /phones/{pid}/time-limits/total:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    put:
+      operationId: putPhonesTimeLimitsTotal
+      tags: [limits]
+      summary: Set the daily cap for all non-core apps
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+    delete:
+      operationId: deletePhonesTimeLimitsTotal
+      tags: [limits]
+      summary: Remove the daily cap
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/time-limits/apps/{package}:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { name: package, in: path, required: true, schema: { $ref: "#/components/schemas/PackageName" } }
+    put:
+      operationId: putPhonesTimeLimitsApp
+      tags: [limits]
+      summary: Set a daily limit for one app
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { description: "Core apps cannot have a limit" }
+        "404": { description: "The phone has not reported this app" }
+    delete:
+      operationId: deletePhonesTimeLimitsApp
+      tags: [limits]
+      summary: Remove an app's limit
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/time-limits/bonus:
+    post:
+      operationId: postPhonesTimeLimitsBonus
+      tags: [limits]
+      summary: Give extra minutes today (phone time zone)
+      description: Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageName, minutes]
+              properties:
+                packageName: { $ref: "#/components/schemas/LimitTarget" }
+                minutes: { type: integer, minimum: 5, maximum: 240 }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { description: "Core apps cannot have a limit, or the target has no limit" }
+
+  /catalog:
+    get:
+      operationId: getCatalogs
+      tags: [catalog]
+      summary: Countries that have an app catalog (public)
+      security: []
+      responses:
+        "200":
+          description: Countries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    country: { type: string, examples: [dk] }
+                    name: { $ref: "#/components/schemas/Localized" }
+  /catalog/{country}:
+    get:
+      operationId: getCatalog
+      tags: [catalog]
+      summary: One country's app catalog (public)
+      security: []
+      parameters:
+        - { name: country, in: path, required: true, schema: { type: string, examples: [dk] } }
+      responses:
+        "200":
+          description: The catalog file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogFile" }
+        "404": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/catalog:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesCatalog
+      tags: [catalog]
+      summary: The phone's catalog with each app's state
+      description: Empty (country null) when no catalog applies to the phone. For now a phone in Europe/Copenhagen gets the Danish catalog.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  country: { type: [string, "null"] }
+                  categories: { type: array, items: { type: object } }
+                  apps:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/CatalogApp"
+                        - type: object
+                          properties:
+                            state: { enum: [installed-allowed, installed-hidden, requested, none] }
+    post:
+      operationId: postPhonesCatalog
+      tags: [catalog]
+      summary: Add an app from the catalog
+      description: Allows the app and asks the phone to offer it for install. A loosening, so on a Self phone it waits for the key.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageName]
+              properties:
+                packageName: { $ref: "#/components/schemas/PackageName" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "404": { description: "Not in this phone's catalog" }
+  /phones/{pid}/catalog/{package}:
+    delete:
+      operationId: deletePhonesCatalog
+      tags: [catalog]
+      summary: Remove an app added from the catalog
+      description: Hides it and takes it off the install list. Applies at once.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: package, in: path, required: true, schema: { $ref: "#/components/schemas/PackageName" } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
 
   /phones/{pid}/contacts:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

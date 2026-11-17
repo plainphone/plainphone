@@ -226,7 +226,17 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete my account
+         * @description Deletes the account. Households shared with another parent stay, with their phones;
+         *     if you owned one, the longest-standing other member becomes the owner. Households
+         *     where you are the only member are deleted with all their phones: those phones get 401
+         *     on their next request and fall back as described in docs/sync-api.md. Refused with 409
+         *     while such a household holds a Self phone; remove those first (through their key).
+         *     Where you are someone's trusted person, their key falls back to the delay.
+         *     See docs/account-deletion.md.
+         */
+        delete: operations["deleteMe"];
         options?: never;
         head?: never;
         /** Change my language */
@@ -433,6 +443,164 @@ export interface paths {
         put: operations["putPhonesApps"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Time limits, today's and tomorrow's bonuses and today's use */
+        get: operations["getPhonesTimeLimits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/total": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the daily cap for all non-core apps */
+        put: operations["putPhonesTimeLimitsTotal"];
+        post?: never;
+        /** Remove the daily cap */
+        delete: operations["deletePhonesTimeLimitsTotal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/apps/{package}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Set a daily limit for one app */
+        put: operations["putPhonesTimeLimitsApp"];
+        post?: never;
+        /** Remove an app's limit */
+        delete: operations["deletePhonesTimeLimitsApp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/time-limits/bonus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give extra minutes today (phone time zone)
+         * @description Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
+         */
+        post: operations["postPhonesTimeLimitsBonus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Countries that have an app catalog (public) */
+        get: operations["getCatalogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{country}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One country's app catalog (public) */
+        get: operations["getCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The phone's catalog with each app's state
+         * @description Empty (country null) when no catalog applies to the phone. For now a phone in Europe/Copenhagen gets the Danish catalog.
+         */
+        get: operations["getPhonesCatalog"];
+        put?: never;
+        /**
+         * Add an app from the catalog
+         * @description Allows the app and asks the phone to offer it for install. A loosening, so on a Self phone it waits for the key.
+         */
+        post: operations["postPhonesCatalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/catalog/{package}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an app added from the catalog
+         * @description Hides it and takes it off the install list. Applies at once.
+         */
+        delete: operations["deletePhonesCatalog"];
         options?: never;
         head?: never;
         patch?: never;
@@ -812,6 +980,102 @@ export interface components {
             /** @constant */
             type?: "phone.remove";
             dnsClientId?: string;
+        } | {
+            /** @constant */
+            type?: "timeLimit.set";
+            packageName?: components["schemas"]["LimitTarget"];
+            limit?: components["schemas"]["Limit"] | null;
+        } | {
+            /** @constant */
+            type?: "timeLimit.bonus";
+            packageName?: components["schemas"]["LimitTarget"];
+            /**
+             * Format: date
+             * @description The local date it was asked for. The bonus counts for the local date when it takes effect.
+             */
+            date?: string;
+            minutes?: number;
+        } | {
+            /** @constant */
+            type?: "catalog.add";
+            packageName?: components["schemas"]["PackageName"];
+            label?: string;
+        } | {
+            /** @constant */
+            type?: "catalog.remove";
+            packageName?: components["schemas"]["PackageName"];
+        };
+        /** @description "*" is the daily cap for all non-core apps together; otherwise one app. */
+        LimitTarget: "*" | components["schemas"]["PackageName"];
+        Limit: {
+            minutes: number;
+            /**
+             * @description ISO weekday ("1" = Monday … "7" = Sunday) to minutes; overrides `minutes` on that day.
+             * @default {}
+             */
+            days: {
+                [key: string]: number;
+            };
+        };
+        Bonus: {
+            packageName?: components["schemas"]["LimitTarget"];
+            /**
+             * Format: date
+             * @description Local date in the phone's time zone.
+             */
+            date?: string;
+            minutes?: number;
+        };
+        /** @description Minutes used today per limited package; "*" is the total. At most 200 entries. */
+        TimeUsed: {
+            [key: string]: number;
+        };
+        /** @description What is active on the phone right now. Unknown keys are refused (400). */
+        Protections: {
+            deviceOwner?: boolean;
+            deviceAdmin?: boolean;
+            accessibility?: boolean;
+            usageAccess?: boolean;
+            vpn?: boolean;
+            alwaysOnVpn?: boolean;
+            phoneRole?: boolean;
+            smsRole?: boolean;
+            notifications?: boolean;
+            batteryUnrestricted?: boolean;
+            privateDnsOk?: boolean;
+        };
+        /** @description One country's catalog, as in server/catalog/<country>.json. */
+        CatalogFile: {
+            /** @example dk */
+            country?: string;
+            name?: components["schemas"]["Localized"];
+            /** Format: date */
+            verifiedAt?: string;
+            categories?: {
+                /** @example bank */
+                id?: string;
+                name?: components["schemas"]["Localized"];
+            }[];
+            apps?: components["schemas"]["CatalogApp"][];
+        };
+        CatalogApp: {
+            packageName?: components["schemas"]["PackageName"];
+            name?: string;
+            category?: string;
+            /** @description Allowed from the start when the phone reports it. */
+            starter?: boolean;
+            /**
+             * Format: uri
+             * @description The Play page the package name was verified against.
+             */
+            source?: string;
+            /** Format: date */
+            verifiedAt?: string;
+            playTitle?: string;
+        };
+        Localized: {
+            en?: string;
+            da?: string;
         };
         ChangeApplied: {
             /** @constant */
@@ -860,6 +1124,21 @@ export interface components {
                 allowed?: components["schemas"]["PackageName"][];
                 /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default. */
                 hidden?: components["schemas"]["PackageName"][];
+                /** @description Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play). */
+                toInstall?: {
+                    packageName?: components["schemas"]["PackageName"];
+                    label?: string;
+                }[];
+            };
+            /** @description Always present. The limit for a local date is `days[isoWeekday] ?? minutes` plus the bonuses for that date and package. Days start at local midnight in `timezone`. Core apps never have a limit. */
+            timeLimits: {
+                /** @description Daily cap for all non-core apps together; null means no cap. */
+                total?: components["schemas"]["Limit"] | null;
+                apps?: (components["schemas"]["Limit"] & {
+                    packageName?: components["schemas"]["PackageName"];
+                })[];
+                /** @description Only today's and tomorrow's (phone time zone, server clock). */
+                bonuses?: components["schemas"]["Bonus"][];
             };
             /** @description Calls and SMS to or from other numbers are blocked. Emergency numbers always work. */
             contacts: {
@@ -938,7 +1217,7 @@ export interface components {
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
             deviceOwner: boolean;
-            /** @description Every lock policy was applied and no maintenance unlock is running. */
+            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs. */
             lockIntact: boolean;
             /** @description A PIN maintenance unlock is running on the phone. */
             maintenance: boolean;
@@ -953,6 +1232,13 @@ export interface components {
             rulesAppliedAt: string | null;
             /** @description The private DNS host the phone actually uses. */
             dnsHost: string | null;
+            /**
+             * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
+             * @enum {unknown}
+             */
+            mode?: "strong" | "light";
+            protections?: components["schemas"]["Protections"];
+            timeUsed?: components["schemas"]["TimeUsed"];
         };
         /** @description What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC. */
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
@@ -1408,6 +1694,55 @@ export interface operations {
             };
         };
     };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Your own email address, as a confirmation */
+                    confirmEmail: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Deleted. The session cookie is cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        householdsDeleted: number;
+                        phonesRemoved: number;
+                    };
+                };
+            };
+            /** @description confirmEmail does not match */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A household only you belong to holds a Self phone */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        selfPhoneIds?: string[];
+                    };
+                };
+            };
+        };
+    };
     patchMe: {
         parameters: {
             query?: never;
@@ -1755,6 +2090,271 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getPhonesTimeLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Limits */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        total?: components["schemas"]["Limit"] | null;
+                        apps?: {
+                            packageName?: components["schemas"]["PackageName"];
+                            label?: string;
+                            limit?: components["schemas"]["Limit"];
+                        }[];
+                        bonuses?: components["schemas"]["Bonus"][];
+                        /** @description `timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null. */
+                        used?: components["schemas"]["TimeUsed"] | null;
+                    };
+                };
+            };
+        };
+    };
+    putPhonesTimeLimitsTotal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limit"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    deletePhonesTimeLimitsTotal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    putPhonesTimeLimitsApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limit"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Core apps cannot have a limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The phone has not reported this app */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesTimeLimitsApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    postPhonesTimeLimitsBonus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    packageName: components["schemas"]["LimitTarget"];
+                    minutes: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Core apps cannot have a limit, or the target has no limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getCatalogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Countries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example dk */
+                        country?: string;
+                        name?: components["schemas"]["Localized"];
+                    }[];
+                };
+            };
+        };
+    };
+    getCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The catalog file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogFile"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    getPhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        country?: string | null;
+                        categories?: Record<string, never>[];
+                        apps?: (components["schemas"]["CatalogApp"] & {
+                            /** @enum {unknown} */
+                            state?: "installed-allowed" | "installed-hidden" | "requested" | "none";
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    postPhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    packageName: components["schemas"]["PackageName"];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description Not in this phone's catalog */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                package: components["schemas"]["PackageName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
         };
     };
     getPhonesContacts: {

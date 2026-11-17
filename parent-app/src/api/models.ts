@@ -90,7 +90,17 @@ export type Op =
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
   | { type: "key.set"; key: KeyInput }
-  | { type: "phone.remove"; dnsClientId: string };
+  | { type: "phone.remove"; dnsClientId: string }
+  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
+  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
+  | { type: "catalog.add"; packageName: string; label: string }
+  | { type: "catalog.remove"; packageName: string };
+
+/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). See docs/time-limits.md. */
+export interface Limit {
+  minutes: number;
+  days: Partial<Record<string, number>>;
+}
 
 export interface PendingChange {
   id: string;
