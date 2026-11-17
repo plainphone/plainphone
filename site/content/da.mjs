@@ -42,7 +42,7 @@ export default {
     steps: [
       {
         title: "Nulstil telefonen",
-        body: "En Android-telefon med Android 14 eller nyere (se testede telefoner nedenfor). Opsætningen sletter den, så gem det, du vil beholde, først.",
+        body: "En Android-telefon med Android 10 eller nyere (se testede telefoner nedenfor). Opsætningen sletter den, så gem det, du vil beholde, først.",
       },
       {
         title: "Scan en QR-kode",
@@ -65,7 +65,7 @@ export default {
       ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger (planlagt)"],
       ["Webfilter, der også virker inde i apps", "Intet internet", "Intet internet", "Delvist", "Ja, i de fleste apps (planlagt)"],
       ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms (planlagt)"],
-      ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 14+"],
+      ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 10+"],
       ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja (planlagt)"],
       ["Pris", "En ny telefon", "Et nyt ur, ofte med abonnement", "Gratis", "Gratis"],
     ],

@@ -42,7 +42,7 @@ export default {
     steps: [
       {
         title: "Reset the phone",
-        body: "An Android phone with Android 14 or newer (see tested phones below). Setup erases it, so save what you want to keep first.",
+        body: "An Android phone with Android 10 or newer (see tested phones below). Setup erases it, so save what you want to keep first.",
       },
       {
         title: "Scan a QR code",
@@ -66,7 +66,7 @@ export default {
       ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick (planned)"],
       ["Web filter that also works inside apps", "No internet", "No internet", "Partly", "Yes, for most apps (planned)"],
       ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts (planned)"],
-      ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 14+"],
+      ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 10+"],
       ["For adults too", "Yes", "No", "Mostly for children", "Yes (planned)"],
       ["Price", "A new phone", "A new device, often a subscription", "Free", "Free"],
     ],

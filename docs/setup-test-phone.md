@@ -4,7 +4,7 @@ This guide puts Plainphone (phases 1 and 2) on a spare Android phone. **The phon
 
 You need:
 
-- an Android 14 or newer phone (Settings → About phone → Android version);
+- an Android 10 or newer phone (Settings → About phone → Android version). Android 14 or newer gives the full lock; on Android 10 to 13 a few things work differently, see the table below and [android-versions.md](android-versions.md);
 - Wi-Fi without a login page (hotel and school portals do not work during setup), or a SIM card with mobile data;
 - the QR code from `scripts/provisioning-qr.py`, shown on another screen or printed;
 - the maintenance PIN that belongs to that QR code;
@@ -13,6 +13,18 @@ You need:
 For phase 2, build the QR code with your own number as an approved contact, for example `--country-code 45 --contact 'Me=+45 12 34 56 78'`. More contacts can be added on the phone later.
 
 Total time: 10 to 15 minutes.
+
+### What works on which Android version
+
+| | Android 14+ | Android 10 to 13 |
+|---|---|---|
+| Lock, hidden apps, DNS filter, SMS contacts, sync, schedules, Find | yes | yes |
+| Plainphone becomes the phone app | by itself | tap **Set as default** in the dialog that appears right after setup |
+| Phone app locked in Settings | yes | no: the change is shown as a failure in the dashboard |
+| App cloning blocked | yes | not needed (no cloning profiles) |
+| Factory reset protection with chosen accounts | yes | Android 11 to 13; not on Android 10 |
+
+Android 9 and older cannot be used: the phone says "Can't set up device" after the scan.
 
 ## 1. Before the reset
 
@@ -41,9 +53,10 @@ If the phone says "Can't set up device" or "The app couldn't be downloaded", see
 1. Open the **Plainphone** app. It should say "Locked: Plainphone is Device Owner".
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.
 3. The home screen should only show phone, messages, camera, clock, contacts, settings, Chrome, Maps and a few small apps. Play Store, YouTube, Gmail and games are gone.
-4. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
-5. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 6), the list comes from the dashboard and is read-only here.
-6. Phase 4: right after setup the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), choose *Add phone* and scan the code. The phone says "Paired" and the status screen shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If you missed the pairing screen, use the button on the status screen (first hour) or the maintenance screen.
+4. Android 10 to 13: right after setup Android asks "Set Plainphone as your default phone app?". Tap **Set as default**. If you miss it, open Plainphone again and it asks again.
+5. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
+6. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 7), the list comes from the dashboard and is read-only here.
+7. Phase 4: right after setup the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), choose *Add phone* and scan the code. The phone says "Paired" and the status screen shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If you missed the pairing screen, use the button on the status screen (first hour) or the maintenance screen.
 
 Then work through [bypass-checklist.md](bypass-checklist.md).
 
@@ -75,6 +88,7 @@ The lock is applied at once, including the adb block. This path does not get the
 | Problem | Likely cause | What to do |
 |---|---|---|
 | Tapping 6 times does nothing | Not the very first screen, or the phone is older than Android 7 | Go back to the first welcome screen and tap one spot in the middle |
+| "Can't set up device. Can't use the admin app. It's missing components or corrupted." | The phone runs Android 9 or older (Plainphone 0.1.2 and earlier needed Android 14), or the checksum does not match the APK | Check the Android version. Then build a new QR code with `--apk` set to exactly the file at `--apk-url` |
 | "Can't set up device" right after the scan | Checksum does not match the APK | The QR code was built for a different APK. Build a new one with `--apk` set to exactly the file at `--apk-url` |
 | "Couldn't download the app" | No internet, a login portal, or the URL is wrong | Use a normal Wi-Fi or mobile data. Open the URL on a PC to check that it downloads |
 | Setup ends but the Plainphone app says "Not locked" | Provisioning fell back to a normal app install | Factory reset and scan again; note the phone model and Android version in the issue |

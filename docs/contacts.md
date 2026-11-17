@@ -8,7 +8,7 @@ This page describes how that is built, where Android sets the limits, and what i
 
 | Piece | Android API | What it does |
 |---|---|---|
-| Default phone app | `RoleManager.ROLE_DIALER`, set by `DevicePolicyManager.setDefaultDialerApplication` (Device Owner, Android 14+) | Plainphone's in-call service gets every call on the phone |
+| Default phone app | `RoleManager.ROLE_DIALER`, set by `DevicePolicyManager.setDefaultDialerApplication` (Device Owner, Android 14+; on Android 10 to 13 through Android's role dialog, see [android-versions.md](android-versions.md)) | Plainphone's in-call service gets every call on the phone |
 | Call screening | `CallScreeningService` (bound for the default phone app) | Incoming calls from numbers that are not approved, and from hidden numbers, are rejected before the phone rings. No ring, no notification, no call log entry |
 | In-call service | `InCallService` | Ends outgoing calls to numbers that are not approved, **whoever started the call** (Plainphone's keypad, the maker's dialer, a `tel:` link in Chrome, a contact card). Also a second check on incoming calls |
 | Default SMS app | `RoleManager.ROLE_SMS`, set by `DevicePolicyManager.setDefaultSmsApplication` | Only the default SMS app receives `SMS_DELIVER` and may write the SMS store |
