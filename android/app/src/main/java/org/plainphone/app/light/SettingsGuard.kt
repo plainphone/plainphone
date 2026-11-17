@@ -34,6 +34,8 @@ object SettingsGuard {
         val appName: String,
         /** Words that mark a screen that can switch protection off. */
         val dangerous: List<String>,
+        /** Words of the uninstall dialog, the only installer screen that is closed. */
+        val uninstall: List<String> = UNINSTALL,
     ) {
         companion object {
             /**
@@ -60,7 +62,7 @@ object SettingsGuard {
         if (k.ownDescriptions.any { d -> d.isNotBlank() && lower.any { it.contains(d.lowercase()) } }) return true
         val mentionsUs = lower.any { it.contains(k.appName.lowercase()) }
         if (!mentionsUs) return false
-        if (packageName in INSTALLER_PACKAGES) return Keywords.UNINSTALL.any { w -> lower.any { it.contains(w) } }
+        if (packageName in INSTALLER_PACKAGES) return k.uninstall.any { w -> lower.any { it.contains(w) } }
         if (packageName !in SETTINGS_PACKAGES) return false
         return k.dangerous.any { w -> lower.any { it.contains(w) } }
     }

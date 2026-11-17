@@ -106,8 +106,9 @@ class GuardService : AccessibilityService() {
         val now = SystemClock.elapsedRealtime()
         if (!force && now - lastTimeCheck < 5_000L) return
         lastTimeCheck = now
+        if (worker.isShutdown || Lock.isInMaintenanceWindow(this)) return
         // Reading a day of usage events is slow; this process also shows the in-call screen.
-        worker.execute {
+        runCatching { worker.execute {
             val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return@execute
             if (pkg !in snap.blocked) return@execute
             main.post {
@@ -116,7 +117,8 @@ class GuardService : AccessibilityService() {
                 // Refresh the stored plan and tell the parent the minutes used.
                 Lock.applyAsync(this, "time used up")
             }
-        }
+        } } // a shutdown racing this call is ignored: the guard is going away
+
     }
 
     private fun block(pkg: String, reason: BlockedActivity.Reason) {
@@ -144,6 +146,7 @@ class GuardService : AccessibilityService() {
             ownDescriptions = listOf(getString(R.string.guard_description), getString(R.string.light_admin_description)),
             appName = getString(R.string.app_name),
             dangerous = (SettingsGuard.Keywords.BUILT_IN + fromSettings.map { it.lowercase() }).distinct(),
+            uninstall = (SettingsGuard.Keywords.UNINSTALL + listOfNotNull(settingsString("uninstall_text")).map { it.lowercase() }).distinct(),
         )
     }
 
@@ -201,7 +204,7 @@ class GuardService : AccessibilityService() {
         /** Names of AOSP Settings strings for the screens that matter, so the guard knows them in every language. */
         private val SETTINGS_STRING_NAMES = listOf(
             "uninstall_text", "force_stop", "clear_user_data_text", "disable_text",
-            "vpn_menu_delete", "vpn_disconnect", "remove_device_admin",
+            "vpn_menu_delete", "vpn_disconnect", "remove_device_admin", "usage_access",
         )
     }
 }

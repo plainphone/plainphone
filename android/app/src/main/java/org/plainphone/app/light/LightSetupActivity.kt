@@ -59,7 +59,7 @@ class LightSetupActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refresh++
-        if (LightSetup.next(this) == null) LightSetup.markComplete(this)
+        if (LightSetup.next(this) == null && !LightRelease.isReleased(this)) LightSetup.markComplete(this)
         if (!Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
     }
 

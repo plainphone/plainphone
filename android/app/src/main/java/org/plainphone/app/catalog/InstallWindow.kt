@@ -40,19 +40,31 @@ object InstallWindow {
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
         // lets Play through for the window instead of closing it.
         // Tapping again does not extend an open window, or Play could be kept open for good.
-        if (current(app) != packageName) {
+        // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
+        if (current(app) != packageName && takeWindow(app)) {
             prefs(app).edit().putString("pkg", packageName).putLong("until", System.currentTimeMillis() + WINDOW_MS).apply()
             scheduleClose(app)
-            Lock.applyNow(app, "install window for $packageName")
+            runCatching { Lock.applyNow(app, "install window for $packageName") }
         }
         launchPlay(app, packageName)
+    }
+
+    const val MAX_PER_DAY = 5
+
+    private fun takeWindow(context: Context): Boolean {
+        val day = java.time.LocalDate.now().toString()
+        val p = prefs(context)
+        val used = if (p.getString("day", null) == day) p.getInt("windows", 0) else 0
+        if (used >= MAX_PER_DAY) return false
+        p.edit().putString("day", day).putInt("windows", used + 1).apply()
+        return true
     }
 
     /** Ends the window (app installed or time up) and puts the lock back. */
     fun close(context: Context, reason: String) {
         val app = context.applicationContext
         if (prefs(app).getString("pkg", null) == null) return
-        prefs(app).edit().clear().apply()
+        prefs(app).edit().remove("pkg").remove("until").apply()
         Lock.applyAsync(app, reason)
     }
 
