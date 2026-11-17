@@ -65,6 +65,17 @@ class CryptoVectorsTest {
         }
     }
 
+    @Test fun rejectsTamperedHpkeCiphertextWithNonemptyAad() {
+        val row = primitives.obj("hpke")
+        val aad = row.bytes("aad")
+        assertTrue(aad.isNotEmpty())
+        val ciphertext = row.bytes("ct").apply { this[0] = (this[0].toInt() xor 1).toByte() }
+        assertThrows(IllegalArgumentException::class.java) {
+            core.hpkeOpen(row.bytes("recipientPrivateKey"), row.bytes("recipientPublicKey"),
+                row.bytes("info"), row.bytes("enc"), ciphertext, aad)
+        }
+    }
+
     @Test fun selfScopeRequiresDeviceGrantEvenForOwnerPrincipal() {
         assertFalse(hasSelfScope("phone", emptyList()))
         assertFalse(hasSelfScope("phone", listOf("another-phone")))

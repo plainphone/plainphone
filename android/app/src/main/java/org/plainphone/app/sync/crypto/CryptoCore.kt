@@ -99,13 +99,18 @@ class CryptoCore {
     internal fun hpkeOpen(privateKey: ByteArray, publicKey: ByteArray, info: ByteArray,
                           enc: ByteArray, ct: ByteArray, aad: ByteArray): ByteArray {
         if (aad.isEmpty()) return hpkeOpen(privateKey, publicKey, info, enc, ct)
-        val context = HpkeContext.createRecipientContext(
-            enc, HpkeKemKeyFactory.createPrivate(hpkePrivate(privateKey, publicKey)),
-            HpkePrimitiveFactory.createKem(hpkeParameters.kemId),
-            HpkePrimitiveFactory.createKdf(hpkeParameters.kdfId),
-            HpkePrimitiveFactory.createAead(hpkeParameters.aeadId), info,
-        )
-        return context.open(ct, aad)
+        require(enc.size == 32 && ct.size >= 16)
+        return try {
+            val context = HpkeContext.createRecipientContext(
+                enc, HpkeKemKeyFactory.createPrivate(hpkePrivate(privateKey, publicKey)),
+                HpkePrimitiveFactory.createKem(hpkeParameters.kemId),
+                HpkePrimitiveFactory.createKdf(hpkeParameters.kdfId),
+                HpkePrimitiveFactory.createAead(hpkeParameters.aeadId), info,
+            )
+            context.open(ct, aad)
+        } catch (e: GeneralSecurityException) {
+            throw IllegalArgumentException("Invalid HPKE ciphertext or recipient key", e)
+        }
     }
 
     fun encrypt(key: ByteArray, nonce: ByteArray, aad: ByteArray, plaintext: ByteArray) =
@@ -191,7 +196,10 @@ class CryptoCore {
 
     fun signLog(post: JsonObject, seed: ByteArray) = signObject("log", post, seed)
 
-    /** This checks chain linkage and signature. The caller applies roster transition rules. */
+    /**
+     * Checks the log structure, chain link and signature. The caller validates the
+     * entry-specific data field types and values and authorizes roster transitions.
+     */
     fun verifyLog(post: JsonObject, previous: LogHead?, signer: ByteArray): LogHead {
         require(post.keySet() == setOf("v", "householdId", "seq", "prevHash", "type", "data", "epochs", "signerDeviceId", "sig"))
         val household = string(post["householdId"])

@@ -24,13 +24,16 @@ accepted local state before calling `openEnvelope` or `openRecord`. For
 H/R/L envelopes supply the locally accepted scope commitment. For per-change
 envelopes bind the change context and check its trusted approval separately.
 `verifyLog` authenticates the bytes and immediate chain link. The roster
-consumer is responsible for trusting genesis and authorizing and applying each
-transition. In Kotlin, `verifyLog`, `verifyObject`, `openRecord` and
-`openEnvelope` reject malformed wire data or failed authentication with
-`IllegalArgumentException`. The `verify` and `hmacVerify` predicates return
-false for invalid signatures and tags. Populate each device's Self grants
-from the accepted roster, including the grant to the device that signs Self
-phone creation. Use `hasSelfScope` with that device's grants.
+consumer must validate the field types and values in `data` for the entry
+type before accepting genesis or applying a roster transition. For example,
+a valid signature does not establish that `data.kemPub` is a base64url-encoded
+32-byte key. The consumer also decides whether to trust genesis and whether
+the signer is authorized for each transition. In Kotlin, validation and
+authentication failures detected by `verifyLog`, `verifyObject`, `openRecord`
+and `openEnvelope` are reported as `IllegalArgumentException`. The `verify` and
+`hmacVerify` predicates return false for invalid signatures and tags. Populate
+each device's Self grants from the accepted roster, including the grant to the
+device that signs Self phone creation. Use `hasSelfScope` with that device's grants.
 
 After authenticating the rules record, call `rulesRejection` with its
 `rules-digest` and the last accepted revision and digest for that phone
