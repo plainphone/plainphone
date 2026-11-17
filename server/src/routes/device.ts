@@ -17,7 +17,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { rulesDocument } from "../services/phones.js";
-import { checkinLocationDue, loadSafety, notifySafety } from "../services/safety.js";
+import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 export const PAIRING_MINUTES = 15;
@@ -230,7 +230,9 @@ export function deviceRoutes(ctx: Ctx) {
     // "Are you okay?". The server holds it to that.
     const { checkin } = await loadSafety(ctx, phone.id);
     const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
-    if (phone.locationMode !== "always" && !phone.locateRequestedAt && !forCheckin) {
+    const findOpen =
+      phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
+    if (phone.locationMode !== "always" && !findOpen && !forCheckin) {
       return c.json({ error: "no position was asked for" }, 409);
     }
     const recordedAt = new Date(input.recordedAt);

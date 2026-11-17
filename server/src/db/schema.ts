@@ -163,7 +163,7 @@ export const phones = pgTable(
     /** Kept equal to `locationMode !== "off"`, for phones and clients that only know the boolean. */
     locationEnabled: boolean("location_enabled").notNull(),
     /** When the phone sends its position (docs/location.md). */
-    locationMode: text("location_mode", { enum: LOCATION_MODES }).notNull().default("checkin"),
+    locationMode: text("location_mode", { enum: LOCATION_MODES }).notNull().default("off"),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),

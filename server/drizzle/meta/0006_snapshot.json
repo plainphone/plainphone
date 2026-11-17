@@ -1243,7 +1243,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'checkin'"
+          "default": "'off'"
         },
         "locate_requested_at": {
           "name": "locate_requested_at",

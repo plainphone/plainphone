@@ -18,6 +18,8 @@ export const CHECKIN_MIN_MINUTES = 1;
 export const CHECKIN_MAX_MINUTES = 120;
 /** After an unanswered deadline the phone has this long to send its one position. */
 export const CHECKIN_LOCATE_WINDOW_MS = 30 * 60_000;
+/** A Find the phone has not answered in this long is over (the phone gives up after the same time). */
+export const FIND_WINDOW_MS = 30 * 60_000;
 /** The phone polls this often while a ring or a check-in is open, so stops and replies travel fast. */
 export const FAST_POLL_SECONDS = 10;
 /** Finished requests are deleted after this (sweeper). */
@@ -69,7 +71,8 @@ export function safetyForPhone(phone: Phone, s: Awaited<ReturnType<typeof loadSa
         sendLocation: checkinSendsLocation(phone.locationMode),
       }
     : null;
-  return { ring, checkIn, fast: ring !== null || checkIn !== null };
+  const waiting = c !== undefined && checkinStatus(c, now) === "waiting";
+  return { ring, checkIn, fast: ring !== null || waiting };
 }
 
 /** What the parent sees. */
@@ -186,10 +189,10 @@ export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
       .update(safetyRequests)
       .set({ noReplyNotifiedAt: now })
       .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.noReplyNotifiedAt)))
-      .returning({ id: safetyRequests.id });
+      .returning({ id: safetyRequests.id, locatedAt: safetyRequests.locatedAt });
     if (!claimed.length) continue;
     // Already located (the phone was quicker than the sweeper): that push said it all.
-    if (req.locatedAt) continue;
+    if (claimed[0]!.locatedAt) continue;
     await notifySafety(ctx, phone, checkinSendsLocation(phone.locationMode) ? "noReplyLocating" : "noReplyNoLocation");
     sent++;
   }

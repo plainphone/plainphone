@@ -48,7 +48,14 @@ describe("location modes", () => {
     expect((await parent.post(`/api/phones/${phoneId}/locate`)).status).toBe(409);
     expect((await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "sometimes" })).status).toBe(400);
 
+    // A Find that was never answered is over after 30 minutes.
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "find" });
+    expect((await parent.post(`/api/phones/${phoneId}/locate`)).status).toBe(202);
+    h.clock.advance(31 * 60_000);
+    expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
+
     // The old boolean still works and maps to the child default.
+    await parent.patch(`/api/phones/${phoneId}`, { locationEnabled: false });
     await parent.patch(`/api/phones/${phoneId}`, { locationEnabled: true });
     expect((await parent.get(`/api/phones/${phoneId}/location`)).json.mode).toBe("checkin");
   });
@@ -140,6 +147,8 @@ describe("are you okay?", () => {
     h.clock.advance(5 * 60_000);
     const rules = (await device.get("/api/device/rules")).json;
     expect(rules.checkIn).not.toBeNull(); // still listed: the phone owes its position
+    // ...at the normal pace: no precise fix every 10 seconds while it looks for one.
+    expect(rules.pollSeconds).toBe(60);
     expect((await parent.get(`/api/phones/${phoneId}/location`)).json.checkin.status).toBe("noReply");
 
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(204);
