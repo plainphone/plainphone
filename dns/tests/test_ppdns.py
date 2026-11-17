@@ -18,6 +18,7 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -103,8 +104,9 @@ class FakeAdGuard:
     def user_rules(self):
         return list(self.rules)
 
-    def exclude_from_stats(self, rules):
-        self.stats_exclusions = rules
+    def exclude_from_stats(self, rules, *, obsolete):
+        self.stats_exclusions = [rule for rule in getattr(self, "stats_exclusions", []) if rule not in obsolete]
+        self.stats_exclusions = list(dict.fromkeys(self.stats_exclusions + rules))
 
     def set_user_rules(self, rules):
         self.rules = list(rules)
@@ -367,9 +369,27 @@ class ServiceTest(unittest.TestCase):
         out = self.svc.create("child", block_domains=["bornetelefonen.dk", "sundhed.dk"])
         self.assertEqual(out["block_domains"], ["bornetelefonen.dk", "sundhed.dk"])
         self.assertEqual(out["allow_domains"], [])
-        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"):
+        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk", "phs.basechat.com", "c.basechat.com"):
             self.assertEqual(self.ag.user_rules().count(f"@@||{domain}^$important"), 1)
             self.assertIn(f"||{domain}^", self.ag.stats_exclusions)
+
+    def test_removed_help_domain_loses_its_exception_after_restart(self):
+        self.ag.rules.extend(("@@||manual.example^$important", "@@||backop.dk^$important"))
+        self.ag.stats_exclusions = ["||backop.dk^", "||manual.example^"]
+        with patch.object(service_mod.helplines, "domains", return_value=["old.example", "keep.example"]):
+            self.svc.install_helpline_rules()
+        self.svc.create("child", client_id="child-phone-123456", block_domains=["old.example"])
+        restarted = Service(self.ag, "dns.example.org", self.tmp.name)
+        with patch.object(service_mod.helplines, "domains", return_value=["keep.example"]):
+            restarted.install_helpline_rules()
+        self.assertNotIn("@@||old.example^$important", self.ag.rules)
+        self.assertIn("@@||keep.example^$important", self.ag.rules)
+        self.assertIn("@@||manual.example^$important", self.ag.rules)
+        self.assertTrue(any(rule.startswith("||old.example^$client=") for rule in self.ag.rules))
+        self.assertNotIn("||old.example^", self.ag.stats_exclusions)
+        self.assertNotIn("@@||backop.dk^$important", self.ag.rules)
+        self.assertNotIn("||backop.dk^", self.ag.stats_exclusions)
+        self.assertIn("||manual.example^", self.ag.stats_exclusions)
 
     def test_create_registers_client_and_access_list(self):
         out = self.svc.create("child")

@@ -108,11 +108,16 @@ class Service:
     def install_helpline_rules(self) -> None:
         with self._lock:
             domains = helplines.domains()
-            self.adguard.exclude_from_stats([f"||{domain}^" for domain in domains])
             existing = self.adguard.user_rules()
-            fixed = [f"@@||{domain}^$important" for domain in domains]
-            if any(rule not in existing for rule in fixed):
-                self.adguard.set_user_rules(existing + [rule for rule in fixed if rule not in existing])
+            kept, previous = helplines.split_rules(existing)
+            fixed = helplines.filter_rules(domains)
+            self.adguard.exclude_from_stats(
+                [f"||{domain}^" for domain in domains],
+                obsolete=[f"||{domain}^" for domain in sorted(previous - set(domains))],
+            )
+            wanted = kept + fixed
+            if wanted != existing:
+                self.adguard.set_user_rules(wanted)
 
     def sync_access(self) -> int:
         """Allow exactly the registered ClientIDs. Returns how many."""

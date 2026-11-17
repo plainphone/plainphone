@@ -45,14 +45,15 @@ class AdGuard:
     def status(self) -> dict:
         return self._call("GET", "/control/status")
 
-    def exclude_from_stats(self, rules: list[str]) -> None:
+    def exclude_from_stats(self, rules: list[str], *, obsolete: list[str]) -> None:
         current = self._call("GET", "/control/stats/config")
         ignored = current.get("ignored") or []
-        if current.get("ignored_enabled") and all(rule in ignored for rule in rules):
+        wanted = list(dict.fromkeys([rule for rule in ignored if rule not in obsolete] + rules))
+        if current.get("ignored_enabled") and wanted == ignored:
             return
         self._call("PUT", "/control/stats/config/update", {
             **current,
-            "ignored": list(dict.fromkeys(ignored + rules)),
+            "ignored": wanted,
             "ignored_enabled": True,
         })
 

@@ -32,20 +32,13 @@
     {
       "name": "headspace",
       "phone": null,
-      "sms": null,
+      "sms": "+4554541245",
       "source": "https://headspace.dk/chatten/",
+      "smsSource": "https://headspace.dk/book-en-samtale/",
       "domains": [
-        "headspace.dk"
-      ]
-    },
-    {
-      "name": "BackOp (Cyberhus)",
-      "phone": null,
-      "sms": null,
-      "source": "https://backop.dk/ny-app/",
-      "domains": [
-        "cyberhus.dk",
-        "backop.dk"
+        "headspace.dk",
+        "phs.basechat.com",
+        "c.basechat.com"
       ]
     },
     {

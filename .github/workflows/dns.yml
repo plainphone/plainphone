@@ -3,9 +3,9 @@ name: DNS
 on:
   push:
     branches: [main]
-    paths: ["dns/**", ".github/workflows/dns.yml"]
+    paths: ["dns/**", "server/catalog/helplines/**", ".github/workflows/dns.yml"]
   pull_request:
-    paths: ["dns/**", ".github/workflows/dns.yml"]
+    paths: ["dns/**", "server/catalog/helplines/**", ".github/workflows/dns.yml"]
 
 permissions:
   contents: read

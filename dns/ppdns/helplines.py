@@ -19,3 +19,39 @@ def domains() -> list[str]:
         for entry in data["helplines"] + data["information"]:
             domains.update(entry["domains"])
     return sorted(domains)
+
+
+_BEGIN = "! Plainphone protected help sites"
+_END = "! End Plainphone protected help sites"
+
+
+# The first catalogue wrote unmarked rules. Recognize those exact rules on
+# existing installs and in backups without claiming other administrator rules.
+_LEGACY_DOMAINS = {
+    "backop.dk", "bornetelefonen.dk", "cyberhus.dk", "headspace.dk", "lgbt.dk",
+    "livslinien.dk", "politi.dk", "regionh.dk", "regionsjaelland.dk", "regionsyddanmark.dk",
+    "rn.dk", "sexlinien.dk", "sexogsamfund.dk", "sundhed.dk", "sundhed.rm.dk", "ungekontakten.aarhus.dk",
+}
+
+
+def filter_rules(domains: list[str]) -> list[str]:
+    return [_BEGIN, *(f"@@||{domain}^$important" for domain in domains), _END]
+
+
+def split_rules(rules: list[str]) -> tuple[list[str], set[str]]:
+    kept = []
+    previous = set()
+    managed = False
+    for rule in rules:
+        if rule == _BEGIN:
+            managed = True
+        elif rule == _END:
+            managed = False
+        else:
+            if rule.startswith("@@||") and rule.endswith("^$important"):
+                domain = rule.removeprefix("@@||").removesuffix("^$important")
+                if managed or domain in _LEGACY_DOMAINS:
+                    previous.add(domain)
+                    continue
+            kept.append(rule)
+    return kept, previous

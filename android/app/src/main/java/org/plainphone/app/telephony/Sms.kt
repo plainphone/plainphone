@@ -212,8 +212,8 @@ class SmsDeliverReceiver : BroadcastReceiver() {
             }
             val body = msgs.joinToString("") { it.displayMessageBody.orEmpty() }
             SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId)
-            val name = rules.smsContact(sender)?.name ?: sender
-            CallNotifications.showMessage(context, name, rules.smsContact(sender)?.number ?: sender, body)
+            val contact = rules.smsContact(sender)
+            CallNotifications.showMessage(context, contact?.name ?: sender, contact?.number ?: sender, body)
         }
     }
 }

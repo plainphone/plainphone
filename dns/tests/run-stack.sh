@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DOMAIN=dns.test
-PROJECT=ppdns-test
+PROJECT=ppdns-test-$(openssl rand -hex 6)
 export COMPOSE_PROJECT_NAME=$PROJECT
 compose() { docker compose -f compose.yaml -f compose.test.yaml "$@"; }
 
@@ -19,9 +19,8 @@ cleanup() {
   rm -rf tests/.certs .env
   exit $status
 }
+if [ -e .env ] || [ -e tests/.certs ]; then echo "Test config already exists" >&2; exit 2; fi
 trap cleanup EXIT
-
-if [ -e .env ]; then echo "dns/.env exists; refusing to overwrite it" >&2; exit 2; fi
 
 mkdir -p tests/.certs/certificates
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 30 \
@@ -58,19 +57,24 @@ ENV
 
 compose up -d --build --wait --wait-timeout 600
 
-export PPDNS_TEST_SERVER=127.0.0.1 PPDNS_TEST_DOMAIN=$DOMAIN PPDNS_TEST_API=http://127.0.0.1:8053 PPDNS_API_TOKEN=$TOKEN
+export PPDNS_TEST_SERVER=127.0.0.1 PPDNS_TEST_DOMAIN=$DOMAIN PPDNS_API_TOKEN=$TOKEN
+PPDNS_TEST_API=http://$(compose port api 8053)
+PPDNS_TEST_ADGUARD=http://$(compose port adguard 3000)
+export PPDNS_TEST_API PPDNS_TEST_ADGUARD
+export PPDNS_ADGUARD_PASSWORD=$PASSWORD
+DOT_BIND=$(compose port adguard 853)
+export PPDNS_TEST_PORT=${DOT_BIND##*:}
 # AdGuard loads the big lists in the background after start; wait until ads are blocked.
 python3 - <<'PY'
-import os, sys, time
+import sys, time
 sys.path.insert(0, ".")
-from ppdns import dot
-from tests.test_e2e import api
+from tests.test_e2e import api, ask
 _, out = api("POST", "/v1/clients", {"profile": "child"})
 cid = out["client_id"]
 deadline = time.time() + 300
 while time.time() < deadline:
     try:
-        if dot.query("pornhub.com", server="127.0.0.1", tls_name=f"{cid}.dns.test", verify=False).blocked:
+        if ask(cid, "pornhub.com").blocked:
             break
     except OSError:
         pass
@@ -92,7 +96,7 @@ docker run --rm -v "${PROJECT}_data":/data -v "${PROJECT}_conf":/conf alpine:3.2
   tar xzf "/data/backups/$BACKUP" -C /conf
 compose start adguard
 for _ in $(seq 1 60); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:8053/v1/clients/$CID" || true)
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$PPDNS_TEST_API/v1/clients/$CID" || true)
   [ "$code" = 200 ] && break
   sleep 2
 done

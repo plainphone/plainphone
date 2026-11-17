@@ -108,7 +108,10 @@ On the phone, **Do you need someone to talk to?** is available from Phone
 and Today. It lists verified services for the phone's country, starting with
 [Denmark](../server/catalog/helplines/dk.json). The catalogue includes each
 service's own source and verification date. BackOp replaced Cyberhus in
-October 2026. Its public website explains how to access its app-based support.
+October 2026. [BackOp's support page](https://backop.dk/ny-app/) describes
+anonymous SMS support but does not publish a direct SMS number children can
+use from Plainphone. The Help screen offers direct alternatives, including
+BørneTelefonen and headspace.
 
 The approved-contacts rule makes an exception for each listed call and SMS
 number, in both directions and both modes. For 112, Android handles emergency
