@@ -10,7 +10,7 @@ The review used [WCAG 2.2](https://www.w3.org/TR/WCAG22/) AA for contrast, resiz
 
 ## Before and after
 
-Full-page captures for the six priority screens and Key are in [the screenshot directory](img/ux-review/). Filenames include stage, page, width, theme and text percentage. The route assessment below describes the wider screenshot set.
+Before/after captures of the six priority screens and Key (390 and 1280 px, light and dark, 100 and 200 % text) were taken with Playwright during the review. They are not kept in the repository to keep clones small; regenerate them with the same Playwright run against a mock API. The route assessment below describes the wider screenshot set.
 
 | Screen | Before | After |
 | --- | --- | --- |
