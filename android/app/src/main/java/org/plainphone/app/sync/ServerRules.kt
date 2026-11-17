@@ -9,6 +9,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.home.HomePrefs
+import org.plainphone.app.settings.PhoneSettings
 
 /**
  * The rules document from `GET /device/rules` (server/openapi.yaml, docs/sync-api.md).
@@ -30,13 +32,31 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** Phone settings the parent set or locked (docs/phone-settings.md). Empty from older servers. */
+    val settings: PhoneSettings = PhoneSettings.NONE,
+    /** How the home screen looks. Defaults from older servers. */
+    val home: HomePrefs = HomePrefs.DEFAULT,
     /** Apps the parent picked from the catalog that are not installed yet. Treated as allowed. */
     val toInstall: List<CatalogInstall> = emptyList(),
     /** Daily minutes per app and in total (docs/time-limits.md). */
     val timeLimits: TimeLimits = TimeLimits.NONE,
+    /** When to send a position: off, find, checkin or always (docs/location.md). */
+    val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
+    /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
+    val locationAlwaysUntil: Instant? = null,
+    /** An open "Ring the phone"; null means stop. */
+    val ring: RingRequest? = null,
+    /** An open "Are you okay?"; null means close it. */
+    val checkIn: CheckInRequest? = null,
 ) {
     companion object {
-        const val MIN_POLL_SECONDS = 30
+        /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
+        const val MIN_POLL_SECONDS = 10
+        const val LOCATION_OFF = "off"
+        const val LOCATION_FIND = "find"
+        const val LOCATION_CHECKIN = "checkin"
+        const val LOCATION_ALWAYS = "always"
+        private val LOCATION_MODES = setOf(LOCATION_OFF, LOCATION_FIND, LOCATION_CHECKIN, LOCATION_ALWAYS)
         const val DEFAULT_POLL_SECONDS = 60
 
         /**
@@ -68,12 +88,49 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                settings = PhoneSettings.parse(j.optJSONObject("settings")),
+                home = HomePrefs.parse(j.optJSONObject("home")),
                 // Both are newer than the first servers: missing means none.
                 toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
                     CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
+                locationMode = locationMode(location),
+                locationAlwaysUntil = location.optString("alwaysUntil", "")
+                    .takeIf { it.isNotEmpty() && it != "null" }
+                    ?.let { runCatching { Instant.parse(it) }.getOrNull() },
+                ring = j.optJSONObject("ring")?.let {
+                    RingRequest(
+                        id = it.getString("id"),
+                        endsAt = Instant.parse(it.getString("endsAt")),
+                        stopOnAnswer = it.optBoolean("stopOnAnswer", true),
+                        answered = it.optBoolean("answered", false),
+                    )
+                },
+                checkIn = j.optJSONObject("checkIn")?.let {
+                    CheckInRequest(
+                        id = it.getString("id"),
+                        deadline = Instant.parse(it.getString("deadline")),
+                        callNumber = if (it.isNull("callNumber")) null else it.optString("callNumber").takeIf(String::isNotBlank),
+                        sendLocation = it.optBoolean("sendLocation", false),
+                    )
+                },
             )
+        }
+
+        /**
+         * Servers from before the modes only say enabled: then every 5 minutes, as before. A mode
+         * this app does not know yet is read as "only when asked", never as more sharing.
+         */
+        private fun locationMode(location: JSONObject): String {
+            val enabled = location.getBoolean("enabled")
+            if (!location.has("mode")) return if (enabled) LOCATION_ALWAYS else LOCATION_OFF
+            val mode = location.getString("mode")
+            return when {
+                !enabled -> LOCATION_OFF
+                mode in LOCATION_MODES -> mode
+                else -> LOCATION_FIND
+            }
         }
 
         private fun schedule(o: JSONObject): Schedule {
@@ -109,3 +166,9 @@ data class Schedule(
 
 /** A catalog app the parent approved before it was installed. */
 data class CatalogInstall(val packageName: String, val label: String)
+
+/** "Ring the phone": alarm sound and vibration until [endsAt], or until "I'm here" when [stopOnAnswer]. */
+data class RingRequest(val id: String, val endsAt: Instant, val stopOnAnswer: Boolean, val answered: Boolean)
+
+/** "Are you okay?": shown until answered or [deadline]; then one position if [sendLocation]. */
+data class CheckInRequest(val id: String, val deadline: Instant, val callNumber: String?, val sendLocation: Boolean)

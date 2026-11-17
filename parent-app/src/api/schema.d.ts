@@ -137,10 +137,30 @@ export interface paths {
         get?: never;
         /**
          * Report the current position (phone)
-         * @description Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
+         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/safety/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report what happened to a ring or an "Are you okay?" (phone)
+         * @description `shown` when the screen appeared; `here` answers a ring; `ok` and `call` answer a check-in. The first answer counts.
+         */
+        post: operations["postDeviceSafety"];
         delete?: never;
         options?: never;
         head?: never;
@@ -779,6 +799,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get the phone settings
+         * @description Every setting, with `free` filled in for those that are not set. Works the same for Child and Self phones.
+         */
+        get: operations["getPhonesSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set, lock or free one phone setting
+         * @description A setting that is not supported in the given mode, or a value it does not accept, answers `400`
+         *     (a missing value too, and a value for a setting that takes none). An unknown `key` answers `404`.
+         *     On a Self phone, leaving `locked` or changing the value of a locked setting answers `202` and waits
+         *     for the key (Bluetooth from `noNewDevices` to `off` excepted); everything else applies at once.
+         *     The server stores light-mode phones' settings too, but the phone ignores them there.
+         */
+        put: operations["putPhonesSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get the home screen
+         * @description Defaults are filled in.
+         */
+        get: operations["getPhonesHome"];
+        /**
+         * Change the home screen
+         * @description Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+         */
+        put: operations["putPhonesHome"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/contacts": {
         parameters: {
             query?: never;
@@ -1020,6 +1112,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/location/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose when the phone sends its position
+         * @description Applies at once. `off` deletes the stored position. `always` needs `alwaysFor` (400 without) and ends by itself.
+         */
+        put: operations["putPhonesLocationMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/locate": {
         parameters: {
             query?: never;
@@ -1035,6 +1147,52 @@ export interface paths {
          */
         post: operations["postPhonesLocate"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/ring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ring the phone
+         * @description Alarm sound at full volume and vibration, also on silent, for at most 5 minutes. With `stopOnAnswer` (default) it stops when the child taps "I'm here"; without, it rings the full 5 minutes. Replaces an earlier ring.
+         */
+        post: operations["postPhonesRing"];
+        /** Stop ringing */
+        delete: operations["deletePhonesRing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask "Are you okay?"
+         * @description The phone shows "Yes, I'm okay" and, with `callNumber`, "Call me". If nobody answers within `minutes` and the location mode is `checkin` or `always`, the phone sends one position. Replaces an earlier check-in.
+         */
+        post: operations["postPhonesCheckin"];
+        /** Cancel an open "Are you okay?" */
+        delete: operations["deletePhonesCheckin"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1274,6 +1432,15 @@ export interface components {
             schedule?: components["schemas"]["ScheduleInput"];
         } | {
             /** @constant */
+            type?: "setting.set";
+            key?: components["schemas"]["PhoneSettingKey"];
+            setting?: components["schemas"]["PhoneSetting"];
+        } | {
+            /** @constant */
+            type?: "home.set";
+            home?: components["schemas"]["Home"];
+        } | {
+            /** @constant */
             type?: "key.set";
             key?: components["schemas"]["Key"];
         } | {
@@ -1377,6 +1544,61 @@ export interface components {
             en?: string;
             da?: string;
         };
+        /**
+         * @description A phone setting the parent can set or lock. See docs/phone-settings.md for what each one does on Android.
+         * @enum {string}
+         */
+        PhoneSettingKey: "airplaneMode" | "bluetooth" | "brightness" | "camera" | "language" | "location" | "mobileNetworks" | "nfc" | "roaming" | "screenCapture" | "screenTimeout" | "tethering" | "volume" | "wallpaper" | "wifi";
+        /**
+         * @description What one setting is set to. `free`: the child (or the Self user) decides and Plainphone does
+         *     not touch it. `preset`: Plainphone sets the value once, each time the parent changes it.
+         *     `locked`: Plainphone sets it and blocks it in Android's Settings. `value` is only present
+         *     for `preset` and `locked`, and only for settings that have one.
+         * @example {
+         *       "mode": "locked",
+         *       "value": "off"
+         *     }
+         * @example {
+         *       "mode": "preset",
+         *       "value": 60
+         *     }
+         * @example {
+         *       "mode": "locked"
+         *     }
+         */
+        PhoneSetting: {
+            /** @enum {unknown} */
+            mode: "free" | "preset" | "locked";
+            /**
+             * @description Per setting. `bluetooth` (locked): `off` or `noNewDevices`. `location` (preset, locked): `on` or `off`.
+             *     `screenTimeout` (preset, locked): 15, 30, 60, 120, 300 or 600 seconds.
+             *     `brightness` (preset, locked): `auto` or a percentage 10 to 100.
+             *     `volume`: preset is a percentage 0 to 100, locked is `muted`.
+             *     `roaming`, `camera`, `screenCapture`, `tethering`, `nfc`, `airplaneMode` (locked): `off`.
+             *     `wallpaper` (locked): `plainphone`. `wifi`, `mobileNetworks` and `language` (locked) take no value.
+             */
+            value?: string | number;
+        };
+        /** @description How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed. */
+        Home: {
+            /**
+             * @default list
+             * @enum {unknown}
+             */
+            layout: "list" | "grid";
+            /**
+             * @default system
+             * @enum {unknown}
+             */
+            theme: "system" | "light" | "dark";
+            /**
+             * @default sage
+             * @enum {unknown}
+             */
+            palette: "grey" | "sage" | "sand";
+            /** @description Package names on the front page, in order. At most 8, no duplicates. */
+            apps: components["schemas"]["PackageName"][];
+        };
         ChangeApplied: {
             /** @constant */
             status: "applied";
@@ -1471,8 +1693,18 @@ export interface components {
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
             location: {
+                /** @description `mode` is not off. Kept for phones from before `mode`. */
                 enabled?: boolean;
-                /** @example 5 */
+                mode?: components["schemas"]["LocationMode"];
+                /**
+                 * Format: date-time
+                 * @description When `mode` is `always`, the moment it falls back to `checkin` by itself. The phone shows it.
+                 */
+                alwaysUntil?: string | null;
+                /**
+                 * @description Report interval when `mode` is `always`. Other modes send 1440, so phones that only know `enabled` report at most once a day (and get 409).
+                 * @example 5
+                 */
                 intervalMinutes?: number;
                 /**
                  * Format: date-time
@@ -1480,13 +1712,125 @@ export interface components {
                  */
                 requestedAt?: string | null;
             };
+            /** @description An open "Ring the phone". Play the alarm sound and vibrate until `endsAt` (at most 5 minutes), or until the child taps "I'm here" when `stopOnAnswer`. Null means stop now. */
+            ring?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                endsAt: string;
+                stopOnAnswer: boolean;
+                answered: boolean;
+            };
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it. */
+            checkIn?: null | {
+                /** Format: uuid */
+                id: string;
+                /** Format: date-time */
+                deadline: string;
+                /** @description An approved contact for the "Call me" button. */
+                callNumber: string | null;
+                sendLocation: boolean;
+            };
+            /**
+             * @description The phone settings that are not `free`, keys in alphabetical order. A missing key is `free`. Needs Device Owner, so a light-mode phone ignores it.
+             * @example {
+             *       "camera": {
+             *         "mode": "locked",
+             *         "value": "off"
+             *       },
+             *       "screenTimeout": {
+             *         "mode": "preset",
+             *         "value": 60
+             *       },
+             *       "wifi": {
+             *         "mode": "locked"
+             *       }
+             *     }
+             */
+            settings: {
+                [key: string]: components["schemas"]["PhoneSetting"];
+            };
+            /** @description The home screen. Defaults are filled in; an older server without this field means the defaults. */
+            home: components["schemas"]["Home"];
             /** @description Self profile; show them with a countdown on the phone. */
             pendingChanges: components["schemas"]["PendingChange"][];
             /**
-             * @description Poll interval for GET /device/rules.
+             * @description Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
              * @example 60
              */
             pollSeconds: number;
+        };
+        /**
+         * @description When the phone sends its position: never; on Find; on Find and once for an unanswered "Are you okay?"; every 5 minutes for a chosen time (shown on the phone all the time).
+         * @enum {unknown}
+         */
+        LocationMode: "off" | "find" | "checkin" | "always";
+        /**
+         * @description How long `always` lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to `checkin`.
+         * @enum {unknown}
+         */
+        AlwaysFor: "hour" | "today" | "week";
+        Ring: {
+            /** Format: uuid */
+            id: string;
+            /** @description The phone should be ringing now. */
+            active: boolean;
+            stopOnAnswer: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            endsAt: string;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+        };
+        Checkin: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            status: "waiting" | "answered" | "cancelled" | "noReply";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            deadline: string;
+            callNumber: string | null;
+            sendsLocation: boolean;
+            /** Format: date-time */
+            shownAt: string | null;
+            /** Format: date-time */
+            answeredAt: string | null;
+            /** @enum {unknown} */
+            answer: "ok" | "call" | null;
+            /** Format: date-time */
+            stoppedAt: string | null;
+            /**
+             * Format: date-time
+             * @description The one position sent because nobody answered.
+             */
+            locatedAt: string | null;
+        };
+        LocationState: {
+            enabled: boolean;
+            mode: components["schemas"]["LocationMode"];
+            /**
+             * Format: date-time
+             * @description End of `always`; null in other modes.
+             */
+            alwaysUntil: string | null;
+            /** Format: date-time */
+            requestedAt: string | null;
+            location: null | {
+                lat: number;
+                lon: number;
+                accuracyM: number | null;
+                /** Format: date-time */
+                recordedAt: string;
+            };
+            ring: null | components["schemas"]["Ring"];
+            checkin: null | components["schemas"]["Checkin"];
         };
         PhoneSummary: {
             /** Format: uuid */
@@ -1498,6 +1842,7 @@ export interface components {
             mode?: "strong" | "light";
             timezone?: string;
             locationEnabled?: boolean;
+            locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
             /** Format: date-time */
@@ -1884,8 +2229,49 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Location is off for this phone; stop reporting. */
+            /** @description Location is off for this phone, or no position was asked for; stop reporting. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceSafety: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    event: "shown" | "here" | "ok" | "call";
+                };
+            };
+        };
+        responses: {
+            /** @description Stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The event does not fit the request's kind */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such request for this phone */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3028,6 +3414,108 @@ export interface operations {
             202: components["responses"]["ChangePending"];
         };
     };
+    getPhonesSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settings: {
+                            [key: string]: components["schemas"]["PhoneSetting"];
+                        };
+                    };
+                };
+            };
+            /** @description Unknown phone, or not in your household */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhonesSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                key: components["schemas"]["PhoneSettingKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneSetting"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            400: components["responses"]["Error"];
+            /** @description Unknown phone or unknown setting key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The home screen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
+                };
+            };
+        };
+    };
+    putPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Home"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            400: components["responses"]["Error"];
+        };
+    };
     getPhonesContacts: {
         parameters: {
             query?: never;
@@ -3364,12 +3852,43 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null */
+            /** @description The position, the location mode and the latest ring and check-in. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
+            };
+        };
+    };
+    putPhonesLocationMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    mode: components["schemas"]["LocationMode"];
+                    alwaysFor?: components["schemas"]["AlwaysFor"];
+                };
+            };
+        };
+        responses: {
+            /** @description The new state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationState"];
+                };
             };
         };
     };
@@ -3393,6 +3912,136 @@ export interface operations {
             };
             /** @description Location is off */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @default true */
+                    stopOnAnswer?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ring?: components["schemas"]["Ring"];
+                    };
+                };
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesRing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ring, now stopped (or null) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postPhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @example 5
+                     * @example 10
+                     * @example 15
+                     * @example 30
+                     */
+                    minutes: number;
+                    /** @description One of the phone's approved contacts (400 otherwise). */
+                    callNumber?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the phone */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        checkin?: components["schemas"]["Checkin"];
+                    };
+                };
+            };
+            /** @description Bad minutes, or callNumber is not an approved contact */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests for this phone */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deletePhonesCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The check-in, now cancelled (or as it was if already answered or located) */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

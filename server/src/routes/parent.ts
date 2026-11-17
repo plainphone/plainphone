@@ -31,6 +31,7 @@ import { approveRequest, openRequests, rejectRequest, RequestError } from "../se
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
+import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
 import * as v from "../lib/validation.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
@@ -45,10 +46,11 @@ import {
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
-import { createPhone, phoneSummary, wakePhone } from "../services/phones.js";
+import { createPhone, loadPhoneSettings, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
+import { locationRoutes, setLocationMode } from "./location.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -612,19 +614,15 @@ export function parentRoutes(ctx: Ctx) {
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
-    await ctx.db
-      .update(phones)
-      .set({
-        ...(input.name ? { name: input.name } : {}),
-        ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
-        ...(input.locationEnabled !== undefined
-          ? { locationEnabled: input.locationEnabled, ...(input.locationEnabled ? {} : { locateRequestedAt: null }) }
-          : {}),
-      })
-      .where(eq(phones.id, phone.id));
-    // Turning location off deletes the stored position (D7: keep as little as possible).
-    if (input.locationEnabled === false) await ctx.db.delete(locations).where(eq(locations.phoneId, phone.id));
-    if (input.locationEnabled !== undefined) await wakePhone(ctx, phone.id, "rules");
+    const fields = {
+      ...(input.name ? { name: input.name } : {}),
+      ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
+    };
+    if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));
+    // The boolean predates the location modes: on means the child default, off means off.
+    if (input.locationEnabled !== undefined && input.locationEnabled !== phone.locationEnabled) {
+      await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
+    }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
     return c.json(await phoneSummary(ctx, updated!));
   });
@@ -701,8 +699,34 @@ export function parentRoutes(ctx: Ctx) {
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
   });
 
+  // Phone settings and the home screen (docs/phone-settings.md)
+  app.get("/phones/:pid/settings", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json({ settings: (await loadPhoneSettings(ctx.db, phone.id)).settings });
+  });
+
+  app.put("/phones/:pid/settings/:key", async (c) => {
+    const phone = await requirePhone(c);
+    const key = c.req.param("key");
+    if (!isSettingKey(key)) throw new HTTPException(404, { message: "unknown setting" });
+    const setting = await body(c, settingBody(key));
+    return change(c, phone, { type: "setting.set", key, setting });
+  });
+
+  app.get("/phones/:pid/home", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json((await loadPhoneSettings(ctx.db, phone.id)).home);
+  });
+
+  // Never waits for the key: the home screen only arranges apps the rules already allow.
+  app.put("/phones/:pid/home", async (c) => {
+    const phone = await requirePhone(c);
+    const home = await body(c, homeInput);
+    return change(c, phone, { type: "home.set", home });
+  });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
+  locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
@@ -796,27 +820,6 @@ export function parentRoutes(ctx: Ctx) {
   app.delete("/phones/:pid/schedules/:sid", async (c) => {
     const phone = await requirePhone(c);
     return change(c, phone, { type: "schedule.delete", scheduleId: param(c, "sid") });
-  });
-
-  // Location (D7: only the latest position)
-  app.get("/phones/:pid/location", async (c) => {
-    const phone = await requirePhone(c);
-    const [loc] = await ctx.db.select().from(locations).where(eq(locations.phoneId, phone.id));
-    return c.json({
-      enabled: phone.locationEnabled,
-      requestedAt: phone.locateRequestedAt?.toISOString() ?? null,
-      location: loc
-        ? { lat: loc.lat, lon: loc.lon, accuracyM: loc.accuracyM, recordedAt: loc.recordedAt.toISOString() }
-        : null,
-    });
-  });
-
-  app.post("/phones/:pid/locate", async (c) => {
-    const phone = await requirePhone(c);
-    if (!phone.locationEnabled) return c.json({ error: "location is off for this phone" }, 409);
-    await ctx.db.update(phones).set({ locateRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
-    await wakePhone(ctx, phone.id, "locate");
-    return c.json({ requestedAt: ctx.now().toISOString() }, 202);
   });
 
   // Self key (D12, D13)

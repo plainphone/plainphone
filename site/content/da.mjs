@@ -5,7 +5,7 @@ export default {
   path: "/da/",
   title: "Plainphone: en rolig telefon lavet af en almindelig Android",
   description:
-    "Gratis open source-software, der gør en almindelig Android-telefon rolig: opkald, sms, kamera og de apps, du vælger. Ingen feeds, ingen reklamer.",
+    "Gratis open source-software til en Android-telefon med opkald, sms, kamera og de apps, du vælger.",
   ogAlt: "Plainphone: din telefon, uden støjen.",
   skip: "Gå til indholdet",
   nav: { label: "Hovedmenu", source: "Kildekode", switchLabel: "English", switchLang: "en" },
@@ -13,27 +13,27 @@ export default {
   hero: {
     title: "Din telefon, uden støjen.",
     lead:
-      "Plainphone gør en almindelig Android-telefon rolig. Den beholder det, du har brug for, og fjerner stille og roligt resten. Det er gratis, og koden er åben.",
+      "Plainphone gør en almindelig Android-telefon rolig. Du vælger, hvilke apps der er tilgængelige. Det er gratis, og koden er åben.",
     staysLabel: "Det beholder du",
     stays: ["Opkald", "Sms", "Kamera", "Kort, musik og de apps, du vælger"],
     goesLabel: "Det ryger",
-    goes: ["Feeds fra sociale medier", "Reklamer", "Spil", "Porno og spil om penge", "App-butikker, medmindre du giver adgang"],
+    goes: ["Sociale medier og spil, du ikke giver adgang til", "Udvalgte hjemmesider, med webfilteret", "App-butikker, medmindre du giver adgang"],
   },
   who: {
     title: "Hvem det er til",
-    lead: "Alle, der vil have et roligere liv med en telefon i. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
+    lead: "Familier og voksne, der vil vælge, hvad der er tilgængeligt på telefonen. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
     paths: [
       {
         id: "child",
         title: "Til mit barn",
         body:
-          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik, uden de dele, der sluger en eftermiddag. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
+          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
       },
       {
         id: "self",
         title: "Til mig selv",
         body:
-          "Mindre skærmtid, uden at give slip på kort, netbank eller kamera. Du får selv nøglen, med en forsinkelse: når du løsner en regel, træder den først i kraft efter fx 24 timer, så et svagt øjeblik når at gå over. Eller lad en, du stoler på, godkende det.",
+          "Behold kort, netbank og kamera. Vælg, hvor længe der skal gå, før en lempelse af dine regler træder i kraft. Eller lad en, du stoler på, godkende det.",
       },
     ],
   },
@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Vælg reglerne",
-        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel kommer til at gælde med det samme.",
+        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. Telefonen bruger de nye regler, næste gang den synkroniserer med serveren.",
       },
     ],
     guide: "Har du lyst til at prøve? <a href=\"/da/setup/\">Følg trin-for-trin-guiden</a>.",
@@ -59,12 +59,12 @@ export default {
   },
   compare: {
     title: "Sammenlignet med de typiske alternativer",
-    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone viser målet; i dag virker kun låsen.",
+    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone omfatter også funktioner under udvikling.",
     caption: "Plainphone sammenlignet med en simpel telefon, et børneur og indbygget forældrekontrol",
     cols: ["Simpel telefon", "Børneur", "Indbygget forældrekontrol", "Plainphone"],
     rows: [
       ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger (planlagt)"],
-      ["Webfilter, der også virker inde i apps", "Intet internet", "Intet internet", "Delvist", "Ja, i de fleste apps (planlagt)"],
+      ["Webfilter til udvalgte domæner", "Intet internet", "Intet internet", "Delvist", "Blokerer tilsvarende webadresser efter opsætning"],
       ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms (planlagt)"],
       ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 10+"],
       ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja (planlagt)"],
@@ -95,7 +95,7 @@ export default {
       },
       {
         q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag sender appen på telefonen ikke noget til en server. Logger du ind i forældreappen, gemmer den din e-mailadresse og de regler, du sætter. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
+        a: "Når du har tilknyttet en telefon, sender den status til serveren, så du f.eks. kan se batteriniveauet. Når placering er slået til, sender telefonen sin position med jævne mellemrum, og når du bruger Find. Serveren gemmer kun den seneste position. Placering er som standard slået til for børneprofiler og fra, hvis du styrer din egen telefon. Vi gemmer din kontos e-mailadresse og de regler, du vælger. Vi viser ingen reklamer og sælger ingen data. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
       },
       {
         q: "Hvad koster det?",
@@ -109,6 +109,33 @@ export default {
         q: "Hvad med WhatsApp, Snapchat og de andre chatapps?",
         a: "Chatapps er skjult, medmindre du giver adgang til dem, og godkendte kontakter kommer til at dække opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software det ikke. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
       },
+    ],
+  },
+  why: {
+    path: "/da/hvorfor/",
+    h1: "Hvorfor Plainphone gør, som det gør",
+    lead: "Plainphone er til familier, der vil give deres barn en telefon og vente med den fulde smartphone. Forskningen hjælper os med at vælge, hvad vi bygger.",
+    sections: [
+      ["Sengetid", "En telefon i soveværelset hænger sammen med dårligere søvn hos børn og unge. Med sengetid i Plainphone kan du begrænse, hvilke apps der er tilgængelige. Sundhedsstyrelsen anbefaler, at telefonen bliver uden for soveværelset."],
+      ["Hvad forskningen kan fortælle os", "Store studier finder i gennemsnit små sammenhænge mellem brug af teknologi og trivsel. En forskningsgennemgang fra de amerikanske videnskabsakademier fandt ikke grundlag for at fastslå, at sociale medier ændrer unges sundhed på befolkningsniveau. Vi ved ikke, om en begrænset telefon som Plainphone forbedrer trivslen. Trivselskommissionen anbefaler at vente med egen smartphone eller tablet, til barnet er fyldt 13 år."],
+      ["Skoletid", "Du vælger, hvornår skoletid gælder, og hvilke apps der er tilgængelige. Studier af skolers mobilregler peger i forskellige retninger, og vi ved ikke, om en tidsplan som denne forbedrer trivslen."],
+      ["Webfilter", "Når filteret er sat op, blokerer det forespørgsler til webadresser i de kategorier, du vælger. Det kan mindske sandsynligheden for at møde noget af indholdet. Studier finder kun svagt belæg for, at filtre gør en forskel for, hvor tit unge møder seksuelt indhold. Filtre kan også blokere nyttig sundhedsoplysning. Tal med dit barn om, hvad det kan støde på."],
+      ["Privatliv, hjælp og mere frihed", "Børn skal kunne forstå reglerne, se, hvornår deres placering deles, og søge hjælp fortroligt. Det er principper, vi bruger, når vi udvikler Plainphone. Se på reglerne sammen, efterhånden som dit barn bliver ældre."],
+      ["Til voksne", "I et kort studie af en anden app gav en pause og en mulighed for at fortryde folk tid til at ombestemme sig, før en app åbnede. De sprang sjældnere en åbning over, efterhånden som studiet skred frem. Det taler for at gøre det nemt at fortryde, når vi designer en pause."],
+    ],
+    sourcesTitle: "Kilder",
+    sources: [
+      ["Carter m.fl. om skærme og søvn", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
+      ["Sundhedsstyrelsens råd om skærmbrug", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Trivselskommissionens anbefalinger", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
+      ["De amerikanske videnskabsakademier om sociale medier og unges sundhed", "https://www.nationalacademies.org/read/27396/chapter/2"],
+      ["Orben og Przybylski om digital teknologi og trivsel", "https://www.nature.com/articles/s41562-018-0506-1"],
+      ["Goodyear m.fl. om skolers mobilregler", "https://doi.org/10.1016/j.lanepe.2025.101211"],
+      ["Przybylski og Nash om webfiltre", "https://pubmed.ncbi.nlm.nih.gov/29995533/"],
+      ["Richardson m.fl. om filtre og adgang til sundhedsoplysning", "https://doi.org/10.1001/jama.288.22.2887"],
+      ["Europa-Kommissionens retningslinjer om mindreårige", "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52025XC05519"],
+      ["FN’s Børnekomités generelle kommentar nr. 25", "https://www.ohchr.org/en/documents/general-comments-and-recommendations/general-comment-no-25-2021-childrens-rights-relation"],
+      ["Grüning m.fl. om appen one sec", "https://www.pnas.org/doi/10.1073/pnas.2213114120"],
     ],
   },
   privacy: {
@@ -197,9 +224,11 @@ export default {
         id: "placering",
         title: "Placering",
         body: [
-          "Placering er en indstilling for hver telefon. Den er slået til fra start på et barns telefon og slået fra på en voksens egen telefon, og en forælder kan ændre det når som helst. Når den er slået til, sender telefonen sin position med få minutters mellemrum (som standard fem), og en forælder kan bede om en ny.",
+          "Placering er en indstilling for hver telefon med fire valg: fra; kun når en forælder trykker Find; ved Find og når et »Er du okay?« ikke bliver besvaret; eller altid tændt, hvert femte minut, i en tid forælderen vælger (en time, i dag eller en uge), hvorefter den selv går tilbage til Find og »Er du okay?«. Et barns telefon starter med Find og »Er du okay?«, ikke altid tændt. En voksens egen telefon starter med placering slået fra, og det er ejerens eget valg at slå den til. En forælder kan ændre det når som helst.",
+          "Telefonen er åben om det. Hver gang den sender en enkelt position (Find eller et ubesvaret »Er du okay?«), viser den en kort besked om det. Når placering er altid tændt, viser telefonen det hele tiden, i en notifikation og på Plainphones egen skærm. Barnet kan åbne »Hvad kan mine forældre se?« på telefonen: Den forklarer den nuværende indstilling og viser, hver gang placeringen er sendt de sidste 30 dage. Listen bliver på telefonen.",
+          "»Er du okay?« beder barnet svare inden for en tid, forælderen vælger. Svarer barnet, sendes der ingen position. Svarer ingen i tide, sender telefonen én position. »Ring telefonen« spiller en alarmlyd og vibrerer i højst fem minutter; den sender ingen position. Serveren gemmer en ringning eller et spørgsmål (tidspunkter og svaret og det godkendte nummer til »Ring til mig«) i et døgn efter, at det er slut, og sletter det så.",
           "Serveren gemmer kun den seneste position: koordinater, nøjagtighed og tidspunkt. Hver ny position erstatter den gamle, og der gemmes ingen historik. Slår du placering fra, eller fjerner du telefonen, bliver den gemte position slettet.",
-          "Vælger en forælder »Åbn i OpenStreetMap«, står koordinaterne i det link, der åbnes, og så gælder OpenStreetMaps egen politik.",
+          "Dashboardet viser positionen på et kort. Kortfliserne kommer fra OpenFreeMap (tiles.openfreemap.org, data fra OpenStreetMap), så når de hentes, får OpenFreeMap at vide, cirka hvilket område der kigges på, og forælderens IP-adresse. Kortet hentes kun på placeringssiden. Forældreappen på en telefon bruger OpenStreetMaps egne fliseservere og først, når forælderen trykker Vis kort. Vælger en forælder »Kør derhen« med Google Maps eller Apple Kort, eller kopierer positionen, går koordinaterne til den app, og så gælder dens egen politik.",
         ],
       },
       {
@@ -223,7 +252,7 @@ export default {
         id: "mail",
         title: "Mail",
         body: [
-          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer, de beskeder, en betroet person får, og en advarsel, når en telefons beskyttelse fjernes, eller den har været stille længe. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
+          "Vi sender kun mail for at køre tjenesten: links til at logge ind, invitationer, de beskeder, en betroet person får, og en advarsel, når en telefon melder, at en nødvendig indstilling er slået fra, eller den har været stille længe. Ingen nyhedsbreve og ingen reklamer. Mails sendes fra vores egen mailserver i EU. Logoet i vores mails hentes fra plainphone.org, som Cloudflare hoster. Viser dit mailprogram billeder, ser Cloudflare derfor din IP-adresse, når logoet hentes. Logoets adresse har ingen identifikator og er den samme for alle, så den fortæller os ikke, hvem der har åbnet en mail.",
         ],
       },
       {

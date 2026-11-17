@@ -26,6 +26,7 @@ export interface Phone {
   mode: "strong" | "light";
   timezone: string;
   locationEnabled: boolean;
+  locationMode?: LocationMode;
   pairedAt: string | null;
   lastSeenAt: string | null;
   dnsHost: string;
@@ -61,10 +62,52 @@ export interface ScheduleInput {
 export interface Schedule extends ScheduleInput {
   id: string;
 }
+/** When the phone sends its position: never, on Find, on Find and an unanswered check-in, or every 5 minutes for a chosen time. */
+export type LocationMode = "off" | "find" | "checkin" | "always";
+export const LOCATION_MODES: LocationMode[] = ["off", "find", "checkin", "always"];
+/** How long "always" lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to "checkin". */
+export type AlwaysFor = "hour" | "today" | "week";
+export const ALWAYS_FOR: AlwaysFor[] = ["hour", "today", "week"];
+export interface Ring {
+  id: string;
+  /** The phone should be ringing now. */
+  active: boolean;
+  stopOnAnswer: boolean;
+  createdAt: string;
+  endsAt: string;
+  shownAt: string | null;
+  answeredAt: string | null;
+  stoppedAt: string | null;
+}
+export interface Checkin {
+  id: string;
+  status: "waiting" | "answered" | "cancelled" | "noReply";
+  createdAt: string;
+  deadline: string;
+  callNumber: string | null;
+  sendsLocation: boolean;
+  shownAt: string | null;
+  answeredAt: string | null;
+  answer: "ok" | "call" | null;
+  stoppedAt: string | null;
+  /** The one position sent because nobody answered. */
+  locatedAt: string | null;
+}
+export interface Position {
+  lat: number;
+  lon: number;
+  accuracyM: number | null;
+  recordedAt: string;
+}
 export interface LocationState {
   enabled: boolean;
+  mode: LocationMode;
+  /** When "always" falls back to "checkin" by itself; null in the other modes. */
+  alwaysUntil: string | null;
   requestedAt: string | null;
-  location: { lat: number; lon: number; accuracyM: number | null; recordedAt: string } | null;
+  location: Position | null;
+  ring: Ring | null;
+  checkin: Checkin | null;
 }
 export interface KeyInput {
   keyType: "delay" | "trusted";
@@ -79,6 +122,40 @@ export interface SelfKey extends KeyInput {
   payUnlockCurrency: string;
 }
 
+export type SettingKey =
+  | "bluetooth"
+  | "wifi"
+  | "mobileNetworks"
+  | "roaming"
+  | "tethering"
+  | "nfc"
+  | "airplaneMode"
+  | "screenTimeout"
+  | "brightness"
+  | "volume"
+  | "wallpaper"
+  | "location"
+  | "camera"
+  | "screenCapture"
+  | "language";
+/** `free`: the child (or the Self user) decides. `preset`: set once. `locked`: set and kept. */
+export type SettingMode = "free" | "preset" | "locked";
+export type SettingValue = string | number;
+export interface PhoneSetting {
+  mode: SettingMode;
+  /** Only for `preset` and `locked`, and only for settings that have a value. */
+  value?: SettingValue;
+}
+/** Every setting, `free` filled in. */
+export type PhoneSettings = Record<SettingKey, PhoneSetting>;
+export interface Home {
+  layout: "list" | "grid";
+  theme: "system" | "light" | "dark";
+  palette: "grey" | "sage" | "sand";
+  /** Package names on the front page, in order. At most 8. */
+  apps: string[];
+}
+
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
@@ -89,6 +166,8 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
+  | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
+  | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }

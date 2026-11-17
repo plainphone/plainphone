@@ -41,9 +41,14 @@ could pair the phone to an account of their own and open everything.
 | Network comes back | Default-network callback, at most once a minute |
 | Screen on | Sync right away, then every `pollSeconds` (60 s) for as long as the screen stays on |
 | Maintenance screen | *Sync with the server now* |
+| Screen off | An `AlarmManager` alarm (allowed while idle) every 2 minutes, so a ring or an "Are you okay?" arrives without push |
+| A ring or "Are you okay?" is open | Every `pollSeconds` (10 s), also with the screen off, so stops and answers travel fast |
+| The "Are you okay?" deadline | An alarm at the deadline, then a sync that sends the one position |
 
-So a parent's change, or "Find", reaches a phone that is in use within about a minute, and a
-phone lying in a pocket within 15 minutes (often later in deep Doze). Push via FCM is the planned
+So a parent's change, "Find", a ring or an "Are you okay?" reaches a phone that is in use within
+about a minute, and a phone lying in a pocket within about 2 minutes while Android is not in deep
+sleep. In deep Doze (screen off and still for a long time) Android stretches idle alarms to
+about every 9 to 15 minutes, and WorkManager to 15 minutes or more. Push via FCM is the planned
 way to close that gap; polling stays the guarantee, so phones without Google Play services work.
 
 One sync: report the installed apps if they changed, fetch the rules with `If-None-Match`, store
@@ -70,7 +75,7 @@ changes made on the phone), answer "Find", report status.
 | Approved contacts | Taken from the rules as soon as the first rules arrive. The maintenance screen then shows the list read-only. Emergency numbers always work. |
 | School time, bedtime | In a window every non-core app is hidden, except the window's own apps that the app list also allows. Core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay, as they always do. Calls and SMS work for approved contacts and emergency numbers, as always. Overlapping windows only allow what all of them allow. |
 | DNS | The phone switches private DNS to `<id>.dns.plainphone.org` only when the rules say `dns.ready`. Until then it keeps the QR code's host. Android itself also keeps the old host if the new one does not answer. |
-| Location | When the parent has location on: Device Owner grants the location permissions (no dialog), switches location on and blocks switching it off (`DISALLOW_CONFIG_LOCATION`). "Find" gets one precise fix; otherwise a coarse position every `intervalMinutes` while syncs run. When location is off, nothing is read or sent, and the restriction is lifted. |
+| Location | When the parent has location on: Device Owner grants the location permissions (no dialog), switches location on and blocks switching it off (`DISALLOW_CONFIG_LOCATION`). "Find" and an unanswered "Are you okay?" get one precise fix; in mode `always` a coarse position every `intervalMinutes` while syncs run (see [location.md](location.md)). When location is off, nothing is read or sent, and the restriction is lifted. |
 
 ### Schedules and time
 

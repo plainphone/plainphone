@@ -15,6 +15,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -126,6 +127,16 @@ export const PROTECTIONS = [
 ] as const;
 export type Protection = (typeof PROTECTIONS)[number];
 
+/**
+ * When a phone sends its position:
+ * - `off`: never,
+ * - `find`: only when a parent presses Find,
+ * - `checkin`: on Find, and once when an "Are you okay?" goes unanswered (the default for a child),
+ * - `always`: every 5 minutes, plus the above. The phone shows this all the time.
+ */
+export const LOCATION_MODES = ["off", "find", "checkin", "always"] as const;
+export type LocationMode = (typeof LOCATION_MODES)[number];
+
 export const phones = pgTable(
   "phones",
   {
@@ -150,7 +161,12 @@ export const phones = pgTable(
      * REFUSED for ClientIDs it does not know, so the phone would lose DNS entirely.
      */
     dnsConfirmedAt: timestamp("dns_confirmed_at", { withTimezone: true }),
+    /** Kept equal to `locationMode !== "off"`, for phones and clients that only know the boolean. */
     locationEnabled: boolean("location_enabled").notNull(),
+    /** When the phone sends its position (docs/location.md). */
+    locationMode: text("location_mode", { enum: LOCATION_MODES }).notNull().default("off"),
+    /** "always" is time-boxed: after this the phone falls back to "checkin" (sweeper). */
+    locationAlwaysUntil: timestamp("location_always_until", { withTimezone: true }),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
@@ -290,6 +306,19 @@ export const schedules = pgTable(
   (t) => [index("schedules_phone_idx").on(t.phoneId)],
 );
 
+/**
+ * What the parent set for the phone's own settings, and how the home screen looks
+ * (docs/phone-settings.md). `settings` only holds settings that are not free.
+ */
+export const phoneSettings = pgTable("phone_settings", {
+  phoneId: uuid("phone_id")
+    .primaryKey()
+    .references(() => phones.id, { onDelete: "cascade" }),
+  settings: jsonb("settings").$type<StoredSettings>().notNull().default({}),
+  /** The home screen choices. May be empty: the defaults are filled in when read. */
+  home: jsonb("home").$type<Partial<Home>>().notNull().default({}),
+});
+
 /** Only the latest known position per phone (decision D7). No history. */
 export const locations = pgTable("locations", {
   phoneId: uuid("phone_id")
@@ -301,6 +330,40 @@ export const locations = pgTable("locations", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * "Ring the phone" and "Are you okay?". Only the latest request of each kind per phone is kept:
+ * a new one replaces the old, and the sweeper deletes finished ones after a day.
+ */
+export const safetyRequests = pgTable(
+  "safety_requests",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["ring", "checkin"] }).notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    /** Ring: when the sound stops at the latest. Check-in: the reply deadline. */
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** Ring: stop when the child taps "I'm here". False keeps it ringing until `endsAt`. */
+    stopOnAnswer: boolean("stop_on_answer").notNull().default(true),
+    /** Check-in: an approved contact the child can call back from the screen. */
+    callNumber: text("call_number"),
+    /** The phone showed the request. */
+    shownAt: timestamp("shown_at", { withTimezone: true }),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    answer: text("answer", { enum: ["here", "ok", "call"] }),
+    /** The parent stopped or cancelled it. */
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    /** Check-in: the position sent because nobody answered. */
+    locatedAt: timestamp("located_at", { withTimezone: true }),
+    /** Check-in: the parents were told nobody answered by the deadline. */
+    noReplyNotifiedAt: timestamp("no_reply_notified_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("safety_requests_phone_kind_idx").on(t.phoneId, t.kind)],
+);
 
 /** The key that guards loosening changes on a Self-profile phone (D12, D13). */
 export const selfKeys = pgTable("self_keys", {

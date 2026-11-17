@@ -5,7 +5,7 @@ export default {
   path: "/",
   title: "Plainphone: a calm phone made from an ordinary Android",
   description:
-    "Free, open-source software that turns an ordinary Android phone into a calm one: calls, messages, camera and the apps you choose. No feeds, no ads.",
+    "Free, open-source software for an Android phone with calls, messages, a camera and the apps you choose.",
   ogAlt: "Plainphone: your phone, minus the noise.",
   skip: "Skip to content",
   nav: { label: "Main", source: "Source code", switchLabel: "Dansk", switchLang: "da" },
@@ -13,27 +13,27 @@ export default {
   hero: {
     title: "Your phone, minus the noise.",
     lead:
-      "Plainphone turns an ordinary Android phone into a calm one. It keeps what you need and quietly removes the rest. It is free, and the code is open.",
+      "Plainphone turns an ordinary Android phone into a calm one. Choose which apps stay available. It is free, and the code is open.",
     staysLabel: "What stays",
     stays: ["Calls", "Messages", "Camera", "Maps, music and the apps you choose"],
     goesLabel: "What goes",
-    goes: ["Social media feeds", "Ads", "Games", "Porn and gambling sites", "App stores, unless you allow them"],
+    goes: ["Social media apps and games you leave off the list", "Selected websites, with the web filter", "App stores, unless you allow them"],
   },
   who: {
     title: "Who it is for",
-    lead: "Anyone who wants a quieter life with a phone in it. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
+    lead: "Families and adults who want to choose what’s available on their phone. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
     paths: [
       {
         id: "child",
         title: "For my child",
         body:
-          "A first phone that can call, text, find the way home and play music, without the parts that swallow an afternoon. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
+          "A first phone that can call, text, find the way home and play music. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
       },
       {
         id: "self",
         title: "For myself",
         body:
-          "Less screen, without giving up maps, banking or your camera. You will hold the key yourself, with a delay: loosening a rule takes effect after, say, 24 hours, so a weak moment passes. Or let a person you trust approve it.",
+          "Keep maps, banking and your camera available. Set a delay before changes that loosen your rules take effect. Or let a person you trust approve it.",
       },
     ],
   },
@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Choose the rules",
-        body: "Pick which apps show, who can call, and when school time or quiet hours start. A stricter rule will apply at once.",
+        body: "Pick which apps show, who can call, and when school time or bedtime starts. The phone applies changes when it next syncs with the server.",
       },
     ],
     guide: "Want to try it? <a href=\"/setup/\">Follow the step-by-step guide</a>.",
@@ -60,12 +60,12 @@ export default {
   compare: {
     title: "Compared with the usual options",
     lead:
-      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column describes the goal; today only the lock works.",
+      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column includes features still in development.",
     caption: "Plainphone compared with a basic phone, a kids’ smartwatch and built-in parental controls",
     cols: ["Basic phone", "Kids’ smartwatch", "Built-in parental controls", "Plainphone"],
     rows: [
       ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick (planned)"],
-      ["Web filter that also works inside apps", "No internet", "No internet", "Partly", "Yes, for most apps (planned)"],
+      ["Web filter for selected domains", "No internet", "No internet", "Partly", "Blocks matching web addresses once configured"],
       ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts (planned)"],
       ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 10+"],
       ["For adults too", "Yes", "No", "Mostly for children", "Yes (planned)"],
@@ -97,7 +97,7 @@ export default {
       },
       {
         q: "What does Plainphone know about me or my child?",
-        a: "As little as it can. When location arrives, only the phone’s last known position will be kept, never a history. No tracking, no ads, nothing sold. For adults managing their own phone, location will be off by default. Today the app on the phone sends nothing to a server. If you sign in to the parent app, it stores your email address and the rules you set. The <a href=\"/privacy/\">privacy policy</a> has the details.",
+        a: "A paired phone reports device status to the server so you can see things like its battery level. When location is on, the phone sends its position periodically and when you use Find. The server keeps only the latest position. Location starts on for child profiles and off for Self profiles. We store your account email address and the rules you set. We show no ads and sell no data. The <a href=\"/privacy/\">privacy policy</a> has the details.",
       },
       {
         q: "What does it cost?",
@@ -111,6 +111,33 @@ export default {
         q: "What about WhatsApp, Snapchat and other chat apps?",
         a: "Chat apps stay hidden unless you allow them, and approved contacts will cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
       },
+    ],
+  },
+  why: {
+    path: "/why/",
+    h1: "Why Plainphone works the way it does",
+    lead: "Plainphone is for families who want their child to have a phone while they wait to give them a full smartphone. Research helps us choose what to build.",
+    sections: [
+      ["Bedtime", "Having a phone in the bedroom is linked to poorer sleep in children and teens. Plainphone’s bedtime schedule limits which apps are available. The Danish Health Authority recommends leaving the phone outside the bedroom."],
+      ["What the research can tell us", "Large studies find small average links between technology use and well-being. A National Academies review found too little evidence to establish a causal effect of social media on adolescent health across the population. We don’t know whether a restricted phone like Plainphone improves well-being. The Danish Wellbeing Commission recommends waiting until 13 for a smartphone or a tablet of the child’s own."],
+      ["School time", "You choose when the schedule runs and which apps are available. Research on school phone rules is mixed, and we don’t know whether a schedule like this improves well-being."],
+      ["Web filtering", "When configured, the filter blocks requests to web addresses in the categories you choose. It can reduce some exposure, and studies have found little evidence that filters change how often teens encounter sexual material. Filters can also block useful health information. Talk with your child about what they might come across."],
+      ["Privacy, help and growing independence", "Children should be able to understand the rules, see when their location is shared and reach help privately. We use these principles when designing Plainphone. Revisit the rules together as your child grows."],
+      ["For adults", "In a short study of a different app, a pause and the option to cancel gave people a chance to change their mind about opening an app. People cancelled less often as the study went on. That’s a reason to make cancelling easy when we design a pause."],
+    ],
+    sourcesTitle: "Sources",
+    sources: [
+      ["Carter et al. on devices and sleep", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
+      ["Danish Health Authority screen-use advice", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Danish Wellbeing Commission recommendations", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
+      ["National Academies review of social media and adolescent health", "https://www.nationalacademies.org/read/27396/chapter/2"],
+      ["Orben and Przybylski on digital technology and well-being", "https://www.nature.com/articles/s41562-018-0506-1"],
+      ["Goodyear et al. on school phone policies", "https://doi.org/10.1016/j.lanepe.2025.101211"],
+      ["Przybylski and Nash on internet filtering", "https://pubmed.ncbi.nlm.nih.gov/29995533/"],
+      ["Richardson et al. on filters and access to health information", "https://doi.org/10.1001/jama.288.22.2887"],
+      ["European Commission guidelines on minors", "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52025XC05519"],
+      ["UN Committee on the Rights of the Child, General Comment No. 25", "https://www.ohchr.org/en/documents/general-comments-and-recommendations/general-comment-no-25-2021-childrens-rights-relation"],
+      ["Grüning et al. on the one sec app", "https://www.pnas.org/doi/10.1073/pnas.2213114120"],
     ],
   },
   privacy: {
@@ -199,9 +226,11 @@ export default {
         id: "location",
         title: "Location",
         body: [
-          "Location is a setting for each phone. It starts on for a child’s phone and off for an adult’s own phone, and a parent can change it at any time. When it is on, the phone reports its position every few minutes (five by default), and a parent can ask for a fresh one.",
+          "Location is a setting for each phone, with four choices: off; only when a parent presses Find; on Find and when an “Are you okay?” goes unanswered; or always on, every five minutes, for a time the parent picks (an hour, today or a week), after which it goes back to Find and “Are you okay?” by itself. A child’s phone starts with Find and “Are you okay?”, not always on. An adult’s own phone starts with location off, and turning it on is the owner’s choice. A parent can change it at any time.",
+          "The phone is open about it. Each time it sends a single position (Find, or an unanswered “Are you okay?”), it shows a short notice saying so. When location is always on, the phone shows that the whole time, in a notification and on Plainphone’s own screen. The child can open “What can my parents see?” on the phone: it explains the current setting and lists each time the position was sent in the last 30 days. That list stays on the phone.",
+          "“Are you okay?” asks the child to answer within a time the parent picks. If the child answers, no position is sent. If nobody answers in time, the phone sends one position. “Ring the phone” plays an alarm sound and vibrates for at most five minutes; it sends no position. The server keeps a ring or a question (times and the answer, and the approved number for “Call me”) for a day after it ends, then deletes it.",
           "The server keeps only the latest position: coordinates, accuracy and time. Each new position replaces the old one, and no history is kept. Switching location off, or removing the phone, deletes the stored position.",
-          "If a parent chooses “Open in OpenStreetMap”, the coordinates are in the link that opens, and OpenStreetMap’s own policy applies from there.",
+          "The dashboard shows the position on a map. The map tiles come from OpenFreeMap (tiles.openfreemap.org, OpenStreetMap data), so loading them tells OpenFreeMap roughly which area is being looked at, along with the parent’s IP address. The map is only loaded on the location page. The parent app on a phone uses OpenStreetMap’s tile servers, and only after the parent taps Show map. If a parent chooses “Drive there” with Google Maps or Apple Maps, or copies the position, the coordinates go to that app, and its own policy applies from there.",
         ],
       },
       {
@@ -225,7 +254,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations, the messages a trusted person gets, and an alert when a phone’s protection is removed or it has been quiet for a long time. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations, the messages a trusted person gets, and an alert when a phone reports a required setting was switched off or it has been quiet for a long time. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {

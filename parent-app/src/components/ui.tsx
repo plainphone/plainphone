@@ -162,10 +162,10 @@ export function Row({ gap = space.sm, children, style }: { gap?: number; childre
   return <View style={[{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap }, style]}>{children}</View>;
 }
 
-export function Card({ children, style }: { children: ReactNode; style?: ViewStyle }) {
+export function Card({ children, style, testID }: { children: ReactNode; style?: ViewStyle; testID?: string }) {
   const c = useColors();
   return (
-    <View style={[{ backgroundColor: c.surface, borderRadius: radius, borderWidth: 1, borderColor: c.line, padding: space.lg, gap: space.md }, style]}>
+    <View testID={testID} style={[{ backgroundColor: c.surface, borderRadius: radius, borderWidth: 1, borderColor: c.line, padding: space.lg, gap: space.md }, style]}>
       {children}
     </View>
   );
@@ -351,31 +351,49 @@ export function Switch({
   );
 }
 
-/** Choose one of a few options (segmented control). */
+/** Choose one of a few options, each with a title and an explaining line (radio buttons). */
 export function Choice<V extends string>({
   label,
+  hideLabel,
+  hint,
   value,
   options,
   onChange,
+  disabled,
+  testID,
 }: {
   label: string;
+  /** The label is spoken but not shown, when a heading above already says it. */
+  hideLabel?: boolean;
+  /** A line under the label that explains the whole choice. */
+  hint?: string;
   value: V;
-  options: { value: V; label: string; help?: string }[];
+  options: { value: V; label: string; help?: string; testID?: string }[];
   onChange: (v: V) => void;
+  disabled?: boolean;
+  testID?: string;
 }) {
   const c = useColors();
   return (
-    <View style={{ gap: space.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>
-      <Text variant="label">{label}</Text>
+    <View
+      testID={testID}
+      style={{ gap: space.sm, opacity: disabled ? 0.6 : 1 }}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+    >
+      {hideLabel ? null : <Text variant="label">{label}</Text>}
+      {hint ? <Text variant="small">{hint}</Text> : null}
       {options.map((o) => {
         const on = o.value === value;
         return (
           <Pressable
             key={o.value}
-            onPress={() => onChange(o.value)}
+            testID={o.testID}
+            onPress={() => !disabled && onChange(o.value)}
             accessibilityRole="radio"
             accessibilityLabel={o.help ? `${o.label}. ${o.help}` : o.label}
-            accessibilityState={{ checked: on }}
+            accessibilityState={{ checked: on, disabled: !!disabled }}
             style={[
               styles.choice,
               { borderColor: on ? c.accent : c.borderStrong, backgroundColor: on ? c.tint : c.surface },
@@ -391,6 +409,48 @@ export function Choice<V extends string>({
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** A short row of equal choices, like 5, 10, 15 and 30 minutes (segmented control). */
+export function Segmented<V extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+  testID,
+}: {
+  label: string;
+  value: V;
+  options: { value: V; label: string; testID?: string }[];
+  onChange: (v: V) => void;
+  testID?: string;
+}) {
+  const c = useColors();
+  return (
+    <View testID={testID} style={{ gap: space.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      <Text variant="label">{label}</Text>
+      <View style={styles.segmented}>
+        {options.map((o) => {
+          const on = o.value === value;
+          return (
+            <Pressable
+              key={o.value}
+              testID={o.testID}
+              onPress={() => onChange(o.value)}
+              accessibilityRole="radio"
+              accessibilityLabel={o.label}
+              accessibilityState={{ checked: on }}
+              style={[styles.segment, { borderColor: on ? c.accent : c.borderStrong, backgroundColor: on ? c.accent : c.surface }]}
+            >
+              <RNText maxFontSizeMultiplier={3} style={{ color: on ? c.onAccent : c.ink, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+                {o.label}
+              </RNText>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -492,5 +552,7 @@ const styles = StyleSheet.create({
   choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius, borderWidth: 1.5 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
+  segmented: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radius, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   state: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.lg },
 });
