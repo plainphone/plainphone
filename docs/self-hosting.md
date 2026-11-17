@@ -33,6 +33,10 @@ pairing QR code.
 | `MAIL_FROM` | `Plainphone <no-reply@plainphone.org>` | Sender |
 | `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`) |
 | `DNS_HOST_SUFFIX` | `dns.plainphone.org` | Phones use `<clientId>.<suffix>` as private DNS |
+| `APK_DOWNLOAD_URL` | | Where `/download/android` (the APK address in setup QR codes) redirects. Unset: the newest APK released in `APK_RELEASES_REPO` on GitHub |
+| `APK_RELEASES_REPO` | `plainphone/plainphone` | GitHub repository whose releases `/download/android` follows |
+| `APK_SIGNATURE_CHECKSUM` | the project's test key | base64url SHA-256 of the app's signing certificate, put in setup QR codes. Set it when you build and sign the app yourself |
+| `PROVISIONING_DNS_HOST` | `family.adguard-dns.com` | Private DNS a phone uses from setup until its own filter host is ready |
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
 | `PAYMENTS_ENABLED` | `false` | Pay to unlock (not implemented yet) |

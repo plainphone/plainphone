@@ -32,9 +32,29 @@ export interface PhoneStatus {
   rulesEtag: string | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
+  /** Missing on older phones, which are strong mode. */
+  mode?: "strong" | "light";
+  /** What is active on the phone right now. */
+  protections?: Partial<Record<Protection, boolean>>;
+  /** Minutes used today per limited package; "*" is the total. */
+  timeUsed?: Record<string, number>;
   /** When the server received the report. */
   reportedAt: string;
 }
+export const PROTECTIONS = [
+  "deviceAdmin",
+  "accessibility",
+  "usageAccess",
+  "vpn",
+  "alwaysOnVpn",
+  "phoneRole",
+  "smsRole",
+  "notifications",
+  "batteryUnrestricted",
+  "privateDnsOk",
+  "deviceOwner",
+] as const;
+export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
   id: string;
   name: string;
@@ -93,6 +113,35 @@ export interface App {
   allowed: boolean;
   core: boolean;
 }
+/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
+export interface Limit {
+  minutes: number;
+  days: Partial<Record<string, number>>;
+}
+export interface Bonus {
+  packageName: string;
+  date: string;
+  minutes: number;
+}
+export interface TimeLimits {
+  total: Limit | null;
+  apps: { packageName: string; label: string; limit: Limit }[];
+  bonuses: Bonus[];
+  used: Record<string, number> | null;
+}
+export type CatalogState = "installed-allowed" | "installed-hidden" | "requested" | "none";
+export interface CatalogApp {
+  packageName: string;
+  name: string;
+  category: string;
+  source: string;
+  state: CatalogState;
+}
+export interface PhoneCatalog {
+  country: string | null;
+  categories: { id: string; name: { en: string; da: string } }[];
+  apps: CatalogApp[];
+}
 export interface Contact {
   id: string;
   name: string;
@@ -145,7 +194,11 @@ export type Op =
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
   | { type: "key.set"; key: KeyInput }
-  | { type: "phone.remove"; dnsClientId: string };
+  | { type: "phone.remove"; dnsClientId: string }
+  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
+  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
+  | { type: "catalog.add"; packageName: string; label: string }
+  | { type: "catalog.remove"; packageName: string };
 
 export interface PendingChange {
   id: string;

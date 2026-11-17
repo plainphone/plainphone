@@ -34,6 +34,11 @@ data class PolicyConfig(
     val seedContacts: List<ApprovedContact> = emptyList(),
     /** Where the phone pairs and fetches rules. Self-hosters point their QR code at their own server. */
     val serverUrl: String = DEFAULT_SERVER_URL,
+    /**
+     * One-time enrollment token from a dashboard-made QR code. Only read at provisioning, then kept
+     * sealed in [org.plainphone.app.sync.SyncStore]; never stored in plain text with the config.
+     */
+    val enrollToken: String? = null,
     /** Set when rules from the server apply; null means the QR code alone decides. */
     val server: ServerOverlay? = null,
 ) {
@@ -76,6 +81,8 @@ data class PolicyConfig(
         const val KEY_COUNTRY = "plainphone.country_code"
         const val KEY_CONTACTS = "plainphone.contacts"
         const val KEY_SERVER_URL = "plainphone.server_url"
+        const val KEY_ENROLL = "plainphone.enroll"
+        private val ENROLL_TOKEN = Regex("^pp_e_[A-Za-z0-9_-]{10,95}$")
 
         /** Builds a config from the QR admin extras. Unknown or blank values keep the default. */
         @Suppress("DEPRECATION") // BaseBundle.get: QR values may arrive as String, Int or Long.
@@ -94,6 +101,7 @@ data class PolicyConfig(
                 countryCallingCode = str(KEY_COUNTRY)?.removePrefix("+")?.takeIf { c -> c.length in 1..3 && c.all(Char::isDigit) },
                 seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
                 serverUrl = str(KEY_SERVER_URL)?.let(::normalizeServerUrl) ?: DEFAULT_SERVER_URL,
+                enrollToken = str(KEY_ENROLL)?.takeIf(ENROLL_TOKEN::matches),
             )
         }
 

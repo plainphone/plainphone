@@ -30,6 +30,7 @@ describe("rules delivery", () => {
     expect(first.json.apps).toEqual({
       allowed: ["com.android.dialer", "com.spotify.music"], // core + Danish starter pack
       hidden: ["com.zhiliaoapp.musically"],
+      toInstall: [],
     });
     expect(first.json.dns.host).toMatch(/\.dns\.plainphone\.org$/);
     expect(first.json.pollSeconds).toBe(60);

@@ -14,13 +14,17 @@ import {
   phones,
   schedules,
   selfKeys,
+  timeBonuses,
+  timeLimits,
   users,
 } from "../db/schema.js";
 import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
+import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
 import { notifyUsers } from "./notifications.js";
+import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { wakePhone } from "./phones.js";
 
 export type Op =
@@ -34,7 +38,11 @@ export type Op =
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
   | { type: "key.set"; key: KeyInput }
-  | { type: "phone.remove"; dnsClientId: string };
+  | { type: "phone.remove"; dnsClientId: string }
+  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
+  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
+  | { type: "catalog.add"; packageName: string; label: string }
+  | { type: "catalog.remove"; packageName: string };
 
 export class ChangeError extends Error {
   constructor(
@@ -111,8 +119,9 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "schedule.create":
       return showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
     case "phone.remove":
-      // Removing a Self phone and pairing it again as a Child would drop the key.
-      return true;
+      // Removing a Self phone and pairing it again as a Child would drop the key. A phone
+      // that never paired (a setup QR nobody scanned) has nothing to escape from.
+      return phone.pairedAt !== null;
     case "schedule.delete":
       return true;
     case "schedule.update": {
@@ -121,6 +130,19 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
       // scheduleLoosens already counts every newly listed app as loosening.
       return scheduleLoosens(current, op.schedule);
     }
+    case "timeLimit.set": {
+      const [current] = await db
+        .select()
+        .from(timeLimits)
+        .where(and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName)));
+      return limitLoosens(current ?? null, op.limit);
+    }
+    case "timeLimit.bonus":
+      return true;
+    case "catalog.add":
+      return true;
+    case "catalog.remove":
+      return false;
     case "key.set": {
       const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
       if (!current) return false;
@@ -165,6 +187,32 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
     case "key.set":
       if (phone.profile !== "self") throw new ChangeError(400, "only Self phones have a key");
       return;
+    case "timeLimit.set":
+    case "timeLimit.bonus": {
+      if (op.type === "timeLimit.bonus") {
+        // Extra time only means something where there is a limit.
+        const [limit] = await db
+          .select({ p: timeLimits.packageName })
+          .from(timeLimits)
+          .where(and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName)));
+        if (!limit) throw new ChangeError(400, "there is no limit to give extra time on");
+      }
+      if (op.packageName === TOTAL) return;
+      const [app] = await db
+        .select()
+        .from(phoneApps)
+        .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
+      if (!app) throw new ChangeError(404, "app not reported by this phone");
+      // Core apps (dialer, messages, maps, clock, settings...) must always work.
+      if (app.core) throw new ChangeError(400, "core apps such as the dialer cannot have a time limit");
+      return;
+    }
+    case "catalog.add": {
+      const country = phoneCountry(phone.timezone);
+      const entry = country ? getCatalog(country)?.apps.find((a) => a.packageName === op.packageName) : undefined;
+      if (!entry) throw new ChangeError(404, "this app is not in the catalog for this phone");
+      return;
+    }
     default:
       return;
   }
@@ -261,6 +309,61 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
       if (gone) await queueDnsDeletions(db, [gone.clientId]);
       return { dns: false };
     }
+    case "timeLimit.set": {
+      const where = and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName));
+      if (!op.limit) {
+        await db.delete(timeLimits).where(where);
+        return { dns: false };
+      }
+      if (op.packageName !== TOTAL) {
+        // A delayed change may meet an app that has since been reported as core.
+        const [app] = await db
+          .select({ core: phoneApps.core })
+          .from(phoneApps)
+          .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
+        if (app?.core) throw new ChangeError(400, "core apps such as the dialer cannot have a time limit");
+      }
+      const values = { minutes: op.limit.minutes, days: op.limit.days };
+      await db
+        .insert(timeLimits)
+        .values({ phoneId: phone.id, packageName: op.packageName, ...values })
+        .onConflictDoUpdate({ target: [timeLimits.phoneId, timeLimits.packageName], set: values });
+      return { dns: false };
+    }
+    case "timeLimit.bonus":
+      // The day is decided when the bonus takes effect, not when it was asked for: on a
+      // Self phone it may wait 24 hours or more, and yesterday's bonus is never sent.
+      await db.insert(timeBonuses).values({
+        phoneId: phone.id,
+        packageName: op.packageName,
+        day: localDate(phone.timezone, ctx.now()),
+        minutes: op.minutes,
+      });
+      return { dns: false };
+    case "catalog.add":
+      // A new row is not installed yet; an existing row keeps its installed flag and label.
+      await db
+        .insert(phoneApps)
+        .values({
+          phoneId: phone.id,
+          packageName: op.packageName,
+          label: op.label,
+          allowed: true,
+          requested: true,
+          installed: false,
+          reportedAt: ctx.now(),
+        })
+        .onConflictDoUpdate({
+          target: [phoneApps.phoneId, phoneApps.packageName],
+          set: { allowed: true, requested: true },
+        });
+      return { dns: false };
+    case "catalog.remove":
+      await db
+        .update(phoneApps)
+        .set({ requested: false, allowed: false })
+        .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
+      return { dns: false };
   }
 }
 

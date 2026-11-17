@@ -43,7 +43,7 @@ export function PhonesPage() {
       <div className="title-row">
         <PageTitle>{t("phones.title")}</PageTitle>
         {res.data && res.data.length > 0 && (
-          <Link to="/pair" className="btn btn-primary">
+          <Link to="/add" className="btn btn-primary">
             {t("phones.add")}
           </Link>
         )}
@@ -57,7 +57,7 @@ export function PhonesPage() {
               <h2 id="empty-title">{t("phones.emptyTitle")}</h2>
               <p>{t("phones.emptyBody")}</p>
               <p>
-                <Link to="/pair" className="btn btn-primary">
+                <Link to="/add" className="btn btn-primary">
                   {t("phones.add")}
                 </Link>
               </p>
@@ -72,6 +72,7 @@ export function PhonesPage() {
                       <span className="row-meta">
                         <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
+                        {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
                         <span>
                           {phone.lastSeenAt

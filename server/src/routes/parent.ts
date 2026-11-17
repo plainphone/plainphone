@@ -44,8 +44,11 @@ import {
 } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
+import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, phoneSummary, wakePhone } from "../services/phones.js";
+import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
+import { limitRoutes } from "./limits.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -76,6 +79,7 @@ export function parentRoutes(ctx: Ctx) {
   const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
+  const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
   const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
   const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
 
@@ -550,6 +554,51 @@ export function parentRoutes(ctx: Ctx) {
     return c.json(await phoneSummary(ctx, phone), 201);
   });
 
+  // Strong-mode setup from the dashboard: a phone entry plus a one-time token for the provisioning
+  // QR code, which the browser builds (it also hashes the maintenance PIN; the server never sees it).
+  app.post("/phones/enroll", async (c) => {
+    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many new phones today" });
+    const input = await body(
+      c,
+      z.object({
+        name: z.string().trim().min(1).max(40),
+        profile: z.enum(["child", "self"]),
+        householdId: z.uuid().optional(),
+        timezone: z.string().max(64).optional(),
+      }),
+    );
+    const hids = await myHouseholdIds(c.get("user").id);
+    const householdId = input.householdId ?? hids[0];
+    if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
+    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+      return c.json({ error: "unknown time zone" }, 400);
+    }
+    const phone = await ctx.db.transaction((tx) =>
+      createPhone(ctx, tx, {
+        householdId,
+        name: input.name,
+        profile: input.profile,
+        mode: "strong",
+        deviceTokenHash: null,
+        deviceInfo: null,
+        timezone: input.timezone,
+      }),
+    );
+    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    // Register the DNS ClientID now, so the filter host is ready by the time the phone is set up.
+    await syncDns(ctx, phone.id);
+    return c.json({ phone: await phoneSummary(ctx, phone), enrollment, provisioning: provisioningInfo(ctx) }, 201);
+  });
+
+  // A new QR code for a phone that has not been set up yet (the old one expired or got lost).
+  app.post("/phones/:pid/enrollment", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
+    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
+    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);
+  });
+
   app.get("/phones/:pid", async (c) => c.json(await phoneSummary(ctx, await requirePhone(c))));
 
   app.patch("/phones/:pid", async (c) => {
@@ -651,6 +700,10 @@ export function parentRoutes(ctx: Ctx) {
     const input = await body(c, z.object({ allowed: z.boolean() }));
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
   });
+
+  // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
+  limitRoutes(app, ctx, { requirePhone, change });
+  phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
   app.get("/phones/:pid/contacts", async (c) => {
