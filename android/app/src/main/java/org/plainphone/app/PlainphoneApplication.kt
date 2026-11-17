@@ -40,6 +40,15 @@ class PlainphoneApplication : Application() {
                 },
                 IntentFilter(Intent.ACTION_SCREEN_ON),
             )
+            // Screen off: keep looking for a ring or an "Are you okay?" every 2 minutes (docs/location.md).
+            registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        org.plainphone.app.safety.Safety.scheduleIdlePoll(context)
+                    }
+                },
+                IntentFilter(Intent.ACTION_SCREEN_OFF),
+            )
             TimeTicker.register(this)
             // The filter went down (revoked or stopped): the parent hears it with this sync, not 15 minutes later.
             org.plainphone.app.light.vpn.VpnEvents.listener = { event ->

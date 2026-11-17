@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="safety_channel_ring">Ring telefonen</string>
+    <string name="safety_channel_checkin">Er du okay?</string>
+    <string name="safety_channel_location">Placering delt</string>
+
+    <string name="ring_eyebrow">Fra din forælder</string>
+    <string name="ring_title">Din forælder leder efter dig</string>
+    <string name="ring_body">Tryk på knappen, så din forælder ved, at du har hørt det.</string>
+    <string name="ring_here">Jeg er her</string>
+    <string name="ring_notice">Tryk for at åbne, og tryk så på Jeg er her.</string>
+    <string name="ring_thanks">Tak. Din forælder ved det nu.</string>
+    <string name="ring_keeps_going">Din forælder har bedt om, at lyden fortsætter. Den stopper om %1$s.</string>
+
+    <string name="checkin_eyebrow">Fra din forælder</string>
+    <string name="checkin_title">Er du okay?</string>
+    <string name="checkin_body">Svar gerne inden kl. %1$s.</string>
+    <string name="checkin_body_location">Svar inden kl. %1$s. Svarer du ikke inden da, sendes din placering én gang til din forælder.</string>
+    <string name="checkin_ok">Ja, jeg er okay</string>
+    <string name="checkin_call">Ring til mig</string>
+    <string name="checkin_notice">Svar gerne inden kl. %1$s.</string>
+
+    <string name="location_sent_title">Placering sendt</string>
+    <string name="location_sent_find">Din forælder trykkede Find, og din placering blev sendt kl. %1$s.</string>
+    <string name="location_sent_checkin">Du svarede ikke på ”Er du okay?”, så din placering blev sendt til din forælder kl. %1$s.</string>
+    <string name="location_always_title">Din placering deles med din forælder</string>
+    <string name="location_always_body">Hvert 5. minut, indtil din forælder slår det fra.</string>
+    <string name="location_always_body_until">Hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
+    <string name="location_always_badge_until">Din placering deles indtil %1$s</string>
+
+    <string name="sharing_open">Hvad kan mine forældre se?</string>
+    <string name="sharing_title">Hvad kan mine forældre se?</string>
+    <string name="sharing_mode_off">Din forælder kan ikke se, hvor du er. Placering er slået fra.</string>
+    <string name="sharing_mode_find">Din forælder får kun din placering, når de trykker Find, og ser så, hvor du var på det tidspunkt. Du får en besked hver gang.</string>
+    <string name="sharing_mode_checkin">Din forælder får din placering, når de trykker Find, eller hvis du ikke svarer på »Er du okay?« i tide, og ser så, hvor du var på det tidspunkt. Du får en besked hver gang.</string>
+    <string name="sharing_mode_always">Din placering deles hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
+    <string name="sharing_mode_always_open">Din placering deles hvert 5. minut. Du ser beskeden hele tiden.</string>
+    <string name="sharing_only_latest">Din forælder ser kun den seneste placering, aldrig en historik.</string>
+    <string name="sharing_latest">Hvornår din placering blev sendt</string>
+    <string name="sharing_none">Din placering er ikke sendt de sidste 30 dage.</string>
+    <string name="sharing_why_find">Din forælder trykkede Find</string>
+    <string name="sharing_why_checkin">Intet svar på »Er du okay?«</string>
+    <string name="sharing_why_always">Altid tændt</string>
+    <string name="sharing_range">%1$s til %2$s</string>
+    <string name="sharing_log_note">Listen findes kun på denne telefon og gemmer de sidste 30 dage.</string>
+</resources>

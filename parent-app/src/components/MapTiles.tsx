@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // A small static map from OpenStreetMap raster tiles: a 3 by 3 grid of plain images
-// centred on the position, with a marker and, when it is small enough to see, the
-// accuracy circle. No map SDK and no API key. The only third-party request is for the
-// nine tiles (tile.openstreetmap.org sees the phone's IP address and the tiles asked
-// for), and the attribution OpenStreetMap asks for is shown under the map.
+// centred on the position, with a marker and, when it is big enough to see, the
+// accuracy circle. The zoom level follows the accuracy, so the circle is visible.
+// No map SDK and no API key. The only third-party request is for the nine tiles
+// (tile.openstreetmap.org sees the phone's IP address and the tiles asked for), and
+// the attribution OpenStreetMap asks for is shown under the map.
 import Constants from "expo-constants";
+import { useState } from "react";
 import { Image, Linking, Platform, Pressable, View } from "react-native";
 import { useI18n } from "../i18n/I18n";
-import { accuracyRadiusPx, tileGrid, TILE_SIZE, tileUrl } from "../lib/tiles";
+import { accuracyRadiusPx, tileGrid, TILE_SIZE, tileUrl, zoomForAccuracy } from "../lib/tiles";
 import { radius, space, touch, useColors } from "../lib/theme";
 import { Text } from "./ui";
 
-export const MAP_ZOOM = 15;
 export const MAP_HEIGHT = 280;
+/** The accuracy circle gets at most this radius: it leaves room around it on a 280 px map. */
+export const MAX_CIRCLE_PX = 100;
 /** Three tiles cover at least 512 px across, so the map is never wider than that. */
 export const MAP_MAX_WIDTH = TILE_SIZE * 2;
 const MARKER = 26;
@@ -30,12 +33,17 @@ function tileSource(zoom: number, x: number, y: number) {
   return Platform.OS === "web" ? { uri } : { uri, headers: { "User-Agent": USER_AGENT } };
 }
 
-export function MapTiles({ lat, lon, accuracyM }: { lat: number; lon: number; accuracyM: number | null }) {
+export function MapTiles({ lat, lon, accuracyM, label }: { lat: number; lon: number; accuracyM: number | null; label: string }) {
   const { t } = useI18n();
   const c = useColors();
-  const tiles = tileGrid(lat, lon, MAP_ZOOM);
-  const circle = accuracyM === null ? 0 : accuracyRadiusPx(accuracyM, lat, MAP_ZOOM);
+  const zoom = zoomForAccuracy(lat, accuracyM, MAX_CIRCLE_PX);
+  const tiles = tileGrid(lat, lon, zoom);
+  const circle = accuracyM === null ? 0 : accuracyRadiusPx(accuracyM, lat, zoom);
   const showCircle = circle >= MIN_CIRCLE_PX && circle <= MAP_HEIGHT / 2;
+  // Tiles that did not load (offline, blocked). When none did, say so instead of showing an empty box.
+  const [failed, setFailed] = useState<Record<string, true>>({});
+  const tileKey = (x: number, y: number) => `${zoom}/${x}/${y}`;
+  const allFailed = tiles.every((tile) => failed[tileKey(tile.x, tile.y)]);
 
   return (
     <View style={{ gap: space.xs }}>
@@ -43,7 +51,7 @@ export function MapTiles({ lat, lon, accuracyM }: { lat: number; lon: number; ac
         testID="map"
         accessible
         accessibilityRole="image"
-        accessibilityLabel={t("native.mapLabel")}
+        accessibilityLabel={label}
         style={{
           height: MAP_HEIGHT,
           width: "100%",
@@ -60,12 +68,13 @@ export function MapTiles({ lat, lon, accuracyM }: { lat: number; lon: number; ac
         <View style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0 }}>
           {tiles.map((tile) => (
             <Image
-              key={`${tile.x}/${tile.y}`}
+              key={tileKey(tile.x, tile.y)}
               testID="map-tile"
               accessible={false}
               importantForAccessibility="no"
               accessibilityIgnoresInvertColors
               source={tileSource(tile.zoom, tile.x, tile.y)}
+              onError={() => setFailed((f) => ({ ...f, [tileKey(tile.x, tile.y)]: true }))}
               style={{ position: "absolute", left: tile.left, top: tile.top, width: TILE_SIZE, height: TILE_SIZE }}
             />
           ))}
@@ -105,6 +114,11 @@ export function MapTiles({ lat, lon, accuracyM }: { lat: number; lon: number; ac
           </View>
         </View>
       </View>
+      {allFailed ? (
+        <Text variant="small" accessibilityLiveRegion="polite">
+          {t("loc.mapFailed")}
+        </Text>
+      ) : null}
       <Pressable
         onPress={() => void Linking.openURL("https://www.openstreetmap.org/copyright").catch(() => undefined)}
         accessibilityRole="link"

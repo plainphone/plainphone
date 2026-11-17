@@ -16,6 +16,9 @@ import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
 
+/** Where the PWA's map loads its tiles (web/src/lib/maps.ts). */
+export const MAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
+
 export function createApp(ctx: Ctx) {
   const app = new Hono();
 
@@ -24,10 +27,12 @@ export function createApp(ctx: Ctx) {
     secureHeaders({
       contentSecurityPolicy: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:"],
+        // The location page's map: vector tiles, fonts and sprites from OpenFreeMap (docs/privacy.md).
+        imgSrc: ["'self'", "data:", "blob:", MAP_TILE_ORIGIN],
         styleSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        connectSrc: ["'self'"],
+        workerSrc: ["'self'", "blob:"],
+        connectSrc: ["'self'", MAP_TILE_ORIGIN],
         frameAncestors: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

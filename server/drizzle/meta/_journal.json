@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1794948254158,
-      "tag": "0006_phone_updates",
+      "when": 1794947460291,
+      "tag": "0006_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794950447946,
+      "tag": "0007_phone_updates",
       "breakpoints": true
     }
   ]
