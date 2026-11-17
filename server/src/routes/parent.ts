@@ -31,6 +31,7 @@ import { approveRequest, openRequests, rejectRequest, RequestError } from "../se
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
+import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
 import * as v from "../lib/validation.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
@@ -45,7 +46,7 @@ import {
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
-import { createPhone, phoneSummary, wakePhone } from "../services/phones.js";
+import { createPhone, loadPhoneSettings, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
@@ -698,6 +699,31 @@ export function parentRoutes(ctx: Ctx) {
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
   });
 
+  // Phone settings and the home screen (docs/phone-settings.md)
+  app.get("/phones/:pid/settings", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json({ settings: (await loadPhoneSettings(ctx.db, phone.id)).settings });
+  });
+
+  app.put("/phones/:pid/settings/:key", async (c) => {
+    const phone = await requirePhone(c);
+    const key = c.req.param("key");
+    if (!isSettingKey(key)) throw new HTTPException(404, { message: "unknown setting" });
+    const setting = await body(c, settingBody(key));
+    return change(c, phone, { type: "setting.set", key, setting });
+  });
+
+  app.get("/phones/:pid/home", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json((await loadPhoneSettings(ctx.db, phone.id)).home);
+  });
+
+  // Never waits for the key: the home screen only arranges apps the rules already allow.
+  app.put("/phones/:pid/home", async (c) => {
+    const phone = await requirePhone(c);
+    const home = await body(c, homeInput);
+    return change(c, phone, { type: "home.set", home });
+  });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });

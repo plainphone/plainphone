@@ -2,6 +2,9 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.settings.PhoneSettings
+import org.plainphone.app.settings.SettingsApplier
+
 /** One line in the status report: what was attempted and whether it held. */
 data class StepResult(val name: String, val ok: Boolean, val detail: String = "") {
     override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
@@ -25,6 +28,8 @@ class PolicyApplier(
     private val device: DeviceControls,
     private val hiddenStore: HiddenAppsStore,
     private val sdkInt: Int,
+    /** Phone settings and the home screen (docs/phone-settings.md); null leaves them alone. */
+    private val settings: SettingsApplier? = null,
 ) {
 
     fun apply(config: PolicyConfig): List<StepResult> {
@@ -48,6 +53,7 @@ class PolicyApplier(
         results += step("automatic date and time") { device.requireAutoTime(true) }
         results += grantTelephonyPermissions()
         results += location(config)
+        results += settings?.apply(config.server?.settings ?: PhoneSettings.NONE).orEmpty()
         // After the roles: the maker's phone and SMS apps are hidden once Plainphone holds the role
         // (below Android 14 the extra dialers always, see LockPolicy.telephonyAppsToHide).
         results += hideApps(config)
@@ -76,6 +82,7 @@ class PolicyApplier(
             results += step("clear $key") { device.clearRestriction(key) }
         }
         results += showAllHidden()
+        results += settings?.lift().orEmpty()
         results += step("time limits lifted") { setSuspended(emptySet()); null }
         results += step("private DNS back to automatic") { device.releasePrivateDns() }
         return results
@@ -152,8 +159,10 @@ class PolicyApplier(
      */
     private fun location(config: PolicyConfig): List<StepResult> {
         if (config.server?.locationRequired != true) {
+            settings?.let { return it.location(config.server?.settings ?: PhoneSettings.NONE) }
             return listOf(step("location setting free") { device.clearRestriction(LockPolicy.LOCATION_RESTRICTION) })
         }
+        settings?.locationForced()
         return listOf(
             step("location permission") {
                 val refused = LockPolicy.LOCATION_PERMISSIONS.filterNot { perm ->

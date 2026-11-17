@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- The home screen. Kept apart from strings.xml so parallel work does not collide. -->
+<resources>
+    <string name="home_label">Plainphone home</string>
+    <string name="home_phone">Phone</string>
+    <string name="home_messages">Messages</string>
+    <string name="home_emergency">Emergency call</string>
+    <string name="home_all_apps">All apps</string>
+    <string name="home_back">Back</string>
+    <string name="home_no_apps">No other apps right now.</string>
+    <string name="home_school_until">School time until %1$s</string>
+    <string name="home_bedtime_until">Bedtime until %1$s</string>
+    <string name="home_time_used">No more today</string>
+    <plurals name="home_minutes_left">
+        <item quantity="one">%d min left</item>
+        <item quantity="other">%d min left</item>
+    </plurals>
+    <string name="home_make_default_title">Use Plainphone as your home screen</string>
+    <string name="home_make_default_body">Then only the chosen apps are on your screen.</string>
+    <string name="home_make_default_button">Choose Plainphone</string>
+</resources>

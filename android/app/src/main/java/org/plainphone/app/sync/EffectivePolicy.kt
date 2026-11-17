@@ -43,7 +43,11 @@ object EffectivePolicy {
             dnsHost = if (rules.dnsReady && rules.dnsHost != null && !removed) rules.dnsHost else qr.dnsHost,
             // During a window, an app needs both: the window allows it and the app list shows it.
             allowedPackages = windowAllowed?.let { it intersect allowed } ?: allowed,
-            server = ServerOverlay(windowActive = windows.isNotEmpty(), locationRequired = rules.locationEnabled),
+            server = ServerOverlay(
+                windowActive = windows.isNotEmpty(),
+                locationRequired = rules.locationEnabled,
+                settings = rules.settings,
+            ),
             timeBlocked = timeBlocked,
             installing = install,
         )
@@ -57,6 +61,7 @@ object EffectivePolicy {
             config.server?.windowActive.toString(),
             config.server?.locationRequired.toString(),
             config.frpAccountIds.sorted().joinToString(","),
+            config.server?.settings?.canonical().orEmpty(),
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
         ).joinToString("|")

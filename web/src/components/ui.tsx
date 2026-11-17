@@ -233,3 +233,62 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
     </div>
   );
 }
+
+export interface PickOption<V extends string> {
+  value: V;
+  label: string;
+  /** A small mark before the label, e.g. a colour swatch. Hidden from screen readers. */
+  mark?: ReactNode;
+  /** Picked state stays calm instead of filled, for "nothing is set" choices. */
+  quiet?: boolean;
+}
+
+/**
+ * Pick one of a few choices as a segmented control. Built on radio buttons, so arrow keys,
+ * the label and the checked state work for keyboards and screen readers. Name it with
+ * `labelledBy` (an element's id) or `label`.
+ */
+export function PickGroup<V extends string>({
+  name,
+  value,
+  options,
+  onChange,
+  disabled,
+  labelledBy,
+  label,
+  describedBy,
+}: {
+  name: string;
+  value: V;
+  options: readonly PickOption<V>[];
+  onChange: (next: V) => void;
+  disabled?: boolean;
+  labelledBy?: string;
+  label?: string;
+  describedBy?: string;
+}) {
+  return (
+    <div
+      className="pick"
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      aria-label={labelledBy ? undefined : label}
+      aria-describedby={describedBy}
+    >
+      {options.map((o) => (
+        <label key={o.value} className={`pick-opt${o.quiet ? " pick-opt-quiet" : ""}`}>
+          <input
+            type="radio"
+            name={name}
+            value={o.value}
+            checked={value === o.value}
+            disabled={disabled}
+            onChange={() => onChange(o.value)}
+          />
+          {o.mark}
+          <span>{o.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
