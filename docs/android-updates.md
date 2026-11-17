@@ -58,6 +58,11 @@ that lock work in Doze. On AOSP it also permits exact alarms independently of th
 recovery still depends on Android delivering an alarm or restarting the app after
 process death and accepting its policy write. If an approved catalog window remains
 active, the shared restriction stays lifted until that window ends.
+Catalog targets can change within an active window and share its original deadline.
+A request arriving while Android is clearing the restriction can be retried once that
+call finishes. The watchdog can relock during the call, and recovery keeps the old
+deadline until it can retire the window and record any observed delay. A later request
+recovers a stale window before opening another one.
 
 The ten-second self-update deadline is a recovery target. Android can suspend or kill
 the process and delay the recovery triggers. During a delayed self-update window, a

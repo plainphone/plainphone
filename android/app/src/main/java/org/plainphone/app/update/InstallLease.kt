@@ -5,8 +5,14 @@ package org.plainphone.app.update
 import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.Settings
+import java.util.UUID
 
-/** Durable, process-scoped windows in which Device Owner installs may get through. */
+/**
+ * Lease states under LOCK: absent → open → closing → absent.
+ * A clear can run outside LOCK. While clearing, closing leases stay on disk even
+ * after the watchdog relocks. The last clear completes recovery under LOCK.
+ * Closing preserves the deadline and any observed overrun until retirement reports it.
+ */
 class InstallLease(
     private val store: Store,
     private val env: Env,
@@ -25,6 +31,8 @@ class InstallLease(
         val sessionId: Int? = null,
         val wallDeadlineMs: Long? = null,
         val invalidated: Boolean = false,
+        val pendingOverrunMs: Long? = null,
+        val id: String? = null,
     )
 
     interface Store {
@@ -46,22 +54,29 @@ class InstallLease(
         fun persistWithWatchdog(holder: String, atMs: Long, persist: () -> Unit) = persist()
     }
 
-    fun allowsInstall(catalogApproved: Boolean): Boolean {
-        val open = valid()
+    fun allowsInstall(catalogApproved: Boolean): Boolean = synchronized(LOCK) {
+        allowsInstallLocked(catalogApproved)
+    }
+
+    private fun allowsInstallLocked(catalogApproved: Boolean): Boolean {
+        val open = valid(store.load())
         return SELF_UPDATE in open || (catalogApproved && CATALOG in open)
     }
 
     /** Keeps the durable marker until Android has finished the restriction clear. */
     fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean {
         synchronized(LOCK) {
-            if (!allowsInstall(catalogApproved)) return false
+            if (!allowsInstallLocked(catalogApproved)) return false
             clearsInFlight++
         }
         try {
             clear()
         } finally {
-            synchronized(LOCK) { clearsInFlight-- }
-            recover()
+            val catalogChanged = synchronized(LOCK) {
+                clearsInFlight--
+                recoverLocked("install restriction clear finished")
+            }
+            catalogChanged?.let(onRecovered)
         }
         return true
     }
@@ -71,14 +86,15 @@ class InstallLease(
      * recovery is also scheduled independently of this call.
      */
     fun <T> hold(holder: String, durationMs: Long = MAX_MS, block: () -> T): T {
+        val lease = start(holder, durationMs)
         try {
-            acquire(holder, durationMs)
-            check(isOpen(holder)) { "Install window expired before session creation" }
+            applyLock("install lease opened: $holder", holder == CATALOG)
+            check(isOpen(holder, lease.id)) { "Install window expired before session creation" }
             val result = block()
-            check(isOpen(holder)) { "Install window expired during session creation" }
+            check(isOpen(holder, lease.id)) { "Install window expired during session creation" }
             return result
         } finally {
-            release(holder)
+            close(holder, "install lease released") { it.id == lease.id }
         }
     }
 
@@ -88,94 +104,124 @@ class InstallLease(
     }
 
     fun begin(holder: String, durationMs: Long) {
+        start(holder, durationMs)
+    }
+
+    private fun start(holder: String, durationMs: Long): Lease {
         val duration = durationMs.coerceIn(1L, MAX_MS)
         val until = env.nowMs() + duration
         val wallDeadline = env.wallNowMs() + duration
-        synchronized(BEGIN_LOCK) {
+        var started: Lease? = null
+        var catalogChanged: Boolean? = null
+        try {
+            // The service acknowledges on the main thread. Do not wait for it under LOCK.
             env.prepareExpiry(holder, until)
             env.persistWithWatchdog(holder, until) {
-                val lease = Lease(until, env.bootCount(), env.versionCode(), env.processId(), wallDeadlineMs = wallDeadline)
                 synchronized(LOCK) {
-                    check(until > env.nowMs()) { "Install watchdog started after its deadline" }
-                    val previous = store.load()
-                    check(clearsInFlight == 0 || holder !in previous) {
-                        "Install restriction clear still in progress"
-                    }
-                    try {
-                        store.save(previous + (holder to lease))
+                    check(clearsInFlight == 0) { "Install restriction clear still in progress" }
+                    catalogChanged = recoverLocked("recover before opening install lease")
+                    val current = store.load()
+                    val open = valid(current)
+                    check(current.keys == open.keys) { "Previous install window still needs recovery" }
+                    val existing = open[holder]
+                    if (existing != null) {
+                        check(holder == CATALOG) { "Install window already open: $holder" }
+                        // Catalog targets may change within the current window.
+                        started = existing
+                    } else {
+                        check(until > env.nowMs()) { "Install watchdog started after its deadline" }
+                        val lease = Lease(until, env.bootCount(), env.versionCode(), env.processId(),
+                            wallDeadlineMs = wallDeadline, id = UUID.randomUUID().toString())
                         env.scheduleExpiry(holder, until)
-                    } catch (e: Exception) {
-                        // SharedPreferences updates its in-memory view even when commit fails.
-                        runCatching { store.save(previous) }
-                        throw e
+                        store.save(current + (holder to lease))
+                        started = lease
                     }
                 }
             }
+        } finally {
+            catalogChanged?.let(onRecovered)
         }
+        return checkNotNull(started)
     }
 
-    fun isOpen(holder: String): Boolean = holder in valid()
+    fun isOpen(holder: String): Boolean = synchronized(LOCK) { holder in valid(store.load()) }
 
-    fun finishSession(sessionId: Int) {
-        synchronized(LOCK) {
-            if (store.load()[SELF_UPDATE]?.sessionId != sessionId) return
-            invalidate(SELF_UPDATE)
-        }
-        recover("self-update installer result")
+    private fun isOpen(holder: String, id: String?): Boolean = synchronized(LOCK) {
+        val lease = valid(store.load())[holder]
+        lease != null && lease.id == id
     }
 
-    /** Relock first. Keep the recovery markers if Android rejects the policy write. */
+    fun finishSession(sessionId: Int) =
+        close(SELF_UPDATE, "self-update installer result") { it.sessionId == sessionId }
+
     fun recover(reason: String = "recover install restriction", force: Boolean = false) {
-        val catalogChanged = synchronized(LOCK) {
-            val current = store.load()
-            val valid = if (force) emptyMap() else valid(current)
-            val expired = current.keys - valid.keys
-            if (expired.isEmpty() && (valid.isNotEmpty() || !restrictionLifted())) return
-            // A failed diagnostic read must not prevent recovery of a retired lease.
-            val wasLifted = expired.isNotEmpty() && valid.isEmpty() && runCatching(restrictionLifted).getOrDefault(false)
-            if (relockNow == null) {
-                applyLock(reason, CATALOG in expired)
-            } else if (valid.isEmpty()) {
-                relockNow.invoke()
-            }
-            if (expired.isNotEmpty()) {
-                val overrun = if (valid.isEmpty() && tracksOverruns()) {
-                    expired.mapNotNull { overrunMs(current.getValue(it), wasLifted) }.maxOrNull()
-                } else {
-                    null
-                }
-                // A clear can take effect after the watchdog relocks. Keep its deadline
-                // available to the policy path, while making the expired lease unusable.
-                val retained = if (clearsInFlight == 0) emptyMap() else
-                    current.filterKeys { it in expired }.mapValues { (_, lease) -> lease.copy(invalidated = true) }
-                store.retire(valid + retained, overrun?.let { (it + 999) / 1_000 })
-                val retired = expired - retained.keys
-                retired.forEach(env::cancelExpiry)
-                CATALOG in retired
-            } else {
-                false
-            }
-        }
-        onRecovered(catalogChanged)
+        val catalogChanged = synchronized(LOCK) { recoverLocked(reason, force) }
+        catalogChanged?.let(onRecovered)
     }
 
-    fun hasMarkers(): Boolean = store.load().isNotEmpty()
+    /** Returns whether catalog policy needs refreshing, or null when nothing changed. */
+    private fun recoverLocked(reason: String, force: Boolean = false): Boolean? {
+        val current = store.load()
+        val open = if (force) emptyMap() else valid(current)
+        val closing = current - open.keys
+        if (closing.isEmpty() && (open.isNotEmpty() || !restrictionLifted())) return null
+
+        // Capture the overrun before relocking, which may change Android's state and then throw.
+        val wasLifted = closing.isNotEmpty() && open.isEmpty() &&
+            runCatching(restrictionLifted).getOrDefault(false)
+        val track = open.isEmpty() && closing.isNotEmpty() && tracksOverruns()
+        val pending = closing.mapValues { (_, lease) -> closingLease(lease, track, wasLifted) }
+        val marked = open + pending
+        if (marked != current) store.save(marked)
+
+        if (open.isEmpty()) {
+            if (relockNow == null) applyLock(reason, CATALOG in closing)
+            else relockNow.invoke()
+        }
+
+        if (closing.isEmpty()) return false
+        // Include time spent in the policy write. A clear can take effect again
+        // after that write, so retain its closing record until it returns.
+        val completed = pending.mapValues { (_, lease) -> closingLease(lease, track && wasLifted, wasLifted) }
+        if (completed != pending) store.save(open + completed)
+        if (clearsInFlight != 0) return false
+        val overrun = completed.values.mapNotNull { it.pendingOverrunMs }.maxOrNull()
+        store.retire(open, overrun?.let { (it + 999) / 1_000 })
+        closing.keys.forEach(env::cancelExpiry)
+        return CATALOG in closing
+    }
+
+    private fun closingLease(lease: Lease, track: Boolean, wasLifted: Boolean): Lease {
+        val observed = if (track) overrunMs(lease, wasLifted) else null
+        val overrun = if (observed == null) lease.pendingOverrunMs else maxOf(observed, lease.pendingOverrunMs ?: 0L)
+        return lease.copy(invalidated = true, pendingOverrunMs = overrun)
+    }
+
+    fun hasMarkers(): Boolean = synchronized(LOCK) { store.load().isNotEmpty() }
 
     /** Drops [holder]'s lease and applies the lock; the restriction returns unless another lease is open. */
-    fun release(holder: String) {
-        try {
-            invalidate(holder)
-        } finally {
-            recover()
+    fun release(holder: String) = close(holder, "install lease released")
+
+    private fun close(holder: String, reason: String, matches: ((Lease) -> Boolean)? = null) {
+        val catalogChanged = synchronized(LOCK) {
+            val current = store.load()
+            val lease = current[holder]
+            if (matches != null && (lease == null || !matches(lease))) return
+            if (lease != null) invalidateLocked(current, holder, lease)
+            recoverLocked(reason)
         }
+        catalogChanged?.let(onRecovered)
     }
 
     fun invalidate(holder: String): Boolean = synchronized(LOCK) {
         val current = store.load()
         val lease = current[holder] ?: return@synchronized false
-        // Persist an invalid marker until the restriction has been reapplied.
-        store.save(current + (holder to lease.copy(invalidated = true)))
+        invalidateLocked(current, holder, lease)
         true
+    }
+
+    private fun invalidateLocked(current: Map<String, Lease>, holder: String, lease: Lease) {
+        if (!lease.invalidated) store.save(current + (holder to lease.copy(invalidated = true)))
     }
 
     private fun overrunMs(lease: Lease, wasLifted: Boolean): Long? {
@@ -193,7 +239,7 @@ class InstallLease(
         }
     }
 
-    private fun valid(leases: Map<String, Lease> = store.load()): Map<String, Lease> {
+    private fun valid(leases: Map<String, Lease>): Map<String, Lease> {
         if (leases.isEmpty()) return leases
         val now = env.nowMs()
         val process = env.processId()
@@ -210,9 +256,10 @@ class InstallLease(
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
         private var clearsInFlight = 0
-        private val BEGIN_LOCK = Any()
 
-        internal fun latestOverrun(context: Context): InstallWindowOverrun? = PrefsLeaseStore(context).latestOverrun()
+        internal fun latestOverrun(context: Context): InstallWindowOverrun? = synchronized(LOCK) {
+            PrefsLeaseStore(context).latestOverrun()
+        }
 
         /** Binds the durable leases to the Device Owner restriction and recovery entry points. */
         fun android(context: Context): InstallLease {
@@ -263,6 +310,8 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
                 parts[0].toLong(), parts[1].toInt(), parts[2].toLong(), parts[3],
                 parts.getOrNull(4)?.toIntOrNull(), parts.getOrNull(5)?.toLongOrNull(),
                 parts.getOrNull(6) == "true",
+                parts.getOrNull(7)?.toLongOrNull(),
+                parts.getOrNull(8)?.takeIf(String::isNotEmpty),
             )
         }.getOrNull()
         lease?.let { holder to it }
@@ -280,17 +329,26 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
     // commit, not apply: the lease must be on disk before the restriction is lifted.
     @SuppressLint("ApplySharedPref")
     override fun retire(leases: Map<String, InstallLease.Lease>, overrunSeconds: Long?) {
+        val previous = (load().keys + leases.keys + OVERRUN).associateWith { prefs.getString(it, null) }
         val edit = prefs.edit()
-        (load().keys - leases.keys).forEach(edit::remove)
+        (previous.keys - leases.keys - OVERRUN).forEach(edit::remove)
         leases.forEach { (holder, l) ->
             edit.putString(holder, listOf(l.untilMs, l.bootCount, l.versionCode, l.process,
-                l.sessionId ?: "", l.wallDeadlineMs ?: "", l.invalidated).joinToString(","))
+                l.sessionId ?: "", l.wallDeadlineMs ?: "", l.invalidated, l.pendingOverrunMs ?: "",
+                l.id ?: "").joinToString(","))
         }
         if (overrunSeconds != null) {
             val sequence = (latestOverrun()?.sequence ?: 0) + 1
             edit.putString(OVERRUN, "$overrunSeconds,$sequence")
         }
-        check(edit.commit()) { "Could not persist install leases" }
+        if (!edit.commit()) {
+            // A failed commit may have updated SharedPreferences in memory.
+            // Restore the prior markers so a retry can still report them.
+            val rollback = prefs.edit()
+            previous.forEach { (key, value) -> rollback.putString(key, value) }
+            rollback.commit()
+            error("Could not persist install leases")
+        }
     }
 
     companion object {
@@ -309,7 +367,7 @@ internal class AndroidLeaseEnv(private val context: Context) : InstallLease.Env 
     override fun versionCode(): Long = 0
 
     companion object {
-        private val process = java.util.UUID.randomUUID().toString()
+        private val process = UUID.randomUUID().toString()
     }
 
     override fun prepareExpiry(holder: String, atMs: Long) {
