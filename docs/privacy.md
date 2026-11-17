@@ -5,6 +5,11 @@ Plainphone keeps as little data as it can, for as short a time as it can
 the technical basis for the [privacy policy](https://plainphone.org/privacy/) on plainphone.org,
 which also covers the parent app and the server. Change the two together.
 
+End-to-end encryption is under development. The hosted service is a test
+version, and the application server can read the contents described below.
+The [encryption specification](encryption.md) describes the planned storage
+model and the metadata it will still expose.
+
 ## Server and parent app (`app.plainphone.org`)
 
 The server stores accounts, households and the rules for each phone in PostgreSQL.

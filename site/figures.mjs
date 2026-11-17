@@ -98,8 +98,13 @@ export function figures({ taps, set, cancel, alt }) {
   const single = 184;
   const double = 8 + W + 44 + W + 8;
   return {
+    download: svg(single, alt.download, phone(8, '<path class="f-line" d="M75 86v74m-24-24 24 24 24-24m-49 45h50"/>')),
+    permissions: svg(single, alt.permissions, phone(8, [92, 160].map((y) =>
+      `${bar(16, y + 9, 62)}<rect class="f-mark" x="88" y="${y}" width="46" height="25" rx="13"/><circle class="f-ink" cx="121" cy="${y + 12.5}" r="8"/>`,
+    ).join(""))),
     reset: svg(single, alt.reset, phone(8, resetScreen())),
     welcome: svg(single, alt.welcome, phone(8, welcomeScreen(taps))),
+    lightScan: svg(single, alt.lightScan, phone(8, scanScreen())),
     scan: svg(double, alt.scan, `${phone(8, scanScreen())}${arrow(8 + W + 22)}${phone(8 + W + 44, wifiScreen())}`),
     dialog: svg(single, alt.dialog, phone(8, dialogScreen(set, cancel))),
   };

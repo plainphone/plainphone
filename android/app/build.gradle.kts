@@ -23,8 +23,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.1.7"
+        versionCode = 9
+        versionName = "0.1.8"
     }
 
     signingConfigs {
@@ -60,6 +60,8 @@ android {
     buildFeatures {
         compose = true
     }
+
+    sourceSets.named("test") { resources.directories.add("../../web/test-fixtures") }
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
