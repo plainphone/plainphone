@@ -128,7 +128,7 @@ sends no call or SMS history to the server. Android's own recent calls and
 SMS conversations can still be visible locally on the phone. ppdns keeps
 query logging off and excludes protected domains from DNS statistics.
 
-[UN Committee on the Rights of the Child, General Comment No. 25, paragraph 67](https://digitallibrary.un.org/record/3906061?ln=en)
+[UN Committee on the Rights of the Child, General Comment No. 25, paragraph 76](https://digitallibrary.un.org/record/3906061?ln=en)
 describes how monitoring can prevent children from seeking help.
 [Przybylski and Nash (2018)](https://doi.org/10.1089/cyber.2017.0466)
 discuss the risk that internet filtering can restrict access to useful sexual
