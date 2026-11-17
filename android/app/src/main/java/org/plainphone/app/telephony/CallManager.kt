@@ -2,11 +2,14 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import android.os.Build
 import android.os.OutcomeReceiver
 import android.telecom.Call
+import android.telecom.CallAudioState
 import android.telecom.CallEndpoint
 import android.telecom.CallEndpointException
 import android.telecom.VideoProfile
+import androidx.annotation.RequiresApi
 import java.util.concurrent.Executor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,10 +33,11 @@ object CallManager {
     private val _state = MutableStateFlow<List<CallUi>>(emptyList())
     val state: StateFlow<List<CallUi>> = _state.asStateFlow()
 
-    /** Where the sound goes and whether the microphone is muted (API 34 call endpoints). */
-    data class Audio(val muted: Boolean = false, val endpoint: CallEndpoint? = null, val available: List<CallEndpoint> = emptyList()) {
-        val onSpeaker: Boolean get() = endpoint?.endpointType == CallEndpoint.TYPE_SPEAKER
-    }
+    /**
+     * Whether the microphone is muted and the sound goes to the speaker. Fed by call endpoints
+     * on Android 14+ ([Endpoints]) and by CallAudioState before that.
+     */
+    data class Audio(val muted: Boolean = false, val onSpeaker: Boolean = false)
 
     private val _audio = MutableStateFlow(Audio())
     val audio: StateFlow<Audio> = _audio.asStateFlow()
@@ -65,18 +69,29 @@ object CallManager {
         _audio.value = _audio.value.copy(muted = muted)
     }
 
+    @RequiresApi(34)
     fun onEndpointChanged(endpoint: CallEndpoint) {
-        _audio.value = _audio.value.copy(endpoint = endpoint)
+        Endpoints.current = endpoint
+        _audio.value = _audio.value.copy(onSpeaker = endpoint.endpointType == CallEndpoint.TYPE_SPEAKER)
     }
 
+    @RequiresApi(34)
     fun onAvailableEndpointsChanged(endpoints: List<CallEndpoint>) {
-        _audio.value = _audio.value.copy(available = endpoints)
+        Endpoints.available = endpoints
     }
+
+    /** Android 10 to 13: route and mute come from the old audio state. */
+    fun onLegacyAudioState(state: CallAudioState) {
+        legacyRoutes = state.supportedRouteMask
+        _audio.value = Audio(muted = state.isMuted, onSpeaker = state.route == CallAudioState.ROUTE_SPEAKER)
+    }
+
+    private var legacyRoutes = 0
 
     /** The call the screen should focus on: ringing first, then active, then anything else. */
     @Synchronized
-    fun primary(): Call? = calls.firstOrNull { it.details.state == Call.STATE_RINGING }
-        ?: calls.firstOrNull { it.details.state == Call.STATE_ACTIVE }
+    fun primary(): Call? = calls.firstOrNull { callState(it) == Call.STATE_RINGING }
+        ?: calls.firstOrNull { callState(it) == Call.STATE_ACTIVE }
         ?: calls.firstOrNull()
 
     fun answer() = primary()?.answer(VideoProfile.STATE_AUDIO_ONLY)
@@ -88,18 +103,40 @@ object CallManager {
 
     /** Speaker on, or back to the headset/earpiece. */
     fun setSpeaker(on: Boolean) {
-        val available = _audio.value.available
-        val target = if (on) {
-            available.firstOrNull { it.endpointType == CallEndpoint.TYPE_SPEAKER }
+        val service = service ?: return
+        if (Build.VERSION.SDK_INT >= 34) {
+            Endpoints.setSpeaker(service, on)
         } else {
-            listOf(CallEndpoint.TYPE_BLUETOOTH, CallEndpoint.TYPE_WIRED_HEADSET, CallEndpoint.TYPE_EARPIECE)
-                .firstNotNullOfOrNull { type -> available.firstOrNull { it.endpointType == type } }
-        } ?: return
-        val direct = Executor { it.run() }
-        service?.requestCallEndpointChange(target, direct, object : OutcomeReceiver<Void, CallEndpointException> {
-            override fun onResult(result: Void?) = Unit
-            override fun onError(error: CallEndpointException) = Unit
-        })
+            val route = if (on) {
+                CallAudioState.ROUTE_SPEAKER
+            } else {
+                listOf(CallAudioState.ROUTE_BLUETOOTH, CallAudioState.ROUTE_WIRED_HEADSET, CallAudioState.ROUTE_EARPIECE)
+                    .firstOrNull { legacyRoutes and it != 0 } ?: CallAudioState.ROUTE_WIRED_OR_EARPIECE
+            }
+            @Suppress("DEPRECATION") // The routing API before call endpoints (Android 14).
+            service.setAudioRoute(route)
+        }
+    }
+
+    /** Android 14+ call endpoints. Only touched behind a version check, so the class never loads on older phones. */
+    @RequiresApi(34)
+    private object Endpoints {
+        var current: CallEndpoint? = null
+        var available: List<CallEndpoint> = emptyList()
+
+        fun setSpeaker(service: PlainphoneInCallService, on: Boolean) {
+            val target = if (on) {
+                available.firstOrNull { it.endpointType == CallEndpoint.TYPE_SPEAKER }
+            } else {
+                listOf(CallEndpoint.TYPE_BLUETOOTH, CallEndpoint.TYPE_WIRED_HEADSET, CallEndpoint.TYPE_EARPIECE)
+                    .firstNotNullOfOrNull { type -> available.firstOrNull { it.endpointType == type } }
+            } ?: return
+            val direct = Executor { it.run() }
+            service.requestCallEndpointChange(target, direct, object : OutcomeReceiver<Void, CallEndpointException> {
+                override fun onResult(result: Void?) = Unit
+                override fun onError(error: CallEndpointException) = Unit
+            })
+        }
     }
 
     @Synchronized
@@ -110,10 +147,19 @@ object CallManager {
                 id = System.identityHashCode(call),
                 name = names[call],
                 number = PlainphoneCallScreeningService.callerNumber(details),
-                state = details.state,
+                state = callState(call),
                 incoming = details.callDirection == Call.Details.DIRECTION_INCOMING,
                 connectedAtMs = details.connectTimeMillis.takeIf { it > 0 },
             )
         }
     }
 }
+
+/** Call.Details.getState() arrived in Android 12; Call.getState() is the same value before that. */
+fun callState(call: Call): Int =
+    if (Build.VERSION.SDK_INT >= 31) {
+        call.details.state
+    } else {
+        @Suppress("DEPRECATION")
+        call.state
+    }

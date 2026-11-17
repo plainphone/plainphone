@@ -7,6 +7,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.os.Bundle
 import android.os.PersistableBundle
+import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.PolicyConfig
 
@@ -17,12 +18,10 @@ import org.plainphone.app.PolicyConfig
 class ProvisioningModeActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        intent.getParcelableExtra(
-            DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
-            PersistableBundle::class.java,
-        )?.let { ConfigStore(this).save(PolicyConfig.fromExtras(it)) }
+        Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)?.let { ConfigStore(this).save(PolicyConfig.fromExtras(it)) }
 
-        val allowed = intent.getIntArrayExtra(DevicePolicyManager.EXTRA_PROVISIONING_ALLOWED_PROVISIONING_MODES)
+        // The extra exists from Android 12; on Android 10 and 11 it is absent and the result is fully managed.
+        val allowed = intent.getIntArrayExtra(ALLOWED_MODES)
         val fullyManaged = DevicePolicyManager.PROVISIONING_MODE_FULLY_MANAGED_DEVICE
         if (allowed != null && fullyManaged !in allowed) {
             // Personal-device flows (work profile) are not supported: abort provisioning.
@@ -34,5 +33,10 @@ class ProvisioningModeActivity : Activity() {
             )
         }
         finish()
+    }
+
+    private companion object {
+        /** DevicePolicyManager.EXTRA_PROVISIONING_ALLOWED_PROVISIONING_MODES (API 31), as its string value. */
+        const val ALLOWED_MODES = "android.app.extra.PROVISIONING_ALLOWED_PROVISIONING_MODES"
     }
 }

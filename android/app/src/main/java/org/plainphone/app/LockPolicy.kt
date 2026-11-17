@@ -15,7 +15,7 @@ object LockPolicy {
 
 
     /** User restrictions for strong mode, filtered to what [sdkInt] knows about. */
-    @SuppressLint("InlinedApi") // API 35 constant is a plain string and only added when sdkInt >= 35.
+    @SuppressLint("InlinedApi") // API 34/35 constants are plain strings and only added when sdkInt is high enough.
     @Suppress("DEPRECATION") // DISALLOW_ADD_MANAGED_PROFILE is deprecated in API 37 but still enforced.
     fun restrictions(sdkInt: Int): List<String> = buildList {
         // Installing and removing software.
@@ -29,7 +29,7 @@ object LockPolicy {
         add(UserManager.DISALLOW_USER_SWITCH)
         add(UserManager.DISALLOW_ADD_MANAGED_PROFILE)
         // App cloning (Samsung Dual Messenger, Xiaomi Dual apps). The constant is hidden in the SDK.
-        add(DISALLOW_ADD_CLONE_PROFILE)
+        if (sdkInt >= 34) add(DISALLOW_ADD_CLONE_PROFILE)
         if (sdkInt >= 35) add(UserManager.DISALLOW_ADD_PRIVATE_PROFILE)
         // adb and developer options.
         add(UserManager.DISALLOW_DEBUGGING_FEATURES)
@@ -43,8 +43,10 @@ object LockPolicy {
         add(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
         // Date/time tricks against schedules (phase 3) and certificate checks.
         add(UserManager.DISALLOW_CONFIG_DATE_TIME)
-        // Phase 2: the default phone and SMS app (Plainphone) cannot be changed in Settings.
-        add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
+        // Phase 2: the default phone and SMS app (Plainphone) cannot be changed in Settings (Android 14+).
+        // Older phones: the maker's phone and SMS apps are hidden, so they cannot be chosen; a switch back to
+        // the system dialer shows up as a failed "default phone app" step in the parent's status.
+        if (sdkInt >= 34) add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
     }
 
     /**
@@ -89,8 +91,16 @@ object LockPolicy {
         return hide
     }
 
-    /** Runtime permissions the phone and SMS app needs. The roles grant most of them; Device Owner makes sure. */
-    val TELEPHONY_PERMISSIONS = listOf(
+    /**
+     * Runtime permissions the phone and SMS app needs on [sdkInt]. The roles grant most of them;
+     * Device Owner makes sure. POST_NOTIFICATIONS only exists (and can only be granted) from Android 13.
+     */
+    @SuppressLint("InlinedApi") // POST_NOTIFICATIONS is a plain string and dropped below API 33.
+    fun telephonyPermissions(sdkInt: Int): List<String> =
+        if (sdkInt >= 33) TELEPHONY_PERMISSIONS else TELEPHONY_PERMISSIONS - android.Manifest.permission.POST_NOTIFICATIONS
+
+    @SuppressLint("InlinedApi") // Filtered by telephonyPermissions().
+    private val TELEPHONY_PERMISSIONS = listOf(
         android.Manifest.permission.CALL_PHONE,
         android.Manifest.permission.READ_PHONE_STATE,
         android.Manifest.permission.ANSWER_PHONE_CALLS,

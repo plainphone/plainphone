@@ -8,6 +8,7 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import java.text.DateFormat
 import java.util.Date
@@ -29,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var report: TextView
     private lateinit var pairButton: Button
     private var taps = 0
+    private var askedForDialer = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +84,8 @@ class MainActivity : Activity() {
             Lock.applyAsync(this, if (justProvisioned) "provisioning successful" else "app opened") {
                 runOnUiThread {
                     refresh()
+                    // Android 10 to 13: the phone app can only be set with the system dialog.
+                    if (askForDialerRole()) return@runOnUiThread
                     // Straight after setup: pair with the parent's dashboard (once).
                     if (justProvisioned && PairingActivity.canPairWithoutPin(this)) {
                         intent = Intent(this, MainActivity::class.java)
@@ -90,6 +94,29 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    /**
+     * Shows Android's "set as default phone app" dialog once per screen visit when Device Owner
+     * cannot set it silently (before Android 14). Returns true if the dialog was opened.
+     */
+    private fun askForDialerRole(): Boolean {
+        if (askedForDialer || !Lock.applier(this).needsDialerDialog()) return false
+        val roles = getSystemService(RoleManager::class.java) ?: return false
+        if (!roles.isRoleAvailable(RoleManager.ROLE_DIALER)) return false
+        askedForDialer = true
+        return runCatching {
+            @Suppress("DEPRECATION") // A plain Activity without the AndroidX result API.
+            startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_DIALER), REQUEST_DIALER)
+        }.isSuccess
+    }
+
+    @Deprecated("Plain Activity result callback.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        // onResume follows and re-applies the lock: with the role held the maker's phone apps get hidden.
+        if (requestCode == REQUEST_DIALER) Log.i("Plainphone", "phone app dialog: ${if (resultCode == RESULT_OK) "accepted" else "declined"}")
     }
 
     private fun refresh() {
@@ -135,6 +162,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val TAPS_TO_MAINTENANCE = 7
+        private const val REQUEST_DIALER = 1
     }
 }
 

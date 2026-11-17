@@ -51,7 +51,7 @@ object Schedules {
      */
     fun nextBoundary(schedules: List<Schedule>, now: Instant, zone: ZoneId): Instant? {
         if (schedules.isEmpty()) return null
-        val startDate = LocalDate.ofInstant(now, zone).minusDays(1)
+        val startDate = now.atZone(zone).toLocalDate().minusDays(1)
         var best: Instant? = null
         for (offset in 0L..8L) {
             val date = startDate.plusDays(offset)

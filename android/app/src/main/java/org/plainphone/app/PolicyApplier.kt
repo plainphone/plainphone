@@ -30,8 +30,8 @@ class PolicyApplier(
         }
         val results = mutableListOf<StepResult>()
 
-        // Roles first: DISALLOW_CONFIG_DEFAULT_APPS below then keeps the user from changing them back.
-        results += step("default phone app") { takeRole(ROLE_DIALER) { device.setDefaultDialer(device.ownPackage) } }
+        // Roles first: DISALLOW_CONFIG_DEFAULT_APPS below then keeps the user from changing them back (Android 14+).
+        results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         for (key in LockPolicy.restrictions(sdkInt)) {
             results += step("restriction $key") { device.addRestriction(key) }
@@ -45,10 +45,11 @@ class PolicyApplier(
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)
         }
-        results += if (config.frpAccountIds.isEmpty()) {
-            StepResult("factory reset protection", true, "no account IDs configured; Android default FRP applies")
-        } else {
-            step("factory reset protection (${config.frpAccountIds.size} account(s))") {
+        results += when {
+            config.frpAccountIds.isEmpty() ->
+                StepResult("factory reset protection", true, "no account IDs configured; Android default FRP applies")
+            sdkInt < 30 -> StepResult("factory reset protection", true, "needs Android 11; Android default FRP applies")
+            else -> step("factory reset protection (${config.frpAccountIds.size} account(s))") {
                 device.setFrpAccounts(config.frpAccountIds)
             }
         }
@@ -79,11 +80,24 @@ class PolicyApplier(
         }
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
-        results += step("clear FRP policy") { device.setFrpAccounts(null) }
+        if (sdkInt >= 30) results += step("clear FRP policy") { device.setFrpAccounts(null) }
         results += step("give phone and SMS roles back") { giveRolesBack() }
         results += step("give up Device Owner") { device.clearDeviceOwner() }
         return results
     }
+
+    /**
+     * Android 14+: Device Owner sets the phone app silently. Before that only the system dialog can,
+     * which MainActivity shows (see [needsDialerDialog]); until it is accepted this step fails, so the
+     * parent's status says calls are not filtered.
+     */
+    private fun takeDialer() {
+        check(sdkInt >= 34) { "Android ${androidVersion(sdkInt)}: confirm Plainphone as phone app on the phone" }
+        device.setDefaultDialer(device.ownPackage)
+    }
+
+    /** True when the phone app has to be requested with the system dialog (Android 10 to 13). */
+    fun needsDialerDialog(): Boolean = sdkInt < 34 && device.isDeviceOwner() && !device.holdsRole(ROLE_DIALER)
 
     /** Returns a status text; throws if Android did not hand over the role. */
     private fun takeRole(role: String, take: () -> Unit): String {
@@ -94,7 +108,7 @@ class PolicyApplier(
     }
 
     private fun grantTelephonyPermissions(): StepResult = step("phone and SMS permissions") {
-        val refused = LockPolicy.TELEPHONY_PERMISSIONS.filterNot { perm ->
+        val refused = LockPolicy.telephonyPermissions(sdkInt).filterNot { perm ->
             runCatching { device.grantPermission(device.ownPackage, perm) }.getOrDefault(false)
         }
         check(refused.isEmpty()) { "refused: ${refused.joinToString { it.substringAfterLast('.') }}" }
@@ -105,7 +119,12 @@ class PolicyApplier(
         val apps = device.telephonyApps()
         val notes = mutableListOf<String>()
         if (device.holdsRole(ROLE_DIALER)) {
-            apps.systemDialer?.takeIf { it != device.ownPackage }?.let { device.setDefaultDialer(it); notes += "phone: $it" }
+            if (sdkInt >= 34) {
+                apps.systemDialer?.takeIf { it != device.ownPackage }?.let { device.setDefaultDialer(it); notes += "phone: $it" }
+            } else {
+                // No silent way back before Android 14; Settings > Default apps works once Device Owner is gone.
+                notes += "phone: choose the phone app in Settings (Android ${androidVersion(sdkInt)})"
+            }
         }
         if (device.holdsRole(ROLE_SMS)) {
             // Prefer the SMS app that came with the phone (Samsung Messages on a Samsung, and so on).
@@ -194,6 +213,9 @@ class PolicyApplier(
     }
 
     private companion object {
+        /** Android version for an API level, for status texts (29 = 10 ... 33 = 13). */
+        fun androidVersion(sdkInt: Int) = if (sdkInt in 29..33) (sdkInt - 19).toString() else "API $sdkInt"
+
         const val SHOW_HIDDEN = "show hidden apps"
         // RoleManager.ROLE_DIALER / ROLE_SMS, as plain strings so the class stays JVM-testable.
         const val ROLE_DIALER = "android.app.role.DIALER"

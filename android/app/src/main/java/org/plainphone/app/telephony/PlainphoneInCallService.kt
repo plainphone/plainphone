@@ -3,10 +3,13 @@
 package org.plainphone.app.telephony
 
 import android.content.Intent
+import android.os.Build
 import android.telecom.Call
+import android.telecom.CallAudioState
 import android.telecom.CallEndpoint
 import android.telecom.InCallService
 import android.util.Log
+import androidx.annotation.RequiresApi
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Direction
@@ -70,7 +73,7 @@ class PlainphoneInCallService : InCallService() {
         }
         callbacks[call] = callback
         call.registerCallback(callback)
-        if (outgoing || details.state != Call.STATE_RINGING) {
+        if (outgoing || callState(call) != Call.STATE_RINGING) {
             // The user just started this call, so Plainphone is in front and may open the screen.
             runCatching {
                 startActivity(Intent(this, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -85,12 +88,22 @@ class PlainphoneInCallService : InCallService() {
         CallNotifications.update(this)
     }
 
+    // Android 14+ reports mute and the sound route through these; older phones only call onCallAudioStateChanged.
     override fun onMuteStateChanged(isMuted: Boolean) = CallManager.onMuteChanged(isMuted)
 
+    @RequiresApi(34)
     override fun onCallEndpointChanged(callEndpoint: CallEndpoint) = CallManager.onEndpointChanged(callEndpoint)
 
+    @RequiresApi(34)
     override fun onAvailableCallEndpointsChanged(availableEndpoints: List<CallEndpoint>) =
         CallManager.onAvailableEndpointsChanged(availableEndpoints)
+
+    @Deprecated("Replaced by call endpoints in Android 14; used on Android 10 to 13.")
+    override fun onCallAudioStateChanged(audioState: CallAudioState) {
+        @Suppress("DEPRECATION")
+        super.onCallAudioStateChanged(audioState)
+        if (Build.VERSION.SDK_INT < 34) CallManager.onLegacyAudioState(audioState)
+    }
 
     private companion object {
         const val TAG = "Plainphone"

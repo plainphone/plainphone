@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.AlarmClock
 import android.provider.ContactsContract
@@ -43,7 +44,7 @@ interface DeviceControls {
 
     // Phase 2: phone and SMS roles.
     fun holdsRole(role: String): Boolean
-    /** Makes [pkg] the default phone app (Device Owner, API 34+). Throws if Android refuses. */
+    /** Makes [pkg] the default phone app (Device Owner, API 34+). Throws below API 34 and if Android refuses. */
     fun setDefaultDialer(pkg: String)
     /** Makes [pkg] the default SMS app (Device Owner). Throws if Android refuses. */
     fun setDefaultSms(pkg: String)
@@ -83,7 +84,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
 
     override fun launchablePackages(): Set<String> {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        return pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
+        return Compat.queryActivities(pm, intent, 0)
             .map { it.activityInfo.packageName }
             .toSet()
     }
@@ -104,7 +105,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         )
         val found = mutableSetOf<String>()
         for (intent in intents) {
-            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()))
+            Compat.queryActivities(pm, intent, PackageManager.MATCH_DEFAULT_ONLY)
                 .mapTo(found) { it.activityInfo.packageName }
         }
         // Messages: apps that can really be the SMS app (the default may not be set yet during setup).
@@ -118,7 +119,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
     }
 
     override fun isInstalled(pkg: String): Boolean = runCatching {
-        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong()))
+        Compat.packageInfo(pm, pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES)
     }.isSuccess
 
     override fun setHidden(pkg: String, hidden: Boolean): Boolean =
@@ -154,6 +155,8 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
     }
 
     override fun setFrpAccounts(accountIds: Set<String>?) {
+        // PolicyApplier skips this step below Android 11; the guard keeps a direct call safe too.
+        if (Build.VERSION.SDK_INT < 30) throw UnsupportedOperationException("FRP policy needs Android 11")
         val policy = accountIds?.let {
             FactoryResetProtectionPolicy.Builder()
                 .setFactoryResetProtectionAccounts(it.toList())
@@ -168,8 +171,14 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         dpm.setUninstallBlocked(admin, pkg, blocked)
 
     override fun requireAutoTime(required: Boolean) {
-        dpm.setAutoTimeEnabled(admin, required)
-        dpm.setAutoTimeZoneEnabled(admin, required)
+        if (Build.VERSION.SDK_INT >= 30) {
+            dpm.setAutoTimeEnabled(admin, required)
+            dpm.setAutoTimeZoneEnabled(admin, required)
+        } else {
+            // Android 10: only automatic time can be required; DISALLOW_CONFIG_DATE_TIME still blocks manual changes.
+            @Suppress("DEPRECATION")
+            dpm.setAutoTimeRequired(admin, required)
+        }
     }
 
     @Suppress("DEPRECATION") // The documented way for a DPC to give up Device Owner on a test device.
@@ -178,16 +187,20 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
     override fun holdsRole(role: String): Boolean =
         context.getSystemService(RoleManager::class.java)?.isRoleHeld(role) == true
 
-    override fun setDefaultDialer(pkg: String) = dpm.setDefaultDialerApplication(pkg)
+    override fun setDefaultDialer(pkg: String) {
+        // Before Android 14 a Device Owner cannot set the phone app; MainActivity asks with the system dialog.
+        if (Build.VERSION.SDK_INT < 34) throw UnsupportedOperationException("needs the system dialog before Android 14")
+        dpm.setDefaultDialerApplication(pkg)
+    }
 
     override fun setDefaultSms(pkg: String) = dpm.setDefaultSmsApplication(admin, pkg)
 
     override fun telephonyApps(): TelephonyApps {
-        val flags = PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-        val dialScreens = (pm.queryIntentActivities(Intent(Intent.ACTION_DIAL), flags) +
-            pm.queryIntentActivities(Intent(Intent.ACTION_DIAL, Uri.parse("tel:1")), flags))
+        val flags = PackageManager.MATCH_DEFAULT_ONLY
+        val dialScreens = (Compat.queryActivities(pm, Intent(Intent.ACTION_DIAL), flags) +
+            Compat.queryActivities(pm, Intent(Intent.ACTION_DIAL, Uri.parse("tel:1")), flags))
             .map { it.activityInfo.packageName }.toSet()
-        val inCall = pm.queryIntentServices(Intent(InCallService.SERVICE_INTERFACE), PackageManager.ResolveInfoFlags.of(0))
+        val inCall = Compat.queryServices(pm, Intent(InCallService.SERVICE_INTERFACE), 0)
             .map { it.serviceInfo.packageName }.toSet()
         val smsReceivers = smsDeliverReceivers() + listOfNotNull(Telephony.Sms.getDefaultSmsPackage(context))
         return TelephonyApps(
@@ -200,16 +213,25 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
 
     /** Packages that can be the default SMS app. Unlike `smsto:` handlers, this excludes WhatsApp and friends. */
     private fun smsDeliverReceivers(): Set<String> =
-        pm.queryBroadcastReceivers(Intent(Telephony.Sms.Intents.SMS_DELIVER_ACTION), PackageManager.ResolveInfoFlags.of(0))
+        Compat.queryReceivers(pm, Intent(Telephony.Sms.Intents.SMS_DELIVER_ACTION), 0)
             .map { it.activityInfo.packageName }.toSet()
 
     private fun isSystemApp(pkg: String): Boolean = runCatching {
-        (pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0)).flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        (Compat.applicationInfo(pm, pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0
     }.getOrDefault(false)
 
     override fun grantPermission(pkg: String, permission: String): Boolean =
         dpm.setPermissionGrantState(admin, pkg, permission, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
 
-    override fun setLocationEnabled(enabled: Boolean) =
-        dpm.setLocationEnabled(admin, enabled)
+    override fun setLocationEnabled(enabled: Boolean) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            dpm.setLocationEnabled(admin, enabled)
+        } else {
+            // Android 10: Device Owner may still write LOCATION_MODE (removed from the allowlist in Android 11).
+            @Suppress("DEPRECATION")
+            val mode = if (enabled) Settings.Secure.LOCATION_MODE_HIGH_ACCURACY else Settings.Secure.LOCATION_MODE_OFF
+            @Suppress("DEPRECATION")
+            dpm.setSecureSetting(admin, Settings.Secure.LOCATION_MODE, mode.toString())
+        }
+    }
 }
