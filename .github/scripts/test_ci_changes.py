@@ -23,6 +23,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "server/openapi.yaml": {"server", "e2e", "parent"},
             "web/src/lib/settings.ts": {"server", "parent"},
             "server/catalog/dk.json": {"server", "e2e"},
+            "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns"},
             "dns/ppdns/profiles.py": {"dns"},
             "server/src/db/schema.ts": {"server", "e2e", "dns"},
             "server/src/lib/validation.ts": {"server", "e2e", "dns"},

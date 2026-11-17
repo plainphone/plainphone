@@ -31,7 +31,9 @@ services:
 
   # One-shot: first AdGuardHome.yaml (never overwritten) and the per-profile lists.
   init:
-    build: .
+    build:
+      context: ..
+      dockerfile: dns/Dockerfile
     command: ["init"]
     env_file: .env
     volumes:
@@ -60,7 +62,9 @@ services:
 
   # Management API for the Plainphone server, self-test and monitoring push.
   api:
-    build: .
+    build:
+      context: ..
+      dockerfile: dns/Dockerfile
     command: ["serve"]
     restart: unless-stopped
     env_file: .env

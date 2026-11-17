@@ -32,6 +32,7 @@ test("serves precompressed hashed assets and revalidates the PWA entry points", 
       ["br;q=0.3, GZip;q=0.8", "gzip"],
       ["br;q=0, *;q=0.8", "gzip"],
       ["br;q=0, gzip;q=0", null],
+      ["*;q=0, identity;q=1", null],
     ] as const) {
       const res = await app.request("/assets/main-3g7DRWx0.js", { headers: { "accept-encoding": accept } });
       expect(res.headers.get("vary")).toBe("Accept-Encoding");
@@ -45,6 +46,33 @@ test("serves precompressed hashed assets and revalidates the PWA entry points", 
     expect(ranged.status).toBe(206);
     expect(ranged.headers.get("content-encoding")).toBeNull();
     expect(await ranged.text()).toBe("console");
+
+    const gzipOnly = join(dist, "assets", "gzip-3g7DRWx0.js");
+    await writeFile(gzipOnly, asset);
+    await writeFile(gzipOnly + ".gz", gzipSync(asset));
+    const gzipOnlyUrl = "/assets/gzip-3g7DRWx0.js";
+    for (const method of ["GET", "HEAD"]) {
+      const res = await app.request(gzipOnlyUrl, {
+        method,
+        headers: { "accept-encoding": "identity;q=0, br;q=1" },
+      });
+      expect(res.status).toBe(406);
+      expect(res.headers.get("vary")).toBe("Accept-Encoding");
+      expect(res.headers.get("content-length")).toBeNull();
+      expect(await res.text()).toBe("");
+    }
+    const encodedRange = await app.request(gzipOnlyUrl, {
+      headers: { "accept-encoding": "*;q=0, gzip", range: "bytes=0-6" },
+    });
+    expect(encodedRange.status).toBe(206);
+    expect(encodedRange.headers.get("content-encoding")).toBe("gzip");
+    expect(new Uint8Array(await encodedRange.arrayBuffer())).toEqual(new Uint8Array(gzipSync(asset).subarray(0, 7)));
+    for (const url of ["/index.html", "/pair"]) {
+      const res = await app.request(url, { headers: { "accept-encoding": "*;q=0" } });
+      expect(res.status).toBe(406);
+      expect(res.headers.get("vary")).toBe("Accept-Encoding");
+      expect(await res.text()).toBe("");
+    }
 
     for (const path of ["/", "/index.html", "/pair", "/sw.js", "/assets/missing-3g7DRWx0.js"]) {
       const res = await app.request(path);

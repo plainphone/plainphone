@@ -1,0 +1,175 @@
+{
+  "country": "dk",
+  "verifiedOn": "2026-11-17",
+  "helplines": [
+    {
+      "name": "112",
+      "phone": "112",
+      "sms": null,
+      "source": "https://politi.dk/112",
+      "domains": [
+        "politi.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "BørneTelefonen",
+      "phone": "116111",
+      "sms": "116111",
+      "source": "https://bornetelefonen.dk/kontakt-os/",
+      "smsSource": "https://bornetelefonen.dk/brevkasse/oevrigt/toer-ikke-at-ringe-til-boernetelefonen-ekstremt-genert/",
+      "domains": [
+        "bornetelefonen.dk"
+      ],
+      "inbound": {
+        "phone": "none",
+        "sms": "replyOnly"
+      }
+    },
+    {
+      "name": "Livslinien",
+      "phone": "+4570201201",
+      "sms": null,
+      "source": "https://www.livslinien.dk/om-livslinien/kontakt",
+      "domains": [
+        "livslinien.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "headspace",
+      "phone": null,
+      "sms": "+4554541245",
+      "source": "https://headspace.dk/chatten/",
+      "smsSource": "https://headspace.dk/book-en-samtale/",
+      "domains": [
+        "headspace.dk"
+      ],
+      "inbound": {
+        "sms": "replyOnly"
+      },
+      "exactHosts": [
+        "phs.basechat.com",
+        "c.basechat.com"
+      ]
+    },
+    {
+      "name": "Ungekontakten (Aarhus Kommune)",
+      "phone": "+4589405200",
+      "sms": "+4525800058",
+      "source": "https://ungekontakten.aarhus.dk/chat-eller-sms-med-os",
+      "smsReplyHours": 120,
+      "domains": [
+        "ungekontakten.aarhus.dk"
+      ],
+      "inbound": {
+        "phone": "none",
+        "sms": "replyOnly"
+      }
+    },
+    {
+      "name": "Sexlinien",
+      "phone": "+4570202266",
+      "sms": null,
+      "source": "https://www.sexlinien.dk/",
+      "domains": [
+        "sexlinien.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "LGBT+ Danmark",
+      "phone": "+4533131948",
+      "sms": null,
+      "source": "https://lgbt.dk/raadgivning/",
+      "domains": [
+        "lgbt.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "Akuttelefonen (Region Hovedstaden)",
+      "phone": "1813",
+      "sms": null,
+      "source": "https://www.regionh.dk/sundhed/akut/praktisk_information/sider/1813.aspx",
+      "domains": [
+        "regionh.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "Lægevagten (Region Sjælland)",
+      "phone": "1818",
+      "sms": null,
+      "source": "https://www.regionsjaelland.dk/sundhed/akuthjaelp/laegevagten-ring-1818",
+      "domains": [
+        "regionsjaelland.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "Lægevagten (Region Syddanmark)",
+      "phone": "+4570110707",
+      "sms": null,
+      "source": "https://regionsyddanmark.dk/patienter-og-parorende/akuthjaelp/laegevagt-i-region-syddanmark/adresser-pa-laegevagten-i-region-syddanmark",
+      "domains": [
+        "regionsyddanmark.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "Lægevagten (Region Midtjylland)",
+      "phone": "+4570113131",
+      "sms": null,
+      "source": "https://www.sundhed.rm.dk/akuthjalp/lagevagten/",
+      "domains": [
+        "sundhed.rm.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    },
+    {
+      "name": "Lægevagten (Region Nordjylland)",
+      "phone": "+4570150300",
+      "sms": null,
+      "source": "https://rn.dk/da/Sundhed/Akut-sygdom",
+      "domains": [
+        "rn.dk"
+      ],
+      "inbound": {
+        "phone": "none"
+      }
+    }
+  ],
+  "information": [
+    {
+      "name": "sundhed.dk",
+      "source": "https://www.sundhed.dk/borger/trivsel/boern-og-unge-i-fokus/akut-hjaelp/",
+      "domains": [
+        "sundhed.dk"
+      ]
+    },
+    {
+      "name": "Sex & Samfund",
+      "source": "https://sexogsamfund.dk/",
+      "domains": [
+        "sexogsamfund.dk"
+      ]
+    }
+  ]
+}

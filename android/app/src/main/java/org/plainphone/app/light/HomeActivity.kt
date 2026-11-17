@@ -120,6 +120,9 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
+            androidx.compose.material3.TextButton(onClick = {
+                startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
+            }) { Text(stringResource(R.string.help_lines_title)) }
             org.plainphone.app.safety.LocationSharingLine()
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }

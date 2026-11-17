@@ -11,6 +11,7 @@ WORKFLOWS = (".github/workflows/*", ".github/scripts/*")
 WORKSPACE = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*", "packages/*")
 ANDROID = (
     "android/*",
+    "server/catalog/helplines/*",
     "scripts/provisioning-qr.py",
     "scripts/test_provisioning_qr.py",
     "scripts/smoke-release-apk.sh",
@@ -29,7 +30,7 @@ FILTERS = {
         "web/src/lib/ops.ts",
         "web/src/lib/settings.ts",
     ),
-    "dns": ("dns/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
+    "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*",),
 }
 

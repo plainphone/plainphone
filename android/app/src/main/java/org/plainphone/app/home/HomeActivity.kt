@@ -33,6 +33,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.Compat
+import org.plainphone.app.contacts.HelpActivity
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
 import org.plainphone.app.time.TimeGuard
@@ -93,6 +94,7 @@ class HomeActivity : ComponentActivity() {
                         phone = ::openPhone,
                         messages = ::openMessages,
                         emergency = ::openEmergency,
+                        help = { startActivity(Intent(this@HomeActivity, HelpActivity::class.java)) },
                         makeDefault = ::askToBeHome,
                     ),
                 )

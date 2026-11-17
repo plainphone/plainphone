@@ -191,7 +191,7 @@ export const da: Messages = {
   "contacts.removed": "Kontakten er fjernet.",
 
   "filter.title": "Webfilter",
-  "filter.intro": "Filteret kan gøre det mindre sandsynligt at møde bestemt indhold ved at blokere webadresser i de kategorier, du vælger. Noget indhold slipper igennem, og nyttige sider kan blive blokeret.",
+  "filter.intro": "Filteret virker i alle apps på telefonen, også i de browsere, der åbner inde i apps. Filteret kan gøre det mindre sandsynligt at møde bestemt indhold ved at blokere webadresser i de kategorier, du vælger. Noget indhold slipper igennem, og nyttige sider kan blive blokeret. Hjælpelinjer og udvalgte sider med sundhedsinfo er altid åbne, også hvis en filterregel ellers ville blokere dem.",
   "filter.categories": "Blokerede kategorier",
   "filter.categoriesHelp": "Slå en kategori til for at blokere webadresser i den.",
   "filter.cat.social": "Sociale medier",
