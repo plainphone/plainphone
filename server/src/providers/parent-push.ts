@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Notifications to parents. Web Push for the PWA is built in. Native apps (APNs/FCM) can
-// register tokens in the same table, but this provider does not send to them yet.
+// Notifications to parents: Web Push for the PWA, APNs and FCM for the native app
+// (providers/native-push.ts). All three share the push_subscriptions table.
 
 import { type PushOutcome, sendWebPush, type VapidKeys } from "../lib/webpush.js";
+import type { NativeSender } from "./native-push.js";
 
 export interface PushMessage {
   title: string;
@@ -12,6 +13,8 @@ export interface PushMessage {
   url: string;
   /** Same tag = the newer notification replaces the older one on the device. */
   tag: string;
+  /** Android notification channel in the native app. */
+  channel: "alerts" | "approval" | "location";
 }
 
 export interface PushTarget {
@@ -27,6 +30,8 @@ export interface ParentPushProvider {
   readonly name: string;
   /** Public VAPID key for browsers, or null when Web Push is not configured. */
   readonly webPublicKey: string | null;
+  /** Which kinds of subscriptions this server can deliver to. */
+  readonly platforms: ReadonlySet<PushTarget["platform"]>;
   send(target: PushTarget, msg: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome>;
 }
 
@@ -54,6 +59,7 @@ export function pushHostAllowed(endpoint: string, hosts: string[]): boolean {
 export class NoParentPushProvider implements ParentPushProvider {
   readonly name = "none";
   readonly webPublicKey = null;
+  readonly platforms = new Set<PushTarget["platform"]>();
   async send(): Promise<SendOutcome> {
     return "unsupported";
   }
@@ -61,6 +67,7 @@ export class NoParentPushProvider implements ParentPushProvider {
 
 export class WebPushProvider implements ParentPushProvider {
   readonly name = "webpush";
+  readonly platforms = new Set<PushTarget["platform"]>(["web"]);
   constructor(
     private readonly keys: VapidKeys,
     private readonly subject: string,
@@ -82,17 +89,44 @@ export class WebPushProvider implements ParentPushProvider {
   }
 }
 
+/** Sends each subscription through the channel for its platform. */
+export class ParentPushRouter implements ParentPushProvider {
+  readonly name: string;
+  readonly platforms: ReadonlySet<PushTarget["platform"]>;
+  private readonly native: Partial<Record<"apns" | "fcm", NativeSender>>;
+
+  constructor(
+    private readonly web: WebPushProvider | null,
+    native: NativeSender[],
+  ) {
+    this.native = Object.fromEntries(native.map((n) => [n.name, n]));
+    const names = [...(web ? ["webpush"] : []), ...native.map((n) => n.name)];
+    this.name = names.join("+") || "none";
+    this.platforms = new Set<PushTarget["platform"]>([...(web ? (["web"] as const) : []), ...native.map((n) => n.name)]);
+  }
+
+  get webPublicKey() {
+    return this.web?.webPublicKey ?? null;
+  }
+
+  async send(t: PushTarget, msg: PushMessage, opts: { urgent?: boolean } = {}): Promise<SendOutcome> {
+    if (t.platform === "web") return this.web ? this.web.send(t, msg, opts) : "unsupported";
+    const sender = this.native[t.platform];
+    return sender ? sender.send(t.endpoint, msg, opts) : "unsupported";
+  }
+}
+
 /** Records messages. Used in tests. */
 export class MemoryParentPushProvider implements ParentPushProvider {
   readonly name = "memory";
   readonly webPublicKey = "test-public-key";
-  readonly sent: { endpoint: string; msg: PushMessage; urgent: boolean }[] = [];
+  readonly platforms = new Set<PushTarget["platform"]>(["web", "apns", "fcm"]);
+  readonly sent: { endpoint: string; platform: PushTarget["platform"]; msg: PushMessage; urgent: boolean }[] = [];
   /** Endpoints that answer 410 Gone. */
   readonly gone = new Set<string>();
   async send(t: PushTarget, msg: PushMessage, opts: { urgent?: boolean } = {}): Promise<SendOutcome> {
-    if (t.platform !== "web") return "unsupported";
     if (this.gone.has(t.endpoint)) return "gone";
-    this.sent.push({ endpoint: t.endpoint, msg, urgent: Boolean(opts.urgent) });
+    this.sent.push({ endpoint: t.endpoint, platform: t.platform, msg, urgent: Boolean(opts.urgent) });
     return "sent";
   }
 }

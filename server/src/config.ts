@@ -41,6 +41,20 @@ const schema = z.object({
   VAPID_SUBJECT: z.string().default("mailto:privacy@plainphone.org"),
   /** Extra push service hosts to allow, comma separated (e.g. "push.example.org,*.example.net"). */
   PUSH_EXTRA_HOSTS: z.string().default(""),
+  /**
+   * Push to the native parent app on Android: the Firebase service account JSON (plain or
+   * base64) of the project that holds the app's google-services.json. Unset = no FCM.
+   */
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /** Push to the native parent app on iOS: an APNs auth key (.p8, PEM or base64) and its id. */
+  APNS_KEY_P8: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  /** Team of the APNs key. Defaults to the team in the first APPLE_APP_IDS entry. */
+  APNS_TEAM_ID: z.string().optional(),
+  /** Bundle id the notifications are for. Defaults to the bundle id in the first APPLE_APP_IDS entry. */
+  APNS_TOPIC: z.string().optional(),
+  /** "production" for TestFlight and App Store builds, "sandbox" for development builds. */
+  APNS_ENVIRONMENT: z.enum(["production", "sandbox"]).default("production"),
   /** Tell parents when a phone has not been seen for this many hours. 0 switches it off. */
   OFFLINE_ALERT_HOURS: z.coerce.number().min(0).max(168).default(6),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
@@ -79,6 +93,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (Boolean(cfg.VAPID_PUBLIC_KEY) !== Boolean(cfg.VAPID_PRIVATE_KEY)) {
     throw new Error("set both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, or neither");
+  }
+  if (Boolean(cfg.APNS_KEY_P8) !== Boolean(cfg.APNS_KEY_ID)) {
+    throw new Error("set both APNS_KEY_P8 and APNS_KEY_ID, or neither");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");

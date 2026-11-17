@@ -224,6 +224,7 @@ export function parentRoutes(ctx: Ctx) {
     return c.json({
       webPushEnabled: Boolean(ctx.parentPush.webPublicKey),
       webPushPublicKey: ctx.parentPush.webPublicKey,
+      nativePush: { apns: ctx.parentPush.platforms.has("apns"), fcm: ctx.parentPush.platforms.has("fcm") },
       offlineAlertHours: ctx.cfg.OFFLINE_ALERT_HOURS,
       subscriptions: subs.map(subscriptionJson),
       mutedPhoneIds: muted.map((m) => m.phoneId),

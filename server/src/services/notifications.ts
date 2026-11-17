@@ -80,15 +80,15 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   const t = text[locale](e);
   switch (e.type) {
     case "protection":
-      return { ...t, url: `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}`, channel: "alerts" };
     case "offline":
-      return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}`, channel: "alerts" };
     case "approval":
-      return { ...t, url: "/approvals", tag: "approvals" };
+      return { ...t, url: "/approvals", tag: "approvals", channel: "approval" };
     case "request":
-      return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}`, channel: "approval" };
     case "test":
-      return { ...t, url: "/settings", tag: "test" };
+      return { ...t, url: "/settings", tag: "test", channel: "alerts" };
   }
 }
 
@@ -99,7 +99,7 @@ export async function notifyUsers(
   e: NotifyEvent,
   opts: { subscriptionId?: string } = {},
 ): Promise<number> {
-  if (userIds.length === 0 || !ctx.parentPush.webPublicKey) return 0;
+  if (userIds.length === 0 || ctx.parentPush.platforms.size === 0) return 0;
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -108,6 +108,7 @@ export async function notifyUsers(
       .where(
         and(
           inArray(pushSubscriptions.userId, userIds),
+          inArray(pushSubscriptions.platform, [...ctx.parentPush.platforms]),
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
         ),
       );
@@ -148,7 +149,7 @@ export async function notifyUsers(
 
 /** Sends an event about a phone to the parents of its household who have not muted it. */
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
-  if (!ctx.parentPush.webPublicKey) return 0;
+  if (ctx.parentPush.platforms.size === 0) return 0;
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
   const muted = ctx.db

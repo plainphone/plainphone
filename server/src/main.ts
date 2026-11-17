@@ -5,7 +5,8 @@ import { loadConfig } from "./config.js";
 import { createDb, runMigrations } from "./db/client.js";
 import { HttpDnsProvider, MockDnsProvider } from "./providers/dns.js";
 import { LogMailProvider, NoMailProvider, SmtpMailProvider } from "./providers/mail.js";
-import { NoParentPushProvider, WebPushProvider } from "./providers/parent-push.js";
+import { nativeSendersFromConfig } from "./providers/native-push.js";
+import { ParentPushRouter, WebPushProvider } from "./providers/parent-push.js";
 import { NoPushProvider } from "./providers/push.js";
 import { validVapidKeys } from "./lib/webpush.js";
 import type { Ctx } from "./services/context.js";
@@ -32,7 +33,7 @@ const ctx: Ctx = {
         : new NoMailProvider(),
   dns: cfg.DNS_PROVIDER === "http" ? new HttpDnsProvider(cfg.DNS_API_URL!, cfg.DNS_API_TOKEN!) : new MockDnsProvider(),
   push: new NoPushProvider(),
-  parentPush: vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(),
+  parentPush: new ParentPushRouter(vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : null, nativeSendersFromConfig(cfg)),
   now: () => new Date(),
 };
 
