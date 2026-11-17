@@ -152,7 +152,7 @@ End-to-end encryption ([docs/encryption.md](docs/encryption.md)) is being specif
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Questions and ideas go to [Discussions](https://github.com/plainphone/plainphone/discussions), and [how we handle your contribution](docs/maintaining.md) says what happens next. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
