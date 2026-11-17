@@ -53,6 +53,19 @@ Apple first on iPhone and iPad) and "Copy position". The map's code and tiles lo
 page. The parent app shows the same, on OpenStreetMap raster tiles after "Show map" (see
 [parent-app.md](parent-app.md)).
 
+### Location time and accuracy
+
+Each location lookup has one 30-second budget. The phone uses the fused provider when it is
+enabled. Otherwise, a precise lookup asks GPS and the network provider in parallel, taking the
+first fix accurate to 100 m or better, or the most accurate available fix if neither reaches
+100 m. For regular `always` reports, Android 12 and later request low-power location. Without a
+fused provider, the network provider goes first and GPS can use any time left in the budget.
+
+The phone can reuse a cached position without starting a new lookup. For Find and check-ins it
+must be younger than 2 minutes and accurate to 100 m or better. For regular `always` reports it
+must be younger than 10 minutes and accurate to 1,000 m or better. A position answers Find only
+when its recorded time is at or after the request.
+
 ## Ring the phone
 
 `POST /api/phones/{pid}/ring` with `stopOnAnswer` (default `true`).

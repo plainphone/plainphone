@@ -30,8 +30,8 @@ import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
+import java.util.concurrent.Executor
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
@@ -113,74 +113,95 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 class LocationReader(private val context: Context) {
 
     @SuppressLint("MissingPermission") // Granted by Device Owner when the parent turns location on.
-    fun current(precise: Boolean, timeoutMs: Long = 30_000L): LocationFix? {
+    fun current(precise: Boolean, timeoutMs: Long = BUDGET_MS): LocationFix? {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, BUDGET_MS))
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         if (!lm.isLocationEnabled) return null
-        val known = lm.allProviders.toSet()
-        val providers = buildList {
-            // LocationManager.FUSED_PROVIDER is public from Android 12; older versions do not list it in allProviders.
-            if (FUSED in known) add(FUSED)
-            if (precise) add(LocationManager.GPS_PROVIDER)
-            add(LocationManager.NETWORK_PROVIDER)
-            if (!precise) add(LocationManager.GPS_PROVIDER)
-        }.filter { it in known && lm.isProviderEnabled(it) }
-        for (provider in providers) {
-            val fresh = runCatching { await(lm, provider, precise, timeoutMs) }
-                .onFailure { Log.w("Plainphone", "location from $provider failed: ${it.message}") }
-                .getOrNull()
-            if (fresh != null) return fresh.toFix()
-        }
-        // Last resort: the newest known position, with its real time so the parent sees its age.
-        return providers.mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+        val enabled = lm.allProviders.filter(lm::isProviderEnabled)
+        val providers = when {
+            FUSED in enabled -> listOf(FUSED)
+            precise -> listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
+        }.filter { it in enabled }
+        val maxAgeMs = if (precise) 2 * 60_000L else 10 * 60_000L
+        val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
+        val now = System.currentTimeMillis()
+        val cached = providers.mapNotNull { provider ->
+            runCatching { lm.getLastKnownLocation(provider) }.getOrNull()
+        }.filter { now - it.time in 0 until maxAgeMs && it.accuracyOrUnknown() <= maxAccuracy }
             .maxByOrNull { it.time }
-            ?.toFix()
+        if (cached != null) return cached.toFix()
+
+        if (precise) return await(lm, providers, precise, deadline)?.toFix()
+        // Give the network provider a chance to answer without waking GPS on a non-fused phone.
+        return providers.firstNotNullOfOrNull { await(lm, listOf(it), precise, deadline) }?.toFix()
     }
+
+    private class Result(val location: Location?)
 
     @SuppressLint("MissingPermission")
-    private fun await(lm: LocationManager, provider: String, precise: Boolean, timeoutMs: Long): Location? {
-        val latch = CountDownLatch(1)
-        var result: Location? = null
-        val cancel = CancellationSignal()
-        val executor = Executors.newSingleThreadExecutor()
-        val done = { loc: Location? -> result = loc; latch.countDown() }
+    private fun await(lm: LocationManager, providers: List<String>, precise: Boolean, deadline: Long): Location? {
+        val results = LinkedBlockingQueue<Result>()
+        val cancellations = mutableListOf<CancellationSignal>()
+        var best: Location? = null
         try {
-            when {
-                Build.VERSION.SDK_INT >= 31 -> {
-                    val request = LocationRequest.Builder(0L)
-                        .setQuality(if (precise) LocationRequest.QUALITY_HIGH_ACCURACY else LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
-                        .setDurationMillis(timeoutMs)
-                        .build()
-                    lm.getCurrentLocation(provider, request, cancel, executor) { done(it) }
+            for (provider in providers) {
+                val remaining = deadline - System.nanoTime()
+                if (remaining <= 0) break
+                val cancel = CancellationSignal()
+                cancellations += cancel
+                val done: (Location?) -> Unit = { results.add(Result(it)) }
+                try {
+                    when {
+                        Build.VERSION.SDK_INT >= 31 -> {
+                            val request = LocationRequest.Builder(0L)
+                                .setQuality(if (precise) LocationRequest.QUALITY_HIGH_ACCURACY else LocationRequest.QUALITY_LOW_POWER)
+                                .setDurationMillis(TimeUnit.NANOSECONDS.toMillis(remaining).coerceAtLeast(1L))
+                                .build()
+                            lm.getCurrentLocation(provider, request, cancel, DIRECT_EXECUTOR) { done(it) }
+                        }
+                        Build.VERSION.SDK_INT >= 30 -> lm.getCurrentLocation(provider, cancel, DIRECT_EXECUTOR) { done(it) }
+                        else -> requestSingleUpdate(lm, provider, cancel, done)
+                    }
+                } catch (e: RuntimeException) {
+                    Log.w("Plainphone", "location from $provider failed: ${e.message}")
+                    done(null)
                 }
-                // Android 11: same call without the request; the provider decides accuracy.
-                Build.VERSION.SDK_INT >= 30 -> lm.getCurrentLocation(provider, cancel, executor) { done(it) }
-                else -> requestSingleUpdate(lm, provider, cancel, done)
             }
-            if (!latch.await(timeoutMs + 2_000L, TimeUnit.MILLISECONDS)) cancel.cancel()
+            repeat(cancellations.size) {
+                val remaining = (deadline - System.nanoTime()).coerceAtLeast(0L)
+                val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return best
+                val fix = result.location ?: return@repeat
+                if (!precise || fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
+                val previous = best
+                if (previous == null || fix.accuracyOrUnknown() < previous.accuracyOrUnknown()) best = fix
+            }
+            return best
         } finally {
-            executor.shutdown()
+            cancellations.forEach { cancel ->
+                runCatching { cancel.cancel() }
+                    .onFailure { Log.w("Plainphone", "location cancellation failed: ${it.message}") }
+            }
         }
-        return result
     }
 
-    /** Android 10: one update via a listener on its own looper thread, removed on cancel or after the first fix. */
+    /** Android 10: one update via a listener on its own looper thread, cleaned up by cancellation. */
     @SuppressLint("MissingPermission")
     private fun requestSingleUpdate(lm: LocationManager, provider: String, cancel: CancellationSignal, done: (Location?) -> Unit) {
         val thread = HandlerThread("plainphone-location").apply { start() }
         val listener = object : LocationListener {
-            override fun onLocationChanged(location: Location) {
-                done(location)
-                lm.removeUpdates(this)
-                thread.quitSafely()
-            }
+            override fun onLocationChanged(location: Location) = done(location)
             @Deprecated("Called on Android 10 only; nothing to do.")
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
             override fun onProviderEnabled(provider: String) = Unit
             override fun onProviderDisabled(provider: String) = Unit
         }
         cancel.setOnCancelListener {
-            lm.removeUpdates(listener)
-            thread.quitSafely()
+            try {
+                lm.removeUpdates(listener)
+            } finally {
+                thread.quitSafely()
+            }
         }
         try {
             @Suppress("DEPRECATION") // The single-shot API before getCurrentLocation (Android 11).
@@ -191,10 +212,15 @@ class LocationReader(private val context: Context) {
         }
     }
 
+    private fun Location.accuracyOrUnknown() = if (hasAccuracy()) accuracy else Float.POSITIVE_INFINITY
+
     private fun Location.toFix() = LocationFix(latitude, longitude, if (hasAccuracy()) accuracy else null, time)
 
     private companion object {
         const val FUSED = "fused"
+        const val BUDGET_MS = 30_000L
+        const val PRECISE_ACCURACY_METERS = 100f
+        val DIRECT_EXECUTOR = Executor { it.run() }
     }
 }
 
