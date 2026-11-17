@@ -402,12 +402,9 @@ Before execution require `issuedAt <= now + 30000`, `expiresAt > now` and
 `0 < expiresAt - issuedAt <= 300000`. A phone MUST keep durable replay state
 and atomically consume each command ID before triggering its effect. Keep
 consumed IDs for the lifetime of the phone identity, including across reboot.
-Release and Self changes require an accepted UTC anchor. Find, Ring and
-“Are you okay?” remain available to authorized senders without one. In that
-case enforce the signed window shape and maximum duration, bound the local
-effect from receipt using elapsed time, and visibly mark the action as having
-unverified freshness. Delivery of an unseen stale command is possible in this
-mode. If time becomes trusted, apply UTC freshness checks to pending effects.
+Phones MUST fail closed for all commands when trusted local time is
+unavailable, including Find, Ring, “Are you okay?” and Release. Self changes
+also require trusted local time.
 Bound running effects using elapsed time, and carry pending consent and replay
 state through restarts. Never interpret server time as a freshness proof.
 Apply local location settings and refuse forbidden actions regardless of the
@@ -435,9 +432,10 @@ via an encrypted R report. Deduplicate notifications per sender and limit
 episode. Keep the indicator until the limit clears. Continue to enforce the
 local location policy.
 
-Trusted local time is a signed UTC estimate advanced by same-boot
-`elapsedRealtime()`. The phone generates a fresh 32-byte nonce, remembers
-the boot and elapsed send time and challenges an authorized admin device.
+The proposed time-anchor protocol (draft, no vectors yet) uses a signed UTC
+estimate advanced by same-boot `elapsedRealtime()`. The phone generates a
+fresh 32-byte nonce, remembers the boot and elapsed send time and challenges
+an authorized admin device.
 The admin signs `D("time-anchor",{utc,nonce})` using trustworthy UTC from
 its platform, independently of the application relay. Carry the challenge
 and response inside authenticated R ciphertext. The phone verifies
@@ -450,6 +448,24 @@ elapsed checkpoint and accepted UTC high-water mark. Invalidate the anchor
 on reboot, monotonic rollback, inconsistent state or a detected wall-clock
 discontinuity. Reject responses below the stored high-water mark. Re-anchoring
 never credits elapsed Self delay. Raw RTC and relay time cannot serve as anchors.
+
+### Open decision: commands without a trusted time anchor
+
+Allowing authorized Find, Ring and “Are you okay?” commands without a trusted
+UTC anchor would preserve availability after reboot or while an admin device
+is unavailable to re-anchor the phone. In this proposed mode, the phone
+would still enforce the signed window shape and maximum duration, consume
+command IDs durably, bound effects from receipt using elapsed time and
+visibly mark freshness as unverified. Once trusted UTC returned, the phone
+would apply UTC freshness checks to pending effects. Release and Self
+changes would still require trusted time.
+
+A compromised relay could hold back a signed Find and deliver it after a
+reboot, before the phone re-establishes trusted time. Because the phone has
+never consumed that ID, replay protection would allow an otherwise authorized
+but expired request to trigger a fresh position capture. The same freshness
+gap could trigger an expired Ring or check-in. The fail-closed default stays
+in effect pending a decision.
 
 ### Release before remote removal
 
@@ -671,10 +687,15 @@ release delivery have received no external security audit. Upstream
 maintenance, upstream testing and conformance vectors give different
 evidence from a Plainphone audit. Public documentation must reflect this.
 The F1 CI gate runs both checked-in JSON files through the TypeScript library
-and the Kotlin library in Android's `testDebugUnitTest`. F1 also requires
-real-device tests at the browser and Android support floor and Expo builds
-on iOS and Android. The CI vectors cover JVM and Node, while device tests
-cover their actual runtime bindings. F10 must exercise adversarial cases for
+and the Kotlin library in Android's `testDebugUnitTest`. The real-device
+gate moves to the start of F2. On a physical Android 10 (API 29) device, use
+Tink X25519 to open a shared HPKE vector and round-trip a fresh envelope, and
+use Tink Ed25519 to sign and verify the shared signature vector. At the
+browser support floor, in a browser without native Ed25519, exercise the
+configured fallback by signing and verifying the shared vector and rejecting
+a tampered signature. Run the shared crypto smoke tests on physical iOS and
+Android devices with custom Expo builds that load the native WebCrypto
+provider. F10 must exercise adversarial cases for
 key substitution, forged or rolled-back rules, forked heads, stale or
 cross-scope envelopes, revoked signers, command replay, Self delay bypass
 and data exposure in database dumps, logs, push and mail. Run the data
