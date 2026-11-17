@@ -8,11 +8,13 @@ import {
   locations,
   pendingChanges,
   phoneApps,
+  phoneSettings,
   phones,
   schedules,
   selfKeys,
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
+import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -86,13 +88,19 @@ export async function wakePhone(ctx: Ctx, phoneId: string, reason: "rules" | "lo
   }
 }
 
+/** The phone's own settings and home screen, with the defaults filled in. */
+export async function loadPhoneSettings(db: Ctx["db"], phoneId: string) {
+  const [row] = await db.select().from(phoneSettings).where(eq(phoneSettings.phoneId, phoneId));
+  return { stored: row?.settings ?? {}, settings: fullSettings(row?.settings), home: fullHome(row?.home) };
+}
+
 function hhmm(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 export async function rulesDocument(ctx: Ctx, phone: Phone) {
-  const [apps, contactRows, scheduleRows, dnsRow, pending] = await Promise.all([
+  const [apps, contactRows, scheduleRows, dnsRow, pending, own] = await Promise.all([
     ctx.db.select().from(phoneApps).where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true))),
     ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name, contacts.number),
     ctx.db.select().from(schedules).where(eq(schedules.phoneId, phone.id)).orderBy(schedules.createdAt),
@@ -102,6 +110,7 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       .from(pendingChanges)
       .where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending")))
       .orderBy(pendingChanges.createdAt),
+    loadPhoneSettings(ctx.db, phone.id),
   ]);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
@@ -134,6 +143,9 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       intervalMinutes: LOCATION_INTERVAL_MINUTES,
       requestedAt: phone.locationEnabled ? (phone.locateRequestedAt?.toISOString() ?? null) : null,
     },
+    // Only settings that are not free, keys in alphabetical order (a stable ETag).
+    settings: rulesSettings(own.stored),
+    home: own.home,
     pendingChanges: pending.map((c) => ({
       id: c.id,
       op: c.op,
