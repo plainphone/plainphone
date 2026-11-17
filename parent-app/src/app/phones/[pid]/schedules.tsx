@@ -5,7 +5,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { App, ChangeResult, Schedule, ScheduleInput, ScheduleKind } from "../../../api/models";
 import { Chip, CheckRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, Choice, errorMessage, Field, LoadGate, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
+import { Button, Card, Choice, errorMessage, Field, List, LoadGate, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "../../../shared/lib/format";
@@ -72,9 +72,9 @@ function SchedulesList() {
                   const kind = kindLabel(s.kind, t);
                   const days = formatDays(s.days, locale, t);
                   return (
-                    <Card key={s.id} style={{ gap: space.sm }}>
+                    <Card key={s.id} style={{ gap: space.sm, paddingBottom: space.sm }}>
                       <View style={{ gap: 2 }}>
-                        <Text variant="label">{kind}</Text>
+                        <Text variant="heading">{kind}</Text>
                         <Text>
                           {days}, {formatWindow(s, locale, t)}
                           {crossesMidnight(s.startMinute, s.endMinute) ? ` (${t("sched.nextDay").replace(/\.$/, "").toLocaleLowerCase(locale)})` : ""}
@@ -93,20 +93,20 @@ function SchedulesList() {
                               busy={deleting === s.id}
                               onPress={() => void remove(s)}
                             />
-                            <Button kind="secondary" title={t("app.cancel")} disabled={deleting === s.id} onPress={() => setConfirming(null)} />
+                            <Button kind="plain" title={t("app.cancel")} disabled={deleting === s.id} onPress={() => setConfirming(null)} />
                           </Row>
                         </VStack>
                       ) : (
-                        <Row>
+                        <Row gap={0} style={{ marginLeft: -space.md }}>
                           <Button
-                            kind="secondary"
+                            kind="plain"
                             title={t("app.edit")}
                             accessibilityLabel={`${t("app.edit")}: ${kind}, ${days}`}
                             disabled={editing !== null}
                             onPress={() => setEditing(s)}
                           />
                           <Button
-                            kind="secondary"
+                            kind="destructive"
                             title={t("app.delete")}
                             accessibilityLabel={`${t("app.delete")}: ${kind}, ${days}`}
                             disabled={editing !== null}
@@ -206,7 +206,7 @@ function Editor({ initial, apps, onDone }: { initial?: Schedule; apps: App[]; on
   }
 
   return (
-    <Card>
+    <VStack gap={space.xl}>
       <Text variant="heading">{initial ? `${t("sched.editTitle")}: ${kindLabel(initial.kind, t)}` : t("sched.newTitle")}</Text>
       <Choice<ScheduleKind>
         label={t("sched.kind")}
@@ -218,7 +218,7 @@ function Editor({ initial, apps, onDone }: { initial?: Schedule; apps: App[]; on
         ]}
       />
       <View style={{ gap: space.sm }}>
-        <Text variant="label">{t("sched.days")}</Text>
+        <Text variant="label" style={{ paddingHorizontal: space.xs }}>{t("sched.days")}</Text>
         <Row gap={space.xs}>
           {[1, 2, 3, 4, 5, 6, 7].map((d) => (
             <Chip
@@ -263,28 +263,32 @@ function Editor({ initial, apps, onDone }: { initial?: Schedule; apps: App[]; on
         autoCorrect={false}
       />
       {nextDay ? <Text variant="small">{t("sched.nextDay")}</Text> : null}
-      <View style={{ gap: space.xs }}>
-        <Text variant="label">{t("sched.allowedApps")}</Text>
-        <Text variant="small">{t("sched.allowedHelp")}</Text>
+      <View style={{ gap: space.sm }}>
+        <View style={{ gap: 2, paddingHorizontal: space.xs }}>
+          <Text variant="label">{t("sched.allowedApps")}</Text>
+          <Text variant="small">{t("sched.allowedHelp")}</Text>
+        </View>
         {choosable.length === 0 ? (
           <Text variant="muted">{t("sched.noApps")}</Text>
         ) : (
-          choosable.map((a) => (
-            <CheckRow
-              key={a.packageName}
-              testID={`allow-${a.packageName}`}
-              label={a.label}
-              checked={allowed.has(a.packageName)}
-              onToggle={() => setAllowed(toggled(allowed, a.packageName))}
-            />
-          ))
+          <List>
+            {choosable.map((a) => (
+              <CheckRow
+                key={a.packageName}
+                testID={`allow-${a.packageName}`}
+                label={a.label}
+                checked={allowed.has(a.packageName)}
+                onToggle={() => setAllowed(toggled(allowed, a.packageName))}
+              />
+            ))}
+          </List>
         )}
       </View>
-      <Row>
+      <VStack gap={space.sm}>
         <Button testID="sched-save" title={saving ? t("app.saving") : t("app.save")} busy={saving} onPress={() => void submit()} />
-        <Button kind="secondary" title={t("app.cancel")} disabled={saving} onPress={() => void onDone(false)} />
-      </Row>
-    </Card>
+        <Button kind="plain" title={t("app.cancel")} disabled={saving} onPress={() => void onDone(false)} />
+      </VStack>
+    </VStack>
   );
 }
 

@@ -259,22 +259,21 @@ function ChangeBar({
   return (
     <View
       style={{
-        padding: space.md,
+        paddingHorizontal: space.lg,
+        paddingTop: space.sm,
         paddingBottom: space.md + insets.bottom,
         gap: space.sm,
-        borderTopWidth: 1,
-        borderTopColor: c.line,
         backgroundColor: c.bg,
       }}
     >
       {banner && text ? (
         <View
           testID="pending-banner"
-          style={{ backgroundColor: c.warnBg, borderLeftWidth: 4, borderLeftColor: c.warnLine, borderRadius: radius, padding: space.md, gap: space.sm }}
+          style={{ backgroundColor: c.warnBg, borderRadius: radius, paddingVertical: space.md, paddingHorizontal: space.lg, gap: space.xs }}
         >
           <Text>{text}</Text>
-          <Row>
-            <Button kind="secondary" title={t("pending.cancel")} onPress={() => void cancel()} busy={busy} />
+          <Row gap={0} style={{ marginLeft: -space.md }}>
+            <Button kind="plain" title={t("pending.cancel")} onPress={() => void cancel()} busy={busy} />
             <Button kind="plain" title={t("app.close")} onPress={onDismiss} />
           </Row>
         </View>

@@ -4,7 +4,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { Approval } from "../api/models";
 import { ItemRow } from "../components/parts";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
+import { Button, errorMessage, List, LiveStatus, LoadGate, type NoticeValue, PageTitle, Row, Screen, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { space } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
@@ -38,14 +38,14 @@ function ApprovalsList() {
       <LoadGate res={res}>
         {(list) =>
           list.length === 0 ? (
-            <Text variant="muted">{t("appr.empty")}</Text>
+            <Text variant="muted" style={{ paddingHorizontal: space.xs }}>{t("appr.empty")}</Text>
           ) : (
-            <VStack gap={space.sm}>
+            <List>
               {list.map((a) => {
                 const what = describeOp(a.op, t, locale, (pkg) => a.appLabel ?? pkg);
                 const from = a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : t("appr.fromPhone", { phone: a.phoneName });
                 return (
-                  <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={`${from}\n${t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}`}>
+                  <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={`${from}\n${t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}`} stacked>
                     <Row>
                       <Button
                         kind="primary"
@@ -56,7 +56,7 @@ function ApprovalsList() {
                         onPress={() => void decide(a, "approve")}
                       />
                       <Button
-                        kind="secondary"
+                        kind="plain"
                         title={t("appr.reject")}
                         accessibilityLabel={`${t("appr.reject")}: ${what}`}
                         disabled={busy === a.id}
@@ -66,7 +66,7 @@ function ApprovalsList() {
                   </ItemRow>
                 );
               })}
-            </VStack>
+            </List>
           )
         }
       </LoadGate>

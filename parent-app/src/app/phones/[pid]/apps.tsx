@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { client, unwrap } from "../../../api/client";
 import type { App, ChangeResult } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Card, errorMessage, Field, LoadGate, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
+import { errorMessage, Field, List, LoadGate, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 
@@ -76,7 +76,7 @@ function AppsList() {
               {sorted.length === 0 ? (
                 <Text variant="muted">{t("apps.noMatch", { q })}</Text>
               ) : (
-                <Card style={{ gap: space.xs }}>
+                <List>
                   {sorted.map((a) => (
                     <Switch
                       key={a.packageName}
@@ -88,9 +88,9 @@ function AppsList() {
                       onValueChange={(v) => void toggle(a, v)}
                     />
                   ))}
-                </Card>
+                </List>
               )}
-              <Text variant="small">{t("apps.coreHelp")}</Text>
+              <Text variant="small" style={{ paddingHorizontal: space.xs }}>{t("apps.coreHelp")}</Text>
             </VStack>
           );
         }}

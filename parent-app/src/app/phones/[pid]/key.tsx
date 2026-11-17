@@ -6,6 +6,7 @@ import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
+import { space } from "../../../lib/theme";
 import { useMe } from "../../../lib/session";
 import { EMAIL_RE } from "../../../lib/validate";
 import { formatMoney } from "../../../shared/lib/format";
@@ -76,7 +77,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   }
 
   return (
-    <VStack>
+    <VStack gap={space.xl}>
       {current.keyType === "trusted" && current.trustedEmail ? (
         <Notice
           tone={current.trustedAccepted ? "success" : "info"}
@@ -125,7 +126,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           <Text variant="heading">{t("key.payTitle")}</Text>
           <Notice tone="info" text={t("key.payNotYet")} />
           <Text variant="small">{t("key.payHelp")}</Text>
-          <Switch label={t("key.payEnabled")} value={current.payUnlockEnabled} disabled onValueChange={() => undefined} />
+          <Switch flush label={t("key.payEnabled")} value={current.payUnlockEnabled} disabled onValueChange={() => undefined} />
           <Field
             label={t("key.payAmount")}
             value={formatMoney(current.payUnlockAmount, current.payUnlockCurrency, locale)}
@@ -138,7 +139,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
         </Card>
       ) : null}
 
-      <Text variant="small">{t("key.looseningNote")}</Text>
+      <Text variant="small" style={{ paddingHorizontal: space.xs }}>{t("key.looseningNote")}</Text>
       <Button testID="key-save" title={saving ? t("app.saving") : t("app.save")} busy={saving} onPress={() => void submit()} />
     </VStack>
   );

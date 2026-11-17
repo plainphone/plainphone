@@ -6,7 +6,10 @@
 // - async results are announced to screen readers (LiveStatus),
 // - colours come from useColors(), so light and dark both work.
 import {
+  Children,
   type DependencyList,
+  Fragment,
+  isValidElement,
   type ReactNode,
   useCallback,
   useEffect,
@@ -16,6 +19,7 @@ import {
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -31,7 +35,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { type TFn, useI18n } from "../i18n/I18n";
-import { type Colors, radius, space, touch, useColors } from "../lib/theme";
+import { type Colors, gutter, radius, radiusGroup, space, touch, useColors } from "../lib/theme";
+import { Icon, type IconName } from "./Icon";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: TFn): string {
@@ -102,7 +107,7 @@ export function useNow(ms = 30_000): number {
 
 // --- Text ---------------------------------------------------------------------
 
-type Variant = "body" | "muted" | "small" | "title" | "heading" | "label" | "mono" | "error";
+type Variant = "body" | "muted" | "small" | "title" | "heading" | "label" | "row" | "mono" | "error";
 
 export function Text({ variant = "body", style, ...rest }: TextProps & { variant?: Variant }) {
   const c = useColors();
@@ -111,16 +116,27 @@ export function Text({ variant = "body", style, ...rest }: TextProps & { variant
   return <RNText {...rest} accessibilityRole={role} maxFontSizeMultiplier={3} style={[s, style]} />;
 }
 
+// One calm scale: 32 page titles, 18 sections, 16 body and rows, 14 notes.
 function textStyles(c: Colors) {
   return {
     body: { color: c.ink, fontSize: 16, lineHeight: 24 },
     muted: { color: c.muted, fontSize: 16, lineHeight: 24 },
     small: { color: c.muted, fontSize: 14, lineHeight: 20 },
-    title: { color: c.ink, fontSize: 28, lineHeight: 34, fontWeight: "700" as const },
-    heading: { color: c.ink, fontSize: 20, lineHeight: 28, fontWeight: "600" as const },
-    label: { color: c.ink, fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+    title: { color: c.ink, fontSize: 32, lineHeight: 38, fontWeight: "700" as const, letterSpacing: -0.4 },
+    heading: { color: c.ink, fontSize: 18, lineHeight: 24, fontWeight: "600" as const },
+    label: { color: c.ink, fontSize: 15, lineHeight: 20, fontWeight: "600" as const },
+    row: { color: c.ink, fontSize: 16, lineHeight: 22, fontWeight: "500" as const },
     mono: { color: c.ink, fontSize: 18, lineHeight: 26, fontFamily: "monospace", letterSpacing: 1 },
     error: { color: c.danger, fontSize: 14, lineHeight: 20 },
+  };
+}
+
+/** Press feedback that feels native: a ripple on Android, a soft highlight on iOS. */
+export function usePressFeedback() {
+  const c = useColors();
+  return {
+    android_ripple: Platform.OS === "android" ? { color: c.ripple } : undefined,
+    pressedBg: (pressed: boolean, base: string) => (pressed && Platform.OS !== "android" ? c.pressed : base),
   };
 }
 
@@ -146,7 +162,7 @@ export function Screen({
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} /> : undefined}
+        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} colors={[c.accent]} /> : undefined}
       >
         <View style={styles.inner}>{children}</View>
       </ScrollView>
@@ -162,10 +178,40 @@ export function Row({ gap = space.sm, children, style }: { gap?: number; childre
   return <View style={[{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap }, style]}>{children}</View>;
 }
 
+/** A plain surface for a small form or a block of text. */
 export function Card({ children, style }: { children: ReactNode; style?: ViewStyle }) {
   const c = useColors();
+  return <View style={[{ backgroundColor: c.surface, borderRadius: radiusGroup, padding: space.lg, gap: space.md }, style]}>{children}</View>;
+}
+
+/**
+ * Rows grouped on one surface with hairlines between them (an inset grouped list).
+ * Rows bring their own padding so their press feedback reaches the edges.
+ */
+export function List({ children, testID }: { children: ReactNode; testID?: string }) {
+  const c = useColors();
+  const rows = Children.toArray(children).filter(Boolean);
+  if (rows.length === 0) return null;
   return (
-    <View style={[{ backgroundColor: c.surface, borderRadius: radius, borderWidth: 1, borderColor: c.line, padding: space.lg, gap: space.md }, style]}>
+    <View testID={testID} style={{ backgroundColor: c.surface, borderRadius: radiusGroup, overflow: "hidden" }}>
+      {rows.map((row, i) => (
+        <Fragment key={isValidElement(row) && row.key != null ? row.key : i}>
+          {i > 0 ? <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line, marginLeft: space.lg }} /> : null}
+          {row}
+        </Fragment>
+      ))}
+    </View>
+  );
+}
+
+/** A titled part of a screen: a short heading, an optional note, then its content. */
+export function Section({ title, help, children }: { title: string; help?: string; children: ReactNode }) {
+  return (
+    <View style={{ gap: space.sm }}>
+      <View style={{ gap: 2, paddingHorizontal: space.xs }}>
+        <Text variant="heading">{title}</Text>
+        {help ? <Text variant="small">{help}</Text> : null}
+      </View>
       {children}
     </View>
   );
@@ -173,7 +219,7 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
-    <View style={{ gap: space.xs, marginBottom: space.sm }}>
+    <View style={{ gap: space.sm, paddingHorizontal: space.xs }}>
       <Text variant="title">{children}</Text>
       {sub ? <Text variant="muted">{sub}</Text> : null}
     </View>
@@ -182,7 +228,11 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
 
 // --- Controls -----------------------------------------------------------------
 
-type ButtonKind = "primary" | "secondary" | "danger" | "plain";
+/**
+ * primary: the one main action on a screen. secondary: a quieter tinted button.
+ * danger: confirms something destructive. plain: a text button. destructive: a red text button.
+ */
+type ButtonKind = "primary" | "secondary" | "danger" | "plain" | "destructive";
 
 export function Button({
   title,
@@ -205,8 +255,11 @@ export function Button({
   testID?: string;
 }) {
   const c = useColors();
-  const bg = kind === "primary" ? c.accent : kind === "danger" ? c.danger : "transparent";
-  const fg = kind === "primary" ? c.onAccent : kind === "danger" ? c.onDanger : c.accent;
+  const feedback = usePressFeedback();
+  const bg = kind === "primary" ? c.accent : kind === "danger" ? c.danger : kind === "secondary" ? c.tint : "transparent";
+  const fg =
+    kind === "primary" ? c.onAccent : kind === "danger" ? c.onDanger : kind === "destructive" ? c.danger : c.accent;
+  const text = kind === "plain" || kind === "destructive";
   const off = disabled || busy;
   return (
     <Pressable
@@ -217,39 +270,73 @@ export function Button({
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!off, busy: !!busy }}
+      android_ripple={feedback.android_ripple}
       style={({ pressed }) => [
         styles.button,
-        {
-          backgroundColor: bg,
-          borderColor: kind === "secondary" ? c.borderStrong : bg,
-          opacity: off ? 0.6 : pressed ? 0.85 : 1,
-        },
-        kind === "plain" && { paddingHorizontal: space.sm, alignSelf: "flex-start" },
+        { backgroundColor: text ? feedback.pressedBg(pressed, "transparent") : bg, opacity: off ? 0.55 : pressed && !text && Platform.OS !== "android" ? 0.85 : 1 },
+        kind === "primary" || kind === "danger" ? styles.buttonSolid : null,
+        text && { paddingHorizontal: space.md, alignSelf: "flex-start" },
       ]}
     >
       {busy ? <ActivityIndicator color={fg} style={{ marginRight: space.sm }} /> : null}
-      <RNText maxFontSizeMultiplier={3} style={{ color: fg, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+      <RNText maxFontSizeMultiplier={3} style={{ color: fg, fontSize: 16, lineHeight: 22, fontWeight: "600", textAlign: "center" }}>
         {title}
       </RNText>
     </Pressable>
   );
 }
 
-/** A tappable list row, e.g. a phone or a section of a phone. */
+/** A round icon button for a header, e.g. settings. */
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}) {
+  const c = useColors();
+  const feedback = usePressFeedback();
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      android_ripple={Platform.OS === "android" ? { color: c.ripple, borderless: true, radius: touch / 2 } : undefined}
+      hitSlop={4}
+      style={({ pressed }) => [styles.iconButton, { backgroundColor: feedback.pressedBg(pressed, "transparent") }]}
+    >
+      <Icon name={icon} size={24} color={c.accent} />
+    </Pressable>
+  );
+}
+
+/** A tappable list row, e.g. a phone or a section of a phone. Put it in a <List>. */
 export function LinkRow({
   title,
   meta,
   badge,
+  leading,
+  tone = "default",
   onPress,
   testID,
 }: {
   title: string;
   meta?: string;
   badge?: string;
+  /** Something small before the text: an initial or an icon. */
+  leading?: ReactNode;
+  /** accent: an action row ("Add phone"), drawn in the accent colour and without the chevron. */
+  tone?: "default" | "accent";
   onPress: () => void;
   testID?: string;
 }) {
   const c = useColors();
+  const feedback = usePressFeedback();
   const label = [title, meta, badge].filter(Boolean).join(". ");
   return (
     <Pressable
@@ -257,20 +344,32 @@ export function LinkRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [
-        styles.linkRow,
-        { backgroundColor: pressed ? c.tint : c.surface, borderColor: c.line },
-      ]}
+      android_ripple={feedback.android_ripple}
+      style={({ pressed }) => [styles.linkRow, { backgroundColor: feedback.pressedBg(pressed, c.surface) }]}
     >
+      {leading}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="label">{title}</Text>
+        <Text variant="row" style={tone === "accent" ? { color: c.accent, fontWeight: "600" } : undefined}>
+          {title}
+        </Text>
         {meta ? <Text variant="small">{meta}</Text> : null}
-        {badge ? <Text style={{ color: c.accent, fontWeight: "600" }}>{badge}</Text> : null}
+        {badge ? <Badge text={badge} /> : null}
       </View>
-      <RNText style={{ color: c.muted, fontSize: 22 }} importantForAccessibility="no" accessibilityElementsHidden>
-        ›
-      </RNText>
+      {tone === "default" ? <Icon name="chevron" size={18} color={c.muted} /> : null}
     </Pressable>
+  );
+}
+
+/** A small "waiting" marker, e.g. "2 changes waiting". */
+export function Badge({ text }: { text: string }) {
+  const c = useColors();
+  return (
+    <View style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.warnLine }} />
+      <Text variant="small" style={{ color: c.ink, fontWeight: "600" }}>
+        {text}
+      </Text>
+    </View>
   );
 }
 
@@ -278,12 +377,16 @@ export function Field({
   label,
   help,
   error,
+  onFocus,
+  onBlur,
   ...input
 }: TextInputProps & { label: string; help?: string; error?: string }) {
   const c = useColors();
+  const [focused, setFocused] = useState(false);
+  const off = input.editable === false;
   return (
-    <View style={{ gap: space.xs }}>
-      <Text variant="label" nativeID={undefined}>
+    <View style={{ gap: 6 }}>
+      <Text variant="label" nativeID={undefined} style={styles.fieldText}>
         {label}
       </Text>
       <TextInput
@@ -292,15 +395,33 @@ export function Field({
         accessibilityHint={[help, error].filter(Boolean).join(". ") || undefined}
         placeholderTextColor={c.muted}
         maxFontSizeMultiplier={3}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          onBlur?.(e);
+        }}
         style={[
           styles.input,
-          { color: c.ink, backgroundColor: c.surface, borderColor: error ? c.danger : c.borderStrong },
+          {
+            color: off ? c.muted : c.ink,
+            backgroundColor: off ? c.bg : c.surface,
+            borderColor: error ? c.danger : focused ? c.accent : c.borderStrong,
+            borderWidth: focused || error ? 2 : 1,
+            paddingHorizontal: focused || error ? space.md + 1 : space.md + 2,
+          },
           input.style,
         ]}
       />
-      {help ? <Text variant="small">{help}</Text> : null}
+      {help ? (
+        <Text variant="small" style={styles.fieldText}>
+          {help}
+        </Text>
+      ) : null}
       {error ? (
-        <Text variant="error" accessibilityLiveRegion="polite">
+        <Text variant="error" accessibilityLiveRegion="polite" style={styles.fieldText}>
           {error}
         </Text>
       ) : null}
@@ -314,6 +435,7 @@ export function Switch({
   value,
   onValueChange,
   disabled,
+  flush,
   testID,
 }: {
   label: string;
@@ -321,9 +443,12 @@ export function Switch({
   value: boolean;
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
+  /** Inside a Card (which has its own padding) rather than as a row of a List. */
+  flush?: boolean;
   testID?: string;
 }) {
   const c = useColors();
+  const feedback = usePressFeedback();
   return (
     <Pressable
       testID={testID}
@@ -332,10 +457,15 @@ export function Switch({
       accessibilityLabel={label}
       accessibilityHint={help}
       accessibilityState={{ checked: value, disabled: !!disabled }}
-      style={[styles.switchRow, { opacity: disabled ? 0.6 : 1 }]}
+      android_ripple={disabled ? undefined : feedback.android_ripple}
+      style={({ pressed }) => [
+        styles.switchRow,
+        flush ? { paddingHorizontal: 0 } : { backgroundColor: feedback.pressedBg(pressed && !disabled, c.surface) },
+        { opacity: disabled ? 0.6 : 1 },
+      ]}
     >
       <View style={{ flex: 1, gap: 2 }}>
-        <Text>{label}</Text>
+        <Text variant="row">{label}</Text>
         {help ? <Text variant="small">{help}</Text> : null}
       </View>
       <RNSwitch
@@ -343,7 +473,9 @@ export function Switch({
         onValueChange={onValueChange}
         disabled={disabled}
         trackColor={{ true: c.accent, false: c.borderStrong }}
-        thumbColor={c.surface}
+        thumbColor={Platform.OS === "ios" ? undefined : value ? c.onAccent : c.surface}
+        {...(Platform.OS === "web" ? { activeThumbColor: c.onAccent } : null)}
+        ios_backgroundColor={c.borderStrong}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
       />
@@ -351,46 +483,52 @@ export function Switch({
   );
 }
 
-/** Choose one of a few options (segmented control). */
+/** Choose one of a few options: radio rows in a grouped list. */
 export function Choice<V extends string>({
   label,
   value,
   options,
   onChange,
+  asSection,
 }: {
   label: string;
   value: V;
   options: { value: V; label: string; help?: string }[];
   onChange: (v: V) => void;
+  /** The choice is a part of the screen on its own: its label is drawn as a section heading. */
+  asSection?: boolean;
 }) {
   const c = useColors();
+  const feedback = usePressFeedback();
   return (
     <View style={{ gap: space.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>
-      <Text variant="label">{label}</Text>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="radio"
-            accessibilityLabel={o.help ? `${o.label}. ${o.help}` : o.label}
-            accessibilityState={{ checked: on }}
-            style={[
-              styles.choice,
-              { borderColor: on ? c.accent : c.borderStrong, backgroundColor: on ? c.tint : c.surface },
-            ]}
-          >
-            <View style={[styles.radio, { borderColor: on ? c.accent : c.borderStrong }]}>
-              {on ? <View style={[styles.radioDot, { backgroundColor: c.accent }]} /> : null}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="label">{o.label}</Text>
-              {o.help ? <Text variant="small">{o.help}</Text> : null}
-            </View>
-          </Pressable>
-        );
-      })}
+      <Text variant={asSection ? "heading" : "label"} style={{ paddingHorizontal: space.xs }}>
+        {label}
+      </Text>
+      <List>
+        {options.map((o) => {
+          const on = o.value === value;
+          return (
+            <Pressable
+              key={o.value}
+              onPress={() => onChange(o.value)}
+              accessibilityRole="radio"
+              accessibilityLabel={o.help ? `${o.label}. ${o.help}` : o.label}
+              accessibilityState={{ checked: on }}
+              android_ripple={feedback.android_ripple}
+              style={({ pressed }) => [styles.choice, { backgroundColor: feedback.pressedBg(pressed, c.surface) }]}
+            >
+              <View style={[styles.radio, { borderColor: on ? c.accent : c.borderStrong }]}>
+                {on ? <View style={[styles.radioDot, { backgroundColor: c.accent }]} /> : null}
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="row">{o.label}</Text>
+                {o.help ? <Text variant="small">{o.help}</Text> : null}
+              </View>
+            </Pressable>
+          );
+        })}
+      </List>
     </View>
   );
 }
@@ -412,7 +550,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   const { t } = useI18n();
   return (
     <Notice tone="error" text={`${t("error.load")} ${errorMessage(error, t)}`}>
-      {onRetry ? <Button kind="secondary" title={t("app.retry")} onPress={onRetry} /> : null}
+      {onRetry ? <Button kind="plain" title={t("app.retry")} onPress={onRetry} /> : null}
     </Notice>
   );
 }
@@ -435,15 +573,18 @@ export interface NoticeValue {
 export function Notice({ tone, text, children }: { tone: Tone; text: string; children?: ReactNode }) {
   const c = useColors();
   const bg = tone === "error" ? c.dangerBg : tone === "warn" ? c.warnBg : c.tint;
-  const line = tone === "error" ? c.danger : tone === "warn" ? c.warnLine : c.accent;
+  const dot = tone === "error" ? c.danger : tone === "warn" ? c.warnLine : c.accent;
   return (
     <View
       accessibilityRole={tone === "error" ? "alert" : undefined}
       accessibilityLiveRegion={tone === "error" ? "assertive" : "polite"}
-      style={{ backgroundColor: bg, borderLeftWidth: 4, borderLeftColor: line, borderRadius: radius, padding: space.md, gap: space.sm }}
+      style={{ backgroundColor: bg, borderRadius: radius, paddingVertical: space.md, paddingHorizontal: space.lg, gap: space.xs }}
     >
-      <Text>{text}</Text>
-      {children}
+      <View style={{ flexDirection: "row", gap: space.md }}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot, marginTop: 8 }} />
+        <Text style={{ flex: 1 }}>{text}</Text>
+      </View>
+      {children ? <View style={{ paddingLeft: space.lg + 4, gap: space.sm }}>{children}</View> : null}
     </View>
   );
 }
@@ -466,31 +607,40 @@ export function LiveStatus({ notice, onClose }: { notice: NoticeValue | null; on
 }
 
 const styles = StyleSheet.create({
-  screen: { flexGrow: 1, padding: space.lg, paddingBottom: space.xxl },
-  inner: { width: "100%", maxWidth: 640, alignSelf: "center", gap: space.lg },
+  screen: { flexGrow: 1, paddingHorizontal: gutter, paddingTop: space.sm, paddingBottom: space.xxl + space.lg },
+  inner: { width: "100%", maxWidth: 640, alignSelf: "center", gap: space.xl + space.xs },
   button: {
     minHeight: touch,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
     borderRadius: radius,
-    borderWidth: 1.5,
+    overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
+  buttonSolid: { minHeight: 52 },
+  iconButton: { width: touch, height: touch, borderRadius: touch / 2, alignItems: "center", justifyContent: "center" },
   linkRow: {
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    padding: space.lg,
-    borderRadius: radius,
-    borderWidth: 1,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
   },
-  input: { minHeight: touch, borderWidth: 1.5, borderRadius: radius, paddingHorizontal: space.md, fontSize: 16 },
-  switchRow: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.xs },
-  choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius, borderWidth: 1.5 },
+  input: { minHeight: 50, borderRadius: radius, fontSize: 16 },
+  switchRow: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+  },
+  choice: { minHeight: 56, flexDirection: "row", alignItems: "flex-start", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md + 2 },
+  fieldText: { paddingHorizontal: space.xs },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
-  state: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.lg },
+  state: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm, paddingVertical: space.xl },
 });

@@ -4,7 +4,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Contact } from "../../../api/models";
 import { ItemRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, List, LoadGate, Notice, PageTitle, Screen, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { cleanNumber, NUMBER_RE } from "../../../lib/validate";
@@ -81,13 +81,13 @@ function ContactsList() {
       <LoadGate res={res}>
         {(list) =>
           list.length === 0 && waitingAdds.length === 0 ? (
-            <Text variant="muted">{t("contacts.empty")}</Text>
+            <Text variant="muted" style={{ paddingHorizontal: space.xs }}>{t("contacts.empty")}</Text>
           ) : (
-            <VStack gap={space.sm}>
+            <List>
               {list.map((c) => (
                 <ItemRow key={c.id} testID={`contact-${c.id}`} title={c.name} meta={c.number} mono>
                   <Button
-                    kind="secondary"
+                    kind="destructive"
                     title={t("app.remove")}
                     accessibilityLabel={t("contacts.removeLabel", { name: c.name })}
                     busy={removing === c.id}
@@ -98,7 +98,7 @@ function ContactsList() {
               {waitingAdds.map((op) => (
                 <ItemRow key={op.number} title={op.name} meta={op.number} mono tag={t("pending.waitingTag")} waiting />
               ))}
-            </VStack>
+            </List>
           )
         }
       </LoadGate>

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, LinkRow, List, Notice, PageTitle, Row, Screen, Section, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { formatRelative } from "../../../shared/lib/format";
@@ -31,15 +31,15 @@ function PendingList() {
     }
   }
 
-  if (pending.length === 0) return <Text variant="muted">{t("phone.pendingNone")}</Text>;
+  if (pending.length === 0) return <Text variant="muted" style={{ paddingHorizontal: space.xs }}>{t("phone.pendingNone")}</Text>;
   return (
-    <VStack gap={space.sm}>
+    <List>
       {pending.map((c) => {
         const what = describeOp(c.op, t, locale, appLabel);
         return (
-          <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
+          <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)} stacked>
             <Button
-              kind="secondary"
+              kind="plain"
               title={t("pending.cancel")}
               accessibilityLabel={`${t("pending.cancel")}: ${what}`}
               busy={busyId === c.id}
@@ -48,7 +48,7 @@ function PendingList() {
           </ItemRow>
         );
       })}
-    </VStack>
+    </List>
   );
 }
 
@@ -83,7 +83,6 @@ function RenamePhone() {
 
   return (
     <Card>
-      <Text variant="heading">{t("native.renameTitle")}</Text>
       <Field
         testID="rename-name"
         label={t("pair.name")}
@@ -95,7 +94,13 @@ function RenamePhone() {
         returnKeyType="done"
         onSubmitEditing={() => void save()}
       />
-      <Button testID="rename-save" kind="secondary" title={busy ? t("app.saving") : t("app.save")} busy={busy} onPress={() => void save()} />
+      <Button
+        testID="rename-save"
+        kind="secondary"
+        title={busy ? t("app.saving") : t("native.renameTitle")}
+        busy={busy}
+        onPress={() => void save()}
+      />
     </Card>
   );
 }
@@ -123,21 +128,18 @@ function RemovePhone() {
     }
   }
 
+  if (!confirming) {
+    return <Button testID="remove-phone" kind="destructive" title={t("native.removePhone")} onPress={() => setConfirming(true)} />;
+  }
   return (
     <Card>
       <Text variant="heading">{t("native.removePhone")}</Text>
-      {confirming ? (
-        <VStack>
-          <Text>{t("native.removeBody", { name: phone.name })}</Text>
-          {phone.profile === "self" ? <Text variant="small">{t("native.removeSelfNote")}</Text> : null}
-          <Row>
-            <Button testID="remove-confirm" kind="danger" title={t("native.removeYes")} busy={busy} onPress={() => void remove()} />
-            <Button kind="secondary" title={t("app.cancel")} disabled={busy} onPress={() => setConfirming(false)} />
-          </Row>
-        </VStack>
-      ) : (
-        <Button testID="remove-phone" kind="secondary" title={t("native.removePhone")} onPress={() => setConfirming(true)} />
-      )}
+      <Text>{t("native.removeBody", { name: phone.name })}</Text>
+      {phone.profile === "self" ? <Text variant="small">{t("native.removeSelfNote")}</Text> : null}
+      <Row>
+        <Button testID="remove-confirm" kind="danger" title={t("native.removeYes")} busy={busy} onPress={() => void remove()} />
+        <Button kind="plain" title={t("app.cancel")} disabled={busy} onPress={() => setConfirming(false)} />
+      </Row>
     </Card>
   );
 }
@@ -184,15 +186,13 @@ function Overview() {
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
-        <VStack>
-          <Text variant="heading">{t("phone.pendingTitle")}</Text>
+        <Section title={t("phone.pendingTitle")}>
           <PendingList />
-        </VStack>
+        </Section>
       ) : null}
 
-      <VStack>
-        <Text variant="heading">{t("phone.rules")}</Text>
-        <VStack gap={space.sm}>
+      <Section title={t("phone.rules")}>
+        <List>
           {items.map((i) => (
             <LinkRow
               key={i.to}
@@ -202,15 +202,17 @@ function Overview() {
               onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
             />
           ))}
+        </List>
+        <View style={{ height: space.sm }} />
+        <List>
           <LinkRow title={t("phone.household")} meta={t("phone.householdHint")} onPress={() => router.push("/household")} />
-        </VStack>
-      </VStack>
+        </List>
+      </Section>
 
-      <VStack>
-        <Text variant="heading">{t("native.manage")}</Text>
+      <Section title={t("native.manage")}>
         <RenamePhone />
         <RemovePhone />
-      </VStack>
+      </Section>
     </Screen>
   );
 }

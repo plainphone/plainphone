@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef } from "react";
-import { View } from "react-native";
+import { Text as RNText, View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, LinkRow, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
+import { Icon } from "../components/Icon";
+import { Button, IconButton, LinkRow, List, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { formatRelative } from "../shared/lib/format";
-import { space } from "../lib/theme";
+import { space, useColors } from "../lib/theme";
 
 interface Row {
   phone: Phone;
@@ -51,7 +52,7 @@ function PhonesList() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Button kind="plain" title={t("native.settings")} onPress={() => router.push("/settings")} testID="open-settings" />
+            <IconButton icon="settings" label={t("native.settings")} onPress={() => router.push("/settings")} testID="open-settings" />
           ),
         }}
       />
@@ -59,17 +60,20 @@ function PhonesList() {
       <LoadGate res={res}>
         {(rows) =>
           rows.length === 0 ? (
-            <VStack>
+            <VStack style={{ paddingHorizontal: space.xs }}>
               <Text variant="heading">{t("phones.emptyTitle")}</Text>
-              <Text>{t("phones.emptyBody")}</Text>
-              <Button title={t("phones.add")} onPress={() => router.push("/pair")} testID="add-phone" />
+              <Text variant="muted">{t("phones.emptyBody")}</Text>
+              <View style={{ marginTop: space.sm }}>
+                <Button title={t("phones.add")} onPress={() => router.push("/pair")} testID="add-phone" />
+              </View>
             </VStack>
           ) : (
-            <VStack gap={space.sm}>
+            <List>
               {rows.map(({ phone, pending }) => (
                 <LinkRow
                   key={phone.id}
                   testID={`phone-${phone.id}`}
+                  leading={<Initial name={phone.name} />}
                   title={phone.name}
                   meta={[
                     t(phone.profile === "child" ? "profile.child" : "profile.self"),
@@ -88,18 +92,45 @@ function PhonesList() {
                   onPress={() => router.push({ pathname: "/phones/[pid]", params: { pid: phone.id } })}
                 />
               ))}
-              <View style={{ marginTop: space.sm }}>
-                <Button kind="secondary" title={t("phones.add")} onPress={() => router.push("/pair")} testID="add-phone" />
-              </View>
-            </VStack>
+              <LinkRow
+                tone="accent"
+                leading={<AddMark />}
+                title={t("phones.add")}
+                onPress={() => router.push("/pair")}
+                testID="add-phone"
+              />
+            </List>
           )
         }
       </LoadGate>
-      <VStack gap={space.sm}>
-        <LinkRow title={t("nav.approvals")} onPress={() => router.push("/approvals")} testID="open-approvals" />
+      <List>
         <LinkRow title={t("nav.household")} onPress={() => router.push("/household")} testID="open-household" />
-      </VStack>
+        <LinkRow title={t("nav.approvals")} onPress={() => router.push("/approvals")} testID="open-approvals" />
+      </List>
     </Screen>
+  );
+}
+
+/** The phone's first letter in a soft circle, so phones are easy to tell apart. */
+function Initial({ name }: { name: string }) {
+  const c = useColors();
+  const letter = Array.from(name.trim())[0]?.toLocaleUpperCase() ?? "";
+  return (
+    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.tint, alignItems: "center", justifyContent: "center" }}>
+      {/* Decorative (the row reads out the name); capped so it stays inside the circle. */}
+      <RNText style={{ color: c.accent, fontSize: 17, fontWeight: "700" }} maxFontSizeMultiplier={1.4} importantForAccessibility="no" accessibilityElementsHidden>
+        {letter}
+      </RNText>
+    </View>
+  );
+}
+
+function AddMark() {
+  const c = useColors();
+  return (
+    <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}>
+      <Icon name="plus" size={22} color={c.accent} />
+    </View>
   );
 }
 
