@@ -20,6 +20,7 @@ import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
 import org.plainphone.app.ui.PairingActivity
+import org.plainphone.app.update.InstallWatchdogService
 import org.plainphone.app.update.UpdateReceiver
 
 /**
@@ -124,6 +125,16 @@ class MaintenanceActivity : Activity() {
             })
         }
         val light = org.plainphone.app.light.Mode.isLight(this)
+        if (!light && !InstallWatchdogService.hasBatteryExemption(this)) {
+            column.addView(Button(this).apply {
+                text = getString(R.string.light_battery_settings)
+                setOnClickListener {
+                    val settings = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    runCatching { startActivity(settings) }
+                        .onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                }
+            })
+        }
         if (!light && Build.VERSION.SDK_INT >= 31 && !UpdateReceiver.canScheduleExactExpiry(this)) {
             column.addView(Button(this).apply {
                 text = getString(R.string.maintenance_install_alarm_access)

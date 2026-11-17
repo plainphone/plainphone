@@ -7,8 +7,10 @@ On the phone, tap **Version** seven times. Enter the parent PIN and choose
 `https://app.plainphone.org/download/android`, and download the APK. Allow Chrome to
 install it if Android asks, then tap **Update**. Open Plainphone and choose **Lock now**.
 The first build with self-update must use the same signing key as the installed app.
-If the parent PIN screen offers **Allow install recovery alarms**, granting access gives
-Plainphone an additional way to restore the restriction on time.
+On a strong-mode phone, use **Open battery settings** on the parent PIN screen to
+exempt Plainphone from battery optimization if needed. The phone keeps the install
+restriction in place for self-updates and approved catalog installs until the exemption
+is enabled.
 
 ## Release assets
 
@@ -42,23 +44,23 @@ install completion. A process restart closes both windows.
 
 | Trigger | What it covers |
 | --- | --- |
-| Before opening a window | Strong mode waits for a foreground service to start its watchdog. Plainphone commits the lease before clearing the restriction. Catalog requests also commit a daily slot before changing policy and return it on a handled failure. |
-| Foreground deadline | The service requests recovery at the elapsed-time deadline even if session creation is still blocked. It stops after recovery when no lease remains. |
+| Before opening a window | Strong mode requires the battery exemption and waits for a foreground service to arm its watchdog. Plainphone commits the lease before clearing the restriction. Catalog requests also commit a daily slot before changing policy and refund it when the window fails to open. |
+| Foreground deadline | The service requests recovery at the elapsed-time deadline even if the policy clear or session creation is still blocked. If a clear returns after expiry, the policy path reasserts the restriction. The service stops when no lease remains. |
 | Session creation returns or throws | The restriction is restored synchronously in either case. A newly created session is abandoned if the restriction cannot be restored. |
 | PackageInstaller result | Both success and failure close any matching session-bound lease left by an older build. A result for an older session cannot close a newer lease. |
 | App start, boot, package replacement, or guard connection | Recovery closes abandoned windows and restores an unexpectedly lifted restriction. It preserves catalog quota across a restart. |
-| Alarm and expiry work | An exact wake-up alarm is scheduled when permitted. Otherwise, Plainphone uses an inexact alarm. Persistent WorkManager recovery also works offline. |
+| Alarm and expiry work | An exact wake-up alarm is scheduled when permitted and canceled when its lease is retired. Otherwise, Plainphone uses an inexact alarm. Persistent WorkManager recovery also works offline. |
 | Sync, update, enrollment, and policy runs | These check expired leases before ordinary work can skip the policy, including when the phone is unpaired, the update check is throttled, or the policy configuration is unchanged. |
 
-The foreground service holds a bounded partial wake lock and asks Android to restart it
-after an unexpected process death. Android can still suspend the app, ignore wake locks
-during Doze, cancel alarms when access is revoked, or delay restarting the service. Android
-stores the restriction as a persistent boolean. A ten-second lease limits when Plainphone
-will ask to clear it, but Android must run recovery and accept the policy write before
-the restriction is back. If an approved catalog window is still active, the shared
-restriction stays lifted until that window ends.
-See [Android's service lifecycle](https://developer.android.com/reference/android/app/Service#START_STICKY)
-and [Doze behavior](https://developer.android.com/training/monitoring-device-state/doze-standby#understand_doze).
+The foreground service holds a bounded partial wake lock. The battery exemption lets
+that lock work in Doze. On AOSP it also permits exact alarms independently of the
+**Alarms & reminders** setting. Android persists the restriction as a boolean, so
+recovery still depends on Android delivering an alarm or restarting the app after
+process death and accepting its policy write. If an approved catalog window remains
+active, the shared restriction stays lifted until that window ends.
+
+See [Android's Doze documentation](https://developer.android.com/training/monitoring-device-state/doze-standby#support_for_other_use_cases)
+and [AOSP's alarm permission handling](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java).
 
 ### Checking for releases
 
@@ -87,8 +89,9 @@ offered version or a newer one clears the prompt.
    dashboard. Confirm it updates through the direct connection or the next rules sync and that the restriction is
    restored. Repeat with an approved catalog install overlapping an update. Confirm Play
    closes when Plainphone restarts and that ordinary installation is blocked again.
-5. On a test phone, check recovery with **Alarms & reminders** already disabled, then
-   repeat by revoking access during a window. Record whether the restriction returns at
+5. On a test phone without the battery exemption, verify that strong-mode install
+   requests leave the restriction in place. Enable the exemption, check recovery with
+   **Alarms & reminders** already disabled, then repeat by revoking alarm access during a window. Record whether the restriction returns at
    the deadline when the screen is off or the process is killed. Check that restarting
    Plainphone recovers the restriction and keeps the used catalog slot.
 6. In light mode, check that the newer version produces an update notification and that

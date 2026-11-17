@@ -72,8 +72,7 @@ class InstallWatchdogService : Service() {
                 timer.post { onDeadline(SystemClock.elapsedRealtime(), force = intent == null) }
             } else {
                 val remaining = (ticket.deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0)
-                // A bounded partial wake lock covers ordinary screen-off sleep. Android can
-                // still suspend the process or ignore wake locks in deep idle.
+                check(hasBatteryExemption(this)) { "Install watchdog needs a battery exemption" }
                 wakeLock.acquire(InstallLease.MAX_MS + 5_000L)
                 check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))
                 ticket.ready.complete(Unit)
@@ -132,6 +131,10 @@ class InstallWatchdogService : Service() {
         private const val EXTRA_TICKET = "ticket"
         private val pending = ConcurrentHashMap<String, Ticket>()
         @Volatile private var active: InstallWatchdogService? = null
+
+        fun hasBatteryExemption(context: Context): Boolean =
+            context.getSystemService(PowerManager::class.java)
+                ?.isIgnoringBatteryOptimizations(context.packageName) == true
 
         /** A launch request alone is insufficient: the foreground service must acknowledge the timer. */
         fun <T> armed(context: Context, holder: String, deadline: Long, persist: () -> T): T {

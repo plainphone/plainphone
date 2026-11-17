@@ -30,14 +30,23 @@ class PolicyApplier(
     private val sdkInt: Int,
     /** Phone settings and the home screen (docs/phone-settings.md); null leaves them alone. */
     private val settings: SettingsApplier? = null,
+    private val onInstallsAllowed: () -> Unit = {},
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
 
     fun applyInstallRestriction(config: PolicyConfig): StepResult = step(INSTALL_RESTRICTION_STEP) {
-        org.plainphone.app.update.InstallLease.withRestrictionLock {
-            if (installsAllowed(config)) device.clearRestriction(INSTALL_APPS)
-            else device.addRestriction(INSTALL_APPS)
+        if (installsAllowed(config)) {
+            // The watchdog must be able to write the restriction while this Binder call is blocked.
+            try {
+                device.clearRestriction(INSTALL_APPS)
+                onInstallsAllowed()
+            } finally {
+                // An in-flight clear may have reached Android after the watchdog's write.
+                if (!installsAllowed(config)) device.addRestriction(INSTALL_APPS)
+            }
+        } else {
+            device.addRestriction(INSTALL_APPS)
         }
     }
 

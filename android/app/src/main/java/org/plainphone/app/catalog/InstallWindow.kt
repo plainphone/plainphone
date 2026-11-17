@@ -36,12 +36,12 @@ object InstallWindow {
     }
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
-    fun open(context: Context, packageName: String) = open(context, packageName) {
-        Lock.applyForInstall(context.applicationContext, "install window for $packageName", catalogChanged = true)
+    fun open(context: Context, packageName: String) = open(context, packageName) { onInstallsAllowed ->
+        Lock.applyForInstall(context.applicationContext, "install window for $packageName", true, onInstallsAllowed)
     }
 
     @SuppressLint("ApplySharedPref")
-    internal fun open(context: Context, packageName: String, applyPolicy: () -> Unit) {
+    internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) {
         val app = context.applicationContext
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
         // lets Play through for the window instead of closing it.
@@ -59,6 +59,7 @@ object InstallWindow {
 
                 val lease = InstallLease.android(app)
                 var started = false
+                var usedWindow = false
                 try {
                     // A restart may relock the phone, but it must retain this reservation.
                     check(p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
@@ -69,14 +70,14 @@ object InstallWindow {
                     check(p.edit().putString("pkg", packageName)
                         .putLong("until", System.currentTimeMillis() + WINDOW_MS)
                         .commit()) { "Could not save the catalog target" }
-                    applyPolicy()
+                    applyPolicy { usedWindow = true }
                     check(current(app) == packageName) { "Catalog target is no longer eligible" }
                 } catch (e: Exception) {
                     Log.w("Plainphone", "catalog install window failed", e)
                     try {
                         if (started) close(app, "catalog install window failed", packageName)
                     } finally {
-                        if (!p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
+                        if (!usedWindow && !p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
                             Log.e("Plainphone", "could not restore the catalog quota")
                         }
                     }

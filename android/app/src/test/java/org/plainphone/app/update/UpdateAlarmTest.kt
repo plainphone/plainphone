@@ -4,8 +4,11 @@ package org.plainphone.app.update
 import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageInstaller
+import android.os.PowerManager
 import android.os.UserManager
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
@@ -74,6 +77,8 @@ class UpdateAlarmTest {
         val admin = PlainphoneAdminReceiver.component(context)
         dpm.setActiveAdmin(admin)
         assertTrue(dpm.setDeviceOwner(admin))
+        shadowOf(context.getSystemService(PowerManager::class.java))
+            .setIgnoringBatteryOptimizations(context.packageName, true)
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
     }
 
@@ -120,15 +125,81 @@ class UpdateAlarmTest {
         assertEquals(1, prefs.getInt("windows", 0))
     }
 
+    @Test fun strongModeWithoutBatteryExemptionKeepsInstallsRestricted() {
+        context.getSystemService(DevicePolicyManager::class.java).addUserRestriction(
+            PlainphoneAdminReceiver.component(context), UserManager.DISALLOW_INSTALL_APPS,
+        )
+        shadowOf(context.getSystemService(PowerManager::class.java))
+            .setIgnoringBatteryOptimizations(context.packageName, false)
+
+        val future = startInstall {
+            Lock.createUpdateSession(context) { throw AssertionError("Session must not open") }
+        }
+        val failure = assertThrows(java.util.concurrent.ExecutionException::class.java) {
+            future.get(5, TimeUnit.SECONDS)
+        }
+        assertTrue(failure.cause is IllegalStateException)
+        assertRecovered()
+        assertTrue(alarms.scheduledAlarms.isEmpty())
+    }
+
+    @Test fun catalogInstalledDuringPolicyApplicationStillUsesQuota() {
+        approveCatalogTarget()
+        withWatchdog {
+            InstallWindow.open(context, "org.example.approved") { opened ->
+                Lock.applyForInstall(context, "test catalog window", true, opened)
+                assertFalse(installsRestricted())
+                shadowOf(context.packageManager).installPackage(
+                    android.content.pm.PackageInfo().apply { packageName = "org.example.approved" },
+                )
+            }
+        }
+        awaitRecovery()
+        assertTrue(installsRestricted())
+        assertEquals(1, context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE).getInt("windows", 0))
+    }
+
     @Test fun processDeathAfterOpeningCatalogPreservesReservedQuota() {
         approveCatalogTarget()
         val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
+        var committedQuota = 0
+        val quotaContext = object : ContextWrapper(context) {
+            override fun getApplicationContext(): Context = this
+
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+                val delegate = super.getSharedPreferences(name, mode)
+                if (name != "plainphone_install") return delegate
+                return object : SharedPreferences by delegate {
+                    override fun edit(): SharedPreferences.Editor {
+                        val editor = delegate.edit()
+                        return object : SharedPreferences.Editor by editor {
+                            private var quota: Int? = null
+
+                            override fun putString(key: String, value: String?): SharedPreferences.Editor {
+                                editor.putString(key, value)
+                                return this
+                            }
+
+                            override fun putInt(key: String, value: Int): SharedPreferences.Editor {
+                                editor.putInt(key, value)
+                                if (key == "windows") quota = value
+                                return this
+                            }
+
+                            override fun commit(): Boolean = editor.commit().also { saved ->
+                                if (saved) quota?.let { committedQuota = it }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         val stop = Error("simulated process death before open returns")
         val future = startInstall {
-            InstallWindow.open(context, "org.example.approved") {
-                Lock.applyForInstall(context, "test catalog window", catalogChanged = true)
+            InstallWindow.open(quotaContext, "org.example.approved") { opened ->
+                assertEquals(1, committedQuota)
+                Lock.applyForInstall(context, "test catalog window", true, opened)
                 assertFalse(installsRestricted())
-                assertEquals(1, prefs.getInt("windows", 0))
                 throw stop
             }
         }
@@ -169,6 +240,7 @@ class UpdateAlarmTest {
         }
         assertEquals(42, id)
         assertRecovered()
+        assertTrue(alarms.scheduledAlarms.isEmpty())
 
         val failed = startInstall {
             Lock.createUpdateSession(context) {

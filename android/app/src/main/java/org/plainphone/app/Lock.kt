@@ -35,7 +35,7 @@ object Lock {
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
 
-    fun applier(context: Context): PolicyApplier {
+    fun applier(context: Context, onInstallsAllowed: () -> Unit = {}): PolicyApplier {
         val app = context.applicationContext
         val device = AndroidDeviceControls(app)
         return PolicyApplier(
@@ -43,6 +43,7 @@ object Lock {
             PrefsHiddenAppsStore(app),
             Build.VERSION.SDK_INT,
             settings = SettingsApplier(device, AndroidSettingsControls(app), PrefsPresetStore(app), Build.VERSION.SDK_INT),
+            onInstallsAllowed = onInstallsAllowed,
             installsAllowed = { config ->
                 InstallLease.android(app).allowsInstall(config.installing != null)
             },
@@ -59,16 +60,21 @@ object Lock {
         }
     }
 
-    fun applyForInstall(context: Context, reason: String, catalogChanged: Boolean) = synchronized(APPLY_LOCK) {
+    fun applyForInstall(
+        context: Context,
+        reason: String,
+        catalogChanged: Boolean,
+        onInstallsAllowed: () -> Unit = {},
+    ) = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
         val sync = SyncStore(context)
         check(!sync.released && !sync.releaseAsked) { "Phone release is active" }
         val result = if (catalogChanged) {
             check(effectiveConfig(context).installing != null) { "Catalog target is no longer eligible" }
-            val results = applyNow(context, reason)
+            val results = applyNow(context, reason, onInstallsAllowed)
             results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
         } else {
-            applier(context).applyInstallRestriction(effectiveConfig(context))
+            applier(context, onInstallsAllowed).applyInstallRestriction(effectiveConfig(context))
         }
         check(result?.ok != false) { result?.detail ?: "Android could not apply the install restriction" }
     }
@@ -123,7 +129,13 @@ object Lock {
     }
 
     /** Blocking. Never call on the main thread. */
-    fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
+    fun applyNow(context: Context, reason: String): List<StepResult> = applyNow(context, reason) {}
+
+    private fun applyNow(
+        context: Context,
+        reason: String,
+        onInstallsAllowed: () -> Unit,
+    ): List<StepResult> = synchronized(APPLY_LOCK) {
         // A parent released this phone: nothing locks it again, whatever wakes us (boot, an alarm, the screen).
         val sync = SyncStore(context)
         if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
@@ -132,9 +144,11 @@ object Lock {
         val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {
-            LightLock.apply(context, config)
+            LightLock.apply(context, config).also {
+                if (config.installing != null) onInstallsAllowed()
+            }
         } else {
-            applier(context).apply(config) + usageAccessStep(context)
+            applier(context, onInstallsAllowed).apply(config) + usageAccessStep(context)
         }
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
