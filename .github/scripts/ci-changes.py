@@ -27,6 +27,7 @@ FILTERS = {
         "web/src/i18n/*",
         "web/src/lib/format.ts",
         "web/src/lib/ops.ts",
+        "web/src/lib/settings.ts",
     ),
     "dns": ("dns/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*",),
