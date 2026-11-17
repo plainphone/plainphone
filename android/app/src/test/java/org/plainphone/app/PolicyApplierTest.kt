@@ -3,7 +3,10 @@
 package org.plainphone.app
 
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.Test
+import org.plainphone.app.update.InstallLease
 
 class PolicyApplierTest {
     private val device = FakeDevice(
@@ -63,6 +66,65 @@ class PolicyApplierTest {
         } finally {
             resume.countDown()
             executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `deadline recovery reports a policy clear that takes effect late`() {
+        var now = 100L
+        var restricted = true
+        var overrun: Long? = null
+        val watchdog = Executors.newSingleThreadExecutor()
+        lateinit var lease: InstallLease
+        val controls = object : DeviceControls by device {
+            override fun clearRestriction(key: String) {
+                now += 10_000
+                watchdog.submit { lease.recover() }.get(5, TimeUnit.SECONDS)
+                assertThat(restricted).isTrue()
+                now += 45_000
+                restricted = false
+            }
+
+            override fun addRestriction(key: String) {
+                restricted = true
+            }
+        }
+        val leaseStore = object : InstallLease.Store {
+            var saved = emptyMap<String, InstallLease.Lease>()
+            override fun load() = saved
+            override fun save(leases: Map<String, InstallLease.Lease>) { saved = leases }
+            override fun retire(leases: Map<String, InstallLease.Lease>, overrunSeconds: Long?) {
+                save(leases)
+                if (overrunSeconds != null) overrun = overrunSeconds
+            }
+        }
+        lease = InstallLease(
+            store = leaseStore,
+            env = object : InstallLease.Env {
+                override fun nowMs() = now
+                override fun bootCount() = 0
+                override fun processId() = "test"
+                override fun versionCode() = 0L
+                override fun scheduleExpiry(holder: String, atMs: Long) = Unit
+            },
+            relockNow = { restricted = true },
+            restrictionLifted = { !restricted },
+            tracksOverruns = { true },
+        ) { _, _ -> error("Unexpected full policy apply") }
+        val policy = PolicyApplier(
+            controls, store, sdkInt = 35,
+            clearInstallsIfAllowed = { _, clear -> lease.clearIfAllowed(false, clear) },
+            installsAllowed = { lease.allowsInstall(false) },
+        )
+        lease.begin(InstallLease.SELF_UPDATE, 10_000)
+
+        try {
+            assertThat(policy.applyInstallRestriction(config).ok).isTrue()
+            assertThat(restricted).isTrue()
+            assertThat(overrun).isEqualTo(45L)
+            assertThat(lease.hasMarkers()).isFalse()
+        } finally {
+            watchdog.shutdownNow()
         }
     }
 

@@ -318,6 +318,20 @@ class UpdateAlarmTest {
         assertReportedOverrun(5)
     }
 
+    @Test fun startupReportsAnExpiredInvalidatedLeaseIfInstallsWereStillAllowed() {
+        restoreOverdueLease(overrunMs = 5_000, previousProcess = true, invalidated = true)
+        Lock.recoverInstall(context)
+        assertRecovered()
+        assertReportedOverrun(5)
+    }
+
+    @Test fun rebootReportsAnOverrunForALegacyLeaseWithoutAWallDeadline() {
+        restoreOverdueLease(overrunMs = 4_001, previousBoot = true, hasWallDeadline = false)
+        Lock.recoverInstall(context)
+        assertRecovered()
+        assertReportedOverrun(0)
+    }
+
     @Test fun rebootUsesThePersistedDeadlineWhenElapsedTimeStartsOver() {
         restoreOverdueLease(overrunMs = 4_001, previousBoot = true)
         Lock.recoverInstall(context)
@@ -325,14 +339,24 @@ class UpdateAlarmTest {
         assertReportedOverrun(5)
     }
 
-    private fun restoreOverdueLease(overrunMs: Long, previousProcess: Boolean = false, previousBoot: Boolean = false) {
+    private fun restoreOverdueLease(
+        overrunMs: Long,
+        previousProcess: Boolean = false,
+        previousBoot: Boolean = false,
+        invalidated: Boolean = false,
+        hasWallDeadline: Boolean = true,
+    ) {
         ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
         val env = AndroidLeaseEnv(context)
         // Simulate recovery after Android delayed delivery, with no watchdog or alarm queued.
         val elapsedDeadline = if (previousBoot) env.nowMs() + 60_000L else env.nowMs() - overrunMs
         val boot = if (previousBoot) env.bootCount() - 1 else env.bootCount()
         val process = if (previousProcess || previousBoot) "previous-process" else env.processId()
-        val record = "$elapsedDeadline,$boot,0,$process,,${env.wallNowMs() - overrunMs},false"
+        val record = if (hasWallDeadline) {
+            "$elapsedDeadline,$boot,0,$process,,${env.wallNowMs() - overrunMs},$invalidated"
+        } else {
+            "$elapsedDeadline,$boot,0,$process"
+        }
         assertTrue(leasePrefs.edit().putString(InstallLease.SELF_UPDATE, record).commit())
         val dpm = context.getSystemService(DevicePolicyManager::class.java)
         dpm.clearUserRestriction(PlainphoneAdminReceiver.component(context), UserManager.DISALLOW_INSTALL_APPS)

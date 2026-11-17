@@ -66,7 +66,9 @@ attempt to coincide with that window. Plainphone records a late relock when it h
 more than 30 seconds after the deadline, or when startup or boot recovers an expired
 lease. The latest incident survives restarts and appears on the phone's dashboard page
 and in the parent app after the next successful sync. Across a reboot, the delay is
-estimated from the phone's wall clock.
+estimated from the phone's wall clock. For older lease records without a wall-clock
+deadline, recovery reports the incident with a zero-second lower bound because the
+previous boot's elapsed clock cannot be compared with the new one.
 
 See [Android's Doze documentation](https://developer.android.com/training/monitoring-device-state/doze-standby#support_for_other_use_cases)
 and [AOSP's alarm permission handling](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java).

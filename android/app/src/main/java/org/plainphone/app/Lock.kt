@@ -38,15 +38,17 @@ object Lock {
     fun applier(context: Context, onInstallsAllowed: () -> Unit = {}): PolicyApplier {
         val app = context.applicationContext
         val device = AndroidDeviceControls(app)
+        val installLease = InstallLease.android(app)
         return PolicyApplier(
             device,
             PrefsHiddenAppsStore(app),
             Build.VERSION.SDK_INT,
             settings = SettingsApplier(device, AndroidSettingsControls(app), PrefsPresetStore(app), Build.VERSION.SDK_INT),
             onInstallsAllowed = onInstallsAllowed,
-            installsAllowed = { config ->
-                InstallLease.android(app).allowsInstall(config.installing != null)
+            clearInstallsIfAllowed = { config, clear ->
+                installLease.clearIfAllowed(config.installing != null, clear)
             },
+            installsAllowed = { config -> installLease.allowsInstall(config.installing != null) },
         )
     }
 

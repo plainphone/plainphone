@@ -51,6 +51,21 @@ class InstallLease(
         return SELF_UPDATE in open || (catalogApproved && CATALOG in open)
     }
 
+    /** Keeps the durable marker until Android has finished the restriction clear. */
+    fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean {
+        synchronized(LOCK) {
+            if (!allowsInstall(catalogApproved)) return false
+            clearsInFlight++
+        }
+        try {
+            clear()
+        } finally {
+            synchronized(LOCK) { clearsInFlight-- }
+            recover()
+        }
+        return true
+    }
+
     /**
      * Runs session creation in a lease. A session that returns after expiry must be abandoned;
      * recovery is also scheduled independently of this call.
@@ -83,6 +98,9 @@ class InstallLease(
                 synchronized(LOCK) {
                     check(until > env.nowMs()) { "Install watchdog started after its deadline" }
                     val previous = store.load()
+                    check(clearsInFlight == 0 || holder !in previous) {
+                        "Install restriction clear still in progress"
+                    }
                     try {
                         store.save(previous + (holder to lease))
                         env.scheduleExpiry(holder, until)
@@ -126,10 +144,17 @@ class InstallLease(
                 } else {
                     null
                 }
-                store.retire(valid, overrun?.let { (it + 999) / 1_000 })
-                expired.forEach(env::cancelExpiry)
+                // A clear can take effect after the watchdog relocks. Keep its deadline
+                // available to the policy path, while making the expired lease unusable.
+                val retained = if (clearsInFlight == 0) emptyMap() else
+                    current.filterKeys { it in expired }.mapValues { (_, lease) -> lease.copy(invalidated = true) }
+                store.retire(valid + retained, overrun?.let { (it + 999) / 1_000 })
+                val retired = expired - retained.keys
+                retired.forEach(env::cancelExpiry)
+                CATALOG in retired
+            } else {
+                false
             }
-            CATALOG in expired
         }
         onRecovered(catalogChanged)
     }
@@ -156,14 +181,15 @@ class InstallLease(
     private fun overrunMs(lease: Lease, wasLifted: Boolean): Long? {
         if (lease.untilMs <= 0) return null // older builds used zero for a released lease
         val sameBoot = lease.bootCount == env.bootCount()
-        val lateBy = if (sameBoot || lease.wallDeadlineMs == null) {
+        val lateBy = if (sameBoot) {
             env.nowMs() - lease.untilMs
         } else {
-            env.wallNowMs() - lease.wallDeadlineMs
+            // A legacy deadline belongs to the previous boot's monotonic clock.
+            lease.wallDeadlineMs?.let { env.wallNowMs() - it } ?: 0L
         }
         val startedAgain = !sameBoot || lease.process != env.processId()
         return lateBy.takeIf {
-            (wasLifted && it > OVERRUN_GRACE_MS) || (startedAgain && !lease.invalidated && it >= 0)
+            (wasLifted && it > OVERRUN_GRACE_MS) || (startedAgain && it >= 0 && (wasLifted || !lease.invalidated))
         }
     }
 
@@ -183,6 +209,7 @@ class InstallLease(
         const val MAX_MS = 15 * 60_000L
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
+        private var clearsInFlight = 0
         private val BEGIN_LOCK = Any()
 
         internal fun latestOverrun(context: Context): InstallWindowOverrun? = PrefsLeaseStore(context).latestOverrun()
