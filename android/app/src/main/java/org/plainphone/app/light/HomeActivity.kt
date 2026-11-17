@@ -112,7 +112,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
-            org.plainphone.app.safety.LocationSharingBadge()
+            org.plainphone.app.safety.LocationSharingLine()
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }
             if (install.isNotEmpty()) InstallList(install)

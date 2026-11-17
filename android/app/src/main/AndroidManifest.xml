@@ -328,6 +328,10 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:taskAffinity="org.plainphone.app.safety" />
+        <!-- "What can my parents see?" -->
+        <activity
+            android:name=".safety.SharingActivity"
+            android:exported="false" />
         <receiver
             android:name=".safety.SafetyAlarmReceiver"
             android:exported="false" />

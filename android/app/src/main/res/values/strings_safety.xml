@@ -17,7 +17,7 @@
     <string name="checkin_eyebrow">From your parent</string>
     <string name="checkin_title">Are you okay?</string>
     <string name="checkin_body">Please answer before %1$s.</string>
-    <string name="checkin_body_location">Please answer before %1$s. If you do not answer, your location is sent to your parent once.</string>
+    <string name="checkin_body_location">Please answer before %1$s. If you have not answered by then, your location is sent to your parent once.</string>
     <string name="checkin_ok">Yes, I\'m okay</string>
     <string name="checkin_call">Call me</string>
     <string name="checkin_notice">Please answer before %1$s.</string>
@@ -27,4 +27,22 @@
     <string name="location_sent_checkin">You did not answer \"Are you okay?\", so your location was sent to your parent at %1$s.</string>
     <string name="location_always_title">Your location is shared with your parent</string>
     <string name="location_always_body">Every 5 minutes, until your parent turns it off.</string>
+    <string name="location_always_body_until">Every 5 minutes, until %1$s. Then only when your parent presses Find or you do not answer \"Are you okay?\".</string>
+    <string name="location_always_badge_until">Your location is shared until %1$s</string>
+
+    <string name="sharing_open">What can my parents see?</string>
+    <string name="sharing_title">What can my parents see?</string>
+    <string name="sharing_mode_off">Your parent cannot see where you are. Location is off.</string>
+    <string name="sharing_mode_find">Your parent can see where you are only when they press Find. You get a notice each time.</string>
+    <string name="sharing_mode_checkin">Your parent can see where you are when they press Find, or if you do not answer \"Are you okay?\" in time. You get a notice each time.</string>
+    <string name="sharing_mode_always">Your location is shared every 5 minutes until %1$s. After that, only when your parent presses Find or you do not answer \"Are you okay?\".</string>
+    <string name="sharing_mode_always_open">Your location is shared every 5 minutes. You see this notice the whole time.</string>
+    <string name="sharing_only_latest">Your parent only sees the latest position, never a history.</string>
+    <string name="sharing_latest">When your location was sent</string>
+    <string name="sharing_none">Your location has not been sent in the last 30 days.</string>
+    <string name="sharing_why_find">Your parent pressed Find</string>
+    <string name="sharing_why_checkin">No answer to \"Are you okay?\"</string>
+    <string name="sharing_why_always">Always on</string>
+    <string name="sharing_range">%1$s to %2$s</string>
+    <string name="sharing_log_note">This list is only on this phone, and keeps the last 30 days.</string>
 </resources>

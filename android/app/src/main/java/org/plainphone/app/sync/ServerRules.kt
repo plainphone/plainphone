@@ -36,6 +36,8 @@ data class ServerRules(
     val timeLimits: TimeLimits = TimeLimits.NONE,
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
+    /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
+    val locationAlwaysUntil: Instant? = null,
     /** An open "Ring the phone"; null means stop. */
     val ring: RingRequest? = null,
     /** An open "Are you okay?"; null means close it. */
@@ -86,6 +88,9 @@ data class ServerRules(
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
                 locationMode = locationMode(location),
+                locationAlwaysUntil = location.optString("alwaysUntil", "")
+                    .takeIf { it.isNotEmpty() && it != "null" }
+                    ?.let { runCatching { Instant.parse(it) }.getOrNull() },
                 ring = j.optJSONObject("ring")?.let {
                     RingRequest(
                         id = it.getString("id"),

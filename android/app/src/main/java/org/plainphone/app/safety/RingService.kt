@@ -58,7 +58,7 @@ class RingService : Service() {
         val answered = SafetyStore(this).ringAnswered(id)
         val current = _state.value
         Safety.createChannels(this)
-        startInForeground(id)
+        if (!startInForeground(id)) return START_NOT_STICKY
         if (current?.id != id) {
             _state.value = RingUi(id, endsAt, stopOnAnswer, answered)
             SafetyStore(this).add(SafetyEvent(id, "shown"))
@@ -71,7 +71,7 @@ class RingService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun startInForeground(id: String) {
+    private fun startInForeground(id: String): Boolean {
         val open = PendingIntent.getActivity(
             this, Safety.ID_RING,
             Intent(this, RingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -93,11 +93,15 @@ class RingService : Service() {
                 startForeground(Safety.ID_RING, n)
             }
         } catch (e: Exception) {
-            // Not allowed from the background here: the notification still shows, and the sound plays.
-            Log.w(TAG, "ring without foreground service: ${e.message}")
+            // Android would kill a service started with startForegroundService that is not in the
+            // foreground. Leave the full-screen notice (it still opens the ring screen) and stop.
+            Log.w(TAG, "ring could not start in the foreground: ${e.message}")
             getSystemService(NotificationManager::class.java)?.notify(Safety.ID_RING, n)
+            stopSelf()
+            return false
         }
         Log.i(TAG, "ringing for request $id")
+        return true
     }
 
     private fun openScreen() {

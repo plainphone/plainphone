@@ -168,8 +168,9 @@ class SyncRunner(
         // Only a fix taken after the parent pressed Find answers it (the server and dashboard
         // compare the same way). An older last-known position is sent, but the phone keeps trying.
         if (find && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
-        // Each single position is shown on the phone; "always" has its own ongoing notice.
-        if (stored && (find || checkIn)) device.positionSent(if (checkIn) "checkin" else "find")
+        // Every position goes to the phone's own log; single ones also get a notice
+        // ("always" has its own ongoing one).
+        if (stored) device.positionSent(if (checkIn) "checkin" else if (find) "find" else "always")
     }
 
     private fun reportStatus(token: String) {

@@ -120,4 +120,44 @@ class SafetyScreenshotTest {
         compose.onNodeWithText("Your location is shared with your parent").assertIsDisplayed()
         shoot("badge-en-light")
     }
+
+    private val log = listOf(
+        SharingEntry("always", now - 3_600_000L, now - 300_000L, 12),
+        SharingEntry("checkin", now - 86_400_000L, now - 86_400_000L, 1),
+        SharingEntry("find", now - 3 * 86_400_000L, now - 3 * 86_400_000L, 1),
+    )
+    private val fmt: (Long) -> String = { ms -> "%02d:%02d".format((ms / 3_600_000L) % 24, (ms / 60_000L) % 60) }
+
+    @Test
+    fun `what can my parents see lists every position sent`() {
+        compose.setContent { PlainphoneTheme { SharingScreen("always", now + 3_600_000L, log, fmt) {} } }
+        compose.onNodeWithText("What can my parents see?").assertIsDisplayed()
+        compose.onNodeWithText("Your location is shared every 5 minutes until", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("No answer to \"Are you okay?\"").assertExists()
+        shoot("sharing-en-light")
+    }
+
+    @Test
+    fun `what can my parents see in Danish, dark, nothing sent`() {
+        qualifiers(night = true, danish = true)
+        compose.setContent { PlainphoneTheme { SharingScreen("checkin", null, emptyList(), fmt) {} } }
+        compose.onNodeWithText("Hvad kan mine forældre se?").assertIsDisplayed()
+        compose.onNodeWithText("Din placering er ikke sendt de sidste 30 dage.").assertExists()
+        shoot("sharing-da-dark")
+    }
+
+    @Test
+    fun `the sharing log keeps always in one line and forgets after 30 days`() {
+        val store = SafetyStore(RuntimeEnvironment.getApplication())
+        store.logPosition("find", now - 40L * 86_400_000L)
+        store.logPosition("always", now)
+        store.logPosition("always", now + 300_000L)
+        store.logPosition("always", now + 600_000L)
+        store.logPosition("checkin", now + 900_000L)
+        val entries = store.sharingLog(now + 900_000L)
+        assertThat(entries.map { it.why }).containsExactly("checkin", "always").inOrder()
+        assertThat(entries[1].count).isEqualTo(3)
+        assertThat(entries[1].firstMs).isEqualTo(now)
+        assertThat(entries[1].lastMs).isEqualTo(now + 600_000L)
+    }
 }

@@ -40,7 +40,7 @@ class SafetySyncTest {
         runner.run("test")
         assertThat(store.rules()!!.locationMode).isEqualTo(ServerRules.LOCATION_ALWAYS)
         assertThat(api.locations).hasSize(1)
-        assertThat(device.positionsShown).isEmpty() // "always" has its own ongoing notice
+        assertThat(device.positionsShown).containsExactly("always") // logged; its notice is the ongoing one
     }
 
     @Test

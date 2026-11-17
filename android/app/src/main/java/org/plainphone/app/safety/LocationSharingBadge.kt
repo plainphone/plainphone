@@ -3,6 +3,7 @@
 package org.plainphone.app.safety
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,11 +28,17 @@ import org.plainphone.app.R
  * whenever the parent chose "always on". Renders nothing otherwise.
  */
 @Composable
-fun LocationSharingBadge(modifier: Modifier = Modifier, shared: Boolean = SafetyStore(LocalContext.current).sharingAlways) {
+fun LocationSharingBadge(
+    modifier: Modifier = Modifier,
+    shared: Boolean = SafetyStore(LocalContext.current).sharingAlways,
+    untilText: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
     if (!shared) return
     Row(
         modifier
             .fillMaxWidth()
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(14.dp))
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -39,7 +46,7 @@ fun LocationSharingBadge(modifier: Modifier = Modifier, shared: Boolean = Safety
         Box(Modifier.size(10.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
         Spacer(Modifier.size(12.dp))
         Text(
-            stringResource(R.string.location_always_title),
+            if (untilText != null) stringResource(R.string.location_always_badge_until, untilText) else stringResource(R.string.location_always_title),
             fontSize = 15.sp,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )

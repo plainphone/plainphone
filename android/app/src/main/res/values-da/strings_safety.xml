@@ -16,7 +16,7 @@
     <string name="checkin_eyebrow">Fra din forælder</string>
     <string name="checkin_title">Er du okay?</string>
     <string name="checkin_body">Svar gerne inden kl. %1$s.</string>
-    <string name="checkin_body_location">Svar gerne inden kl. %1$s. Svarer du ikke, sendes din placering én gang til din forælder.</string>
+    <string name="checkin_body_location">Svar inden kl. %1$s. Svarer du ikke inden da, sendes din placering én gang til din forælder.</string>
     <string name="checkin_ok">Ja, jeg er okay</string>
     <string name="checkin_call">Ring til mig</string>
     <string name="checkin_notice">Svar gerne inden kl. %1$s.</string>
@@ -26,4 +26,22 @@
     <string name="location_sent_checkin">Du svarede ikke på ”Er du okay?”, så din placering blev sendt til din forælder kl. %1$s.</string>
     <string name="location_always_title">Din placering deles med din forælder</string>
     <string name="location_always_body">Hvert 5. minut, indtil din forælder slår det fra.</string>
+    <string name="location_always_body_until">Hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
+    <string name="location_always_badge_until">Din placering deles indtil %1$s</string>
+
+    <string name="sharing_open">Hvad kan mine forældre se?</string>
+    <string name="sharing_title">Hvad kan mine forældre se?</string>
+    <string name="sharing_mode_off">Din forælder kan ikke se, hvor du er. Placering er slået fra.</string>
+    <string name="sharing_mode_find">Din forælder kan kun se, hvor du er, når de trykker Find. Du får en besked hver gang.</string>
+    <string name="sharing_mode_checkin">Din forælder kan se, hvor du er, når de trykker Find, eller hvis du ikke svarer på »Er du okay?« i tide. Du får en besked hver gang.</string>
+    <string name="sharing_mode_always">Din placering deles hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
+    <string name="sharing_mode_always_open">Din placering deles hvert 5. minut. Du ser beskeden hele tiden.</string>
+    <string name="sharing_only_latest">Din forælder ser kun den seneste placering, aldrig en historik.</string>
+    <string name="sharing_latest">Hvornår din placering blev sendt</string>
+    <string name="sharing_none">Din placering er ikke sendt de sidste 30 dage.</string>
+    <string name="sharing_why_find">Din forælder trykkede Find</string>
+    <string name="sharing_why_checkin">Intet svar på »Er du okay?«</string>
+    <string name="sharing_why_always">Altid tændt</string>
+    <string name="sharing_range">%1$s til %2$s</string>
+    <string name="sharing_log_note">Listen findes kun på denne telefon og gemmer de sidste 30 dage.</string>
 </resources>

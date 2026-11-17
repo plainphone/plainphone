@@ -69,9 +69,12 @@ object Safety {
         }
 
         val always = rules.locationMode == ServerRules.LOCATION_ALWAYS
-        if (always != store.sharingAlways || always) {
+        store.locationMode = rules.locationMode
+        val until = if (always) rules.locationAlwaysUntil?.toEpochMilli() else null
+        if (always != store.sharingAlways || until != store.alwaysUntilMs || always) {
             store.sharingAlways = always
-            showAlways(context, always)
+            store.alwaysUntilMs = until
+            showAlways(context, always, until)
         }
     }
 
@@ -136,6 +139,8 @@ object Safety {
 
     /** A single position went to the parent (Find, or an unanswered "Are you okay?"). */
     fun positionSent(context: Context, why: String, nowMs: Long = System.currentTimeMillis()) {
+        SafetyStore(context).logPosition(why, nowMs)
+        if (why == "always") return // the ongoing notice says it already
         createChannels(context)
         val text = context.getString(
             if (why == "checkin") R.string.location_sent_checkin else R.string.location_sent_find,
@@ -148,20 +153,28 @@ object Safety {
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setShowWhen(true)
             .setAutoCancel(true)
+            .setContentIntent(sharingPage(context))
             .build()
         context.getSystemService(NotificationManager::class.java)?.notify(ID_LOCATION_SENT, n)
     }
 
-    private fun showAlways(context: Context, on: Boolean) {
+    private fun showAlways(context: Context, on: Boolean, untilMs: Long?) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (!on) {
             nm.cancel(ID_LOCATION_ALWAYS)
             return
         }
+        val body = if (untilMs != null) {
+            context.getString(R.string.location_always_body_until, dateTime(context, untilMs))
+        } else {
+            context.getString(R.string.location_always_body)
+        }
         val n = Notification.Builder(context, CHANNEL_LOCATION)
             .setSmallIcon(R.drawable.ic_plainphone)
             .setContentTitle(context.getString(R.string.location_always_title))
-            .setContentText(context.getString(R.string.location_always_body))
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setContentIntent(sharingPage(context))
             .setOngoing(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
@@ -200,6 +213,22 @@ object Safety {
 
     private fun time(context: Context, ms: Long): String =
         android.text.format.DateFormat.getTimeFormat(context).format(Date(ms))
+
+    /** "14:05" today, otherwise "Tue 24 Nov 14:05". */
+    fun dateTime(context: Context, ms: Long, nowMs: Long = System.currentTimeMillis()): String {
+        val sameDay = android.text.format.DateUtils.isToday(ms) || kotlin.math.abs(ms - nowMs) < 60_000L
+        return if (sameDay) time(context, ms) else android.text.format.DateUtils.formatDateTime(
+            context, ms,
+            android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY or android.text.format.DateUtils.FORMAT_ABBREV_ALL or
+                android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_SHOW_TIME,
+        )
+    }
+
+    private fun sharingPage(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, ID_LOCATION_ALWAYS,
+        Intent(context, SharingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     const val IDLE_POLL_MS = 2 * 60_000L
     internal const val REQ_IDLE = 4200

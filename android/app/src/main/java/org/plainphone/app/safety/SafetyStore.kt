@@ -55,6 +55,48 @@ class SafetyStore(context: Context) {
         get() = prefs.getBoolean(KEY_ALWAYS, false)
         set(v) { prefs.edit().putBoolean(KEY_ALWAYS, v).apply() }
 
+    /** End of "always" as the server said; null when not "always" or unknown. */
+    var alwaysUntilMs: Long?
+        get() = prefs.getLong(KEY_ALWAYS_UNTIL, -1L).takeIf { it > 0 }
+        set(v) { prefs.edit().apply { if (v == null) remove(KEY_ALWAYS_UNTIL) else putLong(KEY_ALWAYS_UNTIL, v) }.apply() }
+
+    /** The location mode from the last rules, for "What can my parents see?". */
+    var locationMode: String?
+        get() = prefs.getString(KEY_MODE, null)
+        set(v) { prefs.edit().putString(KEY_MODE, v).apply() }
+
+    /**
+     * Every time this phone sent its position, newest first. Only on the phone, for the child to
+     * see; 30 days at most. Positions sent in a row under "always" are one entry with a range.
+     */
+    @Synchronized
+    fun sharingLog(nowMs: Long = System.currentTimeMillis()): List<SharingEntry> =
+        parseLog(prefs.getString(KEY_LOG, null)).filter { nowMs - it.lastMs < LOG_KEEP_MS }
+
+    @Synchronized
+    fun logPosition(why: String, atMs: Long) {
+        val list = sharingLog(atMs).toMutableList()
+        val top = list.firstOrNull()
+        if (why == "always" && top != null && top.why == "always" && atMs - top.lastMs <= ALWAYS_GAP_MS) {
+            list[0] = top.copy(lastMs = atMs, count = top.count + 1)
+        } else {
+            list.add(0, SharingEntry(why, atMs, atMs, 1))
+        }
+        val arr = JSONArray()
+        list.take(MAX_LOG).forEach {
+            arr.put(JSONObject().put("why", it.why).put("first", it.firstMs).put("last", it.lastMs).put("count", it.count))
+        }
+        prefs.edit().putString(KEY_LOG, arr.toString()).apply()
+    }
+
+    private fun parseLog(text: String?): List<SharingEntry> = runCatching {
+        val arr = JSONArray(text ?: return emptyList())
+        (0 until arr.length()).map {
+            val o = arr.getJSONObject(it)
+            SharingEntry(o.getString("why"), o.getLong("first"), o.getLong("last"), o.optInt("count", 1))
+        }
+    }.getOrDefault(emptyList())
+
     private fun save(list: List<SafetyEvent>) {
         val arr = JSONArray()
         list.forEach { arr.put(JSONObject().put("id", it.requestId).put("event", it.event)) }
@@ -76,5 +118,15 @@ class SafetyStore(context: Context) {
         private const val KEY_CHECKIN_SHOWN = "checkin_shown"
         private const val KEY_VOLUME = "alarm_volume"
         private const val KEY_ALWAYS = "sharing_always"
+        private const val KEY_ALWAYS_UNTIL = "always_until"
+        private const val KEY_MODE = "location_mode"
+        private const val KEY_LOG = "sharing_log"
+        private const val MAX_LOG = 100
+        const val LOG_KEEP_MS = 30L * 24 * 60 * 60_000
+        /** "Always" positions closer together than this are one log entry. */
+        private const val ALWAYS_GAP_MS = 20 * 60_000L
     }
 }
+
+/** One line in "What can my parents see?": why, and when (a range for "always"). */
+data class SharingEntry(val why: String, val firstMs: Long, val lastMs: Long, val count: Int)
