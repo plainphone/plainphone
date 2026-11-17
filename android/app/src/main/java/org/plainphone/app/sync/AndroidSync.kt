@@ -37,6 +37,7 @@ import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.PrefsHiddenAppsStore
+import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.update.SelfUpdate
 
@@ -84,6 +85,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 
     override fun lockState(): LockState = Lock.lockState(context)
+
+    override fun release(): List<StepResult> = Lock.releaseNow(context)
 
     override fun battery(): Pair<Int?, Boolean?> {
         val bm = context.getSystemService(BatteryManager::class.java) ?: return null to null

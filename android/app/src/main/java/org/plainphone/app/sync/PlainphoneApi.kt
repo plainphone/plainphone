@@ -20,6 +20,12 @@ interface SyncApi {
     fun reportLocation(token: String, fix: LocationFix): Boolean
     fun reportStatus(token: String, status: DeviceStatus)
     /**
+     * Tells the server Plainphone is switched off after a release (POST /device/released). True when
+     * the server deleted the phone (204) or no longer knows it (401); false when nobody asked for a
+     * release (409). Other answers and network errors throw.
+     */
+    fun ackReleased(token: String): Boolean
+    /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
      */
@@ -213,6 +219,15 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
     override fun reportStatus(token: String, status: DeviceStatus) {
         val r = call("PUT", "/device/status", token, status.toJson())
         if (r.status != 204) throw HttpError(r.status, r.body)
+    }
+
+    override fun ackReleased(token: String): Boolean {
+        val r = call("POST", "/device/released", token, JSONObject())
+        return when (r.status) {
+            204, 401 -> true
+            409 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

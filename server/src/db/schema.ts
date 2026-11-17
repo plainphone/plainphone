@@ -179,6 +179,12 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
+    /**
+     * Set when the parents asked to release the phone: it switches Plainphone off on its own
+     * and then calls `POST /device/released`, which deletes this row. Until then the rules
+     * document carries `release: true`.
+     */
+    releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus>(),

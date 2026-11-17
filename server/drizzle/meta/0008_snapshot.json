@@ -1,5 +1,5 @@
 {
-  "id": "5b5f1d6d-d00e-40f3-8ba7-84208c89a78f",
+  "id": "cdd0ec6a-eeef-4ccd-953a-bca636c8d1c0",
   "prevId": "77bf788e-2ab5-476f-a09a-b33dbb9c343f",
   "version": "7",
   "dialect": "postgresql",
@@ -1285,12 +1285,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "update_requested_at": {
-          "name": "update_requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "location_mode": {
           "name": "location_mode",
           "type": "text",
@@ -1324,6 +1318,12 @@
         },
         "paired_at": {
           "name": "paired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "release_requested_at": {
+          "name": "release_requested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

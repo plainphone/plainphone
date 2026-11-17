@@ -61,8 +61,15 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1794951012431,
-      "tag": "0008_phone_updates",
+      "when": 1794951135145,
+      "tag": "0008_phone_release",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794952164742,
+      "tag": "0009_phone_updates",
       "breakpoints": true
     }
   ]

@@ -34,6 +34,13 @@ class RulesTest {
     }
 
     @Test
+    fun `release is false unless the server says so, so an older server never releases a phone`() {
+        assertThat(ServerRules.parse(rulesJson()).release).isFalse()
+        assertThat(ServerRules.parse(rulesJson(release = false)).release).isFalse()
+        assertThat(ServerRules.parse(rulesJson(release = true)).release).isTrue()
+    }
+
+    @Test
     fun `a server that does not say the DNS host is ready is not trusted`() {
         assertThat(ServerRules.parse(rulesJson(dnsReady = null)).dnsReady).isFalse()
         assertThat(ServerRules.parse(rulesJson(dnsReady = false)).dnsReady).isFalse()
