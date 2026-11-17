@@ -285,8 +285,8 @@ export function nativeSendersFromConfig(cfg: {
     // "TEAMID.bundle.id": the first app the server associates with.
     const first = cfg.APPLE_APP_IDS.split(",")[0]?.trim() ?? "";
     const dot = first.indexOf(".");
-    const teamId = cfg.APNS_TEAM_ID ?? (dot > 0 ? first.slice(0, dot) : "");
-    const topic = cfg.APNS_TOPIC ?? (dot > 0 ? first.slice(dot + 1) : "");
+    const teamId = cfg.APNS_TEAM_ID || (dot > 0 ? first.slice(0, dot) : "");
+    const topic = cfg.APNS_TOPIC || (dot > 0 ? first.slice(dot + 1) : "");
     if (!teamId || !topic) throw new Error("APNs needs APNS_TEAM_ID and APNS_TOPIC (or an APPLE_APP_IDS entry)");
     senders.push(
       new ApnsSender({ keyId: cfg.APNS_KEY_ID, teamId, key: cfg.APNS_KEY_P8, topic, environment: cfg.APNS_ENVIRONMENT }),

@@ -4,15 +4,17 @@ import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { I18nProvider, useI18n } from "../i18n/I18n";
-import { useNotificationRouting } from "../lib/notifications";
-import { SessionProvider } from "../lib/session";
+import { useNotificationRouting, usePushRegistration } from "../lib/notifications";
+import { SessionProvider, useSession } from "../lib/session";
 import { useStackOptions } from "../lib/stackOptions";
 
 function AppStack() {
   const options = useStackOptions();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const scheme = useColorScheme();
+  const { state } = useSession();
   useNotificationRouting();
+  usePushRegistration(state.status === "in", locale);
   return (
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />

@@ -33,13 +33,20 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 ## Push notifications
 
-The app is ready for two notifications: a change waiting for your approval, and a position that is ready after Find. It asks for permission in Settings, creates the Android channels `approval` and `location`, and reads the native device token (APNs or FCM). It does not use the Expo push service.
+The server sends notifications to the app straight through APNs (iOS) and FCM (Android); the Expo push service is not used. The same events go to the web app through Web Push: protection removed on a phone, a phone offline for long, and something waiting for your approval.
 
-Still missing before notifications arrive:
+How it fits together:
 
-1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
-3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
+1. When you turn on notifications in Settings, the app reads the native device token and registers it with `POST /api/notifications/subscriptions` (`platform: "apns"` or `"fcm"`). It registers again at every start while signed in and when the system issues a new token, and removes it with `DELETE /api/notifications/subscriptions/{id}` when you log out.
+2. The payload carries `url` (a path in the app: `/phones/<id>`, `/phones/<id>/location`, `/approvals` or `/settings`) and `channel`, the Android notification channel: `alerts` (high importance), `approval` or `location`. Tapping opens `url`; other paths open the start screen.
+3. Tokens APNs or FCM reject for good (unregistered, wrong app) are deleted on the server.
+
+What the server needs (see [self-hosting.md](self-hosting.md)):
+
+- **Android:** a Firebase project with an Android app for the package name. Build the app with its `google-services.json` (`GOOGLE_SERVICES_JSON=/path/to/google-services.json npx expo prebuild`; the file is never committed), and give the server a service account key of the same project in `FCM_SERVICE_ACCOUNT_JSON` (Firebase console > Project settings > Service accounts > Generate new private key; base64 of the JSON is easiest in an env file). The Firebase project can stay on the free plan.
+- **iOS:** an APNs auth key (`.p8`) from the Apple developer account (Certificates, Identifiers & Profiles > Keys, with Apple Push Notifications service) in `APNS_KEY_P8` and its id in `APNS_KEY_ID`. Team and bundle id come from `APPLE_APP_IDS`. TestFlight and App Store builds use `APNS_ENVIRONMENT=production` (the default); builds run from Xcode use `sandbox`.
+
+Without these, the app still registers its token; notifications start once the keys are set. `GET /api/notifications` reports `nativePush: { apns, fcm }`.
 
 ## Map
 
@@ -52,7 +59,7 @@ The location screen can draw the last position on OpenStreetMap raster tiles, fe
 ```sh
 cd parent-app
 pnpm install
-npx expo prebuild --platform android
+GOOGLE_SERVICES_JSON=/path/to/google-services.json npx expo prebuild --platform android   # for FCM push
 cd android
 ./gradlew assembleRelease \
   -Pandroid.injected.signing.store.file=/path/to/upload.jks \

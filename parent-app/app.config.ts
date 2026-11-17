@@ -10,6 +10,12 @@ const SERVER_URL = (process.env.PLAINPHONE_SERVER_URL ?? "https://app.plainphone
 const HOST = new URL(SERVER_URL).host;
 const BUNDLE_ID = process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.parent";
 const APPLE_TEAM_ID = process.env.PLAINPHONE_APPLE_TEAM_ID ?? "P7698GU4AV";
+/**
+ * Firebase config for FCM push on Android, injected at build time and never committed:
+ * GOOGLE_SERVICES_JSON=/path/to/google-services.json. Without it the app builds and runs
+ * without push on Android.
+ */
+const GOOGLE_SERVICES_JSON = process.env.GOOGLE_SERVICES_JSON;
 /** Paths the app opens. Keep in sync with APP_LINK_PATHS in server/src/app.ts. */
 const LINK_PATHS = ["/auth/app", "/pair", "/invite"];
 
@@ -44,6 +50,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: BUNDLE_ID,
+    ...(GOOGLE_SERVICES_JSON ? { googleServicesFile: GOOGLE_SERVICES_JSON } : {}),
     versionCode: 1,
     adaptiveIcon: {
       backgroundColor: "#24604a",

@@ -33,6 +33,16 @@ services:
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: ${DNS_HOST_SUFFIX:-dns.plainphone.org}
+      # Your own build of the parent app (docs/parent-app.md, "Your own server").
+      APPLE_APP_IDS: ${APPLE_APP_IDS:-P7698GU4AV.org.plainphone.parent}
+      ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-org.plainphone.parent}
+      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      APNS_KEY_P8: ${APNS_KEY_P8:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-}
+      APNS_ENVIRONMENT: ${APNS_ENVIRONMENT:-production}
       TRUST_PROXY: ${TRUST_PROXY:-false}
     ports:
       - "${APP_PORT:-8080}:8080"

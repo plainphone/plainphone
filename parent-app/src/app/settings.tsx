@@ -41,7 +41,7 @@ function Settings() {
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
           {push === "granted" ? (
-            <Notice tone="success" text={`${t("native.notificationsOn")} ${t("native.notificationsLater")}`} />
+            <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (

@@ -35,6 +35,8 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: notifications
+    description: Web Push to the web app, APNs and FCM to the native app.
 
 components:
   securitySchemes:
@@ -74,6 +76,15 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    PushSubscription:
+      type: object
+      required: [id, platform, label, createdAt, lastSuccessAt]
+      properties:
+        id: { type: string, format: uuid }
+        platform: { enum: [web, apns, fcm] }
+        label: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        lastSuccessAt: { type: [string, "null"], format: date-time }
     Error:
       type: object
       required: [error]
@@ -660,6 +671,137 @@ paths:
                 properties:
                   error: { type: string }
                   selfPhoneIds: { type: array, items: { type: string, format: uuid } }
+
+  # ---------------------------------------------------------------- notifications
+  /notifications:
+    get:
+      operationId: getNotifications
+      summary: Notification settings and this user's subscriptions
+      description: |
+        `webPushEnabled` and `webPushPublicKey` are for the web app. `nativePush` says whether
+        the server can deliver to the native app (APNs on iOS, FCM on Android); an app token
+        can be registered either way and starts working when the server gets the keys.
+      tags: [notifications]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webPushEnabled, webPushPublicKey, nativePush, offlineAlertHours, subscriptions, mutedPhoneIds]
+                properties:
+                  webPushEnabled: { type: boolean }
+                  webPushPublicKey: { type: [string, "null"] }
+                  nativePush:
+                    type: object
+                    required: [apns, fcm]
+                    properties:
+                      apns: { type: boolean }
+                      fcm: { type: boolean }
+                  offlineAlertHours: { type: integer }
+                  subscriptions:
+                    type: array
+                    items: { $ref: "#/components/schemas/PushSubscription" }
+                  mutedPhoneIds: { type: array, items: { type: string, format: uuid } }
+  /notifications/subscriptions:
+    post:
+      operationId: postNotificationSubscription
+      summary: Register a browser or an app install for notifications
+      description: |
+        Web: the browser's PushSubscription (`endpoint`, `keys`). Native: the APNs or FCM device
+        token. Registering the same endpoint or token again (also as another user) updates it.
+        Tapping a native notification opens `url` from the payload (`data.url` on FCM, a
+        top-level `url` key on APNs); `channel` is the Android notification channel.
+      tags: [notifications]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [platform, endpoint, keys]
+                  properties:
+                    platform: { const: web }
+                    endpoint: { type: string, maxLength: 2000 }
+                    keys:
+                      type: object
+                      required: [p256dh, auth]
+                      properties:
+                        p256dh: { type: string }
+                        auth: { type: string }
+                    label: { type: string, maxLength: 60 }
+                - type: object
+                  required: [platform, token]
+                  properties:
+                    platform: { enum: [apns, fcm] }
+                    token: { type: string, minLength: 16, maxLength: 4096 }
+                    label: { type: string, maxLength: 60 }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PushSubscription" }
+        "400": { description: "Unknown push service" }
+        "409": { description: "Web Push is not set up on this server" }
+  /notifications/subscriptions/{sid}:
+    delete:
+      operationId: deleteNotificationSubscription
+      summary: Stop notifications to a browser or app install
+      tags: [notifications]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Removed (also when it did not exist)" }
+  /notifications/test:
+    post:
+      operationId: postNotificationTest
+      summary: Send a test notification to my devices, or to one of them
+      tags: [notifications]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscriptionId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: How many devices it was sent to
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent]
+                properties:
+                  sent: { type: integer }
+        "429": { description: "Too many test notifications" }
+  /phones/{pid}/notifications:
+    put:
+      operationId: putPhoneNotifications
+      summary: Turn notifications about one phone on or off for me
+      tags: [notifications]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "204": { description: "Saved" }
 
   # ---------------------------------------------------------------- household
   /households/{hid}:

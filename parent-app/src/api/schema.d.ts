@@ -226,11 +226,117 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete my account
+         * @description Deletes the account. Households shared with another parent stay, with their phones;
+         *     if you owned one, the longest-standing other member becomes the owner. Households
+         *     where you are the only member are deleted with all their phones: those phones get 401
+         *     on their next request and fall back as described in docs/sync-api.md. Refused with 409
+         *     while such a household holds a Self phone; remove those first (through their key).
+         *     Where you are someone's trusted person, their key falls back to the delay.
+         *     See docs/account-deletion.md.
+         */
+        delete: operations["deleteMe"];
         options?: never;
         head?: never;
         /** Change my language */
         patch: operations["patchMe"];
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notification settings and this user's subscriptions
+         * @description `webPushEnabled` and `webPushPublicKey` are for the web app. `nativePush` says whether
+         *     the server can deliver to the native app (APNs on iOS, FCM on Android); an app token
+         *     can be registered either way and starts working when the server gets the keys.
+         */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register a browser or an app install for notifications
+         * @description Web: the browser's PushSubscription (`endpoint`, `keys`). Native: the APNs or FCM device
+         *     token. Registering the same endpoint or token again (also as another user) updates it.
+         *     Tapping a native notification opens `url` from the payload (`data.url` on FCM, a
+         *     top-level `url` key on APNs); `channel` is the Android notification channel.
+         */
+        post: operations["postNotificationSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop notifications to a browser or app install */
+        delete: operations["deleteNotificationSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to my devices, or to one of them */
+        post: operations["postNotificationTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn notifications about one phone on or off for me */
+        put: operations["putPhoneNotifications"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/households/{hid}": {
@@ -759,6 +865,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PushSubscription: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            platform: "web" | "apns" | "fcm";
+            label: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastSuccessAt: string | null;
+        };
         Error: {
             error: string;
             issues?: {
@@ -1408,6 +1525,55 @@ export interface operations {
             };
         };
     };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Your own email address, as a confirmation */
+                    confirmEmail: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Deleted. The session cookie is cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        householdsDeleted: number;
+                        phonesRemoved: number;
+                    };
+                };
+            };
+            /** @description confirmEmail does not match */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A household only you belong to holds a Self phone */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        selfPhoneIds?: string[];
+                    };
+                };
+            };
+        };
+    };
     patchMe: {
         parameters: {
             query?: never;
@@ -1420,6 +1586,170 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     locale?: "en" | "da";
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        webPushEnabled: boolean;
+                        webPushPublicKey: string | null;
+                        nativePush: {
+                            apns: boolean;
+                            fcm: boolean;
+                        };
+                        offlineAlertHours: number;
+                        subscriptions: components["schemas"]["PushSubscription"][];
+                        mutedPhoneIds: string[];
+                    };
+                };
+            };
+        };
+    };
+    postNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    platform: "web";
+                    endpoint: string;
+                    keys: {
+                        p256dh: string;
+                        auth: string;
+                    };
+                    label?: string;
+                } | {
+                    /** @enum {unknown} */
+                    platform: "apns" | "fcm";
+                    token: string;
+                    label?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscription"];
+                };
+            };
+            /** @description Unknown push service */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web Push is not set up on this server */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed (also when it did not exist) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postNotificationTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    subscriptionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description How many devices it was sent to */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent: number;
+                    };
+                };
+            };
+            /** @description Too many test notifications */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhoneNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
                 };
             };
         };

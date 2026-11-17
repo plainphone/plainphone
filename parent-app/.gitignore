@@ -17,6 +17,9 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Firebase config, injected at build (GOOGLE_SERVICES_JSON)
+google-services.json
+GoogleService-Info.plist
 
 # Metro
 .metro-health-check*

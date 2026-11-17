@@ -39,6 +39,10 @@ pairing QR code.
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
 | `ANDROID_APP_CERT_SHA256` | | SHA-256 fingerprints of that app's signing certificates, comma separated. Empty serves no Android statement |
+| `FCM_SERVICE_ACCOUNT_JSON` | | Push to the Android app: the service account JSON (or its base64) of the Firebase project in the app's `google-services.json`. Empty: no Android push |
+| `APNS_KEY_P8`, `APNS_KEY_ID` | | Push to the iOS app: an APNs auth key (`.p8`, PEM or base64) and its key id. Empty: no iOS push |
+| `APNS_TEAM_ID`, `APNS_TOPIC` | from `APPLE_APP_IDS` | Team of the APNs key and the app's bundle id, if they differ from the first `APPLE_APP_IDS` entry |
+| `APNS_ENVIRONMENT` | `production` | `sandbox` for app builds run from Xcode |
 
 ## Backups
 

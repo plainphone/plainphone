@@ -195,6 +195,10 @@ describe("APNs", () => {
     });
     expect(apns?.name).toBe("apns");
     expect(nativeSendersFromConfig({ APPLE_APP_IDS: "", APNS_ENVIRONMENT: "production" })).toEqual([]);
+    // Compose passes unset variables as empty strings.
+    expect(
+      nativeSendersFromConfig({ APPLE_APP_IDS: "T.x", APNS_KEY_P8: "", APNS_KEY_ID: "", APNS_TEAM_ID: "", FCM_SERVICE_ACCOUNT_JSON: "", APNS_ENVIRONMENT: "production" }),
+    ).toEqual([]);
   });
 });
 
