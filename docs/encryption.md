@@ -61,12 +61,12 @@ remain visible as described.
 |---|---|---|
 | `users`, `magic_links`, `sessions` | User ID, email, locale, token hashes and expiry/session times | Client-held tokens stay out of storage and logs except as explicitly noted below |
 | `households`, `household_members`, `household_invites` | Household ID, membership user IDs and API roles, invitation state and email until accepted | Household name, H |
-| `phones` identity | Phone ID, household ID, profile (`child`/`self`), mode (`strong`/`light`), pairing and last-seen times | Phone name, H. Time zone, device model and other device info, R |
-| `phones` auth and routing | Device token hash, DNS ClientID, routing/readiness metadata, FCM token | DNS policy in R and separately available to ppdns. Location mode/interval in R. Locate requests use encrypted commands |
+| `phones` identity | Phone ID, household ID, profile (`child`/`self`), admin-configured mode (`strong`/`light`), pairing and last-seen times | Phone name, H. Time zone, device model and other device info, R |
+| `phones` auth and routing | Device token hash, DNS ClientID, routing and admin-configured readiness, FCM token | DNS policy in R and separately available to ppdns. Location mode/interval in R. Locate requests use encrypted commands |
 | Phone status | `lockIntact` boolean, `statusReportedAt`, offline-alert threshold and last alerted time. Transport User-Agent can reveal app version | Battery, detailed protection state, failed policies, DNS host in reports, app version field, time used, applied `rulesVersion` and observed roster head, R |
 | `pairings`, `enrollments` | Short-lived pairing routing fields, public keys, existing transient pairing bearer token where applicable, enrollment token hash, MAC, IDs/times | QR secret stays on the initiating device |
 | Apps, contacts, time limits/bonuses, schedules | Phone/record routing and update activity | Installed package, label, core/installed flags in signed R app report. Allowed/hidden/selected/catalog installs, names, numbers, limits, bonuses and windows in signed R rules |
-| `dns_settings`, `dns_deletions` | ClientID and DNS deletion/readiness state | Allowed/blocked domains and categories in signed R rules. The HPKE copy goes directly to ppdns |
+| `dns_settings`, `dns_deletions` | ClientID, DNS deletion activity and admin-configured DNS readiness | Allowed/blocked domains and categories in signed R rules. The HPKE copy goes directly to ppdns |
 | `locations` | Receipt timestamp and update frequency, which can expose continuous tracking | Periodic coordinates, accuracy and capture time, R. Keep only the latest periodic position. Command results go only to the requesting device |
 | `self_keys` | Trusted user ID for routing, trusted email until acceptance. Future payment routing and amounts if payments launch | Expected key type and delay in R |
 | `pending_changes` | ID, key type for routing, status and receipt/retention times, requester and decider IDs | Operation, effective/expiry times and authenticated change context, R or a per-change key for trusted approval |
@@ -77,6 +77,10 @@ remain visible as described.
 | `key_envelopes`, `phone_state` | Scope, epoch, recipient and/or signer IDs, roster head, rules version, public headers/signatures and lengths | Wrapped keys and rules |
 | `commands` | Phone and command ID, signer, head, epoch, scope, issue/expiry times, length. Scope R can identify a release while L groups the three emergency actions. | Action and encrypted parameters/results for ordinary commands |
 | Public catalog, edge, delivery | Catalog and requested country, network IP and User-Agent during requests, rate-limit and infrastructure metadata, push/mail routing and send time | The catalog choices of a household go into R |
+
+Clear `mode` and readiness describe what the admin configured for enrollment
+and routing. They MUST NOT report the mode or readiness actually observed on
+the phone.
 
 Push wake-ups to phones contain only a generic sync signal. Push providers see
 routing, timing, lengths and any generic text. Use generic mail subjects and
@@ -128,7 +132,10 @@ and 64-byte signature. Require canonical encodings of public point A and
 signature point R, reject small-order A and R (including the identity),
 require 0 ≤ S < L (the subgroup order), and verify the non-cofactored
 equation [S]B = R + [k]A from [RFC 8032 §5.1.7](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.7).
-A native provider may be used only with checks that enforce this profile. Do not sign a digest in place of the
+All native, noble and Tink backends MUST use strict profile verification
+through the common verifier for their runtime. Provider defaults, including
+noble with `zip215:false`, are insufficient on their own. Every backend MUST
+reject all `negative.ed25519` fixtures. Do not sign a digest in place of the
 specified message. In each structure with a `sig`, sign the object with just
 that field omitted. Version `v` means format revision, and MUST equal 1.
 Version `version` is a record revision counter. Range for stored revision
@@ -168,8 +175,9 @@ A signed record is `{header,nonce,ct,sig}`, signed over
 epoch, target and freshness before applying the decrypted payload. Authenticate
 clear application fields separately where used for enforcement. Routing fields,
 including `lockIntact`, are advisory to the application server and never
-authority for phone policy. Phone-written R/L reports MUST carry the phone
-signature. H metadata MUST be signed by an admin. A phone name also
+authority for phone policy. Phone-written reports MUST use R and carry the phone signature. Never
+write a phone report under L. Command results use independent HPKE to the
+requester as specified below. H metadata MUST be signed by an admin. A phone name also
 requires signer authorization for that phone. Every H/R/L blob and every
 per-change blob MUST be signed. Public catalog and API routing metadata
 are outside the signed blob format and confer no cryptographic authority.
@@ -204,7 +212,12 @@ Verify the approval's IDs and signer at both the referenced and current
 heads. The applied Self policy authorizes specific trusted device IDs and
 their signed `userId` for this phone. A matching user ID alone grants nothing.
 Removal immediately prevents new approvals and use of outstanding approvals
-from the removed device. It does not remove the applied Self requirement.
+from the removed device. It does not remove the applied Self requirement. If the trusted device is
+lost, another device already designated by the applied policy may approve
+replacement. If no such device is available, keep enforcing the current
+policy. The owner can recover through a local factory reset and fresh
+enrollment where the platform permits it, losing local Plainphone state.
+Recovery credentials and the relay do not bypass the trusted requirement.
 
 On the first successful authenticated observation, durably store the
 change ID, signed-record digest, boot count, `elapsedRealtime()` checkpoint,
@@ -346,7 +359,7 @@ writers. It supplies no fork prevention against a dishonest server.
 
 ### Phone reports
 
-Phone-written R/L reports MUST increment `version` per logical record
+Phone-written R reports MUST increment `version` per logical record
 `(householdId,phoneId,table,recordId)`, starting at 1 and continuing across
 epoch changes. Latest periodic position uses scope R, `table:"locations"` and a singleton
 record ID equal to the phone ID. The phone durably reserves the next version before sealing and retries
@@ -387,9 +400,14 @@ signed validity window. The exact encrypted bodies and signer permissions are:
 
 Before execution require `issuedAt <= now + 30000`, `expiresAt > now` and
 `0 < expiresAt - issuedAt <= 300000`. A phone MUST keep durable replay state
-and atomically consume each command ID before triggering its effect. Keep IDs
-through expiration and clock skew, and fail closed for commands when trusted
-local time is unavailable or has rolled back past the stored high-water mark.
+and atomically consume each command ID before triggering its effect. Keep
+consumed IDs for the lifetime of the phone identity, including across reboot.
+Release and Self changes require an accepted UTC anchor. Find, Ring and
+“Are you okay?” remain available to authorized senders without one. In that
+case enforce the signed window shape and maximum duration, bound the local
+effect from receipt using elapsed time, and visibly mark the action as having
+unverified freshness. Delivery of an unseen stale command is possible in this
+mode. If time becomes trusted, apply UTC freshness checks to pending effects.
 Bound running effects using elapsed time, and carry pending consent and replay
 state through restarts. Never interpret server time as a freshness proof.
 Apply local location settings and refuse forbidden actions regardless of the
@@ -406,18 +424,31 @@ accepts at most one terminal result per command. Emergency contacts can
 receive a position only for their own Find request, and a check-in response
 only for their own “Are you okay?” request.
 
-Trusted local time for commands and changes is a UTC estimate advanced from
-a trusted UTC anchor by same-boot `elapsedRealtime()`
-([Android SystemClock](https://developer.android.com/reference/android/os/SystemClock)).
-Require an authenticated time source independent of the application relay
-or explicit local UTC confirmation by a trusted device administrator.
-Never use raw RTC or the relay as the anchor. Persist the boot identifier
-(`Settings.Global.BOOT_COUNT` on Android), elapsed checkpoint and accepted
-UTC high-water mark. After reboot, obtain a new anchor before comparing UTC.
-Fail closed on missing or inconsistent state, monotonic rollback, UTC
-below the high-water mark or a detected wall-clock discontinuity.
-Re-anchoring never credits elapsed Self delay. Use these Android 10
-time primitives without calling `currentNetworkTimeClock()`.
+For emergency Find the phone MUST enforce a limit of four accepted requests
+per sender device in a rolling hour, regardless of command UUID. Count a
+request before attempting capture. Durably update the replay state and quota
+together before any effect. Measure the window with elapsed time. Across
+reboot without trusted UTC, retain unexpired charges for up to a full hour
+of elapsed time in the new boot, without credit for powered-off time. On
+reaching the limit, show a persistent indicator on the phone and notify admins
+via an encrypted R report. Deduplicate notifications per sender and limit
+episode. Keep the indicator until the limit clears. Continue to enforce the
+local location policy.
+
+Trusted local time is a signed UTC estimate advanced by same-boot
+`elapsedRealtime()`. The phone generates a fresh 32-byte nonce, remembers
+the boot and elapsed send time and challenges an authorized admin device.
+The admin signs `D("time-anchor",{utc,nonce})` using trustworthy UTC from
+its platform, independently of the application relay. The phone verifies
+the signature, current admin permission for the phone, exact pending nonce,
+same boot and an elapsed round trip of at most 30 seconds. Consume the
+nonce on success. Use the signed UTC as the conservative estimate at
+receipt and advance it only by subsequent same-boot elapsed time.
+Persist the boot identifier (`Settings.Global.BOOT_COUNT` on Android),
+elapsed checkpoint and accepted UTC high-water mark. Invalidate the anchor
+on reboot, monotonic rollback, inconsistent state or a detected wall-clock
+discontinuity. Reject responses below the stored high-water mark. Re-anchoring
+never credits elapsed Self delay. Raw RTC and relay time cannot serve as anchors.
 
 ### Release before remote removal
 
@@ -605,7 +636,7 @@ of library version must pass the same cross-runtime vectors and negative cases.
 
 | Target | Selected libraries and storage | Evidence and maintenance |
 |---|---|---|
-| PWA | WebCrypto for randomness, SHA-256, HMAC, HKDF, AES-GCM, and native X25519 or Ed25519 when usable. Persist the complete X25519 key pair and pass both keys to HPKE decapsulation so it need not export the private key. `@hpke/core` **1.10.1** (MIT) for HPKE. On browsers lacking native X25519 use `@hpke/dhkem-x25519` **1.8.1** (MIT, noble-based, with `@hpke/common` **1.13.0**). For missing Ed25519 use `@noble/curves` **2.4.0** and its `@noble/hashes` **2.4.0** dependency (MIT). Keep native keys non-exportable in IndexedDB. Store software private bytes encrypted with a non-exportable, local WebCrypto AES-GCM storage key | hpke-js is maintained by Ajitomi Daisuke, with November 2026 releases, RFC 9180 and Wycheproof coverage. Upstream explicitly reports no formal audit. Noble is maintained by Paul Miller, with the 2.4.0 releases in August 2026. Its upstream review history describes scoped reviews and subsequent changes. No exact-release audit is assumed. [HPKE project](https://github.com/dajiaji/hpke-js) · [noble-curves](https://github.com/paulmillr/noble-curves) · [noble-hashes](https://github.com/paulmillr/noble-hashes) |
+| PWA | WebCrypto for randomness, SHA-256, HMAC, HKDF, AES-GCM, and native X25519 or Ed25519 when usable, with strict profile verification for every signature backend. Persist the complete X25519 key pair and pass both keys to HPKE decapsulation so it need not export the private key. `@hpke/core` **1.10.1** (MIT) for HPKE. On browsers lacking native X25519 use `@hpke/dhkem-x25519` **1.8.1** (MIT, noble-based, with `@hpke/common` **1.13.0**). For missing Ed25519 use `@noble/curves` **2.4.0** and its `@noble/hashes` **2.4.0** dependency (MIT). Keep native keys non-exportable in IndexedDB. Store software private bytes encrypted with a non-exportable, local WebCrypto AES-GCM storage key | hpke-js is maintained by Ajitomi Daisuke, with November 2026 releases, RFC 9180 and Wycheproof coverage. Upstream explicitly reports no formal audit. Noble is maintained by Paul Miller, with the 2.4.0 releases in August 2026. Its upstream review history describes scoped reviews and subsequent changes. No exact-release audit is assumed. [HPKE project](https://github.com/dajiaji/hpke-js) · [noble-curves](https://github.com/paulmillr/noble-curves) · [noble-hashes](https://github.com/paulmillr/noble-hashes) |
 | Expo parent app | `react-native-quick-crypto` **1.1.9** (MIT) as the native WebCrypto provider with `@hpke/core` **1.10.1**. Install the provider before HPKE initializes, use a custom Expo development/production build with Nitro Modules, and test on Expo SDK 58 / RN 0.88.1. Secure private key bytes locally with `expo-secure-store` **58.0.3** (MIT, already used by the app), with optional app-level biometric access and backup exclusions | The maintained Margelo adapter's 1.1.9 release is dated October 2026. The tagged compatibility matrix lists secure randomness, raw OKP key import/export, X25519, Ed25519, AES-GCM, SHA-256, HKDF and HMAC. It uses native crypto and requires RN 0.75+ in the documented new-architecture setup. Expo Go does not provide the selected native module. The exact SDK/OS integration remains a device test. [Tagged coverage](https://github.com/margelo/react-native-quick-crypto/blob/v1.1.9/.docs/implementation-coverage.md) · [Release](https://github.com/margelo/react-native-quick-crypto/releases/tag/v1.1.9) · [SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/) |
 | Managed Android phone (minSdk 29) | `com.google.crypto.tink:tink-android` **1.24.0** (Apache-2.0). Use NO_PREFIX HPKE, AES-GCM and Ed25519. Protect local keysets with an AES-GCM key in Android Keystore, reject plaintext storage on Keystore failures and exclude keysets from backup. Use Tink's software X25519 and Ed25519 with Keystore protection at rest | Tink is actively maintained, with Android artifact 1.24.0 released October 2026. Official support starts at API 24. Tink Java supports both key types and the chosen suite. This design does not rely on Android 10 providing direct X25519/Ed25519 hardware keys. [Android setup](https://developers.google.com/tink/setup/java) · [Wire format](https://developers.google.com/tink/wire-format) · [Known issues](https://developers.google.com/tink/known-issues) |
 | Canonical JSON | `canonicalize` **5.1.0** (Apache-2.0) in TS and `io.github.erdtman:java-json-canonicalization` **1.1** (Apache-2.0) on the JVM. Validate the restricted input profile separately | The TS reference package shipped 5.1.0 in September 2026. The JVM reference artifact dates to August 2018 and has low release activity. The shared JCS fixture checks byte parity. [TS reference](https://github.com/erdtman/canonicalize) · [JVM reference](https://github.com/erdtman/java-json-canonicalization) |
