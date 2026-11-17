@@ -87,7 +87,15 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
+Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement).
+
+What worked for the hosted app (17/11-2026, Xcode 27.2): manual signing with an App Store provisioning profile, set on the app target only. Overriding signing for the whole build breaks the CocoaPods targets, and automatic signing wants a development profile, which needs registered devices.
+
+1. Create an App Store profile for the App ID and your Apple Distribution certificate (in the developer portal, or with the App Store Connect API) and install it in `~/Library/MobileDevice/Provisioning Profiles`.
+2. In `ios/<App>.xcodeproj/project.pbxproj`, give the app target's Release configuration `CODE_SIGN_STYLE = Manual`, `PROVISIONING_PROFILE_SPECIFIER = <profile uuid>` and `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution"`.
+3. Archive with `-sdk iphoneos` (add `OTHER_CODE_SIGN_FLAGS="--keychain <keychain>"` when the certificate is in a separate keychain), then export with an `ExportOptions.plist` holding `method` `app-store-connect`, `signingStyle` `manual`, `teamID`, `signingCertificate` `Apple Distribution` and `provisioningProfiles` `{ <bundle id>: <profile uuid> }`.
+
+If `codesign` fails with `errSecInternalComponent`, another keychain in the search list holds the same identity but is locked; put the keychain with the certificate first (`security list-keychains -d user -s …`) for the build.
 
 EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
 
