@@ -17,8 +17,11 @@ interface SettingsControls {
     /** Ring, notification and media volume, as a share of each stream's maximum. */
     fun setVolumePercent(percent: Int)
     fun setPlainphoneWallpaper()
-    /** Makes Plainphone's home screen the one Android always opens (persistent preferred HOME), or lets go of it. */
-    fun setPlainphoneHome(enabled: Boolean)
+    /**
+     * Makes Plainphone's home screen the one Android always opens (persistent preferred HOME), or lets
+     * go of it. Returns a status text; throws when it must not be pinned (see HomeGuard).
+     */
+    fun setPlainphoneHome(enabled: Boolean): String
 }
 
 /** Remembers which preset value was last applied, so a preset is set once and the child can change it after. */
@@ -42,6 +45,14 @@ class SettingsApplier(
         val results = mutableListOf<StepResult>()
         results += step("home screen") { controls.setPlainphoneHome(true) }
         val wanted = restrictionsFor(settings, sdkInt)
+        // Free first: a preset that follows a lock (volume after "silent") must not be written while the old block is on.
+        val free = managedRestrictions(sdkInt) - wanted
+        results += step("phone settings left to the user") {
+            free.forEach(device::clearRestriction)
+            if (!settings.isLocked(SettingKey.CAMERA)) controls.setCameraDisabled(false)
+            if (!settings.isLocked(SettingKey.SCREEN_CAPTURE)) controls.setScreenCaptureDisabled(false)
+            "${free.size} free"
+        }
         for (key in SettingKey.entries) {
             if (key == SettingKey.LOCATION) continue // see location(), it shares its restriction with "Find"
             val s = settings[key]
@@ -50,14 +61,6 @@ class SettingsApplier(
                 continue
             }
             results += step("setting ${key.wire}") { applyOne(key, s, wanted) }
-        }
-        // Everything this module may have set before and is not wanted now.
-        val free = managedRestrictions(sdkInt) - wanted
-        results += step("phone settings left to the user") {
-            free.forEach(device::clearRestriction)
-            if (!settings.isLocked(SettingKey.CAMERA)) controls.setCameraDisabled(false)
-            if (!settings.isLocked(SettingKey.SCREEN_CAPTURE)) controls.setScreenCaptureDisabled(false)
-            "${free.size} free"
         }
         return results
     }
@@ -81,12 +84,17 @@ class SettingsApplier(
             )
             Mode.LOCKED -> listOf(
                 step("setting location") {
+                    // A later preset must be applied again, whatever the lock left behind.
+                    presets.save(SettingKey.LOCATION, null)
                     device.setLocationEnabled(s.value == "on")
                     device.addRestriction(LockPolicy.LOCATION_RESTRICTION)
                 },
             )
         }
     }
+
+    /** "Find" forces location on: a location preset that follows must be applied again. */
+    fun locationForced() = presets.save(SettingKey.LOCATION, null)
 
     /** Maintenance unlock and release: every setting back to the user, and the maker's launcher back. */
     fun lift(): List<StepResult> = listOf(
@@ -118,6 +126,7 @@ class SettingsApplier(
             SettingKey.VOLUME -> if (s.mode == Mode.PRESET) {
                 valueOnce(key, s) { controls.setVolumePercent(s.value!!.toInt()) }
             } else {
+                presets.save(key, null)
                 "muted"
             }
             // Setting the same picture on every sync would only cost battery: once per change.

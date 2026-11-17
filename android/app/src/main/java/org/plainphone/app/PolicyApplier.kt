@@ -152,6 +152,7 @@ class PolicyApplier(
             settings?.let { return it.location(config.server?.settings ?: PhoneSettings.NONE) }
             return listOf(step("location setting free") { device.clearRestriction(LockPolicy.LOCATION_RESTRICTION) })
         }
+        settings?.locationForced()
         return listOf(
             step("location permission") {
                 val refused = LockPolicy.LOCATION_PERMISSIONS.filterNot { perm ->

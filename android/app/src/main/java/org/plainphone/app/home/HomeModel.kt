@@ -2,8 +2,10 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.home
 
+import java.text.Collator
 import java.time.Instant
 import java.time.LocalTime
+import java.util.Locale
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.ServerRules
 
@@ -35,18 +37,6 @@ data class HomeState(
  * that school time does not allow, never shows.
  */
 object HomeModel {
-    /** Shown when the parent has not picked front-page apps yet, if the phone has them. */
-    val DEFAULT_FAVOURITES = listOf(
-        "com.google.android.apps.maps",
-        "com.spotify.music",
-        "dk.dr.radio",
-        "com.google.android.calendar",
-        "com.samsung.android.calendar",
-        "com.google.android.deskclock",
-        "com.sec.android.app.clockpackage",
-    )
-    const val DEFAULT_FAVOURITE_COUNT = 4
-
     fun build(
         apps: List<LaunchableApp>,
         rules: ServerRules?,
@@ -56,6 +46,8 @@ object HomeModel {
         /** Apps Android needs whatever the rules say (dialer, camera, clock, Settings ...). */
         core: Set<String> = emptySet(),
         minutesLeft: Map<String, Int> = emptyMap(),
+        /** Sorts the app names the way the user's language does (Danish: ... Z Æ Ø Å). */
+        locale: Locale = Locale.getDefault(),
     ): HomeState {
         val prefs = rules?.home ?: HomePrefs.DEFAULT
         val windows = rules?.let { Schedules.active(it.schedules, now, it.timezone) }.orEmpty()
@@ -67,14 +59,12 @@ object HomeModel {
             .filter { windowAllowed == null || it.packageName in core || it.packageName in windowAllowed }
             .map { HomeApp(it.packageName, it.label, it.component, minutesLeft[it.packageName]) }
             .distinctBy { it.component }
-            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
+            .sortedWith(compareBy(Collator.getInstance(locale)) { it.label })
             .toList()
         val byPackage = visible.groupBy { it.packageName }
-        val chosen = prefs.apps.ifEmpty {
-            DEFAULT_FAVOURITES.filter { it in byPackage }.take(DEFAULT_FAVOURITE_COUNT)
-        }
+        // Nothing chosen: the front page is the clock, phone and messages (docs/phone-settings.md).
         // A package can have several launcher entries; the front page shows the first by name.
-        val favourites = chosen.mapNotNull { byPackage[it]?.first() }
+        val favourites = prefs.apps.mapNotNull { byPackage[it]?.first() }
         return HomeState(prefs, favourites, visible, notice(windows))
     }
 

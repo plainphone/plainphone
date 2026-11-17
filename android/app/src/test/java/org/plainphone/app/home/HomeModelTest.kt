@@ -63,14 +63,21 @@ class HomeModelTest {
     }
 
     @Test
-    fun `without a choice the front page offers a few calm defaults`() {
-        val s = HomeModel.build(apps, rules(), mondayMorning)
-        assertThat(s.favourites.map { it.packageName }).containsExactly("com.google.android.apps.maps", "com.spotify.music", "dk.dr.radio").inOrder()
+    fun `without a choice the front page has no apps, only the clock, phone and messages`() {
+        assertThat(HomeModel.build(apps, rules(), mondayMorning).favourites).isEmpty()
+    }
+
+    @Test
+    fun `app names sort the Danish way`() {
+        val danish = listOf(app("a.aa", "Åbent"), app("a.ae", "Ærø"), app("a.z", "Zoo"), app("a.oe", "Øl"))
+        val s = HomeModel.build(danish, null, mondayMorning, locale = java.util.Locale.forLanguageTag("da-DK"))
+        assertThat(s.all.map { it.label }).containsExactly("Zoo", "Ærø", "Øl", "Åbent").inOrder()
     }
 
     @Test
     fun `during school time only the window's apps and the core apps show, with a quiet notice`() {
-        val s = HomeModel.build(apps, rules(schedules = listOf(school)), mondayMorning, core = setOf("com.android.camera"))
+        val home = HomePrefs(apps = listOf("com.spotify.music", "com.google.android.apps.maps"))
+        val s = HomeModel.build(apps, rules(schedules = listOf(school), home = home), mondayMorning, core = setOf("com.android.camera"))
         assertThat(s.all.map { it.label }).containsExactly("Camera", "Maps")
         assertThat(s.favourites.map { it.label }).containsExactly("Maps")
         assertThat(s.notice).isEqualTo(WindowNotice(WindowNotice.Kind.SCHOOL, LocalTime.of(14, 0)))

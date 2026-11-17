@@ -10,7 +10,7 @@
     <string name="home_no_apps">Ingen andre apps lige nu.</string>
     <string name="home_school_until">Skoletid til %1$s</string>
     <string name="home_bedtime_until">Sengetid til %1$s</string>
-    <string name="home_time_used">Brugt for i dag</string>
+    <string name="home_time_used">Ikke mere i dag</string>
     <plurals name="home_minutes_left">
         <item quantity="one">%d min tilbage</item>
         <item quantity="other">%d min tilbage</item>

@@ -16,6 +16,7 @@ import android.graphics.Shader
 import android.media.AudioManager
 import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.home.HomeActivity
+import org.plainphone.app.home.HomeGuard
 
 class AndroidSettingsControls(private val context: Context) : SettingsControls {
     private val dpm = context.getSystemService(DevicePolicyManager::class.java)
@@ -42,17 +43,23 @@ class AndroidSettingsControls(private val context: Context) : SettingsControls {
         WallpaperManager.getInstance(context).setBitmap(calmWallpaper())
     }
 
-    override fun setPlainphoneHome(enabled: Boolean) {
+    override fun setPlainphoneHome(enabled: Boolean): String {
         if (enabled) {
+            HomeGuard.blockReason(context)?.let { reason ->
+                dpm.clearPackagePersistentPreferredActivities(admin, context.packageName)
+                // Waiting for setup is normal; a crashing home screen is a failure the parent should see.
+                if (reason.startsWith("waiting")) return reason else error(reason)
+            }
             val filter = IntentFilter(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 addCategory(Intent.CATEGORY_DEFAULT)
             }
             dpm.addPersistentPreferredActivity(admin, filter, ComponentName(context, HomeActivity::class.java))
-        } else {
-            // Plainphone sets no other persistent preferred activity, so this only lets go of HOME.
-            dpm.clearPackagePersistentPreferredActivities(admin, context.packageName)
+            return "Plainphone"
         }
+        // Plainphone sets no other persistent preferred activity, so this only lets go of HOME.
+        dpm.clearPackagePersistentPreferredActivities(admin, context.packageName)
+        return "maker's launcher"
     }
 
     /** A quiet, dark green-grey wash: no picture, nothing to look at. */

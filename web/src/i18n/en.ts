@@ -360,7 +360,7 @@ export const en = {
   "phoneSettings.tethering.name": "Hotspot",
   "phoneSettings.tethering.desc": "No hotspot and no sharing the internet over USB.",
   "phoneSettings.nfc.name": "NFC",
-  "phoneSettings.nfc.desc": "Switches NFC off. MobilePay and Google Wallet need it.",
+  "phoneSettings.nfc.desc": "Switches NFC off (Android 14 and newer; older phones only lose Android Beam). MobilePay and Google Wallet need NFC.",
   "phoneSettings.airplaneMode.name": "Airplane mode",
   "phoneSettings.airplaneMode.desc": "Airplane mode cannot be turned on, so the phone stays reachable.",
   "phoneSettings.screenTimeout.name": "Screen timeout",

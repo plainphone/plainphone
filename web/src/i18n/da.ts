@@ -359,7 +359,7 @@ export const da: Messages = {
   "phoneSettings.tethering.name": "Hotspot",
   "phoneSettings.tethering.desc": "Ingen hotspot og ingen deling af internettet via USB.",
   "phoneSettings.nfc.name": "NFC",
-  "phoneSettings.nfc.desc": "Slår NFC fra. MobilePay og Google Wallet kræver NFC.",
+  "phoneSettings.nfc.desc": "Slår NFC fra (Android 14 og nyere; på ældre telefoner slås kun Android Beam fra). MobilePay og Google Wallet kræver NFC.",
   "phoneSettings.airplaneMode.name": "Flytilstand",
   "phoneSettings.airplaneMode.desc": "Flytilstand kan ikke slås til, så telefonen altid kan nås.",
   "phoneSettings.screenTimeout.name": "Skærmens slukketid",

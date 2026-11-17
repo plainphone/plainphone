@@ -45,9 +45,12 @@ class HomeActivity : ComponentActivity() {
     private var onScreen by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        HomeGuard.starting(this)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
+            // Runs after the first frame was composed without crashing.
+            LaunchedEffect(Unit) { HomeGuard.drawn(this@HomeActivity) }
             var showAll by rememberSaveable { mutableStateOf(false) }
             var ui by remember { mutableStateOf<HomeUi?>(null) }
             val tick = resumed
@@ -177,8 +180,8 @@ class HomeActivity : ComponentActivity() {
                 core = runCatching { AndroidDeviceControls(context).corePackages() }.getOrDefault(emptySet()),
                 minutesLeft = runCatching { HomeTimeLimits.source(context) }.getOrDefault(emptyMap()),
             )
-            val zone = rules?.timezone ?: ZoneId.systemDefault()
-            val at = ZonedDateTime.ofInstant(now, zone)
+            // The clock follows the phone (automatic time zone), like the status bar; schedules use the rules' zone.
+            val at = ZonedDateTime.ofInstant(now, ZoneId.systemDefault())
             val dpm = context.getSystemService(DevicePolicyManager::class.java)
             val isOwner = dpm?.isDeviceOwnerApp(own) == true
             val isHome = context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true

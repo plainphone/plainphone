@@ -31,7 +31,7 @@ class FakeSettingsControls : SettingsControls {
     }
     override fun setVolumePercent(percent: Int) { volume = percent }
     override fun setPlainphoneWallpaper() { wallpapers++ }
-    override fun setPlainphoneHome(enabled: Boolean) { home = enabled }
+    override fun setPlainphoneHome(enabled: Boolean): String { home = enabled; return "ok" }
 }
 
 class MemoryPresetStore : PresetStore {
@@ -166,6 +166,25 @@ class SettingsApplierTest {
         assertThat(controls.cameraOff).isTrue()
         // A failed preset is tried again next time.
         assertThat(presets.values).doesNotContainKey(SettingKey.SCREEN_TIMEOUT)
+    }
+
+    @Test
+    fun `a location preset after a lock is applied again`() {
+        settings.location(of(SettingKey.LOCATION to PhoneSetting(Mode.PRESET, "on")))
+        settings.location(of(SettingKey.LOCATION to PhoneSetting(Mode.LOCKED, "off")))
+        assertThat(device.locationOn).isFalse()
+        settings.location(of(SettingKey.LOCATION to PhoneSetting(Mode.PRESET, "on")))
+        assertThat(device.locationOn).isTrue()
+    }
+
+    @Test
+    fun `a volume preset after silent is set again, and after the block is gone`() {
+        settings.apply(of(SettingKey.VOLUME to PhoneSetting(Mode.PRESET, "60")))
+        settings.apply(of(SettingKey.VOLUME to PhoneSetting(Mode.LOCKED, "muted")))
+        controls.volume = null
+        settings.apply(of(SettingKey.VOLUME to PhoneSetting(Mode.PRESET, "60")))
+        assertThat(controls.volume).isEqualTo(60)
+        assertThat(device.restrictions).doesNotContain(UserManager.DISALLOW_ADJUST_VOLUME)
     }
 
     @Test

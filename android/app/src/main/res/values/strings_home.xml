@@ -11,7 +11,7 @@
     <string name="home_no_apps">No other apps right now.</string>
     <string name="home_school_until">School time until %1$s</string>
     <string name="home_bedtime_until">Bedtime until %1$s</string>
-    <string name="home_time_used">Done for today</string>
+    <string name="home_time_used">No more today</string>
     <plurals name="home_minutes_left">
         <item quantity="one">%d min left</item>
         <item quantity="other">%d min left</item>
