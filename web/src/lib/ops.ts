@@ -5,6 +5,7 @@
 import type { MessageKey, T } from "../i18n/translate";
 import type { DnsCategory, Locale, Op, ScheduleInput } from "./api";
 import { formatClock, formatList, formatMinutes, weekdayName } from "./format";
+import { formatSettingValue, settingName } from "./settings";
 
 export function categoryLabel(c: DnsCategory, t: T): string {
   return t(`filter.cat.${c}` as MessageKey);
@@ -64,6 +65,16 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
       });
     case "schedule.delete":
       return t("op.scheduleDelete");
+    case "setting.set": {
+      const setting = settingName(op.key, t);
+      const { mode, value } = op.setting;
+      if (mode === "free") return t("op.settingFree", { setting });
+      const shown = value === undefined ? null : formatSettingValue(op.key, value, t);
+      if (mode === "preset") return t("op.settingPreset", { setting, value: shown ?? "" });
+      return shown === null ? t("op.settingLock", { setting }) : t("op.settingLockValue", { setting, value: shown });
+    }
+    case "home.set":
+      return t("op.homeSet");
     case "key.set":
       return op.key.keyType === "trusted"
         ? t("op.keyTrusted", { email: op.key.trustedEmail ?? "" })

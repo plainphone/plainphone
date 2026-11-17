@@ -1,5 +1,5 @@
 {
-  "id": "04e07477-d37f-4520-89cf-7b8311121a1c",
+  "id": "77bf788e-2ab5-476f-a09a-b33dbb9c343f",
   "prevId": "7cde2daa-9b62-4afe-adef-7f8953679d57",
   "version": "7",
   "dialect": "postgresql",
@@ -1157,6 +1157,53 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.phone_settings": {
+      "name": "phone_settings",
+      "schema": "",
+      "columns": {
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "home": {
+          "name": "home",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "phone_settings_phone_id_phones_id_fk": {
+          "name": "phone_settings_phone_id_phones_id_fk",
+          "tableFrom": "phone_settings",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.phones": {
       "name": "phones",
       "schema": "",
@@ -1237,12 +1284,6 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true
-        },
-        "update_requested_at": {
-          "name": "update_requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "location_mode": {
           "name": "location_mode",

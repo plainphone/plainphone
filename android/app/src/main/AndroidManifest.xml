@@ -35,6 +35,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
+    <!-- Phone settings from the dashboard: Plainphone's calm wallpaper when the parent locks it. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
     <!-- Light mode and time limits (docs/light-mode.md, docs/time-limits.md). -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -119,6 +122,28 @@
             <!-- Sent once provisioning is complete. -->
             <intent-filter>
                 <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Plainphone's calm home screen. Strong mode makes it the persistent home (Device Owner);
+            light mode asks the user to pick it (RoleManager.ROLE_HOME).
+        -->
+        <activity
+            android:name=".home.HomeActivity"
+            android:clearTaskOnLaunch="true"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/home_label"
+            android:launchMode="singleTask"
+            android:resumeWhilePausing="true"
+            android:stateNotNeeded="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Plainphone.Home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

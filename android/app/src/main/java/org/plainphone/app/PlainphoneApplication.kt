@@ -10,9 +10,10 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Log
+import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.home.HomeGuard
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
-import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.time.TimeTicker
 
 /**
@@ -30,6 +31,7 @@ class PlainphoneApplication : Application() {
         runCatching { org.plainphone.app.update.SelfUpdate.onStart(this) }
             .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
         try {
+            HomeGuard.onAppStart(this)
             SyncScheduler.ensurePeriodic(this)
             registerReceiver(
                 object : BroadcastReceiver() {
