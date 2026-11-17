@@ -161,6 +161,35 @@ class PolicyApplierTest {
     }
 
     @Test
+    fun `release retries Chrome cleanup before giving up Device Owner`() {
+        applier.apply(config)
+        var chromeFails = true
+        val flaky = object : DeviceControls by device {
+            override fun setAppRestrictions(pkg: String, values: Map<String, Any>?) {
+                if (chromeFails) throw SecurityException("temporary failure")
+                device.setAppRestrictions(pkg, values)
+            }
+        }
+        val releasing = PolicyApplier(flaky, store, sdkInt = 35)
+
+        assertThat(releasing.release().filterNot { it.ok }.map { it.name })
+            .contains("clear Chrome managed config")
+        assertThat(device.owner).isTrue()
+
+        chromeFails = false
+        assertThat(releasing.release().filterNot { it.ok }).isEmpty()
+        assertThat(device.owner).isFalse()
+    }
+
+    @Test
+    fun `release succeeds without FRP support and after Device Owner is already gone`() {
+        device.frpUnsupported = true
+        assertThat(applier.release().filterNot { it.ok }).isEmpty()
+        assertThat(device.owner).isFalse()
+        assertThat(applier.release().filterNot { it.ok }).isEmpty()
+    }
+
+    @Test
     fun `a crash while listing apps is reported, not thrown`() {
         val crashing = object : DeviceControls by device {
             override fun launchablePackages(): Set<String> = throw SecurityException("boom")

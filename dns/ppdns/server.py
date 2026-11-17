@@ -180,14 +180,16 @@ def _list(body: dict, key: str):
 # background jobs ----------------------------------------------------------
 
 
-def _every(seconds: float, job, name: str) -> None:
+def _every(seconds: float, job, name: str, *, delay=None) -> None:
     def loop():
         while True:
-            time.sleep(seconds)
             try:
+                time.sleep(seconds if delay is None else delay())
                 job()
             except Exception:  # noqa: BLE001
                 log.exception("%s failed", name)
+                if delay is not None:
+                    time.sleep(seconds)
 
     threading.Thread(target=loop, name=name, daemon=True).start()
 
@@ -198,6 +200,7 @@ class Jobs:
         self.service = service
         self._cert_mtime = _mtime(settings.cert_file)
         self.monitor_id = ""
+        self._list_retry_at: dict[str, float] = {}
 
     def ensure_filters(self) -> list[str]:
         """Add lists that a newer ppdns knows but this install's config does not (upgrades)."""
@@ -238,7 +241,11 @@ class Jobs:
         return (time.time() - newest) / 3600
 
     def refresh_lists(self) -> None:
-        lists.build(self.s.lists_dir)
+        lists.build(self.s.lists_dir, max_age=self.s.lists_refresh_hours * 3600, retry_at=self._list_retry_at)
+        try:
+            self.service.install_helpline_rules()  # restore the exceptions after loading an older backup
+        except Exception:  # noqa: BLE001
+            log.exception("restoring helpline exceptions failed")
         self.service.adguard.refresh_filters()
         self.service.upgrade_clients()  # also catches a backup restored from an older version
 
@@ -310,9 +317,12 @@ class Jobs:
             response.read()
 
     def start(self) -> None:
-        _every(self.s.lists_refresh_hours * 3600, self.refresh_lists, "lists")
+        interval = self.s.lists_refresh_hours * 3600
+        _every(interval, self.refresh_lists, "lists",
+               delay=lambda: lists.refresh_delay(self.s.lists_dir, interval, self._list_retry_at))
         _every(300, self.reload_cert, "cert")
-        _every(self.s.selftest_minutes * 60, self.push, "selftest")
+        if self.s.selftest_minutes > 0:
+            _every(self.s.selftest_minutes * 60, self.push, "selftest")
         _every(24 * 3600, self.backup, "backup")
 
 
@@ -349,6 +359,8 @@ def wait_for_adguard(adguard: AdGuard, timeout: float = 300) -> None:
 def serve(settings: Settings) -> None:
     adguard = AdGuard(settings.adguard_url, settings.adguard_user, settings.adguard_password)
     service = Service(adguard, settings.domain, settings.data_dir)
+    wait_for_adguard(adguard)
+    service.install_helpline_rules()
     host, _, port = settings.listen.rpartition(":")
     Api.service = service
     Api.token = settings.api_token
@@ -356,7 +368,6 @@ def serve(settings: Settings) -> None:
     threading.Thread(target=httpd.serve_forever, name="http", daemon=True).start()
     log.info("API listening on %s", settings.listen)
 
-    wait_for_adguard(adguard)
     jobs = Jobs(settings, service)
     jobs.ensure_filters()
     jobs.reload_lists()

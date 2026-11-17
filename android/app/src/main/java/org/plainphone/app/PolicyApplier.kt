@@ -100,7 +100,8 @@ class PolicyApplier(
         hardening?.let { results += it.release() }
         if (results.any { it.name == "clear FRP policy" && !it.ok } && device.isDeviceOwner()) return results
         results += step("give phone and SMS roles back") { giveRolesBack() }
-        results += step("give up Device Owner") { device.clearDeviceOwner() }
+        // Failed cleanup may need Device Owner on the next attempt.
+        if (results.all { it.ok }) results += step("give up Device Owner") { device.clearDeviceOwner() }
         return results
     }
 

@@ -7,17 +7,27 @@ import "./add-phone.css";
 
 export function InstallPhonePage() {
   const { t, setLocale } = useI18n();
-  const [url] = useState(() => new URL(window.location.href));
+  const [url] = useState(() => {
+    const current = new URL(window.location.href);
+    const savedFragment: unknown = window.history.state?.lightSetupFragment;
+    if (!current.hash && typeof savedFragment === "string") current.hash = savedFragment;
+    return current;
+  });
+  const intent = lightSetupIntent(url);
   useLayoutEffect(() => {
     if (window.location.hash) {
-      window.history.replaceState(window.history.state, "", url.pathname + url.search);
+      // Keep a valid token with this history entry so Chrome can reload after APK installation.
+      window.history.replaceState(
+        { ...window.history.state, lightSetupFragment: intent ? url.hash : null },
+        "",
+        url.pathname + url.search,
+      );
     }
-  }, [url]);
+  }, [intent, url]);
   useEffect(() => {
     const lang = new URLSearchParams(url.hash.slice(1)).get("lang");
     if (lang === "da" || lang === "en") setLocale(lang);
   }, [setLocale, url]);
-  const intent = lightSetupIntent(url);
   if (!intent) return <PageTitle sub={t("add.invalidLink")}>{t("add.installTitle")}</PageTitle>;
   return (
     <div className="narrow stack">

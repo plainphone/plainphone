@@ -163,7 +163,7 @@ docker compose exec api python -m ppdns backup
 | Blocklists | every 12 h | download the lists that belong to a profile or category, add the tags, tell AdGuard to reload, and give phones from an older ppdns the tags they now need |
 | New lists | at start | adds lists that a newer ppdns knows to an existing install |
 | Certificate | every 5 min | when lego has renewed the certificate, AdGuard re-reads it without a restart |
-| Self-test | every 5 min | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate AdGuard actually serves must have 10+ days left (if it is older than the file lego wrote, ppdns forces a reload), and the last backup (and, with S3, the last upload) must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
+| Self-test | every 5 min by default, or disabled with `PPDNS_SELFTEST_MINUTES=0` | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate AdGuard actually serves must have 10+ days left (if it is older than the file lego wrote, ppdns forces a reload), and the last backup (and, with S3, the last upload) must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
 | Backup | at start and every 24 h | `AdGuardHome.yaml` (all ClientIDs and rules) as `.tar.gz` in the data volume, last 14, and to S3 if `PPDNS_BACKUP_S3_*` is set |
 
 ## Tests
@@ -193,3 +193,25 @@ kdig @dns.plainphone.org +tls-ca +tls-hostname=<client-id>.dns.plainphone.org po
 
 A blocked name answers `0.0.0.0` (or `::` for AAAA). SafeSearch shows up as a
 CNAME to `forcesafesearch.google.com` or `restrict.youtube.com`.
+
+## List download cost
+
+On init, ppdns reuses a tagged list younger than
+`PPDNS_LISTS_REFRESH_HOURS` (12 hours by default) when its header matches the
+current tag, format version, and SHA-256 hash of the source URL and is
+followed by a complete rule with the expected tag. Missing, stale, legacy,
+and incomplete files take the download path. The scheduler preserves
+each tagged list's download deadline across startup and fetches only lists
+that are due. A failed download retries after one
+refresh interval, while the other lists keep their own deadlines. Startup
+still asks AdGuard to reload its filters.
+Periodic list refreshes continue if restoring helpline rules or their statistics
+exclusions fails. ppdns logs the error and retries the restore on the next refresh.
+If a download fails, retagging a legacy copy streams it to an atomic replacement
+while retaining the age of the last upstream download.
+
+On a Linux worker with Python 3.13, a synthetic 300,000-rule legacy list peaked
+at 46.5 MiB RSS before streaming and 20.9 MiB afterwards. Nine cold-process
+runs of `PYTHONPATH=dns python3 -m ppdns --help` had median wall times of 155.8 ms
+before deferring command imports and 56.9 ms afterwards. This measures CLI
+startup, excluding network and AdGuard initialization.

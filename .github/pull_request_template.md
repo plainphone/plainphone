@@ -19,3 +19,7 @@ or write "no direct evidence, reason: …". See docs/design-principles.md. -->
 - [ ] Docs in `docs/` are updated if behaviour changed
 - [ ] Nothing here hides monitoring from the child or loosens a rule on error
 - [ ] No secrets, keys or personal data in the diff
+
+<!-- What happens next: CI runs (for outside contributors after a maintainer approves it),
+the change gets an automated review, and a maintainer decides on the merge.
+See docs/maintaining.md. Questions are welcome in Discussions. -->

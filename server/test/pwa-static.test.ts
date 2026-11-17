@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: Apache-2.0
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { brotliCompressSync, gzipSync } from "node:zlib";
+import { expect, test } from "vitest";
+import { createApp } from "../src/app.js";
+import { useHarness } from "./harness.js";
+
+const h = useHarness();
+
+test("serves precompressed hashed assets and revalidates the PWA entry points", async () => {
+  const dist = await mkdtemp(join(tmpdir(), "plainphone-pwa-"));
+  try {
+    const asset = "console.log('example');";
+    const path = join(dist, "assets", "main-3g7DRWx0.js");
+    await mkdir(join(dist, "assets"));
+    await Promise.all([
+      writeFile(path, asset),
+      writeFile(path + ".br", brotliCompressSync(asset)),
+      writeFile(path + ".gz", gzipSync(asset)),
+      writeFile(join(dist, "index.html"), "<title>Example</title>"),
+      writeFile(join(dist, "sw.js"), "/* worker */"),
+    ]);
+    const app = createApp({ ...h.ctx, cfg: { ...h.ctx.cfg, WEB_DIST: dist } });
+
+    for (const [accept, encoding] of [
+      ["br", "br"],
+      ["gzip", "gzip"],
+      ["identity", null],
+      ["br;q=1.0, gzip;q=0.8", "br"],
+      ["br;q=0.3, GZip;q=0.8", "gzip"],
+      ["br;q=0, *;q=0.8", "gzip"],
+      ["br;q=0, gzip;q=0", null],
+      ["*;q=0, identity;q=1", null],
+    ] as const) {
+      const res = await app.request("/assets/main-3g7DRWx0.js", { headers: { "accept-encoding": accept } });
+      expect(res.headers.get("vary")).toBe("Accept-Encoding");
+      expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+      expect(res.headers.get("content-encoding")).toBe(encoding);
+      await res.arrayBuffer();
+    }
+    const ranged = await app.request("/assets/main-3g7DRWx0.js", {
+      headers: { "accept-encoding": "br", range: "bytes=0-6" },
+    });
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get("content-encoding")).toBeNull();
+    expect(await ranged.text()).toBe("console");
+
+    const gzipOnly = join(dist, "assets", "gzip-3g7DRWx0.js");
+    await writeFile(gzipOnly, asset);
+    await writeFile(gzipOnly + ".gz", gzipSync(asset));
+    const gzipOnlyUrl = "/assets/gzip-3g7DRWx0.js";
+    for (const method of ["GET", "HEAD"]) {
+      const res = await app.request(gzipOnlyUrl, {
+        method,
+        headers: { "accept-encoding": "identity;q=0, br;q=1" },
+      });
+      expect(res.status).toBe(406);
+      expect(res.headers.get("vary")).toBe("Accept-Encoding");
+      expect(res.headers.get("content-length")).toBeNull();
+      expect(await res.text()).toBe("");
+    }
+    const encodedRange = await app.request(gzipOnlyUrl, {
+      headers: { "accept-encoding": "*;q=0, gzip", range: "bytes=0-6" },
+    });
+    expect(encodedRange.status).toBe(206);
+    expect(encodedRange.headers.get("content-encoding")).toBe("gzip");
+    expect(new Uint8Array(await encodedRange.arrayBuffer())).toEqual(new Uint8Array(gzipSync(asset).subarray(0, 7)));
+    for (const url of ["/index.html", "/pair"]) {
+      const res = await app.request(url, { headers: { "accept-encoding": "*;q=0" } });
+      expect(res.status).toBe(406);
+      expect(res.headers.get("vary")).toBe("Accept-Encoding");
+      expect(await res.text()).toBe("");
+    }
+
+    for (const path of ["/", "/index.html", "/pair", "/sw.js", "/assets/missing-3g7DRWx0.js"]) {
+      const res = await app.request(path);
+      expect(res.headers.get("cache-control")).toBe("no-cache");
+      await res.arrayBuffer();
+    }
+    const tags = new Map<string, string>();
+    for (const path of ["/", "/index.html", "/sw.js"]) {
+      const original = await app.request(path);
+      const etag = original.headers.get("etag")!;
+      expect(etag).toBeTruthy();
+      tags.set(path, etag);
+      await original.arrayBuffer();
+
+      const cached = await app.request(path, { headers: { "if-none-match": etag } });
+      expect(cached.status).toBe(304);
+      expect(cached.headers.get("cache-control")).toBe("no-cache");
+      expect(cached.headers.get("etag")).toBe(etag);
+      expect(await cached.text()).toBe("");
+    }
+
+    await writeFile(join(dist, "index.html"), "<title>Updated</title>");
+    for (const path of ["/", "/index.html"]) {
+      const updated = await app.request(path, { headers: { "if-none-match": tags.get(path)! } });
+      expect(updated.status).toBe(200);
+      expect(updated.headers.get("etag")).not.toBe(tags.get(path));
+      expect(await updated.text()).toBe("<title>Updated</title>");
+    }
+  } finally {
+    await rm(dist, { recursive: true, force: true });
+  }
+});

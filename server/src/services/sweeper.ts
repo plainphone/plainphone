@@ -25,6 +25,10 @@ export interface SweepResult {
   deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number; safety: number };
 }
 
+export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
+  return db.delete(magicLinks).where(lt(magicLinks.expiresAt, new Date(now.getTime() - DAY)));
+}
+
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
@@ -35,16 +39,15 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const ended = await expireAlwaysLocation(ctx);
   for (const id of ended) await wakePhone(ctx, id, "rules");
   const dayAgo = new Date(now.getTime() - DAY);
-  const count = async (q: Promise<unknown[]>) => (await q).length;
+  const count = async (q: Promise<{ count: number }>) => (await q).count;
   const deleted = {
-    magicLinks: await count(ctx.db.delete(magicLinks).where(lt(magicLinks.expiresAt, dayAgo)).returning({ id: magicLinks.id })),
-    sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now)).returning({ id: sessions.id })),
+    magicLinks: await count(expiredMagicLinksDelete(ctx.db, now)),
+    sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now))),
     // Pairings hold an undelivered device token in clear text; never keep them long.
     pairings: await count(
       ctx.db
         .delete(pairings)
-        .where(or(lt(pairings.expiresAt, dayAgo), lt(pairings.createdAt, dayAgo)))
-        .returning({ id: pairings.id }),
+        .where(or(lt(pairings.expiresAt, dayAgo), lt(pairings.createdAt, dayAgo))),
     ),
     // Invitations hold the invited email address. Accepted ones are deleted on acceptance;
     // this also catches any left from before that.
@@ -56,8 +59,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
             isNotNull(householdInvites.acceptedAt),
             lt(householdInvites.expiresAt, new Date(now.getTime() - INVITE_GRACE_DAYS * DAY)),
           ),
-        )
-        .returning({ id: householdInvites.id }),
+        ),
     ),
     // A change's op can hold contact names and numbers, domains or an email address.
     changes: await count(
@@ -68,8 +70,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
             inArray(pendingChanges.status, ["applied", "cancelled", "rejected", "failed"]),
             lt(pendingChanges.decidedAt, new Date(now.getTime() - CHANGE_HISTORY_DAYS * DAY)),
           ),
-        )
-        .returning({ id: pendingChanges.id }),
+        ),
     ),
     // Answered requests hold an app name or a contact; the phone shows the answer for a while.
     requests: await count(
@@ -80,8 +81,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
             inArray(phoneRequests.status, ["approved", "rejected"]),
             lt(phoneRequests.decidedAt, new Date(now.getTime() - REQUEST_HISTORY_DAYS * DAY)),
           ),
-        )
-        .returning({ id: phoneRequests.id }),
+        ),
     ),
     // Rings and "Are you okay?" requests, a day after they ended.
     safety: await deleteOldSafetyRequests(ctx),

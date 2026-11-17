@@ -61,14 +61,14 @@ export function ContactsPage() {
   return (
     <>
       <PageTitle sub={t("contacts.intro")}>{t("contacts.title")}</PageTitle>
-      <p className="notice notice-info">{t("contacts.otherApps")}</p>
+      <p className="help">{t("contacts.otherApps")}</p>
 
       <LoadGate res={res}>
         {(list) =>
           list.length === 0 && waitingAdds.length === 0 ? (
             <p className="empty-inline">{t("contacts.empty")}</p>
           ) : (
-            <ul className="list item-list">
+            <ul className="list contacts-list">
               {list.map((c) => (
                 <li key={c.id} className="item">
                   <div>
@@ -102,7 +102,7 @@ export function ContactsPage() {
 
       <section className="section" aria-labelledby="add-contact">
         <h2 id="add-contact">{t("contacts.add")}</h2>
-        <form onSubmit={add} noValidate className="stack form-card">
+        <form onSubmit={add} noValidate className="stack contact-form">
           <Field label={t("contacts.name")} error={errors.name}>
             {(p) => <input {...p} name="name" maxLength={60} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />}
           </Field>

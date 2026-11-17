@@ -118,6 +118,30 @@
         "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
         "message": "",
         "signature": "CKm8_zyfU41veR0zf5F9dXt4gOFHGiaLJ4wfmt22_qrECcyJZ_y4DnUFmFRxIvKegpxemQXNzFT8FOCccS23Bw"
+      },
+      {
+        "reason": "S-plus-L",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "5VZDAMNgrHKQhuLMgG6CioSHfx645dl02HPgZSJJAVVMjHhyqgZOBJ27MBP78pOA0lv18FlbviRlUUFDjnoQGw"
+      },
+      {
+        "reason": "identity-A-and-R",
+        "publicKey": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "message": "",
+        "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      {
+        "reason": "x-zero-sign-bit",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAHGl2klulMZq-7ThRlEZKj26q65xGLkVwYLsTzwqrOCg"
+      },
+      {
+        "reason": "valid-equation-small-order-R",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "message": "",
+        "signature": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB1bPmx1vDXqXm50q89wrwSlOx8ttqiDq_1NMAk_FeSDw"
       }
     ]
   }

@@ -182,7 +182,7 @@ Tap "Version" seven times on the Plainphone status screen and enter the parent P
 
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.
-- **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally. A parent can do the same from the dashboard with **Release the phone**: the rules then carry `release: true`, the phone releases itself the next time it syncs and tells the server ([sync-api.md](sync-api.md#releasing-the-phone)).
+- **Release Device Owner** removes every policy before giving up Device Owner (`clearDeviceOwnerApp`). If cleanup fails, the app keeps Device Owner so it can retry. Plainphone can then be uninstalled and the phone reset normally. A parent can do the same from the dashboard with **Release the phone**: the rules then carry `release: true`, the phone releases itself the next time it syncs and tells the server ([sync-api.md](sync-api.md#releasing-the-phone)).
 - **Pair with a parent** (phase 4, only when the phone is not paired) shows the pairing code. Outside the first hour after setup this is the only way to pair.
 - **Sync with the server now** (phase 4, when paired) fetches the rules at once.
 
@@ -194,3 +194,69 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 - **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone. The ordinary Install button keeps account changes blocked.
 
 Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).
+
+## Help lines
+
+On the phone, **Do you need someone to talk to?** is available from the
+Plainphone home screen, Phone and Today. It lists verified services for the
+phone's country, starting with [Denmark](../server/catalog/helplines/dk.json). The catalogue includes each
+service's own source and verification date. BackOp replaced Cyberhus in
+October 2026. [BackOp's support page](https://backop.dk/ny-app/) describes
+anonymous SMS support but does not publish a direct SMS number children can
+use from Plainphone. The Help screen offers direct alternatives, including
+BørneTelefonen and headspace.
+
+The approved-contacts rule makes an outgoing exception for listed call and SMS
+numbers. Each catalogue channel declares whether it accepts incoming replies.
+On phones that enforce approved contacts, a reply-only channel can receive from
+the same number and channel for 24 hours after the child makes contact.
+Ungekontakten has a five-day window because its published response time is one
+to two working days. The phone opens the SMS window after Android reports
+that every part of the message was sent successfully. Reply windows close on
+reboot. The phone stores the time locally and never syncs it. Other incoming
+communications follow ordinary contact rules. SMS sender IDs must be numeric
+to qualify, and the reply window does not authenticate the sender.
+Ordinary contacts and catalogue replies use separate SMS threads, even when
+they share a number. Older incoming messages without sender-type information
+can be read in a thread titled with the number if there is a prior sent message
+to that reply-only helpline in the retained SMS history.
+
+For 112, Android handles emergency calls and Plainphone keeps the existing
+emergency callback window, which also covers callers with a hidden number.
+The Phone and Help screens are exempt from time limits and stay available at
+school time and bedtime. You still need a working connection and the service
+must be open to reply.
+
+The Help screen and links in Plainphone's Messages open catalogue sites inside
+Plainphone, including during school time and bedtime. HTTP links are upgraded
+to HTTPS. Help checks navigation and initial resource requests against the
+catalogue, including iframe requests. It blocks POST and other submission
+methods because Android WebView can follow their redirects without checking the
+destination. Chats that require those methods need another channel, such as
+calling or texting the listed service. Third-party chat entries match exact
+hosts. A tapped telephone or SMS link opens the matching Help action when the
+number is listed for that channel. Leaving a Help page clears its WebView cookies and
+site storage. A new Help page waits for cookie removal before its first request.
+Time in Help is exempt from screen-time limits and parent reports.
+ppdns also lets the verified help,
+health, body, sexuality and LGBT+ sites through the web filter.
+
+Plainphone can accept catalogue links from other apps when Android hands them
+over. On Android 12 and later, this requires Android to approve Plainphone for
+the domain. If another app keeps the link in its own browser, or a child types
+the address directly there, the time still counts towards the browser's own
+cap and any total screen-time limit and appears as browser use in reports.
+[Android link handling](https://developer.android.com/training/app-links/create-deeplinks).
+
+Plainphone excludes help contacts from its parent-facing blocked log and
+sends no call or SMS history to the server. Help SMS notifications are hidden
+on the lock screen. Android's own recent calls and SMS conversations can still
+be visible locally on the phone. ppdns keeps
+query logging off and excludes protected domains from DNS statistics.
+
+The UN Committee on the Rights of the Child recommends confidential access to
+psychological counselling in paragraph 94. Paragraph 76 warns that monitoring
+can prevent children from reaching a helpline. [General Comment No. 25](https://digitallibrary.un.org/record/3906061).
+[Przybylski and Nash (2018)](https://doi.org/10.1089/cyber.2017.0466)
+discuss the risk that internet filtering can restrict access to useful sexual
+health information.

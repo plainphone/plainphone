@@ -46,7 +46,7 @@ import {
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
-import { createPhone, loadPhoneSettings, phoneSummary, wakePhone } from "../services/phones.js";
+import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
@@ -503,8 +503,7 @@ export function parentRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
   app.get("/phones", async (c) => {
     const hids = await myHouseholdIds(c.get("user").id);
     if (hids.length === 0) return c.json({ phones: [] });
-    const rows = await ctx.db.select().from(phones).where(inArray(phones.householdId, hids)).orderBy(phones.createdAt);
-    return c.json({ phones: await Promise.all(rows.map((p) => phoneSummary(ctx, p))) });
+    return c.json({ phones: await phoneSummaries(ctx, hids) });
   });
 
   app.post("/phones/claim", async (c) => {

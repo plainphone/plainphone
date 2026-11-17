@@ -16,7 +16,23 @@ data class ContactRules(
     val enforced: Boolean,
     val contacts: List<ApprovedContact>,
     val country: PhoneNumbers.Country?,
+    val help: HelpDirectory = HelpDirectory(),
+    val replyAgeMs: (Channel, String) -> Long? = { _, _ -> null },
 ) {
+    fun helpContact(number: String?, channel: Channel): ApprovedContact? =
+        help.contactFor(number, Helplines.country(country), channel)
+
+    fun replyHelpContact(number: String?, channel: Channel): ApprovedContact? =
+        help.contactFor(number, Helplines.country(country), channel, replyOnly = true)
+
+    fun incomingHelpContact(number: String?, channel: Channel): ApprovedContact? =
+        replyHelpContact(number, channel)?.takeIf {
+            val age = replyAgeMs(channel, it.number)
+            age != null && age in 0 until help.replyWindowMs(it, channel)
+        }
+
+    fun isHelpNumber(number: String?): Boolean = help.contains(number, Helplines.country(country))
+
     /** The approved contact behind [number], if any. */
     fun contactFor(number: String?): ApprovedContact? {
         val key = PhoneNumbers.normalize(number, country) ?: return null
@@ -48,13 +64,21 @@ class ContactPolicy(
     /** Milliseconds since the last emergency call, or null if none is known. */
     private val sinceLastEmergencyMs: () -> Long? = { null },
 ) {
-    fun decide(rules: ContactRules, channel: Channel, direction: Direction, number: String?): Decision {
+    fun decide(
+        rules: ContactRules, channel: Channel, direction: Direction, number: String?,
+        allowHelpReply: Boolean = true,
+    ): Decision {
         // Calling and texting emergency numbers always works, whatever the rules say. Only outgoing:
         // an incoming "112" is just a caller ID, which is easy to spoof. Real call-backs are
         // covered by the call-back window below.
         if (direction == Direction.OUTGOING && number != null && emergency.isEmergency(number)) {
             return Decision.Allow("emergency number")
         }
+        val help = when (direction) {
+            Direction.OUTGOING -> rules.helpContact(number, channel)
+            Direction.INCOMING -> if (allowHelpReply) rules.incomingHelpContact(number, channel) else null
+        }
+        if (help != null) return Decision.Allow("help line")
         if (!rules.enforced) return Decision.Allow("lock not active")
 
         // After an emergency call, the emergency service must be able to call back,

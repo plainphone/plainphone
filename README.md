@@ -42,7 +42,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
-A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online.
+A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
 
 Adding a Play account during an approved app install needs the parent PIN ([docs/app-catalog.md](docs/app-catalog.md)). Reset protection and hardware system checks are described in [docs/policies.md](docs/policies.md).
 
@@ -56,6 +56,7 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 
 - **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. See [docs/contacts.md](docs/contacts.md).
 - **Protection after a reset.** Link a parent’s Google account in the dashboard. Wait until the account is ready and the phone reports that it has saved the protection settings before resetting the phone. See [docs/policies.md](docs/policies.md#factory-reset-protection).
+- **Helplines.** Children can reach listed support services from Help. See [the helpline policy](docs/policies.md#help-lines).
 - **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
 - **Rules from the server.** App list, approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. See [docs/phone-sync.md](docs/phone-sync.md).
 - **Location on request.** By default the phone sends one position when a parent presses Find. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
@@ -83,7 +84,7 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 |---|---|
 | [`android/`](android) | The phone app (Kotlin, Jetpack Compose) for strong and light mode |
 | [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
-| [`web/`](web) | The parent web app (PWA) at app.plainphone.org |
+| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, no JavaScript) |
@@ -156,7 +157,7 @@ End-to-end encryption ([docs/encryption.md](docs/encryption.md)) is being specif
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Questions and ideas go to [Discussions](https://github.com/plainphone/plainphone/discussions), and [how we handle your contribution](docs/maintaining.md) says what happens next. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

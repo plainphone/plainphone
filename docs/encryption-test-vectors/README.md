@@ -7,12 +7,17 @@ Run from the repository root with Node 24 and the pinned pnpm version.
 
 ```sh
 pnpm --filter @plainphone/crypto-vectors test
+pnpm --filter @plainphone/crypto test
+(cd android && ./gradlew --no-daemon testDebugUnitTest)
 pnpm --filter @plainphone/crypto-vectors generate
 ```
 
-The test compares the checked-in JSON with recomputed bytes and checks known
-answers and negative cases. The recursive test target runs it in CI. Use
-`generate` only for deliberate changes to fixtures, then review the JSON diff.
+The generator test compares the checked-in JSON with recomputed bytes. The
+TypeScript and Kotlin crypto tests read both JSON files directly and exercise
+known answers and negative cases. In CI, changes to this directory or either
+crypto package run the Android unit tests and the server job’s recursive pnpm
+tests, which include the TypeScript conformance tests and the generator check.
+Use `generate` only for deliberate changes to fixtures, then review the JSON diff.
 
 - `primitives.json` gives JCS bytes, SHA-256, RFC 4231 HMAC test 1, RFC 5869 HKDF test 1, RFC 8032 Ed25519 test 1,
   AES-256-GCM, strict Ed25519 and encoding rejection cases, and the [RFC 9180 authors' vectors](https://github.com/cfrg/draft-irtf-cfrg-hpke/blob/master/test-vectors.json)
@@ -42,7 +47,7 @@ values are JSON integers. `signInput` is the exact pre-signature byte string.
 DHKEM DeriveKeyPair. To decrypt without re-deriving the pair, use
 `recipientPublicKey` and `recipientPrivateKey`. For Tink NO_PREFIX, join
 decoded `enc || ct` and pass decoded `info` as context_info. For AES-GCM,
-join decoded `nonce || ct` and pass decoded `aad`. Use plain Ed25519
+join decoded `nonce || ct` and pass decoded `aad`. Use strict profile Ed25519
 verification with `signing.publicKey` for admin signatures,
 `selfChange.approval.signPub` for trusted approval, and the phone signing key
 from the phone-add post for the report, Find result and release acknowledgement.
@@ -52,3 +57,21 @@ signature and decoded `signInput`. F1 tests must additionally derive the signed 
 bytes from structured fields, assert equality with these fixtures and check
 rejections when the context, authorization or ciphertext changes. JVM CI
 consuming both files is a required F1 gate.
+
+The S+L case targets scalar-reducing verifiers (ZIP-215 itself also rejects
+S ≥ L). The zero-x sign-bit case necessarily encodes a small-order point.
+Its challenge uses the original bytes, as required in ZIP-215. The canonical
+identity-R case isolates the small-order check with a valid non-cofactored
+equation. The identity-A/R case exercises the zero-scalar edge case.
+
+For the emergency Find integration test in F3, use the signed on-request
+policy from the fixture. Deliver four fresh, distinct request UUIDs from one
+emergency device within an hour. Assert four captures, the persistent
+indicator and one encrypted admin notice. Replay a UUID and deliver a fifth
+fresh UUID, then repeat after restarting the process and rebooting without
+an anchor. Assert no extra capture or notification. A second emergency
+device has an independent budget. After an hour of credited elapsed time,
+check that the indicator clears and the original device can request again.
+Check that Ring and “Are you okay?” still work without an anchor after
+reboot, with visible freshness marking, and that release and Self loosening
+remain blocked.

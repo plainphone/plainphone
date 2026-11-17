@@ -18,7 +18,9 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from http.server import ThreadingHTTPServer
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -103,6 +105,10 @@ class FakeAdGuard:
     def user_rules(self):
         return list(self.rules)
 
+    def exclude_from_stats(self, rules, *, obsolete):
+        self.stats_exclusions = [rule for rule in getattr(self, "stats_exclusions", []) if rule not in obsolete]
+        self.stats_exclusions = list(dict.fromkeys(self.stats_exclusions + rules))
+
     def set_user_rules(self, rules):
         self.rules = list(rules)
 
@@ -185,7 +191,7 @@ class TagRulesTest(unittest.TestCase):
             for source in lists.SOURCES:
                 if source.tag:
                     with open(lists.local_path(tmp, source)) as fh:
-                        self.assertEqual(fh.read().splitlines()[1], f"||x.example^$ctag={source.tag}", source.key)
+                        self.assertEqual(fh.read().splitlines()[2], f"||x.example^$ctag={source.tag}", source.key)
 
     def test_tags_are_ones_adguard_accepts_and_do_not_collide(self):
         # allowedTags in AdGuard Home internal/client/storage.go
@@ -199,6 +205,69 @@ class TagRulesTest(unittest.TestCase):
         self.assertEqual(len(set(mine)), 3)
         self.assertTrue(set(mine) <= allowed)
         self.assertTrue(all(c.tag is None or c.tag in mine for c in profiles.CATEGORY_RULES.values()))
+
+    def test_init_reuses_only_fresh_tagged_downloads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sources = [s for s in lists.SOURCES if s.tag]
+            calls = []
+
+            def opener(request, **kwargs):
+                calls.append(request.full_url)
+                return io.BytesIO(b"example.org\n")
+
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [s.url for s in sources])
+            calls.clear()
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [])
+            os.utime(lists.local_path(tmp, sources[0]), (1, 1))
+            with open(lists.local_path(tmp, sources[1]), "w", encoding="utf-8") as out:
+                out.write("! placeholder until the first successful download\n")
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [s.url for s in sources[:2]])
+
+    def test_fresh_download_requires_a_tagged_rule(self):
+        source = next(s for s in lists.SOURCES if s.tag)
+
+        def opener(*_args, **_kwargs):
+            return io.BytesIO(b"example.org\n")
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(lists, "SOURCES", [source]):
+            path = lists.local_path(tmp, source)
+            lists.build(tmp, opener=opener, max_age=3600)
+            with open(path, encoding="utf-8") as fh:
+                headers = fh.readline() + fh.readline()
+            for body in ("", "\n", "! comment\n", "unrelated text\n", "||example.org^$ctag="):
+                with self.subTest(body=body):
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(headers + body)
+                    self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                    self.assertEqual(lists.build(tmp, opener=opener, max_age=3600), {source.key: "ok"})
+
+    def test_fresh_download_requires_matching_format_and_source_url(self):
+        source = next(s for s in lists.SOURCES if s.tag)
+        changed = replace(source, url=source.url + "?updated")
+        calls = []
+
+        def opener(request, **kwargs):
+            calls.append(request.full_url)
+            return io.BytesIO(b"example.org\n")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(lists, "SOURCES", [source]):
+                lists.build(tmp, opener=opener, max_age=3600)
+            with patch.object(lists, "SOURCES", [changed]):
+                self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                lists.build(tmp, opener=opener, max_age=3600)
+                path = lists.local_path(tmp, changed)
+                with open(path, encoding="utf-8") as fh:
+                    tag_header, metadata, *rules = fh.readlines()
+                self.assertNotIn(changed.url, metadata)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.writelines([tag_header, metadata.replace("format=1", "format=0"), *rules])
+                self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [source.url, changed.url, changed.url])
 
     def test_old_gambling_list_is_retagged_when_the_download_fails(self):
         def broken(*_args, **_kwargs):
@@ -357,6 +426,53 @@ class ServiceTest(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_fixed_help_rules_are_private_and_survive_parent_edits(self):
+        self.svc.install_helpline_rules()
+        self.svc.install_helpline_rules()
+        out = self.svc.create("child", block_domains=["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["block_domains"], ["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["allow_domains"], [])
+        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"):
+            self.assertEqual(self.ag.user_rules().count(f"@@||{domain}^$important"), 1)
+            self.assertIn(f"||{domain}^", self.ag.stats_exclusions)
+
+        for host in ("phs.basechat.com", "c.basechat.com"):
+            self.assertEqual(self.ag.user_rules().count(f"@@|{host}^$important"), 1)
+            self.assertNotIn(f"@@||{host}^$important", self.ag.user_rules())
+            self.assertIn(f"|{host}^", self.ag.stats_exclusions)
+
+    def test_old_basechat_wildcard_is_replaced_with_exact_host(self):
+        self.ag.rules.extend((
+            "! Plainphone protected help sites",
+            "@@||phs.basechat.com^$important",
+            "@@||c.basechat.com^$important",
+            "! End Plainphone protected help sites",
+        ))
+        self.ag.stats_exclusions = ["||phs.basechat.com^", "||c.basechat.com^"]
+        self.svc.install_helpline_rules()
+        self.assertNotIn("@@||phs.basechat.com^$important", self.ag.rules)
+        self.assertNotIn("||phs.basechat.com^", self.ag.stats_exclusions)
+        self.assertIn("@@|phs.basechat.com^$important", self.ag.rules)
+        self.assertIn("|phs.basechat.com^", self.ag.stats_exclusions)
+
+    def test_removed_help_domain_loses_its_exception_after_restart(self):
+        self.ag.rules.extend(("@@||manual.example^$important", "@@||backop.dk^$important"))
+        self.ag.stats_exclusions = ["||backop.dk^", "||manual.example^"]
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||old.example^", "||keep.example^"]):
+            self.svc.install_helpline_rules()
+        self.svc.create("child", client_id="child-phone-123456", block_domains=["old.example"])
+        restarted = Service(self.ag, "dns.example.org", self.tmp.name)
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||keep.example^"]):
+            restarted.install_helpline_rules()
+        self.assertNotIn("@@||old.example^$important", self.ag.rules)
+        self.assertIn("@@||keep.example^$important", self.ag.rules)
+        self.assertIn("@@||manual.example^$important", self.ag.rules)
+        self.assertTrue(any(rule.startswith("||old.example^$client=") for rule in self.ag.rules))
+        self.assertNotIn("||old.example^", self.ag.stats_exclusions)
+        self.assertNotIn("@@||backop.dk^$important", self.ag.rules)
+        self.assertNotIn("||backop.dk^", self.ag.stats_exclusions)
+        self.assertIn("||manual.example^", self.ag.stats_exclusions)
 
     def test_create_registers_client_and_access_list(self):
         out = self.svc.create("child")
@@ -604,6 +720,7 @@ class UpgradeFromFirstReleaseTest(unittest.TestCase):
         with mock.patch.object(lists, "build", return_value={}):
             jobs.refresh_lists()
         self.assertEqual(self.ag.refreshed, 1)
+        self.assertIn("@@||bornetelefonen.dk^$important", self.ag.user_rules())
         self.assertIn("os_other", self.ag._clients["pp-childchild"]["tags"])
 
 
@@ -638,6 +755,60 @@ class SigV4Test(unittest.TestCase):
 
 
 class JobsTest(unittest.TestCase):
+    def test_stats_timeout_does_not_skip_list_refresh(self):
+        from unittest.mock import patch
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp)
+            ag = FakeAdGuard()
+            jobs = Jobs(settings, Service(ag, settings.domain, tmp))
+            with (
+                patch.object(ag, "exclude_from_stats", side_effect=TimeoutError),
+                patch.object(lists, "build", return_value={}) as build,
+                self.assertLogs("ppdns.server", level="ERROR"),
+            ):
+                jobs.refresh_lists()
+            build.assert_called_once()
+            self.assertEqual(ag.refreshed, 1)
+
+    def test_reused_lists_refresh_at_their_original_deadline(self):
+        from unittest.mock import patch
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp, PPDNS_LISTS_REFRESH_HOURS="12")
+            interval = 12 * 3600
+            sources = [s for s in lists.SOURCES if s.tag]
+            lists.build(tmp, opener=lambda *_args, **_kwargs: io.BytesIO(b"example.org\n"))
+            for i, source in enumerate(sources):
+                path = lists.local_path(tmp, source)
+                downloaded = 3600 if i == 0 else interval
+                os.utime(path, (downloaded, downloaded))
+            jobs = Jobs(settings, Service(FakeAdGuard(), settings.domain, tmp))
+            with patch("ppdns.lists.time.time", return_value=interval), patch("ppdns.server._every") as every:
+                jobs.start()
+            delay = every.call_args_list[0].kwargs["delay"]
+            with patch("ppdns.lists.time.time", return_value=interval):
+                self.assertEqual(delay(), 3600)
+            with patch("ppdns.lists.time.time", return_value=interval + 3601):
+                self.assertEqual(delay(), 0)
+
+            downloaded_urls = []
+
+            def build(directory, **kwargs):
+                def opener(request, **_):
+                    downloaded_urls.append(request.full_url)
+                    raise OSError("upstream unavailable")
+
+                return original_build(directory, opener=opener, **kwargs)
+
+            original_build = lists.build
+            with patch("ppdns.lists.time.time", return_value=interval + 3601), patch.object(lists, "build", build):
+                jobs.refresh_lists()
+                self.assertEqual(downloaded_urls, [sources[0].url])
+                self.assertEqual(delay(), interval - 3601)
+
     def test_reload_cert_only_when_the_file_changes_or_forced(self):
         from ppdns.server import Jobs
 

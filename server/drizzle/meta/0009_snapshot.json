@@ -1,5 +1,5 @@
 {
-  "id": "dd902ece-c52f-4457-8b38-9d577128ed16",
+  "id": "13bd6928-4dd4-4bd0-a937-abbb782bfee9",
   "prevId": "cdd0ec6a-eeef-4ccd-953a-bca636c8d1c0",
   "version": "7",
   "dialect": "postgresql",
@@ -287,79 +287,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.frp_accounts": {
-      "name": "frp_accounts",
-      "schema": "",
-      "columns": {
-        "household_id": {
-          "name": "household_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_account_id": {
-          "name": "google_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "frp_accounts_household_id_households_id_fk": {
-          "name": "frp_accounts_household_id_households_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "frp_accounts_user_id_users_id_fk": {
-          "name": "frp_accounts_user_id_users_id_fk",
-          "tableFrom": "frp_accounts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "frp_accounts_household_id_user_id_pk": {
-          "name": "frp_accounts_household_id_user_id_pk",
-          "columns": [
-            "household_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -675,7 +602,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "magic_links_expires_idx": {
+          "name": "magic_links_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -941,6 +884,33 @@
             },
             {
               "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pending_changes_due_idx": {
+          "name": "pending_changes_due_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1415,18 +1385,6 @@
         },
         "status_reported_at": {
           "name": "status_reported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attestation": {
-          "name": "attestation",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attested_at": {
-          "name": "attested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -2004,6 +1962,21 @@
           "columns": [
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sessions_expires_idx": {
+          "name": "sessions_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

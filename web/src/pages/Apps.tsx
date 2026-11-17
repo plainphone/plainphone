@@ -37,18 +37,13 @@ export function AppsPage() {
 
   return (
     <>
-      <PageTitle sub={t("apps.intro")}>{t("apps.title")}</PageTitle>
-      <ul className="list nav-list apps-add">
-        <li>
-          <Link to={`/phones/${phone.id}/apps/add`} className="row-link">
-            <span className="row-main">
-              <span className="row-title">{t("catalog.entry")}</span>
-              <span className="row-meta">{t("catalog.entryHint")}</span>
-            </span>
-            <Chevron />
-          </Link>
-        </li>
-      </ul>
+      <div className="title-row apps-heading">
+        <PageTitle sub={t("apps.intro")}>{t("apps.title")}</PageTitle>
+        <Link to={`/phones/${phone.id}/apps/add`} className="btn btn-secondary">
+          {t("catalog.entry")}
+          <Chevron />
+        </Link>
+      </div>
       <LoadGate res={res}>
         {(apps) => {
           if (apps.length === 0) return <p className="empty-inline">{t("apps.empty")}</p>;
@@ -63,9 +58,10 @@ export function AppsPage() {
                   <input id="app-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
                 </div>
               )}
-              {sorted.length === 0 ? (
-                <p className="empty-inline">{t("apps.noMatch", { q })}</p>
-              ) : (
+              <p role="status" className={sorted.length === 0 ? "empty-inline" : "sr-only"}>
+                {sorted.length === 0 ? t("apps.noMatch", { q }) : ""}
+              </p>
+              {sorted.length > 0 && (
                 <ul className="list switch-list">
                   {sorted.map((a) => (
                     <li key={a.packageName}>

@@ -37,3 +37,45 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
   (at most a few seconds normally); the sweeper deletes pairings after a day.
 - **Mail** never goes out without a configured provider, and sign-in links put the token in the
   URL fragment, so it is not sent to the server by link scanners and not logged.
+
+## Measure the server footprint
+
+Run `scripts/bench-server.sh [requests] [concurrency]` from the checkout. It
+starts a disposable embedded PostgreSQL, seeds one paired phone with 100 apps,
+and sends conditional HTTP requests over loopback. It reports throughput,
+Node CPU per request, and warm and peak sampled Node RSS. RSS excludes
+PostgreSQL and the package runner. Use the same worker, Node version and
+arguments when comparing revisions.
+
+One run per revision on a shared Linux worker with Node 24.22.1 used 4,000
+polls and eight concurrent clients. The baseline was main commit `3b3dfb4`.
+
+| Metric | Main | This branch |
+| --- | ---: | ---: |
+| HTTP 304 responses per second | 675 | 786 |
+| Node CPU per request | 1.666 ms | 1.466 ms |
+| Warm Node RSS | 280.3 MiB | 278.0 MiB |
+| Peak sampled Node RSS | 337.1 MiB | 337.3 MiB |
+
+The benchmark measures steady-state polling for one phone. It does not
+measure a deployment with many distinct phones.
+
+The device rules handler still authenticates, applies due changes and
+updates last-seen state as needed. Each poll reads the current rules inputs
+with narrow selects, evaluates time-dependent fields, and hashes the JSON
+representation. A matching ETag returns 304. A release request changes the
+representation and invalidates the previous ETag.
+
+The parent phone list gets location presence and open-request counts in the
+same SQL statement as the phones. The sweeper still runs once per minute
+with an unreferenced timer and skips overlapping runs. Pushes are
+event-driven. The PostgreSQL plan test seeds 20,000 rows per table and
+checks the index for each selective lookup (expired magic links, expired
+sessions, and effective delay-key changes). The startup migration adds
+those three indexes. Cleanup queries use the affected-row count instead
+of returning every deleted ID to Node.
+
+The Docker build precompresses PWA JavaScript and CSS with Brotli and gzip.
+Hashed assets are immutable for a year. The PWA root, `index.html` and `sw.js`
+use `no-cache` and ETags for conditional GETs. SPA fallbacks also require
+revalidation. Range requests use the identity file.

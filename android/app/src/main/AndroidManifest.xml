@@ -209,6 +209,47 @@
             android:launchMode="singleTask"
             android:taskAffinity="org.plainphone.app.blocked" />
 
+        <activity android:name=".contacts.HelpActivity" android:exported="true">
+            <!-- Keep the hosts in sync with server/catalog/helplines. Android decides when to hand off external links. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="bornetelefonen.dk" />
+                <data android:host="*.bornetelefonen.dk" />
+                <data android:host="c.basechat.com" />
+                <data android:host="headspace.dk" />
+                <data android:host="*.headspace.dk" />
+                <data android:host="lgbt.dk" />
+                <data android:host="*.lgbt.dk" />
+                <data android:host="livslinien.dk" />
+                <data android:host="*.livslinien.dk" />
+                <data android:host="phs.basechat.com" />
+                <data android:host="politi.dk" />
+                <data android:host="*.politi.dk" />
+                <data android:host="regionh.dk" />
+                <data android:host="*.regionh.dk" />
+                <data android:host="regionsjaelland.dk" />
+                <data android:host="*.regionsjaelland.dk" />
+                <data android:host="regionsyddanmark.dk" />
+                <data android:host="*.regionsyddanmark.dk" />
+                <data android:host="rn.dk" />
+                <data android:host="*.rn.dk" />
+                <data android:host="sexlinien.dk" />
+                <data android:host="*.sexlinien.dk" />
+                <data android:host="sexogsamfund.dk" />
+                <data android:host="*.sexogsamfund.dk" />
+                <data android:host="sundhed.dk" />
+                <data android:host="*.sundhed.dk" />
+                <data android:host="sundhed.rm.dk" />
+                <data android:host="*.sundhed.rm.dk" />
+                <data android:host="ungekontakten.aarhus.dk" />
+                <data android:host="*.ungekontakten.aarhus.dk" />
+            </intent-filter>
+        </activity>
+
         <!-- ===== Phase 2: phone and messages ===== -->
 
         <!--
