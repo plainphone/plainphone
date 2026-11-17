@@ -106,7 +106,7 @@ function hhmm(minute: number): string {
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -158,6 +158,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     loadTimeLimits(ctx.db, phone, ctx.now()),
     loadSafety(ctx, phone.id),
     readPhoneSettings(ctx.db, phone.id),
+    householdAccountIds(ctx, phone.householdId),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -182,13 +183,14 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     limits,
     safety,
     own,
+    accountIds,
   };
 }
 
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
@@ -242,7 +244,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       effectiveAt: c.effectiveAt?.toISOString() ?? null,
     })),
     // Factory reset protection (#20): Google account IDs that may set the phone up after a reset.
-    resetProtection: { accountIds: await householdAccountIds(ctx, phone.householdId) },
+    resetProtection: { accountIds },
     // True once the parents have released the phone: it switches Plainphone off and then
     // calls POST /device/released. Older phones ignore the field.
     release: phone.releaseRequestedAt !== null,

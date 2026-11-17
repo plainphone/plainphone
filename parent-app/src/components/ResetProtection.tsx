@@ -6,7 +6,7 @@ import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { formatDateTime } from "../shared/lib/format";
 import type { paths } from "../api/schema";
-import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, Text, useLoad } from "./ui";
+import { Button, Card, errorMessage, LiveStatus, LoadGate, Notice, type NoticeValue, Row, Text, useLoad } from "./ui";
 
 type ResetProtectionState = paths["/households/{hid}/reset-protection"]["get"]["responses"][200]["content"]["application/json"];
 
@@ -15,8 +15,12 @@ export function ResetProtection({ hid }: { hid: string }) {
   const router = useRouter();
   const { "reset-protection": result } = useLocalSearchParams<{ "reset-protection"?: string }>();
   const params = { path: { hid } };
-  const res = useLoad(() => unwrap<ResetProtectionState>(client.GET("/households/{hid}/reset-protection", { params })), [hid]);
+  const res = useLoad(async () => {
+    const data = await unwrap<ResetProtectionState>(client.GET("/households/{hid}/reset-protection", { params }));
+    return { ...data, checkedAt: Date.now() };
+  }, [hid]);
   const { reload } = res;
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
 
@@ -47,6 +51,7 @@ export function ResetProtection({ hid }: { hid: string }) {
     try {
       if (remove) {
         await unwrap(client.DELETE("/households/{hid}/reset-protection/mine", { params }));
+        setConfirmingRemoval(false);
         setNotice({ tone: "success", text: t("frp.removed") });
         await reload();
       } else {
@@ -68,22 +73,34 @@ export function ResetProtection({ hid }: { hid: string }) {
       <LoadGate res={res}>
         {(data) => {
           const mine = data.accounts.some((account) => account.mine);
+          const now = data.checkedAt;
+          const waiting = data.accounts.some((account) => Date.parse(account.activeFrom) > now);
           return (
             <>
               <Text variant="muted">{t(data.available ? "frp.intro" : "frp.unavailable")}</Text>
+              {waiting ? <Notice tone="warn" text={t("frp.waitBeforeReset")} /> : null}
               {data.available && !data.accounts.length ? <Text>{t("frp.none")}</Text> : null}
               {data.accounts.map((account) => (
                 <Text key={account.userId}>
                   {t(account.mine ? "frp.mine" : "frp.other")}{"\n"}
-                  {Date.parse(account.activeFrom) > Date.now()
+                  {Date.parse(account.activeFrom) > now
                     ? t("frp.activeFrom", { time: formatDateTime(account.activeFrom, locale) })
                     : t("frp.active")}
                 </Text>
               ))}
               {data.available ? (
-                <Button title={t(mine ? "frp.change" : "frp.button")} busy={busy} onPress={() => void change(false)} />
+                <Button title={t(mine ? "frp.change" : "frp.button")} busy={busy} disabled={confirmingRemoval} onPress={() => void change(false)} />
               ) : null}
-              {mine ? <Button kind="secondary" title={t("frp.remove")} busy={busy} onPress={() => void change(true)} /> : null}
+              {mine && (confirmingRemoval ? (
+                <Notice tone="warn" text={t("frp.removeConfirm")}>
+                  <Row>
+                    <Button testID="frp-remove-confirm" kind="danger" title={t("frp.remove")} busy={busy} onPress={() => void change(true)} />
+                    <Button kind="secondary" title={t("app.cancel")} disabled={busy} onPress={() => setConfirmingRemoval(false)} />
+                  </Row>
+                </Notice>
+              ) : (
+                <Button testID="frp-remove" kind="secondary" title={t("frp.remove")} disabled={busy} onPress={() => setConfirmingRemoval(true)} />
+              ))}
             </>
           );
         }}

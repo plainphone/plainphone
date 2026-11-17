@@ -183,7 +183,8 @@ class PolicyApplierTest {
 
     @Test
     fun `release succeeds without FRP support and after Device Owner is already gone`() {
-        device.frpUnsupported = true
+        val hardening = FakeHardening().apply { frpUnsupported = true }
+        val applier = PolicyApplier(device, store, 35, Hardening(hardening, 35))
         assertThat(applier.release().filterNot { it.ok }).isEmpty()
         assertThat(device.owner).isFalse()
         assertThat(applier.release().filterNot { it.ok }).isEmpty()

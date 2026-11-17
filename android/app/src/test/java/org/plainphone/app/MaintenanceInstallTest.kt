@@ -4,6 +4,7 @@ package org.plainphone.app
 
 import android.accounts.Account
 import android.accounts.AccountManager
+import android.app.Application
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
@@ -77,6 +78,20 @@ class MaintenanceInstallTest {
 
         assertThat(accountsBlocked()).isTrue()
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
+    }
+
+    @Test
+    @Config(application = Application::class)
+    fun `replacing a Google account closes account changes even when the count stays the same`() {
+        val manager = AccountManager.get(context)
+        val old = Account("first", "com.google")
+        assertThat(manager.addAccountExplicitly(old, null, null)).isTrue()
+        assertThat(InstallWindow.openForParent(context, pkg)).isEqualTo(InstallWindow.OpenResult.OPENED)
+        assertThat(InstallWindow.active(context)?.accountsAllowed).isTrue()
+
+        assertThat(manager.removeAccountExplicitly(old)).isTrue()
+        assertThat(manager.addAccountExplicitly(Account("second", "com.google"), null, null)).isTrue()
+        assertThat(InstallWindow.active(context)?.accountsAllowed).isFalse()
     }
 
     @Test

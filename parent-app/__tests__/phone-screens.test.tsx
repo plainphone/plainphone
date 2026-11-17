@@ -345,6 +345,27 @@ describe("approvals", () => {
 });
 
 describe("household", () => {
+  it("warns before resetting with a pending account and confirms before removing it", async () => {
+    const path = `/households/${ME.households[0].id}/reset-protection`;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      [`GET /households/${ME.households[0].id}/members`]: { body: { members: [], invites: [] } },
+      [`GET ${path}`]: { body: { available: true, accounts: [{ userId: "u1", mine: true, activeFrom: FUTURE }] } },
+      [`DELETE ${path}/mine`]: { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/household" });
+    expect(await screen.findByText(/A new Google account can take up to 72 hours/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("frp-remove"));
+    expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("frp-remove-confirm")).toBeNull();
+    expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    await fireEvent.press(screen.getByTestId("frp-remove"));
+    await fireEvent.press(screen.getByTestId("frp-remove-confirm"));
+    await waitFor(() => expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(1));
+    expect(api.calls.find((c) => c.method === "DELETE")?.path).toBe(`${path}/mine`);
+  });
+
   it("invites another parent and hands over the link when the server cannot send mail", async () => {
     const hid = ME.households[0].id;
     const url = "https://app.plainphone.org/invite#token=pp_i_abcdefghij";

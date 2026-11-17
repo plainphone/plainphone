@@ -102,13 +102,14 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
   Google. The server keeps only the numeric Google account ID from the People API,
   no email address, and sends it to every phone in the household in the rules (`resetProtection.accountIds`).
   Each parent in the household can add their own account. A parent who leaves the household stops
-  protecting the phones at the next sync. Removing the account clears the policy at the next sync.
+  protecting the phones at the next sync. The dashboard and parent app ask for confirmation before
+  removing an account. The removal takes effect at the next sync.
 - **On the phone:** Android 11+ uses `setFactoryResetProtectionPolicy`; Android 10 uses the legacy path Google
   documents, the managed configuration `factoryResetProtectionAdmin` of `com.google.android.gms`. Both are
   followed by the broadcast `FRP_CONFIG_CHANGED`, which Play services needs to pick up the change.
   On Android 10, removing the last account clears Plainphone's managed configuration so normal
   Android FRP can apply. Permanent release explicitly disables the legacy configuration.
-- **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard shows
+- **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard and parent app show
   "Ready from" for the time the account was linked plus 72 hours. Wait until that time and check
   the phone has saved the protection settings before resetting it.
 - **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.

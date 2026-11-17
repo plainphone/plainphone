@@ -9,6 +9,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import java.security.MessageDigest
+import java.util.Base64
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.RelockReceiver
@@ -30,6 +32,7 @@ object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
     private const val GOOGLE = "com.google"
     private const val PREFS = "plainphone_install"
+    private const val ACCOUNT_BASELINE = "googleAccountFingerprints"
 
     private val stateLock = Any()
 
@@ -40,8 +43,9 @@ object InstallWindow {
             val p = prefs(context)
             val pkg = p.getString("pkg", null) ?: return null
             if (p.getLong("until", 0L) <= nowMs || isInstalled(context, pkg)) return null
+            val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
             val accountsAllowed = p.getBoolean("accountsAllowed", false) &&
-                googleAccountCount(context) <= p.getInt("googleAccounts", 0)
+                baseline != null && baseline.containsAll(googleAccountFingerprints(context))
             Active(pkg, accountsAllowed)
         }
     }
@@ -72,13 +76,14 @@ object InstallWindow {
             if (window?.packageName == packageName) {
                 if (!allowAccounts || window.accountsAllowed) return@synchronized false
                 p.edit().putBoolean("accountsAllowed", true)
-                    .putInt("googleAccounts", googleAccountCount(app)).apply()
+                    .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
             } else {
                 if (!takeWindow(app)) return OpenResult.DAILY_LIMIT
                 p.edit().putString("pkg", packageName)
                     .putLong("until", System.currentTimeMillis() + WINDOW_MS)
                     .putBoolean("accountsAllowed", allowAccounts)
-                    .putInt("googleAccounts", if (allowAccounts) googleAccountCount(app) else 0)
+                    .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) googleAccountFingerprints(app) else null)
+                    .remove("googleAccounts")
                     .apply()
                 scheduleClose(app)
             }
@@ -106,18 +111,23 @@ object InstallWindow {
     private fun updateAccountWindow(context: Context): Boolean {
         val p = prefs(context)
         if (!p.getBoolean("accountsAllowed", false)) return false
-        val count = googleAccountCount(context)
-        val previous = p.getInt("googleAccounts", 0)
-        if (count > previous) {
-            p.edit().putBoolean("accountsAllowed", false).remove("googleAccounts").apply()
+        val current = googleAccountFingerprints(context)
+        val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
+        if (baseline == null || !baseline.containsAll(current)) {
+            p.edit().putBoolean("accountsAllowed", false).remove(ACCOUNT_BASELINE).remove("googleAccounts").apply()
             return true
         }
-        // An account can be removed before a new one is added. Remember the lower count.
-        if (count < previous) p.edit().putInt("googleAccounts", count).apply()
+        if (current != baseline) p.edit().putStringSet(ACCOUNT_BASELINE, current).apply()
         return false
     }
 
-    private fun googleAccountCount(context: Context) = AccountManager.get(context).getAccountsByType(GOOGLE).size
+    private fun googleAccountFingerprints(context: Context): Set<String> {
+        val hash = MessageDigest.getInstance("SHA-256")
+        val encode = Base64.getEncoder()
+        return AccountManager.get(context).getAccountsByType(GOOGLE).mapTo(mutableSetOf()) {
+            encode.encodeToString(hash.digest(it.name.toByteArray()))
+        }
+    }
 
     const val MAX_PER_DAY = 5
 
@@ -135,7 +145,8 @@ object InstallWindow {
         val app = context.applicationContext
         synchronized(stateLock) {
             if (prefs(app).getString("pkg", null) == null) return
-            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed").remove("googleAccounts").apply()
+            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed")
+                .remove(ACCOUNT_BASELINE).remove("googleAccounts").apply()
         }
         Lock.applyAsync(app, reason)
     }

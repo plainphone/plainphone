@@ -28,6 +28,7 @@ FILTERS = {
         "server/openapi.yaml",
         "web/src/i18n/*",
         "web/src/lib/format.ts",
+        "web/src/lib/failedPolicies.ts",
         "web/src/lib/ops.ts",
         "web/src/lib/settings.ts",
     ),
