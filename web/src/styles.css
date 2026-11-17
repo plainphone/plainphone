@@ -514,7 +514,8 @@ main {
 }
 
 .status-updated,
-.status-dns {
+.status-dns,
+.status-release {
   margin-top: 0.5rem;
 }
 
@@ -1883,6 +1884,12 @@ details.details-lead[open] summary::after {
   color: var(--danger);
 }
 
+.danger-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
 .plain-list {
   margin: 0;
   padding-left: 1.25rem;
@@ -2093,7 +2100,7 @@ details.details-lead[open] summary::after {
 /* Dashboard hierarchy and reflow -------------------------------------------- */
 
 main {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .phones-heading {
@@ -2137,6 +2144,10 @@ main {
     border-inline-start: 1px solid var(--line);
   }
 
+  .phone-rules > li:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
   .list.phone-rules > li > .row-link {
     height: 100%;
     border-radius: 0;
@@ -2146,7 +2157,8 @@ main {
     border-start-start-radius: var(--radius);
   }
 
-  .phone-rules > li:nth-child(2) > .row-link {
+  .phone-rules > li:nth-child(2) > .row-link,
+  .phone-rules > li:only-child > .row-link {
     border-start-end-radius: var(--radius);
   }
 
@@ -2154,7 +2166,7 @@ main {
     border-end-start-radius: var(--radius);
   }
 
-  .phone-rules > li:last-child:nth-child(even) > .row-link {
+  .phone-rules > li:last-child > .row-link {
     border-end-end-radius: var(--radius);
   }
 }

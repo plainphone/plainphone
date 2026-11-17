@@ -48,7 +48,14 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
         if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
-            startActivity(if (LightSetup.isComplete(this)) HomeActivity.intent(this) else LightSetupActivity.intent(this))
+            val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
+                LightSetupActivity.intent(this).apply {
+                    if (intent?.action == Intent.ACTION_VIEW) {
+                        data = intent.data
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                }
+            startActivity(destination)
             finish()
             return
         }
@@ -169,6 +176,7 @@ class MainActivity : Activity() {
             val sync = SyncStore(this@MainActivity)
             appendLine(
                 when {
+                    sync.released -> getString(R.string.status_sync_released)
                     sync.removed -> getString(R.string.status_sync_removed)
                     sync.isPaired -> sync.lastSyncAtMs
                         ?.let { getString(R.string.status_sync_ok, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it))) }

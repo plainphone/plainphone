@@ -34,7 +34,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm -r typecheck
-      - name: Tests (server against PostgreSQL 18, web unit tests)
+      - name: Tests (server, web and encryption vectors)
         run: pnpm -r test
       - name: Build
         run: pnpm -r build

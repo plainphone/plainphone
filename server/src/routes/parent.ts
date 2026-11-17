@@ -565,6 +565,7 @@ export function parentRoutes(ctx: Ctx) {
       z.object({
         name: z.string().trim().min(1).max(40),
         profile: z.enum(["child", "self"]),
+        mode: z.enum(["strong", "light"]).default("strong"),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
       }),
@@ -580,7 +581,7 @@ export function parentRoutes(ctx: Ctx) {
         householdId,
         name: input.name,
         profile: input.profile,
-        mode: "strong",
+        mode: input.mode,
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
@@ -632,6 +633,14 @@ export function parentRoutes(ctx: Ctx) {
   app.delete("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
     return change(c, phone, { type: "phone.remove", dnsClientId: phone.dnsClientId });
+  });
+
+  // Switches Plainphone off on the phone, like the phone's own maintenance screen does. The
+  // phone then calls POST /device/released and disappears from the dashboard. It goes through
+  // the key on a Self phone, like removing it.
+  app.post("/phones/:pid/release", async (c) => {
+    const phone = await requirePhone(c);
+    return change(c, phone, { type: "phone.release" });
   });
 
   // Requests from the phone: an app from its list, or a contact.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Strong-mode setup without a computer. The parent adds a phone in the dashboard and gets a
+// Dashboard setup without a computer. The parent adds a phone in the dashboard and gets a
 // provisioning QR code built in the browser. The QR carries a one-time enrollment token; after
 // setup the phone sends it to POST /device/enroll and is paired with that phone entry, no code.
 // The maintenance PIN is hashed in the browser and never reaches the server.
@@ -84,7 +84,7 @@ export async function redeemEnrollment(
 
     await tx
       .update(phones)
-      .set({ deviceTokenHash: sha256(deviceToken), pairedAt: now, deviceInfo: input.deviceInfo, mode: "strong" })
+      .set({ deviceTokenHash: sha256(deviceToken), pairedAt: now, deviceInfo: input.deviceInfo })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
     await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phone.id), ne(enrollments.id, e.id)));

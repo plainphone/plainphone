@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "../i18n/translate";
@@ -239,7 +239,6 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
 
 function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]; reload: () => Promise<void> }) {
   const { t, locale } = useI18n();
-  const listId = useId();
   const { phone, run } = usePhone();
   const waiting = useWaiting();
   const w = minuteWords(t);
@@ -274,13 +273,12 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
             const allowed = limitOn(a.limit, today.isoDay) + bonusToday(limits, a.packageName, today.date);
             const used = limits.used?.[a.packageName];
             const isEditing = editing === a.packageName;
-            const rowId = `${listId}-${a.packageName}`;
             return (
               <li key={a.packageName} className="limit-item">
                 <div className="limit-head">
                   <div className="limit-main">
                     <p className="row-title">
-                      <span id={`${rowId}-app`}>{a.label}</span>
+                      {a.label}
                       {waiting.has(a.packageName) && <WaitingTag />}
                     </p>
                     <p className="row-meta">
@@ -297,8 +295,6 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                         type="button"
                         className="btn btn-secondary btn-small"
                         disabled={busy === a.packageName}
-                        id={`${rowId}-bonus`}
-                        aria-labelledby={`${rowId}-bonus ${rowId}-app`}
                         onClick={() =>
                           void act(
                             a.packageName,
@@ -307,19 +303,17 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                           )
                         }
                       >
-                        {t("time.bonus", { minutes: BONUS })}
+                        {t("time.bonus", { minutes: BONUS })}<span className="sr-only">, {a.label}</span>
                       </button>
                       <button
                         type="button"
                         className="btn btn-secondary btn-small"
-                        id={`${rowId}-edit`}
-                        aria-labelledby={`${rowId}-edit ${rowId}-app`}
                         onClick={() => {
                           setEditing(a.packageName);
                           setEditMinutes(String(a.limit.minutes));
                         }}
                       >
-                        {t("app.edit")}
+                        {t("app.edit")}<span className="sr-only">, {a.label}</span>
                       </button>
                     </div>
                   )}

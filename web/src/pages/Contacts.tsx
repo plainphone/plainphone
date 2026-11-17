@@ -61,6 +61,7 @@ export function ContactsPage() {
   return (
     <>
       <PageTitle sub={t("contacts.intro")}>{t("contacts.title")}</PageTitle>
+      <p className="help">{t("contacts.otherApps")}</p>
 
       <LoadGate res={res}>
         {(list) =>
@@ -98,7 +99,6 @@ export function ContactsPage() {
           )
         }
       </LoadGate>
-      <p className="help">{t("contacts.otherApps")}</p>
 
       <section className="section" aria-labelledby="add-contact">
         <h2 id="add-contact">{t("contacts.add")}</h2>

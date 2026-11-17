@@ -1,15 +1,40 @@
 # Plainphone
 
-Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn. It is meant for a parent setting up a child's first phone, and for adults taking back their own attention.
+[![Android](https://github.com/plainphone/plainphone/actions/workflows/android.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/android.yml)
+[![Server and web](https://github.com/plainphone/plainphone/actions/workflows/server.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/server.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-24604a)](LICENSE)
 
-> **Status: phase 4 core, the phone follows the parent's dashboard. Not for real use yet.**
-> Phases 2 and 4 have not been tested on a real phone. Only install it on a spare test phone that you are ready to factory reset.
+Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn.
 
-Plainphone is free and open source under the [Apache License 2.0](LICENSE). Maintained by Mahoje.
+<p align="center">
+  <img src="site/src/og-en.png" width="640" alt="Plainphone: your phone, minus the noise. Calls, messages and camera stay; social media feeds and ads go.">
+</p>
 
-## What phase 1 does
+It is meant for a parent setting up a child's first phone, and for adults who want to hold themselves to their own rules. The rules work the same way in both cases. What changes is who holds the key.
 
-The Android app in [`android/`](android) is a Device Policy Controller. It is set up by QR code on a factory-reset phone (Android 10 or newer; see [docs/android-versions.md](docs/android-versions.md)) and becomes **Device Owner**. It then:
+[plainphone.org](https://plainphone.org) · [Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Releases](https://github.com/plainphone/plainphone/releases)
+
+> **Status: early, pre-release.** The releases are test builds signed with a test key, and not every part has been tested on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
+
+## Why
+
+Plainphone is built on a short list of [design principles](docs/design-principles.md), each tied to research, regulation or official guidance. The [evidence review](docs/evidence.md) lists the sources per feature and says where the evidence is weak. In short:
+
+- the child can see, on the phone, what the parent can see;
+- monitoring is visible, never hidden;
+- emergency calls and help stay reachable whatever the rules say;
+- no streaks, rewards or engagement tricks;
+- as little data as possible, kept as briefly as possible.
+
+A filter reduces exposure. It does not make a phone safe, and Plainphone does not claim to.
+
+## How it works
+
+One Android app, two ways to install it. The phone follows the rules set in the parent dashboard (the [web app](web) or the [native app](parent-app)). Offline, the last rules keep applying, and an error never loosens anything.
+
+### Strong mode: a new or reset phone
+
+The app is set up by QR code on a factory-reset phone (Android 10 or newer, see [docs/android-versions.md](docs/android-versions.md)) and becomes **Device Owner**. It then:
 
 - blocks app installs (Play Store and APK files), factory reset from Settings, safe mode, new users, guest mode, private space, app cloning, developer options and adb;
 - forces private DNS (DNS-over-TLS) to a filtering resolver and stops the user from changing private DNS, VPN, network reset and user certificates;
@@ -18,44 +43,53 @@ The Android app in [`android/`](android) is a Device Policy Controller. It is se
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
-A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away.
+A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online.
 
-## What phase 2 adds
+[docs/policies.md](docs/policies.md) lists every policy, what Android does not let us block, and links to the Android documentation.
 
-- **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. A calm phone and messages app (Jetpack Compose, English and Danish) shows the approved contacts, recent calls, conversations and a keypad. Contacts come from the QR code and the maintenance screen. See [docs/contacts.md](docs/contacts.md).
-- **DNS per phone.** The QR script can give each phone its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver (built in `dns/`).
-- **DNS bypass analysis.** Which allowed apps could get around private DNS, and why an always-on VPN is the later layer: [docs/dns-bypass.md](docs/dns-bypass.md).
+### Light mode: a phone already in use
 
-## What phase 4 adds
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. See [docs/light-mode.md](docs/light-mode.md).
 
-- **Pairing.** After the QR setup the phone shows a pairing code and QR code; the parent claims it in the dashboard ([`web/`](web)). The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
-- **Rules from the server.** The phone fetches the parent's rules (WorkManager every 15 minutes, at boot and on network changes, every minute while the screen is on) and applies the app list, approved contacts, school time and bedtime, its own DNS address (only once the DNS service has confirmed it) and location. Offline, the last rules keep applying; an error never loosens anything.
-- **Find.** When the parent presses Find, the phone sends one position (platform fused location, no Play services library). Only the latest position is kept.
-- **Status.** Battery, last sync, app version and whether the lock is intact are shown in the dashboard.
+### In both modes
 
-See [docs/phone-sync.md](docs/phone-sync.md) for how it works and what is not done yet.
+- **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. See [docs/contacts.md](docs/contacts.md).
+- **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
+- **Rules from the server.** App list, approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. See [docs/phone-sync.md](docs/phone-sync.md).
+- **Location on request.** By default the phone sends one position when a parent presses Find. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
+- **Status.** Battery, last sync, app version and whether the lock is intact.
+- **Self profile.** For adults using Plainphone on their own phone: changes that loosen the rules wait for a delay, or need approval from a person you trust.
 
-See [docs/policies.md](docs/policies.md) for every policy, what Android does not let us block, and links to the Android documentation.
+## Get started
 
-## Documents
+**As a parent:** sign in at [app.plainphone.org](https://app.plainphone.org), choose **Add phone** and follow the [illustrated setup guide](https://plainphone.org/setup/). [docs/dashboard-setup.md](docs/dashboard-setup.md) covers both modes in detail. The hosted service is a test version.
 
-- [Design principles](docs/design-principles.md) and [evidence by feature](docs/evidence.md)
-- [Contributing](CONTRIBUTING.md)
-- [docs/setup-test-phone.md](docs/setup-test-phone.md): set up a test phone step by step, and how to get out again
-- [docs/bypass-checklist.md](docs/bypass-checklist.md): every bypass attempt to test on a real phone, with the expected result
-- [docs/policies.md](docs/policies.md): the policies and their known limits
-- [docs/contacts.md](docs/contacts.md): approved contacts, emergency calls and what is not covered
-- [docs/dns-bypass.md](docs/dns-bypass.md): how apps could get around the DNS filter
-- [dns/](dns): the filtering DNS service (AdGuard Home + ppdns), its profiles and API; [docs/self-hosting-dns.md](docs/self-hosting-dns.md) runs your own, [docs/privacy.md](docs/privacy.md) says what it stores
-- [site/](site): the plainphone.org landing page (static, no JavaScript)
-- [server/](server) and [web/](web): the API and the parent web app (PWA); [docs/self-hosting.md](docs/self-hosting.md) runs your own, [docs/sync-api.md](docs/sync-api.md) is the phone's side of the API
-- [docs/ux-review.md](docs/ux-review.md): parent dashboard UX findings and before/after screenshots
-- [docs/time-limits.md](docs/time-limits.md) and [docs/app-catalog.md](docs/app-catalog.md): daily time limits and the per-country app catalog
-- [parent-app/](parent-app): the native parent app for iOS and Android (Expo) on the same API; [docs/parent-app.md](docs/parent-app.md) covers builds, app links and push
-- [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
-- [SECURITY.md](SECURITY.md): how to report a bypass
+**Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS.
 
-## Build
+**On a spare test phone:** [docs/setup-test-phone.md](docs/setup-test-phone.md) walks through it step by step, including how to get out again. [docs/bypass-checklist.md](docs/bypass-checklist.md) lists every bypass attempt to try, with the expected result.
+
+## Privacy and security
+
+- [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why.
+- [docs/encryption.md](docs/encryption.md) specifies end-to-end encryption between the phone and the parent's devices. It is a specification under development and **not implemented yet**. Today the hosted service stores readable data in its application database.
+- **Plainphone has not had an external security audit.**
+- A way around the lock is a security bug. Report it privately as described in [SECURITY.md](SECURITY.md).
+
+## Repository
+
+| Folder | What it is |
+|---|---|
+| [`android/`](android) | The phone app (Kotlin, Jetpack Compose) for strong and light mode |
+| [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
+| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
+| [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
+| [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
+| [`site/`](site) | plainphone.org (static, no JavaScript) |
+| [`packages/`](packages) | Shared encryption test vectors |
+| [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
+| [`docs/`](docs) | Design, evidence, policies and how-tos |
+
+## Build the Android app
 
 Requirements: JDK 21 and the Android SDK (command-line tools are enough; Android Studio is not needed) with `platforms;android-37.0` and `build-tools;36.1.0`.
 
@@ -65,7 +99,7 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-The debug APK ends up in `android/app/build/outputs/apk/debug/`.
+The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Signing
 
@@ -82,11 +116,11 @@ keyPassword=...
 PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleRelease
 ```
 
-Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. The phase 1 pre-release APKs on GitHub are signed with a **test key** (certificate CN "Plainphone TEST key (not for production)"). Do not trust that key for anything except testing.
+Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. The pre-release APKs on GitHub are signed with a **test key** (certificate CN "Plainphone TEST key (not for production)"). Do not trust that key for anything except testing.
 
-### QR code
+### Setup QR code
 
-Parents make the QR code in the dashboard: **Add phone** asks who the phone is for and for a maintenance PIN, then shows the provisioning QR code. The browser hashes the PIN (PBKDF2; neither the PIN nor its hash reaches the server), and the code carries a one-time token, so the phone pairs itself after setup. The code points at `https://app.plainphone.org/download/android`, which redirects to the newest release, so it does not go stale when a new version comes out.
+In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one already in use (light mode). Choose a parent PIN and scan the private code with the phone being set up. Strong mode uses Android's welcome screen and can include Wi-Fi in the code. Light mode keeps the phone's existing data and uses Chrome to install the app and open it with the setup link; on the phone, confirm the dashboard address and parent PIN after opening the link. Both modes pair automatically using a one-time token tied to that phone. The browser hashes the PIN before handing it to the phone. The server receives neither the PIN nor its hash.
 
 For self-hosting, tests and phones without an account there is a script with the same format:
 
@@ -99,24 +133,27 @@ scripts/provisioning-qr.py \
 
 The script reads the signing certificate checksum from the APK (or takes `--checksum`), asks for or generates the maintenance PIN (6+ digits), hashes it and writes `dist/provisioning-qr.json` and `.png`. Without `--apk-url` it uses the stable download address. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps, FRP accounts and `--enroll-token`. A QR code with a Wi-Fi password in it must not be published.
 
-Phase 2 options:
-
+- `--server-url https://your.server` points the phone at a self-hosted server (default `https://app.plainphone.org`). Once paired, the server registers the phone's own DNS ClientID and the phone switches to it by itself, so `--dns-host` can stay at the default.
 - `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
 
-Phase 4 option:
-
-- `--server-url https://your.server` points the phone at a self-hosted server (default `https://app.plainphone.org`). Once paired, the server registers the phone's own DNS ClientID and the phone switches to it by itself, so `--dns-host` can stay at the default.
+A phone configured with the script can show a pairing code, which the parent claims in the dashboard. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 
 ## Roadmap
 
 1. Proof of lock
-2. **Contacts and DNS** (this phase): dialer/SMS role with an allowlist, own AdGuard Home with a DNS address per phone
+2. Contacts and DNS: dialer and SMS role with an allowlist, own AdGuard Home with a DNS address per phone
 3. Server and parent web app: accounts, pairing, rules, app list, location, school time
-4. Light mode: the same app on a phone already in use, without a reset ([docs/light-mode.md](docs/light-mode.md)); time limits and an app catalog
+4. Light mode on a phone already in use; time limits and an app catalog ([docs/app-catalog.md](docs/app-catalog.md))
 5. Native parent apps
 6. Self-hosting, plainphone.org and the public launch
 
+End-to-end encryption ([docs/encryption.md](docs/encryption.md)) is being specified alongside.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: every user-facing change states its evidence. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE). The name and logo are covered by [TRADEMARK.md](TRADEMARK.md). Plainphone is maintained by [Mahoje](https://mahoje.dk) in Denmark.

@@ -252,4 +252,15 @@ class SettingsApplierTest {
         assertThat(device.restrictions).isEmpty()
         assertThat(controls.home).isFalse()
     }
+
+    @Test
+    fun `release lets go of the home screen preference and gives up Device Owner`() {
+        policy.apply(config(locationRequired = false, PhoneSettings.NONE))
+        assertThat(controls.home).isTrue()
+        val results = policy.release()
+        assertThat(results.filterNot { it.ok }.map { it.name }).isEmpty()
+        // Android would otherwise keep opening Plainphone's home screen after it is switched off.
+        assertThat(controls.home).isFalse()
+        assertThat(device.owner).isFalse()
+    }
 }

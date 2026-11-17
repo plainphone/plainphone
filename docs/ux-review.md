@@ -6,7 +6,7 @@ Reviewed the production PWA build in sandboxed Chromium against the local Hono s
 
 The screenshot matrix covers 390 and 1280 CSS px, light and dark mode, and 100% and 200% root text size. The browser used Danish and the Copenhagen timezone. External requests were blocked, so the location screen shows the map fallback, the position's timestamp and accuracy, and the route links. Service workers were disabled for repeatable captures. This is a desktop-browser text resize check with narrow and wide viewports. Native browser text settings, service-worker behavior and screen-reader speech require separate device checks.
 
-The review used [WCAG 2.2](https://www.w3.org/TR/WCAG22/) AA for contrast, resize, focus and keyboard criteria, plus a project target of 44 CSS px for controls. The design principles arrived on main during the review. The changes follow the guidance on [visible location sharing and neutral language](design-principles.md). The dashboard still explains child-visible sharing and its time limits. This branch adds no translations.
+The review used [WCAG 2.2](https://www.w3.org/TR/WCAG22/) AA for contrast, resize, focus and keyboard criteria, plus a project target of 44 CSS px for controls. The design principles arrived on main during the review. The changes follow the guidance on [visible location sharing and neutral language](design-principles.md). The dashboard still explains child-visible sharing and its time limits. The follow-up removes four unused translation keys.
 
 ## Before and after
 
@@ -15,9 +15,9 @@ Before/after captures of the six priority screens and Key (390 and 1280 px, ligh
 | Screen | Before | After |
 | --- | --- | --- |
 | Phones | The title and add button aligned to different baselines. Unpaired phones also said they had never checked in. | The list starts below a single header row. “Not set up” is the only sync-related status shown for an unpaired phone. |
-| Phone overview | Routine device diagnostics pushed links to everyday controls down the page. | Everyday links lead, in one column on mobile and two on desktop. Link hover backgrounds follow the outside corners of the desktop grid. A reported lock problem still precedes those links. |
+| Phone overview | Routine device diagnostics pushed links to everyday controls down the page. | Everyday links lead, in one column on mobile and two on desktop. A lone final link spans both desktop columns. Pending changes appear above the rule links and can be cancelled there. A reported lock problem still precedes those links. |
 | Apps | The catalog's large entry row competed with search and the installed apps. | The catalog is a compact secondary action near the title. The search status region stays mounted as the results change. |
-| Contacts | An information panel displaced the actual contact list. The form looked like a second list card. | Contacts come first, with a visible note explaining the limits of the list. The form has a simple divider, and contact actions can wrap. |
+| Contacts | An information panel displaced the actual contact list. The form looked like a second list card. | A note under the page title explains that the list only covers calls and texts. The form has a simple divider, and contact actions can wrap. |
 | Screen time | Today's usage looked like an editable part of the form. The weekday expander looked like a plain link. | Usage comes before the controls. The weekday expander shows its native open or closed marker and works with the keyboard. Each app's bonus button shows that extra time applies today and includes the app name in its accessible name. |
 | Key | The payment fields overflowed on a 390 px viewport at 200% text. | The fields can stack within their container. |
 | Location | Find, ring and check-in competed for attention. The ring option ran into its action. | Find remains primary when available. Ring and check-in are secondary, the ring option has breathing room, and the selected sharing mode has a visible surface tint. Map zoom buttons have 44 px targets. |
@@ -56,3 +56,5 @@ Browser interaction checks passed for the skip link, keyboard navigation to a ph
 The automated checks sampled the rendered controls and text. Manual screen-reader testing remains open.
 
 The review follow-up captured 24 views before and 24 after across Apps, Screen time and the phone overview using the same widths, themes and text sizes. All follow-up views fit the viewport. Browser assertions verified that app search kept the same status node when the last match disappeared and cleared it when a match returned. They also verified the app bonus button's accessible name in Danish and English and measured the desktop link corner radii on hover.
+
+The final review round captured the child and Self phone overviews at 390 and 1280 CSS px in both themes. Playwright verified that the odd desktop grid fills its last row, the Self overview can cancel a pending change above the rule links, and both per-app time buttons expose the visible label followed by the app name. It also checked that the contacts note follows the page title and that the skip link focuses main content.
