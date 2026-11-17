@@ -170,8 +170,11 @@ stop, and Plainphone is an ordinary app that can be uninstalled. This is differe
    never leads to a new lock.
 3. It tells the server with `POST /api/device/released`. `204` means the phone is deleted on the
    server (its DNS ClientID is queued for deletion). `401` means the same, already done. `409`
-   means nobody asked for a release (the rules changed since); nothing was deleted. On a
-   network error, send it again at the next sync.
+   means the server has no release on record for this phone (it should not happen, since a
+   requested release is only cleared by deleting the phone); nothing was deleted, and the phone
+   forgets the release and syncs normally. On a network error, send it again at the next sync.
+   The phone only acts on stored rules whose `phoneId` is its current one, so rules kept from an
+   earlier pairing never release it.
 4. On `204` or `401` the phone treats itself as removed and shows nothing new.
 
 Until the phone has done this, the dashboard shows the phone as "Releasing" (`releaseRequestedAt`

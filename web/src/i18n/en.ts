@@ -645,7 +645,7 @@ export const en = {
   "phone.releaseSelfConfirm": "Release the phone? Releasing it loosens the rules, so it waits for your key first. Then Plainphone switches itself off on the phone the next time it is online: the lock and the filters stop, and the phone disappears from this list.",
   "phone.releaseYes": "Yes, release",
   "phone.releaseDone": "The phone is being released. Plainphone switches itself off on it the next time it is online.",
-  "phone.releasing": "Releasing… the phone switches Plainphone off next time it is online.",
+  "phone.releasing": "Releasing. The phone switches Plainphone off the next time it is online.",
   "phone.releasingTag": "Releasing",
   "phone.released": "Plainphone is switched off on the phone, and the phone is gone from the list.",
   "settings.title": "Settings",

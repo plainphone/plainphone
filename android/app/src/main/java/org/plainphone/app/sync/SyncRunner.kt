@@ -151,7 +151,7 @@ class SyncRunner(
      * nothing is reported to the parent meanwhile, since they asked for the protection to go.
      */
     private fun releaseIfAsked(token: String): Outcome? {
-        if (store.rules()?.release != true) return null
+        if (!store.releaseAsked) return null
         val results = try {
             device.release()
         } catch (e: Exception) {

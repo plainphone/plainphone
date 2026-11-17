@@ -39,6 +39,12 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
      */
     val released: Boolean get() = prefs.getBoolean(KEY_RELEASED, false)
 
+    /**
+     * The stored rules ask for a release, and they belong to this pairing. Rules kept from an
+     * earlier pairing (removed, then paired again) never release the phone.
+     */
+    val releaseAsked: Boolean get() = rules()?.let { it.release && it.phoneId == phoneId } == true
+
     // commit, not apply: a crash must not make the next sync lock a released phone again.
     @SuppressLint("ApplySharedPref")
     fun markReleased() {

@@ -29,7 +29,7 @@ class SyncRunnerTest {
         runner = SyncRunner(store, api, device)
     }
 
-    private fun pair() = store.savePaired("phone-1", "pp_d_token")
+    private fun pair() = store.savePaired("7f1c2b9e-0000-4000-8000-000000000001", "pp_d_token")
 
     @Test
     fun `nothing happens before pairing`() {
@@ -255,6 +255,22 @@ class SyncRunnerTest {
         assertThat(runner.run("later")).isEqualTo(SyncRunner.Outcome.Removed)
         assertThat(api.tokensUsed).hasSize(calls)
         assertThat(device.releases).isEqualTo(1)
+    }
+
+    @Test
+    fun `rules kept from an earlier pairing never release a phone paired again`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))
+        device.releaseResults = listOf(StepResult("give up Device Owner", false, "refused"))
+        runner.run("release")
+        assertThat(device.releases).isEqualTo(1)
+        // Paired again (to a new phone id); the old rules with release=true are still on disk.
+        store.savePaired("phone-2", "pp_d_token2")
+        api.failRules = IOException("no network")
+        runner.run("offline after pairing again")
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(device.applies).isNotEmpty()
+        assertThat(store.releaseAsked).isFalse()
     }
 
     @Test

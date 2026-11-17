@@ -70,7 +70,10 @@ object Lock {
     /** Blocking. Never call on the main thread. */
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
         // A parent released this phone: nothing locks it again, whatever wakes us (boot, an alarm, the screen).
-        if (SyncStore(context).released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
+        val sync = SyncStore(context)
+        if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
+        // A release that has not finished yet: do not lock again in between, the next sync retries it.
+        if (sync.releaseAsked) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
         val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {
@@ -93,7 +96,7 @@ object Lock {
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
-        if (SyncStore(context).released) return null
+        SyncStore(context).let { if (it.released || it.releaseAsked) return null }
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
         if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {

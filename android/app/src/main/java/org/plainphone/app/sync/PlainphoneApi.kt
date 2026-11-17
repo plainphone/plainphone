@@ -25,6 +25,7 @@ interface SyncApi {
      * release (409). Other answers and network errors throw.
      */
     fun ackReleased(token: String): Boolean
+    /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
      */
