@@ -1,0 +1,155 @@
+name: Bot reply
+
+# Posts a comment as github-actions[bot] on an issue, a pull request or a
+# discussion, and can add or remove labels and close an issue. Maintainers use
+# it to answer as the project bot instead of in a personal name. Only people
+# with write access can run a workflow_dispatch workflow; the script checks it
+# again. See "For maintainers" in docs/maintaining.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Issue, pull request or discussion number
+        required: true
+        type: string
+      body:
+        description: Comment text (Markdown)
+        required: true
+        type: string
+      labels:
+        description: Labels to add, comma-separated (issues and pull requests)
+        required: false
+        type: string
+        default: ""
+      remove_labels:
+        description: Labels to remove, comma-separated (issues and pull requests)
+        required: false
+        type: string
+        default: ""
+      close:
+        description: Close the issue afterwards
+        required: false
+        type: choice
+        options: ["no", completed, not_planned]
+        default: "no"
+
+permissions: {}
+
+concurrency:
+  group: bot-reply-${{ inputs.number }}
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+      discussions: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          NUMBER: ${{ inputs.number }}
+          BODY: ${{ inputs.body }}
+          LABELS: ${{ inputs.labels }}
+          REMOVE_LABELS: ${{ inputs.remove_labels }}
+          CLOSE: ${{ inputs.close }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const split = (s) => (s || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner, repo, username: context.actor,
+            });
+            if (!['admin', 'maintain', 'write'].includes(perm.permission)) {
+              core.setFailed(`${context.actor} does not have write access.`);
+              return;
+            }
+
+            const number = Number.parseInt(process.env.NUMBER.trim().replace(/^#/, ''), 10);
+            if (!Number.isInteger(number) || number <= 0) {
+              core.setFailed('number must be a positive issue, pull request or discussion number.');
+              return;
+            }
+            const reply = (process.env.BODY || '').trimEnd();
+            if (!reply.trim()) {
+              core.setFailed('body must not be empty.');
+              return;
+            }
+            const signature = '— the Plainphone bot';
+            const body = reply.endsWith(signature) ? reply : `${reply}\n\n${signature}`;
+            const add = split(process.env.LABELS);
+            const remove = split(process.env.REMOVE_LABELS);
+            const close = process.env.CLOSE;
+
+            let item = null;
+            try {
+              ({ data: item } = await github.rest.issues.get({ owner, repo, issue_number: number }));
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 410) throw error;
+            }
+
+            if (item) {
+              if (close !== 'no' && item.pull_request) {
+                core.setFailed('close only works on issues, not pull requests.');
+                return;
+              }
+              if (add.length || remove.length) {
+                const repoLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+                  owner, repo, per_page: 100,
+                });
+                const known = new Set(repoLabels.map(({ name }) => name));
+                const unknown = [...new Set([...add, ...remove])].filter((name) => !known.has(name));
+                if (unknown.length) {
+                  core.setFailed(`Unknown repository labels: ${unknown.join(', ')}`);
+                  return;
+                }
+              }
+              const { data: comment } = await github.rest.issues.createComment({
+                owner, repo, issue_number: number, body,
+              });
+              if (add.length) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: add });
+              }
+              for (const name of remove) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  core.notice(`Label "${name}" was not on #${number}.`);
+                }
+              }
+              if (close !== 'no') {
+                await github.rest.issues.update({
+                  owner, repo, issue_number: number, state: 'closed', state_reason: close,
+                });
+              }
+              core.notice(`Commented on #${number}: ${comment.html_url}`);
+              return;
+            }
+
+            if (add.length || remove.length || close !== 'no') {
+              core.setFailed(`#${number} is not an issue or pull request; labels and close only work there.`);
+              return;
+            }
+            const found = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) { discussion(number: $number) { id url } }
+              }`,
+              { owner, repo, number },
+            ).catch(() => null);
+            const discussion = found?.repository?.discussion;
+            if (!discussion) {
+              core.setFailed(`#${number} was not found as an issue, pull request or discussion.`);
+              return;
+            }
+            const result = await github.graphql(
+              `mutation($id: ID!, $body: String!) {
+                addDiscussionComment(input: { discussionId: $id, body: $body }) { comment { url } }
+              }`,
+              { id: discussion.id, body },
+            );
+            core.notice(`Commented on discussion #${number}: ${result.addDiscussionComment.comment.url}`);

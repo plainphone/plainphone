@@ -2,6 +2,10 @@
 
 Thank you for helping. Bug reports, test results from real phones, documentation fixes and code are all welcome.
 
+[How we handle your contribution](docs/maintaining.md) explains what happens after you open an issue, a pull request or a discussion: triage, labels, review and who decides on a merge.
+
+Questions and ideas that are not concrete yet belong in [Discussions](https://github.com/plainphone/plainphone/discussions). Issues are for bugs and concrete tasks.
+
 ## Before you start
 
 Follow the [design principles](docs/design-principles.md) and consult the
@@ -39,9 +43,10 @@ To run the server and the web app locally, use `pnpm dev:server` and `pnpm dev:w
 - Write commit subjects in English, in the imperative, and keep them short: "Keep the parent PIN on the phone during light setup".
 - Keep one logical change per commit, and explain the why in the body when it is not obvious.
 - Fill in the pull request template, including how you verified the change and the `Evidence:` line.
+- GitHub may require the maintainers to approve CI runs on pull requests from forks. A pull request usually gets an automated review. When CI is green and the review has no open blocking findings, it is usually labelled `awaiting-maintainer`. The maintainers decide whether to merge it.
 - Update the documentation in `docs/` in the same pull request when behaviour changes.
 - Copy for parents and children is calm and plain. Avoid judging language, streaks and rewards (principle 7).
 
 ## License
 
-By contributing, you agree that your contribution is licensed under the [Apache License 2.0](LICENSE).
+There is no contributor licence agreement (CLA) and no DCO sign-off. By submitting a contribution you agree it is licensed under the [Apache License 2.0](LICENSE) (section 5).
