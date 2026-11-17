@@ -98,10 +98,10 @@ the Play services library.
 Lookups share a 30-second budget and can reuse cached fixes that meet the age and accuracy
 limits. Find and missed check-ins use the retry schedule in [Location time and
 accuracy](location.md#location-time-and-accuracy). A position answers Find if it was
-recorded at or after the request. If a precise lookup gives no fix, the phone sends its newest
-known position with the original recorded time. The phone keeps pending safety positions
-encrypted on the device and retries failed uploads while the request is open. Only the latest
-position is stored on the server (D7).
+recorded at or after the request. If a precise or scheduled coarse lookup gives no fix, the phone
+sends its newest known position with the original recorded time. The phone keeps pending safety
+positions encrypted on the device and retries temporary upload failures while the request is open.
+Only the latest position is stored on the server (D7).
 
 ## Status
 

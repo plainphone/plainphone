@@ -36,6 +36,83 @@ class SafetySyncTest {
         """{"id":"$id","deadline":"${iso(deadlineMs)}","callNumber":"+4512345678","sendLocation":$sendLocation}"""
 
     @Test
+    fun `a permanently rejected Find fix is dropped and the same slot can look again`() {
+        val requested = device.now - 10 * 60_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
+        api.locationFailure = IOException("offline")
+        runner.run("save fix before clock correction")
+        assertThat(store.pendingLocation()?.fix?.recordedAtMs).isEqualTo(device.now)
+
+        device.now = requested
+        api.rules = RulesResult.Unchanged
+        api.locationFailure = HttpError(400, "recordedAt is in the future")
+        runner.run("reject saved fix")
+        assertThat(store.pendingLocation()).isNull()
+        assertThat(store.lastFindAttempt(requested)).isNull()
+
+        api.locationFailure = null
+        runner.run("take a replacement fix")
+        assertThat(device.locationRequests).containsExactly(true, true)
+        assertThat(api.locations.single().recordedAtMs).isEqualTo(requested)
+    }
+
+    @Test
+    fun `a newly due check-in takes priority over a pending Find fallback`() {
+        val requested = device.now
+        val deadline = requested + 60_000L
+        val fresh = requireNotNull(device.fix)
+        device.fix = null
+        device.lastKnownFix = fresh.copy(recordedAtMs = requested - 40 * 60_000L)
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find", requestedAt = iso(requested), checkIn = checkIn(deadline),
+        ))
+        api.locationFailure = IOException("offline")
+        runner.run("save Find fallback")
+        assertThat(store.pendingLocation()?.fix).isEqualTo(device.lastKnownFix)
+
+        device.now = deadline
+        device.fix = fresh
+        api.rules = RulesResult.Unchanged
+        api.locationFailure = null
+        runner.run("check-in deadline")
+        assertThat(device.locationRequests).containsExactly(true, true)
+        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = deadline))
+        assertThat(store.locatedCheckInId).isEqualTo(id)
+    }
+
+    @Test
+    fun `always sends the last known position when a scheduled lookup delivers no fix`() {
+        val old = requireNotNull(device.fix).copy(recordedAtMs = device.now - 40 * 60_000L)
+        device.fix = null
+        device.lastKnownFix = old
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "always"))
+
+        runner.run("scheduled report")
+
+        assertThat(device.locationRequests).containsExactly(false)
+        assertThat(api.locations).containsExactly(old)
+        assertThat(device.positionsShown).containsExactly("always")
+    }
+
+    @Test
+    fun `Find resends a pending fix near expiry when the phone clock is ahead`() {
+        val requested = device.now
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
+        device.now = requested + 15 * 60_000L
+        api.locationFailure = IOException("offline")
+        runner.run("save final fix")
+        val pending = requireNotNull(store.pendingLocation())
+
+        device.now = requested + 31 * 60_000L
+        api.rules = RulesResult.Unchanged
+        api.locationFailure = null
+        runner.run("retry while the server still has Find open")
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(pending.fix)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
     fun `older servers without modes keep the 5-minute reports`() {
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = null))
         runner.run("test")

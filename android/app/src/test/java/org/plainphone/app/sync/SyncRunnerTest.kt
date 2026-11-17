@@ -271,10 +271,10 @@ class SyncRunnerTest {
     }
 
     @Test
-    fun `an unanswerable Find is given up after 30 minutes`() {
+    fun `an unanswerable Find is given up after the expiry grace period`() {
         pair()
         val pressed = java.time.Instant.parse("2027-01-04T10:00:00Z").toEpochMilli()
-        device.now = pressed + 31 * 60_000
+        device.now = pressed + 32 * 60_000
         device.fixAgeMs = 2 * 60 * 60_000
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(requestedAt = "2027-01-04T10:00:00.000Z"))
         runner.run("late")

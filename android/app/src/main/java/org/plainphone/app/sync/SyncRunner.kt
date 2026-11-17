@@ -211,7 +211,7 @@ class SyncRunner(
         }
         val now = device.nowMs()
         val requested = rules.locateRequestedAt?.toEpochMilli()?.takeIf {
-            it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until FIND_RETRY_MS
+            it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until (FIND_RETRY_MS + CLOCK_SLACK_MS)
         }
         // An unanswered check-in starts its retry window at the deadline.
         val checkIn = rules.checkIn?.takeIf {
@@ -220,8 +220,9 @@ class SyncRunner(
         }
         val saved = store.pendingLocation()
         var pending = saved?.takeIf {
-            (requested != null && it.findRequestedAtMs == requested) ||
-                (checkIn != null && it.checkInId == checkIn.id)
+            // Any accepted fix completes a due check-in on the server.
+            if (checkIn != null) it.checkInId == checkIn.id
+            else requested != null && it.findRequestedAtMs == requested
         }
         if (saved != null && pending == null) store.clearPendingLocation()
         val fix = if (pending != null) {
@@ -257,11 +258,20 @@ class SyncRunner(
                     now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
                 if (!alwaysDue) return
                 // A scheduled report can use the cache during Find backoff without waking GPS.
-                (if (requested != null) device.cachedCoarseLocation() else device.location(precise = false))
-                    ?: return
+                if (requested != null) {
+                    device.cachedCoarseLocation()
+                } else {
+                    device.location(precise = false) ?: device.lastKnownLocation()
+                } ?: return
             }
         }
-        val stored = api.reportLocation(token, fix)
+        val stored = try {
+            api.reportLocation(token, fix)
+        } catch (e: HttpError) {
+            // An invalid payload cannot succeed on retry. Leave the lookup slot available.
+            if (e.status == 400 && pending != null) store.clearPendingLocation()
+            throw e
+        }
         if (pending == null || stored) store.locationAtMs = now
         if (!stored) return
         if (pending != null && !store.recordLocationAttempts(
