@@ -198,8 +198,9 @@ CNAME to `forcesafesearch.google.com` or `restrict.youtube.com`.
 
 On init, ppdns reuses a nonempty tagged list with the current tag if the file is
 younger than `PPDNS_LISTS_REFRESH_HOURS` (12 hours by default). Missing, stale,
-and legacy-tagged files still take the download path. The scheduled refresh
-still fetches upstream, and startup still asks AdGuard to reload its filters.
+and legacy-tagged files still take the download path. The first scheduled
+refresh keeps the earliest upcoming deadline of the reused lists. Scheduled
+refreshes fetch upstream, and startup asks AdGuard to reload its filters.
 If a download fails, retagging a legacy copy streams it to an atomic replacement
 while retaining the age of the last upstream download.
 

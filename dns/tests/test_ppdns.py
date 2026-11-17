@@ -658,6 +658,22 @@ class SigV4Test(unittest.TestCase):
 
 
 class JobsTest(unittest.TestCase):
+    def test_reused_lists_refresh_at_their_original_deadline(self):
+        from unittest.mock import patch
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp, PPDNS_LISTS_REFRESH_HOURS="12")
+            source = next(s for s in lists.SOURCES if s.tag)
+            path = lists.local_path(tmp, source)
+            with open(path, "w", encoding="utf-8") as out:
+                out.writelines(lists.tag_rules(["example.org"], source.tag))
+            os.utime(path, (3600, 3600))
+            jobs = Jobs(settings, Service(FakeAdGuard(), settings.domain, tmp))
+            with patch("ppdns.lists.time.time", return_value=3600 * 11), patch("ppdns.server._every") as every:
+                jobs.start()
+            self.assertEqual(every.call_args_list[0].kwargs, {"first_delay": 2 * 3600})
+
     def test_reload_cert_only_when_the_file_changes_or_forced(self):
         from ppdns.server import Jobs
 

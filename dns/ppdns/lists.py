@@ -178,13 +178,26 @@ def retag_file(path: str, tag: str) -> bool:
     return True
 
 
-def _fresh(path: str, tag: str, max_age: float) -> bool:
+def _download_age(path: str, tag: str) -> float | None:
     try:
         with open(path, encoding="utf-8") as fh:
             age = time.time() - os.fstat(fh.fileno()).st_mtime
-            return 0 <= age < max_age and fh.readline() == f"{_HEADER}{tag}\n" and bool(fh.readline())
+            if age >= 0 and fh.readline() == f"{_HEADER}{tag}\n" and fh.readline():
+                return age
     except (OSError, UnicodeError):
-        return False
+        pass
+    return None
+
+
+def first_refresh_delay(lists_dir: str, interval: float) -> float:
+    """A restart does not reset the remaining time of a still-fresh download."""
+    delay = interval
+    for source in SOURCES:
+        if source.tag is not None:
+            age = _download_age(local_path(lists_dir, source), source.tag)
+            if age is not None and age < interval:
+                delay = min(delay, interval - age)
+    return delay
 
 
 def build(
@@ -201,7 +214,8 @@ def build(
         if source.tag is None:
             continue
         target = local_path(lists_dir, source)
-        if max_age > 0 and _fresh(target, source.tag, max_age):
+        age = _download_age(target, source.tag) if max_age > 0 else None
+        if age is not None and age < max_age:
             result[source.key] = "kept"
             continue
         tmp = None

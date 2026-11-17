@@ -180,14 +180,15 @@ def _list(body: dict, key: str):
 # background jobs ----------------------------------------------------------
 
 
-def _every(seconds: float, job, name: str) -> None:
+def _every(seconds: float, job, name: str, *, first_delay: float | None = None) -> None:
     def loop():
+        time.sleep(seconds if first_delay is None else first_delay)
         while True:
-            time.sleep(seconds)
             try:
                 job()
             except Exception:  # noqa: BLE001
                 log.exception("%s failed", name)
+            time.sleep(seconds)
 
     threading.Thread(target=loop, name=name, daemon=True).start()
 
@@ -310,7 +311,8 @@ class Jobs:
             response.read()
 
     def start(self) -> None:
-        _every(self.s.lists_refresh_hours * 3600, self.refresh_lists, "lists")
+        interval = self.s.lists_refresh_hours * 3600
+        _every(interval, self.refresh_lists, "lists", first_delay=lists.first_refresh_delay(self.s.lists_dir, interval))
         _every(300, self.reload_cert, "cert")
         _every(self.s.selftest_minutes * 60, self.push, "selftest")
         _every(24 * 3600, self.backup, "backup")
