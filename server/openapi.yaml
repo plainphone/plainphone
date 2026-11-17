@@ -35,6 +35,8 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: reset-protection
+    description: Factory reset protection with the parent's Google account (#20). Only the numeric account ID is stored.
 
 components:
   securitySchemes:
@@ -251,6 +253,17 @@ components:
           type: array
           description: Self profile; show them with a countdown on the phone.
           items: { $ref: "#/components/schemas/PendingChange" }
+        resetProtection:
+          type: object
+          description: >
+            Factory reset protection (#20). Numeric Google account IDs (OpenID Connect `sub`) of the
+            household's parents who turned it on. The phone sets them with
+            `setFactoryResetProtectionPolicy` (Android 11+) or Play services' managed configuration
+            (Android 10). Empty clears the policy. Old servers do not send the field.
+          properties:
+            accountIds:
+              type: array
+              items: { type: string, pattern: "^[0-9]{1,30}$" }
         pollSeconds:
           type: integer
           description: Poll interval for GET /device/rules.
@@ -308,6 +321,16 @@ components:
           type: [string, "null"]
           maxLength: 253
           description: The private DNS host the phone actually uses.
+        resetProtection:
+          type: [string, "null"]
+          maxLength: 40
+          description: "Factory reset protection on the phone: `on`, `off` (no parent account; Android's own FRP), `no-play-services` or `failed`. Not sent by apps before 0.1.4."
+          examples: ["on"]
+        accountTypes:
+          type: [array, "null"]
+          maxItems: 20
+          description: Account types signed in on the phone (`com.google`, a maker's account). Types only, no names.
+          items: { type: string, minLength: 1, maxLength: 100 }
 
     PhoneStatus:
       description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
@@ -653,6 +676,75 @@ paths:
       responses:
         "204": { description: "Removed" }
         "409": { description: "Last member" }
+  /households/{hid}/reset-protection:
+    get:
+      operationId: getResetProtection
+      tags: [reset-protection]
+      summary: Who protects the household's phones against a reset
+      description: >
+        `available` is false when the server has no Google OAuth client (`GOOGLE_OAUTH_CLIENT_ID`).
+        `activeFrom` is the time the link was added plus 72 hours (Google's delay for new accounts).
+        Account IDs never leave the server.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: State
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, accounts]
+                properties:
+                  available: { type: boolean }
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      required: [mine, userId, addedAt, activeFrom]
+                      properties:
+                        mine: { type: boolean }
+                        userId: { type: string, format: uuid }
+                        addedAt: { type: string, format: date-time }
+                        activeFrom: { type: string, format: date-time }
+  /households/{hid}/reset-protection/google:
+    post:
+      operationId: postResetProtectionGoogle
+      tags: [reset-protection]
+      summary: Start Google sign-in for reset protection
+      description: Returns the Google URL to open. Scope `openid` only, PKCE, single-use state valid for 10 minutes.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Sign-in URL
+          content:
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        "409": { description: Google sign-in is not set up on this server }
+  /households/{hid}/reset-protection/mine:
+    delete:
+      operationId: deleteResetProtectionMine
+      tags: [reset-protection]
+      summary: Remove your own Google account; the phones clear it at the next sync
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "204": { description: Removed }
+  /reset-protection/google/callback:
+    get:
+      operationId: getResetProtectionCallback
+      tags: [reset-protection]
+      summary: Google redirects here after sign-in
+      description: >
+        No session is needed: the `state` from the start call says who signed in. Stores the
+        numeric account ID and redirects to `${PUBLIC_URL}/household?reset-protection=ok|cancelled|failed`.
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Back to the dashboard }
   /households/{hid}/invites:
     post:
       operationId: postHouseholdsInvites

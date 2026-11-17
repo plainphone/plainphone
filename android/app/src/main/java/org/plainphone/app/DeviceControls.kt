@@ -4,7 +4,6 @@ package org.plainphone.app
 
 import android.app.admin.DevicePolicyManager
 import android.app.role.RoleManager
-import android.app.admin.FactoryResetProtectionPolicy
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -37,7 +36,6 @@ interface DeviceControls {
     fun forcePrivateDns(host: String): String
     fun releasePrivateDns()
     fun setAppRestrictions(pkg: String, values: Map<String, Any>?)
-    fun setFrpAccounts(accountIds: Set<String>?)
     fun setUninstallBlocked(pkg: String, blocked: Boolean)
     fun requireAutoTime(required: Boolean)
     fun clearDeviceOwner()
@@ -154,19 +152,6 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
             }
         }
         dpm.setApplicationRestrictions(admin, pkg, bundle)
-    }
-
-    override fun setFrpAccounts(accountIds: Set<String>?) {
-        // PolicyApplier skips this step below Android 11; the guard keeps a direct call safe too.
-        if (Build.VERSION.SDK_INT < 30) throw UnsupportedOperationException("FRP policy needs Android 11")
-        val policy = accountIds?.let {
-            FactoryResetProtectionPolicy.Builder()
-                .setFactoryResetProtectionAccounts(it.toList())
-                .setFactoryResetProtectionEnabled(true)
-                .build()
-        }
-        // Throws UnsupportedOperationException on devices without FRP support.
-        dpm.setFactoryResetProtectionPolicy(admin, policy)
     }
 
     override fun setUninstallBlocked(pkg: String, blocked: Boolean) =

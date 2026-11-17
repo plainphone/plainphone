@@ -28,6 +28,7 @@ object Lock {
         AndroidDeviceControls(context.applicationContext),
         PrefsHiddenAppsStore(context.applicationContext),
         Build.VERSION.SDK_INT,
+        Hardening(AndroidHardeningControls(context.applicationContext), Build.VERSION.SDK_INT),
     )
 
     /** Applies the lock on a background thread (private DNS does network I/O). */
@@ -88,6 +89,8 @@ object Lock {
             failedPolicies = p.getString("applied_failed", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty(),
             appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
             dnsHost = p.getString("dns_in_use", null),
+            resetProtection = p.getString("reset_protection", null),
+            accountTypes = p.getStringSet("account_types", null)?.sorted(),
         )
     }
 
@@ -99,6 +102,8 @@ object Lock {
             .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") { it.name })
         // Android keeps the old host when the new one does not answer, so only a success changes it.
         if (results.any { it.name == "private DNS" && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
+        Hardening.accountTypes(results)?.let { edit.putStringSet("account_types", it.toSet()) }
         val wasOwner = results.none { it.name == "device owner" && !it.ok }
         if (wasOwner && !prefs(context).contains("first_applied_at")) {
             edit.putLong("first_applied_at", now)

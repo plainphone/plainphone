@@ -50,6 +50,8 @@ data class DeviceStatus(
     val rulesEtag: String?,
     val rulesAppliedAtMs: Long?,
     val dnsHost: String?,
+    val resetProtection: String? = null,
+    val accountTypes: List<String>? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -62,6 +64,8 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .put("resetProtection", resetProtection?.take(40) ?: JSONObject.NULL)
+        .put("accountTypes", accountTypes?.let { t -> JSONArray(t.take(20).map { it.take(100) }) } ?: JSONObject.NULL)
 }
 
 internal fun iso(ms: Long): String = java.time.Instant.ofEpochMilli(ms).toString()

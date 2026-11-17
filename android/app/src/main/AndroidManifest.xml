@@ -22,6 +22,8 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- #24, Android 10 to 13: lets call screening see calls from numbers in the phone's contacts. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <!-- Phase 4: sync with the parent's dashboard, and the last position for "Find". -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -203,6 +205,16 @@
             android:permission="android.permission.BIND_SCREENING_SERVICE">
             <intent-filter>
                 <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- #24: stops outgoing calls to numbers that are not approved, whichever phone app places them. -->
+        <service
+            android:name=".telephony.PlainphoneCallRedirectionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_CALL_REDIRECTION_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallRedirectionService" />
             </intent-filter>
         </service>
 

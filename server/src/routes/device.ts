@@ -228,6 +228,8 @@ export function deviceRoutes(ctx: Ctx) {
         rulesEtag: z.string().max(100).nullable(),
         rulesAppliedAt: z.iso.datetime({ offset: true }).nullable(),
         dnsHost: z.string().max(253).nullable(),
+        resetProtection: z.string().min(1).max(40).nullable().optional(),
+        accountTypes: z.array(z.string().min(1).max(100)).max(20).nullable().optional(),
       }),
     );
     const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;

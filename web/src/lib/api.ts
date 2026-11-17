@@ -32,6 +32,10 @@ export interface PhoneStatus {
   rulesEtag: string | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
+  /** Factory reset protection on the phone (#19); missing on apps before 0.1.4. */
+  resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
+  /** Account types on the phone ("com.google"), no names (#21). */
+  accountTypes?: string[] | null;
   /** When the server received the report. */
   reportedAt: string;
 }
@@ -133,6 +137,11 @@ export interface Approval {
 export interface Members {
   members: { id: string; email: string; role: "owner" | "parent" }[];
   invites: { id: string; email: string; expiresAt: string }[];
+}
+/** `GET /households/{hid}/reset-protection` (#20). Account IDs never reach the browser. */
+export interface ResetProtectionState {
+  available: boolean;
+  accounts: { mine: boolean; userId: string; addedAt: string; activeFrom: string }[];
 }
 export interface InviteResult {
   id: string;

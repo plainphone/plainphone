@@ -22,6 +22,7 @@ class PolicyApplier(
     private val device: DeviceControls,
     private val hiddenStore: HiddenAppsStore,
     private val sdkInt: Int,
+    private val hardening: Hardening? = null,
 ) {
 
     fun apply(config: PolicyConfig): List<StepResult> {
@@ -46,14 +47,8 @@ class PolicyApplier(
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)
         }
-        results += when {
-            config.frpAccountIds.isEmpty() ->
-                StepResult("factory reset protection", true, "no account IDs configured; Android default FRP applies")
-            sdkInt < 30 -> StepResult("factory reset protection", true, "needs Android 11; Android default FRP applies")
-            else -> step("factory reset protection (${config.frpAccountIds.size} account(s))") {
-                device.setFrpAccounts(config.frpAccountIds)
-            }
-        }
+        // Factory reset protection, force stop, accounts, extra users, keyboards (Hardening.kt).
+        hardening?.let { results += it.apply(config) }
         // Last, because it waits on the network.
         results += step("private DNS") { device.forcePrivateDns(config.dnsHost) }
         return results
@@ -81,7 +76,7 @@ class PolicyApplier(
         }
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
-        if (sdkInt >= 30) results += step("clear FRP policy") { device.setFrpAccounts(null) }
+        hardening?.let { results += it.release() }
         results += step("give phone and SMS roles back") { giveRolesBack() }
         results += step("give up Device Owner") { device.clearDeviceOwner() }
         return results

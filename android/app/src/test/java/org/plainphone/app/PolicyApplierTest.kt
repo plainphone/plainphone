@@ -74,18 +74,19 @@ class PolicyApplierTest {
     }
 
     @Test
-    fun `FRP is only set when account IDs are configured`() {
-        applier.apply(config)
-        assertThat(device.frp).isNull()
-        applier.apply(config.copy(frpAccountIds = setOf("123456789")))
-        assertThat(device.frp).containsExactly("123456789")
+    fun `FRP runs through the hardening steps, before private DNS`() {
+        val hardening = FakeHardening()
+        val results = PolicyApplier(device, store, 35, Hardening(hardening, 35)).apply(config.copy(frpAccountIds = setOf("123456789")))
+        assertThat(hardening.policyAccounts).containsExactly("123456789")
+        val names = results.map { it.name }
+        assertThat(names.indexOf(Hardening.RESET_PROTECTION)).isLessThan(names.indexOf("private DNS"))
     }
 
     @Test
     fun `FRP unsupported on the device is reported, not fatal`() {
-        device.frpUnsupported = true
-        val results = applier.apply(config.copy(frpAccountIds = setOf("1")))
-        assertThat(results.single { it.name.startsWith("factory reset") }.ok).isFalse()
+        val hardening = FakeHardening().apply { frpUnsupported = true }
+        val results = PolicyApplier(device, store, 35, Hardening(hardening, 35)).apply(config.copy(frpAccountIds = setOf("1")))
+        assertThat(results.single { it.name == Hardening.RESET_PROTECTION }.ok).isFalse()
         assertThat(device.restrictions).isNotEmpty()
     }
 
@@ -132,13 +133,16 @@ class PolicyApplierTest {
 
     @Test
     fun `release undoes everything and gives up Device Owner`() {
+        val hardening = FakeHardening()
+        val applier = PolicyApplier(device, store, 35, Hardening(hardening, 35))
         applier.apply(config.copy(frpAccountIds = setOf("1")))
         applier.release()
+        assertThat(hardening.policyAccounts).isNull()
+        assertThat(hardening.noUserControl).isEmpty()
         assertThat(device.owner).isFalse()
         assertThat(device.restrictions).isEmpty()
         assertThat(device.hidden).isEmpty()
         assertThat(device.uninstallBlocked).isEmpty()
-        assertThat(device.frp).isNull()
         assertThat(device.appRestrictions[LockPolicy.CHROME_PACKAGE]).isNull()
     }
 }

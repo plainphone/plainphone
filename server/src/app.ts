@@ -10,6 +10,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
 import { deviceRoutes } from "./routes/device.js";
 import { parentRoutes } from "./routes/parent.js";
+import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 
@@ -78,7 +79,9 @@ export function createApp(ctx: Ctx) {
   });
 
   app.route("/api/device", deviceRoutes(ctx));
-  app.route("/api", parentRoutes(ctx));
+  const resetProtection = resetProtectionRoutes(ctx);
+  app.route("/api/reset-protection", resetProtection.callback);
+  app.route("/api", parentRoutes(ctx, resetProtection.parent));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 
   // The parent PWA. Unknown paths get index.html so client-side routes work.

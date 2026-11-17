@@ -29,6 +29,10 @@ data class LockState(
     val failedPolicies: List<String>,
     val appliedAtMs: Long?,
     val dnsHost: String?,
+    /** [org.plainphone.app.ResetProtection.wire]; null before the first lock run that checked it. */
+    val resetProtection: String? = null,
+    /** Account types on the phone ("com.google"), no names. */
+    val accountTypes: List<String>? = null,
 ) {
     /** Every lock policy held and no maintenance unlock is running. */
     val intact: Boolean get() = deviceOwner && !maintenance && failedPolicies.isEmpty() && appliedAtMs != null
@@ -142,6 +146,8 @@ class SyncRunner(
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
+            resetProtection = lock.resetProtection,
+            accountTypes = lock.accountTypes,
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null).toString())

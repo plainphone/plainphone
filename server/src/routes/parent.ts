@@ -61,7 +61,7 @@ function changeJson(r: ChangeResult) {
       };
 }
 
-export function parentRoutes(ctx: Ctx) {
+export function parentRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
   const app = new Hono<Env>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
@@ -141,6 +141,9 @@ export function parentRoutes(ctx: Ctx) {
     c.set("viaCookie", viaCookie);
     await next();
   });
+
+  // Routes that live in their own files but need the session check above.
+  extra?.(app);
 
   app.post("/auth/logout", async (c) => {
     const auth = c.req.header("authorization") ?? "";

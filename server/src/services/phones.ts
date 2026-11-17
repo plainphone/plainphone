@@ -14,6 +14,7 @@ import {
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
+import { householdAccountIds } from "./reset-protection.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -140,6 +141,8 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       keyType: c.keyType,
       effectiveAt: c.effectiveAt?.toISOString() ?? null,
     })),
+    // Factory reset protection (#20): Google account IDs that may set the phone up after a reset.
+    resetProtection: { accountIds: await householdAccountIds(ctx, phone.householdId) },
     pollSeconds: POLL_SECONDS,
   };
   const etag = `"${createHash("sha256").update(JSON.stringify(doc)).digest("base64url").slice(0, 27)}"`;

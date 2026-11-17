@@ -50,5 +50,6 @@ class PlainphoneApplication : Application() {
             // Never let the sync hooks stop the phone app from starting.
             Log.e("Plainphone", "could not set up sync triggers", e)
         }
+        runCatching { RoleWatcher.register(this) }.onFailure { Log.e("Plainphone", "could not watch the phone app role", it) }
     }
 }

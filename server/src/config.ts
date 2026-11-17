@@ -30,6 +30,13 @@ const schema = z.object({
   ANDROID_APP_PACKAGE: z.string().default("org.plainphone.parent"),
   /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
   ANDROID_APP_CERT_SHA256: z.string().default(""),
+  /**
+   * Google OAuth client (type "Web application") for "Protect against reset" (#20). Redirect URI:
+   * `<PUBLIC_URL>/api/reset-protection/google/callback`, scope `openid` only. Without it the
+   * dashboard explains that the feature is not set up on this server.
+   */
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
   PAYMENTS_ENABLED: z
     .enum(["true", "false"])

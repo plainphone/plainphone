@@ -15,6 +15,13 @@
       "when": 1794867007640,
       "tag": "0001_phone_status",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794944117042,
+      "tag": "0002_reset_protection",
+      "breakpoints": true
     }
   ]
 }

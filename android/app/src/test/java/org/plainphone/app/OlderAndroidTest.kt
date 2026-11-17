@@ -83,20 +83,22 @@ class OlderAndroidTest {
     }
 
     @Test
-    fun `FRP accounts are skipped on Android 10 without failing the lock`() {
-        val device = device().apply { roles += FakeDevice.DIALER; frpUnsupported = true }
-        val results = PolicyApplier(device, MemoryHiddenStore(), sdkInt = 29).apply(config)
-        val frp = results.single { it.name.startsWith("factory reset protection") }
+    fun `Android 10 gets FRP through Play services' managed configuration`() {
+        val device = device().apply { roles += FakeDevice.DIALER }
+        val hardening = FakeHardening()
+        val results = PolicyApplier(device, MemoryHiddenStore(), sdkInt = 29, Hardening(hardening, 29)).apply(config)
+        val frp = results.single { it.name == Hardening.RESET_PROTECTION }
         assertThat(frp.ok).isTrue()
-        assertThat(frp.detail).contains("Android 11")
-        assertThat(device.frp).isNull()
-        assertThat(PolicyApplier(device, MemoryHiddenStore(), sdkInt = 30).apply(config).single { it.name.startsWith("factory reset protection") }.ok).isFalse()
+        assertThat(frp.detail).startsWith("on:")
+        assertThat(hardening.legacyFrp).containsExactly("123")
+        assertThat(hardening.policyAccounts).isNull()
+        assertThat(hardening.broadcasts).isEqualTo(1)
     }
 
     @Test
     fun `release on Android 13 does not call the silent phone-app API`() {
         val device = device().apply { roles += FakeDevice.DIALER; roles += FakeDevice.SMS }
-        val results = PolicyApplier(device, MemoryHiddenStore(), sdkInt = 33).release()
+        val results = PolicyApplier(device, MemoryHiddenStore(), sdkInt = 33, Hardening(FakeHardening(), 33)).release()
         assertThat(results.single { it.name == "give phone and SMS roles back" }.detail).contains("Settings")
         assertThat(results.map { it.name }).contains("clear FRP policy")
         assertThat(device.dialerPackage).isNull()

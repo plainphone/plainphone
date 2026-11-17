@@ -279,6 +279,13 @@ export function PendingList() {
   );
 }
 
+const RESET_PROTECTION_TEXT = {
+  on: "phone.frpOn",
+  off: "phone.frpOff",
+  "no-play-services": "phone.frpNoPlay",
+  failed: "phone.frpFailed",
+} as const;
+
 /** What the phone reported about its battery, app and lock, and whether the web filter is live. */
 function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
@@ -316,6 +323,7 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
             )}
             <li>{syncedAt ? t("phone.synced", { when: when(syncedAt) }) : t("phones.neverSeen")}</li>
             <li>{t("phone.appVersion", { version: s.appVersion })}</li>
+            {s.resetProtection && <li>{t(RESET_PROTECTION_TEXT[s.resetProtection])}</li>}
           </ul>
           <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
         </>

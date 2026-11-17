@@ -101,6 +101,10 @@ export interface DeviceStatus {
   rulesAppliedAt: string | null;
   /** The private DNS host the phone actually uses. */
   dnsHost: string | null;
+  /** Factory reset protection on the phone: on, off, no-play-services or failed (#19). Missing on old apps. */
+  resetProtection?: string | null;
+  /** Account types signed in on the phone ("com.google"), no names (#21). */
+  accountTypes?: string[] | null;
 }
 
 export const phones = pgTable(
@@ -299,3 +303,22 @@ export const unlockPayments = pgTable("unlock_payments", {
   status: text("status", { enum: ["created", "succeeded", "failed", "refunded"] }).notNull(),
   createdAt: createdAt(),
 });
+
+/**
+ * A parent's Google account for factory reset protection (#20), one per member and household.
+ * Only the numeric account ID (OpenID Connect `sub`) is stored, no email address.
+ */
+export const frpAccounts = pgTable(
+  "frp_accounts",
+  {
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    googleAccountId: text("google_account_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.userId] })],
+);
