@@ -2,7 +2,7 @@
 openapi: 3.1.0
 info:
   title: Plainphone API
-  version: 0.3.0
+  version: 0.4.0
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -74,6 +74,27 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    Enrollment:
+      type: object
+      properties:
+        phone: { $ref: "#/components/schemas/PhoneSummary" }
+        enrollment:
+          type: object
+          properties:
+            token: { type: string, examples: ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"] }
+            expiresAt: { type: string, format: date-time }
+        provisioning:
+          type: object
+          description: Values for the provisioning QR code
+          properties:
+            adminComponent: { type: string, examples: [org.plainphone.app/.PlainphoneAdminReceiver] }
+            downloadUrl:
+              type: string
+              format: uri
+              description: Stable APK address (`/download/android`, outside `/api`); redirects to the newest release.
+            signatureChecksum: { type: string, description: base64url SHA-256 of the app's signing certificate }
+            serverUrl: { type: string, format: uri }
+            dnsHost: { type: string, description: Private DNS until the phone's own filter host is ready }
     Error:
       type: object
       required: [error]
@@ -417,6 +438,53 @@ paths:
         "404": { description: "Unknown pairing or wrong secret" }
         "410": { description: "Expired, or the token was already delivered. Start again." }
 
+  /device/enroll:
+    post:
+      operationId: postDeviceEnroll
+      security: []
+      tags: [device]
+      summary: Pair with the setup token from a dashboard QR code (phone)
+      description: |
+        A provisioning QR code made in the dashboard carries a one-time enrollment token
+        (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+        its device token, with no code to type. The token is bound to the phone entry the parent made,
+        works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
+        may ask again for 60 minutes; it then gets a new device token and the earlier one stops
+        working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
+        token) pair with a code as before (`POST /device/pairings`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, installId]
+              properties:
+                token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                installId:
+                  type: string
+                  pattern: "^[A-Za-z0-9_-]{16,64}$"
+                  description: Random id the phone makes once and keeps; only its hash is stored.
+                deviceInfo:
+                  type: object
+                  additionalProperties: { type: string, maxLength: 200 }
+                  maxProperties: 20
+      responses:
+        "200":
+          description: Paired. Store `deviceToken` like a token from a pairing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: paired }
+                  phoneId: { type: string, format: uuid }
+                  deviceToken: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Unknown token. Fall back to pairing with a code. }
+        "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
+        "429": { $ref: "#/components/responses/Error" }
+
   /device/rules:
     get:
       operationId: getDeviceRules
@@ -740,6 +808,54 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
+  /phones/enroll:
+    post:
+      operationId: postPhonesEnroll
+      tags: [phones]
+      summary: Add a phone for setup with a provisioning QR code
+      description: |
+        Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
+        token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
+        token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+        iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
+        its hash never reach the server. Rate limited to 30 per day per user.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, profile]
+              properties:
+                name: { type: string, maxLength: 40 }
+                profile: { enum: [child, self] }
+                householdId: { type: string, format: uuid }
+                timezone: { type: string, examples: [Europe/Copenhagen] }
+      responses:
+        "201":
+          description: Phone entry, token and what the QR code needs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Enrollment" }
+        "404": { description: Household not found }
+        "429": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/enrollment:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneEnrollment
+      tags: [phones]
+      summary: New setup token for a phone that is not set up yet
+      description: Replaces earlier tokens for the phone. `409` once the phone is set up.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "201":
+          description: Token and what the QR code needs (no `phone`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Enrollment" }
+        "404": { description: Not found }
+        "409": { description: Already set up }
   /phones/{pid}:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:

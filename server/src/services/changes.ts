@@ -110,8 +110,9 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "schedule.create":
       return showsHiddenApp(db, phone.id, op.schedule.allowedPackages);
     case "phone.remove":
-      // Removing a Self phone and pairing it again as a Child would drop the key.
-      return true;
+      // Removing a Self phone and pairing it again as a Child would drop the key. A phone
+      // that never paired (a setup QR nobody scanned) has nothing to escape from.
+      return phone.pairedAt !== null;
     case "schedule.delete":
       return true;
     case "schedule.update": {
