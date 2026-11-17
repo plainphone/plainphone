@@ -34,6 +34,8 @@ import kotlinx.coroutines.withContext
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.Compat
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.TimeLimits
+import org.plainphone.app.time.TimeGuard
 
 /**
  * Plainphone's home screen: the time, the date, a few apps and the phone. Strong mode makes it the
@@ -178,7 +180,7 @@ class HomeActivity : ComponentActivity() {
                 now = now,
                 fixed = setOf("$own/$PHONE", "$own/$MESSAGES"),
                 core = runCatching { AndroidDeviceControls(context).corePackages() }.getOrDefault(emptySet()),
-                minutesLeft = runCatching { HomeTimeLimits.source(context) }.getOrDefault(emptyMap()),
+                minutesLeft = runCatching { HomeTimeLimits.source(context, apps.map { it.packageName }) }.getOrDefault(emptyMap()),
             )
             // The clock follows the phone (automatic time zone), like the status bar; schedules use the rules' zone.
             val at = ZonedDateTime.ofInstant(now, ZoneId.systemDefault())
@@ -208,10 +210,21 @@ class HomeActivity : ComponentActivity() {
 }
 
 /**
- * Where the home screen reads "minutes left today" per package. Empty until app time limits are
- * wired in; the time-limit code sets [source].
+ * Where the home screen reads "minutes left today" per package: the parent's time limits
+ * (docs/time-limits.md), evaluated by [TimeGuard]. Tests can replace [source].
  */
 object HomeTimeLimits {
     @Volatile
-    var source: (Context) -> Map<String, Int> = { emptyMap() }
+    var source: (Context, Collection<String>) -> Map<String, Int> = { context, packages ->
+        TimeGuard.snapshot(context)?.let { minutesLeft(it.evaluation, it.exempt, packages) }.orEmpty()
+    }
+
+    /**
+     * Whole minutes left for each of [packages] that a cap applies to (its own or the total),
+     * rounded up so an app shows "used up" only when it is. Core apps are never limited.
+     */
+    fun minutesLeft(evaluation: TimeLimits.Evaluation, exempt: Set<String>, packages: Collection<String>): Map<String, Int> =
+        packages.filter { it !in exempt }.mapNotNull { pkg ->
+            evaluation.remainingFor(pkg)?.let { ms -> pkg to ((ms + 59_999L) / 60_000L).toInt() }
+        }.toMap()
 }
