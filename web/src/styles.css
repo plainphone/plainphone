@@ -1246,6 +1246,323 @@ details.details p {
   }
 }
 
+/* Pick one of a few: a segmented control built on radio buttons ------------- */
+
+.pick {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.pick-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.5rem 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+
+.pick-opt + .pick-opt {
+  border-left: 1px solid var(--border-strong);
+}
+
+.pick-opt input[type="radio"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.pick-opt:not(:has(input:checked)):hover {
+  background: var(--tint);
+}
+
+/* Picked: filled. A "nothing is set" choice stays calm: a tint and a ring instead of a fill. */
+.pick-opt:has(input:checked) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.pick-opt-quiet:has(input:checked) {
+  background: var(--tint);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.pick-opt:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.pick-opt:has(input:checked:focus-visible) {
+  outline-color: var(--on-accent);
+}
+
+.pick-opt-quiet:has(input:checked:focus-visible) {
+  outline-color: var(--ink);
+}
+
+.pick-opt:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Settings on the phone ------------------------------------------------------- */
+
+.setting {
+  padding: 1rem;
+}
+
+.setting-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.setting .help {
+  margin-top: 0.125rem;
+}
+
+.setting .pick {
+  margin-top: 0.875rem;
+}
+
+.setting-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.setting-value label {
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.setting-value select {
+  width: auto;
+  flex: 1 1 12rem;
+  max-width: 20rem;
+}
+
+.setting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.setting .setting-note {
+  margin-top: 0.75rem;
+}
+
+details.details.details-lead {
+  margin-top: 0.5rem;
+}
+
+.explain {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0 0 0.5rem;
+  list-style: none;
+}
+
+/* Home screen ------------------------------------------------------------------ */
+
+.home-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.hp-caption {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* Colours of the three palettes, for the preview and the swatches in the picker. */
+.hp[data-palette="grey"],
+.swatch[data-palette="grey"] {
+  --hp-bg-l: #eceeef;
+  --hp-bg-d: #1c1f22;
+  --hp-ac-l: #4a525c;
+  --hp-ac-d: #aab2bb;
+}
+
+.hp[data-palette="sage"],
+.swatch[data-palette="sage"] {
+  --hp-bg-l: #e4ede7;
+  --hp-bg-d: #17201c;
+  --hp-ac-l: #2f6b52;
+  --hp-ac-d: #8fcaa9;
+}
+
+.hp[data-palette="sand"],
+.swatch[data-palette="sand"] {
+  --hp-bg-l: #f0e9dc;
+  --hp-bg-d: #231e17;
+  --hp-ac-l: #7a5a1c;
+  --hp-ac-d: #dcc189;
+}
+
+.swatch {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--hp-bg-l) 50%, var(--hp-ac-l) 50%);
+  box-shadow: 0 0 0 1px rgb(127 127 127 / 0.6);
+}
+
+.hp {
+  --hp-bg: var(--hp-bg-l);
+  --hp-ac: var(--hp-ac-l);
+  --hp-ink: #1c2321;
+  --hp-soft: #4d5753;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 19rem;
+  min-height: 25rem;
+  padding: 1.75rem 1.5rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1.75rem;
+  background: var(--hp-bg);
+  color: var(--hp-ink);
+}
+
+.hp[data-theme="dark"] {
+  --hp-bg: var(--hp-bg-d);
+  --hp-ac: var(--hp-ac-d);
+  --hp-ink: #ecefed;
+  --hp-soft: #aab3ae;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hp[data-theme="system"] {
+    --hp-bg: var(--hp-bg-d);
+    --hp-ac: var(--hp-ac-d);
+    --hp-ink: #ecefed;
+    --hp-soft: #aab3ae;
+  }
+}
+
+.hp-clock {
+  font-size: 3.5rem;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hp-date {
+  margin-top: 0.5rem;
+  color: var(--hp-soft);
+}
+
+.hp-apps {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-apps li {
+  padding: 0.5rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--hp-ac) 30%, transparent);
+  font-size: 1.0625rem;
+}
+
+.hp-apps-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1.25rem;
+  align-content: start;
+}
+
+.hp-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--hp-soft);
+  font-size: 0.9375rem;
+}
+
+.hp-all {
+  color: var(--hp-ac);
+  font-weight: 600;
+}
+
+.home-app {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.5rem;
+  padding: 0.25rem 0.25rem 0.25rem 1rem;
+}
+
+.home-app-pos {
+  flex: none;
+  width: 1rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-app-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.home-app-actions {
+  display: flex;
+  flex: none;
+}
+
+.arrow {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.home-app-actions .btn-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.home-app-actions .btn-icon:disabled:hover {
+  background: none;
+}
+
+.home-note {
+  margin-top: 1rem;
+}
+
 /* Wider screens ------------------------------------------------------------- */
 
 @media (min-width: 40rem) {
