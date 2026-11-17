@@ -17,12 +17,23 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | The phone's latest status (battery, app version, lock state, DNS host) | each report replaces the last | `PUT /api/device/status` |
 | Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
+| Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
+| Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off or removes the device, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
+| Per parent and phone: notifications muted (one row when off) | until switched back on, the phone is removed or the account is deleted | `notification_mutes` |
+| Per phone: hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
 | Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
 | Login links | 1 day after they expire | sweeper |
 | Sessions | until they expire (60 days) or the user logs out | sweeper |
 | Pairings (holds a not yet collected device token in clear text) | 1 day | sweeper |
 | ClientIDs the DNS filter must forget | until the DNS service confirms the delete | `dns_deletions`, sweeper |
 | Database backups | 30 nightly copies on the hosted service; the sample `compose.yaml` keeps 14 daily and 8 weekly | Dokploy backup (hosted), `backup` service in `compose.yaml` |
+
+Notifications go to the browser's push service (Google FCM, Apple, Mozilla or
+Microsoft; only these hosts are accepted). The payload is encrypted for the
+device (RFC 8291) and signed with our VAPID key (RFC 8292), so the push service
+sees only the endpoint, the time and the size. Alerts about removed protection
+and quiet phones also go out by email to every household member who has not
+muted the phone.
 
 IP addresses are only held in memory, for rate limits. The full rules for deletion,
 including what happens to a household with two parents, are in

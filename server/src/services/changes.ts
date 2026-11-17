@@ -20,6 +20,7 @@ import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
+import { notifyUsers } from "./notifications.js";
 import { wakePhone } from "./phones.js";
 
 export type Op =
@@ -327,7 +328,10 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
   // The phone shows pending changes with a countdown, so it should know at once.
   await wakePhone(ctx, phone.id, "rules");
   const { notify, ...pending } = result;
-  if (notify) await mailTrustedPerson(ctx, notify, phone.name);
+  if (notify) {
+    await mailTrustedPerson(ctx, notify, phone.name);
+    await notifyUsers(ctx, [notify], { type: "approval", phoneName: phone.name });
+  }
   return pending;
 }
 

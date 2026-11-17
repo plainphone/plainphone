@@ -35,6 +35,8 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: notifications
+    description: Push notifications to parents (Web Push now; APNs/FCM tokens are stored for the native apps).
 
 components:
   securitySchemes:
@@ -74,6 +76,26 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    PhoneRequest:
+      type: object
+      required: [id, kind, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { enum: [app, contact] }
+        packageName: { type: [string, "null"] }
+        name: { type: [string, "null"], description: "Contact name" }
+        number: { type: [string, "null"], description: "Contact number, E.164" }
+        status: { enum: [pending, approved, rejected] }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: [string, "null"], format: date-time }
+    PushSubscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        platform: { enum: [web, apns, fcm] }
+        label: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        lastSuccessAt: { type: [string, "null"], format: date-time }
     Error:
       type: object
       required: [error]
@@ -273,6 +295,11 @@ components:
           type: boolean
           description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
         hasLocation: { type: boolean }
+        openRequests: { type: integer, description: "Open requests from the phone (apps, contacts)" }
+        offlineAlertHours:
+          type: [integer, "null"]
+          description: Hours of silence before the parents are told. Null means the server default, 0 never.
+        offlineAlertHoursDefault: { type: integer }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
           oneOf:
@@ -505,6 +532,78 @@ paths:
         "204": { description: "Stored" }
         "400": { $ref: "#/components/responses/Error" }
 
+  /device/requests:
+    post:
+      operationId: postDeviceRequest
+      tags: [device]
+      summary: Ask for an app or a contact (phone)
+      description: |
+        The person with the phone asks for an app from the phone's own app list (by package
+        name, as reported in `PUT /device/apps`) or for a contact. The parents get a push
+        notification. Asking again for the same thing while it is open returns the open
+        request (200). At most 10 open requests per phone. See docs/sync-api.md.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [kind, packageName]
+                  properties:
+                    kind: { const: app }
+                    packageName: { type: string, example: com.spotify.music }
+                - type: object
+                  required: [kind, name, number]
+                  properties:
+                    kind: { const: contact }
+                    name: { type: string, maxLength: 60 }
+                    number: { type: string, description: "International format, e.g. +4512345678" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneRequest" }
+        "200":
+          description: The same thing is already asked for; the open request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneRequest" }
+        "404": { description: "The app is not on the phone's app list" }
+        "409": { description: "The app is already allowed, or the number is already a contact" }
+        "429": { description: "Too many open requests" }
+    get:
+      operationId: getDeviceRequests
+      tags: [device]
+      summary: The phone's requests and their answers (phone)
+      description: Open requests and those answered in the last 30 days, newest first.
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PhoneRequest"
+                        - type: object
+                          properties:
+                            waitingForKey:
+                              type: boolean
+                              description: Approved on a Self phone, but the change still waits for the key
+                            effectiveAt:
+                              type: [string, "null"]
+                              format: date-time
+                              description: When a delay-key change takes effect
+
   /device/push-token:
     put:
       operationId: putDevicePushToken
@@ -661,6 +760,100 @@ paths:
                   error: { type: string }
                   selfPhoneIds: { type: array, items: { type: string, format: uuid } }
 
+  # ---------------------------------------------------------------- notifications
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: My push subscriptions and muted phones
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webPushEnabled: { type: boolean, description: "False when the server has no VAPID keys" }
+                  webPushPublicKey: { type: [string, "null"], description: "applicationServerKey for PushManager.subscribe" }
+                  offlineAlertHours: { type: number, description: "0 means off" }
+                  subscriptions: { type: array, items: { $ref: "#/components/schemas/PushSubscription" } }
+                  mutedPhoneIds: { type: array, items: { type: string, format: uuid } }
+  /notifications/subscriptions:
+    post:
+      operationId: postNotificationSubscription
+      tags: [notifications]
+      summary: Register this browser or app install
+      description: |
+        `web`: the PushSubscription from the browser. Only the browsers' push services are
+        accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
+        now, sending to them comes with the native apps. Registering an endpoint that belongs
+        to someone else moves it to you (another person signed in on the same device).
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [platform, endpoint, keys]
+                  properties:
+                    platform: { const: web }
+                    endpoint: { type: string, format: uri }
+                    keys:
+                      type: object
+                      required: [p256dh, auth]
+                      properties:
+                        p256dh: { type: string }
+                        auth: { type: string }
+                    label: { type: string, maxLength: 60 }
+                - type: object
+                  required: [platform, token]
+                  properties:
+                    platform: { enum: [apns, fcm] }
+                    token: { type: string }
+                    label: { type: string, maxLength: 60 }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PushSubscription" }
+        "400": { description: "Unknown push service or invalid keys" }
+        "409": { description: "Notifications are not set up on this server" }
+  /notifications/subscriptions/{sid}:
+    delete:
+      operationId: deleteNotificationSubscription
+      tags: [notifications]
+      summary: Unregister a browser or app install
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Gone" }
+  /notifications/test:
+    post:
+      operationId: postNotificationTest
+      tags: [notifications]
+      summary: Send a test notification to my devices (or one of them)
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscriptionId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: How many were sent
+          content:
+            application/json:
+              schema: { type: object, properties: { sent: { type: integer } } }
+        "429": { description: "Too many tests" }
+
   # ---------------------------------------------------------------- household
   /households/{hid}:
     patch:
@@ -810,6 +1003,11 @@ paths:
               properties:
                 name: { type: string }
                 locationEnabled: { type: boolean }
+                offlineAlertHours:
+                  type: [integer, "null"]
+                  minimum: 0
+                  maximum: 168
+                  description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
         "200": { description: "Updated phone" }
     delete:
@@ -989,6 +1187,76 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
 
+  /phones/{pid}/notifications:
+    put:
+      operationId: putPhoneNotifications
+      tags: [notifications]
+      summary: Turn my notifications about this phone on or off
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } }
+      responses:
+        "204": { description: "Saved" }
+  /phones/{pid}/requests:
+    get:
+      operationId: getPhoneRequests
+      tags: [phones]
+      summary: Open requests from the phone
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Open requests, oldest first, with the app's name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PhoneRequest"
+                        - type: object
+                          properties:
+                            phoneId: { type: string, format: uuid }
+                            appLabel: { type: [string, "null"] }
+  /phones/{pid}/requests/{rid}/approve:
+    post:
+      operationId: approvePhoneRequest
+      tags: [phones]
+      summary: Approve a request
+      description: |
+        Applies it as a rule change: the app is shown, or the contact is added. On a Self
+        phone that waits for the key (202). `name` corrects a contact's name.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { name: { type: string, maxLength: 60 } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "409": { description: "No longer open" }
+  /phones/{pid}/requests/{rid}/reject:
+    post:
+      operationId: rejectPhoneRequest
+      tags: [phones]
+      summary: Decline a request
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Declined" }
+        "409": { description: "No longer open" }
   /phones/{pid}/location:
     get:
       operationId: getPhonesLocation

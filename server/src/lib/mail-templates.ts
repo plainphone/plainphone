@@ -240,3 +240,59 @@ export function approvalRequestMail(to: string, locale: Locale, publicUrl: strin
     footer: footer[locale],
   });
 }
+
+/** A phone's protection was removed, or it has been silent for long (issue #22). Calm, not alarming. */
+export function phoneAlertMail(
+  to: string,
+  locale: Locale,
+  publicUrl: string,
+  alert:
+    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" }
+    | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string },
+): Mail {
+  const da = locale === "da";
+  const name = alert.phoneName;
+  let subject: string;
+  let paragraphs: string[];
+  if (alert.kind === "protection") {
+    subject = da ? `Beskyttelsen er fjernet på ${name}` : `Protection removed on ${name}`;
+    paragraphs = da
+      ? [
+          alert.reason === "owner"
+            ? `Plainphone styrer ikke længere telefonen "${name}". Det sker, hvis appen er fjernet som enhedsejer.`
+            : `Låsen på telefonen "${name}" er ikke længere intakt. Et af låsens trin virker ikke, fx hvis standardtelefonappen er skiftet.`,
+          "Åbn Plainphone for at se, hvad telefonen melder. Ofte er det nok at åbne Plainphone på telefonen.",
+        ]
+      : [
+          alert.reason === "owner"
+            ? `Plainphone no longer controls the phone "${name}". That happens when the app is removed as device owner.`
+            : `The lock on the phone "${name}" is no longer intact. One of its steps does not work, for example because the default phone app was changed.`,
+          "Open Plainphone to see what the phone reports. Often it is enough to open Plainphone on the phone.",
+        ];
+  } else {
+    subject = da ? `${name} har ikke været i kontakt i ${alert.hours} timer` : `${name} has not been in touch for ${alert.hours} hours`;
+    paragraphs = da
+      ? [
+          `Telefonen "${name}" var sidst i kontakt ${alert.lastSeen}. Den kan være slukket, løbet tør for strøm eller nulstillet.`,
+          "Reglerne gælder stadig på telefonen, også uden net. Du får besked igen, hvis den tier en anden gang.",
+        ]
+      : [
+          `The phone "${name}" was last in touch ${alert.lastSeen}. It may be switched off, out of battery or reset.`,
+          "The rules still apply on the phone, also without a network. You will hear from us again if it goes quiet another time.",
+        ];
+  }
+  return build(to, subject, {
+    publicUrl,
+    locale,
+    preheader: paragraphs[0]!,
+    heading: subject,
+    paragraphs,
+    button: { label: da ? "Åbn telefonen" : "Open the phone", url: `${publicUrl}/phones/${alert.phoneId}` },
+    afterButton: [
+      da
+        ? "Du kan slå disse beskeder fra for telefonen under Indstillinger i Plainphone."
+        : "You can turn these messages off for this phone under Settings in Plainphone.",
+    ],
+    footer: footer[locale],
+  });
+}

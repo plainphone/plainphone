@@ -180,6 +180,8 @@ export default {
               "web filter settings: which categories are blocked, and the domains the parent allows or blocks",
               "school time and bedtime, and the apps allowed during them",
               "on an adult’s own phone: the settings of the key (a delay, or the email address of a trusted person) and the changes that wait for the key. A change that has been applied, cancelled or rejected is kept for 30 days and then deleted",
+              "requests the phone sends: an app from its own list, or a contact (name and number) someone on the phone asks to add. Each request is kept while it is open, and for 30 days after a parent allows or declines it",
+              "for each parent: whether they want notifications about the phone, and after how many hours of silence it counts as quiet",
             ],
           },
           "A trusted person you name gets an email. Once signed in, they can see the phone’s name, what is being asked for, and your email address.",
@@ -221,7 +223,7 @@ export default {
         id: "email",
         title: "Email",
         body: [
-          "We send email only to run the service: sign-in links, invitations and the messages a trusted person gets. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
+          "We send email only to run the service: sign-in links, invitations, the messages a trusted person gets, and an alert when a phone’s protection is removed or it has been quiet for a long time. No newsletters and no ads. The mail is sent from our own mail server in the EU. The logo in our emails is loaded from plainphone.org, which Cloudflare hosts, so if your mail program shows images, Cloudflare sees your IP address when it fetches the logo. The logo’s address has no identifier and is the same for everyone, so it does not tell us who opened a mail.",
         ],
       },
       {
@@ -231,6 +233,7 @@ export default {
           "plainphone.org sets no cookies, runs no analytics and loads no scripts, fonts or images from other sites. It is hosted on Cloudflare Pages, so Cloudflare, like any web host, handles your IP address and the address you ask for when it delivers a page. Links to other sites, such as GitHub, are ordinary links. Once you follow one, that site’s policy applies.",
           "The parent app at app.plainphone.org sets one cookie, pp_session. It keeps you signed in, is only sent to our own server, cannot be read by scripts on the page (HttpOnly), is only sent on same-site requests (SameSite=Strict) and lasts 60 days at most. You need it to sign in, so there is no cookie banner.",
           "The app also remembers, in your browser, your language choice (local storage) and, only while you sign in, where to go afterwards and an invitation or pairing code (session storage, cleared when the tab closes). A service worker keeps a copy of the app’s own files so it opens without a network. It never stores your data.",
+          "If you turn on notifications, your browser gives us an address at its push service (Google for Chrome, Apple for Safari, Mozilla for Firefox, Microsoft for Edge) and two keys. We store them, with a short label such as “Chrome · Android”, until you turn notifications off, remove the device under Settings, the push service says the address is no longer valid, or you delete your account. Each notification is encrypted for your device before it leaves our server, so the push service can deliver it but not read it. It does see that a notification was sent, when, and to which address.",
         ],
       },
       {
@@ -244,6 +247,7 @@ export default {
               "Our own mail server in the EU sends the emails. It is not a third-party mail service.",
               "Cloudflare hosts this website (plainphone.org) and the logo in our emails.",
               "Quad9 and Mullvad, with Cloudflare as a fallback, answer allowed web filter lookups, as described above.",
+              "If you turn on notifications: the push service of your browser (Google, Apple, Mozilla or Microsoft) delivers them. The content is encrypted end to end.",
             ],
           },
           "Account and phone data is kept on servers in the EU.",
@@ -279,6 +283,14 @@ export default {
                 [
                   "Changes that waited for the key on an adult’s own phone",
                   "While they wait, and 30 days after they were applied, cancelled or rejected",
+                ],
+                [
+                  "Requests from a phone (an app or a contact)",
+                  "While they are open, and 30 days after they are allowed or declined",
+                ],
+                [
+                  "Notification addresses (one per device)",
+                  "Until you turn notifications off on that device or remove it, the push service rejects it, or you delete your account",
                 ],
                 [
                   "Invitations",
