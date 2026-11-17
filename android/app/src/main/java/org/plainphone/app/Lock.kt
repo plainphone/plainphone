@@ -62,9 +62,21 @@ object Lock {
     }
 
     fun recoverInstallAsync(context: Context, reason: String = "recover install restriction", done: () -> Unit = {}) {
+        runInstallRecovery(done) { recoverInstall(context, reason) }
+    }
+
+    fun onInstallResult(context: Context, sessionId: Int, done: () -> Unit) {
+        runInstallRecovery(done) { InstallLease.android(context).finishSession(sessionId) }
+    }
+
+    fun recoverInstall(context: Context, reason: String = "recover install restriction") = synchronized(APPLY_LOCK) {
+        if (!isInMaintenanceWindow(context)) InstallLease.android(context).recover(reason)
+    }
+
+    private fun runInstallRecovery(done: () -> Unit, recover: () -> Unit) {
         executor.execute {
             try {
-                InstallLease.android(context).recover(reason)
+                recover()
             } catch (e: Exception) {
                 Log.e(TAG, "could not recover install restriction", e)
             } finally {
@@ -110,6 +122,7 @@ object Lock {
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
+        recoverInstall(context, reason)
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
         if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {

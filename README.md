@@ -112,7 +112,8 @@ installs a newer release signed with the same certificate. **Update now** on the
 dashboard page requests a check as soon as the phone can receive it. In light mode the
 phone shows a quiet update notification for manual installation. See
 [Android updates](docs/android-updates.md) for the first manual update, permission to
-schedule recovery alarms in strong mode, release metadata, and the real-phone release check.
+schedule recovery alarms in strong mode, how installs are blocked again, release metadata,
+and the real-phone release check.
 
 ## Roadmap
 

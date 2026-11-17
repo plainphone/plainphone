@@ -20,6 +20,12 @@ import java.util.concurrent.TimeUnit
 class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         val force = inputData.getBoolean(KEY_FORCE, false)
+        try {
+            org.plainphone.app.Lock.recoverInstall(applicationContext, "update check")
+        } catch (e: Exception) {
+            Log.e("Plainphone", "could not recover install restriction before the update check", e)
+            return Result.retry()
+        }
         return try {
             val outcome = SelfUpdate.updater(applicationContext).run(force)
             Log.i("Plainphone", "self-update (${if (force) "requested" else "periodic"}): $outcome")

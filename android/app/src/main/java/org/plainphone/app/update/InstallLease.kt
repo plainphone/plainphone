@@ -17,7 +17,7 @@ import android.content.Context
  *
  * A lease ends at its deadline or at reboot. A process restart invalidates its leases, except
  * that a catalog install can outlive a Plainphone upgrade because Play owns that install.
- * The expiry alarm reapplies the restriction even if the holder process dies.
+ * An alarm and network-independent work both trigger recovery if the holder disappears.
  */
 class InstallLease(
     private val store: Store,
@@ -25,7 +25,13 @@ class InstallLease(
     /** Applies the lock (blocking). The recovery marker survives a failed apply. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
-    data class Lease(val untilMs: Long, val bootCount: Int, val versionCode: Long, val process: String)
+    data class Lease(
+        val untilMs: Long,
+        val bootCount: Int,
+        val versionCode: Long,
+        val process: String,
+        val sessionId: Int? = null,
+    )
 
     interface Store {
         fun load(): Map<String, Lease>
@@ -75,7 +81,20 @@ class InstallLease(
 
     fun isOpen(holder: String): Boolean = holder in valid()
 
-    /** Called on process start when a previous process left a window open. */
+    fun bindSession(sessionId: Int) = synchronized(LOCK) {
+        val lease = checkNotNull(valid()[SELF_UPDATE]) { "Self-update install window closed" }
+        store.save(store.load() + (SELF_UPDATE to lease.copy(sessionId = sessionId)))
+    }
+
+    fun finishSession(sessionId: Int) {
+        synchronized(LOCK) {
+            if (store.load()[SELF_UPDATE]?.sessionId != sessionId) return
+            invalidate(SELF_UPDATE)
+        }
+        recover("self-update installer result")
+    }
+
+    /** Reapplies the restriction for stale leases and clears their recovery markers on success. */
     fun recover(reason: String = "recover install restriction") {
         val expired = synchronized(LOCK) { store.load() - valid().keys }
         if (expired.isEmpty()) return
@@ -134,7 +153,9 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
 
     override fun load(): Map<String, InstallLease.Lease> = prefs.all.mapNotNull { (holder, raw) ->
         val parts = (raw as? String)?.split(',') ?: return@mapNotNull null
-        val lease = runCatching { InstallLease.Lease(parts[0].toLong(), parts[1].toInt(), parts[2].toLong(), parts[3]) }.getOrNull()
+        val lease = runCatching {
+            InstallLease.Lease(parts[0].toLong(), parts[1].toInt(), parts[2].toLong(), parts[3], parts.getOrNull(4)?.toIntOrNull())
+        }.getOrNull()
         lease?.let { holder to it }
     }.toMap()
 
@@ -142,7 +163,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
     @SuppressLint("ApplySharedPref")
     override fun save(leases: Map<String, InstallLease.Lease>) {
         val edit = prefs.edit().clear()
-        leases.forEach { (holder, l) -> edit.putString(holder, "${l.untilMs},${l.bootCount},${l.versionCode},${l.process}") }
+        leases.forEach { (holder, l) -> edit.putString(holder, "${l.untilMs},${l.bootCount},${l.versionCode},${l.process},${l.sessionId ?: ""}") }
         check(edit.commit()) { "Could not persist install leases" }
     }
 }
@@ -161,7 +182,10 @@ private class AndroidLeaseEnv(private val context: Context) : InstallLease.Env {
     override fun versionCode(): Long =
         org.plainphone.app.Compat.packageInfo(context.packageManager, context.packageName, 0).longVersionCode
 
-    override fun scheduleExpiry(holder: String, atMs: Long) = UpdateReceiver.scheduleLeaseExpiry(context, holder, atMs)
+    override fun scheduleExpiry(holder: String, atMs: Long) {
+        UpdateReceiver.scheduleLeaseExpiry(context, holder, atMs)
+        InstallRecoveryWorker.schedule(context, holder, (atMs - nowMs()).coerceAtLeast(0))
+    }
 
     override fun cancelExpiry(holder: String) = UpdateReceiver.cancelLeaseExpiry(context, holder)
 }

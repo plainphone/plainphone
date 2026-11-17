@@ -205,6 +205,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
     override fun doWork(): Result {
         val reason = inputData.getString(KEY_REASON) ?: "scheduled"
         val outcome = try {
+            Lock.recoverInstall(applicationContext, reason)
             Sync.runner(applicationContext).run(reason)
         } catch (e: Exception) {
             Log.e("Plainphone", "sync crashed", e)
@@ -235,6 +236,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 class EnrollWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         val result = try {
+            Lock.recoverInstall(applicationContext, "enrollment")
             org.plainphone.app.ui.PairingActivity.controller(applicationContext).enroll()
         } catch (e: Exception) {
             Log.w("Plainphone", "enrollment failed, will retry: ${e.javaClass.simpleName}")

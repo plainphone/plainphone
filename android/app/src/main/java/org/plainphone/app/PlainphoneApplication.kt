@@ -26,10 +26,10 @@ class PlainphoneApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Lock.recoverInstallAsync(this)
         runCatching { org.plainphone.app.update.SelfUpdate.onStart(this) }
             .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
         try {
-            Lock.recoverInstallAsync(this)
             SyncScheduler.ensurePeriodic(this)
             registerReceiver(
                 object : BroadcastReceiver() {

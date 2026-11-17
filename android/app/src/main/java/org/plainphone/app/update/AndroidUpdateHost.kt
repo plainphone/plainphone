@@ -103,6 +103,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
+                InstallLease.android(context).bindSession(sessionId)
                 session.commit(UpdateReceiver.statusIntent(context, sessionId).intentSender)
             }
             // On success Android usually kills this process before the answer arrives.

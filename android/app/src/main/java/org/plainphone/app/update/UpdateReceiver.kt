@@ -27,7 +27,11 @@ class UpdateReceiver : BroadcastReceiver() {
                 val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.i("Plainphone", "self-update session $id: status $status ${message.orEmpty()}")
-                waiting[id]?.complete(Result(status, message))
+                val pending = goAsync()
+                Lock.onInstallResult(context, id) {
+                    waiting[id]?.complete(Result(status, message))
+                    pending.finish()
+                }
             }
             ACTION_LEASE_EXPIRED -> {
                 val pending = goAsync()

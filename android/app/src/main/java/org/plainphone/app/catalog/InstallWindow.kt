@@ -43,47 +43,44 @@ object InstallWindow {
         // lets Play through for the window instead of closing it.
         // Tapping again does not extend an open window, or Play could be kept open for good.
         // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
-        val opened = synchronized(this) {
-            if (current(app) == packageName || !takeWindow(app)) {
-                false
-            } else {
+        synchronized(this) {
+            if (current(app) != packageName) {
+                val day = java.time.LocalDate.now().toString()
+                val p = prefs(app)
+                val previousDay = p.getString("day", null)
+                val previousCount = p.getInt("windows", 0)
+                val used = if (previousDay == day) previousCount else 0
+                if (used >= MAX_PER_DAY) return
+
+                val lease = InstallLease.android(app)
                 try {
-                    InstallLease.android(app).begin(InstallLease.CATALOG, WINDOW_MS)
+                    lease.begin(InstallLease.CATALOG, WINDOW_MS)
                 } catch (e: Exception) {
                     Log.w("Plainphone", "could not open catalog install window", e)
                     return
                 }
-                if (!prefs(app).edit().putString("pkg", packageName)
-                        .putLong("until", System.currentTimeMillis() + WINDOW_MS).commit()
-                ) {
-                    InstallLease.android(app).invalidate(InstallLease.CATALOG)
-                    Lock.recoverInstallAsync(app)
+                try {
+                    check(p.edit().putString("pkg", packageName)
+                        .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                        .putString("day", day).putInt("windows", used + 1).commit())
+                    Lock.applyForInstall(app, "install window for $packageName", catalogChanged = true)
+                } catch (e: Exception) {
+                    Log.w("Plainphone", "catalog install window failed", e)
+                    p.edit().remove("pkg").remove("until")
+                        .putString("day", previousDay).putInt("windows", previousCount).apply()
+                    try {
+                        lease.invalidate(InstallLease.CATALOG)
+                    } finally {
+                        Lock.recoverInstallAsync(app)
+                    }
                     return
                 }
-                true
-            }
-        }
-        if (opened) {
-            try {
-                Lock.applyForInstall(app, "install window for $packageName", catalogChanged = true)
-            } catch (e: Exception) {
-                close(app, "catalog install window failed", packageName)
-                return
             }
         }
         launchPlay(app, packageName)
     }
 
     const val MAX_PER_DAY = 5
-
-    private fun takeWindow(context: Context): Boolean {
-        val day = java.time.LocalDate.now().toString()
-        val p = prefs(context)
-        val used = if (p.getString("day", null) == day) p.getInt("windows", 0) else 0
-        if (used >= MAX_PER_DAY) return false
-        p.edit().putString("day", day).putInt("windows", used + 1).apply()
-        return true
-    }
 
     /** Ends the window (app installed or time up) and puts the lock back. */
     @Synchronized
