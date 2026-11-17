@@ -39,6 +39,16 @@ export const appEn = {
   "native.removeSelfNote": "This is your own phone, so removing it waits for your key like any loosening.",
   "native.removeYes": "Yes, remove",
   "native.removed": "{name} was removed.",
+  "native.alwaysHelp": "Every 5 minutes for a time you choose, then back to Find + “Are you okay?”. Always shown on the phone.",
+  "native.alwaysAge": "Not recommended from age 13: teenagers need privacy, and constant tracking can harm trust.",
+  "native.alwaysFor": "How long?",
+  "native.alwaysFor.hour": "1 hour",
+  "native.alwaysFor.today": "Today",
+  "native.alwaysFor.week": "7 days",
+  "native.alwaysStart": "Turn on",
+  "native.alwaysUntil": "On until {time}",
+  "native.alwaysUntilDate": "On until {date} at {time}",
+  "native.alwaysUntilMidnight": "On until midnight",
 } as const;
 
 export type AppMessageKey = keyof typeof appEn;

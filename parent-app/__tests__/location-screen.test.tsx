@@ -478,16 +478,16 @@ describe("location sharing", () => {
   it("changes the mode at once and says what the phone does now", async () => {
     const server = api({
       [LOCATION]: { body: locationState({ mode: "find" }) },
-      [`PUT /phones/${PHONE.id}/location/mode`]: { body: locationState({ mode: "always" }) },
+      [`PUT /phones/${PHONE.id}/location/mode`]: { body: locationState({ mode: "checkin" }) },
     });
     await open();
-    await fireEvent.press(await screen.findByTestId("mode-always"));
-    expect(await screen.findByText("The phone now shares its position every 5 minutes, and shows it on the phone.")).toBeTruthy();
-    expect(server.calls.find((c) => c.method === "PUT")!.body).toEqual({ mode: "always" });
-    expect(screen.getByTestId("mode-always").props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(await screen.findByTestId("mode-checkin"));
+    expect(await screen.findByText("The phone sends its position on Find and when an “Are you okay?” goes unanswered.")).toBeTruthy();
+    // Only "always" carries a duration.
+    expect(server.calls.find((c) => c.method === "PUT")!.body).toEqual({ mode: "checkin" });
+    expect(screen.getByTestId("mode-checkin").props.accessibilityState.checked).toBe(true);
     expect(screen.getByTestId("mode-find").props.accessibilityState.checked).toBe(false);
-    // The position of an "always on" phone is expected, so the empty text no longer says to press Find.
-    expect(screen.getByText("The phone has not sent a position yet.")).toBeTruthy();
+    expect(screen.queryByTestId("always-for")).toBeNull();
   });
 
   it("does not ask the server again for the mode that is already chosen", async () => {
@@ -518,7 +518,133 @@ describe("location sharing", () => {
     });
     await open();
     await fireEvent.press(await screen.findByTestId("mode-always"));
+    await fireEvent.press(await screen.findByTestId("always-start"));
     expect(await screen.findByText("Something went wrong. Please try again.")).toBeTruthy();
     expect(screen.getByTestId("mode-find").props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId("mode-always").props.accessibilityState.checked).toBe(false);
+  });
+});
+
+describe("always on", () => {
+  const MODE = `PUT /phones/${PHONE.id}/location/mode`;
+  const puts = (server: { calls: { method: string; path: string; body: unknown }[] }) => server.calls.filter((c) => c.method === "PUT");
+  /** 14:05 local time, `days` days from now: a day other than today whatever the time of day is. */
+  const later = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(14, 5, 0, 0);
+    return d.toISOString();
+  };
+
+  it("asks how long first and sends nothing until the parent confirms", async () => {
+    const server = api({ [LOCATION]: { body: locationState({ mode: "find" }) } });
+    await open();
+    expect(screen.queryByTestId("always-for")).toBeNull();
+    await fireEvent.press(await screen.findByTestId("mode-always"));
+    expect(await screen.findByTestId("always-for")).toBeTruthy();
+    expect(screen.getByLabelText("How long?").props.accessibilityRole).toBe("radiogroup");
+    for (const [f, label] of [["hour", "1 hour"], ["today", "Today"], ["week", "7 days"]] as const) {
+      const radio = screen.getByTestId(`always-for-${f}`);
+      expect(radio.props.accessibilityRole).toBe("radio");
+      expect(radio.props.accessibilityLabel).toBe(label);
+      expect(StyleSheet.flatten(radio.props.style).minHeight).toBeGreaterThanOrEqual(48);
+    }
+    // The shortest is chosen, and the old mode is still the one in force.
+    expect(screen.getByTestId("always-for-hour").props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId("mode-find").props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId("mode-always").props.accessibilityState.checked).toBe(false);
+    expect(puts(server)).toHaveLength(0);
+  });
+
+  it.each([
+    ["hour", 60 * 60_000],
+    ["today", 5 * 60 * 60_000],
+    ["week", 7 * 24 * 60 * 60_000],
+  ] as const)("sends alwaysFor %s with the mode", async (alwaysFor, ms) => {
+    const server = api({
+      [LOCATION]: { body: locationState({ mode: "find" }) },
+      [MODE]: { body: locationState({ mode: "always", alwaysUntil: new Date(Date.now() + ms).toISOString() }) },
+    });
+    await open();
+    await fireEvent.press(await screen.findByTestId("mode-always"));
+    await fireEvent.press(await screen.findByTestId(`always-for-${alwaysFor}`));
+    expect(screen.getByTestId(`always-for-${alwaysFor}`).props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(screen.getByTestId("always-start"));
+    expect(await screen.findByText("The phone now shares its position every 5 minutes, and shows it on the phone.")).toBeTruthy();
+    expect(puts(server).map((c) => c.body)).toEqual([{ mode: "always", alwaysFor }]);
+    expect(screen.getByTestId("mode-always").props.accessibilityState.checked).toBe(true);
+    expect(screen.getByTestId("mode-find").props.accessibilityState.checked).toBe(false);
+    // Done: the question is gone and the end time is shown instead.
+    expect(screen.queryByTestId("always-for")).toBeNull();
+    expect(screen.getByTestId("always-until")).toBeTruthy();
+    // The position of an "always on" phone is expected, so the empty text no longer says to press Find.
+    expect(screen.getByText("The phone has not sent a position yet.")).toBeTruthy();
+  });
+
+  it("can be called off before anything is sent", async () => {
+    const server = api({ [LOCATION]: { body: locationState({ mode: "checkin" }) } });
+    await open();
+    await fireEvent.press(await screen.findByTestId("mode-always"));
+    await fireEvent.press(await screen.findByTestId("always-cancel"));
+    expect(screen.queryByTestId("always-for")).toBeNull();
+    expect(screen.getByTestId("mode-checkin").props.accessibilityState.checked).toBe(true);
+    expect(puts(server)).toHaveLength(0);
+  });
+
+  it("closes the question when another mode is chosen", async () => {
+    const server = api({
+      [LOCATION]: { body: locationState({ mode: "find" }) },
+      [MODE]: { body: locationState({ mode: "checkin" }) },
+    });
+    await open();
+    await fireEvent.press(await screen.findByTestId("mode-always"));
+    await fireEvent.press(await screen.findByTestId("mode-checkin"));
+    await waitFor(() => expect(screen.queryByTestId("always-for")).toBeNull());
+    expect(puts(server).map((c) => c.body)).toEqual([{ mode: "checkin" }]);
+  });
+
+  it("says when it ends, with the day when that is not today", async () => {
+    api({ [LOCATION]: { body: locationState({ mode: "always", alwaysUntil: later(3) }) } });
+    await open();
+    const until = await screen.findByTestId("always-until");
+    expect(screen.getByText(/^On until [A-Z][a-z]+day \d{1,2} [A-Za-z]+ at 14:05$/)).toBeTruthy();
+    expect(until).toBeTruthy();
+    // Nothing to choose until the parent presses "always" again.
+    expect(screen.queryByTestId("always-for")).toBeNull();
+  });
+
+  it("shows no end time in the other modes", async () => {
+    api({ [LOCATION]: { body: locationState({ mode: "checkin" }) } });
+    await open();
+    await screen.findByTestId("mode-always");
+    expect(screen.queryByTestId("always-until")).toBeNull();
+  });
+
+  it("asks again when always is pressed while it is on, to give it more time", async () => {
+    const server = api({
+      [LOCATION]: { body: locationState({ mode: "always", alwaysUntil: later(0) }) },
+      [MODE]: { body: locationState({ mode: "always", alwaysUntil: later(7) }) },
+    });
+    await open();
+    await fireEvent.press(await screen.findByTestId("mode-always"));
+    await fireEvent.press(await screen.findByTestId("always-for-week"));
+    await fireEvent.press(screen.getByTestId("always-start"));
+    await waitFor(() => expect(screen.queryByTestId("always-for")).toBeNull());
+    expect(puts(server).map((c) => c.body)).toEqual([{ mode: "always", alwaysFor: "week" }]);
+    expect(screen.getByText(/^On until [A-Z][a-z]+day \d{1,2} [A-Za-z]+ at 14:05$/)).toBeTruthy();
+  });
+
+  it("explains that it ends by itself", async () => {
+    api({ [LOCATION]: { body: locationState({ mode: "find" }) } });
+    await open();
+    expect(await screen.findByText("Every 5 minutes for a time you choose, then back to Find + “Are you okay?”. Always shown on the phone.")).toBeTruthy();
+  });
+
+  it.each(["off", "find", "checkin", "always"] as const)("discourages it from age 13 with one line, in mode %s", async (mode) => {
+    api({ [LOCATION]: { body: locationState({ mode, enabled: mode !== "off", alwaysUntil: mode === "always" ? later(1) : null }) } });
+    await open();
+    const line = await screen.findAllByText("Not recommended from age 13: teenagers need privacy, and constant tracking can harm trust.");
+    expect(line).toHaveLength(1);
+    expect(screen.getAllByText(/age 13/)).toHaveLength(1);
   });
 });

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // "Ring the phone" and "Are you okay?" on the location screen: the same two sections as
-// the PWA (web/src/pages/Location.tsx), as cards with a live status line.
+// the PWA (web/src/pages/Location.tsx), as cards with a live status line. Also the notes
+// under the "always on" location option: how long it lasts and when it ends.
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, View } from "react-native";
-import type { Checkin, Contact, LocationMode, Ring } from "../api/models";
+import { ALWAYS_FOR, type AlwaysFor, type Checkin, type Contact, type LocationMode, type Ring } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { CHECKIN_MINUTES, checkinStatus, ringStatus, type StatusLine } from "../lib/location";
+import { alwaysUntilText, CHECKIN_MINUTES, checkinStatus, ringStatus, type StatusLine } from "../lib/location";
 import { radius, space, useColors } from "../lib/theme";
 import { CheckRow } from "./parts";
-import { Button, Card, Choice, Segmented, Stack as VStack, Text } from "./ui";
+import { Button, Card, Choice, Row, Segmented, Stack as VStack, Text } from "./ui";
 
 /** Tells screen readers when the situation changes (waiting, ringing, answered), not on every tick of the countdown. */
 function useAnnounceChanges(status: StatusLine | null, quiet: string[]) {
@@ -164,5 +165,59 @@ export function CheckinSection({
         </>
       )}
     </Card>
+  );
+}
+
+/**
+ * Under the "always on" location option. "Always" is never open-ended, so choosing it asks
+ * how long first (an hour is the default, the shortest) and nothing is sent until the parent
+ * confirms. While it is on, one line says when it ends.
+ */
+export function AlwaysNotes({
+  mode,
+  until,
+  now,
+  choosing,
+  busy,
+  onStart,
+  onCancel,
+}: {
+  mode: LocationMode;
+  /** `alwaysUntil` from the server. */
+  until: string | null;
+  now: number;
+  /** The parent pressed "always" and has not chosen how long yet. */
+  choosing: boolean;
+  busy: boolean;
+  onStart: (alwaysFor: AlwaysFor) => void;
+  onCancel: () => void;
+}) {
+  const { t, locale } = useI18n();
+  const [alwaysFor, setAlwaysFor] = useState<AlwaysFor>("hour");
+  return (
+    <VStack gap={space.sm}>
+      {/* There is no age on file, so the advice is always shown. */}
+      <Text variant="small" testID="always-age">
+        {t("native.alwaysAge")}
+      </Text>
+      {mode === "always" && until ? (
+        <StatusRow testID="always-until" status={{ kind: "alwaysUntil", text: alwaysUntilText(until, now, t, locale), live: false, warn: false }} />
+      ) : null}
+      {choosing ? (
+        <>
+          <Segmented<AlwaysFor>
+            testID="always-for"
+            label={t("native.alwaysFor")}
+            value={alwaysFor}
+            onChange={setAlwaysFor}
+            options={ALWAYS_FOR.map((f) => ({ value: f, label: t(`native.alwaysFor.${f}`), testID: `always-for-${f}` }))}
+          />
+          <Row>
+            <Button testID="always-start" title={t("native.alwaysStart")} busy={busy} onPress={() => onStart(alwaysFor)} />
+            <Button testID="always-cancel" kind="plain" title={t("app.cancel")} disabled={busy} onPress={onCancel} />
+          </Row>
+        </>
+      ) : null}
+    </VStack>
   );
 }

@@ -3,7 +3,7 @@
 // The location screen's rules without a screen: what needs polling, the countdown, and the
 // status line of a ring and of an "Are you okay?" in every state.
 import { makeAppT } from "../src/i18n/I18n";
-import { answers, checkinStatus, countdown, needsPolling, ringStatus } from "../src/lib/location";
+import { alwaysUntilText, answers, checkinStatus, countdown, needsPolling, ringStatus } from "../src/lib/location";
 import { checkin, locationState, ring } from "../test/fakeApi";
 import type { LocationState } from "../src/api/models";
 
@@ -130,5 +130,30 @@ describe("check-in status", () => {
       warn: true,
       text: expect.stringMatching(/^No answer in time\. The phone sent its position at /),
     });
+  });
+});
+
+describe("when always ends", () => {
+  // Built from local parts, so the tests hold in any time zone. The clock is 10:30 on Monday 23 November 2026.
+  const at = (day: number, h: number, m: number) => new Date(2026, 10, day, h, m, 0, 0);
+  const clock = at(23, 10, 30).getTime();
+  const text = (end: Date, locale: "en" | "da" = "en") => alwaysUntilText(end.toISOString(), clock, makeAppT(locale), locale);
+
+  it("gives only the time when it ends today", () => {
+    expect(text(at(23, 11, 30))).toMatch(/^On until 11:30$/);
+    expect(text(at(23, 11, 30), "da")).toMatch(/^Slået til indtil kl\. 11[.:]30$/);
+  });
+
+  it("adds the day when it ends on another day", () => {
+    expect(text(at(24, 14, 5))).toMatch(/^On until Tuesday 24 Nov at 14:05$/);
+    expect(text(at(24, 14, 5), "da")).toMatch(/^Slået til indtil tirsdag 24\. nov\.? kl\. 14[.:]05$/);
+    expect(text(at(30, 10, 30))).toMatch(/^On until Monday 30 Nov at 10:30$/);
+  });
+
+  it("says midnight when it ends when today ends, which is what 'Today' means", () => {
+    expect(text(at(24, 0, 0))).toBe("On until midnight");
+    expect(text(at(24, 0, 0), "da")).toBe("Slået til indtil midnat");
+    // Not the midnight after tomorrow, which is a day to name.
+    expect(text(at(25, 0, 0))).toMatch(/^On until Wednesday 25 Nov at 00:00$/);
   });
 });
