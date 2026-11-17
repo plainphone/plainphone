@@ -4,7 +4,7 @@
 
 import type { MessageKey, T } from "../i18n/translate";
 import type { DnsCategory, Locale, Op, ScheduleInput } from "./api";
-import { formatClock, formatList, weekdayName } from "./format";
+import { formatClock, formatList, formatMinutes, weekdayName } from "./format";
 import { formatSettingValue, settingName } from "./settings";
 
 export function categoryLabel(c: DnsCategory, t: T): string {
@@ -81,5 +81,24 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
         : t("op.keyDelay", { hours: op.key.delayHours });
     case "phone.remove":
       return t("op.phoneRemove");
+    case "timeLimit.set": {
+      const total = op.packageName === "*";
+      if (!op.limit) return total ? t("op.limitTotalRemove") : t("op.limitAppRemove", { app: appLabel(op.packageName) });
+      const time = formatMinutes(op.limit.minutes, minuteWords(t));
+      const more = Object.keys(op.limit.days).length > 0 ? t("op.limitSomeDays") : "";
+      return (total ? t("op.limitTotal", { time }) : t("op.limitApp", { app: appLabel(op.packageName), time })) + more;
+    }
+    case "timeLimit.bonus":
+      return op.packageName === "*"
+        ? t("op.bonusTotal", { minutes: op.minutes })
+        : t("op.bonusApp", { app: appLabel(op.packageName), minutes: op.minutes });
+    case "catalog.add":
+      return t("op.catalogAdd", { app: op.label });
+    case "catalog.remove":
+      return t("op.catalogRemove", { app: appLabel(op.packageName) });
   }
+}
+
+export function minuteWords(t: T) {
+  return { hm: t("duration.hm"), h: t("duration.h"), m: t("duration.m"), lessThanMinute: t("duration.lessThanMinute") };
 }

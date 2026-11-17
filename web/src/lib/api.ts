@@ -32,9 +32,29 @@ export interface PhoneStatus {
   rulesEtag: string | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
+  /** Missing on older phones, which are strong mode. */
+  mode?: "strong" | "light";
+  /** What is active on the phone right now. */
+  protections?: Partial<Record<Protection, boolean>>;
+  /** Minutes used today per limited package; "*" is the total. */
+  timeUsed?: Record<string, number>;
   /** When the server received the report. */
   reportedAt: string;
 }
+export const PROTECTIONS = [
+  "deviceAdmin",
+  "accessibility",
+  "usageAccess",
+  "vpn",
+  "alwaysOnVpn",
+  "phoneRole",
+  "smsRole",
+  "notifications",
+  "batteryUnrestricted",
+  "privateDnsOk",
+  "deviceOwner",
+] as const;
+export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
   id: string;
   name: string;
@@ -51,12 +71,76 @@ export interface Phone {
   hasLocation: boolean;
   /** Null until the phone has reported once. */
   status: PhoneStatus | null;
+  /** Open requests from the phone (apps, contacts). */
+  openRequests: number;
+  /** Hours of silence before parents are told; null = the server default. */
+  offlineAlertHours: number | null;
+  offlineAlertHoursDefault: number;
+}
+
+export interface PushSubscriptionInfo {
+  id: string;
+  platform: "web" | "apns" | "fcm";
+  label: string | null;
+  /** SHA-256 (hex) of the endpoint, so this browser can find its own row. */
+  endpointHash: string;
+  createdAt: string;
+  lastSuccessAt: string | null;
+}
+
+export interface NotificationSettings {
+  webPushEnabled: boolean;
+  webPushPublicKey: string | null;
+  offlineAlertHours: number;
+  subscriptions: PushSubscriptionInfo[];
+  mutedPhoneIds: string[];
+}
+
+export interface PhoneRequest {
+  id: string;
+  phoneId: string;
+  kind: "app" | "contact";
+  packageName: string | null;
+  appLabel: string | null;
+  name: string | null;
+  number: string | null;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
 }
 export interface App {
   packageName: string;
   label: string;
   allowed: boolean;
   core: boolean;
+}
+/** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
+export interface Limit {
+  minutes: number;
+  days: Partial<Record<string, number>>;
+}
+export interface Bonus {
+  packageName: string;
+  date: string;
+  minutes: number;
+}
+export interface TimeLimits {
+  total: Limit | null;
+  apps: { packageName: string; label: string; limit: Limit }[];
+  bonuses: Bonus[];
+  used: Record<string, number> | null;
+}
+export type CatalogState = "installed-allowed" | "installed-hidden" | "requested" | "none";
+export interface CatalogApp {
+  packageName: string;
+  name: string;
+  category: string;
+  source: string;
+  state: CatalogState;
+}
+export interface PhoneCatalog {
+  country: string | null;
+  categories: { id: string; name: { en: string; da: string } }[];
+  apps: CatalogApp[];
 }
 export interface Contact {
   id: string;
@@ -146,7 +230,11 @@ export type Op =
   | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
   | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
-  | { type: "phone.remove"; dnsClientId: string };
+  | { type: "phone.remove"; dnsClientId: string }
+  | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
+  | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
+  | { type: "catalog.add"; packageName: string; label: string }
+  | { type: "catalog.remove"; packageName: string };
 
 export interface PendingChange {
   id: string;

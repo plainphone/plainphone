@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   contacts,
   DNS_CATEGORIES,
@@ -9,6 +9,7 @@ import {
   pendingChanges,
   phoneApps,
   phoneSettings,
+  phoneRequests,
   phones,
   schedules,
   selfKeys,
@@ -16,6 +17,7 @@ import {
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
+import { loadTimeLimits } from "./limits.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -25,21 +27,8 @@ export const POLL_SECONDS = 60;
 /** How often the phone reports its position when location is on (spec: every 5 minutes). */
 export const LOCATION_INTERVAL_MINUTES = 5;
 
-/**
- * Apps allowed from the start when a phone reports them (spec: starter packs per
- * country). Package names are from the Play Store listings; check them on a real
- * phone before relying on them.
- */
-export const STARTER_PACKS: Record<string, string[]> = {
-  dk: [
-    "dk.danskebank.mobilepay", // MobilePay
-    "dk.mitid.app.android", // MitID
-    "de.hafas.android.rejseplanen", // Rejseplanen
-    "com.netcompany.aulanativeprivate", // Aula
-    "dk.dr.radio", // DR LYD
-    "com.spotify.music", // Spotify
-  ],
-};
+/** Starter packs now come from the app catalog (`starter: true`). Re-exported for older imports. */
+export { STARTER_PACKS } from "./catalog.js";
 
 export async function createPhone(
   ctx: Ctx,
@@ -49,7 +38,8 @@ export async function createPhone(
     name: string;
     profile: "child" | "self";
     mode: "strong" | "light";
-    deviceTokenHash: string;
+    /** Null for a phone made for a provisioning QR code: it pairs itself later (enrollment). */
+    deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
   },
@@ -68,7 +58,7 @@ export async function createPhone(
       // D7 and spec 11: location is on for a child, off by default for an adult.
       locationEnabled: input.profile === "child",
       timezone: input.timezone ?? "Europe/Copenhagen",
-      pairedAt: ctx.now(),
+      pairedAt: input.deviceTokenHash ? ctx.now() : null,
     })
     .returning();
   // Spec 6: every category is blocked by default.
@@ -100,8 +90,8 @@ function hhmm(minute: number): string {
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 export async function rulesDocument(ctx: Ctx, phone: Phone) {
-  const [apps, contactRows, scheduleRows, dnsRow, pending, own] = await Promise.all([
-    ctx.db.select().from(phoneApps).where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true))),
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, own] = await Promise.all([
+    ctx.db.select().from(phoneApps).where(eq(phoneApps.phoneId, phone.id)).orderBy(phoneApps.packageName),
     ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name, contacts.number),
     ctx.db.select().from(schedules).where(eq(schedules.phoneId, phone.id)).orderBy(schedules.createdAt),
     ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id)),
@@ -110,8 +100,10 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       .from(pendingChanges)
       .where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending")))
       .orderBy(pendingChanges.createdAt),
+    loadTimeLimits(ctx.db, phone, ctx.now()),
     loadPhoneSettings(ctx.db, phone.id),
   ]);
+  const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
@@ -121,7 +113,12 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
+      // Picked from the catalog but not installed yet: the phone offers to install them.
+      toInstall: allApps
+        .filter((a) => a.requested && a.allowed && !a.installed)
+        .map((a) => ({ packageName: a.packageName, label: a.label })),
     },
+    timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
     contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
@@ -160,6 +157,10 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
   const [loc] = await ctx.db.select().from(locations).where(eq(locations.phoneId, phone.id));
+  const [open] = await ctx.db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(phoneRequests)
+    .where(and(eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")));
   return {
     id: phone.id,
     name: phone.name,
@@ -173,6 +174,10 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
     hasLocation: Boolean(loc),
+    openRequests: open?.n ?? 0,
+    /** Null means the server default (`offlineAlertHoursDefault`). */
+    offlineAlertHours: phone.offlineAlertHours,
+    offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
     status:
       phone.deviceStatus && phone.statusReportedAt
         ? { ...phone.deviceStatus, reportedAt: phone.statusReportedAt.toISOString() }

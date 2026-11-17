@@ -9,15 +9,22 @@ describes the phone's side. The API contract is [sync-api.md](sync-api.md) and
 ## Pairing
 
 1. The QR code carries the server address (`plainphone.server_url`, default
-   `https://app.plainphone.org`; self-hosters pass `--server-url` to `scripts/provisioning-qr.py`).
-   Only `https://` is accepted, so the device token never travels in clear text.
-2. Right after setup the phone opens **Pair with a parent**: an 8-character code and a QR code.
-   The parent scans it with their phone's camera (it opens the dashboard with the code filled in)
-   or types the code under *Add phone*. Codes live 15 minutes; the phone fetches a fresh one when
-   a code runs out.
-3. The phone polls every 3 seconds while the screen is open and receives its device token once.
-   The token is sealed with an AES-256-GCM key in the Android Keystore before it is stored; the
-   stored copy is useless on any other phone.
+   `https://app.plainphone.org`; self-hosters' dashboards put their own address in, and the script
+   takes `--server-url`). Only `https://` is accepted, so the device token never travels in clear text.
+2. **A QR code made in the dashboard** (*Add phone*) also carries a one-time enrollment token
+   (`plainphone.enroll`). At provisioning the phone stores it sealed (like the device token) and,
+   as soon as there is a network, sends it to `POST /device/enroll` together with a random install
+   id. It gets its device token back and is paired with the phone entry the parent made, without a
+   code. This runs on the pairing screen right after setup and in a background job with backoff
+   (`EnrollWorker`), so it also works if nobody looks at the screen or the network comes late. A
+   refused token (unknown, used, expired after 24 hours) is dropped and the phone falls back to a code.
+3. **Otherwise** (a QR code from the script, or the token was refused) the phone opens **Pair with
+   a parent**: an 8-character code and a QR code. The parent scans it with their phone's camera (it
+   opens the dashboard with the code filled in) or types the code under *Add phone*, *Type the code*.
+   Codes live 15 minutes; the phone fetches a fresh one when a code runs out. The phone polls every
+   3 seconds while the screen is open and receives its device token once.
+4. The device token is sealed with an AES-256-GCM key in the Android Keystore before it is stored;
+   the stored copy is useless on any other phone.
 
 **Pairing needs the maintenance PIN except at setup.** A phone that has never been paired may
 show its pairing screen without the PIN during the first hour after the lock was first

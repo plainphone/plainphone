@@ -202,6 +202,75 @@ details p { padding-bottom: 0.5rem; }
 .doc tbody th { width: 38%; }
 .doc td { color: var(--ink); }
 
+/* Setup guide: numbered steps, each with a screenshot or a schematic phone */
+.setup { --num: 3rem; }
+.setup .lead { margin-bottom: 0; }
+.setup dl { margin: 0; max-width: var(--measure); }
+.setup dt { font-weight: 600; margin-top: 1.4rem; }
+.setup dt:first-child { margin-top: 0; }
+.setup dd { margin: 0.2rem 0 0; }
+.setup .table-wrap table { width: 100%; min-width: 0; max-width: 34rem; }
+.setup tbody th { width: auto; }
+.setup td { white-space: nowrap; padding-right: 0.9rem; }
+.setup .help { margin-top: 1.75rem; }
+.guide { list-style: none; counter-reset: guide; margin: 0; padding: 0; }
+.guide > li {
+  counter-increment: guide;
+  position: relative;
+  padding: clamp(1.75rem, 4vw, 2.5rem) 0 clamp(1.5rem, 4vw, 2.5rem) var(--num);
+  border-top: 1px solid var(--rule);
+}
+.guide > li:first-child { border-top: 0; padding-top: 0.5rem; }
+.guide > li::before {
+  content: counter(guide);
+  position: absolute;
+  left: 0;
+  top: clamp(1.4rem, 3.4vw, 2.1rem);
+  font-size: 2.4rem;
+  line-height: 1;
+  font-weight: 200;
+  color: var(--pencil);
+}
+.guide > li:first-child::before { top: 0.15rem; }
+.guide h3 { font-size: 1.25em; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
+.guide p { margin-bottom: 0.75rem; }
+.guide p:last-of-type { margin-bottom: 0; }
+.shot { margin: 1.5rem 0 0 calc(var(--num) * -1); }
+.shot img {
+  display: block;
+  width: min(100%, 22rem);
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+}
+.drawing { display: block; width: 13rem; max-width: 100%; height: auto; color: var(--ink); }
+.drawing.wide { width: 100%; max-width: 27.5rem; }
+@media (min-width: 46rem) {
+  .setup { --num: 5rem; }
+  .guide > li::before { font-size: 3.2rem; }
+  .drawing { width: 15.5rem; }
+  .drawing.wide { max-width: 32rem; }
+  .shot { margin-left: 0; }
+}
+.f-body { fill: var(--paper); stroke: var(--ink); stroke-width: 2.5; }
+.f-screen { fill: var(--sheet); }
+.f-ink { fill: var(--ink); }
+.f-bar { fill: var(--rule); }
+.f-bar-d { fill: var(--pencil); }
+.f-mark { fill: var(--mark); }
+.f-dialog { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.f-line { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.f-line.thin { stroke-width: 1.75; }
+.f-line.bracket { stroke-width: 3.5; }
+.f-ink-line, .f-pencil-line { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.f-ink-line { stroke: var(--ink); }
+.f-pencil-line { stroke: var(--pencil); }
+.f-ink-line circle { fill: var(--ink); stroke: none; }
+.f-pencil-line circle { fill: var(--pencil); stroke: none; }
+.f-txt { font: 600 10.5px "Atkinson Hyperlegible Next", system-ui, sans-serif; fill: var(--ink); }
+.f-txt.tap { font-size: 15px; font-weight: 700; }
+.f-txt.on-ink { fill: var(--paper); }
+
 /* Footer */
 .foot {
   margin-top: var(--gap);

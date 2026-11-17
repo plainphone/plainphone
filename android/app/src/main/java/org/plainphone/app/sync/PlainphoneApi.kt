@@ -12,6 +12,8 @@ import org.json.JSONObject
 interface SyncApi {
     fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing
     fun pollPairing(pairingId: String, pollSecret: String): PairPoll
+    /** Pairs with the one-time token from a dashboard-made provisioning QR code (POST /device/enroll). */
+    fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult
     fun fetchRules(token: String, etag: String?): RulesResult
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
@@ -25,6 +27,12 @@ sealed interface PairPoll {
     data object Waiting : PairPoll
     data object Expired : PairPoll
     data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
+}
+
+sealed interface EnrollResult {
+    data class Paired(val phoneId: String, val deviceToken: String) : EnrollResult
+    /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
+    data object Rejected : EnrollResult
 }
 
 sealed interface RulesResult {
@@ -50,6 +58,9 @@ data class DeviceStatus(
     val rulesEtag: String?,
     val rulesAppliedAtMs: Long?,
     val dnsHost: String?,
+    val mode: String = "strong",
+    val protections: Map<String, Boolean>? = null,
+    val timeUsed: Map<String, Int>? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -62,6 +73,12 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .put("mode", mode)
+        .apply {
+            // Optional fields (docs/sync-api.md): only sent when known.
+            protections?.let { put("protections", JSONObject(it)) }
+            timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
+        }
 }
 
 internal fun iso(ms: Long): String = java.time.Instant.ofEpochMilli(ms).toString()
@@ -129,6 +146,16 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
             202 -> PairPoll.Waiting
             404, 410 -> PairPoll.Expired
             else -> throw HttpError(r.status, r.body)
+        }
+    }
+
+    override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
+        val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
+        val r = call("POST", "/device/enroll", body = body)
+        return when (r.status) {
+            200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
+            400, 404, 410 -> EnrollResult.Rejected
+            else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }
 

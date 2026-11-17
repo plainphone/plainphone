@@ -34,8 +34,20 @@ data class PolicyConfig(
     val seedContacts: List<ApprovedContact> = emptyList(),
     /** Where the phone pairs and fetches rules. Self-hosters point their QR code at their own server. */
     val serverUrl: String = DEFAULT_SERVER_URL,
+    /**
+     * One-time enrollment token from a dashboard-made QR code. Only read at provisioning, then kept
+     * sealed in [org.plainphone.app.sync.SyncStore]; never stored in plain text with the config.
+     */
+    val enrollToken: String? = null,
     /** Set when rules from the server apply; null means the QR code alone decides. */
     val server: ServerOverlay? = null,
+    /** Apps whose time is used up today (time limits). Strong mode suspends them. */
+    val timeBlocked: Set<String> = emptySet(),
+    /**
+     * A catalog app being installed right now: app installs are allowed and Play is visible until
+     * the app is installed or the install window ends (docs/app-catalog.md, R2).
+     */
+    val installing: String? = null,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 
@@ -43,6 +55,7 @@ data class PolicyConfig(
         const val DEFAULT_DNS_HOST = "family.adguard-dns.com"
         const val DEFAULT_RELOCK_MINUTES = 30
         const val DEFAULT_SERVER_URL = "https://app.plainphone.org"
+        const val PLAY_STORE = "com.android.vending"
 
         // Extra apps that stay visible on top of phone, SMS, camera, clock,
         // contacts, launcher, settings and keyboard (resolved at runtime per maker).
@@ -76,6 +89,8 @@ data class PolicyConfig(
         const val KEY_COUNTRY = "plainphone.country_code"
         const val KEY_CONTACTS = "plainphone.contacts"
         const val KEY_SERVER_URL = "plainphone.server_url"
+        const val KEY_ENROLL = "plainphone.enroll"
+        private val ENROLL_TOKEN = Regex("^pp_e_[A-Za-z0-9_-]{10,95}$")
 
         /** Builds a config from the QR admin extras. Unknown or blank values keep the default. */
         @Suppress("DEPRECATION") // BaseBundle.get: QR values may arrive as String, Int or Long.
@@ -94,6 +109,7 @@ data class PolicyConfig(
                 countryCallingCode = str(KEY_COUNTRY)?.removePrefix("+")?.takeIf { c -> c.length in 1..3 && c.all(Char::isDigit) },
                 seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
                 serverUrl = str(KEY_SERVER_URL)?.let(::normalizeServerUrl) ?: DEFAULT_SERVER_URL,
+                enrollToken = str(KEY_ENROLL)?.takeIf(ENROLL_TOKEN::matches),
             )
         }
 

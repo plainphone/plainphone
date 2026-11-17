@@ -15,6 +15,7 @@ import { loadConfig } from "../../src/config.js";
 import { createDb, runMigrations } from "../../src/db/client.js";
 import { MockDnsProvider } from "../../src/providers/dns.js";
 import { MemoryMailProvider } from "../../src/providers/mail.js";
+import { MemoryParentPushProvider } from "../../src/providers/parent-push.js";
 import { RecordingPushProvider } from "../../src/providers/push.js";
 import type { Ctx } from "../../src/services/context.js";
 
@@ -49,6 +50,7 @@ const ctx: Ctx = {
   mail,
   dns: new MockDnsProvider(),
   push: new RecordingPushProvider(),
+  parentPush: new MemoryParentPushProvider(),
   now: () => new Date(),
 };
 const app = createApp(ctx);

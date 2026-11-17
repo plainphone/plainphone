@@ -46,11 +46,21 @@ class FakeSyncApi : SyncApi {
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
+    var enrollResult: EnrollResult = EnrollResult.Rejected
+    var enrollFailure: IOException? = null
+    val enrollCalls: MutableList<Pair<String, String>> = java.util.Collections.synchronizedList(mutableListOf())
+    var enrollDelayMs = 0L
 
     override fun startPairing(mode: String, deviceInfo: Map<String, String>) = pairing
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
         check(pollSecret == pairing.pollSecret) { "wrong poll secret" }
         return pollResult
+    }
+    override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
+        enrollCalls += token to installId
+        if (enrollDelayMs > 0) Thread.sleep(enrollDelayMs)
+        enrollFailure?.let { throw it }
+        return enrollResult
     }
     override fun fetchRules(token: String, etag: String?): RulesResult {
         tokensUsed += token
@@ -73,17 +83,21 @@ fun rulesJson(
     locationEnabled: Boolean = true,
     requestedAt: String? = null,
     timezone: String = "Europe/Copenhagen",
+    toInstall: String? = null,
+    timeLimits: String? = null,
 ): String {
+    val install = toInstall?.let { ""","toInstall":$it""" } ?: ""
+    val limits = timeLimits?.let { ""","timeLimits":$it""" } ?: ""
     val ready = dnsReady?.let { ""","ready":$it""" } ?: ""
     val req = requestedAt?.let { "\"$it\"" } ?: "null"
     return """
     {"phoneId":"7f1c2b9e-0000-4000-8000-000000000001","profile":"child","mode":"strong","timezone":"$timezone",
-     "apps":{"allowed":${allowed.joinToString(",", "[", "]") { "\"$it\"" }},"hidden":${hidden.joinToString(",", "[", "]") { "\"$it\"" }}},
+     "apps":{"allowed":${allowed.joinToString(",", "[", "]") { "\"$it\"" }},"hidden":${hidden.joinToString(",", "[", "]") { "\"$it\"" }}$install},
      "contacts":$contacts,
      "schedules":$schedules,
      "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready,"blockedCategories":["adult"]},
      "location":{"enabled":$locationEnabled,"intervalMinutes":5,"requestedAt":$req},
      "pendingChanges":[],
-     "pollSeconds":60}
+     "pollSeconds":60$limits}
     """.trimIndent()
 }

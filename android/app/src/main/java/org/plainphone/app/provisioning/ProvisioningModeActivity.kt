@@ -8,8 +8,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.PersistableBundle
 import org.plainphone.app.Compat
-import org.plainphone.app.ConfigStore
-import org.plainphone.app.PolicyConfig
+import org.plainphone.app.PlainphoneAdminReceiver
 
 /**
  * Android 12+ QR provisioning asks the DPC which mode it wants.
@@ -18,7 +17,8 @@ import org.plainphone.app.PolicyConfig
 class ProvisioningModeActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)?.let { ConfigStore(this).save(PolicyConfig.fromExtras(it)) }
+        Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)
+            ?.let { PlainphoneAdminReceiver.saveExtras(this, it) }
 
         // The extra exists from Android 12; on Android 10 and 11 it is absent and the result is fully managed.
         val allowed = intent.getIntArrayExtra(ALLOWED_MODES)

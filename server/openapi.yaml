@@ -2,7 +2,7 @@
 openapi: 3.1.0
 info:
   title: Plainphone API
-  version: 0.3.0
+  version: 0.4.0
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -35,6 +35,12 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: notifications
+    description: Push notifications to parents (Web Push now; APNs/FCM tokens are stored for the native apps).
+  - name: limits
+    description: Daily time limits (docs/time-limits.md).
+  - name: catalog
+    description: App catalog per country (docs/app-catalog.md).
 
 components:
   securitySchemes:
@@ -74,6 +80,50 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    PhoneRequest:
+      type: object
+      required: [id, kind, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { enum: [app, contact] }
+        packageName: { type: [string, "null"] }
+        name: { type: [string, "null"], description: "Contact name" }
+        number: { type: [string, "null"], description: "Contact number, E.164" }
+        status: { enum: [pending, approved, rejected] }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: [string, "null"], format: date-time }
+    PushSubscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        platform: { enum: [web, apns, fcm] }
+        label: { type: [string, "null"] }
+        endpointHash:
+          type: string
+          description: SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned.
+        createdAt: { type: string, format: date-time }
+        lastSuccessAt: { type: [string, "null"], format: date-time }
+    Enrollment:
+      type: object
+      properties:
+        phone: { $ref: "#/components/schemas/PhoneSummary" }
+        enrollment:
+          type: object
+          properties:
+            token: { type: string, examples: ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"] }
+            expiresAt: { type: string, format: date-time }
+        provisioning:
+          type: object
+          description: Values for the provisioning QR code
+          properties:
+            adminComponent: { type: string, examples: [org.plainphone.app/.PlainphoneAdminReceiver] }
+            downloadUrl:
+              type: string
+              format: uri
+              description: Stable APK address (`/download/android`, outside `/api`); redirects to the newest release.
+            signatureChecksum: { type: string, description: base64url SHA-256 of the app's signing certificate }
+            serverUrl: { type: string, format: uri }
+            dnsHost: { type: string, description: Private DNS until the phone's own filter host is ready }
     Error:
       type: object
       required: [error]
@@ -150,6 +200,117 @@ components:
           properties:
             type: { const: phone.remove }
             dnsClientId: { type: string }
+        - type: object
+          description: Loosening when any weekday gets more minutes, or the limit is removed (limit null).
+          properties:
+            type: { const: timeLimit.set }
+            packageName: { $ref: "#/components/schemas/LimitTarget" }
+            limit:
+              oneOf:
+                - $ref: "#/components/schemas/Limit"
+                - type: "null"
+        - type: object
+          description: Always loosening.
+          properties:
+            type: { const: timeLimit.bonus }
+            packageName: { $ref: "#/components/schemas/LimitTarget" }
+            date: { type: string, format: date, description: "The local date it was asked for. The bonus counts for the local date when it takes effect." }
+            minutes: { type: integer, minimum: 5, maximum: 240 }
+        - type: object
+          description: Always loosening.
+          properties:
+            type: { const: catalog.add }
+            packageName: { $ref: "#/components/schemas/PackageName" }
+            label: { type: string }
+        - type: object
+          description: Always tightening.
+          properties:
+            type: { const: catalog.remove }
+            packageName: { $ref: "#/components/schemas/PackageName" }
+
+    LimitTarget:
+      description: '"*" is the daily cap for all non-core apps together; otherwise one app.'
+      oneOf:
+        - { const: "*" }
+        - $ref: "#/components/schemas/PackageName"
+
+    Limit:
+      type: object
+      required: [minutes]
+      properties:
+        minutes: { type: integer, minimum: 0, maximum: 1440 }
+        days:
+          type: object
+          description: 'ISO weekday ("1" = Monday … "7" = Sunday) to minutes; overrides `minutes` on that day.'
+          propertyNames: { enum: ["1", "2", "3", "4", "5", "6", "7"] }
+          additionalProperties: { type: integer, minimum: 0, maximum: 1440 }
+          default: {}
+
+    Bonus:
+      type: object
+      properties:
+        packageName: { $ref: "#/components/schemas/LimitTarget" }
+        date: { type: string, format: date, description: Local date in the phone's time zone. }
+        minutes: { type: integer }
+
+    TimeUsed:
+      type: object
+      description: 'Minutes used today per limited package; "*" is the total. At most 200 entries.'
+      maxProperties: 200
+      propertyNames: { $ref: "#/components/schemas/LimitTarget" }
+      additionalProperties: { type: integer, minimum: 0, maximum: 1440 }
+
+    Protections:
+      type: object
+      description: What is active on the phone right now. Unknown keys are refused (400).
+      additionalProperties: false
+      properties:
+        deviceOwner: { type: boolean }
+        deviceAdmin: { type: boolean }
+        accessibility: { type: boolean }
+        usageAccess: { type: boolean }
+        vpn: { type: boolean }
+        alwaysOnVpn: { type: boolean }
+        phoneRole: { type: boolean }
+        smsRole: { type: boolean }
+        notifications: { type: boolean }
+        batteryUnrestricted: { type: boolean }
+        privateDnsOk: { type: boolean }
+
+    CatalogFile:
+      type: object
+      description: One country's catalog, as in server/catalog/<country>.json.
+      properties:
+        country: { type: string, examples: [dk] }
+        name: { $ref: "#/components/schemas/Localized" }
+        verifiedAt: { type: string, format: date }
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, examples: [bank] }
+              name: { $ref: "#/components/schemas/Localized" }
+        apps:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogApp" }
+
+    CatalogApp:
+      type: object
+      properties:
+        packageName: { $ref: "#/components/schemas/PackageName" }
+        name: { type: string }
+        category: { type: string }
+        starter: { type: boolean, description: Allowed from the start when the phone reports it. }
+        source: { type: string, format: uri, description: The Play page the package name was verified against. }
+        verifiedAt: { type: string, format: date }
+        playTitle: { type: string }
+
+    Localized:
+      type: object
+      properties:
+        en: { type: string }
+        da: { type: string }
 
     PhoneSettingKey:
       type: string
@@ -248,7 +409,7 @@ components:
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, contacts, schedules, dns, location, settings, home, pendingChanges, pollSeconds]
+      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
         profile: { enum: [child, self] }
@@ -267,6 +428,35 @@ components:
               type: array
               description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default.
               items: { $ref: "#/components/schemas/PackageName" }
+            toInstall:
+              type: array
+              description: Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play).
+              items:
+                type: object
+                properties:
+                  packageName: { $ref: "#/components/schemas/PackageName" }
+                  label: { type: string }
+        timeLimits:
+          type: object
+          description: Always present. The limit for a local date is `days[isoWeekday] ?? minutes` plus the bonuses for that date and package. Days start at local midnight in `timezone`. Core apps never have a limit.
+          properties:
+            total:
+              description: Daily cap for all non-core apps together; null means no cap.
+              oneOf:
+                - $ref: "#/components/schemas/Limit"
+                - type: "null"
+            apps:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Limit"
+                  - type: object
+                    properties:
+                      packageName: { $ref: "#/components/schemas/PackageName" }
+            bonuses:
+              type: array
+              description: Only today's and tomorrow's (phone time zone, server clock).
+              items: { $ref: "#/components/schemas/Bonus" }
         contacts:
           type: array
           description: Calls and SMS to or from other numbers are blocked. Emergency numbers always work.
@@ -353,6 +543,11 @@ components:
           type: boolean
           description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
         hasLocation: { type: boolean }
+        openRequests: { type: integer, description: "Open requests from the phone (apps, contacts)" }
+        offlineAlertHours:
+          type: [integer, "null"]
+          description: Hours of silence before the parents are told. Null means the server default, 0 never.
+        offlineAlertHoursDefault: { type: integer }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
           oneOf:
@@ -369,7 +564,7 @@ components:
         deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
         lockIntact:
           type: boolean
-          description: Every lock policy was applied and no maintenance unlock is running.
+          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
         maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
         failedPolicies:
           type: array
@@ -388,6 +583,11 @@ components:
           type: [string, "null"]
           maxLength: 253
           description: The private DNS host the phone actually uses.
+        mode:
+          enum: [strong, light]
+          description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
+        protections: { $ref: "#/components/schemas/Protections" }
+        timeUsed: { $ref: "#/components/schemas/TimeUsed" }
 
     PhoneStatus:
       description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
@@ -497,6 +697,53 @@ paths:
         "404": { description: "Unknown pairing or wrong secret" }
         "410": { description: "Expired, or the token was already delivered. Start again." }
 
+  /device/enroll:
+    post:
+      operationId: postDeviceEnroll
+      security: []
+      tags: [device]
+      summary: Pair with the setup token from a dashboard QR code (phone)
+      description: |
+        A provisioning QR code made in the dashboard carries a one-time enrollment token
+        (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+        its device token, with no code to type. The token is bound to the phone entry the parent made,
+        works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
+        may ask again for 60 minutes; it then gets a new device token and the earlier one stops
+        working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
+        token) pair with a code as before (`POST /device/pairings`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, installId]
+              properties:
+                token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                installId:
+                  type: string
+                  pattern: "^[A-Za-z0-9_-]{16,64}$"
+                  description: Random id the phone makes once and keeps; only its hash is stored.
+                deviceInfo:
+                  type: object
+                  additionalProperties: { type: string, maxLength: 200 }
+                  maxProperties: 20
+      responses:
+        "200":
+          description: Paired. Store `deviceToken` like a token from a pairing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { const: paired }
+                  phoneId: { type: string, format: uuid }
+                  deviceToken: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Unknown token. Fall back to pairing with a code. }
+        "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
+        "429": { $ref: "#/components/responses/Error" }
+
   /device/rules:
     get:
       operationId: getDeviceRules
@@ -584,6 +831,78 @@ paths:
       responses:
         "204": { description: "Stored" }
         "400": { $ref: "#/components/responses/Error" }
+
+  /device/requests:
+    post:
+      operationId: postDeviceRequest
+      tags: [device]
+      summary: Ask for an app or a contact (phone)
+      description: |
+        The person with the phone asks for an app from the phone's own app list (by package
+        name, as reported in `PUT /device/apps`) or for a contact. The parents get a push
+        notification. Asking again for the same thing while it is open returns the open
+        request (200). At most 10 open requests per phone. See docs/sync-api.md.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [kind, packageName]
+                  properties:
+                    kind: { const: app }
+                    packageName: { type: string, example: com.spotify.music }
+                - type: object
+                  required: [kind, name, number]
+                  properties:
+                    kind: { const: contact }
+                    name: { type: string, maxLength: 60 }
+                    number: { type: string, description: "International format, e.g. +4512345678" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneRequest" }
+        "200":
+          description: The same thing is already asked for; the open request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneRequest" }
+        "404": { description: "The app is not on the phone's app list" }
+        "409": { description: "The app is already allowed, or the number is already a contact" }
+        "429": { description: "Too many open requests" }
+    get:
+      operationId: getDeviceRequests
+      tags: [device]
+      summary: The phone's requests and their answers (phone)
+      description: Open requests and those answered in the last 30 days, newest first.
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PhoneRequest"
+                        - type: object
+                          properties:
+                            waitingForKey:
+                              type: boolean
+                              description: Approved on a Self phone, but the change still waits for the key
+                            effectiveAt:
+                              type: [string, "null"]
+                              format: date-time
+                              description: When a delay-key change takes effect
 
   /device/push-token:
     put:
@@ -741,6 +1060,104 @@ paths:
                   error: { type: string }
                   selfPhoneIds: { type: array, items: { type: string, format: uuid } }
 
+  # ---------------------------------------------------------------- notifications
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: My push subscriptions and muted phones
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webPushEnabled: { type: boolean, description: "False when the server has no VAPID keys" }
+                  webPushPublicKey: { type: [string, "null"], description: "applicationServerKey for PushManager.subscribe" }
+                  offlineAlertHours: { type: number, description: "0 means off" }
+                  subscriptions: { type: array, items: { $ref: "#/components/schemas/PushSubscription" } }
+                  mutedPhoneIds: { type: array, items: { type: string, format: uuid } }
+  /notifications/subscriptions:
+    post:
+      operationId: postNotificationSubscription
+      tags: [notifications]
+      summary: Register this browser or app install
+      description: |
+        `web`: the PushSubscription from the browser. Only the browsers' push services are
+        accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
+        now, sending to them comes with the native apps. Registering an endpoint that belongs
+        to someone else moves it to you (another person signed in on the same device).
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [platform, endpoint, keys]
+                  properties:
+                    platform: { const: web }
+                    endpoint: { type: string, format: uri, maxLength: 2000 }
+                    keys:
+                      type: object
+                      required: [p256dh, auth]
+                      properties:
+                        p256dh: { type: string }
+                        auth: { type: string }
+                    label: { type: string, maxLength: 60 }
+                    replaces:
+                      type: string
+                      maxLength: 2000
+                      description: The endpoint of the subscription this one replaces (sent by the service worker after the browser rotated it). That row is deleted and its label kept.
+                - type: object
+                  required: [platform, token]
+                  properties:
+                    platform: { enum: [apns, fcm] }
+                    token: { type: string, minLength: 16, maxLength: 1024 }
+                    label: { type: string, maxLength: 60 }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PushSubscription" }
+        "400": { description: "Unknown push service or invalid keys" }
+        "409": { description: "Notifications are not set up on this server" }
+  /notifications/subscriptions/{sid}:
+    delete:
+      operationId: deleteNotificationSubscription
+      tags: [notifications]
+      summary: Unregister a browser or app install
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: sid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Gone" }
+  /notifications/test:
+    post:
+      operationId: postNotificationTest
+      tags: [notifications]
+      summary: Send a test notification to my devices (or one of them)
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscriptionId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: How many were sent
+          content:
+            application/json:
+              schema: { type: object, properties: { sent: { type: integer } } }
+        "429": { description: "Too many tests" }
+
   # ---------------------------------------------------------------- household
   /households/{hid}:
     patch:
@@ -863,6 +1280,54 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
+  /phones/enroll:
+    post:
+      operationId: postPhonesEnroll
+      tags: [phones]
+      summary: Add a phone for setup with a provisioning QR code
+      description: |
+        Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
+        token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
+        token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+        iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
+        its hash never reach the server. Rate limited to 30 per day per user.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, profile]
+              properties:
+                name: { type: string, maxLength: 40 }
+                profile: { enum: [child, self] }
+                householdId: { type: string, format: uuid }
+                timezone: { type: string, examples: [Europe/Copenhagen] }
+      responses:
+        "201":
+          description: Phone entry, token and what the QR code needs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Enrollment" }
+        "404": { description: Household not found }
+        "429": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/enrollment:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneEnrollment
+      tags: [phones]
+      summary: New setup token for a phone that is not set up yet
+      description: Replaces earlier tokens for the phone. `409` once the phone is set up.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "201":
+          description: Token and what the QR code needs (no `phone`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Enrollment" }
+        "404": { description: Not found }
+        "409": { description: Already set up }
   /phones/{pid}:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -890,6 +1355,11 @@ paths:
               properties:
                 name: { type: string }
                 locationEnabled: { type: boolean }
+                offlineAlertHours:
+                  type: [integer, "null"]
+                  minimum: 0
+                  maximum: 168
+                  description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
         "200": { description: "Updated phone" }
     delete:
@@ -928,6 +1398,204 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { description: "Core apps cannot be hidden" }
+
+  /phones/{pid}/time-limits:
+    get:
+      operationId: getPhonesTimeLimits
+      tags: [limits]
+      summary: Time limits, today's and tomorrow's bonuses and today's use
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Limits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    oneOf:
+                      - $ref: "#/components/schemas/Limit"
+                      - type: "null"
+                  apps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        packageName: { $ref: "#/components/schemas/PackageName" }
+                        label: { type: string }
+                        limit: { $ref: "#/components/schemas/Limit" }
+                  bonuses: { type: array, items: { $ref: "#/components/schemas/Bonus" } }
+                  used:
+                    description: "`timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null."
+                    oneOf:
+                      - $ref: "#/components/schemas/TimeUsed"
+                      - type: "null"
+  /phones/{pid}/time-limits/total:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    put:
+      operationId: putPhonesTimeLimitsTotal
+      tags: [limits]
+      summary: Set the daily cap for all non-core apps
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+    delete:
+      operationId: deletePhonesTimeLimitsTotal
+      tags: [limits]
+      summary: Remove the daily cap
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/time-limits/apps/{package}:
+    parameters:
+      - { $ref: "#/components/parameters/phoneId" }
+      - { name: package, in: path, required: true, schema: { $ref: "#/components/schemas/PackageName" } }
+    put:
+      operationId: putPhonesTimeLimitsApp
+      tags: [limits]
+      summary: Set a daily limit for one app
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Limit" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { description: "Core apps cannot have a limit" }
+        "404": { description: "The phone has not reported this app" }
+    delete:
+      operationId: deletePhonesTimeLimitsApp
+      tags: [limits]
+      summary: Remove an app's limit
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/time-limits/bonus:
+    post:
+      operationId: postPhonesTimeLimitsBonus
+      tags: [limits]
+      summary: Give extra minutes today (phone time zone)
+      description: Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageName, minutes]
+              properties:
+                packageName: { $ref: "#/components/schemas/LimitTarget" }
+                minutes: { type: integer, minimum: 5, maximum: 240 }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { description: "Core apps cannot have a limit, or the target has no limit" }
+
+  /catalog:
+    get:
+      operationId: getCatalogs
+      tags: [catalog]
+      summary: Countries that have an app catalog (public)
+      security: []
+      responses:
+        "200":
+          description: Countries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    country: { type: string, examples: [dk] }
+                    name: { $ref: "#/components/schemas/Localized" }
+  /catalog/{country}:
+    get:
+      operationId: getCatalog
+      tags: [catalog]
+      summary: One country's app catalog (public)
+      security: []
+      parameters:
+        - { name: country, in: path, required: true, schema: { type: string, examples: [dk] } }
+      responses:
+        "200":
+          description: The catalog file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogFile" }
+        "404": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/catalog:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhonesCatalog
+      tags: [catalog]
+      summary: The phone's catalog with each app's state
+      description: Empty (country null) when no catalog applies to the phone. For now a phone in Europe/Copenhagen gets the Danish catalog.
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  country: { type: [string, "null"] }
+                  categories: { type: array, items: { type: object } }
+                  apps:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/CatalogApp"
+                        - type: object
+                          properties:
+                            state: { enum: [installed-allowed, installed-hidden, requested, none] }
+    post:
+      operationId: postPhonesCatalog
+      tags: [catalog]
+      summary: Add an app from the catalog
+      description: Allows the app and asks the phone to offer it for install. A loosening, so on a Self phone it waits for the key.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageName]
+              properties:
+                packageName: { $ref: "#/components/schemas/PackageName" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "404": { description: "Not in this phone's catalog" }
+  /phones/{pid}/catalog/{package}:
+    delete:
+      operationId: deletePhonesCatalog
+      tags: [catalog]
+      summary: Remove an app added from the catalog
+      description: Hides it and takes it off the install list. Applies at once.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: package, in: path, required: true, schema: { $ref: "#/components/schemas/PackageName" } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
 
   /phones/{pid}/settings:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
@@ -1145,6 +1813,76 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
 
+  /phones/{pid}/notifications:
+    put:
+      operationId: putPhoneNotifications
+      tags: [notifications]
+      summary: Turn my notifications about this phone on or off
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } }
+      responses:
+        "204": { description: "Saved" }
+  /phones/{pid}/requests:
+    get:
+      operationId: getPhoneRequests
+      tags: [phones]
+      summary: Open requests from the phone
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Open requests, oldest first, with the app's name
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PhoneRequest"
+                        - type: object
+                          properties:
+                            phoneId: { type: string, format: uuid }
+                            appLabel: { type: [string, "null"] }
+  /phones/{pid}/requests/{rid}/approve:
+    post:
+      operationId: approvePhoneRequest
+      tags: [phones]
+      summary: Approve a request
+      description: |
+        Applies it as a rule change: the app is shown, or the contact is added. On a Self
+        phone that waits for the key (202). `name` corrects a contact's name.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { name: { type: string, maxLength: 60 } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "409": { description: "No longer open" }
+  /phones/{pid}/requests/{rid}/reject:
+    post:
+      operationId: rejectPhoneRequest
+      tags: [phones]
+      summary: Decline a request
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: "Declined" }
+        "409": { description: "No longer open" }
   /phones/{pid}/location:
     get:
       operationId: getPhonesLocation

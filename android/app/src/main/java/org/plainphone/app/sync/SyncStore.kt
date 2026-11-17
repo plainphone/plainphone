@@ -43,7 +43,25 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
             .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
             .remove(KEY_PAIRING)
+            .remove(KEY_ENROLL)
             .commit()
+    }
+
+    /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
+    fun enrollToken(): String? = prefs.getString(KEY_ENROLL, null)?.let(box::open)
+
+    @SuppressLint("ApplySharedPref") // written during provisioning, before the process may be killed
+    fun saveEnrollToken(token: String?) {
+        prefs.edit().apply { if (token == null) remove(KEY_ENROLL) else putString(KEY_ENROLL, box.seal(token)) }.commit()
+    }
+
+    /** Random id made once per install; lets the server recognise this phone if an answer was lost. */
+    @SuppressLint("ApplySharedPref")
+    fun installId(): String = prefs.getString(KEY_INSTALL_ID, null) ?: run {
+        val bytes = ByteArray(18).also { java.security.SecureRandom().nextBytes(it) }
+        val id = android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+        prefs.edit().putString(KEY_INSTALL_ID, id).commit()
+        id
     }
 
     fun markRemoved() {
@@ -119,6 +137,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_REMOVED = "removed"
         private const val KEY_EVER_PAIRED = "ever_paired"
         private const val KEY_PAIRING = "pairing"
+        private const val KEY_ENROLL = "enroll_token"
+        private const val KEY_INSTALL_ID = "install_id"
         private const val KEY_ETAG = "etag"
         private const val KEY_RULES = "rules"
         private const val KEY_SYNC_AT = "sync_at"

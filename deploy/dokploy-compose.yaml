@@ -2,7 +2,10 @@
 # The hosted service (app.plainphone.org) on Dokploy. Dokploy adds the Traefik
 # route for the domain set in its UI and backs up the db service to object storage.
 # Environment (set in Dokploy, never in git): POSTGRES_PASSWORD, PUBLIC_URL,
-# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN.
+# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN,
+# VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (Web Push; generate with
+# `pnpm --filter @plainphone/server exec tsx src/lib/webpush.ts`), and optionally
+# VAPID_SUBJECT, OFFLINE_ALERT_HOURS, PUSH_EXTRA_HOSTS.
 services:
   db:
     image: postgres:18
@@ -41,6 +44,11 @@ services:
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: dns.plainphone.org
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:privacy@plainphone.org}
+      OFFLINE_ALERT_HOURS: ${OFFLINE_ALERT_HOURS:-12}
+      PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
       # Traefik sits in front, so X-Forwarded-For is trustworthy here.
       TRUST_PROXY: "true"
     expose:

@@ -119,12 +119,14 @@ class MaintenanceActivity : Activity() {
                 }
             })
         }
+        val light = org.plainphone.app.light.Mode.isLight(this)
+        val releaseTitle = if (light) R.string.maintenance_release_light else R.string.maintenance_release
         column.addView(Button(this).apply {
-            text = getString(R.string.maintenance_release)
+            text = getString(releaseTitle)
             setOnClickListener {
                 AlertDialog.Builder(this@MaintenanceActivity)
-                    .setTitle(R.string.maintenance_release)
-                    .setMessage(R.string.maintenance_release_confirm)
+                    .setTitle(releaseTitle)
+                    .setMessage(if (light) R.string.maintenance_release_light_confirm else R.string.maintenance_release_confirm)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(android.R.string.ok) { _, _ -> Lock.releaseAsync(this@MaintenanceActivity, ::show) }
                     .show()

@@ -29,7 +29,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests, lint and APK build
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease
+
+      - name: Smoke test of the minified release APK (R8)
+        working-directory: .
+        run: scripts/smoke-release-apk.sh android/app/build/outputs/apk/release/app-release.apk
 
       - name: QR script tests
         working-directory: .
