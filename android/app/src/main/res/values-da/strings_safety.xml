@@ -32,8 +32,8 @@
     <string name="sharing_open">Hvad kan mine forældre se?</string>
     <string name="sharing_title">Hvad kan mine forældre se?</string>
     <string name="sharing_mode_off">Din forælder kan ikke se, hvor du er. Placering er slået fra.</string>
-    <string name="sharing_mode_find">Din forælder kan kun se, hvor du er, når de trykker Find. Du får en besked hver gang.</string>
-    <string name="sharing_mode_checkin">Din forælder kan se, hvor du er, når de trykker Find, eller hvis du ikke svarer på »Er du okay?« i tide. Du får en besked hver gang.</string>
+    <string name="sharing_mode_find">Din forælder får kun din placering, når de trykker Find, og ser så, hvor du var på det tidspunkt. Du får en besked hver gang.</string>
+    <string name="sharing_mode_checkin">Din forælder får din placering, når de trykker Find, eller hvis du ikke svarer på »Er du okay?« i tide, og ser så, hvor du var på det tidspunkt. Du får en besked hver gang.</string>
     <string name="sharing_mode_always">Din placering deles hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
     <string name="sharing_mode_always_open">Din placering deles hvert 5. minut. Du ser beskeden hele tiden.</string>
     <string name="sharing_only_latest">Din forælder ser kun den seneste placering, aldrig en historik.</string>

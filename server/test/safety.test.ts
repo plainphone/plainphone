@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { locations, safetyRequests } from "../src/db/schema.js";
+import { eq } from "drizzle-orm";
+import { locations, phones, safetyRequests } from "../src/db/schema.js";
 import { alwaysUntil } from "../src/services/safety.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -82,6 +83,11 @@ describe("always, for a while", () => {
     expect(after.mode).toBe("checkin");
     expect(after.alwaysUntil).toBeNull();
     expect((await device.get("/api/device/rules")).json.location.mode).toBe("checkin");
+
+    // An "always" without an end (no code writes one) counts as ended, too.
+    await h.ctx.db.update(phones).set({ locationMode: "always", locationAlwaysUntil: null }).where(eq(phones.id, phoneId));
+    expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
+    expect((await sweep(h.ctx)).alwaysEnded).toBe(1);
   });
 
   it("ends today at the phone's local midnight, and a week after 7 days", () => {

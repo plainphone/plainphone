@@ -67,6 +67,30 @@ class SafetySyncTest {
     }
 
     @Test
+    fun `retries of one Find with an old fix are one line and one notice for the child`() {
+        device.fixAgeMs = 10 * 60_000L // indoors: only an older last-known position
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(device.now)))
+        runner.run("find")
+        repeat(2) {
+            device.now += 60_000L
+            runner.run("retry")
+        }
+        assertThat(api.locations).hasSize(3)
+        assertThat(device.positionsShown).containsExactly("find")
+    }
+
+    @Test
+    fun `always stops at its end time even before the server says so`() {
+        val mode = "always\",\"alwaysUntil\":\"${iso(device.now + 10 * 60_000L)}"
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = mode))
+        runner.run("test")
+        assertThat(api.locations).hasSize(1)
+        device.now += 15 * 60_000L
+        runner.run("after the end")
+        assertThat(api.locations).hasSize(1)
+    }
+
+    @Test
     fun `an unanswered check-in sends one precise position after the deadline, once`() {
         val deadline = device.now + 5 * 60_000L
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))

@@ -152,6 +152,7 @@ object Safety {
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setShowWhen(true)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(sharingPage(context))
             .build()

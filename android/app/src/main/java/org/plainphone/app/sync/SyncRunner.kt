@@ -154,7 +154,9 @@ class SyncRunner(
         val c = rules.checkIn
         val checkIn = c != null && c.sendLocation && now >= c.deadline.toEpochMilli() &&
             c.id != store.locatedCheckInId && !device.checkInAnswered(c.id)
+        // "always" ends at alwaysUntil even if the phone has not heard from the server since.
         val due = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
+            (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
             now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
         if (!find && !checkIn && !due) return
         val fix = device.location(precise = find || checkIn)
@@ -170,7 +172,16 @@ class SyncRunner(
         if (find && fix.recordedAtMs >= requested) store.answeredLocateMs = requested
         // Every position goes to the phone's own log; single ones also get a notice
         // ("always" has its own ongoing one).
-        if (stored) device.positionSent(if (checkIn) "checkin" else if (find) "find" else "always")
+        // One Find is one line and one notice, however many retries it takes to get a fresh fix.
+        if (!stored) return
+        when {
+            checkIn -> device.positionSent("checkin")
+            find -> if (store.shownLocateMs != requested) {
+                store.shownLocateMs = requested
+                device.positionSent("find")
+            }
+            else -> device.positionSent("always")
+        }
     }
 
     private fun reportStatus(token: String) {

@@ -125,6 +125,11 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         get() = prefs.getLong(KEY_LOCATE_ANSWERED, 0L)
         set(v) { prefs.edit().putLong(KEY_LOCATE_ANSWERED, v).apply() }
 
+    /** The Find (its requestedAt) the child was already told about; retries do not repeat it. */
+    var shownLocateMs: Long
+        get() = prefs.getLong(KEY_LOCATE_SHOWN, 0L)
+        set(v) { prefs.edit().putLong(KEY_LOCATE_SHOWN, v).apply() }
+
     var locationAtMs: Long
         get() = prefs.getLong(KEY_LOCATION_AT, 0L)
         set(v) { prefs.edit().putLong(KEY_LOCATION_AT, v).apply() }
@@ -151,6 +156,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_STATUS_HASH = "status_hash"
         private const val KEY_STATUS_AT = "status_at"
         private const val KEY_LOCATE_ANSWERED = "locate_answered"
+        private const val KEY_LOCATE_SHOWN = "locate_shown"
         private const val KEY_LOCATION_AT = "location_at"
         private const val KEY_CHECKIN_LOCATED = "checkin_located"
     }

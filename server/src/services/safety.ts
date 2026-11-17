@@ -55,7 +55,13 @@ export async function expireAlwaysLocation(ctx: Ctx): Promise<string[]> {
   const rows = await ctx.db
     .update(phones)
     .set({ locationMode: ALWAYS_FALLBACK, locationAlwaysUntil: null })
-    .where(and(eq(phones.locationMode, "always"), lte(phones.locationAlwaysUntil, ctx.now())))
+    // No end at all counts as ended: "always" is never open-ended.
+    .where(
+      and(
+        eq(phones.locationMode, "always"),
+        or(isNull(phones.locationAlwaysUntil), lte(phones.locationAlwaysUntil, ctx.now())),
+      ),
+    )
     .returning({ id: phones.id });
   return rows.map((r) => r.id);
 }
