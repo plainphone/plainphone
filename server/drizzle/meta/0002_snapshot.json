@@ -1,5 +1,5 @@
 {
-  "id": "d9c8d662-e0f4-477d-9935-74ed1adc3ef6",
+  "id": "2fcd1660-a503-4dcd-9ccc-ff8965ca92d5",
   "prevId": "b1730335-41ba-4069-8afc-5369c3512262",
   "version": "7",
   "dialect": "postgresql",
@@ -79,6 +79,45 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dns_deletions": {
+      "name": "dns_deletions",
+      "schema": "",
+      "columns": {
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_attempt_at": {
+          "name": "last_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -748,13 +787,6 @@
           "notNull": true,
           "default": true
         },
-        "requested": {
-          "name": "requested",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "reported_at": {
           "name": "reported_at",
           "type": "timestamp with time zone",
@@ -1250,153 +1282,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.time_bonuses": {
-      "name": "time_bonuses",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "package_name": {
-          "name": "package_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "minutes": {
-          "name": "minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "time_bonuses_phone_day_idx": {
-          "name": "time_bonuses_phone_day_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "day",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "time_bonuses_phone_id_phones_id_fk": {
-          "name": "time_bonuses_phone_id_phones_id_fk",
-          "tableFrom": "time_bonuses",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.time_limits": {
-      "name": "time_limits",
-      "schema": "",
-      "columns": {
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "package_name": {
-          "name": "package_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "minutes": {
-          "name": "minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "days": {
-          "name": "days",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "time_limits_phone_id_phones_id_fk": {
-          "name": "time_limits_phone_id_phones_id_fk",
-          "tableFrom": "time_limits",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "time_limits_phone_id_package_name_pk": {
-          "name": "time_limits_phone_id_package_name_pk",
-          "columns": [
-            "phone_id",
-            "package_name"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

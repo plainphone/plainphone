@@ -416,4 +416,23 @@ export const da: Messages = {
 
   "lang.en": "English",
   "lang.da": "Dansk",
+
+  "nav.settings": "Indstillinger",
+  "phone.manage": "Denne telefon",
+  "phone.name": "Navn",
+  "phone.rename": "Omdøb",
+  "phone.remove": "Fjern telefonen",
+  "phone.removeConfirm": "Fjern telefonen? Alt, hvad der er gemt om den, bliver slettet. Telefonen beholder sine sidste regler og sin lås, men får ingen nye regler, og webfilteret stopper, indtil den sættes op igen.",
+  "phone.removeSelfConfirm": "Fjern telefonen? Det løsner reglerne, så det venter først på din nøgle. Derefter bliver alt, hvad der er gemt om den, slettet.",
+  "phone.removeYes": "Ja, fjern",
+  "phone.removed": "Telefonen er fjernet.",
+  "settings.title": "Indstillinger",
+  "settings.account": "Konto",
+  "settings.signedInAs": "Logget ind som {email}",
+  "settings.delete": "Slet min konto",
+  "settings.deleteExplain": "Det sletter din konto med det samme. En husstand, du deler med en anden forælder, bliver hos dem med telefonerne. En husstand, kun du er med i, bliver slettet med sine telefoner: De beholder deres sidste regler og lås, men får ingen nye regler, og webfilteret stopper, indtil de sættes op igen. Det kan ikke fortrydes.",
+  "settings.deleteConfirmLabel": "Skriv din mailadresse for at bekræfte",
+  "settings.deleteYes": "Slet for altid",
+  "settings.deleteSelfFirst": "Fjern først disse telefoner. De har en nøgle, så fjernelsen venter på den. Bagefter kan du slette kontoen.",
+  "login.deleted": "Din konto er slettet.",
 };

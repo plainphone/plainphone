@@ -226,7 +226,17 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete my account
+         * @description Deletes the account. Households shared with another parent stay, with their phones;
+         *     if you owned one, the longest-standing other member becomes the owner. Households
+         *     where you are the only member are deleted with all their phones: those phones get 401
+         *     on their next request and fall back as described in docs/sync-api.md. Refused with 409
+         *     while such a household holds a Self phone; remove those first (through their key).
+         *     Where you are someone's trusted person, their key falls back to the delay.
+         *     See docs/account-deletion.md.
+         */
+        delete: operations["deleteMe"];
         options?: never;
         head?: never;
         /** Change my language */
@@ -1681,6 +1691,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Your own email address, as a confirmation */
+                    confirmEmail: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Deleted. The session cookie is cleared. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        householdsDeleted: number;
+                        phonesRemoved: number;
+                    };
+                };
+            };
+            /** @description confirmEmail does not match */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A household only you belong to holds a Self phone */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error?: string;
+                        selfPhoneIds?: string[];
+                    };
+                };
             };
         };
     };
