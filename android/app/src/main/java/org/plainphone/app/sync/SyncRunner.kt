@@ -215,99 +215,117 @@ class SyncRunner(
             it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until (FIND_RETRY_MS + CLOCK_SLACK_MS)
         }
         val checkIn = rules.checkIn?.takeIf {
-            val due = it.locationDue ?: (now - it.deadline.toEpochMilli() in -CLOCK_SLACK_MS until FIND_RETRY_MS)
-            it.sendLocation && due && it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
+            val age = now - it.deadline.toEpochMilli()
+            it.sendLocation && it.locationDue != false && age in 0 until FIND_RETRY_MS &&
+                it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
         }
-        val findPurpose = requested?.let { "find:$it" }
-        val checkInPurpose = checkIn?.let { "checkin:${it.id}" }
-        val pendingFind = store.pendingLocation()?.takeIf { it.purpose == findPurpose }
-        val pendingCheckIn = store.pendingLocation(checkIn = true)?.takeIf { it.purpose == checkInPurpose }
-        if (pendingFind == null) store.clearPendingLocation(checkIn = false)
-        if (pendingCheckIn == null) store.clearPendingLocation(checkIn = true)
-
-        val find = requested?.takeIf { checkIn == null }
-        val purpose = checkInPurpose ?: findPurpose
-        var pending = if (checkIn != null) pendingCheckIn else pendingFind
-        val fix = if (pending != null) {
-            pending.fix
+        if (checkIn == null) {
+            store.clearPendingLocation(checkIn = true)
         } else {
-            val findAttempt = find?.takeIf {
-                locationAttemptDue(it, maxOf(now, it), store.lastFindAttempt(it))
-            }
-            val checkInAttempt = checkIn?.takeIf {
-                val deadline = it.deadline.toEpochMilli()
-                val retryTime = now.coerceIn(deadline, deadline + FIND_RETRY_MS - 1)
-                locationAttemptDue(deadline, retryTime, store.lastCheckInAttempt(it.id))
-            }
-            if (purpose != null && (findAttempt != null || checkInAttempt != null)) {
-                val position = if (checkInAttempt != null) {
-                    val createdAt = checkInAttempt.createdAt?.toEpochMilli()
+            guarded("report check-in location") {
+                reportRequestedLocation(
+                    token, "checkin:${checkIn.id}", checkIn.deadline.toEpochMilli(), now, checkInId = checkIn.id,
+                ) {
+                    val createdAt = checkIn.createdAt?.toEpochMilli()
                     device.location(precise = true, fresh = true)?.takeIf {
                         createdAt == null || it.recordedAtMs > createdAt
                     }
-                } else {
-                    device.location(precise = true, notBeforeMs = find) ?: device.lastKnownLocation()
                 }
-                if (position == null) {
-                    if (!store.recordLocationAttempts(findAttempt, checkInAttempt?.id, now)) {
-                        Log.w(TAG, "could not record location attempts")
-                    }
-                    Log.w(TAG, "no position available")
-                    return
+            }
+        }
+
+        var attemptedFind = false
+        if (requested == null) {
+            store.clearPendingLocation(checkIn = false)
+        } else {
+            guarded("report Find location") {
+                attemptedFind = true
+                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, device.nowMs()) {
+                    device.location(precise = true, notBeforeMs = requested) ?: device.lastKnownLocation()
                 }
-                val attempt = PendingLocation(position, purpose, now)
-                pending = attempt
-                if (!runCatching { store.savePendingLocation(attempt) }.getOrDefault(false)) {
+            }
+        }
+
+        if (checkIn != null || attemptedFind) return
+        val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
+            (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
+            now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
+        if (!alwaysDue) return
+        // A scheduled report can use the cache during Find backoff without waking GPS.
+        val fix = if (requested != null) {
+            device.cachedCoarseLocation()
+        } else {
+            device.location(precise = false) ?: device.lastKnownLocation()
+        } ?: return
+        val stored = api.reportLocation(token, fix, "always")
+        store.locationAtMs = now
+        if (stored) device.positionSent("always")
+    }
+
+    private fun reportRequestedLocation(
+        token: String,
+        purpose: String,
+        start: Long,
+        now: Long,
+        checkInId: String? = null,
+        lookup: () -> LocationFix?,
+    ): Boolean {
+        val isCheckIn = checkInId != null
+        val find = start.takeUnless { isCheckIn }
+        val lastAttempt = if (checkInId != null) store.lastCheckInAttempt(checkInId) else store.lastFindAttempt(start)
+        fun recordAttempt(at: Long) {
+            if (!store.recordLocationAttempts(find, checkInId, at)) {
+                Log.w(TAG, "could not record location attempt")
+            }
+        }
+
+        val saved = store.pendingLocation(checkIn = isCheckIn)?.takeIf {
+            it.purpose == purpose && (!isCheckIn || it.fix.recordedAtMs >= start)
+        }
+        val pending = if (saved != null) {
+            saved
+        } else {
+            store.clearPendingLocation(checkIn = isCheckIn)
+            if (!locationAttemptDue(start, maxOf(now, start), lastAttempt)) return false
+            val fix = lookup()
+            if (fix == null) {
+                recordAttempt(now)
+                Log.w(TAG, "no position available")
+                return true
+            }
+            PendingLocation(fix, purpose, now).also {
+                if (!runCatching { store.savePendingLocation(it) }.getOrDefault(false)) {
                     Log.w(TAG, "could not save pending position")
                 }
-                position
-            } else {
-                if (checkIn != null) return
-                val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
-                    (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
-                    now - store.locationAtMs >= rules.locationIntervalMinutes * 60_000L
-                if (!alwaysDue) return
-                // A scheduled report can use the cache during Find backoff without waking GPS.
-                if (requested != null) {
-                    device.cachedCoarseLocation()
-                } else {
-                    device.location(precise = false) ?: device.lastKnownLocation()
-                } ?: return
             }
+        }
+        // The child can answer while the location provider is looking for a fix.
+        if (checkInId != null && device.checkInAnswered(checkInId)) {
+            store.clearPendingLocation(checkIn = true)
+            return true
         }
         val stored = try {
-            api.reportLocation(token, fix, pending?.purpose ?: "always")
+            api.reportLocation(token, pending.fix, pending.purpose)
         } catch (e: HttpError) {
-            // An invalid payload cannot succeed on retry. Leave the lookup slot available.
-            if (e.status == 400 && pending != null) store.clearPendingLocation(checkIn = checkIn != null)
+            // A rejected payload cannot succeed on retry. Advance the backoff and clear it together.
+            if (e.status == 400) recordAttempt(now)
             throw e
         }
-        if (pending == null || stored) store.locationAtMs = now
-        if (!stored) return
-        if (pending != null && !store.recordLocationAttempts(
-                find,
-                checkIn?.id,
-                pending.attemptedAtMs,
-            )
-        ) {
-            Log.w(TAG, "could not record location attempts")
-        }
-        if (checkIn != null) store.locatedCheckInId = checkIn.id
-        // Only a fix taken after the parent pressed Find answers it (the server and dashboard
-        // compare the same way). An older last-known position is sent, but the phone keeps trying.
-        val answeredFind = find?.takeIf { pending != null && fix.recordedAtMs >= it }
-        if (answeredFind != null) store.answeredLocateMs = answeredFind
-        // Every position goes to the phone's own log; single ones also get a notice
-        // ("always" has its own ongoing one).
-        // One Find is one line and one notice, however many retries it takes to get a fresh fix.
-        when {
-            checkIn != null -> device.positionSent("checkin")
-            find != null && pending != null -> if (store.shownLocateMs != find) {
-                store.shownLocateMs = find
+        if (!stored) return true
+        store.locationAtMs = now
+        recordAttempt(pending.attemptedAtMs)
+        if (checkInId != null) {
+            store.locatedCheckInId = checkInId
+            device.positionSent("checkin")
+        } else {
+            // An older position is useful to the parent, but leaves Find open.
+            if (pending.fix.recordedAtMs >= start) store.answeredLocateMs = start
+            if (store.shownLocateMs != start) {
+                store.shownLocateMs = start
                 device.positionSent("find")
             }
-            else -> device.positionSent("always")
         }
+        return true
     }
 
     private fun reportStatus(token: String) {

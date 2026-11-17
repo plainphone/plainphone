@@ -213,7 +213,7 @@ describe("are you okay?", () => {
     const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
     const before = await device.get("/api/device/rules");
     expect(before.json.checkIn.locationDue).toBe(false);
-    h.clock.advance(4 * 60_000);
+    h.clock.advance(5 * 60_000);
 
     expect((await device.put("/api/device/location", stale)).status).toBe(409);
     const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
@@ -273,13 +273,13 @@ describe("are you okay?", () => {
     expect(after.checkIn).toBeNull();
   });
 
-  it("completes only Find for a legacy fix taken one minute before the deadline", async () => {
+  it("completes only Find for a legacy fix taken outside the clock slack", async () => {
     const { parent, phoneId, device } = await setup();
     await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
-    h.clock.advance(4 * 60_000);
+    h.clock.advance(2 * 60_000);
     await parent.post(`/api/phones/${phoneId}/locate`);
     const earlyFix = fix(h.clock.now);
-    h.clock.advance(2 * 60_000);
+    h.clock.advance(4 * 60_000);
 
     expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
     expect((await device.put("/api/device/location", earlyFix)).status).toBe(409);
@@ -290,33 +290,64 @@ describe("are you okay?", () => {
     expect(seen.checkin.locatedAt).toBeNull();
   });
 
-  it("accepts a legacy check-in fix already stored at the deadline", async () => {
+  it("accepts an untagged check-in fix from a legacy clock five seconds ahead", async () => {
     const { parent, phoneId, device } = await setup();
-    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always", alwaysFor: "hour" });
-    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
-    h.clock.advance(5 * 60_000 - 1);
-    const deadlineFix = fix(new Date(h.clock.now.getTime() + 1));
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    h.clock.advance(55_000);
+    const deadlineFix = fix(new Date(h.clock.now.getTime() + 5_000));
 
-    expect((await device.put("/api/device/location", { ...deadlineFix, purpose: "always" })).status).toBe(204);
+    expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(false);
     expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
-    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
-    expect((await status()).locatedAt).toBeNull();
-
-    h.clock.advance(1);
-    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
-    expect((await status()).locatedAt).toBe(h.clock.now.toISOString());
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBe(h.clock.now.toISOString());
+    expect(seen.location.recordedAt).toBe(deadlineFix.recordedAt);
   });
 
-  it("can cancel a waiting check-in after its early position arrives", async () => {
+  it("rejects a tagged fix five seconds into a one-minute check-in", async () => {
     const { parent, phoneId, device } = await setup();
-    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
-    h.clock.advance(4 * 60_000);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(5_000);
+    expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(false);
     expect((await device.put("/api/device/location", {
       ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(409);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBeNull();
+    expect(seen.location).toBeNull();
+  });
+
+  it("lets an answer at the deadline win over a concurrent location upload", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    const [answer, upload] = await Promise.all([
+      device.post(`/api/device/safety/${checkin.id}`, { event: "ok" }),
+      device.put("/api/device/location", { ...fix(h.clock.now), purpose: `checkin:${checkin.id}` }),
+    ]);
+    expect(answer.status).toBe(204);
+    expect(upload.status).toBe(409);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "answered", locatedAt: null });
+    expect(seen.location).toBeNull();
+  });
+
+  it("rejects a check-in fix after cancellation even when Find is open", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    await parent.del(`/api/phones/${phoneId}/checkin`);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const requestedAt = h.clock.now.getTime();
+    h.clock.advance(60_000);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(409);
+    expect(await h.ctx.db.select().from(locations)).toHaveLength(0);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `find:${requestedAt}`,
     })).status).toBe(204);
-    const stop = await parent.del(`/api/phones/${phoneId}/checkin`);
-    expect(stop.json.checkin).toMatchObject({ status: "cancelled", locatedAt: expect.any(String) });
-    expect((await device.get("/api/device/rules")).json.checkIn).toBeNull();
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "cancelled", locatedAt: null });
+    expect(seen.location.recordedAt).toBe(h.clock.now.toISOString());
   });
 
   it("sends no position in Find-only mode, and the phone gives up after 30 minutes", async () => {
@@ -398,6 +429,34 @@ describe("notifications to the parents", () => {
     await device.put("/api/device/location", fix(h.clock.now));
     expect(titles().slice(2)).toEqual(["Position of Alma"]);
     expect(h.parentPush.sent.at(-1)!.msg.url).toBe(`/phones/${phoneId}/location`);
+  });
+
+  it("waits for the server deadline before notifying about an early legacy fix", async () => {
+    const { parent, phoneId, device } = await setup();
+    await sub(parent);
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    h.clock.advance(55_000);
+    const deadlineFix = fix(new Date(h.clock.now.getTime() + 5_000));
+    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
+    await sweep(h.ctx);
+    expect(titles()).toEqual([]);
+
+    h.clock.advance(5_000);
+    await sweep(h.ctx);
+    await sweep(h.ctx);
+    expect(titles()).toEqual(["Position of Alma"]);
+  });
+
+  it("does not report no answer when the child answers after an early legacy fix", async () => {
+    const { parent, phoneId, device } = await setup();
+    await sub(parent);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(55_000);
+    expect((await device.put("/api/device/location", fix(new Date(h.clock.now.getTime() + 5_000)))).status).toBe(204);
+    expect((await device.post(`/api/device/safety/${checkin.id}`, { event: "ok" })).status).toBe(204);
+    h.clock.advance(5_000);
+    await sweep(h.ctx);
+    expect(titles()).toEqual([`Alma: "Yes, I'm okay"`]);
   });
 
   it("says no position is coming in Find-only mode, and stays quiet after an answer", async () => {

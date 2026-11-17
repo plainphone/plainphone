@@ -18,7 +18,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { respondWithRules } from "../services/phones.js";
-import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
+import { checkinLocationDue, FIND_WINDOW_MS, legacyCheckinLocationDue, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 export const PAIRING_MINUTES = 15;
@@ -246,7 +246,6 @@ export function deviceRoutes(ctx: Ctx) {
       }),
     );
     if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    const { checkin } = await loadSafety(ctx, phone.id);
     const now = ctx.now();
     const { purpose } = input;
     const recordedAt = new Date(input.recordedAt);
@@ -254,25 +253,44 @@ export function deviceRoutes(ctx: Ctx) {
     const forFind =
       requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
       (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
-    // Legacy clients can answer both requests with one fix taken at or after the deadline.
-    const forCheckin =
-      checkin !== undefined && checkinLocationDue(checkin, phone.locationMode, now) &&
-      (purpose === `checkin:${checkin.id}` ||
-        (purpose === undefined && now >= checkin.endsAt && recordedAt >= checkin.endsAt));
     const always =
       phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
       (purpose === undefined || purpose === "always");
-    if (!always && !forFind && !forCheckin) {
-      return c.json({ error: "no position was asked for" }, 409);
-    }
-    if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
-      return c.json({ error: "recordedAt is in the future" }, 400);
-    }
-    if (forCheckin && recordedAt <= checkin.createdAt) {
-      return c.json({ error: "recordedAt must be after check-in creation" }, 400);
-    }
     const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: now };
-    const first = await ctx.db.transaction(async (tx) => {
+    const result = await ctx.db.transaction(async (tx) => {
+      const [checkin] = purpose === undefined || purpose.startsWith("checkin:")
+        ? await tx.select().from(safetyRequests).where(and(
+            eq(safetyRequests.phoneId, phone.id),
+            eq(safetyRequests.kind, "checkin"),
+          ))
+        : [];
+      const forCheckin = checkin !== undefined && (purpose === undefined
+        ? legacyCheckinLocationDue(checkin, phone.locationMode, now, recordedAt)
+        : purpose === `checkin:${checkin.id}` && checkinLocationDue(checkin, phone.locationMode, now));
+      if (!always && !forFind && !forCheckin) return { status: 409 } as const;
+      if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
+        return { status: 400, error: "recordedAt is in the future" } as const;
+      }
+      if (forCheckin && recordedAt <= checkin.createdAt && !always && !forFind) {
+        return { status: 400, error: "recordedAt must be after check-in creation" } as const;
+      }
+      let located = false;
+      if (forCheckin && recordedAt > checkin.createdAt &&
+          (purpose === undefined || recordedAt >= checkin.endsAt)) {
+        // Win the conditional update before storing a fix authorised only by the check-in.
+        const claimed = await tx
+          .update(safetyRequests)
+          .set({ locatedAt: now })
+          .where(and(
+            eq(safetyRequests.id, checkin.id),
+            isNull(safetyRequests.locatedAt),
+            isNull(safetyRequests.answeredAt),
+            isNull(safetyRequests.stoppedAt),
+          ))
+          .returning({ id: safetyRequests.id });
+        located = claimed.length > 0;
+      }
+      if (!always && !forFind && !located) return { status: 409 } as const;
       // One row per phone (D7). An older fix never overwrites a newer one.
       await tx
         .insert(locations)
@@ -288,19 +306,18 @@ export function deviceRoutes(ctx: Ctx) {
           .set({ locateRequestedAt: null })
           .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
       }
-      if (!forCheckin) return [];
-      return tx
-        .update(safetyRequests)
-        .set({ locatedAt: now })
-        .where(and(
-          eq(safetyRequests.id, checkin.id),
-          isNull(safetyRequests.locatedAt),
-          isNull(safetyRequests.answeredAt),
-          isNull(safetyRequests.stoppedAt),
-        ))
-        .returning({ id: safetyRequests.id });
+      return { status: 204, notifyId: located && checkin && now >= checkin.endsAt ? checkin.id : null } as const;
     });
-    if (first.length) await notifySafety(ctx, phone, "located");
+    if (result.status === 409) return c.json({ error: "no position was asked for" }, 409);
+    if (result.status === 400) return c.json({ error: result.error }, 400);
+    if (result.notifyId) {
+      const [unanswered] = await ctx.db.select({ id: safetyRequests.id }).from(safetyRequests).where(and(
+        eq(safetyRequests.id, result.notifyId),
+        isNull(safetyRequests.answeredAt),
+        isNull(safetyRequests.stoppedAt),
+      ));
+      if (unanswered) await notifySafety(ctx, phone, "located");
+    }
     return c.body(null, 204);
   });
 
@@ -310,28 +327,31 @@ export function deviceRoutes(ctx: Ctx) {
     const { event } = await body(c, z.object({ event: z.enum(["shown", "here", "ok", "call"]) }));
     const rid = z.uuid().safeParse(c.req.param("rid"));
     if (!rid.success) return c.json({ error: "not found" }, 404);
-    const [req] = await ctx.db
-      .select()
-      .from(safetyRequests)
-      .where(and(eq(safetyRequests.id, rid.data), eq(safetyRequests.phoneId, phone.id)));
+    const request = and(eq(safetyRequests.id, rid.data), eq(safetyRequests.phoneId, phone.id));
+    const now = ctx.now();
+    if (event === "shown") {
+      const shown = await ctx.db
+        .update(safetyRequests)
+        .set({ shownAt: now })
+        .where(and(request, isNull(safetyRequests.shownAt)))
+        .returning({ id: safetyRequests.id });
+      if (shown.length) return c.body(null, 204);
+    } else {
+      // Record the answer in one statement so it can win against an in-flight location upload.
+      const first = await ctx.db
+        .update(safetyRequests)
+        .set({ answeredAt: now, answer: event, shownAt: sql`coalesce(${safetyRequests.shownAt}, ${now.toISOString()}::timestamptz)` })
+        .where(and(request, eq(safetyRequests.kind, event === "here" ? "ring" : "checkin"), isNull(safetyRequests.answeredAt)))
+        .returning({ stoppedAt: safetyRequests.stoppedAt });
+      if (first.length) {
+        if (!first[0]!.stoppedAt) await notifySafety(ctx, phone, event);
+        return c.body(null, 204);
+      }
+    }
+    const [req] = await ctx.db.select({ kind: safetyRequests.kind }).from(safetyRequests).where(request);
     if (!req) return c.json({ error: "not found" }, 404);
     if (event !== "shown" && (event === "here") !== (req.kind === "ring")) {
       return c.json({ error: `${event} does not answer a ${req.kind}` }, 400);
-    }
-    const now = ctx.now();
-    if (event === "shown") {
-      await ctx.db
-        .update(safetyRequests)
-        .set({ shownAt: now })
-        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.shownAt)));
-    } else {
-      // The first answer counts. A late answer is still recorded: the parent wants to know.
-      const first = await ctx.db
-        .update(safetyRequests)
-        .set({ answeredAt: now, answer: event, shownAt: req.shownAt ?? now })
-        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.answeredAt)))
-        .returning({ id: safetyRequests.id });
-      if (first.length && !req.stoppedAt) await notifySafety(ctx, phone, event);
     }
     return c.body(null, 204);
   });

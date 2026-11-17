@@ -529,7 +529,7 @@ components:
                 stopOnAnswer: { type: boolean }
                 answered: { type: boolean }
         checkIn:
-          description: An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true, look up a position for this check-in and send it with PUT /device/location. Null means close it.
+          description: An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true and the phone clock has reached `deadline`, look up a position for this check-in and send it with PUT /device/location. Null means close it.
           oneOf:
             - type: "null"
             - type: object
@@ -538,7 +538,7 @@ components:
                 id: { type: string, format: uuid }
                 deadline: { type: string, format: date-time }
                 createdAt: { type: string, format: date-time }
-                locationDue: { type: boolean, description: "Whether the server is accepting a position for this check-in." }
+                locationDue: { type: boolean, description: "True from the reply deadline while the unanswered check-in is waiting for a position." }
                 callNumber: { type: [string, "null"], description: "An approved contact for the \"Call me\" button." }
                 sendLocation: { type: boolean }
         settings:
@@ -920,7 +920,7 @@ paths:
                 recordedAt: { type: string, format: date-time }
                 purpose:
                   type: string
-                  description: "Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. For older clients that omit purpose, an active Find takes precedence. Without an active Find, only a fix recorded at or after the deadline and newer than the saved position can complete a check-in."
+                  description: "Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits purpose, one fix can answer both an active Find and a due check-in. The fix must be recorded at or after the Find request to answer Find. To answer the check-in, both the server time and the fix time must be at or after the deadline minus two minutes, and the fix must be recorded after the check-in was created."
       responses:
         "204": { description: "Stored (or ignored if older than the stored one)" }
         "409": { description: "Location is off for this phone, or no position was asked for; stop reporting." }

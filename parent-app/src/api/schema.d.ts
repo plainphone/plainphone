@@ -1775,7 +1775,7 @@ export interface components {
                 stopOnAnswer: boolean;
                 answered: boolean;
             };
-            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true, look up a position for this check-in and send it with PUT /device/location. Null means close it. */
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true and the phone clock has reached `deadline`, look up a position for this check-in and send it with PUT /device/location. Null means close it. */
             checkIn?: null | {
                 /** Format: uuid */
                 id: string;
@@ -1783,7 +1783,7 @@ export interface components {
                 deadline: string;
                 /** Format: date-time */
                 createdAt?: string;
-                /** @description Whether the server is accepting a position for this check-in. */
+                /** @description True from the reply deadline while the unanswered check-in is waiting for a position. */
                 locationDue?: boolean;
                 /** @description An approved contact for the "Call me" button. */
                 callNumber: string | null;
@@ -2288,7 +2288,7 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
-                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. For older clients that omit purpose, an active Find takes precedence. Without an active Find, only a fix recorded at or after the deadline and newer than the saved position can complete a check-in. */
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits purpose, one fix can answer both an active Find and a due check-in. The fix must be recorded at or after the Find request to answer Find. To answer the check-in, both the server time and the fix time must be at or after the deadline minus two minutes, and the fix must be recorded after the check-in was created. */
                     purpose?: string;
                 };
             };

@@ -84,10 +84,16 @@ export function checkinStatus(r: SafetyRequest, now: Date): CheckinStatus {
 }
 
 /** True while the phone should (still) send its one position for an unanswered check-in. */
-export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationMode, now: Date): boolean {
+export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationMode, now: Date, slackMs = 0): boolean {
   if (!r || r.answeredAt || r.stoppedAt || r.locatedAt || !checkinSendsLocation(mode)) return false;
   const t = now.getTime();
-  return t >= r.endsAt.getTime() - CLOCK_SLACK_MS && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
+  return t >= r.endsAt.getTime() - slackMs && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
+}
+
+/** Older phones omit a purpose and can reach the deadline ahead of the server. */
+export function legacyCheckinLocationDue(r: SafetyRequest, mode: LocationMode, now: Date, recordedAt: Date): boolean {
+  return checkinLocationDue(r, mode, now, CLOCK_SLACK_MS) &&
+    recordedAt.getTime() >= r.endsAt.getTime() - CLOCK_SLACK_MS;
 }
 
 export async function loadSafety(ctx: Ctx, phoneId: string) {
@@ -229,11 +235,23 @@ export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
     const claimed = await ctx.db
       .update(safetyRequests)
       .set({ noReplyNotifiedAt: now })
-      .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.noReplyNotifiedAt)))
+      .where(and(
+        eq(safetyRequests.id, req.id),
+        isNull(safetyRequests.noReplyNotifiedAt),
+        isNull(safetyRequests.answeredAt),
+        isNull(safetyRequests.stoppedAt),
+      ))
       .returning({ id: safetyRequests.id, locatedAt: safetyRequests.locatedAt });
     if (!claimed.length) continue;
     // Already located (the phone was quicker than the sweeper): that push said it all.
-    if (claimed[0]!.locatedAt) continue;
+    const { locatedAt } = claimed[0]!;
+    if (locatedAt && locatedAt >= req.endsAt) continue;
+    if (locatedAt) {
+      // A legacy upload was accepted early because the phone clock was ahead.
+      await notifySafety(ctx, phone, "located");
+      sent++;
+      continue;
+    }
     await notifySafety(ctx, phone, checkinSendsLocation(phone.locationMode) ? "noReplyLocating" : "noReplyNoLocation");
     sent++;
   }

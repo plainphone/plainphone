@@ -71,15 +71,14 @@ A position older than the request leaves Find open. Check-in lookups only accept
 taken during the lookup and after the check-in was created.
 
 Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
-"Are you okay?" uses the same schedule relative to the reply deadline. When the server opens the upload
-window up to two minutes early, the first check-in lookup can use the deadline slot early. Both stop scheduling
-lookups after success or after 30 minutes. A delayed sync runs only the latest due attempt.
+"Are you okay?" uses the same schedule, starting at the reply deadline on the phone's
+clock, and only if the child has yet to answer. Both stop scheduling lookups after
+success or after 30 minutes. A delayed sync runs only the latest due attempt.
 If an upload fails temporarily, the phone keeps the position and retries the upload
 on the next sync while the request is still open. If the server rejects the payload as
-invalid, the phone discards it and can look again without losing a retry slot. A newly due
-check-in takes priority and makes its own lookup. The phone tags each upload with its
-request and keeps pending uploads separately, so Find can resume with its saved position
-after the check-in.
+invalid, the phone discards it and waits for the next retry slot. Find and check-in
+each have their own lookup, purpose tag and pending upload. A check-in with no fix
+does not prevent Find from sending its own fix or last known position.
 Find can start when the phone clock is up to 2 minutes behind, and the phone keeps a pending
 upload for up to 2 extra minutes in case its clock is ahead. Between Find attempts, a due
 `always` report can reuse a cached position that meets the regular age and accuracy limits

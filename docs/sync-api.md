@@ -50,14 +50,20 @@ phone                                      server                         parent
 4. **Location.** Report with `PUT /device/location` (see [location.md](location.md)). Tag each
    upload with `purpose`: `always` for scheduled reports every `location.intervalMinutes`,
    `find:<requestedAt in epoch milliseconds>` for a Find request, or `checkin:<id>` when
-   `checkIn.locationDue` is true. That flag can turn true two minutes before the reply deadline.
-   Start a separate lookup for the check-in and send a fix recorded after `checkIn.createdAt`.
+   `checkIn.locationDue` is true and the phone's clock has reached the unanswered check-in's
+   reply deadline. The server sets that flag from the deadline. Start a separate lookup
+   for the check-in and send a fix recorded after `checkIn.createdAt`.
    Retry a saved upload only for its original request. Any unrequested position gets `409`,
    as does every position when location is off. Each tag answers only its matching request.
-   If an older client omits `purpose`, one fix can answer both an active Find and a due check-in.
-   The fix must be recorded at or after the Find request to answer Find. To answer the check-in,
-   both the server time and the fix time must be at or after the check-in deadline. A fix taken
-   before the deadline can still answer Find.
+
+   Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits
+   purpose, one fix can answer both an active Find and a due check-in. The fix must be recorded at
+   or after the Find request to answer Find. To answer the check-in, both the server time and the
+   fix time must be at or after the deadline minus two minutes, and the fix must be recorded after
+   the check-in was created.
+   The two-minute allowance accounts for clock differences on older phones. The server
+   sends an unanswered check-in notification only after the server deadline, if it still
+   has no answer.
    Phones from before `mode` only know `enabled`; the server sends them
    `intervalMinutes: 1440` outside `always`. After `location.alwaysUntil`, the server refuses
    scheduled reports and the mode becomes `checkin`.

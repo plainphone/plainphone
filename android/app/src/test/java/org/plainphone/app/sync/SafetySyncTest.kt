@@ -37,28 +37,30 @@ class SafetySyncTest {
             (locationDue?.let { ""","locationDue":$it""" } ?: "") + "}"
 
     @Test
-    fun `a permanently rejected Find fix is dropped and the same slot can look again`() {
+    fun `a permanently rejected Find fix consumes its retry slot`() {
         val requested = device.now - 10 * 60_000L
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "find", requestedAt = iso(requested)))
         api.locationFailure = IOException("offline")
         runner.run("save fix before clock correction")
         assertThat(store.pendingLocation()?.fix?.recordedAtMs).isEqualTo(device.now)
 
-        device.now = requested
         api.rules = RulesResult.Unchanged
         api.locationFailure = HttpError(400, "recordedAt is in the future")
         runner.run("reject saved fix")
         assertThat(store.pendingLocation()).isNull()
-        assertThat(store.lastFindAttempt(requested)).isNull()
+        assertThat(store.lastFindAttempt(requested)).isEqualTo(device.now)
 
         api.locationFailure = null
+        runner.run("same slot")
+        assertThat(device.locationRequests).containsExactly(true)
+        device.now = requested + 15 * 60_000L
         runner.run("take a replacement fix")
         assertThat(device.locationRequests).containsExactly(true, true)
-        assertThat(api.locations.single().recordedAtMs).isEqualTo(requested)
+        assertThat(api.locations.single().recordedAtMs).isEqualTo(device.now)
     }
 
     @Test
-    fun `a newly due check-in takes priority over a pending Find fallback`() {
+    fun `a due check-in and pending Find retry their own uploads`() {
         val requested = device.now
         val deadline = requested + 5 * 60_000L
         val fresh = requireNotNull(device.fix)
@@ -72,13 +74,13 @@ class SafetySyncTest {
         assertThat(store.pendingLocation()?.fix).isEqualTo(device.lastKnownFix)
         assertThat(store.pendingLocation()?.purpose).isEqualTo("find:$requested")
 
-        device.now = deadline - 60_000L
+        device.now = deadline
         device.fix = fresh
         api.rules = RulesResult.Changed("\"e2\"", rulesJson(
             locationMode = "checkin", requestedAt = iso(requested),
             checkIn = checkIn(deadline, locationDue = true),
         ))
-        runner.run("check-in is due before its deadline, upload fails")
+        runner.run("check-in is due, uploads fail")
         assertThat(store.pendingLocation()?.purpose).isEqualTo("find:$requested")
         assertThat(store.pendingLocation(checkIn = true)?.purpose).isEqualTo("checkin:$id")
         api.locationFailure = null
@@ -86,16 +88,11 @@ class SafetySyncTest {
         runner = SyncRunner(SyncStore(context, FakeSecretBox()), api, device)
         runner.run("retry the check-in upload after restarting")
         assertThat(device.locationRequests).containsExactly(true, true)
-        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = device.now))
-        assertThat(device.positionsShown).containsExactly("checkin")
+        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = device.now), device.lastKnownFix).inOrder()
+        assertThat(device.positionsShown).containsExactly("checkin", "find").inOrder()
         assertThat(store.answeredLocateMs).isNotEqualTo(requested)
-        assertThat(api.locationPurposes).containsExactly("checkin:$id")
         assertThat(store.locatedCheckInId).isEqualTo(id)
-
-        runner.run("resume Find")
-        assertThat(device.locationRequests).containsExactly(true, true)
         assertThat(api.locationPurposes).containsExactly("checkin:$id", "find:$requested").inOrder()
-        assertThat(api.locations.last()).isEqualTo(device.lastKnownFix)
     }
 
     @Test
@@ -108,9 +105,9 @@ class SafetySyncTest {
         device.lastKnownFix = requireNotNull(store.pendingLocation()).fix
         device.fix = null
         api.locationFailure = null
-        device.now = deadline - 60_000L
+        device.now = deadline
         api.rules = RulesResult.Changed("\"e2\"", rulesJson(
-            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline, locationDue = true),
+            locationMode = "checkin", checkIn = checkIn(deadline, locationDue = true),
         ))
         runner.run("first check-in lookup")
         device.now = deadline + 2 * 60_000L
@@ -254,10 +251,10 @@ class SafetySyncTest {
     }
 
     @Test
-    fun `an early check-in lookup uses the first retry slot`() {
+    fun `check-in lookup waits for the deadline even with an early server flag`() {
         val deadline = device.now + 5 * 60_000L
         device.fix = null
-        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline, locationDue = true)))
         val attempts = (-1..30).filter { minute ->
             device.now = deadline + minute * 60_000L
             val before = device.locationRequests.size
@@ -265,8 +262,27 @@ class SafetySyncTest {
             api.rules = RulesResult.Unchanged
             device.locationRequests.size > before
         }
-        assertThat(attempts).containsExactly(-1, 2, 5, 10, 15).inOrder()
+        assertThat(attempts).containsExactly(0, 2, 5, 10, 15).inOrder()
         assertThat(device.locationRequests).containsExactly(true, true, true, true, true)
+    }
+
+    @Test
+    fun `Find sends its last known fix while a due check-in has no fix`() {
+        val deadline = device.now
+        val requested = deadline - 1_000L
+        val oldFix = requireNotNull(device.fix).copy(recordedAtMs = requested - 1)
+        device.lastKnownFix = oldFix
+        device.fix = null
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested),
+            checkIn = checkIn(deadline, locationDue = true),
+        ))
+        runner.run("both locations due")
+        assertThat(device.freshLocationRequests).containsExactly(true, false).inOrder()
+        assertThat(api.locationPurposes).containsExactly("find:$requested")
+        assertThat(api.locations).containsExactly(oldFix)
+        assertThat(store.lastCheckInAttempt(id)).isEqualTo(deadline)
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
     }
 
     @Test
