@@ -69,6 +69,13 @@ object Lock {
         check(result?.ok != false) { result?.detail ?: "Android could not apply the install restriction" }
     }
 
+    fun <T> createUpdateSession(context: Context, create: () -> T): T = synchronized(APPLY_LOCK) {
+        check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
+        // Android checks DISALLOW_INSTALL_APPS when creating the session. Keep the
+        // restriction in place while writing, committing and waiting for its result.
+        InstallLease.android(context).hold(InstallLease.SELF_UPDATE, 10_000L, create)
+    }
+
     fun recoverInstallAsync(context: Context, reason: String = "recover install restriction", done: () -> Unit = {}) {
         runInstallRecovery(done) { recoverInstall(context, reason) }
     }

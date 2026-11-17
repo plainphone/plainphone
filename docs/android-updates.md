@@ -33,25 +33,32 @@ and inspecting the APK in strong mode. Light mode needs metadata to offer an upd
 
 Strong mode checks the installed package name, exact current signer set, and strictly
 increasing version code before asking Android to install. When supplied, the file hash and
-version code must also match the metadata. A shared policy leaves installs open while a valid
-catalog or self-update window exists. Replacing Plainphone ends the self-update window
-and preserves an approved Play Store window until its original deadline or install completion.
+version code must also match the metadata. Android checks the restriction when
+[creating a PackageInstaller session](https://android.googlesource.com/platform/frameworks/base/+/android-15.0.0_r1/services/core/java/com/android/server/pm/PackageInstallerService.java).
+Plainphone lifts it only for that call, with a ten-second
+recovery deadline, and restores it synchronously before writing or committing the APK.
+A separate approved Play Store window can keep installs open until its own deadline or
+install completion, including across a Plainphone update on the same boot.
 
 ### Restoring the install restriction
 
 | Trigger | What it covers |
 | --- | --- |
 | Before opening a window | Strong mode requires an exact elapsed-time alarm. Every window also queues persistent expiry work without a network constraint. If either step fails, Plainphone refuses the window. A refused catalog request does not use a daily slot. |
-| PackageInstaller result | Both success and failure close the lease for that session, even if the original process is gone. A result for an older session cannot close a newer lease. |
+| Session creation returns or throws | The restriction is restored synchronously in either case. A newly created session is abandoned if the restriction cannot be restored. |
+| PackageInstaller result | Both success and failure close any matching session-bound lease left by an older build. A result for an older session cannot close a newer lease. |
 | App start, boot, or package replacement | A restarted process recovers abandoned leases immediately. Reboot invalidates all leases. Package replacement invalidates the self-update lease and can preserve a still-valid catalog lease on the same boot. |
 | Exact alarm and expiry work | The alarm targets the original deadline. The independent WorkManager job can recover the restriction if Doze delays the alarm or Android cancels it after exact-alarm access is revoked. It also works offline. |
 | Sync, update, enrollment, and policy runs | These check expired leases before ordinary work can skip the policy, including when the phone is unpaired, the update check is throttled, or the policy configuration is unchanged. |
 
-Android can defer alarms and WorkManager jobs. If Android prevents all app code from
-running, the device policy cannot change until another recovery entry point runs. The
-elapsed-time deadline is checked whenever Plainphone can run. If an approved catalog
-window is still active, the shared restriction stays lifted until that window ends.
-See [Android's alarm scheduling limits](https://developer.android.com/develop/background-work/services/alarms#exact-alarm-permission).
+Android can defer alarms and WorkManager jobs. If the process dies during session
+creation and Android delays or cancels recovery, the device policy cannot change until
+another recovery entry point runs. The ten-second deadline determines when a lease
+expires. It cannot guarantee when Android will let Plainphone restore the restriction.
+If an approved catalog window is still active, the shared restriction stays lifted until
+that window ends.
+See [Android's alarm scheduling limits](https://developer.android.com/develop/background-work/services/alarms#exact-alarm-permission)
+and [Doze behavior](https://developer.android.com/training/monitoring-device-state/doze-standby#understand_doze).
 
 ### Checking for releases
 
@@ -74,13 +81,16 @@ offered version or a newer one clears the prompt.
    WorkManager check (Android may defer background work). Confirm the dashboard reports
    the new installed version and Android again blocks ordinary app installation. This
    tests the automatic path without a PC, ADB, or a manual update on the phone.
+   This also validates that the device accepts writes and commit after Plainphone
+   restores the restriction, as expected from Android's session creation check.
 4. On a phone still running the first self-updating build, request **Update now** in the
    dashboard. Confirm it updates through the direct connection or the next rules sync and that the restriction is
    restored. Repeat with an approved catalog install overlapping an update. Confirm Play
    stays available after Plainphone restarts and the restriction returns once the catalog
    install finishes or its original window expires.
-5. In strong mode, revoke **Alarms & reminders** during a test install and leave the
-   phone offline. Confirm that the restriction returns through the installer result or
-   expiry work. Repeat while the phone is idle and record when Android delivers recovery.
+5. To exercise recovery when an alarm is canceled, open an approved catalog window in
+   strong mode, revoke **Alarms & reminders**, and leave the phone offline. Record when
+   Android delivers the expiry work. Also verify that opening Plainphone after the
+   deadline restores the restriction if the job was deferred.
 6. In light mode, check that the newer version produces an update notification and that
    the installed version stays the same until the user chooses to install it.

@@ -54,7 +54,7 @@ object SelfUpdate {
 
     fun updater(context: Context): SelfUpdater {
         val app = context.applicationContext
-        return SelfUpdater(AndroidUpdateHost(app), PrefsUpdateStateStore(app), InstallLease.android(app))
+        return SelfUpdater(AndroidUpdateHost(app), PrefsUpdateStateStore(app))
     }
 
     fun onStart(context: Context) {

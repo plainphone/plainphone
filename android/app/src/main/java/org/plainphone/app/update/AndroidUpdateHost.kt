@@ -90,10 +90,15 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
             setSize(apk.length())
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
+        var createdSession: Int? = null
         val sessionId = try {
-            installer.createSession(params)
-        } catch (e: SecurityException) {
-            return "Android refused the install session: ${e.message}"
+            org.plainphone.app.Lock.createUpdateSession(context) {
+                installer.createSession(params).also { createdSession = it }
+            }
+        } catch (e: Exception) {
+            // Session creation may have succeeded before reapplying the restriction failed.
+            createdSession?.let { runCatching { installer.abandonSession(it) } }
+            return "could not open and relock the install session: ${e.message}"
         }
         val waiter = UpdateReceiver.expect(sessionId)
         var succeeded = false
@@ -103,7 +108,6 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
-                InstallLease.android(context).bindSession(sessionId)
                 session.commit(UpdateReceiver.statusIntent(context, sessionId).intentSender)
             }
             // On success Android usually kills this process before the answer arrives.

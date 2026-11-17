@@ -63,9 +63,41 @@ class UpdateTest {
             override fun install(apk: File): String? = error("partial APK reached installation")
             override fun promptUpdate(latest: ReleaseInfo) = error("unexpected light-mode prompt")
         }
-        val outcome = SelfUpdater(host, store, f.lease).run(force = true)
+        val outcome = SelfUpdater(host, store).run(force = true)
         assertTrue((outcome as SelfUpdater.Outcome.Failed).why.contains("after 2 of 3 bytes"))
         assertEquals(SelfUpdater.STATE_FAILED, store.report?.state)
+        assertTrue(dir.listFiles()!!.isEmpty())
+        assertTrue(f.alarms.isEmpty())
+        assertTrue(f.restricted)
+    }
+
+    @Test fun verifiedApkReachesTheInstallerWithTheRestrictionStillSet() {
+        val f = Fixture()
+        val dir = files.newFolder()
+        val store = object : UpdateStateStore {
+            override var installingVersionCode = 0L
+            override var lastCheckMs = 0L
+            override var handledRequestMs = 0L
+            override var report: UpdateReport? = null
+        }
+        val host = object : UpdateHost {
+            override fun nowMs() = 100L
+            override fun installed() = installed
+            override fun isDeviceOwner() = true
+            override fun inMaintenance() = false
+            override fun downloadAllowed() = true
+            override fun fetchLatest(): ReleaseInfo? = null
+            override fun fallbackUrl() = "https://example.org/app.apk"
+            override fun download(url: String, sha256: String?) = File(dir, "update.apk").apply { writeText("verified by the fake inspector") }
+            override fun inspect(apk: File): ApkInfo = installed.copy(versionCode = installed.versionCode + 1)
+            override fun install(apk: File): String? {
+                assertTrue(f.restricted)
+                return null
+            }
+            override fun promptUpdate(latest: ReleaseInfo) = error("unexpected light-mode prompt")
+        }
+        val outcome = SelfUpdater(host, store).run(force = true)
+        assertTrue(outcome is SelfUpdater.Outcome.Installed)
         assertTrue(dir.listFiles()!!.isEmpty())
         assertTrue(f.alarms.isEmpty())
         assertTrue(f.restricted)

@@ -81,11 +81,6 @@ class InstallLease(
 
     fun isOpen(holder: String): Boolean = holder in valid()
 
-    fun bindSession(sessionId: Int) = synchronized(LOCK) {
-        val lease = checkNotNull(valid()[SELF_UPDATE]) { "Self-update install window closed" }
-        store.save(store.load() + (SELF_UPDATE to lease.copy(sessionId = sessionId)))
-    }
-
     fun finishSession(sessionId: Int) {
         synchronized(LOCK) {
             if (store.load()[SELF_UPDATE]?.sessionId != sessionId) return

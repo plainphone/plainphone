@@ -44,6 +44,7 @@ object InstallWindow {
         // Tapping again does not extend an open window, or Play could be kept open for good.
         // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
         synchronized(this) {
+            if (isInstalled(app, packageName)) return
             if (current(app) != packageName) {
                 val day = java.time.LocalDate.now().toString()
                 val p = prefs(app)
@@ -62,17 +63,19 @@ object InstallWindow {
                 try {
                     check(p.edit().putString("pkg", packageName)
                         .putLong("until", System.currentTimeMillis() + WINDOW_MS)
-                        .putString("day", day).putInt("windows", used + 1).commit())
+                        .commit())
                     Lock.applyForInstall(app, "install window for $packageName", catalogChanged = true)
+                    if (current(app) != packageName) {
+                        close(app, "catalog target is no longer eligible", packageName)
+                        return
+                    }
+                    if (!p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
+                        p.edit().putString("day", previousDay).putInt("windows", previousCount).apply()
+                        error("Could not save the catalog quota")
+                    }
                 } catch (e: Exception) {
                     Log.w("Plainphone", "catalog install window failed", e)
-                    p.edit().remove("pkg").remove("until")
-                        .putString("day", previousDay).putInt("windows", previousCount).apply()
-                    try {
-                        lease.invalidate(InstallLease.CATALOG)
-                    } finally {
-                        Lock.recoverInstallAsync(app)
-                    }
+                    close(app, "catalog install window failed", packageName)
                     return
                 }
             }

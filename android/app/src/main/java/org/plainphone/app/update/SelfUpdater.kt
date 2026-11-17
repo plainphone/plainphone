@@ -122,7 +122,6 @@ interface UpdateStateStore {
 class SelfUpdater(
     private val host: UpdateHost,
     private val store: UpdateStateStore,
-    private val lease: InstallLease,
 ) {
     sealed interface Outcome {
         data class Skipped(val why: String) : Outcome
@@ -189,10 +188,9 @@ class SelfUpdater(
             if (host.inMaintenance()) return Outcome.Skipped("maintenance unlock")
             store.report = UpdateReport(STATE_INSTALLING, null, now, candidate.versionName)
             store.installingVersionCode = candidate.versionCode
-            // On success Android replaces the app and usually kills this process inside install();
-            // the lease is then invalid (new versionCode) and MY_PACKAGE_REPLACED applies the lock.
+            // On success Android usually kills this process; the next startup reconciles the version.
             val error = try {
-                lease.hold(InstallLease.SELF_UPDATE, INSTALL_LEASE_MS) { host.install(apk) }
+                host.install(apk)
             } catch (e: Exception) {
                 e.message ?: e.javaClass.simpleName
             }
@@ -213,7 +211,6 @@ class SelfUpdater(
     companion object {
         /** A full check about once a day; the periodic worker runs more often and skips until then. */
         const val CHECK_EVERY_MS = 24 * 60 * 60_000L
-        private const val INSTALL_LEASE_MS = 6 * 60_000L
         const val STATE_UP_TO_DATE = "upToDate"
         const val STATE_INSTALLING = "installing"
         const val STATE_PROMPTED = "prompted"

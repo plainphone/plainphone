@@ -11,7 +11,7 @@ import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.WorkManager
-import androidx.work.workDataOf
+import androidx.work.WorkInfo
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import java.time.Duration
@@ -20,6 +20,9 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.Lock
+import org.plainphone.app.PlainphoneApplication
+import org.plainphone.app.RelockReceiver
 import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.catalog.InstallWindow
 import org.robolectric.RobolectricTestRunner
@@ -69,12 +72,47 @@ class UpdateAlarmTest {
         assertEquals(1, prefs.getInt("windows", 0))
     }
 
+    @Test fun alreadyInstalledCatalogTargetDoesNotConsumeTheLastSlot() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
+        prefs.edit().putString("day", java.time.LocalDate.now().toString())
+            .putInt("windows", InstallWindow.MAX_PER_DAY - 1).apply()
+
+        InstallWindow.open(context, context.packageName)
+        assertEquals(InstallWindow.MAX_PER_DAY - 1, prefs.getInt("windows", 0))
+        assertFalse(InstallLease.android(context).isOpen(InstallLease.CATALOG))
+
+        InstallWindow.open(context, "org.example.approved")
+        assertEquals("org.example.approved", InstallWindow.current(context))
+        assertEquals(InstallWindow.MAX_PER_DAY, prefs.getInt("windows", 0))
+    }
+
+    @Test fun sessionCreationRestoresTheRestrictionOnReturnAndFailure() {
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        val id = Lock.createUpdateSession(context) {
+            assertFalse(installsRestricted())
+            42
+        }
+        assertEquals(42, id)
+        assertRecovered()
+
+        assertThrows(SecurityException::class.java) {
+            Lock.createUpdateSession(context) {
+                assertFalse(installsRestricted())
+                throw SecurityException("Android refused the session")
+            }
+        }
+        assertRecovered()
+    }
+
     @Test fun installerSuccessAndFailureRestoreTheRestrictionWithoutAnAlarm() {
         val lease = InstallLease.android(context)
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         for ((id, status) in listOf(PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE).withIndex()) {
             lease.acquire(InstallLease.SELF_UPDATE, 360_000L)
-            lease.bindSession(id)
+            // A session opened by the previous implementation can still report a result.
+            val record = leasePrefs.getString(InstallLease.SELF_UPDATE, null)
+            leasePrefs.edit().putString(InstallLease.SELF_UPDATE, "$record$id").apply()
             assertFalse(installsRestricted())
 
             val stale = UpdateReceiver.expect(id + 100)
@@ -98,28 +136,111 @@ class UpdateAlarmTest {
     }
 
     @Test fun deadlineWorkRecoversAfterExactAlarmAccessIsLost() {
-        openSelfUpdateAndReachDeadline()
-        val work = WorkManager.getInstance(context)
-            .getWorkInfosByTag(InstallRecoveryWorker::class.java.name).get(5, TimeUnit.SECONDS)
-        assertEquals(1, work.size)
-        val worker = TestListenableWorkerBuilder<InstallRecoveryWorker>(context)
-            .setInputData(workDataOf(InstallRecoveryWorker.KEY_HOLDER to InstallLease.SELF_UPDATE))
-            .build()
-        assertEquals(ListenableWorker.Result.success(), worker.doWork())
+        val before = System.currentTimeMillis()
+        openSelfUpdate()
+        val manager = WorkManager.getInstance(context)
+        val work = manager.getWorkInfosByTag(InstallRecoveryWorker::class.java.name)
+            .get(5, TimeUnit.SECONDS).single()
+        assertEquals(WorkInfo.State.ENQUEUED, work.state)
+        assertTrue(work.nextScheduleTimeMillis in (before + 360_000L)..(System.currentTimeMillis() + 360_000L))
+        reachDeadlineWithoutAlarm()
+        checkNotNull(WorkManagerTestInitHelper.getTestDriver(context)).setInitialDelayMet(work.id)
+        assertEquals(WorkInfo.State.SUCCEEDED, manager.getWorkInfoById(work.id).get(5, TimeUnit.SECONDS)?.state)
         assertTrue(installsRestricted())
     }
 
+    @Test fun applicationStartupRecoversAnAbandonedLease() {
+        openSelfUpdate()
+        markLeaseFromAnotherProcess()
+        val application = PlainphoneApplication()
+        org.robolectric.util.ReflectionHelpers.callInstanceMethod<Unit>(
+            application, "attach",
+            org.robolectric.util.ReflectionHelpers.ClassParameter.from(Context::class.java, context),
+        )
+        application.onCreate()
+        awaitRecovery()
+        assertRecovered()
+    }
+
+    @Test fun bootAndPackageReplacementRecoverAbandonedLeases() {
+        for (action in listOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED)) {
+            openSelfUpdate()
+            markLeaseFromAnotherProcess()
+            val receiver = RelockReceiver()
+            context.registerReceiver(receiver, android.content.IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+            try {
+                context.sendBroadcast(Intent(action))
+                shadowOf(android.os.Looper.getMainLooper()).idle()
+                awaitRecovery()
+                assertRecovered()
+            } finally {
+                context.unregisterReceiver(receiver)
+            }
+        }
+    }
+
+    private val leasePrefs get() = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
+
+    private fun markLeaseFromAnotherProcess() {
+        val parts = checkNotNull(leasePrefs.getString(InstallLease.SELF_UPDATE, null)).split(',').toMutableList()
+        parts[3] = "previous-process"
+        leasePrefs.edit().putString(InstallLease.SELF_UPDATE, parts.joinToString(",")).apply()
+    }
+
+    private fun awaitRecovery() {
+        // Queue a no-op behind recovery on Lock's executor.
+        val done = java.util.concurrent.CountDownLatch(1)
+        Lock.onInstallResult(context, -1) { done.countDown() }
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+    }
+
+    private fun assertRecovered() {
+        assertTrue(installsRestricted())
+        assertFalse(leasePrefs.contains(InstallLease.SELF_UPDATE))
+    }
+
     @Test fun unpairedSyncRecoversBeforeItCanSkipPolicy() {
-        openSelfUpdateAndReachDeadline()
+        openSelfUpdate()
+        reachDeadlineWithoutAlarm()
         val worker = TestListenableWorkerBuilder<SyncWorker>(context).build()
         assertEquals(ListenableWorker.Result.success(), worker.doWork())
         assertTrue(installsRestricted())
     }
 
-    private fun openSelfUpdateAndReachDeadline() {
+    @Test fun updateEnrollmentAndPolicyRecoverBeforeTheirEarlyReturns() {
+        val recoveries = listOf<() -> Unit>(
+            {
+                PrefsUpdateStateStore(context).lastCheckMs = System.currentTimeMillis()
+                TestListenableWorkerBuilder<UpdateWorker>(context).build().doWork()
+            },
+            { TestListenableWorkerBuilder<org.plainphone.app.sync.EnrollWorker>(context).build().doWork() },
+            { Lock.applyIfNeeded(context, "test policy run", Long.MAX_VALUE) },
+        )
+        for (recover in recoveries) {
+            openSelfUpdate()
+            reachDeadlineWithoutAlarm()
+            recover()
+            assertRecovered()
+        }
+    }
+
+    @Test fun scheduledAlarmBroadcastRestoresTheRestriction() {
+        openSelfUpdate()
+        val alarm = alarms.scheduledAlarms.single()
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(6))
+        alarms.fireAlarm(alarm)
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        awaitRecovery()
+        assertRecovered()
+    }
+
+    private fun openSelfUpdate() {
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         InstallLease.android(context).acquire(InstallLease.SELF_UPDATE, 360_000L)
         assertFalse(installsRestricted())
+    }
+
+    private fun reachDeadlineWithoutAlarm() {
         UpdateReceiver.cancelLeaseExpiry(context, InstallLease.SELF_UPDATE)
         ShadowAlarmManager.setCanScheduleExactAlarms(false)
         ShadowSystemClock.advanceBy(Duration.ofMinutes(6))
