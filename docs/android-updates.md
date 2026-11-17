@@ -59,6 +59,15 @@ recovery still depends on Android delivering an alarm or restarting the app afte
 process death and accepting its policy write. If an approved catalog window remains
 active, the shared restriction stays lifted until that window ends.
 
+The ten-second self-update deadline is a recovery target. Android can suspend or kill
+the process and delay the recovery triggers. During a delayed self-update window, a
+child could attempt a separate install if they already had an APK ready and timed the
+attempt to coincide with that window. Plainphone records a late relock when it happens
+more than 30 seconds after the deadline, or when startup or boot recovers an expired
+lease. The latest incident survives restarts and appears on the phone's dashboard page
+and in the parent app after the next successful sync. Across a reboot, the delay is
+estimated from the phone's wall clock.
+
 See [Android's Doze documentation](https://developer.android.com/training/monitoring-device-state/doze-standby#support_for_other_use_cases)
 and [AOSP's alarm permission handling](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-15.0.0_r1/apex/jobscheduler/service/java/com/android/server/alarm/AlarmManagerService.java).
 

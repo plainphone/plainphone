@@ -33,6 +33,11 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowSystemClock
+import org.plainphone.app.sync.FakeSecretBox
+import org.plainphone.app.sync.FakeSyncApi
+import org.plainphone.app.sync.FakeSyncDevice
+import org.plainphone.app.sync.SyncRunner
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.SyncWorker
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlarmManager
@@ -260,8 +265,9 @@ class UpdateAlarmTest {
         for ((id, status) in listOf(PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE).withIndex()) {
             withWatchdog { lease.acquire(InstallLease.SELF_UPDATE, 360_000L) }
             // A session opened by the previous implementation can still report a result.
-            val record = leasePrefs.getString(InstallLease.SELF_UPDATE, null)
-            leasePrefs.edit().putString(InstallLease.SELF_UPDATE, "$record$id").apply()
+            val record = checkNotNull(leasePrefs.getString(InstallLease.SELF_UPDATE, null))
+            val legacy = record.split(',').take(4) + id.toString()
+            leasePrefs.edit().putString(InstallLease.SELF_UPDATE, legacy.joinToString(",")).apply()
             assertFalse(installsRestricted())
 
             val stale = UpdateReceiver.expect(id + 100)
@@ -296,6 +302,51 @@ class UpdateAlarmTest {
         checkNotNull(WorkManagerTestInitHelper.getTestDriver(context)).setInitialDelayMet(work.id)
         assertEquals(WorkInfo.State.SUCCEEDED, manager.getWorkInfoById(work.id).get(5, TimeUnit.SECONDS)?.state)
         assertTrue(installsRestricted())
+    }
+
+    @Test fun delayedRelockIsIncludedInTheNextStatusReport() {
+        restoreOverdueLease(overrunMs = 45_000)
+        Lock.recoverInstall(context)
+        assertRecovered()
+        assertReportedOverrun(45)
+    }
+
+    @Test fun startupReportsAnExpiredLeaseEvenWithinTheGracePeriod() {
+        restoreOverdueLease(overrunMs = 5_000, previousProcess = true)
+        Lock.recoverInstall(context)
+        assertRecovered()
+        assertReportedOverrun(5)
+    }
+
+    @Test fun rebootUsesThePersistedDeadlineWhenElapsedTimeStartsOver() {
+        restoreOverdueLease(overrunMs = 4_001, previousBoot = true)
+        Lock.recoverInstall(context)
+        assertRecovered()
+        assertReportedOverrun(5)
+    }
+
+    private fun restoreOverdueLease(overrunMs: Long, previousProcess: Boolean = false, previousBoot: Boolean = false) {
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
+        val env = AndroidLeaseEnv(context)
+        // Simulate recovery after Android delayed delivery, with no watchdog or alarm queued.
+        val elapsedDeadline = if (previousBoot) env.nowMs() + 60_000L else env.nowMs() - overrunMs
+        val boot = if (previousBoot) env.bootCount() - 1 else env.bootCount()
+        val process = if (previousProcess || previousBoot) "previous-process" else env.processId()
+        val record = "$elapsedDeadline,$boot,0,$process,,${env.wallNowMs() - overrunMs},false"
+        assertTrue(leasePrefs.edit().putString(InstallLease.SELF_UPDATE, record).commit())
+        val dpm = context.getSystemService(DevicePolicyManager::class.java)
+        dpm.clearUserRestriction(PlainphoneAdminReceiver.component(context), UserManager.DISALLOW_INSTALL_APPS)
+        assertFalse(installsRestricted())
+    }
+
+    private fun assertReportedOverrun(seconds: Long) {
+        val store = SyncStore(context, FakeSecretBox())
+        store.savePaired("phone", "pp_d_token")
+        val api = FakeSyncApi()
+        SyncRunner(store, api, FakeSyncDevice()).run("after install recovery")
+        val status = api.statuses.single()
+        assertEquals(listOf("install window overran: ${seconds}s"), status.failedPolicies)
+        assertTrue(status.lockIntact)
     }
 
     @Test fun applicationStartupRecoversAnAbandonedLease() {

@@ -252,6 +252,7 @@ class SyncRunner(
 
     private fun reportStatus(token: String) {
         val lock = device.lockState()
+        val overrun = store.installWindowOverrun().takeIf { lock.mode == "strong" }
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
@@ -260,7 +261,8 @@ class SyncRunner(
             deviceOwner = lock.deviceOwner,
             lockIntact = lock.intact,
             maintenance = lock.maintenance,
-            failedPolicies = lock.failedPolicies,
+            failedPolicies = if (overrun == null) lock.failedPolicies
+                else listOf("install window overran: ${overrun.seconds}s") + lock.failedPolicies,
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
@@ -272,7 +274,8 @@ class SyncRunner(
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
-        val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null).toString())
+        val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
+        val hash = sha256(comparable.toString() + (overrun?.sequence?.let { ":$it" } ?: ""))
         val now = device.nowMs()
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)

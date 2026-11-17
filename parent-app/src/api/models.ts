@@ -4,6 +4,8 @@
 // each endpoint come from the generated src/api/schema.d.ts (pnpm gen:api); these are
 // the narrower shapes the screens work with.
 
+import type { components } from "./schema";
+
 export type Locale = "en" | "da";
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
@@ -32,6 +34,7 @@ export interface Phone {
   dnsHost: string;
   dnsSynced: boolean;
   hasLocation: boolean;
+  status?: components["schemas"]["PhoneStatus"] | null;
 }
 export interface App {
   packageName: string;

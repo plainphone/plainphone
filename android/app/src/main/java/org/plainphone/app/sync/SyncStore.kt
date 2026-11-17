@@ -13,7 +13,10 @@ import android.util.Log
  * and keep applying while the server cannot be reached.
  */
 class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox()) {
-    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val app = context.applicationContext
+    private val prefs: SharedPreferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    internal fun installWindowOverrun() = org.plainphone.app.update.InstallLease.latestOverrun(app)
 
     // --- Pairing -----------------------------------------------------------------
 

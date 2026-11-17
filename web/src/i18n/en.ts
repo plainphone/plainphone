@@ -125,6 +125,7 @@ export const en = {
   "phone.lockIntact": "Lock intact",
   "phone.lockBroken": "Lock not intact",
   "phone.lockFailed": "These lock steps failed: {steps}",
+  "phone.installWindowOverrun": "The phone relocked app installation {seconds} s after the deadline.",
   "phone.maintenance": "Maintenance unlock running",
   "phone.battery": "Battery {pct}\u00a0%",
   "phone.charging": "charging",

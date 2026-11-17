@@ -16,7 +16,7 @@ import {
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
-import { formatDateTime, formatDuration, formatList, formatRelative } from "../lib/format";
+import { formatDateTime, formatDuration, formatList, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { PhoneAppVersion } from "./PhoneAppVersion";
@@ -303,6 +303,9 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
 function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
+  const failures = s?.failedPolicies ?? [];
+  const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
+  const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
   const when = (iso: string) => formatRelative(iso, now, locale);
   // Last time the phone fetched its rules (the server sees every poll); rulesAppliedAt is only the last lock run.
   const syncedAt = phone.lastSeenAt;
@@ -315,11 +318,16 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
             <div className="notice notice-error" role="status">
               <div>
                 <p className="row-title">{t("phone.lockBroken")}</p>
-                {s.failedPolicies.length > 0 && (
-                  <p>{t("phone.lockFailed", { steps: formatList(s.failedPolicies, locale) })}</p>
+                {failedSteps.length > 0 && (
+                  <p>{t("phone.lockFailed", { steps: formatList(failedSteps, locale) })}</p>
                 )}
               </div>
             </div>
+          )}
+          {overrun !== undefined && (
+            <p className="notice notice-warn" role="status">
+              {t("phone.installWindowOverrun", { seconds: overrun })}
+            </p>
           )}
           {s.maintenance && (
             <p className="notice notice-warn" role="status">
