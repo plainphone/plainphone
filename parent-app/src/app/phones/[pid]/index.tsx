@@ -213,7 +213,11 @@ function Overview() {
             <Text variant="muted">{t("phone.attLastFailedAt", { when: formatRelative(phone.attestation.lastFailedAt, now, locale) })}</Text>
           ) : null}
           {phone.attestation?.checkedAt ? (
-            <Text variant="muted">{t("phone.attCheckedAt", { when: formatRelative(phone.attestation.checkedAt, now, locale) })}</Text>
+            <Text variant="muted">
+              {t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", {
+                when: formatRelative(phone.attestation.checkedAt, now, locale),
+              })}
+            </Text>
           ) : null}
         </VStack>
       ) : null}

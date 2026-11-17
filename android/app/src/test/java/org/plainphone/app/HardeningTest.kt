@@ -66,6 +66,18 @@ class HardeningTest {
     }
 
     @Test
+    fun `failing to notify Play services after clearing FRP reports failure`() {
+        for (sdk in listOf(29, 30)) {
+            val hardening = Hardening(object : HardeningControls by controls {
+                override fun notifyFrpChanged() = throw SecurityException("broadcast refused")
+            }, sdk)
+            val result = hardening.resetProtection(emptySet())
+            assertThat(result.ok).isFalse()
+            assertThat(Hardening.resetProtectionState(listOf(result))).isEqualTo(ResetProtection.FAILED)
+        }
+    }
+
+    @Test
     fun `account IDs that are not numbers are never sent`() {
         apply(Hardening(controls, 34), PolicyConfig(frpAccountIds = setOf("parent@example.org", "42")))
         assertThat(controls.policyAccounts).containsExactly("42")

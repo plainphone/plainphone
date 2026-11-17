@@ -317,28 +317,28 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>
+      {s && !s.lockIntact && (
+        <div className="notice notice-error" role="status">
+          <div>
+            <p className="row-title">{t("phone.lockBroken")}</p>
+            {s.failedPolicies.length > 0 && (
+              <p>{t("phone.lockFailed", { steps: formatList(s.failedPolicies, locale) })}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {s?.maintenance && (
+        <p className="notice notice-warn" role="status">
+          {t("phone.maintenance")}
+        </p>
+      )}
+      {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
+        <p className="notice notice-error" role="status">
+          {t(ATTESTATION_TEXT[phone.attestation.state])}
+        </p>
+      )}
       {s ? (
         <>
-          {!s.lockIntact && (
-            <div className="notice notice-error" role="status">
-              <div>
-                <p className="row-title">{t("phone.lockBroken")}</p>
-                {s.failedPolicies.length > 0 && (
-                  <p>{t("phone.lockFailed", { steps: formatList(s.failedPolicies, locale) })}</p>
-                )}
-              </div>
-            </div>
-          )}
-          {s.maintenance && (
-            <p className="notice notice-warn" role="status">
-              {t("phone.maintenance")}
-            </p>
-          )}
-          {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
-            <p className="notice notice-error" role="status">
-              {t(ATTESTATION_TEXT[phone.attestation.state])}
-            </p>
-          )}
           <ul className="list status-list">
             {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
             {s.batteryPct !== null && (
@@ -362,13 +362,18 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
           <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
         </>
       ) : (
-        <p className="muted">{t("phone.statusNone")}</p>
+        <>
+          <p className="muted">{t("phone.statusNone")}</p>
+          {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
+            <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
+          )}
+        </>
       )}
       {phone.attestation?.lastFailedAt && (
         <p className="help status-updated">{t("phone.attLastFailedAt", { when: when(phone.attestation.lastFailedAt) })}</p>
       )}
       {phone.attestation?.checkedAt && (
-        <p className="help status-updated">{t("phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
+        <p className="help status-updated">{t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}
       {!phone.dnsReady && <p className="notice notice-info status-dns">{t("phone.dnsWaiting")}</p>}
     </section>

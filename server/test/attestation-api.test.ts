@@ -122,7 +122,10 @@ describe("attestation API", () => {
     expect((await device.put("/api/device/attestation", {
       challenge: ch.json.challenge, chain: chainB64("frankel-TEE_EC_2026"),
     })).json.state).toBe("verified");
-    h.clock.advance(48 * 60 * 60_000);
+    h.clock.advance(48 * 60 * 60_000 - 1);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
+      .toMatchObject({ state: "verified", checkedAt });
+    h.clock.advance(1);
     expect((await device.put("/api/device/status", {
       appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
       maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,

@@ -6,9 +6,9 @@ import { client, unwrap } from "../api/client";
 import { useI18n } from "../i18n/I18n";
 import { formatDateTime } from "../shared/lib/format";
 import type { paths } from "../api/schema";
+import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, Text, useLoad } from "./ui";
 
 type ResetProtectionState = paths["/households/{hid}/reset-protection"]["get"]["responses"][200]["content"]["application/json"];
-import { Button, Card, errorMessage, LiveStatus, LoadGate, type NoticeValue, Text, useLoad } from "./ui";
 
 export function ResetProtection({ hid }: { hid: string }) {
   const { t, locale } = useI18n();
@@ -27,16 +27,23 @@ export function ResetProtection({ hid }: { hid: string }) {
     return () => listener.remove();
   }, [reload]);
 
+  const outcome = result === "ok" || result === "cancelled" || result === "failed" ? result : null;
+  const resultNotice: NoticeValue | null = outcome
+    ? { tone: outcome === "ok" ? "success" : "error", text: t(`frp.${outcome}`) }
+    : null;
+
   useEffect(() => {
-    if (result !== "ok" && result !== "cancelled" && result !== "failed") return;
-    setNotice({ tone: result === "ok" ? "success" : "error", text: t(`frp.${result}`) });
-    router.setParams({ "reset-protection": undefined });
-    void reload();
-  }, [result, t, router, reload]);
+    if (outcome) void reload();
+  }, [outcome, reload]);
+
+  function dismissNotice() {
+    setNotice(null);
+    if (result) router.setParams({ "reset-protection": undefined });
+  }
 
   async function change(remove: boolean) {
     setBusy(true);
-    setNotice(null);
+    dismissNotice();
     try {
       if (remove) {
         await unwrap(client.DELETE("/households/{hid}/reset-protection/mine", { params }));
@@ -57,7 +64,7 @@ export function ResetProtection({ hid }: { hid: string }) {
   return (
     <Card>
       <Text variant="heading">{t("frp.title")}</Text>
-      <LiveStatus notice={notice} onClose={() => setNotice(null)} />
+      <LiveStatus notice={notice ?? resultNotice} onClose={dismissNotice} />
       <LoadGate res={res}>
         {(data) => {
           const mine = data.accounts.some((account) => account.mine);

@@ -123,6 +123,7 @@ export const en = {
   "phone.statusNone": "No status from the phone yet",
   "phone.attCheckedAt": "System checked {when}",
   "phone.attLastFailedAt": "The latest system check could not verify the phone ({when}).",
+  "phone.attFindingAt": "Finding recorded {when}",
   "phone.statusUpdated": "Status updated {when}",
   "phone.lockIntact": "Lock intact",
   "phone.lockBroken": "Lock not intact",
