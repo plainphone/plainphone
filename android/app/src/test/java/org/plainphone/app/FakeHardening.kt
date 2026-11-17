@@ -54,6 +54,7 @@ class FakeHardening : HardeningControls {
         accessibility = packages
         return true
     }
+    override fun setCallRoleServicesEnabled(enabled: Boolean) = Unit
     override fun roleState(role: String) = roles[role] ?: RoleState.HELD
     override fun grantOwnPermission(permission: String): Boolean { granted += permission; return true }
 }

@@ -191,9 +191,9 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
 }
 
 /** States in which the lock cannot be trusted, whatever the phone itself reports (#23). */
-const UNTRUSTED_BOOT = new Set(["unlocked", "failed-boot", "revoked"]);
+export const UNTRUSTED_BOOT = new Set(["unlocked", "custom-os", "failed-boot", "revoked"]);
 
-/** An unlocked bootloader (or a failed or revoked one) counts as a broken lock in the dashboard. */
+/** A negative boot verdict counts as a broken lock in the dashboard. */
 export function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
   if (!attestation || !UNTRUSTED_BOOT.has(attestation.state)) return status;
   return {

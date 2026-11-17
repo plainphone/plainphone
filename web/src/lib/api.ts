@@ -118,6 +118,7 @@ export interface PhoneAttestation {
   deviceLocked: boolean | null;
   osPatchLevel: number | null;
   checkedAt: string | null;
+  lastFailedAt?: string;
 }
 export interface App {
   packageName: string;

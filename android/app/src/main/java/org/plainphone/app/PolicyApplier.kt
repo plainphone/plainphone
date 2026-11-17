@@ -39,7 +39,9 @@ class PolicyApplier(
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
-            if (config.installing != null && (key == INSTALL_APPS || key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)) {
+            val allowedInInstall = key == INSTALL_APPS ||
+                (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS && config.installAccountsAllowed)
+            if (config.installing != null && allowedInInstall) {
                 // R2: one approved catalog app is being installed from Play. Re-added when it is installed or after 15 min.
                 results += step("install window: clear $key") { device.clearRestriction(key) }
                 continue

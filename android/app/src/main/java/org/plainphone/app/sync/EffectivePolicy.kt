@@ -27,6 +27,7 @@ object EffectivePolicy {
         removed: Boolean = false,
         timeBlocked: Set<String> = emptySet(),
         installing: String? = null,
+        installAccountsAllowed: Boolean = false,
     ): PolicyConfig {
         if (rules == null) return qr
         val windows = Schedules.active(rules.schedules, now, rules.timezone)
@@ -48,6 +49,7 @@ object EffectivePolicy {
             server = ServerOverlay(windowActive = windows.isNotEmpty(), locationRequired = rules.locationEnabled),
             timeBlocked = timeBlocked,
             installing = install,
+            installAccountsAllowed = install != null && installAccountsAllowed,
         )
     }
 
@@ -61,6 +63,7 @@ object EffectivePolicy {
             config.frpAccountIds.sorted().joinToString(","),
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
+            config.installAccountsAllowed.toString(),
         ).joinToString("|")
         return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
     }

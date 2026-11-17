@@ -26,10 +26,13 @@ class ProvisioningModeActivity : Activity() {
             // Personal-device flows (work profile) are not supported: abort provisioning.
             setResult(RESULT_CANCELED)
             finish()
-        } else if (BootloaderWarning.reportsUnlocked()) {
+        } else if (BootloaderWarning.needsAcknowledgement(this)) {
             AlertDialog.Builder(this)
                 .setMessage(R.string.setup_bootloader_warning)
-                .setPositiveButton(R.string.setup_bootloader_continue) { _, _ -> accept(fullyManaged) }
+                .setPositiveButton(R.string.setup_bootloader_continue) { _, _ ->
+                    BootloaderWarning.acknowledge(this)
+                    accept(fullyManaged)
+                }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
                 .setOnCancelListener { finish() }
                 .show()

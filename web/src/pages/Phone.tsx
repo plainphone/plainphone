@@ -364,6 +364,9 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
       ) : (
         <p className="muted">{t("phone.statusNone")}</p>
       )}
+      {phone.attestation?.lastFailedAt && (
+        <p className="help status-updated">{t("phone.attLastFailedAt", { when: when(phone.attestation.lastFailedAt) })}</p>
+      )}
       {phone.attestation?.checkedAt && (
         <p className="help status-updated">{t("phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}

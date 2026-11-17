@@ -122,6 +122,7 @@ export interface PhoneAttestation {
   verifiedBootState: "verified" | "self-signed" | "unverified" | "failed" | null;
   osPatchLevel: number | null;
   revocationChecked: boolean;
+  lastFailedAt?: string;
 }
 
 /** The protections a phone can report in `PUT /device/status`. */

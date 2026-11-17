@@ -21,6 +21,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -149,11 +150,18 @@ class HomeActivity : ComponentActivity() {
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.today_install_title), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Text(stringResource(R.string.today_install_body), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val canAuthorizeAccount = !Mode.isLight(this) && !ConfigStore(this).load().usesDefaultPin
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             apps.forEach { app ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(app.label, fontSize = 17.sp, modifier = Modifier.weight(1f))
                     FilledTonalButton(onClick = { install(app.packageName) }) { Text(stringResource(R.string.today_install_action)) }
+                }
+                if (canAuthorizeAccount) {
+                    TextButton(onClick = {
+                        startActivity(Intent(this@HomeActivity, MaintenanceActivity::class.java)
+                            .putExtra(MaintenanceActivity.EXTRA_INSTALL_PACKAGE, app.packageName))
+                    }) { Text(stringResource(R.string.today_install_with_account)) }
                 }
             }
         }

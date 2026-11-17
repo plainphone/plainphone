@@ -209,11 +209,21 @@ class TimeLimitApplierTest {
     @Test
     fun `the install window lifts the install restriction and shows Play, then closes`() {
         applier.apply(config.copy(installing = "dk.mitid.app.android"))
-        assertThat(device.restrictions).containsNoneOf("no_install_apps", "no_modify_accounts")
+        assertThat(device.restrictions).doesNotContain("no_install_apps")
+        assertThat(device.restrictions).contains("no_modify_accounts")
         assertThat(device.hidden).doesNotContain("com.android.vending")
         applier.apply(config)
         assertThat(device.restrictions).containsAtLeast("no_install_apps", "no_modify_accounts")
         assertThat(device.hidden).contains("com.android.vending")
+    }
+
+    @Test
+    fun `parent authorization allows Play sign-in only during the approved install window`() {
+        applier.apply(config)
+        applier.apply(config.copy(installing = "dk.mitid.app.android", installAccountsAllowed = true))
+        assertThat(device.restrictions).containsNoneOf("no_install_apps", "no_modify_accounts")
+        applier.apply(config.copy(installAccountsAllowed = true))
+        assertThat(device.restrictions).containsAtLeast("no_install_apps", "no_modify_accounts")
     }
 
     @Test

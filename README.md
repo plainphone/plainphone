@@ -97,7 +97,8 @@ scripts/provisioning-qr.py \
 The script reads the signing certificate checksum from the APK (or takes `--checksum`), asks for or generates the maintenance PIN (6+ digits), hashes it and writes `dist/provisioning-qr.json` and `.png`. Without `--apk-url` it uses the stable download address. Run `scripts/provisioning-qr.py --help` for Wi-Fi, DNS host, extra apps, FRP accounts and `--enroll-token`. A QR code with a Wi-Fi password in it must not be published.
 
 For reset protection and hardware system checks, see [Android policies](docs/policies.md)
-and the [physical phone test checklist](docs/bypass-checklist.md).
+and the [physical phone test checklist](docs/bypass-checklist.md). A parent PIN is required to
+[add a Play account during an approved install](docs/app-catalog.md).
 
 Phase 2 options:
 

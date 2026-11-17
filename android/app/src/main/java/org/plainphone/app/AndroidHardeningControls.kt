@@ -6,14 +6,18 @@ import android.accounts.AccountManager
 import android.app.admin.DevicePolicyManager
 import android.app.admin.FactoryResetProtectionPolicy
 import android.app.role.RoleManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
 import androidx.annotation.RequiresApi
+import org.plainphone.app.telephony.PlainphoneCallRedirectionService
+import org.plainphone.app.telephony.PlainphoneCallScreeningService
 
 class AndroidHardeningControls(private val context: Context) : HardeningControls {
     private val dpm = context.getSystemService(DevicePolicyManager::class.java)
@@ -93,6 +97,17 @@ class AndroidHardeningControls(private val context: Context) : HardeningControls
 
     override fun setPermittedAccessibilityServices(packages: List<String>?): Boolean =
         dpm.setPermittedAccessibilityServices(admin, packages)
+
+    override fun setCallRoleServicesEnabled(enabled: Boolean) {
+        val pm = context.packageManager
+        val state = if (enabled) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        for (service in listOf(PlainphoneCallScreeningService::class.java, PlainphoneCallRedirectionService::class.java)) {
+            val component = ComponentName(context, service)
+            if (pm.getComponentEnabledSetting(component) != state) {
+                pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
+            }
+        }
+    }
 
     override fun roleState(role: String): RoleState {
         val roles = context.getSystemService(RoleManager::class.java) ?: return RoleState.UNAVAILABLE

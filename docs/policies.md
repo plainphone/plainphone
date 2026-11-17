@@ -43,7 +43,7 @@ The lock is applied:
 | `setPermissionGrantState` | Grants Plainphone's own phone, call log, SMS and notification permissions | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback). On Android 10 to 13 the extra dialers are hidden even without the role | [contacts.md](contacts.md) |
 
-The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. On release, Plainphone restores the SMS app and, on Android 14+, the system dialer. On Android 10 to 13, choose the system dialer and clear any retained call screening or redirection roles in Settings. Those optional services stop filtering when Device Owner is removed. The approved-contacts rule itself is described in [contacts.md](contacts.md).
+The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. On release, Plainphone restores the SMS app and, on Android 14+, the system dialer. Release disables Plainphone's screening and redirection services. If Android retains either role assignment, clear it in Settings. On Android 10 to 13, choose the system dialer there too. The services also stop filtering if Device Owner is lost outside the release flow. The approved-contacts rule itself is described in [contacts.md](contacts.md).
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
@@ -116,7 +116,7 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
 - **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** Plainphone sets FRP and notifies Play services before blocking account changes. The FRP policy does not need the parent's account to be
   on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
   accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
-  maintenance unlock or an approved Play install window.
+  maintenance unlock or by choosing “Install and add a Play account” and entering their maintenance PIN for an approved app. The test PIN cannot authorize account changes through this install option.
 
 ## Hardware attestation of the boot state (#23)
 
@@ -129,7 +129,7 @@ and the OS patch level. Play Integrity is not
 used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is requested. Only the verification result and its timestamp are stored.
 If the keystore cannot provide a chain, the phone reports an unverifiable check. A positive verdict
 expires after 48 hours, and the dashboard shows the time of the last system check separately from
-ordinary sync. A change to a boot state that breaks an intact lock triggers the existing protection alert.
+ordinary sync. If a check cannot verify the phone after a negative finding, the dashboard keeps that finding and shows the failed check separately. A change to a boot state that breaks an intact lock triggers the existing protection alert.
 When Android exposes a local unlocked-bootloader signal, strong-mode policies wait until the user
 acknowledges the warning. Android 12+ shows it during provisioning. On Android 10 and 11 it appears
 when Plainphone opens.
@@ -139,7 +139,7 @@ when Plainphone opens.
 | `verified` | "System unchanged" |
 | `unlocked` | Lock shown as **not intact**: an unlocked bootloader switches FRP off and lets the system be replaced |
 | `failed-boot`, `revoked` | Lock shown as not intact |
-| `custom-os` | Warning: locked, but with a system signed by someone other than the maker |
+| `custom-os` | Lock shown as not intact: the bootloader is locked with a system signed by someone other than the maker |
 | `unverifiable` | "Cannot be verified": a software keystore, or a root that is not Google's. Phones that launched before Android 8.0 (the OnePlus 5T launched with 7.1) may land here |
 
 The phone shows a warning on its status screen for the results that are not `verified` or `unverifiable`.
@@ -169,6 +169,6 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 ## Time limits and catalog installs (strong mode)
 
 - **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
-- **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone.
+- **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone. The ordinary Install button keeps account changes blocked.
 
 Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).

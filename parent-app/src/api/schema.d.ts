@@ -1655,6 +1655,11 @@ export interface components {
              * @description Only in PhoneSummary.
              */
             checkedAt?: string | null;
+            /**
+             * Format: date-time
+             * @description Most recent inconclusive check when a negative finding is retained. Only in PhoneSummary.
+             */
+            lastFailedAt?: string;
         };
         DeviceStatusInput: {
             /** @example 0.4.0 */

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
-import { RevocationList } from "../src/services/attestation.js";
+import { RevocationList, serialKey } from "../src/services/attestation.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -44,6 +44,17 @@ describe("attestation API", () => {
     expect(summary.attestation.checkedAt).toBe(h.clock.now.toISOString());
 
     expect(h.mail.outbox).toHaveLength(mailCount + 1);
+    h.clock.advance(60_000);
+    const missing = await device.post("/api/device/attestation/challenge");
+    expect((await device.put("/api/device/attestation", {
+      challenge: missing.json.challenge, chain: [],
+    })).json.state).toBe("unverifiable");
+    const afterMissing = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(afterMissing.attestation).toMatchObject({
+      state: "unlocked", checkedAt: summary.attestation.checkedAt, lastFailedAt: h.clock.now.toISOString(),
+    });
+    expect(afterMissing.status.lockIntact).toBe(false);
+
     // An ordinary green report must neither clear the broken lock nor repeat the alert.
     expect((await device.put("/api/device/status", green)).status).toBe(204);
     const next = await device.post("/api/device/attestation/challenge");
@@ -66,6 +77,39 @@ describe("attestation API", () => {
       .toMatchObject({ state: "unverifiable", checkedAt: h.clock.now.toISOString() });
   });
 
+  it("keeps revocation through inconclusive checks and clears it on verified evidence", async () => {
+    const chain = chainB64("frankel-TEE_EC_2026");
+    const challenge = Buffer.from("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy", "base64");
+    const serial = serialKey(new X509Certificate(Buffer.from(chain[0]!, "base64")));
+    let revoked = true;
+    h.ctx.attestation = {
+      challenge: () => challenge,
+      revocations: new RevocationList(async () => ({ entries: revoked ? { [serial]: { status: "REVOKED" } } : {} })),
+    };
+    h.app = createApp(h.ctx);
+    h.clock.now = new Date("2026-11-16T00:00:00Z");
+    const parent = await signIn(h, "mum@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const submit = async (evidence: string[]) => {
+      const ch = await device.post("/api/device/attestation/challenge");
+      return device.put("/api/device/attestation", { challenge: ch.json.challenge, chain: evidence });
+    };
+
+    expect((await submit(chain)).json.state).toBe("revoked");
+    const checkedAt = h.clock.now.toISOString();
+    h.clock.advance(60_000);
+    expect((await submit([])).json.state).toBe("unverifiable");
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
+      .toMatchObject({ state: "revoked", checkedAt, lastFailedAt: h.clock.now.toISOString() });
+
+    revoked = false;
+    h.clock.advance(60 * 60_000 + 1);
+    expect((await submit(chain)).json.state).toBe("verified");
+    const { attestation } = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(attestation).toMatchObject({ state: "verified", checkedAt: h.clock.now.toISOString() });
+    expect(attestation).not.toHaveProperty("lastFailedAt");
+  });
+
   it("expires a positive result after 48 hours and keeps the actual check time", async () => {
     const challenge = Buffer.from("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy", "base64");
     h.ctx.attestation = { ...h.ctx.attestation!, challenge: () => challenge };
@@ -79,6 +123,10 @@ describe("attestation API", () => {
       challenge: ch.json.challenge, chain: chainB64("frankel-TEE_EC_2026"),
     })).json.state).toBe("verified");
     h.clock.advance(48 * 60 * 60_000);
+    expect((await device.put("/api/device/status", {
+      appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
+      maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,
+    })).status).toBe(204);
     expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
       .toMatchObject({ state: "unverifiable", checkedAt });
   });

@@ -3,14 +3,18 @@
 package org.plainphone.app
 
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.telephony.PlainphoneCallRedirectionService
+import org.plainphone.app.telephony.PlainphoneCallScreeningService
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -74,6 +78,23 @@ class AndroidHardeningControlsTest {
         val result = Hardening(AndroidHardeningControls(context), 29).resetProtection(setOf("1"))
         assertThat(Hardening.resetProtectionState(listOf(result))).isEqualTo(ResetProtection.NO_PLAY_SERVICES)
         assertThat(dpm.getApplicationRestrictions(admin, AndroidHardeningControls.GMS_PACKAGE).isEmpty).isTrue()
+    }
+
+    @Test
+    fun `release disables both Telecom services and strong mode enables them again`() {
+        val hardening = Hardening(AndroidHardeningControls(context), 29)
+        val services = listOf(PlainphoneCallScreeningService::class.java, PlainphoneCallRedirectionService::class.java)
+            .map { ComponentName(context, it) }
+        hardening.release()
+        for (service in services) {
+            assertThat(context.packageManager.getComponentEnabledSetting(service))
+                .isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+        }
+        hardening.applyOtherPolicies()
+        for (service in services) {
+            assertThat(context.packageManager.getComponentEnabledSetting(service))
+                .isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+        }
     }
 
     @Test

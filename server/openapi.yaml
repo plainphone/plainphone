@@ -507,6 +507,7 @@ components:
         osPatchLevel: { type: [integer, "null"], description: YYYYMM }
         revocationChecked: { type: boolean }
         checkedAt: { type: [string, "null"], format: date-time, description: Only in PhoneSummary. }
+        lastFailedAt: { type: string, format: date-time, description: Most recent inconclusive check when a negative finding is retained. Only in PhoneSummary. }
 
     DeviceStatusInput:
       type: object
@@ -907,8 +908,9 @@ paths:
                 chain:
                   type: array
                   maxItems: 10
+                  not: { minItems: 1, maxItems: 1 }
                   description: Two or more DER certificates, base64, leaf first. Empty when the keystore cannot provide an attestation chain.
-                  items: { type: string, maxLength: 12000 }
+                  items: { type: string, minLength: 1, maxLength: 12000 }
       responses:
         "200":
           description: Result

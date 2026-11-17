@@ -10,7 +10,7 @@ import type { phones } from "../db/schema.js";
 import { body, RateLimiter } from "../lib/http.js";
 import { ChallengeMismatch, newChallenge, RevocationList, UNVERIFIABLE_ATTESTATION, verifyAttestation } from "../services/attestation.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { withAttestation } from "../services/phones.js";
+import { UNTRUSTED_BOOT, withAttestation } from "../services/phones.js";
 import type { Ctx } from "../services/context.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -63,17 +63,24 @@ export function attestationRoutes(ctx: Ctx) {
         if (err instanceof ChallengeMismatch) return c.json({ error: err.message }, 400);
         return c.json({ error: `chain does not verify: ${(err as Error).message}` }, 400);
       }
-      // Read previous evidence and the current report under the same row lock as the write.
-      const [previous] = await ctx.db.execute<{ attestation: Phone["attestation"]; status: Phone["deviceStatus"] }>(sql`
-        with old as (select attestation, device_status from phones where id = ${phone.id} for update)
-        update phones set attestation = ${JSON.stringify(result)}::jsonb,
-          attested_at = ${ctx.now().toISOString()}::timestamptz
+      const checkedAt = new Date(now).toISOString();
+      const keepFinding = sql`${result.state === "unverifiable"} and
+        old.attestation->>'state' in (${sql.join([...UNTRUSTED_BOOT].map((state) => sql`${state}`), sql`, `)})`;
+      // Keep the finding and its original timestamp when the new check could not establish boot state.
+      const [previous] = await ctx.db.execute<{
+        attestation: Phone["attestation"]; status: Phone["deviceStatus"]; stored: Phone["attestation"];
+      }>(sql`
+        with old as (select attestation, attested_at, device_status from phones where id = ${phone.id} for update)
+        update phones set attestation = case when ${keepFinding}
+            then old.attestation || ${JSON.stringify({ lastFailedAt: checkedAt })}::jsonb
+            else ${JSON.stringify(result)}::jsonb end,
+          attested_at = case when ${keepFinding} then old.attested_at else ${checkedAt}::timestamptz end
         from old where phones.id = ${phone.id}
-        returning old.attestation as attestation, old.device_status as status`);
+        returning old.attestation as attestation, old.device_status as status, phones.attestation as stored`);
       if (previous?.status) {
         const lost = protectionLost(
           withAttestation(previous.status, previous.attestation),
-          withAttestation(previous.status, result),
+          withAttestation(previous.status, previous.stored),
         );
         if (lost) await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
       }

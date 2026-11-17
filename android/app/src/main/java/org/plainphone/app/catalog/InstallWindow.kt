@@ -11,6 +11,7 @@ import android.net.Uri
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.RelockReceiver
+import org.plainphone.app.sync.SyncStore
 
 /**
  * Installing an app the parent picked from the catalog (R2, docs/app-catalog.md).
@@ -27,25 +28,50 @@ object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
     private const val PREFS = "plainphone_install"
 
-    /** The package whose install window is open right now, or null. */
-    fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? {
-        val p = prefs(context)
-        val pkg = p.getString("pkg", null) ?: return null
-        return pkg.takeIf { p.getLong("until", 0L) > nowMs && !isInstalled(context, pkg) }
+    private val stateLock = Any()
+
+    internal data class Active(val packageName: String, val accountsAllowed: Boolean)
+
+    internal fun active(context: Context, nowMs: Long = System.currentTimeMillis()): Active? {
+        val state = prefs(context).all
+        val pkg = state["pkg"] as? String ?: return null
+        val until = state["until"] as? Long ?: return null
+        if (until <= nowMs || isInstalled(context, pkg)) return null
+        return Active(pkg, state["accountsAllowed"] == true)
     }
 
-    /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
-    fun open(context: Context, packageName: String) {
+    fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? =
+        active(context, nowMs)?.packageName
+
+    /** Opens Play for this app. Call off the main thread. */
+    fun open(context: Context, packageName: String) = open(context, packageName, accountsAllowed = false)
+
+    /** Only called after the parent PIN has been verified. */
+    internal fun openForParent(context: Context, packageName: String) =
+        open(context, packageName, accountsAllowed = true)
+
+    private fun open(context: Context, packageName: String, accountsAllowed: Boolean) {
         val app = context.applicationContext
-        // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
-        // lets Play through for the window instead of closing it.
-        // Tapping again does not extend an open window, or Play could be kept open for good.
-        // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
-        if (current(app) != packageName && takeWindow(app)) {
-            prefs(app).edit().putString("pkg", packageName).putLong("until", System.currentTimeMillis() + WINDOW_MS).apply()
-            scheduleClose(app)
-            runCatching { Lock.applyNow(app, "install window for $packageName") }
+        if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false) return
+        if (isInstalled(app, packageName)) return
+
+        val changed = synchronized(stateLock) {
+            val window = active(app)
+            val p = prefs(app)
+            if (window?.packageName == packageName) {
+                if (!accountsAllowed || window.accountsAllowed) return@synchronized false
+                p.edit().putBoolean("accountsAllowed", true).apply()
+            } else {
+                if (!takeWindow(app)) return@synchronized false
+                p.edit().putString("pkg", packageName)
+                    .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                    .putBoolean("accountsAllowed", accountsAllowed)
+                    .apply()
+                scheduleClose(app)
+            }
+            true
         }
+        if (changed) runCatching { Lock.applyNow(app, "install window for $packageName") }
         launchPlay(app, packageName)
     }
 
@@ -63,8 +89,10 @@ object InstallWindow {
     /** Ends the window (app installed or time up) and puts the lock back. */
     fun close(context: Context, reason: String) {
         val app = context.applicationContext
-        if (prefs(app).getString("pkg", null) == null) return
-        prefs(app).edit().remove("pkg").remove("until").apply()
+        synchronized(stateLock) {
+            if (prefs(app).getString("pkg", null) == null) return
+            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed").apply()
+        }
         Lock.applyAsync(app, reason)
     }
 

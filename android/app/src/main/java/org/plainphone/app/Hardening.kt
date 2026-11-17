@@ -51,6 +51,8 @@ interface HardeningControls {
     /** Whether Plainphone holds [role], and whether the phone offers it at all. */
     fun roleState(role: String): RoleState
 
+    fun setCallRoleServicesEnabled(enabled: Boolean)
+
     /** Grants one of Plainphone's own runtime permissions (Device Owner, no dialog). False if Android refused. */
     fun grantOwnPermission(permission: String): Boolean
 }
@@ -84,6 +86,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
             add(step(NO_FORCE_STOP) { controls.setUserControlDisabled(listOf(controls.ownPackage)) })
         }
         add(extraUsers())
+        add(step("enable call role services") { controls.setCallRoleServicesEnabled(true) })
         // #24: Android 10 to 13 cannot lock the default phone app. These two roles keep calls filtered
         // when it is changed in Settings; Android 14+ locks the phone app with DISALLOW_CONFIG_DEFAULT_APPS.
         if (sdkInt < 34) {
@@ -102,6 +105,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
 
     /** Permanent exit for a test phone: undo every hardening step. */
     fun release(): List<StepResult> = buildList {
+        add(step("disable call role services") { controls.setCallRoleServicesEnabled(false) })
         add(step("clear FRP policy") { setFrp(null) })
         if (sdkInt >= 30) add(step("allow force stop of Plainphone") { controls.setUserControlDisabled(emptyList()) })
         add(step("allow lock screen widgets") { controls.setKeyguardDisabledFeatures(0) })

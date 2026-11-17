@@ -209,6 +209,9 @@ function Overview() {
           {system && system !== "verified" && system !== "unverifiable"
             ? <Notice tone="warn" text={t(systemStatus[system])} />
             : <Text variant="muted">{t(system ? systemStatus[system] : "phone.attPending")}</Text>}
+          {phone.attestation?.lastFailedAt ? (
+            <Text variant="muted">{t("phone.attLastFailedAt", { when: formatRelative(phone.attestation.lastFailedAt, now, locale) })}</Text>
+          ) : null}
           {phone.attestation?.checkedAt ? (
             <Text variant="muted">{t("phone.attCheckedAt", { when: formatRelative(phone.attestation.checkedAt, now, locale) })}</Text>
           ) : null}

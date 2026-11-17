@@ -13,6 +13,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
@@ -26,6 +27,7 @@ import org.plainphone.app.ui.PairingActivity
 class MaintenanceActivity : Activity() {
     private lateinit var column: LinearLayout
     private lateinit var output: TextView
+    private val installPackage by lazy { intent.getStringExtra(EXTRA_INSTALL_PACKAGE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,7 +38,7 @@ class MaintenanceActivity : Activity() {
             setPadding(pad, pad * 2, pad, pad)
         }
         column.addView(TextView(this).apply {
-            text = getString(R.string.maintenance_title)
+            text = getString(if (installPackage == null) R.string.maintenance_title else R.string.today_install_with_account)
             textSize = 24f
             setTypeface(typeface, Typeface.BOLD)
         })
@@ -68,11 +70,21 @@ class MaintenanceActivity : Activity() {
             button.isEnabled = false
             // PBKDF2 takes a moment on slow phones: keep it off the UI thread.
             Thread {
-                val ok = MaintenancePin.verify(entered, ConfigStore(this).load())
+                val config = ConfigStore(this).load()
+                val ok = (installPackage == null || !config.usesDefaultPin) && MaintenancePin.verify(entered, config)
                 if (ok) throttle.onSuccess() else throttle.onFailure()
                 runOnUiThread {
                     button.isEnabled = true
-                    if (ok) {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    val pkg = installPackage
+                    if (ok && pkg != null) {
+                        val app = applicationContext
+                        button.isEnabled = false
+                        Thread {
+                            InstallWindow.openForParent(app, pkg)
+                            runOnUiThread { finish() }
+                        }.start()
+                    } else if (ok) {
                         column.removeView(pin); column.removeView(button); column.removeView(message)
                         showActions()
                     } else {
@@ -133,6 +145,10 @@ class MaintenanceActivity : Activity() {
             }
         })
         column.addView(output)
+    }
+
+    companion object {
+        const val EXTRA_INSTALL_PACKAGE = "org.plainphone.app.INSTALL_PACKAGE"
     }
 
     private fun show(results: List<StepResult>) = runOnUiThread {

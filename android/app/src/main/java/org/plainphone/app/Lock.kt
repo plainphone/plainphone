@@ -51,19 +51,28 @@ object Lock {
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
     fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
         val sync = SyncStore(context)
+        val install = InstallWindow.active(context, now.toEpochMilli())
         return EffectivePolicy.merge(
             ConfigStore(context).load(),
             sync.rules(),
             now,
             removed = sync.removed,
             timeBlocked = TimeGuard.blockedNow(context, now),
-            installing = InstallWindow.current(context, now.toEpochMilli()),
+            installing = install?.packageName,
+            installAccountsAllowed = install?.accountsAllowed == true,
         )
     }
 
     /** Blocking. Never call on the main thread. */
-    fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
-        if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
+    fun applyNow(context: Context, reason: String): List<StepResult> =
+        applyNow(context, reason, BootloaderWarning::needsAcknowledgement)
+
+    internal fun applyNow(
+        context: Context,
+        reason: String,
+        needsBootAcknowledgement: (Context) -> Boolean,
+    ): List<StepResult> = synchronized(APPLY_LOCK) {
+        if (!Mode.isLight(context) && needsBootAcknowledgement(context)) {
             return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
                 saveReport(context, "apply ($reason)", it)
             }

@@ -194,6 +194,7 @@
     <string name="today_install_title">Approved by your parent</string>
     <string name="today_install_body">These apps can be installed.</string>
     <string name="today_install_action">Install</string>
+    <string name="today_install_with_account">Install and add a Play account</string>
     <string name="time_min">%1$d min</string>
     <string name="time_h">%1$d h</string>
     <string name="time_h_min">%1$d h %2$d min</string>

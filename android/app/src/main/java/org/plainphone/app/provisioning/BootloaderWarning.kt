@@ -14,7 +14,14 @@ internal object BootloaderWarning {
         context.getSharedPreferences("plainphone_boot_warning", Context.MODE_PRIVATE)
 
     fun needsAcknowledgement(context: Context): Boolean =
-        !acknowledged(context).getBoolean("acknowledged", false) && unlocked
+        needsAcknowledgement(context, ::reportsUnlocked)
+
+    internal fun needsAcknowledgement(context: Context, reportsUnlocked: () -> Boolean): Boolean =
+        !acknowledged(context).getBoolean("acknowledged", false) && reportsUnlocked()
+
+    fun acknowledge(context: Context) {
+        acknowledged(context).edit().putBoolean("acknowledged", true).apply()
+    }
 
     /** The background lock entry points wait until an activity has shown the warning. */
     fun confirm(activity: Activity, proceed: () -> Unit): AlertDialog? {
@@ -25,7 +32,7 @@ internal object BootloaderWarning {
         return AlertDialog.Builder(activity)
             .setMessage(R.string.setup_bootloader_warning)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                acknowledged(activity).edit().putBoolean("acknowledged", true).apply()
+                acknowledge(activity)
                 proceed()
             }
             .setNegativeButton(android.R.string.cancel, null)

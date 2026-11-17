@@ -191,6 +191,7 @@
     <string name="today_install_title">Godkendt af din forælder</string>
     <string name="today_install_body">Disse apps kan installeres.</string>
     <string name="today_install_action">Installer</string>
+    <string name="today_install_with_account">Installér og tilføj en Play-konto</string>
     <string name="time_min">%1$d min</string>
     <string name="time_h">%1$d t</string>
     <string name="time_h_min">%1$d t %2$d min</string>
