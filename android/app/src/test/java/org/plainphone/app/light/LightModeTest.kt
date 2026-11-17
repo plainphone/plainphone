@@ -46,7 +46,7 @@ class LightModeTest {
     fun `Plainphone's own accessibility, admin, VPN and app pages are protected`() {
         assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Plainphone guard", "Plainphone uses this to see which app is open, so"), k)).isTrue()
         assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("App info", "Plainphone", "Uninstall", "Force stop"), k)).isTrue()
-        assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("VPN", "Plainphone"), k)).isTrue()
+        assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Plainphone", "Always-on VPN", "Forget VPN"), k)).isTrue()
         assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Apps", "Plainphone", "Afinstaller"), k)).isTrue()
         assertThat(SettingsGuard.isProtectedScreen("com.google.android.packageinstaller", listOf("Do you want to uninstall Plainphone?"), k)).isTrue()
         assertThat(SettingsGuard.isProtectedScreen(SettingsGuard.VPN_DIALOGS, listOf("Disconnect"), k)).isTrue()
@@ -56,6 +56,11 @@ class LightModeTest {
     fun `other Settings screens and other apps are left alone`() {
         assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Wi-Fi", "Bluetooth", "Uninstall updates"), k)).isFalse()
         assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Display", "Plainphone"), k)).isFalse()
+        // Network & internet shows the connected VPN's name; Apps shows Plainphone as recently opened.
+        assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Network & internet", "Wi-Fi", "Mobile network", "VPN", "Plainphone"), k)).isFalse()
+        assertThat(SettingsGuard.isProtectedScreen("com.android.settings", listOf("Apps & notifications", "Recently opened apps", "Plainphone", "Default apps"), k)).isFalse()
+        // Updating Plainphone from a new APK must not be closed.
+        assertThat(SettingsGuard.isProtectedScreen("com.google.android.packageinstaller", listOf("Plainphone", "Do you want to install an update to this existing app?"), k)).isFalse()
         assertThat(SettingsGuard.isProtectedScreen("com.spotify.music", listOf("Plainphone", "Uninstall"), k)).isFalse()
     }
 

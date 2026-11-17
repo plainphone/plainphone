@@ -4,7 +4,6 @@ package org.plainphone.app.light
 
 import android.app.admin.DevicePolicyManager
 import android.content.Context
-import android.content.Intent
 import org.plainphone.app.StepResult
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 
@@ -17,14 +16,25 @@ object LightRelease {
         add(step("device admin off") {
             context.getSystemService(DevicePolicyManager::class.java).removeActiveAdmin(LightAdminReceiver.component(context))
         })
+        prefs(context).edit().putBoolean(KEY_RELEASED, true).apply()
         add(step("DNS filter (VPN) stopped") {
-            context.stopService(Intent(context, PlainphoneVpnService::class.java))
+            PlainphoneVpnService.stop(context)
         })
         add(step("guard off") {
             check(GuardService.disable()) { "switch it off in Settings > Accessibility" }
         })
         context.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE).edit().clear().apply()
     }
+
+    /** After a release no apply starts the VPN or the plan again, until setup is completed anew. */
+    fun isReleased(context: Context) = prefs(context).getBoolean(KEY_RELEASED, false)
+
+    fun clear(context: Context) {
+        prefs(context).edit().remove(KEY_RELEASED).apply()
+    }
+
+    private const val KEY_RELEASED = "released"
+    private fun prefs(context: Context) = context.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE)
 
     private inline fun step(name: String, block: () -> Unit): StepResult = try {
         block()

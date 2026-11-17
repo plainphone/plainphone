@@ -27,6 +27,7 @@ import org.plainphone.app.time.TimeGuard
  */
 class GuardService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var foreground: String? = null
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
@@ -105,11 +106,16 @@ class GuardService : AccessibilityService() {
         val now = SystemClock.elapsedRealtime()
         if (!force && now - lastTimeCheck < 5_000L) return
         lastTimeCheck = now
-        val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return
-        if (pkg in snap.blocked) {
-            block(pkg, BlockedActivity.Reason.TIME_USED_UP)
-            // Refresh the stored plan and tell the parent the minutes used.
-            Lock.applyAsync(this, "time used up")
+        // Reading a day of usage events is slow; this process also shows the in-call screen.
+        worker.execute {
+            val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return@execute
+            if (pkg !in snap.blocked) return@execute
+            main.post {
+                if (foreground != pkg) return@post
+                block(pkg, BlockedActivity.Reason.TIME_USED_UP)
+                // Refresh the stored plan and tell the parent the minutes used.
+                Lock.applyAsync(this, "time used up")
+            }
         }
     }
 
@@ -167,6 +173,7 @@ class GuardService : AccessibilityService() {
         main.removeCallbacks(tick)
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
+        worker.shutdown()
         protectionChanged(why)
     }
 
@@ -194,9 +201,7 @@ class GuardService : AccessibilityService() {
         /** Names of AOSP Settings strings for the screens that matter, so the guard knows them in every language. */
         private val SETTINGS_STRING_NAMES = listOf(
             "uninstall_text", "force_stop", "clear_user_data_text", "disable_text",
-            "vpn_settings_title", "vpn_menu_delete", "vpn_disconnect",
-            "accessibility_settings", "manage_device_admin", "remove_device_admin",
-            "usage_access", "default_apps_title",
+            "vpn_menu_delete", "vpn_disconnect", "remove_device_admin",
         )
     }
 }

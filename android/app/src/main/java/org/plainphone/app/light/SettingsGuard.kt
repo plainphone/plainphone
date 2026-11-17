@@ -36,16 +36,21 @@ object SettingsGuard {
         val dangerous: List<String>,
     ) {
         companion object {
+            /**
+             * Actions, not page titles: a list page that only names Plainphone next to "VPN" or
+             * "Default apps" (Network & internet, Apps) stays usable. The screens that switch a
+             * protection off carry one of these words or Plainphone's own description.
+             */
             val BUILT_IN = listOf(
                 // English
                 "uninstall", "force stop", "clear storage", "clear data", "clear cache", "disable", "deactivate",
-                "vpn", "always-on", "accessibility", "device admin", "admin app", "usage access", "default apps",
-                "phone app", "sms app", "remove", "turn off",
+                "always-on", "forget vpn", "usage access", "phone app", "sms app",
                 // Danish
-                "afinstaller", "tving stop", "ryd lagerplads", "ryd data", "deaktiver", "slå fra", "tilgængelighed",
-                "hjælpefunktioner", "enhedsadministrator", "administratorapp", "adgang til brug", "brugsadgang",
-                "standardapps", "telefonapp", "sms-app", "fjern",
+                "afinstaller", "tving stop", "ryd lagerplads", "ryd data", "deaktiver", "altid aktiveret", "glem vpn",
+                "adgang til brug", "brugsadgang", "telefonapp", "sms-app",
             )
+            /** In the package installer only the uninstall dialog is closed: updates of Plainphone must install. */
+            val UNINSTALL = listOf("uninstall", "afinstaller")
         }
     }
 
@@ -55,7 +60,7 @@ object SettingsGuard {
         if (k.ownDescriptions.any { d -> d.isNotBlank() && lower.any { it.contains(d.lowercase()) } }) return true
         val mentionsUs = lower.any { it.contains(k.appName.lowercase()) }
         if (!mentionsUs) return false
-        if (packageName in INSTALLER_PACKAGES) return true
+        if (packageName in INSTALLER_PACKAGES) return Keywords.UNINSTALL.any { w -> lower.any { it.contains(w) } }
         if (packageName !in SETTINGS_PACKAGES) return false
         return k.dangerous.any { w -> lower.any { it.contains(w) } }
     }

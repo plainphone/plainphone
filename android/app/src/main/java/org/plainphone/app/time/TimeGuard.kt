@@ -88,7 +88,9 @@ object TimeGuard {
             events.getNextEvent(e)
             val kind = when (e.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> UsageCounter.Kind.RESUMED
-                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> UsageCounter.Kind.PAUSED
+                // STOPPED is not used: moving between two screens of one app ends with the first one's STOPPED
+                // after the second one's RESUMED, which would stop the count while the app is still in front.
+                UsageEvents.Event.ACTIVITY_PAUSED -> UsageCounter.Kind.PAUSED
                 UsageEvents.Event.SCREEN_NON_INTERACTIVE, UsageEvents.Event.KEYGUARD_SHOWN,
                 UsageEvents.Event.DEVICE_SHUTDOWN -> UsageCounter.Kind.SCREEN_OFF
                 else -> null

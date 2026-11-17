@@ -21,6 +21,11 @@ object LightLock {
     private const val PREFS = "plainphone_light"
 
     fun apply(context: Context, config: PolicyConfig): List<StepResult> {
+        if (LightRelease.isReleased(context)) {
+            save(context, LightPlan(emptySet(), emptySet()))
+            return listOf(StepResult("light mode switched off with the PIN", false, "set Plainphone up again to protect the phone"))
+        }
+        if (!LightSetup.isComplete(context) && LightSetup.next(context) == null) LightSetup.markComplete(context)
         val results = mutableListOf<StepResult>()
         val hasLimits = SyncStore(context).rules()?.timeLimits?.isEmpty == false
 
@@ -78,8 +83,11 @@ object LightLock {
         // Consent is given once in the setup screen; without it the VPN cannot start in the background.
         if (VpnService.prepare(context) != null) return StepResult("DNS filter (VPN)", false, "not allowed yet")
         return try {
-            PlainphoneVpnService.start(context, host)
-            StepResult("DNS filter (VPN)", true, host)
+            if (PlainphoneVpnService.start(context, host) || PlainphoneVpnService.isRunning()) {
+                StepResult("DNS filter (VPN)", true, host)
+            } else {
+                StepResult("DNS filter (VPN)", false, "Android did not start it (Plainphone in the background?)")
+            }
         } catch (e: Exception) {
             StepResult("DNS filter (VPN)", false, "${e.javaClass.simpleName}: ${e.message}")
         }

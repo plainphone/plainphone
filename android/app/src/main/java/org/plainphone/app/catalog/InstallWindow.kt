@@ -11,7 +11,6 @@ import android.net.Uri
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.RelockReceiver
-import org.plainphone.app.light.Mode
 
 /**
  * Installing an app the parent picked from the catalog (R2, docs/app-catalog.md).
@@ -21,7 +20,8 @@ import org.plainphone.app.light.Mode
  * The window closes as soon as the app is installed, or after [WINDOW_MS]. Anything else the child
  * installs meanwhile is unknown to the parent and therefore hidden at once.
  *
- * Light mode: nothing is locked, so it just opens the app's Play page.
+ * Light mode: Play is one of the apps the guard closes, so the same window lets it through for
+ * that time.
  */
 object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
@@ -37,7 +37,10 @@ object InstallWindow {
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
     fun open(context: Context, packageName: String) {
         val app = context.applicationContext
-        if (Mode.isStrong(app)) {
+        // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
+        // lets Play through for the window instead of closing it.
+        // Tapping again does not extend an open window, or Play could be kept open for good.
+        if (current(app) != packageName) {
             prefs(app).edit().putString("pkg", packageName).putLong("until", System.currentTimeMillis() + WINDOW_MS).apply()
             scheduleClose(app)
             Lock.applyNow(app, "install window for $packageName")
@@ -55,8 +58,14 @@ object InstallWindow {
 
     /** Called for every package added while the app runs. */
     fun onPackageAdded(context: Context, packageName: String) {
-        val open = prefs(context).getString("pkg", null) ?: return
-        if (packageName == open) close(context, "installed $packageName") else Lock.applyAsync(context, "app installed during install window")
+        val open = prefs(context).getString("pkg", null)
+        when {
+            packageName == open -> close(context, "installed $packageName")
+            open != null -> Lock.applyAsync(context, "app installed during install window")
+            // Light mode cannot stop installs: put the new app on the guard's list straight away.
+            org.plainphone.app.light.Mode.isLight(context) && !Lock.isInMaintenanceWindow(context) ->
+                Lock.applyAsync(context, "app installed")
+        }
     }
 
     fun playIntent(packageName: String): Intent =

@@ -33,7 +33,7 @@ object LightSetup {
         FILTER(R.string.light_step_filter_title, R.string.light_step_filter_body, R.string.light_step_filter_action),
         USAGE(R.string.light_step_usage_title, R.string.light_step_usage_body, R.string.light_step_usage_action),
         ADMIN(R.string.light_step_admin_title, R.string.light_step_admin_body, R.string.light_step_admin_action),
-        RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action),
+        RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action, optional = true),
         LOCATION(R.string.light_step_location_title, R.string.light_step_location_body, R.string.light_step_location_action, optional = true),
         GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
         ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
@@ -70,6 +70,7 @@ object LightSetup {
 
     fun markComplete(context: Context) {
         prefs(context).edit().putBoolean("complete", true).apply()
+        LightRelease.clear(context)
     }
 
     fun savePin(context: Context, pin: String) {

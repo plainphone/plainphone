@@ -68,11 +68,12 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         taps = 0
-        // Something switched off since setup: walk through the missing steps again.
-        if (Mode.isLight(this) && LightSetup.next(this) != null && LightSetup.isComplete(this) && !Lock.isInMaintenanceWindow(this)) {
-            startActivity(LightSetupActivity.intent(this))
+        // A parent who entered the PIN keeps the window: applying here would end it (and relock).
+        if (Lock.isInMaintenanceWindow(this)) {
+            refresh++
+        } else {
+            Lock.applyAsync(this, "today opened") { runOnUiThread { refresh++ } }
         }
-        Lock.applyAsync(this, "today opened") { runOnUiThread { refresh++ } }
     }
 
     @Composable
@@ -103,6 +104,9 @@ class HomeActivity : ComponentActivity() {
             onPrimary = {
                 if (needsUsage) {
                     runCatching { startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context)) {
+                    // Repairing is the parent's job, and the guard closes those screens outside the PIN window.
+                    startActivity(Intent(context, org.plainphone.app.MaintenanceActivity::class.java))
                 } else {
                     startActivity(LightSetupActivity.intent(context))
                 }

@@ -59,7 +59,8 @@ class LightSetupActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refresh++
-        Lock.applyAsync(this, "light setup")
+        if (LightSetup.next(this) == null) LightSetup.markComplete(this)
+        if (!Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
     }
 
     private fun finishSetup() {
@@ -91,7 +92,8 @@ class LightSetupActivity : ComponentActivity() {
 
     private fun act(step: LightSetup.Step) {
         when (step) {
-            LightSetup.Step.PAIR -> startActivity(PairingActivity.intent(this, authorized = false))
+            // The PIN was set in step 1 and setup is only open until it is complete: no hour limit here.
+            LightSetup.Step.PAIR -> startActivity(PairingActivity.intent(this, authorized = !LightSetup.isComplete(this)))
             LightSetup.Step.LOCATION -> askLocation()
             LightSetup.Step.RUNNING ->
                 if (!LightSetup.notificationsAllowed(this)) { // only false on Android 13+

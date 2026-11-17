@@ -38,11 +38,16 @@ class PlainphoneApplication : Application() {
                 IntentFilter(Intent.ACTION_SCREEN_ON),
             )
             TimeTicker.register(this)
+            // The filter went down (revoked or stopped): the parent hears it with this sync, not 15 minutes later.
+            org.plainphone.app.light.vpn.VpnEvents.listener = { event ->
+                if (event == org.plainphone.app.light.vpn.VpnEvent.Stopped) SyncScheduler.now(this, "DNS filter stopped")
+            }
             // Install window (catalog apps) and new apps: react the moment a package arrives.
             registerReceiver(
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {
                         val pkg = intent.data?.schemeSpecificPart ?: return
+                        if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return // an update, not a new app
                         InstallWindow.onPackageAdded(context, pkg)
                         SyncScheduler.now(context, "app installed")
                     }

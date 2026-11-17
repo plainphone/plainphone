@@ -23,7 +23,7 @@ the code is already split so that is a build setting, not a rewrite.
 |---|---|---|
 | Web filter | A local `VpnService` that only carries DNS. Lookups go to the phone's own ClientID at `<id>.dns.plainphone.org` over DNS-over-TLS. Packets to well-known public resolvers (Google, Cloudflare, Quad9, AdGuard, NextDNS…) are routed into the tunnel and dropped, so apps fall back to the filter. No other traffic touches the VPN ([light-mode-vpn.md](light-mode-vpn.md)) | No filter. The parent is told |
 | App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead | Apps open freely. The parent is told |
-| Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog, and the VPN disconnect dialog. The maintenance PIN opens a 30-minute window | Plainphone can be switched off from Settings |
+| Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog (not the update dialog, so new Plainphone APKs install), and the VPN disconnect dialog. It matches actions (uninstall, deactivate, always-on…) next to Plainphone's name, not page titles, so Network & internet and the Apps list stay usable. The maintenance PIN opens a 30-minute window; repairing a protection (Today > Fix it) asks for it first | Plainphone can be switched off from Settings |
 | Uninstall | A device admin receiver (`LightAdminReceiver`). Android will not uninstall an active device admin, so it has to be switched off first, and that screen is guarded | Plainphone can be uninstalled from the launcher |
 | Approved contacts | The phone and SMS roles via Android's own `RoleManager` dialogs, like strong mode on Android 10-13. Calls and SMS from other numbers are blocked; emergency numbers always work | Calls and SMS are unfiltered. The parent is told |
 | Time limits | Usage access (`UsageStatsManager`), counted on the phone and evaluated offline ([time-limits.md](time-limits.md)) | Time limits do not count. The parent is told when limits are set |
@@ -57,7 +57,7 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 4. **Uninstalling** needs device admin switched off first. The guard closes those screens, but it
    relies on reading screen text; an unusual Settings layout or a language the guard does not know
    may slip through. The parent is told.
-5. **New apps can be installed.** They are blocked until the parent allows them.
+5. **New apps can be installed.** The guard blocks a new app the moment Android announces it, until the parent allows it.
 6. **Default phone and SMS app** can be changed in Settings > Default apps (the guard closes that
    screen when it shows Plainphone). Then calls and SMS are unfiltered until Plainphone is chosen
    again; the parent sees it.
@@ -85,12 +85,13 @@ Play is not an option yet (see below), so v1 is an APK from plainphone.org:
    **Always-on VPN**. Leave **Block connections without VPN** off: the VPN only carries DNS, and
    lockdown would block the traffic that does not go through it, including Plainphone's own
    DNS-over-TLS ([light-mode-vpn.md](light-mode-vpn.md)). The setup step opens that screen.
-6. Pair: the parent opens app.plainphone.org, chooses "Add phone" and scans the code the phone
+6. Android 13 and newer: an app installed from a browser may not switch on an accessibility service at first ("Restricted setting"). Open Settings > Apps > Plainphone, tap the three dots and choose **Allow restricted settings**, then switch the guard on. The guard step says this too.
+7. Pair: the parent opens app.plainphone.org, chooses "Add phone" and scans the code the phone
    shows.
 
 Leaving light mode: maintenance screen (7 taps on the version line, PIN) > "Switch off
-Plainphone". It switches device admin, the VPN and the guard off; then Plainphone uninstalls
-normally.
+Plainphone". It switches device admin, the VPN and the guard off, and nothing switches them on again until
+setup is completed anew; then Plainphone uninstalls normally.
 
 ## Google Play policies per part
 

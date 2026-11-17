@@ -70,7 +70,7 @@ data class ServerRules(
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
                 // Both are newer than the first servers: missing means none.
                 toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
-                    CatalogInstall(it.getString("packageName"), it.optString("label", it.getString("packageName")))
+                    CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
             )

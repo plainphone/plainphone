@@ -125,7 +125,7 @@
     <string name="guard_label">Plainphone-vagt</string>
     <string name="guard_summary">Lukker apps, din forælder ikke har tilladt, og apps, hvor tiden er brugt.</string>
     <string name="guard_description">Plainphone bruger dette til at se, hvilken app der er åben, så den kan lukke apps, der ikke er tilladt, eller hvor tiden er brugt, og så dens egen beskyttelse ikke kan slås fra. Den læser intet andet og sender intet om, hvad du laver, ud over brugte minutter for apps med en tidsgrænse.</string>
-    <string name="light_admin_description">Plainphone bruger dette, så den ikke kan afinstalleres uden forælderens PIN.</string>
+    <string name="light_admin_description">Plainphone bruger dette, så den skal slås fra her, før den kan afinstalleres.</string>
     <string name="light_admin_explanation">Når dette er slået til, kan Plainphone ikke bare afinstalleres. Forælderen får besked, hvis det slås fra.</string>
     <string name="light_admin_disable_warning">Slår du dette fra, fjernes Plainphones beskyttelse. Forælderen får besked.</string>
     <string name="light_step_counter">Trin %1$d af %2$d</string>
@@ -156,13 +156,13 @@
     <string name="light_step_running_body">Tillad notifikationer, og lad Plainphone køre uden batterigrænser, så Android ikke stopper den.</string>
     <string name="light_step_running_action">Tillad</string>
     <string name="light_step_location_title">Placering til Find</string>
-    <string name="light_step_location_body">Så kan forælderen se, hvor telefonen er, når de trykker Find. Vælg \"Tillad altid\". Kun den seneste position gemmes.</string>
+    <string name="light_step_location_body">Så kan forælderen se, hvor telefonen er, når de trykker på Find. Vælg \"Tillad altid\". Kun den seneste position gemmes.</string>
     <string name="light_step_location_action">Tillad placering</string>
     <string name="light_step_guard_title">Slå vagten til</string>
-    <string name="light_step_guard_body">Åbn Plainphone-vagt på listen, og slå den til. Den lukker apps, der ikke er tilladt.</string>
+    <string name="light_step_guard_body">Åbn Plainphone-vagt på listen, og slå den til. Den lukker apps, der ikke er tilladt. Siger Android, at indstillingen er begrænset: åbn Appinfo for Plainphone, tryk på de tre prikker, og vælg Tillad begrænsede indstillinger.</string>
     <string name="light_step_guard_action">Åbn indstillinger</string>
     <string name="light_step_alwayson_title">Hold filteret altid tændt</string>
-    <string name="light_step_alwayson_body">Tryk på tandhjulet ved Plainphone, og slå Altid aktiveret VPN til. Lad \"Bloker forbindelser uden VPN\" være slået fra: Plainphones filter fører kun webadresser.</string>
+    <string name="light_step_alwayson_body">Tryk på tandhjulet ved Plainphone, og slå Altid aktiveret VPN til. Lad \"Bloker forbindelser uden VPN\" være slået fra: Plainphones filter sender kun opslag af webadresser.</string>
     <string name="light_step_alwayson_action">Åbn VPN-indstillinger</string>
     <string name="light_step_pair_title">Forbind med forælderen</string>
     <string name="light_step_pair_body">Åbn app.plainphone.org på forælderens telefon, og scan den kode, Plainphone viser bagefter.</string>

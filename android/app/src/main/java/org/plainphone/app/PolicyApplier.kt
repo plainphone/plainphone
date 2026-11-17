@@ -76,7 +76,7 @@ class PolicyApplier(
             results += step("clear $key") { device.clearRestriction(key) }
         }
         results += showAllHidden()
-        results += step("time limits lifted") { setSuspended(emptySet()) }
+        results += step("time limits lifted") { setSuspended(emptySet()); null }
         results += step("private DNS back to automatic") { device.releasePrivateDns() }
         return results
     }
@@ -215,17 +215,19 @@ class PolicyApplier(
      */
     private fun suspendUsedUp(config: PolicyConfig): StepResult = step("time limits") {
         val target = config.timeBlocked - device.corePackages() - device.ownPackage
-        setSuspended(target)
-        if (target.isEmpty()) "nothing used up" else "${target.size} used up for today"
+        val refused = setSuspended(target)
+        (if (target.isEmpty()) "nothing used up" else "${target.size} used up for today") +
+            if (refused.isEmpty()) "" else "; Android refused: ${refused.joinToString()}"
     }
 
-    private fun setSuspended(target: Set<String>) {
+    private fun setSuspended(target: Set<String>): Set<String> {
         val before = hiddenStore.loadSuspended()
         val release = (before - target).filter(device::isInstalled).toSet()
         val failedOff = if (release.isEmpty()) emptySet() else device.setSuspended(release, false)
         val failedOn = if (target.isEmpty()) emptySet() else device.setSuspended(target, true)
         hiddenStore.saveSuspended(target - failedOn + failedOff)
-        check(failedOn.isEmpty() && failedOff.isEmpty()) { "failed: ${(failedOn + failedOff).joinToString()}" }
+        // Android refuses some packages (for example the active launcher): not a hole in the lock.
+        return (failedOn + failedOff)
     }
 
     private fun showAllHidden(): StepResult = try {

@@ -128,7 +128,7 @@
     <string name="guard_label">Plainphone guard</string>
     <string name="guard_summary">Closes apps your parent has not allowed, and apps whose time is up.</string>
     <string name="guard_description">Plainphone uses this to see which app is open, so it can close apps that are not allowed or whose time is used up, and to keep its own protection from being switched off. It reads nothing else and sends nothing about what you do, apart from minutes used for apps with a time limit.</string>
-    <string name="light_admin_description">Plainphone uses this so it cannot be uninstalled without the parent\'s PIN.</string>
+    <string name="light_admin_description">Plainphone uses this so it has to be switched off here before it can be uninstalled.</string>
     <string name="light_admin_explanation">With this on, Plainphone cannot simply be uninstalled. The parent is told if it is switched off.</string>
     <string name="light_admin_disable_warning">Switching this off removes Plainphone\'s protection. The parent will be told.</string>
     <string name="light_step_counter">Step %1$d of %2$d</string>
@@ -162,7 +162,7 @@
     <string name="light_step_location_body">Lets the parent see where the phone is when they press Find. Choose \"Allow all the time\". Only the last position is kept.</string>
     <string name="light_step_location_action">Allow location</string>
     <string name="light_step_guard_title">Switch on the guard</string>
-    <string name="light_step_guard_body">In the list, open Plainphone guard and switch it on. It closes apps that are not allowed.</string>
+    <string name="light_step_guard_body">In the list, open Plainphone guard and switch it on. It closes apps that are not allowed. If Android says the setting is restricted: open App info for Plainphone, tap the three dots and choose Allow restricted settings.</string>
     <string name="light_step_guard_action">Open settings</string>
     <string name="light_step_alwayson_title">Keep the filter always on</string>
     <string name="light_step_alwayson_body">Tap the gear next to Plainphone and switch on Always-on VPN. Leave \"Block connections without VPN\" off: Plainphone\'s filter only carries web addresses.</string>
