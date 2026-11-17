@@ -53,7 +53,8 @@ See [docs/policies.md](docs/policies.md) for every policy, what Android does not
 - [docs/time-limits.md](docs/time-limits.md) and [docs/app-catalog.md](docs/app-catalog.md): daily time limits and the per-country app catalog
 - [parent-app/](parent-app): the native parent app for iOS and Android (Expo) on the same API; [docs/parent-app.md](docs/parent-app.md) covers builds, app links and push
 - [docs/phone-sync.md](docs/phone-sync.md): how the phone pairs, syncs and applies the rules; [scripts/e2e-phone-sync.sh](scripts/e2e-phone-sync.sh) tests the chain against the real server
-- [SECURITY.md](SECURITY.md): how to report a bypass
+- [docs/encryption.md](docs/encryption.md): planned end-to-end encryption, shared test vectors and F1 interoperability requirements
+- [SECURITY.md](SECURITY.md): how to report a security issue
 
 ## Build
 
