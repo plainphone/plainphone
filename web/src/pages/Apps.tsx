@@ -58,9 +58,10 @@ export function AppsPage() {
                   <input id="app-q" type="search" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
                 </div>
               )}
-              {sorted.length === 0 ? (
-                <p className="empty-inline" role="status">{t("apps.noMatch", { q })}</p>
-              ) : (
+              <p role="status" className={sorted.length === 0 ? "empty-inline" : "sr-only"}>
+                {sorted.length === 0 ? t("apps.noMatch", { q }) : ""}
+              </p>
+              {sorted.length > 0 && (
                 <ul className="list switch-list">
                   {sorted.map((a) => (
                     <li key={a.packageName}>

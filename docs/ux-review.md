@@ -15,10 +15,10 @@ Full-page captures for the six priority screens and Key are in [the screenshot d
 | Screen | Before | After |
 | --- | --- | --- |
 | Phones | The title and add button aligned to different baselines. Unpaired phones also said they had never checked in. | The list starts below a single header row. “Not set up” is the only sync-related status shown for an unpaired phone. |
-| Phone overview | Routine device diagnostics pushed links to everyday controls down the page. | Everyday links lead, in one column on mobile and two on desktop. A reported lock problem still precedes those links. |
-| Apps | The catalog's large entry row competed with search and the installed apps. | The catalog is a compact secondary action near the title. Empty search results are announced through a status region. |
+| Phone overview | Routine device diagnostics pushed links to everyday controls down the page. | Everyday links lead, in one column on mobile and two on desktop. Link hover backgrounds follow the outside corners of the desktop grid. A reported lock problem still precedes those links. |
+| Apps | The catalog's large entry row competed with search and the installed apps. | The catalog is a compact secondary action near the title. The search status region stays mounted as the results change. |
 | Contacts | An information panel displaced the actual contact list. The form looked like a second list card. | Contacts come first, with a visible note explaining the limits of the list. The form has a simple divider, and contact actions can wrap. |
-| Screen time | Today's usage looked like an editable part of the form. The weekday expander looked like a plain link. | Usage comes before the controls. The weekday expander shows its native open or closed marker and works with the keyboard. |
+| Screen time | Today's usage looked like an editable part of the form. The weekday expander looked like a plain link. | Usage comes before the controls. The weekday expander shows its native open or closed marker and works with the keyboard. Each app's bonus button shows that extra time applies today and includes the app name in its accessible name. |
 | Key | The payment fields overflowed on a 390 px viewport at 200% text. | The fields can stack within their container. |
 | Location | Find, ring and check-in competed for attention. The ring option ran into its action. | Find remains primary when available. Ring and check-in are secondary, the ring option has breathing room, and the selected sharing mode has a visible surface tint. Map zoom buttons have 44 px targets. |
 
@@ -54,3 +54,5 @@ Playwright captured 160 baseline views across 20 routes. Seven routes overflowed
 Browser interaction checks passed for the skip link, keyboard navigation to a phone and its Apps page, app search and switching, contact validation and creation, the weekday expander, an empty app list, and Location loading, error, retry and map fallback. Both zoom controls measured 44 × 44 px and responded to Enter with a local map style fixture. The route matrix included empty approvals and schedules plus the missing-token states for invitations and sign-in callbacks. Real devices, mail delivery, successful app-link handoff, push permission and map tiles remain open.
 
 The automated checks sampled the rendered controls and text. Manual screen-reader testing remains open.
+
+The review follow-up captured 24 views before and 24 after across Apps, Screen time and the phone overview using the same widths, themes and text sizes. All follow-up views fit the viewport. Browser assertions verified that app search kept the same status node when the last match disappeared and cleared it when a match returned. They also verified the app bonus button's accessible name in Danish and English and measured the desktop link corner radii on hover.

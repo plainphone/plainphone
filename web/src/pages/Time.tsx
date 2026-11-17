@@ -307,7 +307,7 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                           )
                         }
                       >
-                        {t("time.bonusShort", { minutes: BONUS })}
+                        {t("time.bonus", { minutes: BONUS })}
                       </button>
                       <button
                         type="button"
