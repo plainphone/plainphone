@@ -1,7 +1,6 @@
 # Plainphone
 
-[![Android](https://github.com/plainphone/plainphone/actions/workflows/android.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/android.yml)
-[![Server and web](https://github.com/plainphone/plainphone/actions/workflows/server.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/server.yml)
+[![CI](https://github.com/plainphone/plainphone/actions/workflows/ci.yml/badge.svg)](https://github.com/plainphone/plainphone/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-24604a)](LICENSE)
 
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn.
@@ -101,6 +100,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
 ### Signing
 
