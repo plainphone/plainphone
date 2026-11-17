@@ -10,6 +10,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
+import { downloadRoutes } from "./routes/download.js";
 import { parentRoutes } from "./routes/parent.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
@@ -83,6 +84,8 @@ export function createApp(ctx: Ctx) {
   app.route("/api/catalog", publicCatalogRoutes());
   app.route("/api", parentRoutes(ctx));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
+  // Stable APK address for provisioning QR codes (redirects to the newest release).
+  app.route("/download", downloadRoutes(ctx));
 
   // The parent PWA. Unknown paths get index.html so client-side routes work.
   const dist = ctx.cfg.WEB_DIST;

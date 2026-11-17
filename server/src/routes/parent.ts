@@ -6,6 +6,7 @@ import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   contacts,
@@ -14,14 +15,19 @@ import {
   householdMembers,
   households,
   locations,
+  notificationMutes,
   pairings,
   pendingChanges,
   phoneApps,
   phones,
+  pushSubscriptions,
   schedules,
   selfKeys,
   users,
 } from "../db/schema.js";
+import { DEFAULT_PUSH_HOSTS, pushHostAllowed } from "../providers/parent-push.js";
+import { notifyUsers } from "../services/notifications.js";
+import { approveRequest, openRequests, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
@@ -38,6 +44,7 @@ import {
 } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
 import { syncDns } from "../services/dns.js";
+import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
@@ -72,6 +79,7 @@ export function parentRoutes(ctx: Ctx) {
   const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
+  const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
   const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
   const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
 
@@ -189,6 +197,116 @@ export function parentRoutes(ctx: Ctx) {
     }
     deleteCookie(c, SESSION_COOKIE, { path: "/api" });
     return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
+  });
+
+  // --- Notifications (Web Push now; APNs/FCM tokens can be stored for the native apps) ---
+
+  const pushHosts = [
+    ...DEFAULT_PUSH_HOSTS,
+    ...ctx.cfg.PUSH_EXTRA_HOSTS.split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  ];
+  const pushTestLimit = new RateLimiter(10, 60 * 60_000);
+  const subscriptionJson = (s: typeof pushSubscriptions.$inferSelect) => ({
+    id: s.id,
+    platform: s.platform,
+    label: s.label,
+    // Lets a browser recognise its own row without the endpoint (a capability) leaving the server.
+    endpointHash: createHash("sha256").update(s.endpoint).digest("hex"),
+    createdAt: s.createdAt.toISOString(),
+    lastSuccessAt: s.lastSuccessAt?.toISOString() ?? null,
+  });
+
+  app.get("/notifications", async (c) => {
+    const user = c.get("user");
+    const subs = await ctx.db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, user.id))
+      .orderBy(pushSubscriptions.createdAt);
+    const muted = await ctx.db
+      .select({ phoneId: notificationMutes.phoneId })
+      .from(notificationMutes)
+      .where(eq(notificationMutes.userId, user.id));
+    return c.json({
+      webPushEnabled: Boolean(ctx.parentPush.webPublicKey),
+      webPushPublicKey: ctx.parentPush.webPublicKey,
+      offlineAlertHours: ctx.cfg.OFFLINE_ALERT_HOURS,
+      subscriptions: subs.map(subscriptionJson),
+      mutedPhoneIds: muted.map((m) => m.phoneId),
+    });
+  });
+
+  app.post("/notifications/subscriptions", async (c) => {
+    const user = c.get("user");
+    const label = z.string().trim().max(60).optional();
+    const input = await body(
+      c,
+      z.discriminatedUnion("platform", [
+        z.object({
+          platform: z.literal("web"),
+          endpoint: z.string().max(2000),
+          keys: z.object({ p256dh: z.string().min(80).max(100), auth: z.string().min(16).max(40) }),
+          label,
+          // The browser rotated the subscription: the old endpoint this one replaces.
+          replaces: z.string().max(2000).optional(),
+        }),
+        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label }),
+      ]),
+    );
+    if (input.platform === "web" && !ctx.parentPush.webPublicKey) {
+      return c.json({ error: "notifications are not set up on this server" }, 409);
+    }
+    if (input.platform === "web" && !pushHostAllowed(input.endpoint, pushHosts)) {
+      return c.json({ error: "unknown push service" }, 400);
+    }
+    const values =
+      input.platform === "web"
+        ? { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth }
+        : { endpoint: input.token, p256dh: null, auth: null };
+    // The same browser or app install signing in as someone else takes the row over.
+    const [row] = await ctx.db
+      .insert(pushSubscriptions)
+      .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          userId: user.id,
+          platform: input.platform,
+          label: sql`coalesce(excluded.label, ${pushSubscriptions.label})`,
+          failures: 0,
+          ...values,
+        },
+      })
+      .returning();
+    if (input.platform === "web" && input.replaces && input.replaces !== input.endpoint) {
+      const [old] = await ctx.db
+        .delete(pushSubscriptions)
+        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces)))
+        .returning({ label: pushSubscriptions.label });
+      // The service worker cannot tell the device's name; keep the one the old row had.
+      if (old?.label && !row!.label) {
+        row!.label = old.label;
+        await ctx.db.update(pushSubscriptions).set({ label: old.label }).where(eq(pushSubscriptions.id, row!.id));
+      }
+    }
+    return c.json(subscriptionJson(row!), 201);
+  });
+
+  app.delete("/notifications/subscriptions/:sid", async (c) => {
+    await ctx.db
+      .delete(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.id, param(c, "sid")), eq(pushSubscriptions.userId, c.get("user").id)));
+    return c.body(null, 204);
+  });
+
+  app.post("/notifications/test", async (c) => {
+    const user = c.get("user");
+    const input = await body(c, z.object({ subscriptionId: z.uuid().optional() }));
+    if (!pushTestLimit.take(user.id)) throw new HTTPException(429, { message: "too many test notifications" });
+    const sent = await notifyUsers(ctx, [user.id], { type: "test" }, { subscriptionId: input.subscriptionId });
+    return c.json({ sent });
   });
 
   // --- Households -------------------------------------------------------------
@@ -436,18 +554,69 @@ export function parentRoutes(ctx: Ctx) {
     return c.json(await phoneSummary(ctx, phone), 201);
   });
 
+  // Strong-mode setup from the dashboard: a phone entry plus a one-time token for the provisioning
+  // QR code, which the browser builds (it also hashes the maintenance PIN; the server never sees it).
+  app.post("/phones/enroll", async (c) => {
+    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many new phones today" });
+    const input = await body(
+      c,
+      z.object({
+        name: z.string().trim().min(1).max(40),
+        profile: z.enum(["child", "self"]),
+        householdId: z.uuid().optional(),
+        timezone: z.string().max(64).optional(),
+      }),
+    );
+    const hids = await myHouseholdIds(c.get("user").id);
+    const householdId = input.householdId ?? hids[0];
+    if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
+    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+      return c.json({ error: "unknown time zone" }, 400);
+    }
+    const phone = await ctx.db.transaction((tx) =>
+      createPhone(ctx, tx, {
+        householdId,
+        name: input.name,
+        profile: input.profile,
+        mode: "strong",
+        deviceTokenHash: null,
+        deviceInfo: null,
+        timezone: input.timezone,
+      }),
+    );
+    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    // Register the DNS ClientID now, so the filter host is ready by the time the phone is set up.
+    await syncDns(ctx, phone.id);
+    return c.json({ phone: await phoneSummary(ctx, phone), enrollment, provisioning: provisioningInfo(ctx) }, 201);
+  });
+
+  // A new QR code for a phone that has not been set up yet (the old one expired or got lost).
+  app.post("/phones/:pid/enrollment", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
+    if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
+    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);
+  });
+
   app.get("/phones/:pid", async (c) => c.json(await phoneSummary(ctx, await requirePhone(c))));
 
   app.patch("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
     const input = await body(
       c,
-      z.object({ name: z.string().trim().min(1).max(40).optional(), locationEnabled: z.boolean().optional() }),
+      z.object({
+        name: z.string().trim().min(1).max(40).optional(),
+        locationEnabled: z.boolean().optional(),
+        /** Hours of silence before the parents are told; null = server default, 0 = never. */
+        offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
+      }),
     );
     await ctx.db
       .update(phones)
       .set({
         ...(input.name ? { name: input.name } : {}),
+        ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
         ...(input.locationEnabled !== undefined
           ? { locationEnabled: input.locationEnabled, ...(input.locationEnabled ? {} : { locateRequestedAt: null }) }
           : {}),
@@ -465,6 +634,50 @@ export function parentRoutes(ctx: Ctx) {
   app.delete("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
     return change(c, phone, { type: "phone.remove", dnsClientId: phone.dnsClientId });
+  });
+
+  // Requests from the phone: an app from its list, or a contact.
+  app.get("/phones/:pid/requests", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json({ requests: await openRequests(ctx, [phone.id]) });
+  });
+
+  app.post("/phones/:pid/requests/:rid/approve", async (c) => {
+    const phone = await requirePhone(c);
+    const input = await body(c, z.object({ name: z.string().trim().min(1).max(60).optional() }));
+    try {
+      const r = await approveRequest(ctx, phone, param(c, "rid"), c.get("user").id, input);
+      return c.json(changeJson(r), r.status === "applied" ? 200 : 202);
+    } catch (err) {
+      if (err instanceof RequestError || err instanceof ChangeError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
+
+  app.post("/phones/:pid/requests/:rid/reject", async (c) => {
+    const phone = await requirePhone(c);
+    try {
+      await rejectRequest(ctx, phone, param(c, "rid"), c.get("user").id);
+      return c.body(null, 204);
+    } catch (err) {
+      if (err instanceof RequestError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
+
+  // Whether this parent gets notifications about this phone (default on).
+  app.put("/phones/:pid/notifications", async (c) => {
+    const phone = await requirePhone(c);
+    const input = await body(c, z.object({ enabled: z.boolean() }));
+    const userId = c.get("user").id;
+    if (input.enabled) {
+      await ctx.db
+        .delete(notificationMutes)
+        .where(and(eq(notificationMutes.userId, userId), eq(notificationMutes.phoneId, phone.id)));
+    } else {
+      await ctx.db.insert(notificationMutes).values({ userId, phoneId: phone.id }).onConflictDoNothing();
+    }
+    return c.body(null, 204);
   });
 
   // Apps

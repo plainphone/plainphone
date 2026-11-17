@@ -12,6 +12,7 @@ import {
   type Locale,
   type PendingChange,
   type Phone,
+  type PhoneRequest,
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
@@ -388,6 +389,20 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
+      {!phone.pairedAt && (
+        <section className="section panel" aria-labelledby="setup-h">
+          <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
+          <p className="muted">{t("setup.pendingBody")}</p>
+          <p>
+            <Link to={`${base}/setup`} className="btn btn-primary">
+              {t("setup.showQr")}
+            </Link>
+          </p>
+        </section>
+      )}
+
+      {phone.openRequests > 0 && <RequestsSection />}
+
       <PhoneStatusBlock phone={phone} now={now} />
 
       {(phone.profile === "self" || pending.length > 0) && (
@@ -426,6 +441,87 @@ export function PhoneOverview() {
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <ManagePhone />
     </>
+  );
+}
+
+/** What the phone has asked for: an app from its list, or a contact. */
+function RequestsSection() {
+  const { t } = useI18n();
+  const { phone, setPhone, run, notify } = usePhone();
+  const res = useLoad(() => api.get<{ requests: PhoneRequest[] }>(`/phones/${phone.id}/requests`), [phone.id]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const requests = res.data?.requests ?? [];
+
+  async function done() {
+    await res.reload();
+    setPhone(await api.get<Phone>(`/phones/${phone.id}`));
+  }
+
+  async function approve(r: PhoneRequest) {
+    setBusy(r.id);
+    const name = names[r.id]?.trim();
+    const body = r.kind === "contact" && name && name !== r.name ? { name } : {};
+    try {
+      await run(() => api.post<ChangeResult>(`/phones/${phone.id}/requests/${r.id}/approve`, body), t("requests.approved"));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(null);
+    }
+    await done().catch(() => undefined);
+  }
+
+  async function reject(r: PhoneRequest) {
+    setBusy(r.id);
+    try {
+      await api.post(`/phones/${phone.id}/requests/${r.id}/reject`, {});
+      notify({ tone: "success", text: t("requests.rejected") });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    }
+    setBusy(null);
+    await done().catch(() => undefined);
+  }
+
+  if (requests.length === 0) return null;
+  return (
+    <section className="section" aria-labelledby="requests-h">
+      <h2 id="requests-h">{t("requests.title", { name: phone.name })}</h2>
+      <ul className="list item-list">
+        {requests.map((r) => (
+          <li key={r.id} className="item item-stack request">
+            {r.kind === "app" ? (
+              <div>
+                <p className="row-title">{r.appLabel ?? r.packageName}</p>
+                <p className="row-meta">{t("requests.app")}</p>
+              </div>
+            ) : (
+              <Field label={t("requests.contactName", { number: r.number ?? "" })}>
+                {(p) => (
+                  <input
+                    {...p}
+                    type="text"
+                    maxLength={60}
+                    autoComplete="off"
+                    value={names[r.id] ?? r.name ?? ""}
+                    onChange={(e) => setNames((n) => ({ ...n, [r.id]: e.target.value }))}
+                  />
+                )}
+              </Field>
+            )}
+            <div className="actions">
+              <button type="button" className="btn btn-primary btn-small" onClick={() => void approve(r)} disabled={busy !== null}>
+                {t("requests.approve")}
+              </button>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => void reject(r)} disabled={busy !== null}>
+                {t("requests.reject")}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

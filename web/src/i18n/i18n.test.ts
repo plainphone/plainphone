@@ -28,7 +28,7 @@ describe("catalogues", () => {
 
   it("write Danish with real letters", () => {
     expect(da["login.sentTitle"]).toBe("Tjek din indbakke");
-    expect(da["phones.emptyBody"]).toContain("Åbn");
+    expect(da["phones.emptyBody"]).toContain("Vælg Tilføj");
     expect(Object.values(da).join(" ")).not.toMatch(/\b(ae|oe|aa)\b/);
   });
 });

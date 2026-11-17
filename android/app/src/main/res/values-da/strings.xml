@@ -105,8 +105,9 @@
     <string name="blocked_sms_out">Udgående besked</string>
     <string name="pair_button">Par med en forælder</string>
     <string name="pairing_title">Par med en forælder</string>
+    <string name="pairing_connecting">Forbinder til forælderens dashboard…</string>
     <string name="pairing_loading">Henter en parringskode …</string>
-    <string name="pairing_instructions">Åbn app.plainphone.org på forælderens telefon, vælg Tilføj telefon og scan koden, eller skriv koden nedenfor.</string>
+    <string name="pairing_instructions">Scan koden med kameraet på forælderens telefon. Eller åbn app.plainphone.org, vælg Tilføj telefon og derefter Indtast koden.</string>
     <string name="pairing_waiting">Venter på forælderen … Koden gælder i 15 minutter.</string>
     <string name="pairing_done">Parret. Forælderens regler gælder nu.</string>
     <string name="pairing_failed">Kunne ikke nå serveren. Tjek wi-fi eller mobildata, og prøv igen.</string>

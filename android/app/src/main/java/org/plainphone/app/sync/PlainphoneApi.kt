@@ -12,6 +12,8 @@ import org.json.JSONObject
 interface SyncApi {
     fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing
     fun pollPairing(pairingId: String, pollSecret: String): PairPoll
+    /** Pairs with the one-time token from a dashboard-made provisioning QR code (POST /device/enroll). */
+    fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult
     fun fetchRules(token: String, etag: String?): RulesResult
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
@@ -25,6 +27,12 @@ sealed interface PairPoll {
     data object Waiting : PairPoll
     data object Expired : PairPoll
     data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
+}
+
+sealed interface EnrollResult {
+    data class Paired(val phoneId: String, val deviceToken: String) : EnrollResult
+    /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
+    data object Rejected : EnrollResult
 }
 
 sealed interface RulesResult {
@@ -138,6 +146,16 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
             202 -> PairPoll.Waiting
             404, 410 -> PairPoll.Expired
             else -> throw HttpError(r.status, r.body)
+        }
+    }
+
+    override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
+        val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
+        val r = call("POST", "/device/enroll", body = body)
+        return when (r.status) {
+            200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
+            400, 404, 410 -> EnrollResult.Rejected
+            else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }
 

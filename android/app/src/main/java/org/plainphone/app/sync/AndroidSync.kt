@@ -18,6 +18,7 @@ import android.os.CancellationSignal
 import android.os.HandlerThread
 import android.os.PowerManager
 import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -218,6 +219,28 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
     }
 }
 
+/**
+ * Pairs the phone with the enrollment token from the provisioning QR code, in the background, so it
+ * also happens when nobody looks at the pairing screen (or the network came late). Scheduled by
+ * [SyncScheduler.enrollIfNeeded]; retried with backoff until the token is used or refused.
+ */
+class EnrollWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result {
+        val result = try {
+            org.plainphone.app.ui.PairingActivity.controller(applicationContext).enroll()
+        } catch (e: Exception) {
+            Log.w("Plainphone", "enrollment failed, will retry: ${e.javaClass.simpleName}")
+            return Result.retry()
+        }
+        Log.i("Plainphone", "enrollment: ${result?.javaClass?.simpleName ?: "nothing to do"}")
+        if (result is EnrollResult.Paired) {
+            SyncScheduler.ensurePeriodic(applicationContext)
+            SyncScheduler.now(applicationContext, "paired")
+        }
+        return Result.success()
+    }
+}
+
 internal fun isInteractive(context: Context) = context.getSystemService(PowerManager::class.java)?.isInteractive == true
 
 /**
@@ -231,6 +254,7 @@ object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
     private const val NOW = "plainphone-sync-now"
     private const val SOON = "plainphone-sync-soon"
+    private const val ENROLL = "plainphone-enroll"
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
@@ -262,7 +286,19 @@ object SyncScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(SOON, ExistingWorkPolicy.REPLACE, request)
     }
 
+    /** Pairs in the background with the QR code's enrollment token, if one is waiting. */
+    fun enrollIfNeeded(context: Context) {
+        val store = SyncStore(context)
+        if (store.isPaired || store.enrollToken() == null) return
+        val request = OneTimeWorkRequestBuilder<EnrollWorker>()
+            .setConstraints(network)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(ENROLL, ExistingWorkPolicy.KEEP, request)
+    }
+
     fun onBoot(context: Context) {
+        enrollIfNeeded(context)
         ensurePeriodic(context)
         now(context, "boot")
     }
