@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Choose the rules",
-        body: "Pick which apps show, who can call, and when school time or bedtime starts. A stricter rule will apply at once.",
+        body: "Pick which apps show, who can call, and when school time or bedtime starts. The phone applies changes when it next syncs with the server.",
       },
     ],
     guide: "Want to try it? <a href=\"/setup/\">Follow the step-by-step guide</a>.",
@@ -97,7 +97,7 @@ export default {
       },
       {
         q: "What does Plainphone know about me or my child?",
-        a: "As little as it can. When location arrives, only the phone’s last known position will be kept, never a history. No tracking, no ads, nothing sold. For adults managing their own phone, location will be off by default. Today the app on the phone sends nothing to a server. If you sign in to the parent app, it stores your email address and the rules you set. The <a href=\"/privacy/\">privacy policy</a> has the details.",
+        a: "A paired phone reports device status to the server so you can see things like its battery level. When location is on, the phone sends its position periodically and when you use Find. The server keeps only the latest position. Location starts on for child profiles and off for Self profiles. We store your account email address and the rules you set. We show no ads and sell no data. The <a href=\"/privacy/\">privacy policy</a> has the details.",
       },
       {
         q: "What does it cost?",

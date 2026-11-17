@@ -128,7 +128,7 @@
     <!-- Light mode (docs/light-mode.md) -->
     <string name="guard_label">Plainphone guard</string>
     <string name="guard_summary">Closes apps your parent has not allowed, and apps whose time is up.</string>
-    <string name="guard_description">Plainphone checks which app is open so it can close apps that are blocked or out of time. It also limits access to settings used to switch off Plainphone. It reads nothing else and sends nothing about what you do, apart from minutes used for apps with a time limit.</string>
+    <string name="guard_description">Plainphone checks which app is open so it can close apps that are blocked or out of time. To recognise pages where Plainphone can be switched off, it checks screen text and descriptions in Android settings and related system screens. It checks these on the phone and does not send them to the server. The phone can report minutes used for apps with a time limit.</string>
     <string name="light_admin_description">Plainphone uses this so it has to be switched off here before it can be uninstalled.</string>
     <string name="light_admin_explanation">With this on, Plainphone cannot simply be uninstalled. The parent is told if it is switched off.</string>
     <string name="light_admin_disable_warning">Switching this off allows Plainphone to be uninstalled. Your parent can receive a notification.</string>

@@ -50,7 +50,7 @@ export default {
       },
       {
         title: "Vælg reglerne",
-        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. En strammere regel kommer til at gælde med det samme.",
+        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. Telefonen bruger de nye regler, næste gang den synkroniserer med serveren.",
       },
     ],
     guide: "Har du lyst til at prøve? <a href=\"/da/setup/\">Følg trin-for-trin-guiden</a>.",
@@ -95,7 +95,7 @@ export default {
       },
       {
         q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Så lidt som muligt. Når placering kommer, gemmes kun telefonens seneste position, aldrig en historik. Ingen sporing, ingen reklamer, intet bliver solgt. For voksne, der styrer deres egen telefon, er placering slået fra som standard. I dag sender appen på telefonen ikke noget til en server. Logger du ind i forældreappen, gemmer den din e-mailadresse og de regler, du sætter. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
+        a: "Når du har tilknyttet en telefon, sender den status til serveren, så du f.eks. kan se batteriniveauet. Når placering er slået til, sender telefonen sin position med jævne mellemrum, og når du bruger Find. Serveren gemmer kun den seneste position. Placering er som standard slået til for børneprofiler og fra, hvis du styrer din egen telefon. Vi gemmer din kontos e-mailadresse og de regler, du vælger. Vi viser ingen reklamer og sælger ingen data. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
       },
       {
         q: "Hvad koster det?",

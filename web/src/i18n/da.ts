@@ -78,8 +78,8 @@ export const da: Messages = {
 
   "profile.child": "Barn",
   "profile.self": "Mig selv",
-  "profile.childHelp": "Et barns telefon. Du og de andre forældre i husstanden bestemmer reglerne, og alle ændringer gælder med det samme.",
-  "profile.selfHelp": "Din egen telefon. Strammer du en regel, gælder det med det samme. Løsner du en, venter ændringen på din nøgle: en ventetid, du vælger, eller en person, du stoler på, som godkender.",
+  "profile.childHelp": "Et barns telefon. Du og de andre forældre i husstanden bestemmer reglerne, og ændringerne gælder, når telefonen synkroniserer igen.",
+  "profile.selfHelp": "Din egen telefon. Strammere regler kræver ingen godkendelse eller ventetid og gælder, når telefonen synkroniserer igen. Vil du løsne en regel, skal du først vente den tid, du har valgt, eller have den godkendt af en, du stoler på.",
 
   "mode.strong": "Stærk tilstand",
   "mode.light": "Let tilstand",
@@ -190,7 +190,7 @@ export const da: Messages = {
   "contacts.removed": "Kontakten er fjernet.",
 
   "filter.title": "Webfilter",
-  "filter.intro": "Filteret blokerer webadresser i de kategorier, du vælger, så dit barn kan møde mindre af indholdet. Noget slipper igennem, og nyttige sider kan blive blokeret. Tal med dit barn om, hvad det kan støde på.",
+  "filter.intro": "Filteret kan gøre det mindre sandsynligt at møde bestemt indhold ved at blokere webadresser i de kategorier, du vælger. Noget indhold slipper igennem, og nyttige sider kan blive blokeret.",
   "filter.categories": "Blokerede kategorier",
   "filter.categoriesHelp": "Slå en kategori til for at blokere webadresser i den.",
   "filter.cat.social": "Sociale medier",
@@ -265,7 +265,7 @@ export const da: Messages = {
   "loc.turnedOff": "Placering er slået fra, og den gemte placering er slettet.",
 
   "key.title": "Nøgle",
-  "key.intro": "Nøglen bestemmer, hvad der skal til for at løsne en regel på telefonen. Strammer du en regel, gælder det altid med det samme.",
+  "key.intro": "Nøglen bestemmer, hvad der skal til for at løsne en regel på telefonen. Strammere regler kræver ingen godkendelse eller ventetid og gælder, når telefonen synkroniserer igen.",
   "key.type": "Hvad der skal til for at løsne en regel",
   "key.delay": "En ventetid",
   "key.delayHelp": "En løsere regel venter det antal timer, du vælger. Du kan annullere, mens den venter.",

@@ -125,7 +125,7 @@
     <!-- Let tilstand (docs/light-mode.md) -->
     <string name="guard_label">Plainphone-vagt</string>
     <string name="guard_summary">Lukker apps, din forælder ikke har tilladt, og apps, hvor tiden er brugt.</string>
-    <string name="guard_description">Plainphone ser, hvilken app der er åben, så den kan lukke apps, der er blokeret, eller hvor tiden er brugt. Den begrænser også adgangen til de indstillinger, hvor Plainphone kan slås fra. Den læser intet andet og sender intet om, hvad du laver, ud over brugte minutter for apps med en tidsgrænse.</string>
+    <string name="guard_description">Plainphone ser, hvilken app der er åben, så den kan lukke apps, der er blokeret, eller hvor tiden er brugt. For at genkende sider, hvor Plainphone kan slås fra, læser den skærmtekst og beskrivelser i Androids indstillinger og på relaterede systemskærme. Det sker direkte på telefonen, og teksten sendes ikke til serveren. Telefonen kan sende antal brugte minutter for apps med en tidsgrænse.</string>
     <string name="light_admin_description">Plainphone bruger dette, så den skal slås fra her, før den kan afinstalleres.</string>
     <string name="light_admin_explanation">Når dette er slået til, kan Plainphone ikke bare afinstalleres. Forælderen får besked, hvis det slås fra.</string>
     <string name="light_admin_disable_warning">Slår du dette fra, kan Plainphone afinstalleres. Din forælder kan få besked.</string>

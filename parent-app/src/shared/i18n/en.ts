@@ -79,8 +79,8 @@ export const en = {
 
   "profile.child": "Child",
   "profile.self": "Self",
-  "profile.childHelp": "A child's phone. You and other parents in the household set the rules, and every change takes effect at once.",
-  "profile.selfHelp": "Your own phone. Tightening a rule takes effect at once. Loosening one waits for your key: a delay you choose or a trusted person who approves.",
+  "profile.childHelp": "A child's phone. You and other parents in the household set the rules, and changes apply when the phone next syncs.",
+  "profile.selfHelp": "Your own phone. Stricter rules need no approval or waiting period and apply when the phone next syncs. Looser rules first need your chosen waiting period or approval from someone you trust.",
 
   "mode.strong": "Strong mode",
   "mode.light": "Light mode",
@@ -191,7 +191,7 @@ export const en = {
   "contacts.removed": "The contact was removed.",
 
   "filter.title": "Web filter",
-  "filter.intro": "The filter can reduce exposure by blocking web addresses in the categories you choose. Some content still gets through, and useful sites can be blocked. Talk with your child about what they might come across.",
+  "filter.intro": "The filter can reduce exposure by blocking web addresses in the categories you choose. Some content still gets through, and useful sites can be blocked.",
   "filter.categories": "Blocked categories",
   "filter.categoriesHelp": "Switch on a category to block matching web addresses.",
   "filter.cat.social": "Social media",
@@ -266,7 +266,7 @@ export const en = {
   "loc.turnedOff": "Location is off, and the stored position was deleted.",
 
   "key.title": "Key",
-  "key.intro": "The key decides what it takes to loosen a rule on this phone. Tightening always takes effect at once.",
+  "key.intro": "The key decides what it takes to loosen a rule on this phone. Stricter rules need no approval or waiting period and apply when the phone next syncs.",
   "key.type": "What it takes to loosen a rule",
   "key.delay": "A delay",
   "key.delayHelp": "Loosening waits the number of hours you choose. You can cancel while it waits.",
