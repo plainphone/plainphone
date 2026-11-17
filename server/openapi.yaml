@@ -159,7 +159,7 @@ components:
           properties:
             type: { const: timeLimit.bonus }
             packageName: { $ref: "#/components/schemas/LimitTarget" }
-            date: { type: string, format: date }
+            date: { type: string, format: date, description: "The local date it was asked for. The bonus counts for the local date when it takes effect." }
             minutes: { type: integer, minimum: 5, maximum: 240 }
         - type: object
           description: Always loosening.
@@ -433,7 +433,7 @@ components:
         deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
         lockIntact:
           type: boolean
-          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; the server stores false when `mode` is light and one of them is reported off or missing.
+          description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
         maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
         failedPolicies:
           type: array
@@ -984,7 +984,7 @@ paths:
                         limit: { $ref: "#/components/schemas/Limit" }
                   bonuses: { type: array, items: { $ref: "#/components/schemas/Bonus" } }
                   used:
-                    description: "`timeUsed` from the phone's last status report, or null."
+                    description: "`timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null."
                     oneOf:
                       - $ref: "#/components/schemas/TimeUsed"
                       - type: "null"
@@ -1043,7 +1043,7 @@ paths:
       operationId: postPhonesTimeLimitsBonus
       tags: [limits]
       summary: Give extra minutes today (phone time zone)
-      description: Always a loosening, so on a Self phone it waits for the key.
+      description: Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       requestBody:
@@ -1059,7 +1059,7 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
-        "400": { description: "Core apps cannot have a limit" }
+        "400": { description: "Core apps cannot have a limit, or the target has no limit" }
 
   /catalog:
     get:

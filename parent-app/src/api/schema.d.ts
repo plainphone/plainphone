@@ -507,7 +507,7 @@ export interface paths {
         put?: never;
         /**
          * Give extra minutes today (phone time zone)
-         * @description Always a loosening, so on a Self phone it waits for the key.
+         * @description Always a loosening, so on a Self phone it waits for the key; it then counts for the local date when it takes effect.
          */
         post: operations["postPhonesTimeLimitsBonus"];
         delete?: never;
@@ -979,7 +979,10 @@ export interface components {
             /** @constant */
             type?: "timeLimit.bonus";
             packageName?: components["schemas"]["LimitTarget"];
-            /** Format: date */
+            /**
+             * Format: date
+             * @description The local date it was asked for. The bonus counts for the local date when it takes effect.
+             */
             date?: string;
             minutes?: number;
         } | {
@@ -1204,7 +1207,7 @@ export interface components {
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
             deviceOwner: boolean;
-            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; the server stores false when `mode` is light and one of them is reported off or missing. */
+            /** @description Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs. */
             lockIntact: boolean;
             /** @description A PIN maintenance unlock is running on the phone. */
             maintenance: boolean;
@@ -2055,7 +2058,7 @@ export interface operations {
                             limit?: components["schemas"]["Limit"];
                         }[];
                         bonuses?: components["schemas"]["Bonus"][];
-                        /** @description `timeUsed` from the phone's last status report, or null. */
+                        /** @description `timeUsed` from the phone's last status report when that report is from today (phone time zone), otherwise null. */
                         used?: components["schemas"]["TimeUsed"] | null;
                     };
                 };
@@ -2166,7 +2169,7 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
-            /** @description Core apps cannot have a limit */
+            /** @description Core apps cannot have a limit, or the target has no limit */
             400: {
                 headers: {
                     [name: string]: unknown;

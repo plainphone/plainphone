@@ -250,11 +250,18 @@ export function deviceRoutes(ctx: Ctx) {
     if (appliedAt && appliedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
       return c.json({ error: "rulesAppliedAt is in the future" }, 400);
     }
-    // A light-mode phone that reports a missing protection is never shown as intact,
-    // whatever it says about lockIntact. The server only ever makes this stricter.
+    // A light-mode phone (paired as light, or reporting light) is only intact when all six
+    // light protections are on, no policy failed and no maintenance unlock runs, whatever
+    // it says about lockIntact. The server only ever makes this stricter.
     const p = input.protections;
+    const light = phone.mode === "light" || input.mode === "light";
     const lockIntact =
-      input.lockIntact && !(input.mode === "light" && p && LIGHT_LOCK.some((k) => p[k] !== true));
+      input.lockIntact &&
+      (!light ||
+        (p !== undefined &&
+          LIGHT_LOCK.every((k) => p[k] === true) &&
+          input.failedPolicies.length === 0 &&
+          !input.maintenance));
     // The newest report replaces the one before; no history is kept. Times are stored in UTC.
     await ctx.db
       .update(phones)

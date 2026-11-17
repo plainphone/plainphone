@@ -128,6 +128,49 @@ describe("status with light-mode fields", () => {
     expect((await parent.get(`/api/phones/${phoneId}`)).json.status.lockIntact).toBe(true);
   });
 
+  async function lightPhone() {
+    const env = await setup();
+    await h.ctx.db.update(phones).set({ mode: "light" }).where(eq(phones.id, env.phoneId));
+    return env;
+  }
+  const intact = async (parent: Client, phoneId: string) => (await parent.get(`/api/phones/${phoneId}`)).json.status.lockIntact;
+  const REQUIRED = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"] as const;
+
+  it("needs all six light protections on a light phone, each one off or missing breaks the lock", async () => {
+    const { parent, phoneId, device } = await lightPhone();
+    await device.put("/api/device/status", report({ mode: "light", protections: allOn }));
+    expect(await intact(parent, phoneId)).toBe(true);
+    for (const k of REQUIRED) {
+      await device.put("/api/device/status", report({ mode: "light", protections: { ...allOn, [k]: false } }));
+      expect(await intact(parent, phoneId), `${k} off`).toBe(false);
+      const { [k]: _gone, ...without } = allOn;
+      await device.put("/api/device/status", report({ mode: "light", protections: without }));
+      expect(await intact(parent, phoneId), `${k} missing`).toBe(false);
+    }
+  });
+
+  it("on a light phone, no protections, a failed policy or maintenance is not intact", async () => {
+    const { parent, phoneId, device } = await lightPhone();
+    await device.put("/api/device/status", report());
+    expect(await intact(parent, phoneId)).toBe(false);
+    await device.put("/api/device/status", report({ mode: "light", protections: allOn, failedPolicies: ["vpn-start"] }));
+    expect(await intact(parent, phoneId)).toBe(false);
+    await device.put("/api/device/status", report({ mode: "light", protections: allOn, maintenance: true }));
+    expect(await intact(parent, phoneId)).toBe(false);
+  });
+
+  it("a light-paired phone that reports strong and Device Owner is still judged as light", async () => {
+    const { parent, phoneId, device } = await lightPhone();
+    await device.put("/api/device/status", report({ mode: "strong", deviceOwner: true, protections: { ...allOn, vpn: false } }));
+    expect(await intact(parent, phoneId)).toBe(false);
+  });
+
+  it("a strong phone reporting strong is not judged by light protections", async () => {
+    const { parent, phoneId, device } = await setup();
+    await device.put("/api/device/status", report({ mode: "strong", deviceOwner: true, protections: { ...allOn, vpn: false, accessibility: false } }));
+    expect(await intact(parent, phoneId)).toBe(true);
+  });
+
   it("rejects unknown protections and bad timeUsed", async () => {
     const { device } = await setup();
     const bad: [string, Record<string, unknown>][] = [
@@ -211,6 +254,40 @@ describe("time limits", () => {
     // After the delay they apply in order: the Saturday raise, then the removal.
     h.clock.advance(24 * 3_600_000);
     expect((await rules(device)).timeLimits.total).toBeNull();
+  });
+
+  it("on a Self phone, a delayed bonus counts for the day it takes effect", async () => {
+    const { parent, phoneId, device } = await setup("self");
+    await parent.put(`/api/phones/${phoneId}/time-limits/total`, { minutes: 60 });
+    const r = await parent.post(`/api/phones/${phoneId}/time-limits/bonus`, { packageName: "*", minutes: 30 });
+    expect(r.json.status).toBe("pending");
+    h.clock.advance(24 * 3_600_000); // Tuesday 17 November, 13:00 in Copenhagen
+    expect((await rules(device)).timeLimits.bonuses).toEqual([{ packageName: "*", date: "2026-11-17", minutes: 30 }]);
+  });
+
+  it("refuses a bonus where there is no limit", async () => {
+    const { parent, phoneId } = await setup();
+    expect((await parent.post(`/api/phones/${phoneId}/time-limits/bonus`, { packageName: "*", minutes: 15 })).status).toBe(400);
+    expect(
+      (await parent.post(`/api/phones/${phoneId}/time-limits/bonus`, { packageName: "com.spotify.music", minutes: 15 })).status,
+    ).toBe(400);
+  });
+
+  it("does not apply a delayed limit to an app that became core meanwhile", async () => {
+    const { parent, phoneId, device } = await setup("self");
+    await parent.put(`/api/phones/${phoneId}/time-limits/apps/com.spotify.music`, { minutes: 30 });
+    expect((await parent.put(`/api/phones/${phoneId}/time-limits/apps/com.spotify.music`, { minutes: 90 })).json.status).toBe("pending");
+    await h.ctx.db.update(phoneApps).set({ core: true }).where(eq(phoneApps.packageName, "com.spotify.music"));
+    h.clock.advance(24 * 3_600_000);
+    expect((await rules(device)).timeLimits.apps).toEqual([{ packageName: "com.spotify.music", minutes: 30, days: {} }]);
+  });
+
+  it("shows use only from a report made today", async () => {
+    const { parent, phoneId, device } = await setup();
+    await device.put("/api/device/status", report({ timeUsed: { "*": 20 } }));
+    expect((await parent.get(`/api/phones/${phoneId}/time-limits`)).json.used).toEqual({ "*": 20 });
+    h.clock.advance(12 * 3_600_000); // past midnight in Copenhagen
+    expect((await parent.get(`/api/phones/${phoneId}/time-limits`)).json.used).toBeNull();
   });
 
   it("classifies limit changes per weekday", () => {

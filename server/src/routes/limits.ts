@@ -39,7 +39,11 @@ export function limitRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requirePhon
       total: l.total,
       apps: l.apps.map((a) => ({ packageName: a.packageName, label: labels.get(a.packageName) ?? a.packageName, limit: a.limit })),
       bonuses: l.bonuses,
-      used: phone.deviceStatus?.timeUsed ?? null,
+      // Use is per day: a report from before local midnight is not today's.
+      used:
+        phone.statusReportedAt && localDate(phone.timezone, phone.statusReportedAt) === l.today
+          ? (phone.deviceStatus?.timeUsed ?? null)
+          : null,
     });
   });
 

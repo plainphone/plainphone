@@ -72,9 +72,10 @@ phone                                      server                         parent
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
-   `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. When a
-   light-mode report lists one of those six as off or leaves it out, the server stores
-   `lockIntact: false` whatever the phone sent. The parent sees the protections on the phone's page.
+   `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
+   phone paired in light mode, or a report with `mode: "light"`, the server stores
+   `lockIntact: false` when `protections` is missing, one of those six is off or missing, a
+   policy failed or maintenance runs, whatever the phone sent. The parent sees the protections on the phone's page.
 
    The answer is `204`. Invalid bodies get `400`. The parent API returns `rulesAppliedAt` in UTC.
 6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key

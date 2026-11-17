@@ -23,7 +23,7 @@ import type { KeyInput, ScheduleInput } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { syncDns } from "./dns.js";
-import { type Limit, limitLoosens, TOTAL } from "./limits.js";
+import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { wakePhone } from "./phones.js";
 
 export type Op =
@@ -187,6 +187,14 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
       return;
     case "timeLimit.set":
     case "timeLimit.bonus": {
+      if (op.type === "timeLimit.bonus") {
+        // Extra time only means something where there is a limit.
+        const [limit] = await db
+          .select({ p: timeLimits.packageName })
+          .from(timeLimits)
+          .where(and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName)));
+        if (!limit) throw new ChangeError(400, "there is no limit to give extra time on");
+      }
       if (op.packageName === TOTAL) return;
       const [app] = await db
         .select()
@@ -301,6 +309,14 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         await db.delete(timeLimits).where(where);
         return { dns: false };
       }
+      if (op.packageName !== TOTAL) {
+        // A delayed change may meet an app that has since been reported as core.
+        const [app] = await db
+          .select({ core: phoneApps.core })
+          .from(phoneApps)
+          .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
+        if (app?.core) throw new ChangeError(400, "core apps such as the dialer cannot have a time limit");
+      }
       const values = { minutes: op.limit.minutes, days: op.limit.days };
       await db
         .insert(timeLimits)
@@ -309,9 +325,14 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
       return { dns: false };
     }
     case "timeLimit.bonus":
-      await db
-        .insert(timeBonuses)
-        .values({ phoneId: phone.id, packageName: op.packageName, day: op.date, minutes: op.minutes });
+      // The day is decided when the bonus takes effect, not when it was asked for: on a
+      // Self phone it may wait 24 hours or more, and yesterday's bonus is never sent.
+      await db.insert(timeBonuses).values({
+        phoneId: phone.id,
+        packageName: op.packageName,
+        day: localDate(phone.timezone, ctx.now()),
+        minutes: op.minutes,
+      });
       return { dns: false };
     case "catalog.add":
       // A new row is not installed yet; an existing row keeps its installed flag and label.

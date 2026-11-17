@@ -44,6 +44,10 @@ when one is wrong. The files are public: `GET /api/catalog` lists the countries 
 
 A test (`server/test/light-mode.test.ts`) checks every file against these rules.
 
+Some apps are left out on purpose because they have no Android app on Play: regional bus
+operators such as FynBus, NT and BAT are covered by Rejsebillet and Rejsekort, and
+MinUddannelse is web only.
+
 ## Which phones get which catalog
 
 For now the phone's time zone decides: `Europe/Copenhagen` gets `dk`, other phones get no

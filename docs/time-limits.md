@@ -31,7 +31,8 @@ the same package. A day starts at local midnight in the phone's `timezone`.
 
 The rules document sends every limit and only the bonuses for today and tomorrow (phone time
 zone, server clock), so the list stays short. Use is counted on the phone (usage access) and
-reported as `timeUsed` in `PUT /device/status`; the server keeps only the latest report.
+reported as `timeUsed` in `PUT /device/status`; the server keeps only the latest report, and
+the parent API shows it only when that report is from today in the phone's time zone.
 
 ## Parent API
 
@@ -42,7 +43,7 @@ reported as `timeUsed` in `PUT /device/status`; the server keeps only the latest
 | `DELETE /phones/{pid}/time-limits/total` | Remove it |
 | `PUT /phones/{pid}/time-limits/apps/{package}` | Set an app's cap. `400` for a core app, `404` for an app the phone has not reported |
 | `DELETE /phones/{pid}/time-limits/apps/{package}` | Remove it |
-| `POST /phones/{pid}/time-limits/bonus` | `{ packageName: "*" or a package, minutes: 5 to 240 }`, for today in the phone's time zone |
+| `POST /phones/{pid}/time-limits/bonus` | `{ packageName: "*" or a package, minutes: 5 to 240 }`, for the day it takes effect in the phone's time zone. `400` when that target has no limit |
 
 All writes go through the same change pipeline as other rules (`timeLimit.set`,
 `timeLimit.bonus`), so the phone is woken at once.
@@ -54,5 +55,6 @@ at once:
 
 - Adding a limit or lowering one: applies at once.
 - Raising the minutes on any weekday, or removing a limit: waits for the key.
-- A bonus: always waits for the key. With the delay key it may arrive after the day is over,
-  which is the point.
+- A bonus: always waits for the key. It counts for the day it takes effect (the server picks
+  the local date when it applies the change), so with the delay key it is extra time on a
+  later day, not on the day it was asked for.
