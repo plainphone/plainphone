@@ -51,9 +51,12 @@ phone                                      server                         parent
    with `sendLocation` passes its deadline unanswered. Any other position gets `409` ("no
    position was asked for"), as does every position when location is off. Phones from before
    `mode` only know `enabled`; the server sends them `intervalMinutes: 1440` outside `always`.
+   `location.alwaysUntil` is the end of `always` (the phone shows it); after it the server
+   refuses 5-minute positions and the mode becomes `checkin`.
 5. **Ring and "Are you okay?".** `ring` and `checkIn` in the rules are the open requests (null:
    none, or stop). Report what happened with `POST /device/safety/{id}`: `shown`, `here` (ring),
-   `ok` or `call` (check-in). While one is open, `pollSeconds` is 10.
+   `ok` or `call` (check-in). While a ring is open or a check-in waits for an answer,
+   `pollSeconds` is 10.
 6. **Status.** Report battery, app version and lock state with `PUT /device/status`. Send it
    regularly and at once when the lock state or a maintenance unlock changes. The newest report
    replaces the one before (no history), and the parent sees it on the phone's page: battery,

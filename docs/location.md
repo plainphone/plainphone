@@ -10,11 +10,18 @@ phone sends its position, how a parent finds a phone, and what the child sees.
 | `off` | never; the stored position is deleted | an adult's own phone (Self) |
 | `find` | once each time a parent presses Find | |
 | `checkin` | on Find, and once when an "Are you okay?" goes unanswered | a child's phone |
-| `always` | every 5 minutes, plus the above | nobody: a parent has to choose it |
+| `always` | every 5 minutes, plus the above, for 1 hour, today or 7 days | nobody: a parent has to choose it and how long |
 
 `PUT /api/phones/{pid}/location/mode` changes it. The server refuses positions the mode does not
 allow (`409`), so the rule holds even against an old or modified app. On a Self phone, turning
 location on applies at once (it is a tightening).
+
+`always` is never open-ended. The parent picks how long (`alwaysFor`: `hour`, `today` = until
+the phone's local midnight, or `week`); the server stores the end in `phones.location_always_until`,
+stops taking 5-minute positions at that moment, and the sweeper moves the phone back to `checkin`
+within a minute. The dashboard advises against it from age 13 with one line ("teenagers need
+privacy, and constant tracking can harm trust"); Plainphone stores no age, so the line is always
+shown under the option.
 
 Phones paired before the modes existed were moved to `checkin` when they had location on
 (migration `0006_safety`): sharing every 5 minutes is now an explicit choice.
@@ -25,8 +32,15 @@ Plainphone does not share a position silently:
 
 - **Each single position** (Find, or an unanswered "Are you okay?") shows a short, quiet
   notification: "Your parent pressed Find, and your location was sent at 16:40."
-- **Always on** shows an ongoing notification ("Your location is shared with your parent") and a
-  line on Plainphone's own screen (`LocationSharingBadge`, also for the home screen).
+- **Always on** shows an ongoing notification ("Every 5 minutes, until 18:00") and a line on
+  Plainphone's own screens (`LocationSharingLine`: the Today screen in light mode, the main screen
+  in strong mode).
+- **"What can my parents see?"** (`SharingActivity`, from that line and from every location
+  notification) says in plain words what the current mode means, and lists every time the phone
+  sent its position in the last 30 days: Find, unanswered "Are you okay?", or an "always" stretch
+  shown as one line with a range. The list is kept only on the phone (`SafetyStore`), never sent.
+- **"Are you okay?"** says on the screen that the position is sent once if nobody answers before
+  the deadline (when the mode sends one).
 
 A silent Find was considered and left out: a child who cannot tell when they are located is the
 kind of tracking the privacy policy promises not to do, and the parent still gets the position.
@@ -88,3 +102,11 @@ are quick. FCM would make all three near-instant; polling stays the fallback.
 
 One row per phone and kind (`safety_requests`): times, the answer and the "Call me" number. A
 new request replaces the old one, and the sweeper deletes it a day after it ended.
+
+## Evidence
+
+The choices above follow the EU Commission's guidelines on the protection of minors under the
+Digital Services Act (2025), point 81(d), on geolocation and parental tools; and the UK ICO Age Appropriate Design Code (Children's Code), standards 10 (geolocation: off by default,
+an obvious sign while it is visible to others, back off after each session) and 11 (parental
+controls: tell the child, with an obvious sign while they are being monitored). Hence: no silent
+Find, a notice and a local log for every position, and "always" only for a chosen time.

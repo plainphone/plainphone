@@ -16,7 +16,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Household, phones and their rules, apps, contacts, schedules, filter settings, key | until the phone is removed or the household's last member deletes their account | `DELETE /api/phones/{pid}`, `DELETE /api/me` |
 | The phone's latest status (battery, app version, lock state, DNS host) | each report replaces the last | `PUT /api/device/status` |
 | Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
-| Location mode (off, find, checkin, always) | until the phone is removed | `phones.location_mode` |
+| Location mode (off, find, checkin, always) and the end of "always" | until the phone is removed; the end is cleared when "always" ends | `phones.location_mode`, `phones.location_always_until` |
 | "Ring the phone" and "Are you okay?" (times, the answer, and for "Call me" an approved contact's number; one of each kind per phone) | replaced by the next one; deleted a day after it ended | `safety_requests`, sweeper |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
 | Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
