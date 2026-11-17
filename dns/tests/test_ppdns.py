@@ -222,6 +222,24 @@ class TagRulesTest(unittest.TestCase):
             lists.build(tmp, opener=opener, max_age=3600)
             self.assertEqual(calls, [s.url for s in sources[:2]])
 
+    def test_fresh_download_requires_a_tagged_rule(self):
+        source = next(s for s in lists.SOURCES if s.tag)
+
+        def opener(*_args, **_kwargs):
+            return io.BytesIO(b"example.org\n")
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(lists, "SOURCES", [source]):
+            path = lists.local_path(tmp, source)
+            lists.build(tmp, opener=opener, max_age=3600)
+            with open(path, encoding="utf-8") as fh:
+                headers = fh.readline() + fh.readline()
+            for body in ("", "\n", "! comment\n", "unrelated text\n", "||example.org^$ctag="):
+                with self.subTest(body=body):
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(headers + body)
+                    self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                    self.assertEqual(lists.build(tmp, opener=opener, max_age=3600), {source.key: "ok"})
+
     def test_fresh_download_requires_matching_format_and_source_url(self):
         source = next(s for s in lists.SOURCES if s.tag)
         changed = replace(source, url=source.url + "?updated")

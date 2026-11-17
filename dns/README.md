@@ -196,10 +196,11 @@ CNAME to `forcesafesearch.google.com` or `restrict.youtube.com`.
 
 ## List download cost
 
-On init, ppdns reuses a nonempty tagged list younger than
+On init, ppdns reuses a tagged list younger than
 `PPDNS_LISTS_REFRESH_HOURS` (12 hours by default) when its header matches the
-current tag, format version, and SHA-256 hash of the source URL. Missing,
-stale, and legacy files take the download path. The scheduler preserves
+current tag, format version, and SHA-256 hash of the source URL and is
+followed by a complete rule with the expected tag. Missing, stale, legacy,
+and incomplete files take the download path. The scheduler preserves
 each tagged list's download deadline across startup and fetches only lists
 that are due. A failed download retries after one
 refresh interval, while the other lists keep their own deadlines. Startup

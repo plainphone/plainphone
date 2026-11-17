@@ -194,9 +194,13 @@ def _download_age(path: str, source: Source) -> float | None:
                 age >= 0
                 and fh.readline() == f"{_HEADER}{source.tag}\n"
                 and fh.readline() == _source_header(source.url)
-                and fh.readline()
             ):
-                return age
+                rule = fh.readline()
+                suffix = f"ctag={source.tag}\n"
+                if rule.endswith(suffix):
+                    prefix = rule[:-len(suffix)]
+                    if prefix.endswith(("$", ",")) and prefix[:-1].strip() and not prefix.startswith(("!", "#", "[")):
+                        return age
     except (OSError, UnicodeError):
         pass
     return None
