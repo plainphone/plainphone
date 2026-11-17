@@ -212,6 +212,13 @@ class EndToEnd(unittest.TestCase):
         self.assertTrue(resolves(ask(self.selfp, "example.org")))
         self.assertTrue(ask(self.selfp, "googlesyndication.com").blocked)
 
+    def test_help_sites_override_parent_blocks_with_all_categories_enabled(self):
+        domains = ["bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"]
+        client = self._create({"profile": "child", "block_domains": domains + ["example.org"]})
+        self.assertTrue(eventually(lambda: ask(client, "example.org").blocked))
+        for domain in domains:
+            self.assertTrue(resolves(ask(client, domain)), domain)
+
     def test_allowed_domain_beats_blocked_service_for_child(self):
         client = self._create({"profile": "child", "allow_domains": ["instagram.com"]})
         self.assertTrue(eventually(lambda: resolves(ask(client, "www.instagram.com"))))

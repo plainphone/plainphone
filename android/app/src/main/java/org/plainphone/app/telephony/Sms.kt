@@ -77,7 +77,7 @@ object SmsStore {
     fun conversations(context: Context): List<Conversation> {
         val rules = ContactPolicySources.get(context).rules()
         return recent(context)
-            .mapNotNull { m -> rules.contactFor(m.number)?.let { it to m } }
+            .mapNotNull { m -> rules.smsContact(m.number)?.let { it to m } }
             .groupBy({ it.first.number }, { it })
             .map { (_, items) ->
                 Conversation(items.first().first, items.first().second, items.count { !it.second.outgoing && !it.second.read })
@@ -88,7 +88,7 @@ object SmsStore {
     /** Messages with [contact], oldest first. */
     fun thread(context: Context, contact: ApprovedContact): List<SmsMessage> {
         val rules = ContactPolicySources.get(context).rules()
-        return recent(context).filter { rules.contactFor(it.number)?.number == contact.number }.reversed()
+        return recent(context).filter { rules.smsContact(it.number)?.number == contact.number }.reversed()
     }
 
     fun markRead(context: Context, messages: List<SmsMessage>) {
@@ -212,8 +212,8 @@ class SmsDeliverReceiver : BroadcastReceiver() {
             }
             val body = msgs.joinToString("") { it.displayMessageBody.orEmpty() }
             SmsStore.insertIncoming(context, sender, body, msgs.first().timestampMillis, subId)
-            val name = rules.contactFor(sender)?.name ?: sender
-            CallNotifications.showMessage(context, name, rules.contactFor(sender)?.number ?: sender, body)
+            val name = rules.smsContact(sender)?.name ?: sender
+            CallNotifications.showMessage(context, name, rules.smsContact(sender)?.number ?: sender, body)
         }
     }
 }

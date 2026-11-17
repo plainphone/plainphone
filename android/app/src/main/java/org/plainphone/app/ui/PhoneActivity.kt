@@ -196,7 +196,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
     val open = conversationWith
     if (open != null) {
         BackHandler { conversationWith = null }
-        val contact = rules.contactFor(open)
+        val contact = rules.smsContact(open)
         ConversationScreen(
             contact = contact,
             rawNumber = open,
@@ -225,6 +225,9 @@ private fun PhoneApp(route: Route, resumed: Int) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             RoleBanner(resumed)
+            androidx.compose.material3.TextButton(onClick = {
+                context.startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
+            }) { Text(stringResource(R.string.help_lines_title)) }
             when (tab) {
                 Tab.CONTACTS -> ContactsScreen(rules, onCall = call, onMessage = { conversationWith = it.number })
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)

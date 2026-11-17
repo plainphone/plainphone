@@ -190,7 +190,7 @@ export const da: Messages = {
   "contacts.removed": "Kontakten er fjernet.",
 
   "filter.title": "Webfilter",
-  "filter.intro": "Filteret virker i alle apps på telefonen, også i de browsere, der åbner inde i apps.",
+  "filter.intro": "Filteret virker i alle apps på telefonen, også i de browsere, der åbner inde i apps. Hjælpelinjer og udvalgte sider med sundhedsinfo er altid åbne, også hvis en filterregel ellers ville blokere dem.",
   "filter.categories": "Blokerede kategorier",
   "filter.categoriesHelp": "Slået til betyder blokeret.",
   "filter.cat.social": "Sociale medier",

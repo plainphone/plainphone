@@ -37,13 +37,18 @@ class TelephonyLog(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("plainphone_telephony", Context.MODE_PRIVATE)
 
-    fun blocked(): List<BlockedEvent> =
+    fun blocked(): List<BlockedEvent> = blocked(ContactPolicySources.get(app).rules())
+
+    private fun blocked(rules: ContactRules): List<BlockedEvent> =
         prefs.getString(KEY_BLOCKED, null).orEmpty().lines().mapNotNull(BlockedEvent::decode)
+            .filterNot { rules.isHelpNumber(it.number) }
 
     @Synchronized
     fun recordBlocked(channel: Channel, direction: Direction, number: String?) {
+        val rules = ContactPolicySources.get(app).rules()
+        if (rules.isHelpNumber(number)) return
         val event = BlockedEvent(System.currentTimeMillis(), channel, direction, number?.takeIf { it.isNotBlank() } ?: HIDDEN)
-        val list = BlockedEvent.append(blocked(), event, MAX_EVENTS)
+        val list = BlockedEvent.append(blocked(rules), event, MAX_EVENTS)
         prefs.edit().putString(KEY_BLOCKED, list.joinToString("\n") { it.encode() }).apply()
     }
 

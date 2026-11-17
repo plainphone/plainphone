@@ -16,7 +16,15 @@ data class ContactRules(
     val enforced: Boolean,
     val contacts: List<ApprovedContact>,
     val country: PhoneNumbers.Country?,
+    val help: HelpDirectory = HelpDirectory(),
 ) {
+    fun helpContact(number: String?, channel: Channel): ApprovedContact? =
+        help.contactFor(number, Helplines.country(country), channel)
+
+    fun isHelpNumber(number: String?): Boolean = help.contains(number, Helplines.country(country))
+
+    fun smsContact(number: String?): ApprovedContact? = helpContact(number, Channel.SMS) ?: contactFor(number)
+
     /** The approved contact behind [number], if any. */
     fun contactFor(number: String?): ApprovedContact? {
         val key = PhoneNumbers.normalize(number, country) ?: return null
@@ -55,6 +63,9 @@ class ContactPolicy(
         if (direction == Direction.OUTGOING && number != null && emergency.isEmergency(number)) {
             return Decision.Allow("emergency number")
         }
+        val help = rules.helpContact(number, channel)
+        val emergencyCallerId = direction == Direction.INCOMING && help?.number in EmergencyNumbers.ALWAYS
+        if (help != null && !emergencyCallerId) return Decision.Allow("help line")
         if (!rules.enforced) return Decision.Allow("lock not active")
 
         // After an emergency call, the emergency service must be able to call back,

@@ -23,6 +23,7 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 ## What phase 2 adds
 
 - **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. A calm phone and messages app (Jetpack Compose, English and Danish) shows the approved contacts, recent calls, conversations and a keypad. Contacts come from the QR code and the maintenance screen. See [docs/contacts.md](docs/contacts.md).
+- **Help lines stay open.** Children can call, text or open verified help services from the phone without asking, and Plainphone keeps that activity out of parent reports. See [Help lines](docs/policies.md#help-lines).
 - **DNS per phone.** The QR script can give each phone its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver (built in `dns/`).
 - **DNS bypass analysis.** Which allowed apps could get around private DNS, and why an always-on VPN is the later layer: [docs/dns-bypass.md](docs/dns-bypass.md).
 

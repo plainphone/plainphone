@@ -172,6 +172,8 @@
             android:launchMode="singleTask"
             android:taskAffinity="org.plainphone.app.blocked" />
 
+        <activity android:name=".contacts.HelpActivity" android:exported="false" />
+
         <!-- ===== Phase 2: phone and messages ===== -->
 
         <!--

@@ -191,7 +191,7 @@ export const en = {
   "contacts.removed": "The contact was removed.",
 
   "filter.title": "Web filter",
-  "filter.intro": "The filter works in every app on the phone, also in browsers inside apps.",
+  "filter.intro": "The filter works in every app on the phone, also in browsers inside apps. Help lines and selected health information sites stay open, even when a filter rule would block them.",
   "filter.categories": "Blocked categories",
   "filter.categoriesHelp": "Switched on means blocked.",
   "filter.cat.social": "Social media",

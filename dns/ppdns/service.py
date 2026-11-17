@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 
-from . import profiles
+from . import helplines, profiles
 from .adguard import AdGuard, AdGuardError
 
 log = logging.getLogger("ppdns.service")
@@ -104,6 +104,15 @@ class Service:
         kept += [f"@@||{d}^{suffix}" for d in allow]
         kept += [f"||{d}^{suffix}" for d in block]
         self.adguard.set_user_rules(kept)
+
+    def install_helpline_rules(self) -> None:
+        with self._lock:
+            domains = helplines.domains()
+            self.adguard.exclude_from_stats([f"||{domain}^" for domain in domains])
+            existing = self.adguard.user_rules()
+            fixed = [f"@@||{domain}^$important" for domain in domains]
+            if any(rule not in existing for rule in fixed):
+                self.adguard.set_user_rules(existing + [rule for rule in fixed if rule not in existing])
 
     def sync_access(self) -> int:
         """Allow exactly the registered ClientIDs. Returns how many."""

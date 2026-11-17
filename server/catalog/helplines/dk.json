@@ -1,0 +1,140 @@
+{
+  "country": "dk",
+  "verifiedOn": "2026-11-17",
+  "helplines": [
+    {
+      "name": "112",
+      "phone": "112",
+      "sms": null,
+      "source": "https://politi.dk/112",
+      "domains": [
+        "politi.dk"
+      ]
+    },
+    {
+      "name": "BørneTelefonen",
+      "phone": "116111",
+      "sms": "116111",
+      "source": "https://bornetelefonen.dk/kontakt-os/",
+      "domains": [
+        "bornetelefonen.dk"
+      ]
+    },
+    {
+      "name": "Livslinien",
+      "phone": "+4570201201",
+      "sms": null,
+      "source": "https://www.livslinien.dk/om-livslinien/kontakt",
+      "domains": [
+        "livslinien.dk"
+      ]
+    },
+    {
+      "name": "headspace",
+      "phone": null,
+      "sms": null,
+      "source": "https://headspace.dk/chatten/",
+      "domains": [
+        "headspace.dk"
+      ]
+    },
+    {
+      "name": "BackOp (Cyberhus)",
+      "phone": null,
+      "sms": null,
+      "source": "https://backop.dk/ny-app/",
+      "domains": [
+        "cyberhus.dk",
+        "backop.dk"
+      ]
+    },
+    {
+      "name": "Ungekontakten (Aarhus Kommune)",
+      "phone": "+4589405200",
+      "sms": "+4525800058",
+      "source": "https://ungekontakten.aarhus.dk/chat-eller-sms-med-os",
+      "domains": [
+        "ungekontakten.aarhus.dk"
+      ]
+    },
+    {
+      "name": "Sexlinien",
+      "phone": "+4570202266",
+      "sms": null,
+      "source": "https://www.sexlinien.dk/",
+      "domains": [
+        "sexlinien.dk"
+      ]
+    },
+    {
+      "name": "LGBT+ Danmark",
+      "phone": "+4533131948",
+      "sms": null,
+      "source": "https://lgbt.dk/raadgivning/",
+      "domains": [
+        "lgbt.dk"
+      ]
+    },
+    {
+      "name": "Akuttelefonen (Region Hovedstaden)",
+      "phone": "1813",
+      "sms": null,
+      "source": "https://www.regionh.dk/sundhed/akut/praktisk_information/sider/1813.aspx",
+      "domains": [
+        "regionh.dk"
+      ]
+    },
+    {
+      "name": "Lægevagten (Region Sjælland)",
+      "phone": "1818",
+      "sms": null,
+      "source": "https://www.regionsjaelland.dk/sundhed/akuthjaelp/laegevagten-ring-1818",
+      "domains": [
+        "regionsjaelland.dk"
+      ]
+    },
+    {
+      "name": "Lægevagten (Region Syddanmark)",
+      "phone": "+4570110707",
+      "sms": null,
+      "source": "https://regionsyddanmark.dk/patienter-og-parorende/akuthjaelp/laegevagt-i-region-syddanmark/adresser-pa-laegevagten-i-region-syddanmark",
+      "domains": [
+        "regionsyddanmark.dk"
+      ]
+    },
+    {
+      "name": "Lægevagten (Region Midtjylland)",
+      "phone": "+4570113131",
+      "sms": null,
+      "source": "https://www.sundhed.rm.dk/akuthjalp/lagevagten/",
+      "domains": [
+        "sundhed.rm.dk"
+      ]
+    },
+    {
+      "name": "Lægevagten (Region Nordjylland)",
+      "phone": "+4570150300",
+      "sms": null,
+      "source": "https://rn.dk/da/Sundhed/Akut-sygdom",
+      "domains": [
+        "rn.dk"
+      ]
+    }
+  ],
+  "information": [
+    {
+      "name": "sundhed.dk",
+      "source": "https://www.sundhed.dk/borger/trivsel/boern-og-unge-i-fokus/akut-hjaelp/",
+      "domains": [
+        "sundhed.dk"
+      ]
+    },
+    {
+      "name": "Sex & Samfund",
+      "source": "https://sexogsamfund.dk/",
+      "domains": [
+        "sexogsamfund.dk"
+      ]
+    }
+  ]
+}

@@ -217,6 +217,7 @@ export default {
               "The filter’s settings for each phone (ClientID, profile, allowed and blocked domains) are kept until the phone is removed.",
             ],
           },
+          "Plainphone keeps help-line calls, texts and activity in the Help screen out of parent reports. Android can still keep recent calls and text conversations on the phone. Lookups for protected help and health domains are excluded from the filter’s statistics.",
           `Allowed lookups are passed on over encrypted connections to Quad9 (Switzerland) and Mullvad, with Cloudflare as a fallback. They see the domain and our server’s address, never the phone’s, and no part of the phone’s IP address is passed on. The technical details are in <a href="https://github.com/plainphone/plainphone/blob/main/docs/privacy.md">docs/privacy.md</a>.`,
         ],
       },

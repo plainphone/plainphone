@@ -103,6 +103,9 @@ class FakeAdGuard:
     def user_rules(self):
         return list(self.rules)
 
+    def exclude_from_stats(self, rules):
+        self.stats_exclusions = rules
+
     def set_user_rules(self, rules):
         self.rules = list(rules)
 
@@ -358,6 +361,16 @@ class ServiceTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_fixed_help_rules_are_private_and_survive_parent_edits(self):
+        self.svc.install_helpline_rules()
+        self.svc.install_helpline_rules()
+        out = self.svc.create("child", block_domains=["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["block_domains"], ["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["allow_domains"], [])
+        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"):
+            self.assertEqual(self.ag.user_rules().count(f"@@||{domain}^$important"), 1)
+            self.assertIn(f"||{domain}^", self.ag.stats_exclusions)
+
     def test_create_registers_client_and_access_list(self):
         out = self.svc.create("child")
         self.assertEqual(out["profile"], "child")
@@ -604,6 +617,7 @@ class UpgradeFromFirstReleaseTest(unittest.TestCase):
         with mock.patch.object(lists, "build", return_value={}):
             jobs.refresh_lists()
         self.assertEqual(self.ag.refreshed, 1)
+        self.assertIn("@@||bornetelefonen.dk^$important", self.ag.user_rules())
         self.assertIn("os_other", self.ag._clients["pp-childchild"]["tags"])
 
 

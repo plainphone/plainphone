@@ -3,6 +3,7 @@
 FROM python:3.15-alpine
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY ppdns /app/ppdns
+COPY dns/ppdns /app/ppdns
+COPY server/catalog/helplines /app/helpline-catalogue
 ENTRYPOINT ["python", "-m", "ppdns"]
 CMD ["serve"]

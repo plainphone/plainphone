@@ -70,3 +70,16 @@ network (Tailscale).
 
 If you run the filter yourself ([self-hosting-dns.md](self-hosting-dns.md)),
 these settings come with the first configuration ppdns writes.
+
+## Help lines
+
+Plainphone does not send help-line call or SMS records to its server or to the
+parent dashboard. Help-line numbers are excluded from the parent-facing
+blocked log, and using the Help screen does not contribute to screen time.
+Android can still show calls in its own recent calls and keep SMS conversations
+on the phone. Calls, messages and websites are subject to the provider's own
+privacy practices.
+
+ppdns allows the verified help and information sites through the web filter and
+excludes their domains and subdomains from DNS statistics. As with other
+lookups, ppdns does not keep a query log. See [Help lines](policies.md#help-lines).

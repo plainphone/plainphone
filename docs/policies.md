@@ -101,3 +101,35 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 - **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone.
 
 Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).
+
+## Help lines
+
+On the phone, **Do you need someone to talk to?** is available from Phone
+and Today. It lists verified services for the phone's country, starting with
+[Denmark](../server/catalog/helplines/dk.json). The catalogue includes each
+service's own source and verification date. BackOp replaced Cyberhus in
+October 2026. Its public website explains how to access its app-based support.
+
+The approved-contacts rule makes an exception for each listed call and SMS
+number, in both directions and both modes. For 112, Android handles emergency
+calls and Plainphone keeps the existing emergency callback window, which also
+covers callers with a hidden number. The Phone and Help screens are exempt
+from time limits and stay available at school time and bedtime. You still
+need a working connection and the service must be open to reply.
+
+The Help screen opens listed HTTPS sites inside Plainphone, so a browser cap
+does not cut off access. ppdns lets the verified help, health, body, sexuality
+and LGBT+ sites through even when a filter category or a parent's rule would
+block them. Opening the same site in a separate browser is subject to that
+browser's app limit and package-level screen-time reporting.
+
+Plainphone excludes help contacts from its parent-facing blocked log and
+sends no call or SMS history to the server. Android's own recent calls and
+SMS conversations can still be visible locally on the phone. ppdns keeps
+query logging off and excludes protected domains from DNS statistics.
+
+[UN Committee on the Rights of the Child, General Comment No. 25, paragraph 67](https://digitallibrary.un.org/record/3906061?ln=en)
+describes how monitoring can prevent children from seeking help.
+[Przybylski and Nash (2018)](https://doi.org/10.1089/cyber.2017.0466)
+discuss the risk that internet filtering can restrict access to useful sexual
+health information.

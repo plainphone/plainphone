@@ -57,6 +57,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
+
     buildFeatures {
         compose = true
     }
