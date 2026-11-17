@@ -6,7 +6,6 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -95,7 +94,7 @@ class LightSetupActivity : ComponentActivity() {
             LightSetup.Step.PAIR -> startActivity(PairingActivity.intent(this, authorized = false))
             LightSetup.Step.LOCATION -> askLocation()
             LightSetup.Step.RUNNING ->
-                if (!LightSetup.notificationsAllowed(this) && Build.VERSION.SDK_INT >= 33) {
+                if (!LightSetup.notificationsAllowed(this)) { // only false on Android 13+
                     permissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 } else {
                     open(LightSetup.intent(this, step))

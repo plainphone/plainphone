@@ -18,6 +18,7 @@ import org.plainphone.app.sync.SyncStore
  * mode's guard does the same from the accessibility service. With the screen off nothing is used,
  * so nothing ticks. If Android stopped Plainphone, the 15-minute sync catches up.
  */
+@android.annotation.SuppressLint("StaticFieldLeak") // Holds the application context only, which lives as long as the process.
 object TimeTicker {
     private const val EVERY_MS = 60_000L
     private val main = Handler(Looper.getMainLooper())

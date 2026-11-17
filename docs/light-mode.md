@@ -82,7 +82,9 @@ Play is not an option yet (see below), so v1 is an APK from plainphone.org:
    filter, usage access, device admin, notifications and battery, location (optional), the guard,
    always-on VPN (recommended) and pairing with the parent's dashboard.
 5. Recommended: in Settings > Network > VPN, tap the gear next to Plainphone and switch on
-   **Always-on VPN** and **Block connections without VPN**. The setup step opens that screen.
+   **Always-on VPN**. Leave **Block connections without VPN** off: the VPN only carries DNS, and
+   lockdown would block the traffic that does not go through it, including Plainphone's own
+   DNS-over-TLS ([light-mode-vpn.md](light-mode-vpn.md)). The setup step opens that screen.
 6. Pair: the parent opens app.plainphone.org, chooses "Add phone" and scans the code the phone
    shows.
 

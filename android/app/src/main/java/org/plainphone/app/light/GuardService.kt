@@ -69,6 +69,7 @@ class GuardService : AccessibilityService() {
             // Settings swaps fragments without a new window; look again when its content changes.
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
                 if (pkg in SettingsGuard.SETTINGS_PACKAGES || pkg in SettingsGuard.INSTALLER_PACKAGES) guardSettings(pkg)
+            else -> Unit // the service only subscribes to the two types above
         }
     }
 

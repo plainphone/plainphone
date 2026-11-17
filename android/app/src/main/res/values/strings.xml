@@ -165,7 +165,7 @@
     <string name="light_step_guard_body">In the list, open Plainphone guard and switch it on. It closes apps that are not allowed.</string>
     <string name="light_step_guard_action">Open settings</string>
     <string name="light_step_alwayson_title">Keep the filter always on</string>
-    <string name="light_step_alwayson_body">Tap the gear next to Plainphone, then switch on Always-on VPN and Block connections without VPN.</string>
+    <string name="light_step_alwayson_body">Tap the gear next to Plainphone and switch on Always-on VPN. Leave \"Block connections without VPN\" off: Plainphone\'s filter only carries web addresses.</string>
     <string name="light_step_alwayson_action">Open VPN settings</string>
     <string name="light_step_pair_title">Connect to the parent</string>
     <string name="light_step_pair_body">On the parent\'s phone, open app.plainphone.org and scan the code Plainphone shows next.</string>

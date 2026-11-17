@@ -162,7 +162,7 @@
     <string name="light_step_guard_body">Åbn Plainphone-vagt på listen, og slå den til. Den lukker apps, der ikke er tilladt.</string>
     <string name="light_step_guard_action">Åbn indstillinger</string>
     <string name="light_step_alwayson_title">Hold filteret altid tændt</string>
-    <string name="light_step_alwayson_body">Tryk på tandhjulet ved Plainphone, og slå Altid aktiveret VPN og Bloker forbindelser uden VPN til.</string>
+    <string name="light_step_alwayson_body">Tryk på tandhjulet ved Plainphone, og slå Altid aktiveret VPN til. Lad \"Bloker forbindelser uden VPN\" være slået fra: Plainphones filter fører kun webadresser.</string>
     <string name="light_step_alwayson_action">Åbn VPN-indstillinger</string>
     <string name="light_step_pair_title">Forbind med forælderen</string>
     <string name="light_step_pair_body">Åbn app.plainphone.org på forælderens telefon, og scan den kode, Plainphone viser bagefter.</string>
