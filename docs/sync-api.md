@@ -53,10 +53,11 @@ phone                                      server                         parent
    `checkIn.locationDue` is true. That flag can turn true two minutes before the reply deadline.
    Start a separate lookup for the check-in and send a fix recorded after `checkIn.createdAt`.
    Retry a saved upload only for its original request. Any unrequested position gets `409`,
-   as does every position when location is off. If an older client omits `purpose`, an active
-   Find takes precedence. Without an active Find, an untagged fix can complete a check-in only
-   at or after the deadline, with a position recorded at or after that deadline and newer
-   than the server’s saved position.
+   as does every position when location is off. Each tag answers only its matching request.
+   If an older client omits `purpose`, one fix can answer both an active Find and a due check-in.
+   The fix must be recorded at or after the Find request to answer Find. To answer the check-in,
+   both the server time and the fix time must be at or after the check-in deadline. A fix taken
+   before the deadline can still answer Find.
    Phones from before `mode` only know `enabled`; the server sends them
    `intervalMinutes: 1440` outside `always`. After `location.alwaysUntil`, the server refuses
    scheduled reports and the mode becomes `checkin`.

@@ -249,50 +249,49 @@ export function deviceRoutes(ctx: Ctx) {
     const { checkin } = await loadSafety(ctx, phone.id);
     const now = ctx.now();
     const { purpose } = input;
+    const recordedAt = new Date(input.recordedAt);
     const requestedAt = phone.locateRequestedAt;
     const forFind =
       requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
       (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
-    // An untagged upload can answer at most one request. Legacy clients wait for the deadline.
+    // Legacy clients can answer both requests with one fix taken at or after the deadline.
     const forCheckin =
       checkin !== undefined && checkinLocationDue(checkin, phone.locationMode, now) &&
-      (purpose === `checkin:${checkin.id}` || (purpose === undefined && !forFind && now >= checkin.endsAt));
+      (purpose === `checkin:${checkin.id}` ||
+        (purpose === undefined && now >= checkin.endsAt && recordedAt >= checkin.endsAt));
     const always =
       phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
       (purpose === undefined || purpose === "always");
     if (!always && !forFind && !forCheckin) {
       return c.json({ error: "no position was asked for" }, 409);
     }
-    const recordedAt = new Date(input.recordedAt);
-    if (recordedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
+    if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
       return c.json({ error: "recordedAt is in the future" }, 400);
     }
-    if (forCheckin && recordedAt <= checkin.createdAt && purpose !== undefined) {
+    if (forCheckin && recordedAt <= checkin.createdAt) {
       return c.json({ error: "recordedAt must be after check-in creation" }, 400);
     }
-    const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: ctx.now() };
-    // A repeated untagged Find fix must not complete a check-in after Find has cleared.
-    const legacyCheckin = forCheckin && purpose === undefined;
-    // One row per phone (D7). An older fix never overwrites a newer one.
-    const stored = await ctx.db
-      .insert(locations)
-      .values({ phoneId: phone.id, ...values })
-      .onConflictDoUpdate({
-        target: locations.phoneId,
-        set: values,
-        setWhere: legacyCheckin ? lt(locations.recordedAt, recordedAt) : lte(locations.recordedAt, recordedAt),
-      })
-      .returning({ phoneId: locations.phoneId });
-    if (forFind && recordedAt >= requestedAt) {
-      await ctx.db
-        .update(phones)
-        .set({ locateRequestedAt: null })
-        .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
-    }
-    if (forCheckin && recordedAt > checkin.createdAt && (!legacyCheckin || (recordedAt >= checkin.endsAt && stored.length > 0))) {
-      const first = await ctx.db
+    const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: now };
+    const first = await ctx.db.transaction(async (tx) => {
+      // One row per phone (D7). An older fix never overwrites a newer one.
+      await tx
+        .insert(locations)
+        .values({ phoneId: phone.id, ...values })
+        .onConflictDoUpdate({
+          target: locations.phoneId,
+          set: values,
+          setWhere: lte(locations.recordedAt, recordedAt),
+        });
+      if (forFind && recordedAt >= requestedAt) {
+        await tx
+          .update(phones)
+          .set({ locateRequestedAt: null })
+          .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
+      }
+      if (!forCheckin) return [];
+      return tx
         .update(safetyRequests)
-        .set({ locatedAt: ctx.now() })
+        .set({ locatedAt: now })
         .where(and(
           eq(safetyRequests.id, checkin.id),
           isNull(safetyRequests.locatedAt),
@@ -300,8 +299,8 @@ export function deviceRoutes(ctx: Ctx) {
           isNull(safetyRequests.stoppedAt),
         ))
         .returning({ id: safetyRequests.id });
-      if (first.length) await notifySafety(ctx, phone, "located");
-    }
+    });
+    if (first.length) await notifySafety(ctx, phone, "located");
     return c.body(null, 204);
   });
 

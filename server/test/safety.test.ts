@@ -242,26 +242,60 @@ describe("are you okay?", () => {
     expect((await device.get("/api/device/rules")).json.location.requestedAt).toBe(h.clock.now.toISOString());
   });
 
-  it("attributes a legacy upload to Find when the check-in is also due", async () => {
+  it("completes Find and check-in from the legacy client's single precise upload", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    h.clock.advance(4 * 60_000);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    h.clock.advance(2 * 60_000);
+
+    // The legacy SyncRunner sees both requests and sends one untagged fix.
+    const { json: rules } = await device.get("/api/device/rules");
+    expect(rules.location.requestedAt).not.toBeNull();
+    expect(rules.checkIn).toMatchObject({ id: checkin.id, sendLocation: true });
+    expect(Date.parse(rules.checkIn.deadline)).toBeLessThan(h.clock.now.getTime());
+    expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(204);
+
+    // The client marks both as handled locally after that attempt.
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBe(h.clock.now.toISOString());
+    const after = (await device.get("/api/device/rules")).json;
+    expect(after.location.requestedAt).toBeNull();
+    expect(after.checkIn).toBeNull();
+  });
+
+  it("completes only Find for a legacy fix taken one minute before the deadline", async () => {
     const { parent, phoneId, device } = await setup();
     await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
     h.clock.advance(4 * 60_000);
+    await parent.post(`/api/phones/${phoneId}/locate`);
     const earlyFix = fix(h.clock.now);
-    await parent.post(`/api/phones/${phoneId}/locate`);
-    expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
-    let rules = (await device.get("/api/device/rules")).json;
-    expect(rules.location.requestedAt).toBeNull();
-    expect(rules.checkIn.locationDue).toBe(true);
-
     h.clock.advance(2 * 60_000);
-    await parent.post(`/api/phones/${phoneId}/locate`);
-    const lateFix = fix(h.clock.now);
-    expect((await device.put("/api/device/location", lateFix)).status).toBe(204);
-    expect((await device.put("/api/device/location", lateFix)).status).toBe(204);
+
     expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
-    rules = (await device.get("/api/device/rules")).json;
+    expect((await device.put("/api/device/location", earlyFix)).status).toBe(409);
+    const rules = (await device.get("/api/device/rules")).json;
     expect(rules.location.requestedAt).toBeNull();
     expect(rules.checkIn.locationDue).toBe(true);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBeNull();
+  });
+
+  it("accepts a legacy check-in fix already stored at the deadline", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always", alwaysFor: "hour" });
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
+    h.clock.advance(5 * 60_000 - 1);
+    const deadlineFix = fix(new Date(h.clock.now.getTime() + 1));
+
+    expect((await device.put("/api/device/location", { ...deadlineFix, purpose: "always" })).status).toBe(204);
+    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
+    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
+    expect((await status()).locatedAt).toBeNull();
+
+    h.clock.advance(1);
+    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
+    expect((await status()).locatedAt).toBe(h.clock.now.toISOString());
   });
 
   it("can cancel a waiting check-in after its early position arrives", async () => {
