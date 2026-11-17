@@ -221,4 +221,6 @@
     <string name="update_prompt_title">Plainphone kan opdateres</string>
     <string name="update_prompt_text">Version %1$s er klar. Tryk for at åbne download.</string>
     <string name="update_prompt_action">Åbn download</string>
+    <string name="install_watchdog_update">Opdaterer Plainphone…</string>
+    <string name="install_watchdog_catalog">Der er åbent for at installere en app</string>
 </resources>

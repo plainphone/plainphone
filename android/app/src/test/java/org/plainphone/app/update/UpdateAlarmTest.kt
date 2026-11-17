@@ -17,6 +17,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +26,7 @@ import org.plainphone.app.PlainphoneApplication
 import org.plainphone.app.RelockReceiver
 import org.plainphone.app.PlainphoneAdminReceiver
 import org.plainphone.app.catalog.InstallWindow
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowSystemClock
@@ -38,12 +40,53 @@ class UpdateAlarmTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val alarms = shadowOf(context.getSystemService(AlarmManager::class.java))
 
+    private val installThread = java.util.concurrent.Executors.newCachedThreadPool()
+    private val app get() = context as android.app.Application
+    private val service by lazy { Robolectric.buildService(InstallWatchdogService::class.java).create() }
+    private var startId = 0
+
+    @After fun stopWatchdog() {
+        installThread.shutdownNow()
+        if (startId > 0) {
+            service.destroy()
+            awaitRecovery()
+        }
+    }
+
+    private fun <T> startInstall(block: () -> T): java.util.concurrent.Future<T> {
+        val result = installThread.submit(java.util.concurrent.Callable(block))
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!result.isDone && System.nanoTime() < deadline) {
+            val intent = shadowOf(app).nextStartedService
+            if (intent?.component?.className == InstallWatchdogService::class.java.name) {
+                service.get().onStartCommand(intent, 0, ++startId)
+                break
+            }
+            Thread.sleep(1)
+        }
+        return result
+    }
+
+    private fun <T> withWatchdog(block: () -> T): T = startInstall(block).get(5, TimeUnit.SECONDS)
+
     @Before fun becomeDeviceOwner() {
         val dpm = shadowOf(context.getSystemService(DevicePolicyManager::class.java))
         val admin = PlainphoneAdminReceiver.component(context)
         dpm.setActiveAdmin(admin)
         assertTrue(dpm.setDeviceOwner(admin))
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
+    }
+
+    private fun approveCatalogTarget() {
+        org.plainphone.app.sync.SyncStore(context).saveRules(
+            "catalog-test",
+            """{
+                "phoneId":"test","profile":"child","timezone":"UTC",
+                "apps":{"allowed":[],"hidden":[],"toInstall":[{"packageName":"org.example.approved"}]},
+                "contacts":[],"schedules":[],"dns":{},"location":{"enabled":false}
+            }""",
+            System.currentTimeMillis(),
+        )
     }
 
     @Test fun strongModeArmsAnExactElapsedTimeWakeupWhileIdle() {
@@ -58,21 +101,50 @@ class UpdateAlarmTest {
     }
 
     @Test fun rejectedCatalogAttemptsLeaveTheDailyQuotaIntact() {
-        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        approveCatalogTarget()
+        val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
         repeat(InstallWindow.MAX_PER_DAY) {
-            InstallWindow.open(context, "org.example.approved")
+            withWatchdog {
+                InstallWindow.open(context, "org.example.approved") {
+                    assertEquals(1, prefs.getInt("windows", 0))
+                    throw SecurityException("Android refused the install restriction change")
+                }
+            }
+            awaitRecovery()
         }
         assertFalse(InstallLease.android(context).isOpen(InstallLease.CATALOG))
-        val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
         assertEquals(0, prefs.getInt("windows", 0))
 
-        ShadowAlarmManager.setCanScheduleExactAlarms(true)
-        InstallWindow.open(context, "org.example.approved")
+        withWatchdog { InstallWindow.open(context, "org.example.approved") }
         assertEquals("org.example.approved", InstallWindow.current(context))
         assertEquals(1, prefs.getInt("windows", 0))
     }
 
+    @Test fun processDeathAfterOpeningCatalogPreservesReservedQuota() {
+        approveCatalogTarget()
+        val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
+        val stop = Error("simulated process death before open returns")
+        val future = startInstall {
+            InstallWindow.open(context, "org.example.approved") {
+                Lock.applyForInstall(context, "test catalog window", catalogChanged = true)
+                assertFalse(installsRestricted())
+                assertEquals(1, prefs.getInt("windows", 0))
+                throw stop
+            }
+        }
+        val error = assertThrows(java.util.concurrent.ExecutionException::class.java) {
+            future.get(5, TimeUnit.SECONDS)
+        }
+        if (error.cause !== stop) throw error
+        markLeaseFromAnotherProcess(InstallLease.CATALOG)
+        Lock.recoverInstall(context)
+        assertTrue(installsRestricted())
+        assertNull(InstallWindow.current(context))
+        assertEquals(1, prefs.getInt("windows", 0))
+    }
+
     @Test fun alreadyInstalledCatalogTargetDoesNotConsumeTheLastSlot() {
+        approveCatalogTarget()
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         val prefs = context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
         prefs.edit().putString("day", java.time.LocalDate.now().toString())
@@ -82,26 +154,31 @@ class UpdateAlarmTest {
         assertEquals(InstallWindow.MAX_PER_DAY - 1, prefs.getInt("windows", 0))
         assertFalse(InstallLease.android(context).isOpen(InstallLease.CATALOG))
 
-        InstallWindow.open(context, "org.example.approved")
+        withWatchdog { InstallWindow.open(context, "org.example.approved") }
         assertEquals("org.example.approved", InstallWindow.current(context))
         assertEquals(InstallWindow.MAX_PER_DAY, prefs.getInt("windows", 0))
     }
 
     @Test fun sessionCreationRestoresTheRestrictionOnReturnAndFailure() {
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
-        val id = Lock.createUpdateSession(context) {
-            assertFalse(installsRestricted())
-            42
+        val id = withWatchdog {
+            Lock.createUpdateSession(context) {
+                assertFalse(installsRestricted())
+                42
+            }
         }
         assertEquals(42, id)
         assertRecovered()
 
-        assertThrows(SecurityException::class.java) {
+        val failed = startInstall {
             Lock.createUpdateSession(context) {
                 assertFalse(installsRestricted())
                 throw SecurityException("Android refused the session")
             }
         }
+        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) {
+            failed.get(5, TimeUnit.SECONDS)
+        }.cause is SecurityException)
         assertRecovered()
     }
 
@@ -109,7 +186,7 @@ class UpdateAlarmTest {
         val lease = InstallLease.android(context)
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         for ((id, status) in listOf(PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE).withIndex()) {
-            lease.acquire(InstallLease.SELF_UPDATE, 360_000L)
+            withWatchdog { lease.acquire(InstallLease.SELF_UPDATE, 360_000L) }
             // A session opened by the previous implementation can still report a result.
             val record = leasePrefs.getString(InstallLease.SELF_UPDATE, null)
             leasePrefs.edit().putString(InstallLease.SELF_UPDATE, "$record$id").apply()
@@ -179,12 +256,43 @@ class UpdateAlarmTest {
         }
     }
 
+    @Test fun startupRestoresAnUnrestrictedOwnerWithoutALease() {
+        val dpm = context.getSystemService(DevicePolicyManager::class.java)
+        dpm.clearUserRestriction(PlainphoneAdminReceiver.component(context), UserManager.DISALLOW_INSTALL_APPS)
+        assertFalse(installsRestricted())
+        Lock.recoverInstall(context)
+        assertTrue(installsRestricted())
+    }
+
+    @Test fun mergedManifestDeclaresBootAndReplacementRecovery() {
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val config = java.util.Properties()
+        checkNotNull(javaClass.getResourceAsStream("/com/android/tools/test_config.properties")).use(config::load)
+        val manifest = java.io.File(config.getProperty("android_merged_manifest"))
+        val document = factory.newDocumentBuilder().parse(manifest)
+        val android = "http://schemas.android.com/apk/res/android"
+        val receivers = document.getElementsByTagName("receiver")
+        val receiver = (0 until receivers.length).map { receivers.item(it) as org.w3c.dom.Element }
+            .single { it.getAttributeNS(android, "name") == RelockReceiver::class.java.name }
+        val actions = receiver.getElementsByTagName("action")
+        val names = (0 until actions.length).map {
+            (actions.item(it) as org.w3c.dom.Element).getAttributeNS(android, "name")
+        }
+        assertTrue(Intent.ACTION_BOOT_COMPLETED in names)
+        assertTrue(Intent.ACTION_MY_PACKAGE_REPLACED in names)
+        val services = document.getElementsByTagName("service")
+        val watchdog = (0 until services.length).map { services.item(it) as org.w3c.dom.Element }
+            .single { it.getAttributeNS(android, "name") == InstallWatchdogService::class.java.name }
+        assertEquals("systemExempted", watchdog.getAttributeNS(android, "foregroundServiceType"))
+        assertEquals("false", watchdog.getAttributeNS(android, "exported"))
+    }
+
     private val leasePrefs get() = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
 
-    private fun markLeaseFromAnotherProcess() {
-        val parts = checkNotNull(leasePrefs.getString(InstallLease.SELF_UPDATE, null)).split(',').toMutableList()
+    private fun markLeaseFromAnotherProcess(holder: String = InstallLease.SELF_UPDATE) {
+        val parts = checkNotNull(leasePrefs.getString(holder, null)).split(',').toMutableList()
         parts[3] = "previous-process"
-        leasePrefs.edit().putString(InstallLease.SELF_UPDATE, parts.joinToString(",")).apply()
+        assertTrue(leasePrefs.edit().putString(holder, parts.joinToString(",")).commit())
     }
 
     private fun awaitRecovery() {
@@ -236,7 +344,7 @@ class UpdateAlarmTest {
 
     private fun openSelfUpdate() {
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
-        InstallLease.android(context).acquire(InstallLease.SELF_UPDATE, 360_000L)
+        withWatchdog { InstallLease.android(context).acquire(InstallLease.SELF_UPDATE, 360_000L) }
         assertFalse(installsRestricted())
     }
 
@@ -264,11 +372,30 @@ class UpdateAlarmTest {
     private fun installsRestricted(): Boolean =
         context.getSystemService(UserManager::class.java).hasUserRestriction(UserManager.DISALLOW_INSTALL_APPS)
 
-    @Test fun strongModeRefusesToScheduleAnInexactFallback() {
+    @Test fun foregroundDeadlineRelocksWhileSessionCreationIsHungWithoutExactAlarmAccess() {
         ShadowAlarmManager.setCanScheduleExactAlarms(false)
-        assertThrows(IllegalStateException::class.java) {
-            UpdateReceiver.scheduleLeaseExpiry(context, InstallLease.SELF_UPDATE, 360_000L)
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val resume = java.util.concurrent.CountDownLatch(1)
+        val install = startInstall {
+            Lock.createUpdateSession(context) {
+                entered.countDown()
+                check(resume.await(5, TimeUnit.SECONDS))
+                42
+            }
         }
-        assertTrue(alarms.scheduledAlarms.isEmpty())
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            assertFalse(installsRestricted())
+            assertNotNull(shadowOf(service.get()).lastForegroundNotification)
+            UpdateReceiver.cancelLeaseExpiry(context, InstallLease.SELF_UPDATE)
+            shadowOf(service.get().timerLooper).idleFor(Duration.ofSeconds(10))
+            assertRecovered()
+            assertFalse(install.isDone)
+        } finally {
+            resume.countDown()
+        }
+        assertTrue(assertThrows(java.util.concurrent.ExecutionException::class.java) {
+            install.get(5, TimeUnit.SECONDS)
+        }.cause is IllegalStateException)
     }
 }

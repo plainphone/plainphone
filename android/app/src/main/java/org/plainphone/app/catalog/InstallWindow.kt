@@ -36,8 +36,12 @@ object InstallWindow {
     }
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
+    fun open(context: Context, packageName: String) = open(context, packageName) {
+        Lock.applyForInstall(context.applicationContext, "install window for $packageName", catalogChanged = true)
+    }
+
     @SuppressLint("ApplySharedPref")
-    fun open(context: Context, packageName: String) {
+    internal fun open(context: Context, packageName: String, applyPolicy: () -> Unit) {
         val app = context.applicationContext
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
         // lets Play through for the window instead of closing it.
@@ -54,28 +58,28 @@ object InstallWindow {
                 if (used >= MAX_PER_DAY) return
 
                 val lease = InstallLease.android(app)
+                var started = false
                 try {
+                    // A restart may relock the phone, but it must retain this reservation.
+                    check(p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
+                        "Could not reserve the catalog quota"
+                    }
                     lease.begin(InstallLease.CATALOG, WINDOW_MS)
-                } catch (e: Exception) {
-                    Log.w("Plainphone", "could not open catalog install window", e)
-                    return
-                }
-                try {
+                    started = true
                     check(p.edit().putString("pkg", packageName)
                         .putLong("until", System.currentTimeMillis() + WINDOW_MS)
-                        .commit())
-                    Lock.applyForInstall(app, "install window for $packageName", catalogChanged = true)
-                    if (current(app) != packageName) {
-                        close(app, "catalog target is no longer eligible", packageName)
-                        return
-                    }
-                    if (!p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
-                        p.edit().putString("day", previousDay).putInt("windows", previousCount).apply()
-                        error("Could not save the catalog quota")
-                    }
+                        .commit()) { "Could not save the catalog target" }
+                    applyPolicy()
+                    check(current(app) == packageName) { "Catalog target is no longer eligible" }
                 } catch (e: Exception) {
                     Log.w("Plainphone", "catalog install window failed", e)
-                    close(app, "catalog install window failed", packageName)
+                    try {
+                        if (started) close(app, "catalog install window failed", packageName)
+                    } finally {
+                        if (!p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
+                            Log.e("Plainphone", "could not restore the catalog quota")
+                        }
+                    }
                     return
                 }
             }

@@ -35,8 +35,10 @@ class PolicyApplier(
 ) {
 
     fun applyInstallRestriction(config: PolicyConfig): StepResult = step(INSTALL_RESTRICTION_STEP) {
-        if (installsAllowed(config)) device.clearRestriction(INSTALL_APPS)
-        else device.addRestriction(INSTALL_APPS)
+        org.plainphone.app.update.InstallLease.withRestrictionLock {
+            if (installsAllowed(config)) device.clearRestriction(INSTALL_APPS)
+            else device.addRestriction(INSTALL_APPS)
+        }
     }
 
     fun apply(config: PolicyConfig): List<StepResult> {

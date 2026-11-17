@@ -134,7 +134,6 @@ class UpdateTest {
             check(alarmAvailable)
             alarms += atMs
         }
-        override fun cancelExpiry(holder: String) = Unit
         val lease: InstallLease = InstallLease(this, this) { _, _ -> applyPolicy() }
         @Synchronized
         fun applyPolicy() {
@@ -192,19 +191,15 @@ class UpdateTest {
         }
     }
 
-    @Test fun replacementEndsSelfUpdateButPreservesTheCatalogDeadline() {
+    @Test fun replacementInvalidatesBothInstallWindows() {
         val f = Fixture()
         f.lease.acquire(InstallLease.CATALOG, 900_000)
         f.lease.acquire(InstallLease.SELF_UPDATE, 360_000)
-        val catalogExpiry = f.alarms.first()
         f.process = "replacement"
         f.version++
         f.lease.recover()
         assertFalse(f.lease.isOpen(InstallLease.SELF_UPDATE))
-        assertTrue(f.lease.isOpen(InstallLease.CATALOG))
-        assertFalse(f.restricted)
-        f.now = catalogExpiry
-        f.lease.recover()
+        assertFalse(f.lease.isOpen(InstallLease.CATALOG))
         assertTrue(f.restricted)
     }
 

@@ -77,12 +77,15 @@ class UpdateReceiver : BroadcastReceiver() {
         fun scheduleLeaseExpiry(context: Context, holder: String, atMs: Long) {
             val alarms = checkNotNull(context.getSystemService(AlarmManager::class.java))
             val intent = leaseExpiryIntent(context, holder)
-            if (org.plainphone.app.light.Mode.isStrong(context)) {
-                check(canScheduleExactExpiry(context)) { "Enable Alarms & reminders for Plainphone to open an install window" }
-                alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
-            } else {
-                alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
+            if (org.plainphone.app.light.Mode.isStrong(context) && canScheduleExactExpiry(context)) {
+                try {
+                    alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
+                    return
+                } catch (_: SecurityException) {
+                    // Access can be revoked between the check and the framework call.
+                }
             }
+            alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
         }
 
         fun cancelLeaseExpiry(context: Context, holder: String) {

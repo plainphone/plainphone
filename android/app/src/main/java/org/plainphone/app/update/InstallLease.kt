@@ -5,24 +5,14 @@ package org.plainphone.app.update
 import android.annotation.SuppressLint
 import android.content.Context
 
-/**
- * Short, named windows in which Device Owner installs may get through.
- *
- * `DISALLOW_INSTALL_APPS` blocks the Device Owner too, so a self-update (or a catalog install)
- * must lift it. Nobody lifts it directly: a holder opens a lease and re-applies the lock, and
- * [org.plainphone.app.PolicyApplier] leaves the restriction off only while some lease is open.
- * When a holder is done it drops its lease and re-applies the lock again, so the one place that
- * decides is the policy run. Two holders at the same time cannot put the restriction back under
- * each other: it comes back only once the last lease is gone.
- *
- * A lease ends at its deadline or at reboot. A process restart invalidates its leases, except
- * that a catalog install can outlive a Plainphone upgrade because Play owns that install.
- * An alarm and network-independent work both trigger recovery if the holder disappears.
- */
+/** Durable, process-scoped windows in which Device Owner installs may get through. */
 class InstallLease(
     private val store: Store,
     private val env: Env,
-    /** Applies the lock (blocking). The recovery marker survives a failed apply. */
+    private val relockNow: (() -> Unit)? = null,
+    private val restrictionLifted: () -> Boolean = { false },
+    private val onRecovered: (Boolean) -> Unit = {},
+    /** Opens the restriction through the normal policy path. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
     data class Lease(
@@ -45,7 +35,7 @@ class InstallLease(
         fun versionCode(): Long
         /** Wakes the app at [atMs] to apply the lock in case the holder never comes back. */
         fun scheduleExpiry(holder: String, atMs: Long)
-        fun cancelExpiry(holder: String)
+        fun persistWithWatchdog(holder: String, atMs: Long, persist: () -> Unit) = persist()
     }
 
     fun allowsInstall(catalogApproved: Boolean): Boolean {
@@ -54,13 +44,16 @@ class InstallLease(
     }
 
     /**
-     * Runs [block] with installs allowed for at most [durationMs]. The lock is applied again
-     * afterwards on every path: normal return, exception, and (via expiry) a dead process.
+     * Runs session creation in a lease. A session that returns after expiry must be abandoned;
+     * recovery is also scheduled independently of this call.
      */
     fun <T> hold(holder: String, durationMs: Long = MAX_MS, block: () -> T): T {
         try {
             acquire(holder, durationMs)
-            return block()
+            check(isOpen(holder)) { "Install window expired before session creation" }
+            val result = block()
+            check(isOpen(holder)) { "Install window expired during session creation" }
+            return result
         } finally {
             release(holder)
         }
@@ -73,9 +66,22 @@ class InstallLease(
 
     fun begin(holder: String, durationMs: Long) {
         val until = env.nowMs() + durationMs.coerceIn(1L, MAX_MS)
-        synchronized(LOCK) {
+        synchronized(BEGIN_LOCK) {
             env.scheduleExpiry(holder, until)
-            store.save(store.load() + (holder to Lease(until, env.bootCount(), env.versionCode(), env.processId())))
+            env.persistWithWatchdog(holder, until) {
+                val lease = Lease(until, env.bootCount(), env.versionCode(), env.processId())
+                synchronized(LOCK) {
+                    check(until > env.nowMs()) { "Install watchdog started after its deadline" }
+                    val previous = store.load()
+                    try {
+                        store.save(previous + (holder to lease))
+                    } catch (e: Exception) {
+                        // SharedPreferences updates its in-memory view even when commit fails.
+                        runCatching { store.save(previous) }
+                        throw e
+                    }
+                }
+            }
         }
     }
 
@@ -89,22 +95,33 @@ class InstallLease(
         recover("self-update installer result")
     }
 
-    /** Reapplies the restriction for stale leases and clears their recovery markers on success. */
-    fun recover(reason: String = "recover install restriction") {
-        val expired = synchronized(LOCK) { store.load() - valid().keys }
-        if (expired.isEmpty()) return
-        applyLock(reason, CATALOG in expired)
-        synchronized(LOCK) {
+    /** Relock first. Keep the recovery markers if Android rejects the policy write. */
+    fun recover(reason: String = "recover install restriction", force: Boolean = false) {
+        val catalogChanged = synchronized(LOCK) {
             val current = store.load()
-            val removed = current.filter { (holder, lease) -> expired[holder] == lease }.keys
-            store.save(current - removed)
-            removed.forEach(env::cancelExpiry)
+            val valid = if (force) emptyMap() else valid(current)
+            val expired = current.keys - valid.keys
+            if (expired.isEmpty() && (valid.isNotEmpty() || !restrictionLifted())) return
+            if (relockNow == null) {
+                applyLock(reason, CATALOG in expired)
+            } else if (valid.isEmpty()) {
+                relockNow.invoke()
+            }
+            if (expired.isNotEmpty()) store.save(valid)
+            CATALOG in expired
         }
+        onRecovered(catalogChanged)
     }
+
+    fun hasMarkers(): Boolean = store.load().isNotEmpty()
 
     /** Drops [holder]'s lease and applies the lock; the restriction returns unless another lease is open. */
     fun release(holder: String) {
-        if (invalidate(holder)) recover()
+        try {
+            invalidate(holder)
+        } finally {
+            recover()
+        }
     }
 
     fun invalidate(holder: String): Boolean = synchronized(LOCK) {
@@ -115,15 +132,13 @@ class InstallLease(
         true
     }
 
-    private fun valid(): Map<String, Lease> {
+    private fun valid(leases: Map<String, Lease> = store.load()): Map<String, Lease> {
+        if (leases.isEmpty()) return leases
         val now = env.nowMs()
-        val boot = env.bootCount()
-        val version = env.versionCode()
-        return store.load().filter { (holder, lease) ->
-            val sameProcess = lease.versionCode == version && lease.process == env.processId()
-            val catalogSurvivedUpgrade = holder == CATALOG && lease.versionCode < version
-            lease.untilMs > now && lease.untilMs - now <= MAX_MS && lease.bootCount == boot &&
-                (sameProcess || catalogSurvivedUpgrade)
+        val process = env.processId()
+        return leases.filterValues { lease ->
+            lease.untilMs > now && lease.untilMs - now <= MAX_MS && lease.process == process &&
+                lease.bootCount == env.bootCount() && lease.versionCode == env.versionCode()
         }
     }
 
@@ -132,13 +147,39 @@ class InstallLease(
         const val CATALOG = "catalog"
         const val MAX_MS = 15 * 60_000L
         private val LOCK = Any()
+        private val BEGIN_LOCK = Any()
 
-        /** Cheap: only reads preferences. Safe to call from the policy run. */
+        // Keep an in-flight policy clear from racing the watchdog's add. This lock never
+        // covers PackageInstaller or the other policy steps.
+        internal fun <T> withRestrictionLock(block: () -> T): T = synchronized(LOCK, block)
+
+        /** Binds the durable leases to the Device Owner restriction and recovery entry points. */
         fun android(context: Context): InstallLease {
             val app = context.applicationContext
-            return InstallLease(PrefsLeaseStore(app), AndroidLeaseEnv(app)) { reason, catalogChanged ->
-                org.plainphone.app.Lock.applyForInstall(app, reason, catalogChanged)
-            }
+            val device = org.plainphone.app.AndroidDeviceControls(app)
+            val restriction = android.os.UserManager.DISALLOW_INSTALL_APPS
+            val lock = org.plainphone.app.Lock
+            return InstallLease(
+                PrefsLeaseStore(app),
+                AndroidLeaseEnv(app),
+                relockNow = {
+                    if (!lock.isInMaintenanceWindow(app) && device.isDeviceOwner()) {
+                        device.addRestriction(restriction)
+                    }
+                },
+                restrictionLifted = {
+                    val sync = org.plainphone.app.sync.SyncStore(app)
+                    !lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
+                        device.isDeviceOwner() &&
+                        !app.getSystemService(android.os.UserManager::class.java).hasUserRestriction(restriction)
+                },
+                onRecovered = { catalogChanged ->
+                    InstallWatchdogService.finished()
+                    if (catalogChanged && !lock.isInMaintenanceWindow(app)) {
+                        lock.applyIfNeededAsync(app, "catalog install window ended") {}
+                    }
+                },
+            ) { reason, catalogChanged -> lock.applyForInstall(app, reason, catalogChanged) }
         }
     }
 }
@@ -167,20 +208,25 @@ private class AndroidLeaseEnv(private val context: Context) : InstallLease.Env {
     override fun nowMs() = android.os.SystemClock.elapsedRealtime()
     override fun processId() = process
 
+    // The persisted fields are retained for older records. In Android a process token
+    // already changes on reboot and replacement; avoid system calls during recovery.
+    override fun bootCount(): Int = 0
+    override fun versionCode(): Long = 0
+
     companion object {
         private val process = java.util.UUID.randomUUID().toString()
     }
-
-    override fun bootCount(): Int =
-        android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
-
-    override fun versionCode(): Long =
-        org.plainphone.app.Compat.packageInfo(context.packageManager, context.packageName, 0).longVersionCode
 
     override fun scheduleExpiry(holder: String, atMs: Long) {
         UpdateReceiver.scheduleLeaseExpiry(context, holder, atMs)
         InstallRecoveryWorker.schedule(context, holder, (atMs - nowMs()).coerceAtLeast(0))
     }
 
-    override fun cancelExpiry(holder: String) = UpdateReceiver.cancelLeaseExpiry(context, holder)
+    override fun persistWithWatchdog(holder: String, atMs: Long, persist: () -> Unit) {
+        if (org.plainphone.app.light.Mode.isStrong(context)) {
+            InstallWatchdogService.armed(context, holder, atMs, persist)
+        } else {
+            persist()
+        }
+    }
 }

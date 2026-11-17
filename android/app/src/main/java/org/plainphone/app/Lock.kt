@@ -33,6 +33,7 @@ object Lock {
     private const val TAG = "Plainphone"
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
+    private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
 
     fun applier(context: Context): PolicyApplier {
         val app = context.applicationContext
@@ -59,8 +60,11 @@ object Lock {
     }
 
     fun applyForInstall(context: Context, reason: String, catalogChanged: Boolean) = synchronized(APPLY_LOCK) {
-        if (isInMaintenanceWindow(context)) return@synchronized
+        check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
+        val sync = SyncStore(context)
+        check(!sync.released && !sync.releaseAsked) { "Phone release is active" }
         val result = if (catalogChanged) {
+            check(effectiveConfig(context).installing != null) { "Catalog target is no longer eligible" }
             val results = applyNow(context, reason)
             results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
         } else {
@@ -76,20 +80,25 @@ object Lock {
         InstallLease.android(context).hold(InstallLease.SELF_UPDATE, 10_000L, create)
     }
 
-    fun recoverInstallAsync(context: Context, reason: String = "recover install restriction", done: () -> Unit = {}) {
-        runInstallRecovery(done) { recoverInstall(context, reason) }
+    fun recoverInstallAsync(
+        context: Context,
+        reason: String = "recover install restriction",
+        force: Boolean = false,
+        done: () -> Unit = {},
+    ) {
+        runInstallRecovery(done) { InstallLease.android(context).recover(reason, force) }
     }
 
     fun onInstallResult(context: Context, sessionId: Int, done: () -> Unit) {
         runInstallRecovery(done) { InstallLease.android(context).finishSession(sessionId) }
     }
 
-    fun recoverInstall(context: Context, reason: String = "recover install restriction") = synchronized(APPLY_LOCK) {
-        if (!isInMaintenanceWindow(context)) InstallLease.android(context).recover(reason)
+    fun recoverInstall(context: Context, reason: String = "recover install restriction") {
+        InstallLease.android(context).recover(reason)
     }
 
     private fun runInstallRecovery(done: () -> Unit, recover: () -> Unit) {
-        executor.execute {
+        installRecoveryExecutor.execute {
             try {
                 recover()
             } catch (e: Exception) {
