@@ -193,4 +193,6 @@
     <string name="time_min">%1$d min</string>
     <string name="time_h">%1$d h</string>
     <string name="time_h_min">%1$d h %2$d min</string>
+    <string name="maintenance_release_light">Switch off Plainphone</string>
+    <string name="maintenance_release_light_confirm">This switches off the guard, the web filter and device admin, so Plainphone can be uninstalled. The parent is told. Continue?</string>
 </resources>

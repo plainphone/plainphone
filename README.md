@@ -105,7 +105,7 @@ Phase 4 option:
 1. Proof of lock
 2. **Contacts and DNS** (this phase): dialer/SMS role with an allowlist, own AdGuard Home with a DNS address per phone
 3. Server and parent web app: accounts, pairing, rules, app list, location, school time
-4. Light mode: a Play Store app for phones already in use
+4. Light mode: the same app on a phone already in use, without a reset ([docs/light-mode.md](docs/light-mode.md)); time limits and an app catalog
 5. Native parent apps
 6. Self-hosting, plainphone.org and the public launch
 

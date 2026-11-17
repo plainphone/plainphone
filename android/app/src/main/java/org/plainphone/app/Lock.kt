@@ -63,7 +63,11 @@ object Lock {
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
         val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
-        val results = if (Mode.isLight(context)) LightLock.apply(context, config) else applier(context).apply(config)
+        val results = if (Mode.isLight(context)) {
+            LightLock.apply(context, config)
+        } else {
+            applier(context).apply(config) + usageAccessStep(context)
+        }
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
         saveApplied(context, config, results)
@@ -87,6 +91,12 @@ object Lock {
             return null
         }
         return applyNow(context, reason)
+    }
+
+    /** Strong mode: time limits count with usage access, which only the user can grant (Today screen). */
+    private fun usageAccessStep(context: Context): List<StepResult> {
+        if (SyncStore(context).rules()?.timeLimits?.isEmpty != false) return emptyList()
+        return listOf(StepResult("usage access (time limits)", TimeGuard.hasUsageAccess(context), "Plainphone > Today"))
     }
 
     /** When the lock was first applied on this phone (the setup moment). Null before that. */

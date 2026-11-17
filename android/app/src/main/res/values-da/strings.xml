@@ -190,4 +190,6 @@
     <string name="time_min">%1$d min</string>
     <string name="time_h">%1$d t</string>
     <string name="time_h_min">%1$d t %2$d min</string>
+    <string name="maintenance_release_light">Slå Plainphone fra</string>
+    <string name="maintenance_release_light_confirm">Det slår vagten, webfilteret og enhedsadministrator fra, så Plainphone kan afinstalleres. Forælderen får besked. Fortsæt?</string>
 </resources>

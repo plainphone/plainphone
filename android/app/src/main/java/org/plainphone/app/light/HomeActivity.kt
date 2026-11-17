@@ -84,16 +84,29 @@ class HomeActivity : ComponentActivity() {
         val missing = if (light) {
             Protections.read(context, ConfigStore(context).load().dnsHost, snapshot != null).missingForLight()
         } else emptyList()
+        // Strong mode: everything else is set by Device Owner; usage access only by the user.
+        val needsUsage = !light && snapshot != null && !TimeGuard.hasUsageAccess(context)
         CalmScreen(
             eyebrow = stringResource(R.string.app_name),
             title = stringResource(R.string.today_title),
             body = when {
+                needsUsage -> stringResource(R.string.light_step_usage_body)
                 missing.isNotEmpty() -> stringResource(R.string.today_protection_missing)
                 snapshot == null -> stringResource(R.string.today_no_limits)
                 else -> null
             },
-            primary = if (missing.isNotEmpty()) stringResource(R.string.today_fix) else null,
-            onPrimary = { startActivity(LightSetupActivity.intent(context)) },
+            primary = when {
+                needsUsage -> stringResource(R.string.light_step_usage_action)
+                missing.isNotEmpty() -> stringResource(R.string.today_fix)
+                else -> null
+            },
+            onPrimary = {
+                if (needsUsage) {
+                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                } else {
+                    startActivity(LightSetupActivity.intent(context))
+                }
+            },
         ) {
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }
