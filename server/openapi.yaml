@@ -431,20 +431,108 @@ components:
         location:
           type: object
           properties:
-            enabled: { type: boolean }
-            intervalMinutes: { type: integer, examples: [5] }
+            enabled: { type: boolean, description: "`mode` is not off. Kept for phones from before `mode`." }
+            mode: { $ref: "#/components/schemas/LocationMode" }
+            alwaysUntil:
+              type: [string, "null"]
+              format: date-time
+              description: When `mode` is `always`, the moment it falls back to `checkin` by itself. The phone shows it.
+            intervalMinutes:
+              type: integer
+              examples: [5]
+              description: Report interval when `mode` is `always`. Other modes send 1440, so phones that only know `enabled` report at most once a day (and get 409).
             requestedAt:
               type: [string, "null"]
               format: date-time
               description: A parent pressed Find. Report a fresh position now; the field clears when a position recorded after it arrives.
+        ring:
+          description: An open "Ring the phone". Play the alarm sound and vibrate until `endsAt` (at most 5 minutes), or until the child taps "I'm here" when `stopOnAnswer`. Null means stop now.
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [id, endsAt, stopOnAnswer, answered]
+              properties:
+                id: { type: string, format: uuid }
+                endsAt: { type: string, format: date-time }
+                stopOnAnswer: { type: boolean }
+                answered: { type: boolean }
+        checkIn:
+          description: An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it.
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [id, deadline, callNumber, sendLocation]
+              properties:
+                id: { type: string, format: uuid }
+                deadline: { type: string, format: date-time }
+                callNumber: { type: [string, "null"], description: "An approved contact for the \"Call me\" button." }
+                sendLocation: { type: boolean }
         pendingChanges:
           type: array
           description: Self profile; show them with a countdown on the phone.
           items: { $ref: "#/components/schemas/PendingChange" }
         pollSeconds:
           type: integer
-          description: Poll interval for GET /device/rules.
+          description: Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
           examples: [60]
+
+    LocationMode:
+      enum: ["off", find, checkin, always]
+      description: "When the phone sends its position: never; on Find; on Find and once for an unanswered \"Are you okay?\"; every 5 minutes for a chosen time (shown on the phone all the time)."
+
+    AlwaysFor:
+      enum: [hour, today, week]
+      description: "How long `always` lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to `checkin`."
+
+    Ring:
+      type: object
+      required: [id, active, stopOnAnswer, createdAt, endsAt, shownAt, answeredAt, stoppedAt]
+      properties:
+        id: { type: string, format: uuid }
+        active: { type: boolean, description: The phone should be ringing now. }
+        stopOnAnswer: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        shownAt: { type: [string, "null"], format: date-time }
+        answeredAt: { type: [string, "null"], format: date-time }
+        stoppedAt: { type: [string, "null"], format: date-time }
+
+    Checkin:
+      type: object
+      required: [id, status, createdAt, deadline, callNumber, sendsLocation, shownAt, answeredAt, answer, stoppedAt, locatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { enum: [waiting, answered, cancelled, noReply] }
+        createdAt: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        callNumber: { type: [string, "null"] }
+        sendsLocation: { type: boolean }
+        shownAt: { type: [string, "null"], format: date-time }
+        answeredAt: { type: [string, "null"], format: date-time }
+        answer: { enum: [ok, call, null] }
+        stoppedAt: { type: [string, "null"], format: date-time }
+        locatedAt: { type: [string, "null"], format: date-time, description: The one position sent because nobody answered. }
+
+    LocationState:
+      type: object
+      required: [enabled, mode, alwaysUntil, requestedAt, location, ring, checkin]
+      properties:
+        enabled: { type: boolean }
+        mode: { $ref: "#/components/schemas/LocationMode" }
+        alwaysUntil: { type: [string, "null"], format: date-time, description: "End of `always`; null in other modes." }
+        requestedAt: { type: [string, "null"], format: date-time }
+        location:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [lat, lon, accuracyM, recordedAt]
+              properties:
+                lat: { type: number }
+                lon: { type: number }
+                accuracyM: { type: [number, "null"] }
+                recordedAt: { type: string, format: date-time }
+        ring: { oneOf: [{ type: "null" }, { $ref: "#/components/schemas/Ring" }] }
+        checkin: { oneOf: [{ type: "null" }, { $ref: "#/components/schemas/Checkin" }] }
 
     PhoneSummary:
       type: object
@@ -455,6 +543,7 @@ components:
         mode: { enum: [strong, light] }
         timezone: { type: string }
         locationEnabled: { type: boolean }
+        locationMode: { $ref: "#/components/schemas/LocationMode" }
         pairedAt: { type: [string, "null"], format: date-time }
         lastSeenAt: { type: [string, "null"], format: date-time }
         dnsHost: { type: string }
@@ -718,7 +807,7 @@ paths:
       operationId: putDeviceLocation
       tags: [device]
       summary: Report the current position (phone)
-      description: Every `location.intervalMinutes`, and at once when `location.requestedAt` is set. Only the newest position is kept.
+      description: In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -734,7 +823,30 @@ paths:
                 recordedAt: { type: string, format: date-time }
       responses:
         "204": { description: "Stored (or ignored if older than the stored one)" }
-        "409": { description: "Location is off for this phone; stop reporting." }
+        "409": { description: "Location is off for this phone, or no position was asked for; stop reporting." }
+
+  /device/safety/{rid}:
+    post:
+      operationId: postDeviceSafety
+      tags: [device]
+      summary: Report what happened to a ring or an "Are you okay?" (phone)
+      description: "`shown` when the screen appeared; `here` answers a ring; `ok` and `call` answer a check-in. The first answer counts."
+      security: [{ device: [] }]
+      parameters:
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event]
+              properties:
+                event: { enum: [shown, here, ok, call] }
+      responses:
+        "204": { description: "Stored" }
+        "400": { description: "The event does not fit the request's kind" }
+        "404": { description: "No such request for this phone" }
 
   /device/status:
     put:
@@ -1735,7 +1847,35 @@ paths:
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       responses:
-        "200": { description: "enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null" }
+        "200":
+          description: The position, the location mode and the latest ring and check-in.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationState" }
+  /phones/{pid}/location/mode:
+    put:
+      operationId: putPhonesLocationMode
+      tags: [rules]
+      summary: Choose when the phone sends its position
+      description: Applies at once. `off` deletes the stored position. `always` needs `alwaysFor` (400 without) and ends by itself.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: { $ref: "#/components/schemas/LocationMode" }
+                alwaysFor: { $ref: "#/components/schemas/AlwaysFor" }
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationState" }
   /phones/{pid}/locate:
     post:
       operationId: postPhonesLocate
@@ -1747,6 +1887,74 @@ paths:
       responses:
         "202": { description: "Requested" }
         "409": { description: "Location is off" }
+  /phones/{pid}/ring:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhonesRing
+      tags: [rules]
+      summary: Ring the phone
+      description: Alarm sound at full volume and vibration, also on silent, for at most 5 minutes. With `stopOnAnswer` (default) it stops when the child taps "I'm here"; without, it rings the full 5 minutes. Replaces an earlier ring.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stopOnAnswer: { type: boolean, default: true }
+      responses:
+        "202":
+          description: Sent to the phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ring: { $ref: "#/components/schemas/Ring" }
+        "429": { description: "Too many requests for this phone" }
+    delete:
+      operationId: deletePhonesRing
+      tags: [rules]
+      summary: Stop ringing
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "The ring, now stopped (or null)" }
+  /phones/{pid}/checkin:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhonesCheckin
+      tags: [rules]
+      summary: Ask "Are you okay?"
+      description: The phone shows "Yes, I'm okay" and, with `callNumber`, "Call me". If nobody answers within `minutes` and the location mode is `checkin` or `always`, the phone sends one position. Replaces an earlier check-in.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes: { type: integer, minimum: 1, maximum: 120, examples: [5, 10, 15, 30] }
+                callNumber: { type: [string, "null"], description: "One of the phone's approved contacts (400 otherwise)." }
+      responses:
+        "202":
+          description: Sent to the phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkin: { $ref: "#/components/schemas/Checkin" }
+        "400": { description: "Bad minutes, or callNumber is not an approved contact" }
+        "429": { description: "Too many requests for this phone" }
+    delete:
+      operationId: deletePhonesCheckin
+      tags: [rules]
+      summary: Cancel an open "Are you okay?"
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: "The check-in, now cancelled (or as it was if already answered or located)" }
 
   # ---------------------------------------------------------------- self
   /phones/{pid}/key:

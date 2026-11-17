@@ -4,6 +4,8 @@ import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, 
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges } from "./changes.js";
 import type { Ctx } from "./context.js";
+import { wakePhone } from "./phones.js";
+import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation } from "./safety.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 
@@ -18,7 +20,9 @@ export interface SweepResult {
   dns: number;
   dnsDeleted: number;
   offlineAlerts: number;
-  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number };
+  /** Phones whose time-boxed "always" location ended. */
+  alwaysEnded: number;
+  deleted: { magicLinks: number; sessions: number; pairings: number; invites: number; changes: number; requests: number; safety: number };
 }
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
@@ -27,7 +31,9 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
   const dnsDeleted = await retryDnsDeletions(ctx);
-  const offlineAlerts = await alertOfflinePhones(ctx);
+  const offlineAlerts = (await alertOfflinePhones(ctx)) + (await alertUnansweredCheckins(ctx));
+  const ended = await expireAlwaysLocation(ctx);
+  for (const id of ended) await wakePhone(ctx, id, "rules");
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<unknown[]>) => (await q).length;
   const deleted = {
@@ -77,17 +83,19 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
         )
         .returning({ id: phoneRequests.id }),
     ),
+    // Rings and "Are you okay?" requests, a day after they ended.
+    safety: await deleteOldSafetyRequests(ctx),
   };
-  return { applied, dns, dnsDeleted, offlineAlerts, deleted };
+  return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };
 }
 
 /** Logs only counts, never ids or addresses, and only when something happened. */
 export function logSweep(r: SweepResult, always = false) {
   const d = r.deleted;
-  const total = r.applied + r.dnsDeleted + r.offlineAlerts + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.requests;
+  const total = r.applied + r.dnsDeleted + r.offlineAlerts + r.alwaysEnded + d.magicLinks + d.sessions + d.pairings + d.invites + d.changes + d.requests + d.safety;
   if (total === 0 && !always) return;
   console.log(
-    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} offlineAlerts=${r.offlineAlerts} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} requests=${d.requests}`,
+    `sweeper: applied=${r.applied} dnsSynced=${r.dns} dnsDeleted=${r.dnsDeleted} offlineAlerts=${r.offlineAlerts} alwaysEnded=${r.alwaysEnded} deleted magicLinks=${d.magicLinks} sessions=${d.sessions} pairings=${d.pairings} invites=${d.invites} changes=${d.changes} requests=${d.requests} safety=${d.safety}`,
   );
 }
 
