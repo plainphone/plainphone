@@ -115,7 +115,7 @@ describe("push service allow list", () => {
     expect(ok("https://evil.example/fcm.googleapis.com")).toBe(false);
     expect(ok("https://fcm.googleapis.com.evil.example/x")).toBe(false);
     expect(ok("https://push.services.mozilla.com.evil/x")).toBe(false);
-    expect(ok("https://100.64.0.1/x")).toBe(false);
+    expect(ok("https://10.0.0.1/x")).toBe(false);
     expect(ok("https://user@fcm.googleapis.com/x")).toBe(false);
   });
 });

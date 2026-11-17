@@ -48,7 +48,7 @@ describe("push subscriptions", () => {
 
   it("refuses endpoints outside the known push services", async () => {
     const mum = await signIn(h, "mum@example.org");
-    const r = await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: "https://100.64.0.1:8053/v1/clients", keys });
+    const r = await mum.post("/api/notifications/subscriptions", { platform: "web", endpoint: "https://10.0.0.1:8053/v1/clients", keys });
     expect(r.status).toBe(400);
   });
 
