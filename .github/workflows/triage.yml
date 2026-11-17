@@ -57,7 +57,7 @@ jobs:
             ] : [
               'Thanks for the pull request. This is what happens next:',
               '',
-              '1. CI runs. For contributors outside the team, a maintainer approves the run first, so it may not start straight away.',
+              '1. CI runs. For pull requests from forks, GitHub may require a maintainer to approve the run before it starts.',
               '2. The change usually gets an automated review, and you may get comments to address.',
               '3. A maintainer reads the review and decides whether to merge. Nothing from outside the team is merged automatically.',
               '',

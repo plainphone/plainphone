@@ -37,27 +37,31 @@ jobs:
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
             const isNew = (date) => new Date(date) >= since;
             const maintainerByLogin = new Map();
-            const isMaintainer = async (username) => {
-              if (!username) return false;
-              const login = username.toLowerCase();
-              if (!maintainerByLogin.has(login)) {
-                let maintainer = false;
-                try {
-                  const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username });
-                  maintainer = ['admin', 'maintain', 'write'].includes(data.permission);
-                } catch (error) {
-                  if (error.status !== 404) throw error;
-                }
-                maintainerByLogin.set(login, maintainer);
+            const cacheMaintainer = async (username) => {
+              let maintainer = false;
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username });
+                maintainer = ['admin', 'maintain', 'write'].includes(data.permission);
+              } catch (error) {
+                if (error.status !== 404) throw error;
               }
-              return maintainerByLogin.get(login);
+              maintainerByLogin.set(username.toLowerCase(), maintainer);
             };
+            const author = (item) => item.user?.login ?? item.author?.login;
             const outside = async (items) => {
-              const result = [];
+              const authors = new Map();
               for (const item of items) {
-                if (!await isMaintainer(item.user?.login ?? item.author?.login)) result.push(item);
+                const username = author(item);
+                if (username && !maintainerByLogin.has(username.toLowerCase())) {
+                  authors.set(username.toLowerCase(), username);
+                }
               }
-              return result;
+              const usernames = [...authors.values()];
+              const batchSize = 8;
+              for (let offset = 0; offset < usernames.length; offset += batchSize) {
+                await Promise.all(usernames.slice(offset, offset + batchSize).map(cacheMaintainer));
+              }
+              return items.filter((item) => !maintainerByLogin.get(author(item)?.toLowerCase()));
             };
             const hasLabel = (item, name) => item.labels.some((l) => (typeof l === 'string' ? l : l.name) === name);
             const escape = (s) => s.replace(/[\\`*_~|>\[\]<@]/g, '\\$&');
@@ -68,9 +72,6 @@ jobs:
             const open = await github.paginate(github.rest.issues.listForRepo, {
               owner, repo, state: 'open', per_page: 100,
             });
-            const outsideItems = await outside(open);
-            const issues = outsideItems.filter((i) => !i.pull_request);
-            const pulls = outsideItems.filter((i) => i.pull_request);
 
             const openDiscussions = [];
             let cursor = null;
@@ -91,24 +92,35 @@ jobs:
               openDiscussions.push(...nodes.filter((d) => !d.closed));
               cursor = pageInfo.hasNextPage ? pageInfo.endCursor : null;
             } while (cursor);
-            const discussions = await outside(openDiscussions);
-
-            const newIssues = issues.filter((i) => isNew(i.created_at));
-            const newPulls = pulls.filter((i) => isNew(i.created_at));
-            const waiting = pulls.filter((i) => hasLabel(i, 'awaiting-maintainer'));
-            const needsTriage = issues.filter((i) => hasLabel(i, 'needs-triage'));
+            const waitingForMaintainer = (i) => i.pull_request && hasLabel(i, 'awaiting-maintainer');
             // A single comment may be the bot acknowledgement, so this is only an estimate.
-            const unansweredIssues = issues.filter((i) => i.comments <= 1);
-            const newDiscussions = discussions.filter((d) => isNew(d.createdAt));
-            const unanswered = discussions.filter((d) => d.comments.totalCount === 0
-              || (d.category.isAnswerable && !d.isAnswered));
+            const unansweredIssue = (i) => i.comments <= 1;
+            const unansweredDiscussion = (d) => d.comments.totalCount === 0
+              || (d.category.isAnswerable && !d.isAnswered);
 
-            const somethingNew = newIssues.length || newPulls.length || newDiscussions.length
-              || waiting.some((i) => isNew(i.updated_at));
-            if (!somethingNew) {
+            // Check for activity before looking up authors of older backlog items.
+            const recentDiscussions = openDiscussions.filter((d) => isNew(d.createdAt));
+            const recentItems = open.filter((i) => isNew(i.created_at)
+              || (waitingForMaintainer(i) && isNew(i.updated_at)));
+            if (!(await outside([...recentItems, ...recentDiscussions])).length) {
               core.notice('Nothing new in the last 24 hours, so no digest was sent.');
               return;
             }
+
+            const outsideItems = await outside(open.filter((i) => i.pull_request || isNew(i.created_at)
+              || hasLabel(i, 'needs-triage') || unansweredIssue(i)));
+            const issues = outsideItems.filter((i) => !i.pull_request);
+            const pulls = outsideItems.filter((i) => i.pull_request);
+            const discussions = await outside(openDiscussions.filter((d) => isNew(d.createdAt)
+              || unansweredDiscussion(d)));
+
+            const newIssues = issues.filter((i) => isNew(i.created_at));
+            const newPulls = pulls.filter((i) => isNew(i.created_at));
+            const waiting = pulls.filter(waitingForMaintainer);
+            const needsTriage = issues.filter((i) => hasLabel(i, 'needs-triage'));
+            const unansweredIssues = issues.filter(unansweredIssue);
+            const newDiscussions = discussions.filter((d) => isNew(d.createdAt));
+            const unanswered = discussions.filter(unansweredDiscussion);
 
             const section = (title, items, render, link) => {
               if (!items.length) return [];

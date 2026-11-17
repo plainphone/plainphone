@@ -59,9 +59,9 @@ made by the maintainers.
 
 ## How a pull request from outside is reviewed
 
-1. **CI.** Workflow runs for pull requests from outside contributors start
-   only after the maintainers approve them. That is a safety rule for a
-   public repository.
+1. **CI.** GitHub may require the maintainers to approve workflow runs on
+   pull requests from forks. The repository’s Actions settings determine
+   which contributors need approval.
 2. **Automated review.** The change usually gets an automated review against
    the code, the [design principles](design-principles.md) and the
    [evidence review](evidence.md). You may get comments to address.
