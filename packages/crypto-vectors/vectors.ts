@@ -25,6 +25,7 @@ const fallback = new CipherSuite({ kem: new FallbackKem(), kdf: new HkdfSha256()
 const householdId = "00000000-0000-4000-8000-000000000001";
 const phoneId = "00000000-0000-4000-8000-000000000002";
 const signerDeviceId = "00000000-0000-4000-8000-000000000003";
+const ownerUserId = "00000000-0000-4000-8000-000000000006";
 const recipientDeviceId = "00000000-0000-4000-8000-000000000004";
 const commandIdPrefix = "00000000-0000-4000-8000-00000000000";
 
@@ -79,8 +80,8 @@ const receiverPub = await suite.kem.serializePublicKey(receiver.publicKey);
 const receiverSignSeed = Buffer.alloc(32, 0x33);
 const receiverSignPub = ed25519.getPublicKey(receiverSignSeed);
 
-async function keyEpoch(scope: string, id: string | null, key: Buffer<ArrayBuffer>) {
-  return { scope, phoneId: id, epoch: 1, keyHash: b64(await hash(key)) };
+async function keyEpoch(scope: string, id: string | null, key: Buffer<ArrayBuffer>, epoch = 1) {
+  return { scope, phoneId: id, epoch, keyHash: b64(await hash(key)) };
 }
 
 async function log(seq: number, prevHash: string | null, type: string, data: object, epochs: object[]) {
@@ -89,11 +90,11 @@ async function log(seq: number, prevHash: string | null, type: string, data: obj
   return { ...entry, head };
 }
 const genesis = await log(0, null, "genesis", {
-  deviceId: signerDeviceId, userId: "00000000-0000-4000-8000-000000000006",
+  deviceId: signerDeviceId, userId: ownerUserId,
   signPub: b64(signPub), kemPub: b64(await suite.kem.serializePublicKey(signerKem.publicKey)),
 }, [await keyEpoch("H", null, hKey)]);
 const enrolled = await log(1, genesis.head, "phone.add", {
-  phoneId, profile: "child", ownerUserId: null, deviceId: recipientDeviceId, signPub: b64(receiverSignPub), kemPub: b64(receiverPub),
+  phoneId, profile: "self", ownerUserId, deviceId: recipientDeviceId, signPub: b64(receiverSignPub), kemPub: b64(receiverPub),
 }, [await keyEpoch("L", phoneId, lKey), await keyEpoch("R", phoneId, rKey)]);
 const rosterHead = enrolled.head;
 
@@ -185,18 +186,103 @@ for (const [index, body] of ([
   }, body, scope === "R" ? rKey : lKey, 0x42 + index));
 }
 
+const releaseAckBody = {
+  v: 1, householdId, phoneId, rosterHead, signerDeviceId: recipientDeviceId,
+  commandId: commandIdPrefix + "8",
+};
+const releaseAckInput = domain("release-ack", releaseAckBody);
+const releaseAckSig = ed25519.sign(releaseAckInput, receiverSignSeed);
+assert(ed25519.verify(releaseAckSig, releaseAckInput, receiverSignPub, { zip215: false }));
+
+const trustedDeviceId = "00000000-0000-4000-8000-000000000011";
+const trustedUserId = "00000000-0000-4000-8000-000000000012";
+const trustedSeed = Buffer.alloc(32, 0x61);
+const trustedSignPub = ed25519.getPublicKey(trustedSeed);
+const trustedIkm = Buffer.alloc(32, 0x62);
+const trustedKem = await suite.kem.deriveKeyPair(trustedIkm);
+const trusted = await log(2, enrolled.head, "device.add", {
+  deviceId: trustedDeviceId, userId: trustedUserId, signPub: b64(trustedSignPub),
+  kemPub: b64(await suite.kem.serializePublicKey(trustedKem.publicKey)), role: "trusted", scope: [phoneId],
+}, []);
+const changeId = "00000000-0000-4000-8000-000000000013";
+const changeKey = Buffer.alloc(32, 0x63);
+const change = await encrypted({
+  ...common, rosterHead: trusted.head, table: "pending_changes", scope: "change", recordId: changeId,
+}, { op: { kind: "fixture" }, trustedUserId, effectiveAt: now + 3600000 }, changeKey, 0x64);
+const changeEnvelopeHeader = {
+  ...envelopeHeader, scope: "change", changeId, rosterHead: trusted.head, recipientDeviceId: trustedDeviceId,
+};
+const changeHpke = await hpke(domain("key-envelope", changeEnvelopeHeader), Buffer.alloc(0),
+  changeKey, trustedIkm, Buffer.alloc(32, 0x65));
+const changeEnvelope = await signed("key-envelope", {
+  header: changeEnvelopeHeader, enc: changeHpke.enc, ct: changeHpke.ct,
+});
+const approvalBody = {
+  v: 1, householdId, phoneId, changeId, rosterHead: trusted.head, signerDeviceId: trustedDeviceId,
+  recordHash: b64(await hash(domain("self-change", change.wire))), keyHash: b64(await hash(changeKey)),
+};
+const approvalInput = domain("self-approval", approvalBody);
+const approvalSig = ed25519.sign(approvalInput, trustedSeed);
+assert(ed25519.verify(approvalSig, approvalInput, trustedSignPub, { zip215: false }));
+for (const changed of [
+  { recordHash: b64(await hash(domain("self-change", { ...change.wire, nonce: b64(Buffer.alloc(12)) }))) },
+  { keyHash: b64(await hash(rKey)) },
+]) {
+  assert(!ed25519.verify(approvalSig, domain("self-approval", { ...approvalBody, ...changed }),
+    trustedSignPub, { zip215: false }));
+}
+
+const adminDeviceId = "00000000-0000-4000-8000-000000000014";
+const adminIkm = Buffer.alloc(32, 0x66);
+const adminKem = await suite.kem.deriveKeyPair(adminIkm);
+const admin = await log(3, trusted.head, "device.add", {
+  deviceId: adminDeviceId, userId: ownerUserId,
+  signPub: b64(ed25519.getPublicKey(Buffer.alloc(32, 0x67))),
+  kemPub: b64(await suite.kem.serializePublicKey(adminKem.publicKey)), role: "admin", scope: "*",
+}, []);
+const removed = await log(4, admin.head, "device.remove", { deviceId: adminDeviceId }, [
+  await keyEpoch("H", null, Buffer.alloc(32, 0x68), 2),
+  await keyEpoch("L", phoneId, Buffer.alloc(32, 0x69), 2),
+  await keyEpoch("R", phoneId, Buffer.alloc(32, 0x6a), 2),
+]);
+const rotated = await log(5, removed.head, "keys.rotate", {}, [
+  await keyEpoch("R", phoneId, Buffer.alloc(32, 0x6b), 3),
+]);
+const phoneRemoved = await log(6, rotated.head, "phone.remove", { phoneId }, []);
+
 const secret = Buffer.alloc(16, 0x51);
-const enrollment = { householdId, phoneId, profile: "child", ownerUserId: null, rosterHead: genesis.head, deviceId: recipientDeviceId,
+const enrollment = { householdId, phoneId, profile: "self", ownerUserId, rosterHead: genesis.head, deviceId: recipientDeviceId,
   signPub: b64(receiverSignPub), kemPub: b64(receiverPub) };
 const enrollmentBytes = domain("enroll", enrollment);
-const pairing = { householdId, phoneId, profile: "child", ownerUserId: null, rosterHead: genesis.head,
+const pairing = { householdId, phoneId, profile: "self", ownerUserId, rosterHead: genesis.head,
   pairingId: "00000000-0000-4000-8000-000000000010" };
 const pairingBytes = domain("pair-context", pairing);
-const recoverySeed = Buffer.alloc(16);
+const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function encodeRecoveryCode(seed: Buffer<ArrayBuffer>) {
+  const bits = Array.from(seed, (byte) => byte.toString(2).padStart(8, "0")).join("").padEnd(130, "0");
+  const symbols = bits.match(/.{5}/g)!.map((group) => base32Alphabet[Number.parseInt(group, 2)]).join("");
+  return "PP-" + symbols.match(/.{1,4}/g)!.join("-");
+}
+
+function decodeRecoveryCode(code: string) {
+  assert.match(code, /^PP-(?:[A-Z2-7]{4}-){6}[A-Z2-7]{2}$/);
+  const symbols = code.slice(3).replaceAll("-", "");
+  const bits = Array.from(symbols, (symbol) => base32Alphabet.indexOf(symbol).toString(2).padStart(5, "0")).join("");
+  assert.equal(bits.slice(128), "00");
+  return Buffer.from(bits.slice(0, 128).match(/.{8}/g)!.map((byte) => Number.parseInt(byte, 2)));
+}
+
+const recoverySeed = hex("0123456789abcdef1032547698badcfe");
+const recoveryCode = encodeRecoveryCode(recoverySeed);
+assert.equal(recoveryCode, "PP-AERU-KZ4J-VPG6-6EBS-KR3J-ROW4-7Y");
+assert.deepEqual(decodeRecoveryCode(recoveryCode), recoverySeed);
+assert.throws(() => decodeRecoveryCode(recoveryCode.slice(0, -1) + "Z"));
+const decodedRecoverySeed = decodeRecoveryCode(recoveryCode);
 const recoverySignInfo = domain("recovery", { householdId, use: "sign" });
 const recoveryKemInfo = domain("recovery", { householdId, use: "kem" });
-const recoverySign = await hkdf(recoverySeed, recoverySignInfo, 32);
-const recoveryKem = await hkdf(recoverySeed, recoveryKemInfo, 32);
+const recoverySign = await hkdf(decodedRecoverySeed, recoverySignInfo, 32);
+const recoveryKem = await hkdf(decodedRecoverySeed, recoveryKemInfo, 32);
 const recoveryKeys = await suite.kem.deriveKeyPair(new Uint8Array(recoveryKem));
 const dedupeInfo = domain("dedupe-key", { householdId, phoneId, epoch: 1 });
 const dedupeKey = await hkdf(rKey, dedupeInfo, 32);
@@ -222,13 +308,19 @@ const fixtures = {
   },
   protocol: {
     signing: { seed: b64(signSeed), publicKey: b64(signPub) },
-    log: [genesis, enrolled], envelope: { ...envelope, hpke: envelopeCrypto },
+    log: [genesis, enrolled, trusted, admin, removed, rotated, phoneRemoved], envelope: { ...envelope, hpke: envelopeCrypto },
     rules, commands,
+    releaseAck: { wire: { ...releaseAckBody, sig: b64(releaseAckSig) }, signInput: b64(releaseAckInput) },
+    selfChange: {
+      record: change, envelope: { ...changeEnvelope, hpke: changeHpke },
+      approval: { wire: { ...approvalBody, sig: b64(approvalSig) }, signInput: b64(approvalInput),
+        signingSeed: b64(trustedSeed), signPub: b64(trustedSignPub) },
+    },
     enrollment: { secret: b64(secret), fields: enrollment, input: b64(enrollmentBytes),
       mac: b64(await mac(secret, enrollmentBytes)) },
     pairing: { secret: b64(secret), fields: pairing, input: b64(pairingBytes),
       mac: b64(await mac(secret, pairingBytes)) },
-    recovery: { householdId, seed: b64(recoverySeed), code: "PP-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AA",
+    recovery: { householdId, seed: b64(recoverySeed), code: recoveryCode,
       signInfo: b64(recoverySignInfo), kemInfo: b64(recoveryKemInfo), signingSeed: b64(recoverySign),
       signPub: b64(ed25519.getPublicKey(new Uint8Array(recoverySign))), kemIkm: b64(recoveryKem),
       kemPub: b64(await suite.kem.serializePublicKey(recoveryKeys.publicKey)) },

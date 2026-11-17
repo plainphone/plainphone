@@ -19,10 +19,14 @@ answers and negative cases. The recursive test target runs it in CI. Use
   for mode 0, KEM 32, KDF 1 and AEAD 2 (sequence 0). The RFC HPKE example
   uses nonempty AAD to exercise the primitive. Tink's hybrid API uses
   empty AAD, so use the protocol envelope for its HPKE check.
-- `protocol.json` gives genesis and a phone-add post with head hashes, a
-  signed HPKE envelope, a signed encrypted rule snapshot, all four signed
-  commands, the enrollment and pairing MACs, recovery derivation, dedupe derivation and
-  the DNS HPKE copy. The rule body is illustrative at F0.
+- `protocol.json` gives the signed membership log with head hashes, including
+  removal with ordered H/L/R epoch commitments and explicit rotation. It also
+  gives signed HPKE envelopes, a signed encrypted rule snapshot, all four
+  signed commands and a phone-signed release acknowledgement. The Self change
+  includes the encrypted operation, its per-change HPKE envelope and a trusted
+  approval. The file also covers enrollment and pairing MACs, a nonzero paper
+  recovery code and its derived keys, dedupe derivation and the DNS HPKE copy.
+  The rule and Self operation bodies are illustrative at F0.
 
 All byte strings are unpadded base64url, including empty bytes (`""`). Numeric
 values are JSON integers. `signInput` is the exact pre-signature byte string.
@@ -32,7 +36,9 @@ DHKEM DeriveKeyPair. To decrypt without re-deriving the pair, use
 `recipientPublicKey` and `recipientPrivateKey`. For Tink NO_PREFIX, join
 decoded `enc || ct` and pass decoded `info` as context_info. For AES-GCM,
 join decoded `nonce || ct` and pass decoded `aad`. Use plain Ed25519
-verification with `signing.publicKey`, the decoded signature and
-decoded `signInput`. F1 tests must additionally derive the signed and AAD
+verification with `signing.publicKey` for admin signatures,
+`selfChange.approval.signPub` for trusted approval, and the phone signing key
+from the phone-add post for the release acknowledgement. Use the decoded
+signature and decoded `signInput`. F1 tests must additionally derive the signed and AAD
 bytes from structured fields, assert equality with these fixtures and check
 rejections when the context, authorization or ciphertext changes.
