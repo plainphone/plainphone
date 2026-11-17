@@ -113,7 +113,9 @@ export function Text({ variant = "body", style, ...rest }: TextProps & { variant
   const c = useColors();
   const s = textStyles(c)[variant];
   const role = variant === "title" || variant === "heading" ? "header" : rest.accessibilityRole;
-  return <RNText {...rest} accessibilityRole={role} maxFontSizeMultiplier={3} style={[s, style]} />;
+  // Long Danish words in a large title at a large text size: break them with a hyphen on Android.
+  const hyphens = variant === "title" ? { android_hyphenationFrequency: "normal" as const } : null;
+  return <RNText {...rest} {...hyphens} accessibilityRole={role} maxFontSizeMultiplier={3} style={[s, style]} />;
 }
 
 // One calm scale: 32 page titles, 18 sections, 16 body and rows, 14 notes.
@@ -516,7 +518,11 @@ export function Choice<V extends string>({
               accessibilityLabel={o.help ? `${o.label}. ${o.help}` : o.label}
               accessibilityState={{ checked: on }}
               android_ripple={feedback.android_ripple}
-              style={({ pressed }) => [styles.choice, { backgroundColor: feedback.pressedBg(pressed, c.surface) }]}
+              style={({ pressed }) => [
+                styles.choice,
+                // With a help line the radio sits by the label; on its own it centres in the row.
+                { alignItems: o.help ? "flex-start" : "center", backgroundColor: feedback.pressedBg(pressed, c.surface) },
+              ]}
             >
               <View style={[styles.radio, { borderColor: on ? c.accent : c.borderStrong }]}>
                 {on ? <View style={[styles.radioDot, { backgroundColor: c.accent }]} /> : null}
