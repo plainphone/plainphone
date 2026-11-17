@@ -6,6 +6,7 @@
     <string name="status_not_owner">Ikke låst: Plainphone er ikke Device Owner. Sæt telefonen op med QR-koden.</string>
     <string name="status_maintenance">Vedligeholdsoplåsning er aktiv. Låsen kommer automatisk igen.</string>
     <string name="status_dns">Privat DNS: %1$s</string>
+    <string name="status_attestation_warning">Advarsel: telefonens sikkerhedstjek siger \"%1$s\". Låsen kan ikke stoles på.</string>
     <string name="status_default_pin">Advarsel: vedligeholds-PIN\'en er standard-testkoden.</string>
     <string name="version_line">Version %1$s</string>
     <string name="maintenance_title">Vedligehold</string>

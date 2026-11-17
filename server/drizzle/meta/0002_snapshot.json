@@ -1,5 +1,5 @@
 {
-  "id": "9e3d5704-18f3-4f70-894d-27c49e4441ca",
+  "id": "e082ccd5-323b-47ee-8dce-7505636a56a6",
   "prevId": "b1730335-41ba-4069-8afc-5369c3512262",
   "version": "7",
   "dialect": "postgresql",
@@ -978,6 +978,18 @@
         },
         "status_reported_at": {
           "name": "status_reported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attestation": {
+          "name": "attestation",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attested_at": {
+          "name": "attested_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

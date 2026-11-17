@@ -171,6 +171,10 @@ class MainActivity : Activity() {
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
+            // #23: the server's verdict on the boot state; only shown when it is a warning.
+            org.plainphone.app.sync.AttestationRunner.lastState(this@MainActivity)
+                ?.takeIf { it != "verified" && it != "unverifiable" }
+                ?.let { appendLine(getString(R.string.status_attestation_warning, it)) }
         }
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE

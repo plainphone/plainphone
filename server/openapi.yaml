@@ -286,11 +286,32 @@ components:
           type: boolean
           description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
         hasLocation: { type: boolean }
+        attestation:
+          description: The phone's last hardware attestation (#23); null when it has not attested.
+          oneOf:
+            - $ref: "#/components/schemas/Attestation"
+            - type: "null"
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
           oneOf:
             - $ref: "#/components/schemas/PhoneStatus"
             - type: "null"
+
+    Attestation:
+      type: object
+      description: >
+        `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off).
+        `custom-os`: locked with another system. `failed-boot`: verified boot failed. `unverifiable`: no hardware
+        attestation (software keystore or a root that is not Google's). `revoked`: a certificate is revoked.
+      required: [state, securityLevel, deviceLocked, verifiedBootState, osPatchLevel, revocationChecked]
+      properties:
+        state: { enum: [verified, unlocked, custom-os, failed-boot, unverifiable, revoked] }
+        securityLevel: { enum: [software, tee, strongbox, null] }
+        deviceLocked: { type: [boolean, "null"] }
+        verifiedBootState: { enum: [verified, self-signed, unverified, failed, null] }
+        osPatchLevel: { type: [integer, "null"], description: YYYYMM }
+        revocationChecked: { type: boolean }
+        checkedAt: { type: [string, "null"], format: date-time, description: Only in PhoneSummary. }
 
     DeviceStatusInput:
       type: object
@@ -528,6 +549,56 @@ paths:
         "204": { description: "Stored" }
         "400": { $ref: "#/components/responses/Error" }
 
+  /device/attestation/challenge:
+    post:
+      operationId: postDeviceAttestationChallenge
+      tags: [device]
+      summary: A fresh challenge for hardware key attestation (#23)
+      description: Valid for 10 minutes, one open challenge per phone.
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: Challenge (base64url)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge, expiresAt]
+                properties:
+                  challenge: { type: string }
+                  expiresAt: { type: string, format: date-time }
+  /device/attestation:
+    put:
+      operationId: putDeviceAttestation
+      tags: [device]
+      summary: Send the attestation certificate chain of a key made with the challenge
+      description: >
+        The server checks the chain against Google's attestation roots and revocation list and reads
+        the boot state. Verification happens only on the server. No serial number or IMEI is attested.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge, chain]
+              properties:
+                challenge: { type: string, maxLength: 100 }
+                chain:
+                  type: array
+                  minItems: 2
+                  maxItems: 10
+                  description: DER certificates, base64, leaf first.
+                  items: { type: string, maxLength: 12000 }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Attestation" }
+        "400": { description: The chain does not verify, or was made for another challenge }
+        "409": { description: Unknown, used or expired challenge }
   /device/push-token:
     put:
       operationId: putDevicePushToken

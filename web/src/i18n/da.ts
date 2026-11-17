@@ -332,6 +332,12 @@ export const da: Messages = {
   "phone.frpNoPlay": "Kan ikke beskyttes mod nulstilling: telefonen har ikke Google Play-tjenester",
   "phone.frpFailed": "Beskyttelse mod nulstilling mislykkedes på telefonen",
 
+  "phone.attVerified": "Systemet er uændret (tjekket af telefonens sikkerhedschip)",
+  "phone.attUnlocked": "Bootloaderen er låst op. Låsen kan ikke stoles på, og beskyttelse mod nulstilling virker ikke.",
+  "phone.attCustomOs": "Der er installeret et andet system end producentens.",
+  "phone.attFailedBoot": "Telefonens system fejlede sit tjek ved opstart.",
+  "phone.attRevoked": "Google har tilbagekaldt telefonens sikkerhedsnøgle, så dens system kan ikke stoles på.",
+  "phone.attUnverifiable": "Systemet kan ikke verificeres (telefonen har ingen hardware-attestering)",
   "appr.title": "Godkendelser",
   "appr.intro": "Du er valgt som en person, der kan godkende. Disse ændringer venter på dit svar.",
   "appr.empty": "Intet venter på dig lige nu.",

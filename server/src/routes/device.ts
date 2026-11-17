@@ -27,7 +27,7 @@ function starterPack(timezone: string): Set<string> {
   return new Set(timezone === "Europe/Copenhagen" ? STARTER_PACKS.dk : []);
 }
 
-export function deviceRoutes(ctx: Ctx) {
+export function deviceRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
@@ -102,6 +102,9 @@ export function deviceRoutes(ctx: Ctx) {
     c.set("phone", phone);
     await next();
   });
+
+  // Routes that live in their own files but need the device token check above.
+  extra?.(app);
 
   app.get("/rules", async (c) => {
     let phone = c.get("phone");

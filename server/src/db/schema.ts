@@ -107,6 +107,16 @@ export interface DeviceStatus {
   accountTypes?: string[] | null;
 }
 
+/** What the server read from the phone's key attestation (#23). No serial number or IMEI. */
+export interface PhoneAttestation {
+  state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+  securityLevel: "software" | "tee" | "strongbox" | null;
+  deviceLocked: boolean | null;
+  verifiedBootState: "verified" | "self-signed" | "unverified" | "failed" | null;
+  osPatchLevel: number | null;
+  revocationChecked: boolean;
+}
+
 export const phones = pgTable(
   "phones",
   {
@@ -141,6 +151,9 @@ export const phones = pgTable(
     deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
+    /** The last hardware attestation result (#23); null until the phone attested once. */
+    attestation: jsonb("attestation").$type<PhoneAttestation>(),
+    attestedAt: timestamp("attested_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("phones_household_idx").on(t.householdId)],

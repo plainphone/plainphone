@@ -8,6 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
+import { attestationRoutes } from "./routes/attestation.js";
 import { deviceRoutes } from "./routes/device.js";
 import { parentRoutes } from "./routes/parent.js";
 import { resetProtectionRoutes } from "./routes/reset-protection.js";
@@ -78,7 +79,7 @@ export function createApp(ctx: Ctx) {
     return c.json(assetLinks(ctx.cfg));
   });
 
-  app.route("/api/device", deviceRoutes(ctx));
+  app.route("/api/device", deviceRoutes(ctx, attestationRoutes(ctx)));
   const resetProtection = resetProtectionRoutes(ctx);
   app.route("/api/reset-protection", resetProtection.callback);
   app.route("/api", parentRoutes(ctx, resetProtection.parent));

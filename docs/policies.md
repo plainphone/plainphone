@@ -117,6 +117,25 @@ Android's setup asks for a Google account before the phone can be used.
   accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
   maintenance unlock.
 
+## Hardware attestation of the boot state (#23)
+
+Once a day (and right after pairing) the phone asks the server for a challenge, makes a key in its
+TEE or StrongBox with it (`setAttestationChallenge`) and sends the certificate chain to
+`PUT /device/attestation`. The **server** checks that each certificate is signed by the next, that the
+last one carries one of Google's attestation root keys, and that none is on Google's revocation list,
+and reads `RootOfTrust` (`deviceLocked`, `verifiedBootState`) and the OS patch level. Play Integrity is not
+used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is attested.
+
+| Result | Dashboard |
+|---|---|
+| `verified` | "System unchanged" |
+| `unlocked` | Lock shown as **not intact**: an unlocked bootloader switches FRP off and lets the system be replaced |
+| `failed-boot`, `revoked` | Lock shown as not intact |
+| `custom-os` | Warning: locked, but with a system signed by someone other than the maker |
+| `unverifiable` | "Cannot be verified": a software keystore, or a root that is not Google's. Phones that launched before Android 8.0 (the OnePlus 5T launched with 7.1) may land here |
+
+The phone shows a warning on its status screen for the results that are not `verified` or `unverifiable`.
+
 ## What Android does not let us block
 
 - **Factory reset from recovery mode** (button combination at boot), and on Samsung also flashing in Download mode. No app can stop this. What protects the phone afterwards is Factory Reset Protection (FRP): the phone asks for a Google account that was on it before the reset. See below.

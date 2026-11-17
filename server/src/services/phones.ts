@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import {
   contacts,
+  type DeviceStatus,
+  type PhoneAttestation,
   DNS_CATEGORIES,
   dnsSettings,
   locations,
@@ -164,9 +166,26 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
     hasLocation: Boolean(loc),
+    // Hardware attestation of the boot state (#23); null until the phone attested once.
+    attestation: phone.attestation
+      ? { ...phone.attestation, checkedAt: phone.attestedAt?.toISOString() ?? null }
+      : null,
     status:
       phone.deviceStatus && phone.statusReportedAt
-        ? { ...phone.deviceStatus, reportedAt: phone.statusReportedAt.toISOString() }
+        ? { ...withAttestation(phone.deviceStatus, phone.attestation), reportedAt: phone.statusReportedAt.toISOString() }
         : null,
+  };
+}
+
+/** States in which the lock cannot be trusted, whatever the phone itself reports (#23). */
+const UNTRUSTED_BOOT = new Set(["unlocked", "failed-boot", "revoked"]);
+
+/** An unlocked bootloader (or a failed or revoked one) counts as a broken lock in the dashboard. */
+function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
+  if (!attestation || !UNTRUSTED_BOOT.has(attestation.state)) return status;
+  return {
+    ...status,
+    lockIntact: false,
+    failedPolicies: [...status.failedPolicies, `hardware attestation: ${attestation.state}`],
   };
 }

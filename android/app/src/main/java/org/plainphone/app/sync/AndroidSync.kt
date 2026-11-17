@@ -200,6 +200,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
         Log.i("Plainphone", "sync ($reason): $outcome")
         return when (outcome) {
             is SyncRunner.Outcome.Synced -> {
+                // #23: once a day, attest the boot state to the server. Never affects the lock.
+                runCatching { SyncStore(applicationContext).deviceToken()?.let { AttestationRunner.forContext(applicationContext).runIfDue(it) } }
                 // While someone is using the phone, keep the fast cadence (rules and "Find" within a minute).
                 if (isInteractive(applicationContext)) SyncScheduler.soon(applicationContext, outcome.pollSeconds)
                 Result.success()

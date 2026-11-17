@@ -333,6 +333,12 @@ export const en = {
   "phone.frpNoPlay": "Cannot be protected against reset: the phone has no Google Play services",
   "phone.frpFailed": "Reset protection failed on the phone",
 
+  "phone.attVerified": "System unchanged (checked by the phone's security chip)",
+  "phone.attUnlocked": "The bootloader is unlocked. The lock cannot be trusted, and reset protection does not work.",
+  "phone.attCustomOs": "A system other than the maker's is installed.",
+  "phone.attFailedBoot": "The phone's system failed its check at start-up.",
+  "phone.attRevoked": "Google has revoked the phone's security key, so its system cannot be trusted.",
+  "phone.attUnverifiable": "The system cannot be verified (the phone has no hardware attestation)",
   "appr.title": "Approvals",
   "appr.intro": "You are a trusted person. These changes wait for your answer.",
   "appr.empty": "Nothing waits for you right now.",

@@ -279,6 +279,15 @@ export function PendingList() {
   );
 }
 
+const ATTESTATION_TEXT = {
+  verified: "phone.attVerified",
+  unlocked: "phone.attUnlocked",
+  "custom-os": "phone.attCustomOs",
+  "failed-boot": "phone.attFailedBoot",
+  revoked: "phone.attRevoked",
+  unverifiable: "phone.attUnverifiable",
+} as const;
+
 const RESET_PROTECTION_TEXT = {
   on: "phone.frpOn",
   off: "phone.frpOff",
@@ -313,6 +322,11 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
               {t("phone.maintenance")}
             </p>
           )}
+          {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
+            <p className="notice notice-error" role="status">
+              {t(ATTESTATION_TEXT[phone.attestation.state])}
+            </p>
+          )}
           <ul className="list status-list">
             {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
             {s.batteryPct !== null && (
@@ -324,6 +338,9 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
             <li>{syncedAt ? t("phone.synced", { when: when(syncedAt) }) : t("phones.neverSeen")}</li>
             <li>{t("phone.appVersion", { version: s.appVersion })}</li>
             {s.resetProtection && <li>{t(RESET_PROTECTION_TEXT[s.resetProtection])}</li>}
+            {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
+              <li>{t(ATTESTATION_TEXT[phone.attestation.state])}</li>
+            )}
           </ul>
           <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
         </>

@@ -7,6 +7,7 @@
     <string name="status_not_owner">Not locked: Plainphone is not Device Owner. Set the phone up with the QR code.</string>
     <string name="status_maintenance">Maintenance unlock is active. The lock returns automatically.</string>
     <string name="status_dns">Private DNS: %1$s</string>
+    <string name="status_attestation_warning">Warning: the phone\'s security check says \"%1$s\". The lock cannot be trusted.</string>
     <string name="status_default_pin">Warning: the maintenance PIN is the default test PIN.</string>
     <string name="version_line">Version %1$s</string>
     <string name="maintenance_title">Maintenance</string>

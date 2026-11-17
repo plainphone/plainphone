@@ -53,8 +53,16 @@ export interface Phone {
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
   dnsReady: boolean;
   hasLocation: boolean;
+  /** Hardware attestation of the boot state (#23); null until the phone attested once. Missing on old servers. */
+  attestation?: PhoneAttestation | null;
   /** Null until the phone has reported once. */
   status: PhoneStatus | null;
+}
+export interface PhoneAttestation {
+  state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+  deviceLocked: boolean | null;
+  osPatchLevel: number | null;
+  checkedAt: string | null;
 }
 export interface App {
   packageName: string;
