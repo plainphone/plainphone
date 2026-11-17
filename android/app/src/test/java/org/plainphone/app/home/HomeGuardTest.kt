@@ -48,4 +48,13 @@ class HomeGuardTest {
         assertThat(HomeGuard.isEnabled(context)).isTrue()
         assertThat(HomeGuard.starting(context)).isTrue()
     }
+
+    @Test
+    fun `a maintenance unlock gives the home screen a fresh chance`() {
+        HomeGuard.onAppStart(context)
+        repeat(HomeGuard.MAX_FAILED_STARTS + 1) { HomeGuard.starting(context) }
+        HomeGuard.reset(context)
+        assertThat(HomeGuard.isEnabled(context)).isTrue()
+        assertThat(HomeGuard.blockReason(context)).isNull()
+    }
 }

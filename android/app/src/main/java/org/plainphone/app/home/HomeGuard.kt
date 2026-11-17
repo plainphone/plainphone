@@ -51,6 +51,15 @@ object HomeGuard {
         setEnabled(context, true)
     }
 
+    /**
+     * A maintenance unlock gives the home screen a fresh chance too, so a parent can bring it
+     * back without waiting for an app update; the relock pins it again.
+     */
+    fun reset(context: Context) {
+        prefs(context).edit().putInt("starts", 0).apply()
+        setEnabled(context, true)
+    }
+
     private fun letGo(context: Context) {
         val dpm = context.getSystemService(DevicePolicyManager::class.java)
         if (dpm?.isDeviceOwnerApp(context.packageName) == true) {

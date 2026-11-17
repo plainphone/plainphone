@@ -192,6 +192,7 @@ object Lock {
                 synchronized(APPLY_LOCK) {
                     val minutes = ConfigStore(app).load().relockMinutes
                     scheduleRelock(app, minutes)
+                    org.plainphone.app.home.HomeGuard.reset(app)
                     // Light mode: the guard pauses while the window is open; nothing else to lift.
                     val lifted = if (Mode.isLight(app)) {
                         listOf(StepResult("guard paused", true, "$minutes min"))

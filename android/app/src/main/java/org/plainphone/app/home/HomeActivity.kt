@@ -185,8 +185,8 @@ class HomeActivity : ComponentActivity() {
                 rules = rules,
                 now = now,
                 fixed = setOf("$own/$PHONE", "$own/$MESSAGES"),
-                // Core apps, maps and Plainphone itself (its status screen), cached for a few minutes.
-                core = runCatching { TimeGuard.exempt(context) }.getOrDefault(setOf(own)),
+                // The same core apps light mode lets through, plus Plainphone itself (its status screen).
+                core = corePackages(context) + own,
                 minutesLeft = runCatching { HomeTimeLimits.source(context, apps.map { it.packageName }) }.getOrDefault(emptyMap()),
             )
             // The clock follows the phone (automatic time zone), like the status bar; schedules use the rules' zone.
@@ -201,6 +201,17 @@ class HomeActivity : ComponentActivity() {
                 noticeUntil = state.notice?.let { timeText(context, it.until) },
                 offerDefaultHome = !isOwner && !isHome,
             )
+        }
+
+        @Volatile private var coreCache: Pair<Long, Set<String>>? = null
+
+        /** Resolving the core apps is not free and the home screen refreshes every minute: cached for 5 min. */
+        private fun corePackages(context: Context): Set<String> {
+            val now = System.currentTimeMillis()
+            coreCache?.let { (at, set) -> if (now - at < 5 * 60_000L) return set }
+            val set = runCatching { AndroidDeviceControls(context).corePackages() }.getOrDefault(emptySet())
+            coreCache = now to set
+            return set
         }
 
         fun timeText(context: Context, time: LocalTime): String {
