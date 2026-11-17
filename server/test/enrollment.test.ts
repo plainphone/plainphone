@@ -2,6 +2,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { enrollments } from "../src/db/schema.js";
+import { loadConfig } from "../src/config.js";
 import { downloadRoutes, newestApk } from "../src/routes/download.js";
 import { Client, PUBLIC_URL, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -200,5 +201,22 @@ describe("stable APK address", () => {
     }) as unknown as typeof fetch;
     const r = await downloadRoutes(ctx, fake).request("/android");
     expect(r.headers.get("location")).toBe("https://pp.example.org/app.apk");
+  });
+});
+
+describe("setup configuration", () => {
+  it("treats empty variables from compose files as unset", () => {
+    const cfg = loadConfig({
+      DATABASE_URL: "x",
+      APK_DOWNLOAD_URL: "",
+      APK_SIGNATURE_CHECKSUM: "",
+      PROVISIONING_DNS_HOST: "",
+      APK_RELEASES_REPO: "",
+    });
+    expect(cfg.APK_DOWNLOAD_URL).toBeUndefined();
+    expect(cfg.APK_SIGNATURE_CHECKSUM).toBe("mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM");
+    expect(cfg.PROVISIONING_DNS_HOST).toBe("family.adguard-dns.com");
+    expect(cfg.APK_RELEASES_REPO).toBe("plainphone/plainphone");
+    expect(() => loadConfig({ DATABASE_URL: "x", APK_SIGNATURE_CHECKSUM: "too-short" })).toThrow();
   });
 });
