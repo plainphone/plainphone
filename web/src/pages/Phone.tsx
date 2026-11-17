@@ -24,7 +24,7 @@ interface PhoneCtx {
   phone: Phone;
   setPhone: (p: Phone) => void;
   pending: PendingChange[];
-  reloadPending: () => Promise<void>;
+  reloadPending: (beforeUpdate?: (changes: PendingChange[]) => void) => Promise<void>;
   appLabel: (pkg: string) => string;
   setApps: (apps: App[]) => void;
   /**
@@ -71,9 +71,10 @@ export function PhoneLayout() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [banner, setBanner] = useState<PendingChange | null>(null);
 
-  const reloadPending = useCallback(async () => {
+  const reloadPending = useCallback(async (beforeUpdate?: (changes: PendingChange[]) => void) => {
     try {
       const r = await api.get<{ changes: PendingChange[] }>(`/phones/${pid}/changes`);
+      beforeUpdate?.(r.changes);
       setPending(r.changes);
     } catch {
       // the overview shows its own error; banners keep working without the list
@@ -253,26 +254,28 @@ function ChangeBar({
   );
 }
 
-export function PendingList() {
+function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
   const { t, locale } = useI18n();
   const { pending, reloadPending, appLabel, notify } = usePhone();
   const now = useNow(30_000);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function cancel(c: PendingChange) {
-    setBusyId(c.id);
+  async function cancel(c: PendingChange, button: HTMLButtonElement) {
+    if (busy) return;
+    setBusy(true);
     try {
       await api.post(`/changes/${c.id}/cancel`);
       notify({ tone: "success", text: t("pending.cancelled") });
     } catch (err) {
       notify({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t("pending.gone") : errorMessage(err, t) });
     } finally {
-      setBusyId(null);
-      await reloadPending();
+      await reloadPending((changes) => {
+        if (document.activeElement === button && !changes.some((change) => change.id === c.id)) onCancelFocus();
+      });
+      setBusy(false);
     }
   }
 
-  if (pending.length === 0) return <p className="muted">{t("phone.pendingNone")}</p>;
   return (
     <ul className="list pending-list">
       {pending.map((c) => (
@@ -281,7 +284,12 @@ export function PendingList() {
             <p className="row-title">{describeOp(c.op, t, locale, appLabel)}</p>
             <p className="row-meta">{pendingWhen(c, now, t, locale)}</p>
           </div>
-          <button type="button" className="btn btn-secondary btn-small" onClick={() => void cancel(c)} disabled={busyId === c.id}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            onClick={(event) => void cancel(c, event.currentTarget)}
+            aria-disabled={busy}
+          >
             {t("pending.cancel")}
           </button>
         </li>
@@ -341,23 +349,38 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
 export function PhoneOverview() {
   const { t, locale } = useI18n();
   const { phone, pending, setPhone } = usePhone();
+  const navigate = useNavigate();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
+  const rulesHeading = useRef<HTMLHeadingElement>(null);
 
   // The phone reports in the background: fetch it again while this page is open, so the
   // battery and the lock state are not as old as the moment the parent opened the app.
   const setPhoneRef = useRef(setPhone);
   setPhoneRef.current = setPhone;
+  // A released phone is deleted once it has switched Plainphone off: the page then says so and leaves.
+  const releasing = Boolean(phone.releaseRequestedAt);
+  const releasedText = t("phone.released");
   useEffect(() => {
+    let active = true;
     const refresh = () =>
       api
         .get<Phone>(`/phones/${phone.id}`)
-        .then((p) => setPhoneRef.current(p))
-        .catch(() => undefined);
+        .then((p) => {
+          if (active) setPhoneRef.current(p);
+        })
+        .catch((err) => {
+          if (active && err instanceof ApiError && err.status === 404) {
+            navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
+          }
+        });
     void refresh();
     const id = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(id);
-  }, [phone.id]);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [phone.id, releasing, releasedText, navigate]);
   const items: { to: string; label: string; hint: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
     { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
@@ -391,6 +414,7 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
+      {releasing && <p className="notice notice-info status-release">{t("phone.releasing")}</p>}
       {!phone.pairedAt && (
         <section className="section panel" aria-labelledby="setup-h">
           <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
@@ -405,18 +429,18 @@ export function PhoneOverview() {
 
       {phone.openRequests > 0 && <RequestsSection />}
 
-      <PhoneStatusBlock phone={phone} now={now} />
+      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
 
-      {(phone.profile === "self" || pending.length > 0) && (
+      {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">
           <h2 id="pending-h">{t("phone.pendingTitle")}</h2>
-          <PendingList />
+          <PendingList onCancelFocus={() => rulesHeading.current?.focus()} />
         </section>
       )}
 
       <section className="section" aria-labelledby="rules-h">
-        <h2 id="rules-h">{t("phone.rules")}</h2>
-        <ul className="list nav-list">
+        <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
+        <ul className="list phone-rules">
           {items.map((i) => (
             <li key={i.to}>
               <Link to={`${base}/${i.to}`} className="row-link">
@@ -439,6 +463,8 @@ export function PhoneOverview() {
           </li>
         </ul>
       </section>
+
+      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <ManagePhone />
@@ -581,17 +607,23 @@ function LightModeSection({ phone }: { phone: Phone }) {
   );
 }
 
-/** Rename the phone, or remove it. On a Self phone the removal waits for the key. */
+/**
+ * Rename the phone, release it, or remove it. Releasing switches Plainphone off on the phone;
+ * removing only deletes it here. On a Self phone both wait for the key.
+ */
 function ManagePhone() {
   const { t } = useI18n();
   const { phone, setPhone, run, notify } = usePhone();
   const navigate = useNavigate();
   const [name, setName] = useState(phone.name);
   const [saving, setSaving] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [removing, setRemoving] = useState(false);
+  const [confirming, setConfirming] = useState<"release" | "remove" | null>(null);
+  const [working, setWorking] = useState(false);
   const trimmed = name.trim();
   const questionRef = useRef<HTMLParagraphElement>(null);
+  const self = phone.profile === "self";
+  // A release that was asked for once cannot be asked for again; the phone is on its way out.
+  const canRelease = phone.pairedAt !== null && !phone.releaseRequestedAt;
   // The button that opened the question is gone; move focus to the question itself.
   useEffect(() => {
     if (confirming) questionRef.current?.focus();
@@ -612,11 +644,29 @@ function ManagePhone() {
   }
 
   async function remove() {
-    setRemoving(true);
+    setWorking(true);
     const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}`), t("phone.removed"));
-    setRemoving(false);
-    setConfirming(false);
+    setWorking(false);
+    setConfirming(null);
     if (r?.status === "applied") navigate("/", { replace: true, state: { notice: t("phone.removed") } });
+  }
+
+  async function release() {
+    setWorking(true);
+    const r = await run(() => api.post<ChangeResult>(`/phones/${phone.id}/release`), t("phone.releaseDone"));
+    setConfirming(null);
+    if (r?.status === "applied") {
+      // The phone stays in the list until it has switched Plainphone off.
+      try {
+        setPhone(await api.get<Phone>(`/phones/${phone.id}`));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          navigate("/", { replace: true, state: { notice: t("phone.released") } });
+        }
+        // Other failures are retried by the overview refresh.
+      }
+    }
+    setWorking(false);
   }
 
   return (
@@ -634,21 +684,43 @@ function ManagePhone() {
       </form>
       <div className="danger-zone">
         {confirming ? (
-          <div className="stack-sm" role="group" aria-labelledby="remove-q">
-            <p id="remove-q" tabIndex={-1} ref={questionRef}>{t(phone.profile === "self" ? "phone.removeSelfConfirm" : "phone.removeConfirm")}</p>
+          <div className="stack-sm" role="group" aria-labelledby="danger-q">
+            <p id="danger-q" tabIndex={-1} ref={questionRef}>
+              {t(
+                confirming === "release"
+                  ? self
+                    ? "phone.releaseSelfConfirm"
+                    : "phone.releaseConfirm"
+                  : self
+                    ? "phone.removeSelfConfirm"
+                    : "phone.removeConfirm",
+              )}
+            </p>
             <div className="actions">
-              <button type="button" className="btn btn-danger" onClick={() => void remove()} disabled={removing}>
-                {t("phone.removeYes")}
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => void (confirming === "release" ? release() : remove())}
+                disabled={working}
+              >
+                {t(confirming === "release" ? "phone.releaseYes" : "phone.removeYes")}
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)} disabled={removing}>
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirming(null)} disabled={working}>
                 {t("app.cancel")}
               </button>
             </div>
           </div>
         ) : (
-          <button type="button" className="btn-link btn-link-danger" onClick={() => setConfirming(true)}>
-            {t("phone.remove")}
-          </button>
+          <div className="danger-links">
+            {canRelease && (
+              <button type="button" className="btn-link btn-link-danger" onClick={() => setConfirming("release")}>
+                {t("phone.release")}
+              </button>
+            )}
+            <button type="button" className="btn-link btn-link-danger" onClick={() => setConfirming("remove")}>
+              {t("phone.remove")}
+            </button>
+          </div>
         )}
       </div>
     </section>

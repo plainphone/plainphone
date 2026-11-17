@@ -185,8 +185,8 @@ function TotalSection({ limits, reload }: { limits: TimeLimits; reload: () => Pr
         <h2 id="total-h">{t("time.totalTitle")}</h2>
         {waiting.has(TOTAL) && <WaitingTag />}
       </div>
-      <form className="form-card stack" onSubmit={(e) => void save(e)}>
-        {current && <UsedToday used={limits.used?.[TOTAL]} allowed={allowedToday} t={t} />}
+      {current && <UsedToday used={limits.used?.[TOTAL]} allowed={allowedToday} t={t} />}
+      <form className="form-card stack time-total-form" onSubmit={(e) => void save(e)}>
         <Switch
           label={t("time.totalSwitch")}
           description={on ? undefined : t("time.totalOff")}
@@ -278,7 +278,8 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                 <div className="limit-head">
                   <div className="limit-main">
                     <p className="row-title">
-                      {a.label} {waiting.has(a.packageName) && <WaitingTag />}
+                      {a.label}
+                      {waiting.has(a.packageName) && <WaitingTag />}
                     </p>
                     <p className="row-meta">
                       {t("time.perDay", { time: formatMinutes(a.limit.minutes, w) })}
@@ -294,7 +295,6 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                         type="button"
                         className="btn btn-secondary btn-small"
                         disabled={busy === a.packageName}
-                        aria-label={t("time.bonusFor", { minutes: BONUS, app: a.label })}
                         onClick={() =>
                           void act(
                             a.packageName,
@@ -303,18 +303,17 @@ function AppsSection({ limits, apps, reload }: { limits: TimeLimits; apps: App[]
                           )
                         }
                       >
-                        {t("time.bonusShort", { minutes: BONUS })}
+                        {t("time.bonus", { minutes: BONUS })}<span className="sr-only">, {a.label}</span>
                       </button>
                       <button
                         type="button"
                         className="btn btn-secondary btn-small"
-                        aria-label={t("time.changeFor", { app: a.label })}
                         onClick={() => {
                           setEditing(a.packageName);
                           setEditMinutes(String(a.limit.minutes));
                         }}
                       >
-                        {t("app.edit")}
+                        {t("app.edit")}<span className="sr-only">, {a.label}</span>
                       </button>
                     </div>
                   )}

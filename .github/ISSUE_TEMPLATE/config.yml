@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security issue or a way around the lock
+    url: https://github.com/plainphone/plainphone/security/policy
+    about: Report it privately as described in SECURITY.md. Do not open a public issue.
+  - name: Question or help with setup
+    url: https://github.com/plainphone/plainphone/discussions/categories/q-a
+    about: Ask in Discussions. Issues are for bugs and concrete tasks.
+  - name: Idea to talk through
+    url: https://github.com/plainphone/plainphone/discussions/categories/ideas
+    about: Start in Discussions if the idea is not concrete yet.
+  - name: Setup guide
+    url: https://plainphone.org/setup/
+    about: Step-by-step help with setting up a phone.

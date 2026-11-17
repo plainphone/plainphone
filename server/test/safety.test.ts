@@ -130,10 +130,14 @@ describe("ring the phone", () => {
     const keep = await parent.post(`/api/phones/${phoneId}/ring`, { stopOnAnswer: false });
     const id = keep.json.ring.id;
     await device.post(`/api/device/safety/${id}`, { event: "here" });
-    const ringing = (await device.get("/api/device/rules")).json.ring;
-    expect(ringing).toMatchObject({ id, stopOnAnswer: false, answered: true });
+    const ringing = await device.get("/api/device/rules");
+    expect(ringing.json.ring).toMatchObject({ id, stopOnAnswer: false, answered: true });
+    const conditional = { "if-none-match": ringing.headers.get("etag")! };
+    expect((await device.get("/api/device/rules", conditional)).status).toBe(304);
     h.clock.advance(5 * 60_000);
-    expect((await device.get("/api/device/rules")).json.ring).toBeNull();
+    const expired = await device.get("/api/device/rules", conditional);
+    expect(expired.status).toBe(200);
+    expect(expired.json.ring).toBeNull();
   });
 
   it("can be stopped from the dashboard", async () => {

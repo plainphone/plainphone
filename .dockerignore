@@ -1,6 +1,7 @@
 **/node_modules
 **/dist
 android
+parent-app
 site
 docs
 scripts

@@ -1,0 +1,446 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      server: ${{ steps.filter.outputs.server }}
+      parent: ${{ steps.filter.outputs.parent }}
+      dns: ${{ steps.filter.outputs.dns }}
+      site: ${{ steps.filter.outputs.site }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Test change detection
+        run: python3 -m unittest discover -s .github/scripts
+      - name: Detect changes in the checked-out revision
+        id: filter
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            # The first parent is the base of this run's PR merge commit.
+            base=$(git rev-parse --verify "$GITHUB_SHA^1")
+          elif [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ && "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            base=$PUSH_BEFORE
+            if ! git cat-file -e "$base^{commit}" 2>/dev/null &&
+               ! git fetch --no-tags --depth=1 origin "$base"; then
+              echo "::warning::Push predecessor is unavailable. Running all checks."
+              base=all
+            fi
+          else
+            base=all
+          fi
+          python3 .github/scripts/ci-changes.py "$base" "$GITHUB_SHA"
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          keys = {"android", "e2e", "server", "parent", "dns", "site"}
+          lines = Path(os.environ["GITHUB_OUTPUT"]).read_text(encoding="utf-8").splitlines()
+          outputs = dict(line.split("=", 1) for line in lines)
+          if len(lines) != len(keys) or outputs.keys() != keys or any(
+              value not in {"true", "false"} for value in outputs.values()
+          ):
+              raise SystemExit("::error::Expected one boolean output for each of the six CI checks.")
+          PYTHON
+
+  android:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.android == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.android == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        if: needs.changes.outputs.android == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Check preinstalled Android SDK packages
+        id: sdk
+        if: needs.changes.outputs.android == 'true'
+        run: |
+          echo "path=${ANDROID_HOME:?Android SDK missing from runner}" >> "$GITHUB_OUTPUT"
+          if [[ ! -f "$ANDROID_HOME/platforms/android-37.0/source.properties" ||
+                ! -f "$ANDROID_HOME/build-tools/36.1.0/source.properties" ]]; then
+            echo "cache-needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache Android SDK packages
+        if: steps.sdk.outputs.cache-needed == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ${{ steps.sdk.outputs.path }}/platforms/android-37.0
+            ${{ steps.sdk.outputs.path }}/build-tools/36.1.0
+          key: android-sdk-${{ runner.os }}-${{ runner.arch }}-platform-37.0-build-tools-36.1.0
+      - uses: android-actions/setup-android@v4
+        if: needs.changes.outputs.android == 'true'
+        with:
+          packages: "platforms;android-37.0 build-tools;36.1.0"
+
+      - uses: gradle/actions/setup-gradle@v6
+        if: needs.changes.outputs.android == 'true'
+
+      # Share compilation and SDK setup across debug and release checks.
+      - name: Debug and release APKs, lint and unit tests (including encryption vectors)
+        if: needs.changes.outputs.android == 'true'
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease lintRelease
+
+      - name: Smoke test of the minified release APK (R8)
+        if: needs.changes.outputs.android == 'true'
+        working-directory: .
+        run: scripts/smoke-release-apk.sh android/app/build/outputs/apk/release/app-release.apk
+
+      - name: QR script tests
+        if: needs.changes.outputs.android == 'true'
+        working-directory: .
+        run: python3 -m unittest scripts/test_provisioning_qr.py
+
+      - uses: actions/upload-artifact@v7
+        if: always() && needs.changes.result == 'success' && needs.changes.outputs.android == 'true'
+        with:
+          name: plainphone-apks-and-reports
+          path: |
+            android/app/build/outputs/apk/
+            android/app/build/reports/
+          retention-days: 14
+
+  server-and-phone-sync:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: ${{ needs.changes.result == 'success' && (needs.changes.outputs.server == 'true' || needs.changes.outputs.e2e == 'true') && 'postgres:18' || '' }}
+        env:
+          POSTGRES_USER: plainphone
+          POSTGRES_PASSWORD: plainphone
+          POSTGRES_DB: plainphone_test
+        ports: ["5432"]
+        options: >-
+          --health-cmd "pg_isready -U plainphone -d plainphone_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.server == 'false' && needs.changes.outputs.e2e == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.server == 'true' || needs.changes.outputs.e2e == 'true'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        if: needs.changes.outputs.server == 'true' || needs.changes.outputs.e2e == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.server == 'true' || needs.changes.outputs.e2e == 'true'
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Locate the pnpm store
+        id: pnpm-store
+        if: needs.changes.outputs.server == 'true' || needs.changes.outputs.e2e == 'true'
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Cache the root pnpm store
+        if: needs.changes.outputs.server == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore the root pnpm store for phone sync
+        if: needs.changes.outputs.server == 'false' && needs.changes.outputs.e2e == 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm install --frozen-lockfile
+        if: needs.changes.outputs.server == 'true'
+      - run: pnpm --filter @plainphone/server install --frozen-lockfile
+        if: needs.changes.outputs.server == 'false' && needs.changes.outputs.e2e == 'true'
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        if: needs.changes.outputs.server == 'true'
+        run: pnpm -r typecheck
+      - name: Tests (server, web and encryption vectors)
+        id: tests
+        continue-on-error: true
+        if: needs.changes.outputs.server == 'true'
+        env:
+          DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_test
+        run: pnpm -r test
+      - uses: actions/setup-java@v6
+        if: needs.changes.outputs.e2e == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check preinstalled Android SDK packages
+        id: sdk
+        if: needs.changes.outputs.e2e == 'true'
+        run: |
+          echo "path=${ANDROID_HOME:?Android SDK missing from runner}" >> "$GITHUB_OUTPUT"
+          if [[ ! -f "$ANDROID_HOME/platforms/android-37.0/source.properties" ||
+                ! -f "$ANDROID_HOME/build-tools/36.1.0/source.properties" ]]; then
+            echo "cache-needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache Android SDK packages
+        if: steps.sdk.outputs.cache-needed == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ${{ steps.sdk.outputs.path }}/platforms/android-37.0
+            ${{ steps.sdk.outputs.path }}/build-tools/36.1.0
+          key: android-sdk-${{ runner.os }}-${{ runner.arch }}-platform-37.0-build-tools-36.1.0
+      - uses: android-actions/setup-android@v4
+        if: needs.changes.outputs.e2e == 'true'
+        with:
+          packages: "platforms;android-37.0 build-tools;36.1.0"
+      - uses: gradle/actions/setup-gradle@v6
+        if: needs.changes.outputs.e2e == 'true'
+      - name: Pair, sync rules, Find and status against the real server
+        if: needs.changes.outputs.e2e == 'true'
+        env:
+          DATABASE_URL: postgres://plainphone:plainphone@localhost:${{ job.services.postgres.ports['5432'] }}/plainphone_e2e
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U plainphone plainphone_e2e
+          scripts/e2e-phone-sync.sh
+      - name: Require successful typecheck and tests
+        if: ${{ !cancelled() && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure') }}
+        run: exit 1
+
+  docker:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.server == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.server == 'true'
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        if: needs.changes.outputs.server == 'true'
+      - name: Build the server and web in the image
+        if: needs.changes.outputs.server == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          load: true
+          tags: plainphone:ci
+          cache-from: type=gha,scope=plainphone-server
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=plainphone-server,ignore-error=true' || '' }}
+      - name: Smoke test with Postgres
+        if: needs.changes.outputs.server == 'true'
+        run: |
+          docker network create pp
+          docker run -d --name db --network pp -e POSTGRES_PASSWORD=pw -e POSTGRES_USER=plainphone -e POSTGRES_DB=plainphone postgres:18
+          for _ in $(seq 1 30); do docker exec db pg_isready -U plainphone -d plainphone && break; sleep 1; done
+          docker run -d --name app --network pp -p 127.0.0.1::8080 \
+            -e DATABASE_URL=postgres://plainphone:pw@db:5432/plainphone \
+            -e PUBLIC_URL=http://localhost:8080 plainphone:ci
+          url="http://$(docker port app 8080/tcp)"
+          for _ in $(seq 1 30); do curl -fsS "$url/api/health" && break; sleep 1; done
+          curl -fsS "$url/api/health" | grep '"ok":true'
+          curl -fsS "$url/" | grep -i '<html'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' "$url/api/device/pairings")
+          test "$code" = 201
+      - name: Logs on failure
+        if: failure() && needs.changes.outputs.server == 'true'
+        run: docker logs app || true
+
+  parent-app:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: parent-app
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.parent == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.parent == 'true'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        if: needs.changes.outputs.parent == 'true'
+        with:
+          package_json_file: parent-app/package.json
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.parent == 'true'
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: parent-app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        if: needs.changes.outputs.parent == 'true'
+      # Same idea for the copy and formatting shared with the PWA: test the app with the
+      # PWA's current files, and warn when the committed copy is behind (pnpm sync:shared).
+      - name: Shared copy and formatting match the PWA
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm check:shared || echo "::warning::parent-app/src/shared is behind web/src; run pnpm --dir parent-app sync:shared"
+      - name: Use the PWA's current shared files
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm sync:shared
+      # Typecheck against the API as it is now, so a breaking change in openapi.yaml
+      # fails here. A stale committed schema only warns; refresh it with pnpm gen:api.
+      - name: Typed API client matches server/openapi.yaml
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm check:api || echo "::warning file=parent-app/src/api/schema.d.ts::out of date with server/openapi.yaml; run pnpm --dir parent-app gen:api"
+      - name: Regenerate the API types from server/openapi.yaml
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm gen:api
+      - name: Typecheck
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm typecheck
+      - name: Lint
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm lint
+      - name: Tests (Jest + React Native Testing Library)
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm test --ci
+      - name: Export the JS bundles (iOS, Android, web)
+        if: needs.changes.outputs.parent == 'true'
+        run: pnpm exec expo export --platform all --output-dir dist
+
+  dns:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.dns == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.dns == 'true'
+        with:
+          persist-credentials: false
+
+      - name: Unit tests
+        if: needs.changes.outputs.dns == 'true'
+        run: python3 -m unittest discover -s dns/tests -p 'test_ppdns.py' -v
+
+      - name: Whole stack over DNS-over-TLS (AdGuard Home in Docker, self-signed certificate)
+        if: needs.changes.outputs.dns == 'true'
+        run: dns/tests/run-stack.sh
+
+  site:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        working-directory: .
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.site == 'false'
+        working-directory: .
+        run: echo "Checks are up to date for this change."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.site == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.site == 'true'
+        with:
+          node-version: "24"
+
+      - name: Build
+        if: needs.changes.outputs.site == 'true'
+        run: node build.mjs
+
+      - name: Check pages, internal links and anchors
+        if: needs.changes.outputs.site == 'true'
+        run: node scripts/check.mjs
+
+      - name: Check external links
+        if: needs.changes.outputs.site == 'true'
+        # Other sites can be down for reasons outside this repo; report, don't block.
+        continue-on-error: true
+        run: node scripts/check.mjs --external
+
+      - uses: actions/upload-artifact@v7
+        if: needs.changes.outputs.site == 'true'
+        with:
+          name: site-dist
+          path: site/dist/
+          retention-days: 14

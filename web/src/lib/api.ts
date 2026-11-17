@@ -64,6 +64,8 @@ export interface Phone {
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
+  /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
+  releaseRequestedAt: string | null;
   lastSeenAt: string | null;
   dnsHost: string;
   dnsSynced: boolean;
@@ -273,6 +275,7 @@ export type Op =
   | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
+  | { type: "phone.release" }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }

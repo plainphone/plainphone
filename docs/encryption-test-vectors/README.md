@@ -14,8 +14,10 @@ pnpm --filter @plainphone/crypto-vectors generate
 
 The generator test compares the checked-in JSON with recomputed bytes. The
 TypeScript and Kotlin crypto tests read both JSON files directly and exercise
-known answers and negative cases. Both test suites run in CI. Use
-`generate` only for deliberate changes to fixtures, then review the JSON diff.
+known answers and negative cases. In CI, changes to this directory or either
+crypto package run the Android unit tests and the server job’s recursive pnpm
+tests, which include the TypeScript conformance tests and the generator check.
+Use `generate` only for deliberate changes to fixtures, then review the JSON diff.
 
 - `primitives.json` gives JCS bytes, SHA-256, RFC 4231 HMAC test 1, RFC 5869 HKDF test 1, RFC 8032 Ed25519 test 1,
   AES-256-GCM, strict Ed25519 and encoding rejection cases, and the [RFC 9180 authors' vectors](https://github.com/cfrg/draft-irtf-cfrg-hpke/blob/master/test-vectors.json)

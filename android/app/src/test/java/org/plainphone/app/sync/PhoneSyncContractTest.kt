@@ -195,4 +195,43 @@ class PhoneSyncContractTest {
         assertThat(api.enroll(token, "another-install-0000000000", emptyMap())).isEqualTo(EnrollResult.Rejected)
         assertThat(api.enroll("pp_e_AAAAAAAAAAAAAAAAAAAAAA", store.installId(), emptyMap())).isEqualTo(EnrollResult.Rejected)
     }
+
+    @Test
+    fun `release from the dashboard switches the phone off, deletes it on the server and ends the sync`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
+        val (_, out) = parent(
+            "POST", "/phones/enroll",
+            JSONObject().put("name", "Cleo").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+        )
+        val phoneId = out!!.getJSONObject("phone").getString("id")
+        // Never paired: there is nothing to release yet.
+        assertThat(parent("POST", "/phones/$phoneId/release").first).isEqualTo(400)
+        store.saveEnrollToken(out.getJSONObject("enrollment").getString("token"))
+        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+        val device = FakeSyncDevice().apply {
+            now = System.currentTimeMillis()
+            lock = lock.copy(appliedAtMs = now)
+        }
+        val runner = SyncRunner(store, api, device)
+        assertThat(runner.run("first")).isInstanceOf(SyncRunner.Outcome.Synced::class.java)
+        assertThat(store.rules()!!.release).isFalse()
+
+        // The parent releases the phone: it is still on the dashboard, marked as releasing.
+        assertThat(parent("POST", "/phones/$phoneId/release").first).isEqualTo(200)
+        assertThat(parent("GET", "/phones/$phoneId").second!!.isNull("releaseRequestedAt")).isFalse()
+
+        // The phone reads release: true, switches Plainphone off before any lock, and the server forgets it.
+        val locks = device.applies.size
+        assertThat(runner.run("release")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(device.applies).hasSize(locks)
+        assertThat(store.released).isTrue()
+        assertThat(store.removed).isTrue()
+        assertThat(parent("GET", "/phones/$phoneId").first).isEqualTo(404)
+        // The token is unknown now: the server answers 401, which the API reads as "already done".
+        assertThat(api.fetchRules(store.deviceToken() ?: "pp_d_gone", null)).isEqualTo(RulesResult.Unpaired)
+    }
 }
