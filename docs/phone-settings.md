@@ -16,6 +16,14 @@ are applied by the phone. Which Android versions support what is in
 Not every setting supports every mode: Android only offers some of them. A setting that cannot be
 "set once" (for example Bluetooth) only has `free` and `locked`.
 
+Why some settings have no `preset`: Android gives a Device Owner restrictions for them, not a
+value it can set and then hand back. Wi-Fi and Bluetooth radios cannot be switched by an
+ordinary app on Android 10+ (`WifiManager.setWifiEnabled` does nothing for apps targeting API 29+,
+and `BluetoothAdapter.disable` is restricted from Android 13), mobile networks, roaming,
+tethering, NFC Beam and language are `DISALLOW_*` switches, and camera and screen capture are
+policies that are either on or off. A "set once" for these would either do nothing or be the
+same as `locked`, so the dashboard does not offer it.
+
 ## The settings
 
 `value` is only present for `preset` and `locked`. Settings marked "no value" are locked as they are.
