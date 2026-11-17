@@ -1245,6 +1245,12 @@
           "notNull": true,
           "default": "'off'"
         },
+        "location_always_until": {
+          "name": "location_always_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "locate_requested_at": {
           "name": "locate_requested_at",
           "type": "timestamp with time zone",

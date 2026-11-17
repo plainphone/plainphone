@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
 import { locations, safetyRequests } from "../src/db/schema.js";
+import { alwaysUntil } from "../src/services/safety.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -34,8 +35,11 @@ describe("location modes", () => {
     const { parent, phoneId, device } = await setup();
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
 
-    const r = await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always" });
+    // "always" is never open-ended.
+    expect((await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always" })).status).toBe(400);
+    const r = await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always", alwaysFor: "hour" });
     expect(r.status).toBe(200);
+    expect(r.json.alwaysUntil).toBe(new Date(h.clock.now.getTime() + 60 * 60_000).toISOString());
     expect(r.json.mode).toBe("always");
     expect((await device.get("/api/device/rules")).json.location.intervalMinutes).toBe(5);
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(204);
@@ -58,6 +62,37 @@ describe("location modes", () => {
     await parent.patch(`/api/phones/${phoneId}`, { locationEnabled: false });
     await parent.patch(`/api/phones/${phoneId}`, { locationEnabled: true });
     expect((await parent.get(`/api/phones/${phoneId}/location`)).json.mode).toBe("checkin");
+  });
+});
+
+describe("always, for a while", () => {
+  it("falls back to Find and check-in by itself when the time is up", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always", alwaysFor: "hour" });
+    const rules = (await device.get("/api/device/rules")).json;
+    expect(rules.location.mode).toBe("always");
+    expect(rules.location.alwaysUntil).not.toBeNull();
+
+    h.clock.advance(60 * 60_000);
+    // Past the end the server stops taking positions, even before the sweeper ran.
+    expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
+    const r = await sweep(h.ctx);
+    expect(r.alwaysEnded).toBe(1);
+    const after = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(after.mode).toBe("checkin");
+    expect(after.alwaysUntil).toBeNull();
+    expect((await device.get("/api/device/rules")).json.location.mode).toBe("checkin");
+  });
+
+  it("ends today at the phone's local midnight, and a week after 7 days", () => {
+    // 22:30 in Copenhagen in winter (UTC+1) -> midnight is 23:00 UTC.
+    const now = new Date("2026-12-01T21:30:00Z");
+    expect(alwaysUntil("today", "Europe/Copenhagen", now).toISOString()).toBe("2026-12-01T23:00:00.000Z");
+    // The day the clocks go back (25 hours long) still ends at local midnight.
+    expect(alwaysUntil("today", "Europe/Copenhagen", new Date("2026-10-25T10:00:00Z")).toISOString()).toBe(
+      "2026-10-25T23:00:00.000Z",
+    );
+    expect(alwaysUntil("week", "Europe/Copenhagen", now).toISOString()).toBe("2026-12-08T21:30:00.000Z");
   });
 });
 

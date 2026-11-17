@@ -4,6 +4,7 @@
 // per phone exists; the phone learns about it through the rules document.
 
 import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
+import { localDate } from "./limits.js";
 import { type LocationMode, phones, safetyRequests } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 import { notifyHousehold, type SafetyNews } from "./notifications.js";
@@ -26,6 +27,38 @@ export const FAST_POLL_SECONDS = 10;
 export const SAFETY_KEEP_MS = 24 * 60 * 60_000;
 /** The phone's clock may be a little ahead: accept the check-in position this early. */
 const CLOCK_SLACK_MS = 2 * 60_000;
+
+/** How long a parent can turn "always" on for. It always ends by itself (docs/location.md). */
+export const ALWAYS_FOR = ["hour", "today", "week"] as const;
+export type AlwaysFor = (typeof ALWAYS_FOR)[number];
+/** The mode "always" falls back to when its time is up. */
+export const ALWAYS_FALLBACK: LocationMode = "checkin";
+
+/** The end of "always" chosen at `now`: in an hour, at the phone's local midnight, or in 7 days. */
+export function alwaysUntil(choice: AlwaysFor, timezone: string, now: Date): Date {
+  if (choice === "hour") return new Date(now.getTime() + 60 * 60_000);
+  if (choice === "week") return new Date(now.getTime() + 7 * 24 * 60 * 60_000);
+  // First moment that is no longer today in the phone's time zone (handles DST days).
+  const today = localDate(timezone, now);
+  let lo = now.getTime();
+  let hi = lo + 26 * 60 * 60_000;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (localDate(timezone, new Date(mid)) === today) lo = mid;
+    else hi = mid;
+  }
+  return new Date(hi);
+}
+
+/** Sweeper: "always" whose time is up falls back to Find + "Are you okay?". Returns the phones changed. */
+export async function expireAlwaysLocation(ctx: Ctx): Promise<string[]> {
+  const rows = await ctx.db
+    .update(phones)
+    .set({ locationMode: ALWAYS_FALLBACK, locationAlwaysUntil: null })
+    .where(and(eq(phones.locationMode, "always"), lte(phones.locationAlwaysUntil, ctx.now())))
+    .returning({ id: phones.id });
+  return rows.map((r) => r.id);
+}
 
 /** Modes in which an unanswered "Are you okay?" sends a position. */
 export function checkinSendsLocation(mode: LocationMode): boolean {

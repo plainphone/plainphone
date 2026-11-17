@@ -433,6 +433,10 @@ components:
           properties:
             enabled: { type: boolean, description: "`mode` is not off. Kept for phones from before `mode`." }
             mode: { $ref: "#/components/schemas/LocationMode" }
+            alwaysUntil:
+              type: [string, "null"]
+              format: date-time
+              description: When `mode` is `always`, the moment it falls back to `checkin` by itself. The phone shows it.
             intervalMinutes:
               type: integer
               examples: [5]
@@ -474,7 +478,11 @@ components:
 
     LocationMode:
       enum: ["off", find, checkin, always]
-      description: "When the phone sends its position: never; on Find; on Find and once for an unanswered \"Are you okay?\"; every 5 minutes (shown on the phone all the time)."
+      description: "When the phone sends its position: never; on Find; on Find and once for an unanswered \"Are you okay?\"; every 5 minutes for a chosen time (shown on the phone all the time)."
+
+    AlwaysFor:
+      enum: [hour, today, week]
+      description: "How long `always` lasts: one hour, until the phone's local midnight, or 7 days. Then it falls back to `checkin`."
 
     Ring:
       type: object
@@ -507,10 +515,11 @@ components:
 
     LocationState:
       type: object
-      required: [enabled, mode, requestedAt, location, ring, checkin]
+      required: [enabled, mode, alwaysUntil, requestedAt, location, ring, checkin]
       properties:
         enabled: { type: boolean }
         mode: { $ref: "#/components/schemas/LocationMode" }
+        alwaysUntil: { type: [string, "null"], format: date-time, description: "End of `always`; null in other modes." }
         requestedAt: { type: [string, "null"], format: date-time }
         location:
           oneOf:
@@ -1848,7 +1857,7 @@ paths:
       operationId: putPhonesLocationMode
       tags: [rules]
       summary: Choose when the phone sends its position
-      description: Applies at once. `off` deletes the stored position.
+      description: Applies at once. `off` deletes the stored position. `always` needs `alwaysFor` (400 without) and ends by itself.
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       requestBody:
@@ -1860,6 +1869,7 @@ paths:
               required: [mode]
               properties:
                 mode: { $ref: "#/components/schemas/LocationMode" }
+                alwaysFor: { $ref: "#/components/schemas/AlwaysFor" }
       responses:
         "200":
           description: The new state

@@ -164,6 +164,8 @@ export const phones = pgTable(
     locationEnabled: boolean("location_enabled").notNull(),
     /** When the phone sends its position (docs/location.md). */
     locationMode: text("location_mode", { enum: LOCATION_MODES }).notNull().default("off"),
+    /** "always" is time-boxed: after this the phone falls back to "checkin" (sweeper). */
+    locationAlwaysUntil: timestamp("location_always_until", { withTimezone: true }),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),

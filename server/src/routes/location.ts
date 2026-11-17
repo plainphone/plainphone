@@ -12,6 +12,9 @@ import { body, RateLimiter } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { wakePhone } from "../services/phones.js";
 import {
+  ALWAYS_FOR,
+  type AlwaysFor,
+  alwaysUntil,
   CHECKIN_MAX_MINUTES,
   CHECKIN_MIN_MINUTES,
   checkinJson,
@@ -42,6 +45,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
     return {
       enabled: phone.locationEnabled,
       mode: phone.locationMode,
+      alwaysUntil: phone.locationMode === "always" ? (phone.locationAlwaysUntil?.toISOString() ?? null) : null,
       requestedAt: phone.locateRequestedAt?.toISOString() ?? null,
       location: loc
         ? { lat: loc.lat, lon: loc.lon, accuracyM: loc.accuracyM, recordedAt: loc.recordedAt.toISOString() }
@@ -60,8 +64,13 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
 
   app.put("/phones/:pid/location/mode", async (c) => {
     const phone = await requirePhone(c);
-    const { mode } = await body(c, z.object({ mode: z.enum(LOCATION_MODES) }));
-    await setLocationMode(ctx, phone, mode);
+    const { mode, alwaysFor } = await body(
+      c,
+      z.object({ mode: z.enum(LOCATION_MODES), alwaysFor: z.enum(ALWAYS_FOR).optional() }),
+    );
+    // "always" is never open-ended: the parent picks how long, then it falls back by itself.
+    if (mode === "always" && !alwaysFor) return c.json({ error: "alwaysFor is required for always" }, 400);
+    await setLocationMode(ctx, phone, mode, alwaysFor);
     const [updated] = await ctx.db.select().from(phonesTable).where(eq(phonesTable.id, phone.id));
     return c.json(await state(updated!));
   });
@@ -132,11 +141,22 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
 }
 
 /** Changes the location mode. Turning it off deletes the stored position (D7). */
-export async function setLocationMode(ctx: Ctx, phone: Phone, mode: (typeof LOCATION_MODES)[number]) {
+export async function setLocationMode(
+  ctx: Ctx,
+  phone: Phone,
+  mode: (typeof LOCATION_MODES)[number],
+  alwaysFor?: AlwaysFor,
+) {
+  const until = mode === "always" ? alwaysUntil(alwaysFor ?? "hour", phone.timezone, ctx.now()) : null;
   await ctx.db
     .update(phonesTable)
-    .set({ locationMode: mode, locationEnabled: mode !== "off", ...(mode === "off" ? { locateRequestedAt: null } : {}) })
+    .set({
+      locationMode: mode,
+      locationEnabled: mode !== "off",
+      locationAlwaysUntil: until,
+      ...(mode === "off" ? { locateRequestedAt: null } : {}),
+    })
     .where(eq(phonesTable.id, phone.id));
   if (mode === "off") await ctx.db.delete(locations).where(eq(locations.phoneId, phone.id));
-  if (mode !== phone.locationMode) await wakePhone(ctx, phone.id, "rules");
+  if (mode !== phone.locationMode || until) await wakePhone(ctx, phone.id, "rules");
 }

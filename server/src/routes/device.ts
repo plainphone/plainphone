@@ -232,7 +232,9 @@ export function deviceRoutes(ctx: Ctx) {
     const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
     const findOpen =
       phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
-    if (phone.locationMode !== "always" && !findOpen && !forCheckin) {
+    const always =
+      phone.locationMode === "always" && (!phone.locationAlwaysUntil || phone.locationAlwaysUntil > ctx.now());
+    if (!always && !findOpen && !forCheckin) {
       return c.json({ error: "no position was asked for" }, 409);
     }
     const recordedAt = new Date(input.recordedAt);

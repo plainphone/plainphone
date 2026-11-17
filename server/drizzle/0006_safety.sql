@@ -16,6 +16,7 @@ CREATE TABLE "safety_requests" (
 );
 --> statement-breakpoint
 ALTER TABLE "phones" ADD COLUMN "location_mode" text DEFAULT 'off' NOT NULL;--> statement-breakpoint
+ALTER TABLE "phones" ADD COLUMN "location_always_until" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "safety_requests" ADD CONSTRAINT "safety_requests_phone_id_phones_id_fk" FOREIGN KEY ("phone_id") REFERENCES "public"."phones"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "safety_requests" ADD CONSTRAINT "safety_requests_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "safety_requests_phone_kind_idx" ON "safety_requests" USING btree ("phone_id","kind");--> statement-breakpoint

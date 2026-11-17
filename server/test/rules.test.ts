@@ -161,7 +161,7 @@ describe("location (D7)", () => {
     // Without a Find the default mode refuses positions; "always" takes the 5-minute reports.
     h.clock.advance(5 * 60_000);
     expect((await loc(55.75, h.clock.now)).status).toBe(409);
-    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always" });
+    await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "always", alwaysFor: "week" });
     expect((await loc(55.8, h.clock.now)).status).toBe(204);
     expect((await loc(55.85, new Date(h.clock.now.getTime() - 60_000))).status).toBe(204); // older fix, ignored
     const rows = await h.ctx.db.select().from(locations).where(eq(locations.phoneId, phoneId));

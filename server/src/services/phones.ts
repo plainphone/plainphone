@@ -136,6 +136,7 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
     location: {
       enabled: phone.locationEnabled,
       mode: phone.locationMode,
+      alwaysUntil: phone.locationMode === "always" ? (phone.locationAlwaysUntil?.toISOString() ?? null) : null,
       // Phones from before `mode` report every intervalMinutes while enabled: give them a day
       // unless the parent chose "always".
       intervalMinutes: phone.locationMode === "always" ? LOCATION_INTERVAL_MINUTES : OLD_PHONE_INTERVAL_MINUTES,
