@@ -16,7 +16,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { rulesDocument } from "../services/phones.js";
+import { createRulesResponder } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -43,6 +43,7 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
 
 export function deviceRoutes(ctx: Ctx) {
   const app = new Hono<Env>();
+  const respondWithRules = createRulesResponder(ctx);
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
@@ -157,14 +158,14 @@ export function deviceRoutes(ctx: Ctx) {
           ),
         ),
       );
-    const { doc, etag } = await rulesDocument(ctx, phone);
+    const ifNoneMatch = c.req.header("if-none-match");
+    const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
+    const { body: rules, etag } = await respondWithRules(phone, candidates);
     c.header("ETag", etag);
     c.header("Cache-Control", "no-cache");
-    const inm = c.req.header("if-none-match");
-    if (inm && inm.split(",").some((t) => t.trim().replace(/^W\//, "") === etag)) {
-      return c.body(null, 304);
-    }
-    return c.json(doc);
+    if (rules === null) return c.body(null, 304);
+    c.header("Content-Type", "application/json");
+    return c.body(rules);
   });
 
   app.put("/apps", async (c) => {

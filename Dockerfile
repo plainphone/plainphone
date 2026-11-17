@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile
 COPY server server
 COPY web web
 RUN pnpm --filter @plainphone/web build \
+ && node server/precompress-pwa.mjs web/dist/assets \
  && pnpm --filter @plainphone/server build \
  && pnpm --filter @plainphone/server deploy --prod --legacy /out \
  && cp -r web/dist /out/web

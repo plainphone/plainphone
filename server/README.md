@@ -37,3 +37,44 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
   (at most a few seconds normally); the sweeper deletes pairings after a day.
 - **Mail** never goes out without a configured provider, and sign-in links put the token in the
   URL fragment, so it is not sent to the server by link scanners and not logged.
+
+## Measure the server footprint
+
+Run `scripts/bench-server.sh [requests] [concurrency]` from the checkout. It
+starts a disposable embedded PostgreSQL, seeds one paired phone with 300
+apps, and sends HTTP conditional requests over loopback. It reports
+throughput, Node CPU per request, and warm and peak sampled Node RSS. RSS
+excludes PostgreSQL and the package runner. Use the same worker, Node version
+and arguments when comparing revisions.
+
+On a shared Linux worker with Node 24.22.3, the medians of three runs
+(4,000 conditional polls, eight concurrent clients) were:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| HTTP responses per second | 113 | 153 |
+| Warm Node RSS | 255.3 MiB | 256.7 MiB |
+| Peak sampled Node RSS | 311.8 MiB | 310.1 MiB |
+
+Throughput varied between runs. The RSS measurements showed little change.
+
+The device rules handler still authenticates, applies due changes and
+updates last-seen state as needed. It reads the current rules inputs and
+evaluates the time-dependent fields on each poll. For small rules, a matching
+ETag and identical inputs let it return 304 without building, serializing or
+hashing the rules document. The process retains at most eight snapshots,
+each with a 32,768-character serialized input limit. On a miss it hashes the same JSON
+representation sent to the device.
+
+The parent phone list gets location presence and open-request counts in the
+same SQL statement as the phones. The sweeper still runs once per minute
+with an unreferenced timer and skips overlapping runs. Pushes are
+event-driven. The PostgreSQL plan test seeds 20,000 rows per table and
+checks the index for each selective lookup (expired magic links, expired
+sessions, and effective delay-key changes). The startup migration adds
+those three indexes. Cleanup queries use the affected-row count instead
+of returning every deleted ID to Node.
+
+The Docker build precompresses PWA JavaScript and CSS with Brotli and gzip.
+Hashed assets are immutable for a year. Entry points, service workers, and
+SPA fallbacks require revalidation. Range requests use the identity file.

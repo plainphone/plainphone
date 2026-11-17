@@ -96,11 +96,19 @@ export function createApp(ctx: Ctx) {
   const dist = ctx.cfg.WEB_DIST;
   if (dist && existsSync(join(dist, "index.html"))) {
     const root = normalize(dist);
-    app.use("/assets/*", async (c, next) => {
-      await next();
-      if (c.res.status === 200) c.header("Cache-Control", "public, max-age=31536000, immutable");
+    const compressed = serveStatic({ root, precompressed: true });
+    const identity = serveStatic({ root });
+    app.use("/*", async (c, next) => {
+      const asset = c.req.path.startsWith("/assets/");
+      const handler = asset && !c.req.header("range") ? compressed : identity;
+      const res = await handler(c, next);
+      if (res) {
+        if (asset) res.headers.set("Vary", "Accept-Encoding");
+        const hashed = /^\/assets\/[^/]+-[\w-]{8,}\.[\w]+$/.test(c.req.path);
+        res.headers.set("Cache-Control", hashed ? "public, max-age=31536000, immutable" : "no-cache");
+      }
+      return res;
     });
-    app.use("/*", serveStatic({ root }));
     app.get("*", async (c) => {
       // Read per request (it is small), so a rebuilt web/dist is picked up without a restart.
       const indexHtml = await readFile(join(root, "index.html"), "utf8");

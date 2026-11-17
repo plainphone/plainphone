@@ -188,9 +188,8 @@ export async function deleteOldSafetyRequests(ctx: Ctx): Promise<number> {
         lt(safetyRequests.endsAt, new Date(cutoff.getTime() - CHECKIN_LOCATE_WINDOW_MS)),
         and(isNotNull(safetyRequests.stoppedAt), lt(safetyRequests.stoppedAt, cutoff)),
       ),
-    )
-    .returning({ id: safetyRequests.id });
-  return rows.length;
+    );
+  return rows.count;
 }
 
 /** Tells the household what happened. Push only; never fails the caller. */
