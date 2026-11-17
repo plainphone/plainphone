@@ -32,8 +32,9 @@ class SafetySyncTest {
     private fun iso(ms: Long) = Instant.ofEpochMilli(ms).toString()
     private val id = "0d8f6c1e-1111-4111-8111-111111111111"
 
-    private fun checkIn(deadlineMs: Long, sendLocation: Boolean = true) =
-        """{"id":"$id","deadline":"${iso(deadlineMs)}","callNumber":"+4512345678","sendLocation":$sendLocation}"""
+    private fun checkIn(deadlineMs: Long, sendLocation: Boolean = true, locationDue: Boolean? = null) =
+        """{"id":"$id","deadline":"${iso(deadlineMs)}","callNumber":"+4512345678","sendLocation":$sendLocation""" +
+            (locationDue?.let { ""","locationDue":$it""" } ?: "") + "}"
 
     @Test
     fun `a permanently rejected Find fix is dropped and the same slot can look again`() {
@@ -59,24 +60,31 @@ class SafetySyncTest {
     @Test
     fun `a newly due check-in takes priority over a pending Find fallback`() {
         val requested = device.now
-        val deadline = requested + 60_000L
+        val deadline = requested + 5 * 60_000L
         val fresh = requireNotNull(device.fix)
         device.fix = null
         device.lastKnownFix = fresh.copy(recordedAtMs = requested - 40 * 60_000L)
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(
-            locationMode = "find", requestedAt = iso(requested), checkIn = checkIn(deadline),
+            locationMode = "checkin", requestedAt = iso(requested), checkIn = checkIn(deadline),
         ))
         api.locationFailure = IOException("offline")
         runner.run("save Find fallback")
         assertThat(store.pendingLocation()?.fix).isEqualTo(device.lastKnownFix)
+        assertThat(store.pendingLocation()?.purpose).isEqualTo("find:$requested")
 
-        device.now = deadline
+        device.now = deadline - 60_000L
         device.fix = fresh
-        api.rules = RulesResult.Unchanged
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested),
+            checkIn = checkIn(deadline, locationDue = true),
+        ))
         api.locationFailure = null
-        runner.run("check-in deadline")
+        runner.run("check-in is due before its deadline")
         assertThat(device.locationRequests).containsExactly(true, true)
-        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = deadline))
+        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = device.now))
+        assertThat(device.positionsShown).containsExactly("checkin")
+        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        assertThat(api.locationPurposes).containsExactly("checkin:$id")
         assertThat(store.locatedCheckInId).isEqualTo(id)
     }
 
@@ -195,7 +203,7 @@ class SafetySyncTest {
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
         api.locationFailure = IOException("offline")
         runner.run("deadline, upload fails")
-        assertThat(store.pendingLocation()?.checkInId).isEqualTo(id)
+        assertThat(store.pendingLocation()?.purpose).isEqualTo("checkin:$id")
         assertThat(device.locationRequests).containsExactly(true)
 
         api.rules = RulesResult.Unchanged
@@ -211,7 +219,7 @@ class SafetySyncTest {
     }
 
     @Test
-    fun `indoor check-in uses the same five offsets starting at the deadline`() {
+    fun `an early check-in lookup uses the first retry slot`() {
         val deadline = device.now + 5 * 60_000L
         device.fix = null
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(locationMode = "checkin", checkIn = checkIn(deadline)))
@@ -222,7 +230,7 @@ class SafetySyncTest {
             api.rules = RulesResult.Unchanged
             device.locationRequests.size > before
         }
-        assertThat(attempts).containsExactly(0, 2, 5, 10, 15).inOrder()
+        assertThat(attempts).containsExactly(-1, 2, 5, 10, 15).inOrder()
         assertThat(device.locationRequests).containsExactly(true, true, true, true, true)
     }
 

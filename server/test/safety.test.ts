@@ -206,6 +206,42 @@ describe("are you okay?", () => {
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
   });
 
+  it("only locates a check-in with a fresh fix for that request", async () => {
+    const { parent, phoneId, device } = await setup();
+    const stale = fix(h.clock.now);
+    h.clock.advance(60_000);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    const before = await device.get("/api/device/rules");
+    expect(before.json.checkIn.locationDue).toBe(false);
+    h.clock.advance(4 * 60_000);
+
+    expect((await device.put("/api/device/location", stale)).status).toBe(204);
+    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
+    expect((await status()).locatedAt).toBeNull();
+    expect((await device.put("/api/device/location", {
+      ...stale, purpose: `checkin:${checkin.id}`,
+    })).status).toBe(400);
+
+    const due = await device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
+    expect(due.status).toBe(200);
+    expect(due.json.checkIn.locationDue).toBe(true);
+
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const requestedAt = h.clock.now.getTime();
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `find:${requestedAt}`,
+    })).status).toBe(204);
+    expect((await status()).locatedAt).toBeNull();
+
+    h.clock.advance(1);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
+    expect((await status()).locatedAt).not.toBeNull();
+    expect((await device.get("/api/device/rules")).json.location.requestedAt).toBe(h.clock.now.toISOString());
+  });
+
   it("sends no position in Find-only mode, and the phone gives up after 30 minutes", async () => {
     const { parent, phoneId, device } = await setup();
     await parent.put(`/api/phones/${phoneId}/location/mode`, { mode: "find" });

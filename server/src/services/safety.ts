@@ -101,11 +101,14 @@ export function safetyForPhone(phone: Phone, s: Awaited<ReturnType<typeof loadSa
     ? { id: s.ring.id, endsAt: s.ring.endsAt.toISOString(), stopOnAnswer: s.ring.stopOnAnswer, answered: s.ring.answeredAt !== null }
     : null;
   const c = s.checkin;
-  const open = c && (checkinStatus(c, now) === "waiting" || checkinLocationDue(c, phone.locationMode, now));
+  const locationDue = checkinLocationDue(c, phone.locationMode, now);
+  const open = c && (checkinStatus(c, now) === "waiting" || locationDue);
   const checkIn = open
     ? {
         id: c.id,
         deadline: c.endsAt.toISOString(),
+        createdAt: c.createdAt.toISOString(),
+        locationDue,
         callNumber: c.callNumber,
         sendLocation: checkinSendsLocation(phone.locationMode),
       }

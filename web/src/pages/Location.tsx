@@ -128,7 +128,7 @@ export function LocationPage() {
       try {
         const r = await api.get<LocationState>(`/phones/${phone.id}/location`);
         res.setData(() => r);
-        if (answers(r.location, requestedAt)) {
+        if (r.requestedAt === null && answers(r.location, requestedAt)) {
           setFinding(false);
           setNotice({ tone: "success", text: t("loc.found") });
           return;

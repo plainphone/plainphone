@@ -188,7 +188,7 @@ function LocationBody() {
         const r = await unwrap<LocationState>(client.GET("/phones/{pid}/location", { params: { path: { pid: phone.id } } }));
         if (!alive.current) return;
         setData(() => r);
-        if (answers(r.location, requestedAt)) {
+        if (r.requestedAt === null && answers(r.location, requestedAt)) {
           setFinding(false);
           notify({ tone: "success", text: t("loc.found") });
           return;

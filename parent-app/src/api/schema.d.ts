@@ -137,7 +137,7 @@ export interface paths {
         get?: never;
         /**
          * Report the current position (phone)
-         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
+         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when `checkIn.locationDue` is true. A check-in requires a position recorded after its creation. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
         post?: never;
@@ -1775,12 +1775,16 @@ export interface components {
                 stopOnAnswer: boolean;
                 answered: boolean;
             };
-            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it. */
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true, look up a position for this check-in and send it with PUT /device/location. Null means close it. */
             checkIn?: null | {
                 /** Format: uuid */
                 id: string;
                 /** Format: date-time */
                 deadline: string;
+                /** Format: date-time */
+                createdAt?: string;
+                /** @description Whether the server is accepting a position for this check-in. */
+                locationDue?: boolean;
                 /** @description An approved contact for the "Call me" button. */
                 callNumber: string | null;
                 sendLocation: boolean;
@@ -2284,6 +2288,8 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Older clients may omit this field. */
+                    purpose?: string;
                 };
             };
         };

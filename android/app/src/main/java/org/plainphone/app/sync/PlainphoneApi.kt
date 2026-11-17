@@ -17,7 +17,7 @@ interface SyncApi {
     fun fetchRules(token: String, etag: String?): RulesResult
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
-    fun reportLocation(token: String, fix: LocationFix): Boolean
+    fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean
     fun reportStatus(token: String, status: DeviceStatus)
     /**
      * Tells the server Plainphone is switched off after a release (POST /device/released). True when
@@ -189,8 +189,9 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         if (r.status != 204) throw HttpError(r.status, r.body)
     }
 
-    override fun reportLocation(token: String, fix: LocationFix): Boolean {
+    override fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean {
         val body = JSONObject().put("lat", fix.lat).put("lon", fix.lon).put("recordedAt", iso(fix.recordedAtMs))
+        body.put("purpose", purpose)
         fix.accuracyM?.let { body.put("accuracyM", it.toDouble()) }
         val r = call("PUT", "/device/location", token, body)
         return when (r.status) {

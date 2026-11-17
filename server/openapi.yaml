@@ -529,7 +529,7 @@ components:
                 stopOnAnswer: { type: boolean }
                 answered: { type: boolean }
         checkIn:
-          description: An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it.
+          description: An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true, look up a position for this check-in and send it with PUT /device/location. Null means close it.
           oneOf:
             - type: "null"
             - type: object
@@ -537,6 +537,8 @@ components:
               properties:
                 id: { type: string, format: uuid }
                 deadline: { type: string, format: date-time }
+                createdAt: { type: string, format: date-time }
+                locationDue: { type: boolean, description: "Whether the server is accepting a position for this check-in." }
                 callNumber: { type: [string, "null"], description: "An approved contact for the \"Call me\" button." }
                 sendLocation: { type: boolean }
         settings:
@@ -902,7 +904,7 @@ paths:
       operationId: putDeviceLocation
       tags: [device]
       summary: Report the current position (phone)
-      description: In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
+      description: In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when `checkIn.locationDue` is true. A check-in requires a position recorded after its creation. Only the newest position is kept.
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -916,6 +918,9 @@ paths:
                 lon: { type: number, minimum: -180, maximum: 180 }
                 accuracyM: { type: number, minimum: 0 }
                 recordedAt: { type: string, format: date-time }
+                purpose:
+                  type: string
+                  description: "Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Older clients may omit this field."
       responses:
         "204": { description: "Stored (or ignored if older than the stored one)" }
         "409": { description: "Location is off for this phone, or no position was asked for; stop reporting." }

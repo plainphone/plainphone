@@ -242,23 +242,33 @@ export function deviceRoutes(ctx: Ctx) {
         lon: z.number().min(-180).max(180),
         accuracyM: z.number().min(0).max(100_000).optional(),
         recordedAt: z.iso.datetime({ offset: true }),
+        purpose: z.string().regex(/^(always|find:\d+|checkin:[0-9a-f-]{36})$/i).optional(),
       }),
     );
     if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    // Outside "always" the phone sends a position only when asked: a Find, or an unanswered
-    // "Are you okay?". The server holds it to that.
     const { checkin } = await loadSafety(ctx, phone.id);
-    const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
-    const findOpen =
-      phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
+    const now = ctx.now();
+    const { purpose } = input;
+    const requestedAt = phone.locateRequestedAt;
+    // Older clients omit the purpose. Match tagged uploads to their exact request.
+    const forCheckin =
+      checkin !== undefined && checkinLocationDue(checkin, phone.locationMode, now) &&
+      (purpose === undefined || purpose === `checkin:${checkin.id}`);
+    const forFind =
+      requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
+      (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
     const always =
-      phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > ctx.now();
-    if (!always && !findOpen && !forCheckin) {
+      phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
+      (purpose === undefined || purpose === "always");
+    if (!always && !forFind && !forCheckin) {
       return c.json({ error: "no position was asked for" }, 409);
     }
     const recordedAt = new Date(input.recordedAt);
     if (recordedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
       return c.json({ error: "recordedAt is in the future" }, 400);
+    }
+    if (forCheckin && recordedAt <= checkin.createdAt && purpose !== undefined) {
+      return c.json({ error: "recordedAt must be after check-in creation" }, 400);
     }
     const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: ctx.now() };
     // One row per phone (D7). An older fix never overwrites a newer one.
@@ -270,17 +280,22 @@ export function deviceRoutes(ctx: Ctx) {
         set: values,
         setWhere: lte(locations.recordedAt, recordedAt),
       });
-    if (phone.locateRequestedAt) {
+    if (forFind && recordedAt >= requestedAt) {
       await ctx.db
         .update(phones)
         .set({ locateRequestedAt: null })
-        .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
+        .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
     }
-    if (forCheckin) {
+    if (forCheckin && recordedAt > checkin.createdAt) {
       const first = await ctx.db
         .update(safetyRequests)
         .set({ locatedAt: ctx.now() })
-        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)))
+        .where(and(
+          eq(safetyRequests.id, checkin.id),
+          isNull(safetyRequests.locatedAt),
+          isNull(safetyRequests.answeredAt),
+          isNull(safetyRequests.stoppedAt),
+        ))
         .returning({ id: safetyRequests.id });
       if (first.length) await notifySafety(ctx, phone, "located");
     }

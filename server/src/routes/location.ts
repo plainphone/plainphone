@@ -78,9 +78,10 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
   app.post("/phones/:pid/locate", async (c) => {
     const phone = await requirePhone(c);
     if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    await ctx.db.update(phonesTable).set({ locateRequestedAt: ctx.now() }).where(eq(phonesTable.id, phone.id));
+    const requestedAt = ctx.now();
+    await ctx.db.update(phonesTable).set({ locateRequestedAt: requestedAt }).where(eq(phonesTable.id, phone.id));
     await wakePhone(ctx, phone.id, "locate");
-    return c.json({ requestedAt: ctx.now().toISOString() }, 202);
+    return c.json({ requestedAt: requestedAt.toISOString() }, 202);
   });
 
   // Ring the phone: alarm sound and vibration for at most 5 minutes.

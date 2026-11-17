@@ -183,6 +183,12 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         prefs.getString(KEY_PENDING_LOCATION, null)?.let(box::open)?.let { raw ->
             runCatching {
                 val json = JSONObject(raw)
+                val purpose = when {
+                    json.has("purpose") -> json.getString("purpose")
+                    json.has("find") && !json.has("checkIn") -> "find:${json.getLong("find")}"
+                    json.has("checkIn") && !json.has("find") -> "checkin:${json.getString("checkIn")}"
+                    else -> return@let null
+                }
                 PendingLocation(
                     fix = LocationFix(
                         json.getDouble("lat"),
@@ -190,8 +196,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
                         if (json.has("accuracyM")) json.getDouble("accuracyM").toFloat() else null,
                         json.getLong("recordedAtMs"),
                     ),
-                    findRequestedAtMs = if (json.has("find")) json.getLong("find") else null,
-                    checkInId = if (json.has("checkIn")) json.getString("checkIn") else null,
+                    purpose = purpose,
                     attemptedAtMs = json.getLong("attemptedAtMs"),
                 )
             }.getOrNull()
@@ -204,8 +209,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             .put("lon", pending.fix.lon)
             .put("accuracyM", pending.fix.accuracyM?.toDouble())
             .put("recordedAtMs", pending.fix.recordedAtMs)
-            .put("find", pending.findRequestedAtMs)
-            .put("checkIn", pending.checkInId)
+            .put("purpose", pending.purpose)
             .put("attemptedAtMs", pending.attemptedAtMs)
         return prefs.edit().putString(KEY_PENDING_LOCATION, box.seal(json.toString())).commit()
     }
@@ -257,7 +261,6 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
 internal data class PendingLocation(
     val fix: LocationFix,
-    val findRequestedAtMs: Long?,
-    val checkInId: String?,
+    val purpose: String,
     val attemptedAtMs: Long,
 )

@@ -119,6 +119,8 @@ data class ServerRules(
                         deadline = Instant.parse(it.getString("deadline")),
                         callNumber = if (it.isNull("callNumber")) null else it.optString("callNumber").takeIf(String::isNotBlank),
                         sendLocation = it.optBoolean("sendLocation", false),
+                        createdAt = it.optString("createdAt").takeIf(String::isNotBlank)?.let(Instant::parse),
+                        locationDue = if (it.has("locationDue")) it.getBoolean("locationDue") else null,
                     )
                 },
             )
@@ -177,4 +179,11 @@ data class CatalogInstall(val packageName: String, val label: String)
 data class RingRequest(val id: String, val endsAt: Instant, val stopOnAnswer: Boolean, val answered: Boolean)
 
 /** "Are you okay?": shown until answered or [deadline]; then one position if [sendLocation]. */
-data class CheckInRequest(val id: String, val deadline: Instant, val callNumber: String?, val sendLocation: Boolean)
+data class CheckInRequest(
+    val id: String,
+    val deadline: Instant,
+    val callNumber: String?,
+    val sendLocation: Boolean,
+    val createdAt: Instant? = null,
+    val locationDue: Boolean? = null,
+)

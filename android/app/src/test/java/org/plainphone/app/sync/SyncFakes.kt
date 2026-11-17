@@ -99,8 +99,11 @@ class FakeSyncApi : SyncApi {
         return rules
     }
     override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
-    override fun reportLocation(token: String, fix: LocationFix): Boolean {
+    val locationPurposes = mutableListOf<String>()
+
+    override fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean {
         locationFailure?.let { throw it }
+        locationPurposes += purpose
         locations += fix
         return locationAccepted
     }

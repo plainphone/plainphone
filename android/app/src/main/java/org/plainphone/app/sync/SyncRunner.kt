@@ -213,30 +213,35 @@ class SyncRunner(
         val requested = rules.locateRequestedAt?.toEpochMilli()?.takeIf {
             it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until (FIND_RETRY_MS + CLOCK_SLACK_MS)
         }
-        // An unanswered check-in starts its retry window at the deadline.
         val checkIn = rules.checkIn?.takeIf {
-            it.sendLocation && now - it.deadline.toEpochMilli() in 0 until FIND_RETRY_MS &&
-                it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
+            val due = it.locationDue ?: (now - it.deadline.toEpochMilli() in -CLOCK_SLACK_MS until FIND_RETRY_MS)
+            it.sendLocation && due && it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
         }
+        val find = requested?.takeIf { checkIn == null }
+        val purpose = checkIn?.let { "checkin:${it.id}" } ?: find?.let { "find:$it" }
         val saved = store.pendingLocation()
-        var pending = saved?.takeIf {
-            // Any accepted fix completes a due check-in on the server.
-            if (checkIn != null) it.checkInId == checkIn.id
-            else requested != null && it.findRequestedAtMs == requested
-        }
+        var pending = saved?.takeIf { it.purpose == purpose }
         if (saved != null && pending == null) store.clearPendingLocation()
         val fix = if (pending != null) {
             pending.fix
         } else {
-            val findAttempt = requested?.takeIf {
+            val findAttempt = find?.takeIf {
                 locationAttemptDue(it, maxOf(now, it), store.lastFindAttempt(it))
             }
             val checkInAttempt = checkIn?.takeIf {
-                locationAttemptDue(it.deadline.toEpochMilli(), now, store.lastCheckInAttempt(it.id))
+                val deadline = it.deadline.toEpochMilli()
+                val retryTime = now.coerceIn(deadline, deadline + FIND_RETRY_MS - 1)
+                locationAttemptDue(deadline, retryTime, store.lastCheckInAttempt(it.id))
             }
-            if (findAttempt != null || checkInAttempt != null) {
-                val position = device.location(precise = true, notBeforeMs = requested)
-                    ?: device.lastKnownLocation()
+            if (purpose != null && (findAttempt != null || checkInAttempt != null)) {
+                val createdAt = checkInAttempt?.createdAt?.toEpochMilli()
+                val previousFixAt = saved?.fix?.recordedAtMs
+                val freshAfter = listOfNotNull(createdAt, previousFixAt).maxOrNull()
+                val notBefore = listOfNotNull(find, freshAfter?.plus(1)).maxOrNull()
+                val position = (device.location(precise = true, notBeforeMs = notBefore)
+                    ?: device.lastKnownLocation())?.takeIf {
+                    freshAfter == null || it.recordedAtMs > freshAfter
+                }
                 if (position == null) {
                     if (!store.recordLocationAttempts(findAttempt, checkInAttempt?.id, now)) {
                         Log.w(TAG, "could not record location attempts")
@@ -244,14 +249,13 @@ class SyncRunner(
                     Log.w(TAG, "no position available")
                     return
                 }
-                val attempt = PendingLocation(position, findAttempt, checkInAttempt?.id, now)
+                val attempt = PendingLocation(position, purpose, now)
                 pending = attempt
                 if (!runCatching { store.savePendingLocation(attempt) }.getOrDefault(false)) {
                     Log.w(TAG, "could not save pending position")
                 }
                 position
             } else {
-                // The server counts any accepted position towards an open check-in.
                 if (checkIn != null) return
                 val alwaysDue = rules.locationMode == ServerRules.LOCATION_ALWAYS &&
                     (rules.locationAlwaysUntil == null || now < rules.locationAlwaysUntil.toEpochMilli()) &&
@@ -266,7 +270,7 @@ class SyncRunner(
             }
         }
         val stored = try {
-            api.reportLocation(token, fix)
+            api.reportLocation(token, fix, pending?.purpose ?: "always")
         } catch (e: HttpError) {
             // An invalid payload cannot succeed on retry. Leave the lookup slot available.
             if (e.status == 400 && pending != null) store.clearPendingLocation()
@@ -275,8 +279,8 @@ class SyncRunner(
         if (pending == null || stored) store.locationAtMs = now
         if (!stored) return
         if (pending != null && !store.recordLocationAttempts(
-                pending.findRequestedAtMs?.takeIf { it == requested },
-                pending.checkInId?.takeIf { it == checkIn?.id },
+                find,
+                checkIn?.id,
                 pending.attemptedAtMs,
             )
         ) {
@@ -285,15 +289,15 @@ class SyncRunner(
         if (checkIn != null) store.locatedCheckInId = checkIn.id
         // Only a fix taken after the parent pressed Find answers it (the server and dashboard
         // compare the same way). An older last-known position is sent, but the phone keeps trying.
-        val answeredFind = requested?.takeIf { fix.recordedAtMs >= it }
+        val answeredFind = find?.takeIf { pending != null && fix.recordedAtMs >= it }
         if (answeredFind != null) store.answeredLocateMs = answeredFind
         // Every position goes to the phone's own log; single ones also get a notice
         // ("always" has its own ongoing one).
         // One Find is one line and one notice, however many retries it takes to get a fresh fix.
         when {
             checkIn != null -> device.positionSent("checkin")
-            requested != null && (pending?.findRequestedAtMs == requested || answeredFind != null) -> if (store.shownLocateMs != requested) {
-                store.shownLocateMs = requested
+            find != null && pending != null -> if (store.shownLocateMs != find) {
+                store.shownLocateMs = find
                 device.positionSent("find")
             }
             else -> device.positionSent("always")
