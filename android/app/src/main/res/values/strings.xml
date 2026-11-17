@@ -108,8 +108,9 @@
     <string name="blocked_sms_out">Outgoing message</string>
     <string name="pair_button">Pair with a parent</string>
     <string name="pairing_title">Pair with a parent</string>
+    <string name="pairing_connecting">Connecting to the parent\'s dashboard…</string>
     <string name="pairing_loading">Getting a pairing code…</string>
-    <string name="pairing_instructions">On the parent\'s phone, open app.plainphone.org, choose Add phone and scan this code, or type the code below.</string>
+    <string name="pairing_instructions">Scan this code with the camera on the parent\'s phone. Or open app.plainphone.org, choose Add phone, then Type the code.</string>
     <string name="pairing_waiting">Waiting for the parent… The code is valid for 15 minutes.</string>
     <string name="pairing_done">Paired. The parent\'s rules now apply.</string>
     <string name="pairing_failed">Could not reach the server. Check the Wi-Fi or mobile data and try again.</string>

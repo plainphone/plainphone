@@ -46,11 +46,19 @@ class FakeSyncApi : SyncApi {
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
+    var enrollResult: EnrollResult = EnrollResult.Rejected
+    var enrollFailure: IOException? = null
+    val enrollCalls = mutableListOf<Pair<String, String>>()
 
     override fun startPairing(mode: String, deviceInfo: Map<String, String>) = pairing
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
         check(pollSecret == pairing.pollSecret) { "wrong poll secret" }
         return pollResult
+    }
+    override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
+        enrollCalls += token to installId
+        enrollFailure?.let { throw it }
+        return enrollResult
     }
     override fun fetchRules(token: String, etag: String?): RulesResult {
         tokensUsed += token

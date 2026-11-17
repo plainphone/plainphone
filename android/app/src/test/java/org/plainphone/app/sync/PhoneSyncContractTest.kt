@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
 
 /**
  * End to end against the real server and PostgreSQL, without an emulator: the phone's own
- * code (PlainphoneApi, PairingController, SyncRunner, SyncStore, ServerRules, EffectivePolicy)
+ * code (PlainphoneApi, PairingController incl. enrollment, SyncRunner, SyncStore, ServerRules, EffectivePolicy)
  * talks HTTP to the server while this test plays the parent through the parent API.
  *
  * Skipped unless PLAINPHONE_E2E points at the fixture file written by
@@ -155,5 +155,44 @@ class PhoneSyncContractTest {
         assertThat(store.rules()!!.contacts).containsExactly(ApprovedContact("Mum", "+4512345678"))
         assertThat(store.everPaired).isTrue()
         assertThat(Instant.ofEpochMilli(store.lastSyncAtMs!!)).isLessThan(Instant.now().plusSeconds(1))
+    }
+
+    @Test
+    fun `a phone set up with a dashboard QR code pairs itself with the enrollment token`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
+
+        // The parent adds a phone in the dashboard; the browser would put the token in the QR code.
+        val (status, out) = parent(
+            "POST", "/phones/enroll",
+            JSONObject().put("name", "Bo").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+        )
+        assertThat(status).isEqualTo(201)
+        val phoneId = out!!.getJSONObject("phone").getString("id")
+        assertThat(out.getJSONObject("phone").isNull("pairedAt")).isTrue()
+        val token = out.getJSONObject("enrollment").getString("token")
+        assertThat(out.getJSONObject("provisioning").getString("downloadUrl")).endsWith("/download/android")
+
+        // Provisioning stores the token from the QR extras; the phone enrolls with its own code.
+        val config = PolicyConfig.fromExtras(android.os.PersistableBundle().apply { putString(PolicyConfig.KEY_ENROLL, token) })
+        store.saveEnrollToken(config.enrollToken)
+        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+        assertThat(store.isPaired).isTrue()
+        assertThat(store.phoneId).isEqualTo(phoneId)
+        assertThat(parent("GET", "/phones/$phoneId").second!!.isNull("pairedAt")).isFalse()
+
+        // It syncs like any paired phone.
+        val device = FakeSyncDevice().apply {
+            now = System.currentTimeMillis()
+            lock = lock.copy(appliedAtMs = now)
+        }
+        assertThat(SyncRunner(store, api, device).run("first")).isInstanceOf(SyncRunner.Outcome.Synced::class.java)
+        assertThat(store.rules()!!.phoneId).isEqualTo(phoneId)
+
+        // The token works once: another phone gets a refusal and falls back to a code.
+        assertThat(api.enroll(token, "another-install-0000000000", emptyMap())).isEqualTo(EnrollResult.Rejected)
+        assertThat(api.enroll("pp_e_AAAAAAAAAAAAAAAAAAAAAA", store.installId(), emptyMap())).isEqualTo(EnrollResult.Rejected)
     }
 }

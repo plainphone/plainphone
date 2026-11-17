@@ -55,4 +55,50 @@ class PairingControllerTest {
         // Never locked (not Device Owner): no free pairing.
         assertThat(PairingController.allowedWithoutPin(false, null, setup)).isFalse()
     }
+
+    @Test
+    fun `the setup QR code's token pairs the phone without a code, once`() {
+        store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        assertThat(controller.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+        assertThat(store.isPaired).isTrue()
+        assertThat(store.deviceToken()).isEqualTo("pp_d_from_qr")
+        assertThat(store.phoneId).isEqualTo("phone-9")
+        assertThat(store.everPaired).isTrue()
+        assertThat(store.enrollToken()).isNull()
+        assertThat(api.enrollCalls.single().first).isEqualTo("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
+        // Nothing more to do afterwards.
+        assertThat(controller.enroll()).isNull()
+        assertThat(api.enrollCalls).hasSize(1)
+    }
+
+    @Test
+    fun `a refused token is dropped so the phone shows a code instead`() {
+        store.saveEnrollToken("pp_e_used")
+        api.enrollResult = EnrollResult.Rejected
+        assertThat(controller.enroll()).isEqualTo(EnrollResult.Rejected)
+        assertThat(store.enrollToken()).isNull()
+        assertThat(store.isPaired).isFalse()
+        assertThat(controller.enroll()).isNull()
+    }
+
+    @Test
+    fun `a network error keeps the token and the same install id for the retry`() {
+        store.saveEnrollToken("pp_e_retry")
+        api.enrollFailure = java.io.IOException("offline")
+        assertThrows(java.io.IOException::class.java) { controller.enroll() }
+        assertThat(store.enrollToken()).isEqualTo("pp_e_retry")
+        api.enrollFailure = null
+        api.enrollResult = EnrollResult.Paired("p", "pp_d_x")
+        controller.enroll()
+        assertThat(api.enrollCalls.map { it.second }.distinct()).hasSize(1)
+        assertThat(api.enrollCalls.first().second).matches("^[A-Za-z0-9_-]{24}$")
+    }
+
+    @Test
+    fun `the token is stored sealed, never in plain text`() {
+        store.saveEnrollToken("pp_e_secret_token_value")
+        val raw = context.getSharedPreferences(SyncStore.PREFS, 0).all.values.joinToString()
+        assertThat(raw).doesNotContain("pp_e_secret_token_value")
+    }
 }
