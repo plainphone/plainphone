@@ -18,7 +18,9 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from http.server import ThreadingHTTPServer
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -185,7 +187,7 @@ class TagRulesTest(unittest.TestCase):
             for source in lists.SOURCES:
                 if source.tag:
                     with open(lists.local_path(tmp, source)) as fh:
-                        self.assertEqual(fh.read().splitlines()[1], f"||x.example^$ctag={source.tag}", source.key)
+                        self.assertEqual(fh.read().splitlines()[2], f"||x.example^$ctag={source.tag}", source.key)
 
     def test_tags_are_ones_adguard_accepts_and_do_not_collide(self):
         # allowedTags in AdGuard Home internal/client/storage.go
@@ -219,6 +221,31 @@ class TagRulesTest(unittest.TestCase):
                 out.write("! placeholder until the first successful download\n")
             lists.build(tmp, opener=opener, max_age=3600)
             self.assertEqual(calls, [s.url for s in sources[:2]])
+
+    def test_fresh_download_requires_matching_format_and_source_url(self):
+        source = next(s for s in lists.SOURCES if s.tag)
+        changed = replace(source, url=source.url + "?updated")
+        calls = []
+
+        def opener(request, **kwargs):
+            calls.append(request.full_url)
+            return io.BytesIO(b"example.org\n")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(lists, "SOURCES", [source]):
+                lists.build(tmp, opener=opener, max_age=3600)
+            with patch.object(lists, "SOURCES", [changed]):
+                self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                lists.build(tmp, opener=opener, max_age=3600)
+                path = lists.local_path(tmp, changed)
+                with open(path, encoding="utf-8") as fh:
+                    tag_header, metadata, *rules = fh.readlines()
+                self.assertNotIn(changed.url, metadata)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.writelines([tag_header, metadata.replace("format=1", "format=0"), *rules])
+                self.assertEqual(lists.refresh_delay(tmp, 3600, {}), 0)
+                lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [source.url, changed.url, changed.url])
 
     def test_old_gambling_list_is_retagged_when_the_download_fails(self):
         def broken(*_args, **_kwargs):
@@ -666,10 +693,9 @@ class JobsTest(unittest.TestCase):
             settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp, PPDNS_LISTS_REFRESH_HOURS="12")
             interval = 12 * 3600
             sources = [s for s in lists.SOURCES if s.tag]
+            lists.build(tmp, opener=lambda *_args, **_kwargs: io.BytesIO(b"example.org\n"))
             for i, source in enumerate(sources):
                 path = lists.local_path(tmp, source)
-                with open(path, "w", encoding="utf-8") as out:
-                    out.writelines(lists.tag_rules(["example.org"], source.tag))
                 downloaded = 3600 if i == 0 else interval
                 os.utime(path, (downloaded, downloaded))
             jobs = Jobs(settings, Service(FakeAdGuard(), settings.domain, tmp))

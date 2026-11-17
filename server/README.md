@@ -41,33 +41,30 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
 ## Measure the server footprint
 
 Run `scripts/bench-server.sh [requests] [concurrency]` from the checkout. It
-starts a disposable embedded PostgreSQL, seeds one paired phone with 100
-apps to keep the input below the snapshot cache limit, and sends HTTP
-conditional requests over loopback. It reports throughput, Node CPU per request, and warm and peak sampled Node RSS. RSS
-excludes PostgreSQL and the package runner. Use the same worker, Node version
-and arguments when comparing revisions.
+starts a disposable embedded PostgreSQL, seeds one paired phone with 100 apps,
+and sends conditional HTTP requests over loopback. It reports throughput,
+Node CPU per request, and warm and peak sampled Node RSS. RSS excludes
+PostgreSQL and the package runner. Use the same worker, Node version and
+arguments when comparing revisions.
 
-With the earlier 300-app fixture, which exceeded the cache limit, one paired
-run on a shared Linux worker with Node 24.22.3 against main
-commit `44cdda0` used 2,500 polls and eight concurrent clients:
+One run per revision on a shared Linux worker with Node 24.22.1 used 4,000
+polls and eight concurrent clients. The baseline was main commit `3b3dfb4`.
 
-| Metric | Before | After |
+| Metric | Main | This branch |
 | --- | ---: | ---: |
-| HTTP responses per second | 134 | 198 |
-| Node CPU per request | 6.215 ms | 4.993 ms |
-| Warm Node RSS | 278.3 MiB | 271.2 MiB |
-| Peak sampled Node RSS | 360.9 MiB | 306.2 MiB |
+| HTTP 304 responses per second | 675 | 786 |
+| Node CPU per request | 1.666 ms | 1.466 ms |
+| Warm Node RSS | 280.3 MiB | 278.0 MiB |
+| Peak sampled Node RSS | 337.1 MiB | 337.3 MiB |
 
-RSS varied across runs. In three earlier runs of 4,000 polls per version,
-median peak Node RSS was 311.8 MiB before and 310.1 MiB after.
+The benchmark measures steady-state polling for one phone. It does not
+measure a deployment with many distinct phones.
 
 The device rules handler still authenticates, applies due changes and
-updates last-seen state as needed. It reads the current rules inputs and
-evaluates the time-dependent fields on each poll. For small rules, a matching
-ETag and identical inputs let it return 304 without building, serializing or
-hashing the rules document. The process retains at most eight snapshots,
-each with a 32,768-character serialized input limit. On a miss it hashes the same JSON
-representation sent to the device.
+updates last-seen state as needed. Each poll reads the current rules inputs
+with narrow selects, evaluates time-dependent fields, and hashes the JSON
+representation. A matching ETag returns 304. A release request changes the
+representation and invalidates the previous ETag.
 
 The parent phone list gets location presence and open-request counts in the
 same SQL statement as the phones. The sweeper still runs once per minute
@@ -79,5 +76,6 @@ those three indexes. Cleanup queries use the affected-row count instead
 of returning every deleted ID to Node.
 
 The Docker build precompresses PWA JavaScript and CSS with Brotli and gzip.
-Hashed assets are immutable for a year. Entry points, service workers, and
-SPA fallbacks require revalidation. Range requests use the identity file.
+Hashed assets are immutable for a year. The PWA root, `index.html` and `sw.js`
+use `no-cache` and ETags for conditional GETs. SPA fallbacks also require
+revalidation. Range requests use the identity file.

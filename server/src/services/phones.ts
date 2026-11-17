@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   contacts,
@@ -169,6 +168,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,
       locateRequestedAt: phone.locateRequestedAt,
+      releaseRequestedAt: phone.releaseRequestedAt,
     },
     allApps,
     contactRows,
@@ -237,6 +237,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       keyType: c.keyType,
       effectiveAt: c.effectiveAt?.toISOString() ?? null,
     })),
+    // True once the parents have released the phone: it switches Plainphone off and then
+    // calls POST /device/released. Older phones ignore the field.
+    release: phone.releaseRequestedAt !== null,
     pollSeconds: safety.fast ? FAST_POLL_SECONDS : POLL_SECONDS,
   };
   const body = JSON.stringify(doc);
@@ -244,25 +247,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   return { body, etag };
 }
 
-export function createRulesResponder(ctx: Ctx) {
-  // Refresh every input from Postgres, including time-dependent safety and bonuses.
-  // Cache only small inputs and only recent phones. A restart or miss hashes the same body.
-  const recent = new Map<string, { etag: string; inputs: RulesInputs }>();
-  return async (phone: Phone, candidates: string[]) => {
-    const inputs = await loadRulesInputs(ctx, phone);
-    const cached = recent.get(phone.id);
-    if (cached && candidates.includes(cached.etag) && isDeepStrictEqual(cached.inputs, inputs)) {
-      return { etag: cached.etag, body: null };
-    }
-
-    const { body, etag } = rulesDocument(inputs);
-    recent.delete(phone.id);
-    if (body.length <= 16_384 && JSON.stringify(inputs).length <= 32_768) {
-      if (recent.size >= 8) recent.delete(recent.keys().next().value!);
-      recent.set(phone.id, { etag, inputs });
-    }
-    return { etag, body: candidates.includes(etag) ? null : body };
-  };
+export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
+  const { body, etag } = rulesDocument(await loadRulesInputs(ctx, phone));
+  return { etag, body: candidates.includes(etag) ? null : body };
 }
 
 function summaryFields() {
@@ -299,6 +286,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
+    /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
+    releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,

@@ -157,8 +157,12 @@ describe("location (D7)", () => {
     expect((await parent.post(`/api/phones/${phoneId}/locate`)).status).toBe(202);
     expect((await device.get("/api/device/rules")).json.location.requestedAt).not.toBeNull();
 
+    const listedPhone = async () => (await parent.get("/api/phones")).json.phones[0];
+    expect(await listedPhone()).toMatchObject({ id: phoneId, hasLocation: false });
+
     const t0 = h.clock.now;
     expect((await loc(55.6, t0)).status).toBe(204);
+    expect(await listedPhone()).toMatchObject({ id: phoneId, hasLocation: true });
     // The Find is answered: a second, older fix is not asked for any more.
     expect((await loc(55.7, new Date(t0.getTime() - 60_000))).status).toBe(409);
     const got = await parent.get(`/api/phones/${phoneId}/location`);

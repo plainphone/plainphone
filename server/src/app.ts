@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join, normalize } from "node:path";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { etag } from "hono/etag";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -131,13 +132,19 @@ export function createApp(ctx: Ctx) {
       },
     });
     const identity = serveStatic({ root });
+    const validate = etag();
+    for (const path of ["/", "/index.html", "/sw.js"]) {
+      app.use(path, (c, next) =>
+        c.req.method === "GET" && !c.req.header("range") ? validate(c, next) : next(),
+      );
+    }
     app.use("/*", async (c, next) => {
       const asset = c.req.path.startsWith("/assets/");
       const handler = asset && !c.req.header("range") ? compressed : identity;
       const original = c.req.raw;
-      const res = await handler(c, () => {
+      const res = await handler(c, async () => {
         c.req.raw = original;
-        return next();
+        await next();
       }).finally(() => {
         c.req.raw = original;
       });

@@ -40,7 +40,9 @@ phone                                      server                         parent
    (`410` afterwards). Store it in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
-   is the complete truth; there are no deltas.
+   is the complete truth; there are no deltas. A release request changes the ETag, so a
+   phone polling with its previous ETag receives `200` with `release: true`. See the
+   [server benchmark](../server/README.md#measure-the-server-footprint) for polling costs.
 3. **Apps.** Send the full list of launchable apps after pairing and whenever packages change
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are
@@ -100,7 +102,7 @@ The parent adds a phone in the dashboard before the phone is set up:
 
 ```
 parent (PWA)                                server                          phone
-  | POST /phones/enroll {name, profile}       |                                 |
+  | POST /phones/enroll {name, profile, mode}       |                                 |
   |------------------------------------------>|  phone entry (pairedAt null)    |
   |  201 {phone, enrollment{token,expiresAt}, |  + DNS ClientID registered      |
   |       provisioning{downloadUrl, ...}}     |                                 |
@@ -111,17 +113,24 @@ parent (PWA)                                server                          phon
   |  GET /phones/{id} -> pairedAt set         |  200 {phoneId, deviceToken}     |
 ```
 
-- The QR code holds what `scripts/provisioning-qr.py` puts in it (admin component, signature
+- In strong mode the provisioning QR code holds what `scripts/provisioning-qr.py` puts in it (admin component, signature
   checksum, download URL, PIN hash and salt, country code, and the server and start DNS when they
   differ from the app's defaults) plus `plainphone.enroll`. The browser hashes the PIN with the
   script's parameters (PBKDF2-HMAC-SHA256, 120,000 iterations, 32 bytes, 16-byte salt); the shared
   test vector is in `web/src/lib/provisioning.test.ts`, `MaintenancePinTest.kt` and
   `scripts/test_provisioning_qr.py`. The server stores no PIN and no PIN hash.
+- In light mode the QR code opens `/install-phone` with the token, Android package and language in
+  the URL fragment. The page removes the fragment from the current history entry and uses the
+  token in a package-scoped Android intent. The parent enters the PIN twice in the app, which
+  salts and hashes it locally. After the required permissions are granted, the app sends the
+  token and ordinary enrollment metadata.
+- `mode` defaults to `strong` for existing clients. Enrollment keeps the selected mode on
+  the phone entry. The phone separately reports what Android granted in its protection status.
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
   24 hours and is bound to the phone entry. `POST /phones/{pid}/enrollment` makes a new one for a
   phone that is not set up yet; older tokens for it stop working.
 - `404` (unknown) and `410` (used, expired, or the entry is already paired) are final: the phone
-  drops the token and falls back to the code pairing above. If the `200` answer is lost, the same
+  drops the token. Strong setup falls back to code pairing. A phone using the light setup link asks the parent for a new link. If the `200` answer is lost, the same
   phone (same `installId`) may ask again for 60 minutes and gets a new device token.
 - Code pairing keeps working, for QR codes made with the script and for self-hosters.
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
@@ -149,7 +158,37 @@ releases signed with the same key.
 | `settings` | Phone settings that are not free (camera, screen timeout, Bluetooth and so on), keys in alphabetical order. Applied only in strong mode. See [phone-settings.md](phone-settings.md) |
 | `home` | The home screen: `layout`, `theme`, `palette` and the ordered front-page `apps`. A missing field means the defaults |
 | `pendingChanges` | Self profile: show each with a countdown to `effectiveAt` (null = waiting for the trusted person) |
+| `release` | `true` once the parents have released the phone. Switch Plainphone off, never lock again, then acknowledge with `POST /device/released`. See [Releasing the phone](#releasing-the-phone). A missing field means `false` (an older server) |
 | `pollSeconds` | Poll interval |
+
+### Releasing the phone
+
+A parent can switch Plainphone off on a phone from the dashboard (**Release the phone**,
+`POST /api/phones/{pid}/release`). It has the same effect as the maintenance screen's "Release
+Device Owner" in strong mode, or "Switch Plainphone off" in light mode: the lock and the filters
+stop, and Plainphone is an ordinary app that can be uninstalled. This is different from
+`DELETE /api/phones/{pid}`, which only deletes the phone on the server and leaves the lock where it is.
+
+1. On a Child phone the change applies at once. On a Self phone it waits for the key like any
+   other loosening, so the phone first shows it under `pendingChanges` (`op.type` is
+   `phone.release`). A phone that never paired answers `400`: remove it instead.
+2. When the rules say `release: true`, the phone does this before anything else, and does not
+   apply the lock again: cancel any relock, then release (strong mode: policies cleared, home
+   screen preference cleared, Device Owner given up; light mode: device admin off, VPN stopped,
+   guard off). It then remembers on its own that it has released, so a failed acknowledgement
+   never leads to a new lock.
+3. It tells the server with `POST /api/device/released`. `204` means the phone is deleted on the
+   server (its DNS ClientID is queued for deletion). `401` means the same, already done. `409`
+   means the server has no release on record for this phone (it should not happen, since a
+   requested release is only cleared by deleting the phone); nothing was deleted, and the phone
+   forgets the release and syncs normally. On a network error, send it again at the next sync.
+   The phone only acts on stored rules whose `phoneId` is its current one, so rules kept from an
+   earlier pairing never release it.
+4. On `204` or `401` the phone treats itself as removed and shows nothing new.
+
+Until the phone has done this, the dashboard shows the phone as "Releasing" (`releaseRequestedAt`
+on the phone summary). A phone that is switched off or offline keeps its lock until it connects.
+To remove such a phone from the dashboard without releasing it, use `DELETE /api/phones/{pid}`.
 
 ### Requests (asking for an app or a contact)
 

@@ -32,6 +32,31 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
 
+    /**
+     * True once a parent's release has switched Plainphone off on this phone. From then on the
+     * lock never comes back, even if the server could not be told yet: only the acknowledgement
+     * is retried. Cleared by a new pairing.
+     */
+    val released: Boolean get() = prefs.getBoolean(KEY_RELEASED, false)
+
+    /**
+     * The stored rules ask for a release, and they belong to this pairing. Rules kept from an
+     * earlier pairing (removed, then paired again) never release the phone, and a phone removed
+     * in the dashboard keeps its lock with the last rules, as removing always did.
+     */
+    val releaseAsked: Boolean get() = !removed && rules()?.let { it.release && it.phoneId == phoneId } == true
+
+    // commit, not apply: a crash must not make the next sync lock a released phone again.
+    @SuppressLint("ApplySharedPref")
+    fun markReleased() {
+        prefs.edit().putBoolean(KEY_RELEASED, true).commit()
+    }
+
+    /** The server said nobody asked for a release, so the phone goes on as an ordinary synced phone. */
+    fun clearReleased() {
+        prefs.edit().remove(KEY_RELEASED).apply()
+    }
+
     // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
     @SuppressLint("ApplySharedPref")
     fun savePaired(phoneId: String, token: String) {
@@ -40,6 +65,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             .putString(KEY_PHONE_ID, phoneId)
             .putBoolean(KEY_EVER_PAIRED, true)
             .putBoolean(KEY_REMOVED, false)
+            .remove(KEY_RELEASED)
             // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
             .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
             .remove(KEY_PAIRING)
@@ -145,6 +171,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_TOKEN = "device_token"
         private const val KEY_PHONE_ID = "phone_id"
         private const val KEY_REMOVED = "removed"
+        private const val KEY_RELEASED = "released"
         private const val KEY_EVER_PAIRED = "ever_paired"
         private const val KEY_PAIRING = "pairing"
         private const val KEY_ENROLL = "enroll_token"

@@ -51,6 +51,28 @@ test("serves precompressed hashed assets and revalidates the PWA entry points", 
       expect(res.headers.get("cache-control")).toBe("no-cache");
       await res.arrayBuffer();
     }
+    const tags = new Map<string, string>();
+    for (const path of ["/", "/index.html", "/sw.js"]) {
+      const original = await app.request(path);
+      const etag = original.headers.get("etag")!;
+      expect(etag).toBeTruthy();
+      tags.set(path, etag);
+      await original.arrayBuffer();
+
+      const cached = await app.request(path, { headers: { "if-none-match": etag } });
+      expect(cached.status).toBe(304);
+      expect(cached.headers.get("cache-control")).toBe("no-cache");
+      expect(cached.headers.get("etag")).toBe(etag);
+      expect(await cached.text()).toBe("");
+    }
+
+    await writeFile(join(dist, "index.html"), "<title>Updated</title>");
+    for (const path of ["/", "/index.html"]) {
+      const updated = await app.request(path, { headers: { "if-none-match": tags.get(path)! } });
+      expect(updated.status).toBe(200);
+      expect(updated.headers.get("etag")).not.toBe(tags.get(path));
+      expect(await updated.text()).toBe("<title>Updated</title>");
+    }
   } finally {
     await rm(dist, { recursive: true, force: true });
   }

@@ -12,6 +12,7 @@ referenced by path in AdGuardHome.yaml.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import logging
 import os
 import tempfile
@@ -36,6 +37,8 @@ TAG_GAMBLING = "os_other"
 
 # First line of every list we rewrite; it also says which tag the rules carry.
 _HEADER = "! Rewritten by Plainphone ppdns: every rule applies only to clients tagged "
+
+_FORMAT_VERSION = 1
 
 HAGEZI = "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock"
 
@@ -178,11 +181,21 @@ def retag_file(path: str, tag: str) -> bool:
     return True
 
 
-def _download_age(path: str, tag: str) -> float | None:
+def _source_header(url: str) -> str:
+    url_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    return f"! ppdns format={_FORMAT_VERSION} source-sha256={url_hash}\n"
+
+
+def _download_age(path: str, source: Source) -> float | None:
     try:
         with open(path, encoding="utf-8") as fh:
             age = time.time() - os.fstat(fh.fileno()).st_mtime
-            if age >= 0 and fh.readline() == f"{_HEADER}{tag}\n" and fh.readline():
+            if (
+                age >= 0
+                and fh.readline() == f"{_HEADER}{source.tag}\n"
+                and fh.readline() == _source_header(source.url)
+                and fh.readline()
+            ):
                 return age
     except (OSError, UnicodeError):
         pass
@@ -195,7 +208,7 @@ def refresh_delay(lists_dir: str, interval: float, retry_at: dict[str, float]) -
     delay = interval
     for source in SOURCES:
         if source.tag is not None:
-            age = _download_age(local_path(lists_dir, source), source.tag)
+            age = _download_age(local_path(lists_dir, source), source)
             remaining = 0 if age is None else interval - age
             delay = min(delay, max(0, remaining, retry_at.get(source.key, now) - now))
     return delay
@@ -216,7 +229,7 @@ def build(
         if source.tag is None:
             continue
         target = local_path(lists_dir, source)
-        age = _download_age(target, source.tag) if max_age > 0 else None
+        age = _download_age(target, source) if max_age > 0 else None
         if (age is not None and age < max_age) or (
             retry_at is not None and time.time() < retry_at.get(source.key, 0)
         ):
@@ -230,17 +243,20 @@ def build(
                 fd, tmp = tempfile.mkstemp(dir=lists_dir, prefix=f".{source.key}.")
                 count = 0
                 with os.fdopen(fd, "w", encoding="utf-8") as out:
-                    for rule in tag_rules(lines, source.tag):
+                    rules = tag_rules(lines, source.tag)
+                    out.write(next(rules))
+                    out.write(_source_header(source.url))
+                    for rule in rules:
                         out.write(rule)
                         count += 1
-            if count < 2:
+            if count == 0:
                 raise ValueError("downloaded list has no rules")
             os.chmod(tmp, 0o644)
             os.replace(tmp, target)
             result[source.key] = "ok"
             if retry_at is not None:
                 retry_at.pop(source.key, None)
-            log.info("list %s: %d rules", source.key, count - 1)
+            log.info("list %s: %d rules", source.key, count)
         except Exception as exc:  # noqa: BLE001 - keep serving with the old list
             if retry_at is not None:
                 retry_at[source.key] = time.time() + max_age

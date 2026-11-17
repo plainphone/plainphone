@@ -10,13 +10,14 @@ import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests } f
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
-import { applyDueChanges } from "../services/changes.js";
+import { applyDueChanges, deletePhone } from "../services/changes.js";
+import { retryDnsDeletions } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { createRulesResponder } from "../services/phones.js";
+import { respondWithRules } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -43,7 +44,6 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
 
 export function deviceRoutes(ctx: Ctx) {
   const app = new Hono<Env>();
-  const respondWithRules = createRulesResponder(ctx);
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
@@ -160,12 +160,30 @@ export function deviceRoutes(ctx: Ctx) {
       );
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
-    const { body: rules, etag } = await respondWithRules(phone, candidates);
+    const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
     c.header("ETag", etag);
     c.header("Cache-Control", "no-cache");
     if (rules === null) return c.body(null, 304);
     c.header("Content-Type", "application/json");
     return c.body(rules);
+  });
+
+  // The phone has switched Plainphone off after a release request. The phone is deleted, so
+  // its token is unknown from now on (401), which the phone reads as "removed".
+  app.post("/released", async (c) => {
+    const phone = c.get("phone");
+    const result = await ctx.db.transaction(async (tx) => {
+      // Locked, so two acknowledgements (a retry after a timeout) cannot both delete.
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh) return { status: 401 as const };
+      if (!fresh.releaseRequestedAt) return { status: 409 as const };
+      return { status: 204 as const, clientId: await deletePhone(tx, phone.id) };
+    });
+    if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
+    if (result.status === 409) return c.json({ error: "this phone has not been asked to release" }, 409);
+    // Failures stay queued in dns_deletions and the sweeper retries them.
+    if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+    return c.body(null, 204);
   });
 
   app.put("/apps", async (c) => {
