@@ -48,7 +48,14 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
         if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
-            startActivity(if (LightSetup.isComplete(this)) HomeActivity.intent(this) else LightSetupActivity.intent(this))
+            val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
+                LightSetupActivity.intent(this).apply {
+                    if (intent?.action == Intent.ACTION_VIEW) {
+                        data = intent.data
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                }
+            startActivity(destination)
             finish()
             return
         }

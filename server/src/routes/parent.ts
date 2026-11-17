@@ -565,6 +565,7 @@ export function parentRoutes(ctx: Ctx) {
       z.object({
         name: z.string().trim().min(1).max(40),
         profile: z.enum(["child", "self"]),
+        mode: z.enum(["strong", "light"]).default("strong"),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
       }),
@@ -580,7 +581,7 @@ export function parentRoutes(ctx: Ctx) {
         householdId,
         name: input.name,
         profile: input.profile,
-        mode: "strong",
+        mode: input.mode,
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
