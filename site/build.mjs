@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Builds the static plainphone.org site into dist/. No dependencies, no client JS.
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import en from "./content/en.mjs";
 import da from "./content/da.mjs";
+import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const src = join(root, "src");
@@ -91,6 +92,7 @@ function header(t, switchHref) {
 function footer(t) {
   return `<footer class="foot">
 <p>${t.footer.maintained}</p>
+<p>${t.footer.setup}</p>
 <p>${t.footer.privacy}</p>
 <p>${t.footer.license}</p>
 </footer>`;
@@ -124,7 +126,7 @@ function page(t) {
     t.how.title,
     `<ol class="steps">${t.how.steps
       .map((s) => `<li><h3>${s.title}</h3><p>${s.body}</p></li>`)
-      .join("")}</ol><p class="note">${t.how.note}</p>`,
+      .join("")}</ol><p>${t.how.guide}</p><p class="note">${t.how.note}</p>`,
   );
 
   const c = t.compare;
@@ -239,6 +241,78 @@ ${footer(t)}
 `;
 }
 
+// Width and height of a lossy WebP (the only kind tools/make-setup-images.py writes), in CSS px:
+// the files are 2x, so every <img> gets exact dimensions without hand-kept numbers.
+function webpSize(file) {
+  const b = readFileSync(file);
+  if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WEBP" || b.toString("ascii", 12, 16) !== "VP8 ") {
+    throw new Error(`${file}: not a lossy WebP`);
+  }
+  return { width: (b.readUInt16LE(26) & 0x3fff) / 2, height: (b.readUInt16LE(28) & 0x3fff) / 2 };
+}
+
+// The setup guide: numbered steps, each with a dashboard screenshot (img/) or a schematic phone (figures.mjs).
+function setupPage(t) {
+  const p = t.setup;
+  const other = pages.find((x) => x.lang === t.nav.switchLang);
+  const drawings = figures({ ...p.drawing, alt: p.figs });
+  const figure = (key) => {
+    if (drawings[key]) return `<figure class="shot">${drawings[key]}</figure>`;
+    const name = { who: 1, pin: 2, qr: 3, done: 8 }[key];
+    const file = `setup-${name}-${key}-${t.lang}.webp`;
+    const path = join(src, "img", file);
+    if (!existsSync(path)) {
+      if (key !== "done") throw new Error(`missing image ${file}`);
+      console.warn(`warning: ${file} is missing, so step ${p.steps.length} has no screenshot`);
+      return "";
+    }
+    const { width, height } = webpSize(path);
+    const img = `<img src="/img/${file}" width="${width}" height="${height}" alt="${esc(p.figs[key])}" loading="lazy" decoding="async">`;
+    // A dark-mode screenshot, when there is one, replaces the light one for visitors who prefer dark.
+    const dark = file.replace(".webp", "-dark.webp");
+    const picture = existsSync(join(src, "img", dark))
+      ? `<picture><source media="(prefers-color-scheme: dark)" srcset="/img/${dark}">${img}</picture>`
+      : img;
+    return `<figure class="shot">${picture}</figure>`;
+  };
+  const tb = p.tested;
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.description,
+    ogTitle: p.h1,
+    alternates: pages.map((x) => ({ lang: x.lang, path: x.setup.path })),
+    xDefault: pages[0].setup.path,
+  })}
+<body>
+${header(t, other.setup.path)}
+<main id="main" class="doc setup">
+<h1>${p.h1}</h1>
+<p class="lead">${p.lead}</p>
+<section aria-labelledby="need"><h2 id="need">${p.needTitle}</h2><ul>${p.need.map((li) => `<li>${li}</li>`).join("")}</ul></section>
+<section aria-labelledby="steps"><h2 id="steps">${p.stepsTitle}</h2><ol class="guide">
+${p.steps
+  .map(
+    (st, i) =>
+      `<li id="step-${i + 1}"><h3>${st.title}</h3>${st.body.map((b) => `<p>${b}</p>`).join("")}${figure(st.fig)}</li>`,
+  )
+  .join("\n")}
+</ol></section>
+<section aria-labelledby="trouble"><h2 id="trouble">${p.troubleTitle}</h2><dl>${p.trouble
+    .map(([q, a]) => `<dt>${q}</dt><dd>${a}</dd>`)
+    .join("")}</dl><p class="help">${p.help}</p></section>
+<section aria-labelledby="tested"><h2 id="tested">${p.testedTitle}</h2><div class="table-wrap" role="region" aria-labelledby="tested" tabindex="0"><table>
+<caption class="sr">${tb.caption}</caption>
+<thead><tr>${tb.cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
+<tbody>${tb.rows.map(([phone, android, result]) => `<tr><th scope="row">${phone}</th><td>${android}</td><td>${result}</td></tr>`).join("")}</tbody></table></div>
+${tb.body.map((b) => `<p>${b}</p>`).join("")}</section>
+</main>
+${footer(t)}
+</body>
+</html>
+`;
+}
+
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(join(dist, "da"), { recursive: true });
 writeFileSync(join(dist, "index.html"), page(en));
@@ -246,9 +320,12 @@ writeFileSync(join(dist, "da", "index.html"), page(da));
 for (const t of pages) {
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
   writeFileSync(join(dist, t.privacy.path, "index.html"), privacyPage(t));
+  mkdirSync(join(dist, t.setup.path), { recursive: true });
+  writeFileSync(join(dist, t.setup.path, "index.html"), setupPage(t));
 }
 writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
+cpSync(join(src, "img"), join(dist, "img"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
 for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", "og-en.png", "og-da.png"]) {
@@ -259,7 +336,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.privacy.path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -285,6 +362,9 @@ writeFileSync(
 
 /fonts/*
   Cache-Control: public, max-age=604800
+
+/img/*
+  Cache-Control: public, max-age=604800
 `,
 );
-console.log(`Built ${pages.length * 2} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 3} pages + 404 into dist/ (css ${css.length} bytes)`);
