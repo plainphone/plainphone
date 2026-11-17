@@ -81,6 +81,8 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
         : t("op.keyDelay", { hours: op.key.delayHours });
     case "phone.remove":
       return t("op.phoneRemove");
+    case "phone.release":
+      return t("op.phoneRelease");
     case "timeLimit.set": {
       const total = op.packageName === "*";
       if (!op.limit) return total ? t("op.limitTotalRemove") : t("op.limitAppRemove", { app: appLabel(op.packageName) });

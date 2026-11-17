@@ -514,7 +514,8 @@ main {
 }
 
 .status-updated,
-.status-dns {
+.status-dns,
+.status-release {
   margin-top: 0.5rem;
 }
 
@@ -1873,6 +1874,12 @@ details.details-lead[open] summary::after {
 .btn-link-danger {
   padding: 0;
   color: var(--danger);
+}
+
+.danger-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
 }
 
 .plain-list {

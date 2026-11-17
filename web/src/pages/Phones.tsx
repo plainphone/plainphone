@@ -73,6 +73,7 @@ export function PhonesPage() {
                         <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
+                        {phone.releaseRequestedAt && <span className="tag tag-waiting">{t("phone.releasingTag")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
                         <span>
                           {phone.lastSeenAt

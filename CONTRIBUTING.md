@@ -1,5 +1,9 @@
 # Contributing to Plainphone
 
+Thank you for helping. Bug reports, test results from real phones, documentation fixes and code are all welcome.
+
+## Before you start
+
 Follow the [design principles](docs/design-principles.md) and consult the
 [evidence review](docs/evidence.md) when changing how Plainphone works.
 
@@ -7,3 +11,35 @@ Every user-facing feature states its evidence in the PR. On the `Evidence:`
 line, cite a study, review or official recommendation and explain how it
 applies. If there is no direct evidence, write `no direct evidence, reason: …`
 and explain the design choice and its uncertainty.
+
+For a larger change, open an issue first so we can agree on the approach.
+
+Found a way around the lock, or a privacy flaw? Do not open a public issue. Follow [SECURITY.md](SECURITY.md).
+
+## Setup per part
+
+The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `package.json`). Run `pnpm install` once at the root.
+
+| Part | Requirements | Check before a PR |
+|---|---|---|
+| `android/` | JDK 21, Android SDK (see the [README](README.md#build-the-android-app)) | `./gradlew testDebugUnitTest lintDebug assembleDebug` |
+| `server/` | PostgreSQL 18, `DATABASE_URL` pointing at a test database | `pnpm --filter @plainphone/server typecheck` and `test` |
+| `web/` | | `pnpm --filter @plainphone/web typecheck` and `test` |
+| `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm check:api` and `pnpm check:shared` in `parent-app/` |
+| `dns/` | Python 3, Docker for the full stack | `python3 -m unittest discover -s dns/tests -p 'test_ppdns.py'` and `dns/tests/run-stack.sh` |
+| `site/` | Node only, no dependencies | `node build.mjs` and `node scripts/check.mjs` in `site/` |
+| `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |
+
+CI runs the same checks for every pull request. To run the server and the web app locally, use `pnpm dev:server` and `pnpm dev:web`, or Docker Compose as in [docs/self-hosting.md](docs/self-hosting.md).
+
+## Commits and pull requests
+
+- Write commit subjects in English, in the imperative, and keep them short: "Keep the parent PIN on the phone during light setup".
+- Keep one logical change per commit, and explain the why in the body when it is not obvious.
+- Fill in the pull request template, including how you verified the change and the `Evidence:` line.
+- Update the documentation in `docs/` in the same pull request when behaviour changes.
+- Copy for parents and children is calm and plain. Avoid judging language, streaks and rewards (principle 7).
+
+## License
+
+By contributing, you agree that your contribution is licensed under the [Apache License 2.0](LICENSE).

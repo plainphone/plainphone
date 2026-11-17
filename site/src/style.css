@@ -287,3 +287,23 @@ details p { padding-bottom: 0.5rem; }
 @media print {
   .top nav, .skip { display: none; }
 }
+
+.setup-paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+}
+
+.setup-paths a {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.75rem;
+}
+
+.setup-paths span {
+  color: var(--ink);
+  font-size: 0.9375em;
+}

@@ -1,7 +1,6 @@
 # Light mode: Plainphone as an ordinary app
 
-Light mode puts Plainphone on a phone that is already in use: no factory reset, no QR code, no
-Device Owner. It is weaker than strong mode, and the parent's dashboard says exactly how (spec
+Light mode puts Plainphone on a phone that is already in use: no factory reset or Device Owner. The dashboard offers a QR code or setup link. It is weaker than strong mode, and the parent's dashboard says exactly how (spec
 D2 and scope 3). This page is the reference for how it works, how to install it, what can be
 got around, and which Google Play policies each part touches.
 
@@ -32,6 +31,14 @@ the code is already split so that is a build setting, not a rewrite.
 Every protection is a step in the lock. A missing one is a failed policy, so `lockIntact` is
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
+
+## Releasing from the dashboard
+
+A parent can switch light mode off from the dashboard with **Release the phone**. The next sync
+reads `release: true`, switches Plainphone off the same way the maintenance screen does, and
+tells the server, which then removes the phone from the dashboard. The phone reports nothing
+about the protections going, since the parent asked for it. See
+[sync-api.md](sync-api.md#releasing-the-phone).
 
 ## The parent is told when protection is removed
 
@@ -70,28 +77,28 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 
 ## Installing it (no reset)
 
-Play is not an option yet (see below), so v1 is an APK from plainphone.org:
+1. In the dashboard, choose **Add phone → It is already in use**, give it a name and create a
+   setup link. Scan the resulting QR code with the phone you are setting up or open the private
+   link in Chrome on that phone.
+2. Download the APK and open it. If Android blocks it, tap **Settings**, switch on **Allow from
+   this source**, go back and tap **Install**. After installing, return to the Chrome page and
+   tap **Open Plainphone** there. The page clears the link fragment from Chrome’s address bar and
+   passes the one-time token to the app. Check the dashboard address, then choose and enter a
+   parent PIN twice. Plainphone hashes the PIN on the phone.
+3. Plainphone walks through the default phone app and messages app, web filter, time limits,
+   uninstall protection and guard. On Android 13+ use the help under the guard if Android reports
+   a restricted setting. Android settings vary by manufacturer.
+4. The optional steps cover background operation, location and always-on VPN. You can continue without extras in one tap. For always-on
+   VPN, leave **Block connections without VPN** off. The filter carries only web lookups
+   ([light-mode-vpn.md](light-mode-vpn.md)).
+5. The phone connects to the dashboard automatically and waits for the first rules before
+   showing that setup is complete. Switch off Chrome's **Allow from this source** in Android
+   settings after installing.
 
-1. On the phone, open the download link for the newest `plainphone-<version>.apk` in Chrome.
-2. Android asks whether Chrome may install unknown apps. Tap **Settings**, switch on **Allow from
-   this source**, go back and tap **Install**. Plainphone is signed with the same key as every
-   release, so later updates install over it.
-3. Switch **Allow from this source** off again for Chrome (Settings > Apps > Special app access >
-   Install unknown apps).
-4. Open Plainphone. It walks through one step per screen: parent PIN, phone app, messages app, web
-   filter, usage access, device admin, notifications and battery, location (optional), the guard,
-   always-on VPN (recommended) and pairing with the parent's dashboard.
-5. Recommended: in Settings > Network > VPN, tap the gear next to Plainphone and switch on
-   **Always-on VPN**. Leave **Block connections without VPN** off: the VPN only carries DNS, and
-   lockdown would block the traffic that does not go through it, including Plainphone's own
-   DNS-over-TLS ([light-mode-vpn.md](light-mode-vpn.md)). The setup step opens that screen.
-6. Android 13 and newer: an app installed from a browser may not switch on an accessibility service at first ("Restricted setting"). Open Settings > Apps > Plainphone, tap the three dots and choose **Allow restricted settings**, then switch the guard on. The guard step says this too.
-7. Pair: the parent opens app.plainphone.org, chooses "Add phone" and scans the code the phone
-   shows.
-
-Leaving light mode: maintenance screen (7 taps on the version line, PIN) > "Switch off
-Plainphone". It switches device admin, the VPN and the guard off, and nothing switches them on again until
-setup is completed anew; then Plainphone uninstalls normally.
+Opening Plainphone from the APK installer without the setup link still gives you the local PIN
+and pairing-code flow. For dashboard setup return to Chrome. If the link expires or you need to replace it before pairing, create a new one in the dashboard.
+Open it on the phone and set the parent PIN again to replace the previous setup link.
+See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 
 ## Google Play policies per part
 

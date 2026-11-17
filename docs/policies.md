@@ -109,7 +109,7 @@ Tap "Version" seven times on the Plainphone status screen and enter the parent P
 
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.
-- **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally.
+- **Release Device Owner** removes every policy and gives up Device Owner (`clearDeviceOwnerApp`). Plainphone can then be uninstalled and the phone reset normally. A parent can do the same from the dashboard with **Release the phone**: the rules then carry `release: true`, the phone releases itself the next time it syncs and tells the server ([sync-api.md](sync-api.md#releasing-the-phone)).
 - **Pair with a parent** (phase 4, only when the phone is not paired) shows the pairing code. Outside the first hour after setup this is the only way to pair.
 - **Sync with the server now** (phase 4, when paired) fetches the rules at once.
 
