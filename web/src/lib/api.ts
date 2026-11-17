@@ -21,6 +21,13 @@ export interface Me {
 /** What the phone last reported about itself (`PUT /device/status`). */
 export interface PhoneStatus {
   appVersion: string;
+  appVersionCode?: number;
+  update?: {
+    state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    detail: string | null;
+    checkedAt: string | null;
+    latestVersion: string | null;
+  };
   batteryPct: number | null;
   charging: boolean | null;
   deviceOwner: boolean;
@@ -71,6 +78,41 @@ export interface Phone {
   hasLocation: boolean;
   /** Null until the phone has reported once. */
   status: PhoneStatus | null;
+  /** Open requests from the phone (apps, contacts). */
+  openRequests: number;
+  /** Hours of silence before parents are told; null = the server default. */
+  offlineAlertHours: number | null;
+  offlineAlertHoursDefault: number;
+}
+
+export interface PushSubscriptionInfo {
+  id: string;
+  platform: "web" | "apns" | "fcm";
+  label: string | null;
+  /** SHA-256 (hex) of the endpoint, so this browser can find its own row. */
+  endpointHash: string;
+  createdAt: string;
+  lastSuccessAt: string | null;
+}
+
+export interface NotificationSettings {
+  webPushEnabled: boolean;
+  webPushPublicKey: string | null;
+  offlineAlertHours: number;
+  subscriptions: PushSubscriptionInfo[];
+  mutedPhoneIds: string[];
+}
+
+export interface PhoneRequest {
+  id: string;
+  phoneId: string;
+  kind: "app" | "contact";
+  packageName: string | null;
+  appLabel: string | null;
+  name: string | null;
+  number: string | null;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
 }
 export interface App {
   packageName: string;

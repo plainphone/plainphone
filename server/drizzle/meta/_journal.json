@@ -36,6 +36,20 @@
       "when": 1794944510866,
       "tag": "0004_enrollments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794945047736,
+      "tag": "0005_push_and_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794948254158,
+      "tag": "0006_phone_updates",
+      "breakpoints": true
     }
   ]
 }

@@ -38,7 +38,6 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.AndroidDeviceControls
-import org.plainphone.app.update.PrefsUpdateStateStore
 import org.plainphone.app.update.SelfUpdate
 
 /** Entry points for the rest of the app. */
@@ -101,11 +100,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun updateReport() = SelfUpdate.report(context)
 
-    override fun requestUpdate(requestedAtMs: Long) {
-        val store = PrefsUpdateStateStore(context)
-        if (requestedAtMs <= store.handledRequestMs) return
-        store.handledRequestMs = requestedAtMs
-        SelfUpdate.now(context)
+    override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
+
+    override fun timeUsed(): Map<String, Int>? = org.plainphone.app.time.TimeGuard.snapshot(context)?.let { s ->
+        s.evaluation.usedMinutes(s.limits.apps.keys)
     }
 }
 
@@ -269,9 +267,8 @@ object SyncScheduler {
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
     fun ensurePeriodic(context: Context) {
-        // Updates do not need pairing: an unpaired phone still gets fixes from the default server.
-        SelfUpdate.ensurePeriodic(context)
         if (!SyncStore(context).isPaired) return
+        org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(network)
             .setInputData(workDataOf(SyncWorker.KEY_REASON to "every 15 minutes"))
@@ -281,6 +278,7 @@ object SyncScheduler {
 
     fun now(context: Context, reason: String) {
         if (!SyncStore(context).isPaired) return
+        org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

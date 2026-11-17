@@ -23,10 +23,10 @@ import android.content.Context
 class InstallLease(
     private val store: Store,
     private val env: Env,
-    /** Applies the lock (blocking). Exceptions are caught: the expiry alarm is the safety net. */
-    private val applyLock: (reason: String) -> Unit,
+    /** Applies the lock (blocking). The recovery marker survives a failed apply. */
+    private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
-    data class Lease(val untilMs: Long, val bootCount: Int, val versionCode: Long)
+    data class Lease(val untilMs: Long, val bootCount: Int, val versionCode: Long, val process: String)
 
     interface Store {
         fun load(): Map<String, Lease>
@@ -36,35 +36,67 @@ class InstallLease(
     interface Env {
         fun nowMs(): Long
         fun bootCount(): Int
+        fun processId(): String
         fun versionCode(): Long
         /** Wakes the app at [atMs] to apply the lock in case the holder never comes back. */
-        fun scheduleExpiry(atMs: Long)
+        fun scheduleExpiry(holder: String, atMs: Long)
     }
 
-    /** True while any valid lease is open. Read by every policy run. */
-    fun isOpen(): Boolean = valid().isNotEmpty()
+    fun allowsInstall(catalogApproved: Boolean): Boolean {
+        val open = valid()
+        return SELF_UPDATE in open || (catalogApproved && CATALOG in open)
+    }
 
     /**
      * Runs [block] with installs allowed for at most [durationMs]. The lock is applied again
      * afterwards on every path: normal return, exception, and (via expiry) a dead process.
      */
     fun <T> hold(holder: String, durationMs: Long = MAX_MS, block: () -> T): T {
-        val until = env.nowMs() + durationMs.coerceIn(1L, MAX_MS)
-        // Written before the restriction is lifted, so a crash right after still leaves the expiry behind.
-        synchronized(LOCK) { store.save(valid() + (holder to Lease(until, env.bootCount(), env.versionCode()))) }
-        env.scheduleExpiry(until + 1_000L)
         try {
-            safeApply("install lease opened: $holder")
+            acquire(holder, durationMs)
             return block()
         } finally {
             release(holder)
         }
     }
 
+    fun acquire(holder: String, durationMs: Long) {
+        begin(holder, durationMs)
+        applyLock("install lease opened: $holder", holder == CATALOG)
+    }
+
+    fun begin(holder: String, durationMs: Long) {
+        val until = env.nowMs() + durationMs.coerceIn(1L, MAX_MS)
+        synchronized(LOCK) {
+            env.scheduleExpiry(holder, until + 1_000L)
+            store.save(store.load() + (holder to Lease(until, env.bootCount(), env.versionCode(), env.processId())))
+        }
+    }
+
+    fun isOpen(holder: String): Boolean = holder in valid()
+
+    /** Called on process start when a previous process left a window open. */
+    fun recover(reason: String = "recover install restriction") {
+        val expired = synchronized(LOCK) { store.load() - valid().keys }
+        if (expired.isEmpty()) return
+        applyLock(reason, CATALOG in expired)
+        synchronized(LOCK) {
+            val current = store.load()
+            store.save(current.filter { (holder, lease) -> expired[holder] != lease })
+        }
+    }
+
     /** Drops [holder]'s lease and applies the lock; the restriction returns unless another lease is open. */
     fun release(holder: String) {
-        synchronized(LOCK) { store.save(valid() - holder) }
-        safeApply("install lease closed: $holder")
+        if (invalidate(holder)) recover()
+    }
+
+    fun invalidate(holder: String): Boolean = synchronized(LOCK) {
+        val current = store.load()
+        val lease = current[holder] ?: return@synchronized false
+        // Persist an invalid marker until the restriction has been reapplied.
+        store.save(current + (holder to lease.copy(untilMs = 0)))
+        true
     }
 
     private fun valid(): Map<String, Lease> {
@@ -72,29 +104,22 @@ class InstallLease(
         val boot = env.bootCount()
         val version = env.versionCode()
         return store.load().filterValues {
-            it.untilMs > now && it.untilMs - now <= MAX_MS && it.bootCount == boot && it.versionCode == version
-        }
-    }
-
-    private fun safeApply(reason: String) {
-        try {
-            applyLock(reason)
-        } catch (e: Exception) {
-            android.util.Log.e("Plainphone", "apply after $reason failed; the expiry alarm retries", e)
+            it.untilMs > now && it.untilMs - now <= MAX_MS && it.bootCount == boot && it.versionCode == version &&
+                it.process == env.processId()
         }
     }
 
     companion object {
-        /** UserManager.DISALLOW_INSTALL_APPS, as a plain string so the policy code stays JVM-testable. */
-        const val RESTRICTION = "no_install_apps"
-        const val MAX_MS = 10 * 60_000L
+        const val SELF_UPDATE = "self-update"
+        const val CATALOG = "catalog"
+        const val MAX_MS = 15 * 60_000L
         private val LOCK = Any()
 
         /** Cheap: only reads preferences. Safe to call from the policy run. */
         fun android(context: Context): InstallLease {
             val app = context.applicationContext
-            return InstallLease(PrefsLeaseStore(app), AndroidLeaseEnv(app)) { reason ->
-                org.plainphone.app.Lock.applyNow(app, reason)
+            return InstallLease(PrefsLeaseStore(app), AndroidLeaseEnv(app)) { reason, catalogChanged ->
+                org.plainphone.app.Lock.applyForInstall(app, reason, catalogChanged)
             }
         }
     }
@@ -105,7 +130,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
 
     override fun load(): Map<String, InstallLease.Lease> = prefs.all.mapNotNull { (holder, raw) ->
         val parts = (raw as? String)?.split(',') ?: return@mapNotNull null
-        val lease = runCatching { InstallLease.Lease(parts[0].toLong(), parts[1].toInt(), parts[2].toLong()) }.getOrNull()
+        val lease = runCatching { InstallLease.Lease(parts[0].toLong(), parts[1].toInt(), parts[2].toLong(), parts[3]) }.getOrNull()
         lease?.let { holder to it }
     }.toMap()
 
@@ -113,13 +138,18 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
     @SuppressLint("ApplySharedPref")
     override fun save(leases: Map<String, InstallLease.Lease>) {
         val edit = prefs.edit().clear()
-        leases.forEach { (holder, l) -> edit.putString(holder, "${l.untilMs},${l.bootCount},${l.versionCode}") }
-        edit.commit()
+        leases.forEach { (holder, l) -> edit.putString(holder, "${l.untilMs},${l.bootCount},${l.versionCode},${l.process}") }
+        check(edit.commit()) { "Could not persist install leases" }
     }
 }
 
 private class AndroidLeaseEnv(private val context: Context) : InstallLease.Env {
-    override fun nowMs() = System.currentTimeMillis()
+    override fun nowMs() = android.os.SystemClock.elapsedRealtime()
+    override fun processId() = process
+
+    companion object {
+        private val process = java.util.UUID.randomUUID().toString()
+    }
 
     override fun bootCount(): Int =
         android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
@@ -127,5 +157,5 @@ private class AndroidLeaseEnv(private val context: Context) : InstallLease.Env {
     override fun versionCode(): Long =
         org.plainphone.app.Compat.packageInfo(context.packageManager, context.packageName, 0).longVersionCode
 
-    override fun scheduleExpiry(atMs: Long) = UpdateReceiver.scheduleLeaseExpiry(context, atMs)
+    override fun scheduleExpiry(holder: String, atMs: Long) = UpdateReceiver.scheduleLeaseExpiry(context, holder, atMs)
 }

@@ -106,6 +106,7 @@ class PairingActivity : ComponentActivity() {
                     "android" to Build.VERSION.RELEASE.take(200),
                     "appVersion" to version.take(200),
                 ),
+                mode = org.plainphone.app.light.Mode.name(app),
             )
         }
 

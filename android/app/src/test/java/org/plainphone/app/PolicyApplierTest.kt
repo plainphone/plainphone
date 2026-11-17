@@ -142,3 +142,40 @@ class PolicyApplierTest {
         assertThat(device.appRestrictions[LockPolicy.CHROME_PACKAGE]).isNull()
     }
 }
+
+class TimeLimitApplierTest {
+    private val device = FakeDevice(
+        launchable = mutableSetOf("com.dialer", "com.spotify", "com.game", "com.android.vending", "org.plainphone.app"),
+        core = setOf("com.dialer"),
+    )
+    private val store = MemoryHiddenStore()
+    private val applier = PolicyApplier(device, store, sdkInt = 35)
+    private val config = PolicyConfig(dnsHost = "dns.example.org", allowedPackages = setOf("com.spotify"))
+
+    @Test
+    fun `used-up apps are suspended and come back when the day is new`() {
+        applier.apply(config.copy(timeBlocked = setOf("com.spotify", "com.dialer")))
+        assertThat(device.suspended).containsExactly("com.spotify") // core apps never
+        assertThat(store.suspendedSaved).containsExactly("com.spotify")
+        applier.apply(config)
+        assertThat(device.suspended).isEmpty()
+        assertThat(store.suspendedSaved).isEmpty()
+    }
+
+    @Test
+    fun `the install window lifts the install restriction and shows Play, then closes`() {
+        applier.apply(config.copy(installing = "dk.mitid.app.android"))
+        assertThat(device.restrictions).doesNotContain("no_install_apps")
+        assertThat(device.hidden).doesNotContain("com.android.vending")
+        applier.apply(config)
+        assertThat(device.restrictions).contains("no_install_apps")
+        assertThat(device.hidden).contains("com.android.vending")
+    }
+
+    @Test
+    fun `a maintenance unlock lifts suspensions too`() {
+        applier.apply(config.copy(timeBlocked = setOf("com.spotify")))
+        applier.lift()
+        assertThat(device.suspended).isEmpty()
+    }
+}

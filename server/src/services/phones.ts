@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   contacts,
   DNS_CATEGORIES,
@@ -8,6 +8,7 @@ import {
   locations,
   pendingChanges,
   phoneApps,
+  phoneRequests,
   phones,
   schedules,
   selfKeys,
@@ -130,6 +131,7 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
       intervalMinutes: LOCATION_INTERVAL_MINUTES,
       requestedAt: phone.locationEnabled ? (phone.locateRequestedAt?.toISOString() ?? null) : null,
     },
+    update: { requestedAt: phone.updateRequestedAt?.toISOString() ?? null },
     pendingChanges: pending.map((c) => ({
       id: c.id,
       op: c.op,
@@ -144,6 +146,10 @@ export async function rulesDocument(ctx: Ctx, phone: Phone) {
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
   const [loc] = await ctx.db.select().from(locations).where(eq(locations.phoneId, phone.id));
+  const [open] = await ctx.db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(phoneRequests)
+    .where(and(eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")));
   return {
     id: phone.id,
     name: phone.name,
@@ -157,6 +163,10 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
     hasLocation: Boolean(loc),
+    openRequests: open?.n ?? 0,
+    /** Null means the server default (`offlineAlertHoursDefault`). */
+    offlineAlertHours: phone.offlineAlertHours,
+    offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
     status:
       phone.deviceStatus && phone.statusReportedAt
         ? { ...phone.deviceStatus, reportedAt: phone.statusReportedAt.toISOString() }

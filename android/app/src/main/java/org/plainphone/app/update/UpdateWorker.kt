@@ -23,10 +23,15 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
         return try {
             val outcome = SelfUpdate.updater(applicationContext).run(force)
             Log.i("Plainphone", "self-update (${if (force) "requested" else "periodic"}): $outcome")
-            Result.success()
+            org.plainphone.app.sync.SyncScheduler.now(applicationContext, "update check")
+            if (force && outcome is SelfUpdater.Outcome.Skipped) Result.retry() else Result.success()
         } catch (e: Exception) {
             Log.e("Plainphone", "self-update crashed", e)
-            Result.success() // the next periodic run tries again; no tight retry loop
+            PrefsUpdateStateStore(applicationContext).report = UpdateReport(
+                SelfUpdater.STATE_FAILED, e.message ?: e.javaClass.simpleName, System.currentTimeMillis(), null,
+            )
+            org.plainphone.app.sync.SyncScheduler.now(applicationContext, "update check failed")
+            Result.success()
         }
     }
 
@@ -44,22 +49,46 @@ object SelfUpdate {
         return SelfUpdater(AndroidUpdateHost(app), PrefsUpdateStateStore(app), InstallLease.android(app))
     }
 
-    /** Every 6 hours with any network; the updater itself keeps to one full check a day. */
-    fun ensurePeriodic(context: Context) {
-        val request = PeriodicWorkRequestBuilder<UpdateWorker>(6, TimeUnit.HOURS)
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setInitialDelay(10, TimeUnit.MINUTES)
-            .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
+    fun onStart(context: Context) {
+        val store = PrefsUpdateStateStore(context)
+        val target = store.installingVersionCode
+        if (target > 0L) {
+            val installed = AndroidUpdateHost(context).installed()
+            store.report = if (installed.versionCode >= target) {
+                UpdateReport(SelfUpdater.STATE_UP_TO_DATE, null, System.currentTimeMillis(), installed.versionName)
+            } else {
+                UpdateReport(SelfUpdater.STATE_FAILED, "installation was interrupted", System.currentTimeMillis(), store.report?.latestVersionName)
+            }
+            store.installingVersionCode = 0L
+            org.plainphone.app.sync.SyncScheduler.now(context, "update result")
+        }
+
+        // WorkManager combines constraints with AND. Both schedules share one daily check in SelfUpdater.
+        schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
+        schedule(context, "$PERIODIC-charging", Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
     }
 
-    /** The parent pressed "Update now" in the dashboard. */
-    fun now(context: Context) {
+    private fun schedule(context: Context, name: String, constraints: Constraints) {
+        val request = PeriodicWorkRequestBuilder<UpdateWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .setInitialDelay(10, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    /** Persist the work before marking the timestamp handled; a replay uses the same unique name. */
+    @Synchronized
+    fun request(context: Context, requestedAtMs: Long) {
+        val store = PrefsUpdateStateStore(context)
+        if (requestedAtMs <= store.handledRequestMs) return
         val request = OneTimeWorkRequestBuilder<UpdateWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .setInputData(workDataOf(UpdateWorker.KEY_FORCE to true))
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniqueWork("$NOW-$requestedAtMs", ExistingWorkPolicy.KEEP, request)
+            .result.get(10, TimeUnit.SECONDS)
+        store.handledRequestMs = requestedAtMs
     }
 
     /** For the status report. */
@@ -69,13 +98,19 @@ object SelfUpdate {
 class PrefsUpdateStateStore(context: Context) : UpdateStateStore {
     private val prefs = context.getSharedPreferences("plainphone_update", Context.MODE_PRIVATE)
 
+    override var installingVersionCode: Long
+        get() = prefs.getLong("installing_version", 0L)
+        @android.annotation.SuppressLint("ApplySharedPref")
+        set(v) { check(prefs.edit().putLong("installing_version", v).commit()) }
+
     override var lastCheckMs: Long
         get() = prefs.getLong("last_check", 0L)
         set(v) { prefs.edit().putLong("last_check", v).apply() }
 
     override var handledRequestMs: Long
         get() = prefs.getLong("handled_request", 0L)
-        set(v) { prefs.edit().putLong("handled_request", v).apply() }
+        @android.annotation.SuppressLint("ApplySharedPref")
+        set(v) { check(prefs.edit().putLong("handled_request", v).commit()) }
 
     override var report: UpdateReport?
         get() = prefs.getString("state", null)?.let {

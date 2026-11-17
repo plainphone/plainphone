@@ -2,20 +2,24 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, isNull, lt, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { locations, pairings, phoneApps, phones, PROTECTIONS } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
-import { packageName } from "../lib/validation.js";
+import { packageName, phoneNumber } from "../lib/validation.js";
 import { applyDueChanges } from "../services/changes.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
+import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { rulesDocument } from "../services/phones.js";
+import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
+
+import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
 export const DEVICE_PREFIX = "pp_d_";
@@ -38,7 +42,7 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
   Partial<Record<(typeof PROTECTIONS)[number], boolean>>
 >;
 
-export function deviceRoutes(ctx: Ctx) {
+export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
@@ -142,11 +146,16 @@ export function deviceRoutes(ctx: Ctx) {
     // Throttle last-seen writes to one a minute.
     await ctx.db
       .update(phones)
-      .set({ lastSeenAt: ctx.now() })
+      .set({ lastSeenAt: ctx.now(), offlineAlertedAt: null })
       .where(
         and(
           eq(phones.id, phone.id),
-          or(isNull(phones.lastSeenAt), lt(phones.lastSeenAt, new Date(ctx.now().getTime() - 60_000))),
+          or(
+            isNull(phones.lastSeenAt),
+            lt(phones.lastSeenAt, new Date(ctx.now().getTime() - 60_000)),
+            // Back after an offline alert: re-arm it at once.
+            isNotNull(phones.offlineAlertedAt),
+          ),
         ),
       );
     const { doc, etag } = await rulesDocument(ctx, phone);
@@ -157,6 +166,25 @@ export function deviceRoutes(ctx: Ctx) {
       return c.body(null, 304);
     }
     return c.json(doc);
+  });
+
+  app.get("/update-request", async (c) => {
+    const after = z.coerce.number().int().nonnegative().safeParse(c.req.query("after"));
+    if (!after.success) return c.json({ error: "invalid update timestamp" }, 400);
+    const { id } = c.get("phone");
+    c.header("Cache-Control", "no-store");
+    const listener = updateWake.listen(id, c.req.raw.signal);
+    if (!listener) return c.json({ error: "phone is already waiting" }, 409);
+    try {
+      // Read after subscribing so the parent cannot update the row between the read and the wait.
+      const [p] = await ctx.db.select({ at: phones.updateRequestedAt }).from(phones).where(eq(phones.id, id));
+      const stored = p?.at?.getTime() ?? 0;
+      const requested = stored > after.data ? stored : await listener.result;
+      if (requested && requested > after.data) return c.json({ requestedAtMs: requested });
+      return c.body(null, 204);
+    } finally {
+      listener.cancel();
+    }
   });
 
   app.put("/apps", async (c) => {
@@ -247,6 +275,13 @@ export function deviceRoutes(ctx: Ctx) {
       c,
       z.object({
         appVersion: z.string().min(1).max(40),
+        appVersionCode: z.number().int().positive().optional(),
+        update: z.object({
+          state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),
+          detail: z.string().max(200).nullable(),
+          checkedAt: z.iso.datetime({ offset: true }).nullable(),
+          latestVersion: z.string().max(40).nullable(),
+        }).optional(),
         batteryPct: z.number().int().min(0).max(100).nullable(),
         charging: z.boolean().nullable(),
         deviceOwner: z.boolean(),
@@ -281,15 +316,41 @@ export function deviceRoutes(ctx: Ctx) {
           input.failedPolicies.length === 0 &&
           !input.maintenance));
     // The newest report replaces the one before; no history is kept. Times are stored in UTC.
-    await ctx.db
-      .update(phones)
-      .set({
-        deviceStatus: { ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null },
-        statusReportedAt: ctx.now(),
-      })
-      .where(eq(phones.id, phone.id));
+    // The previous report is read in the same statement, so two reports racing each other
+    // cannot both see "was protected" and alert twice.
+    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus }>(sql`
+      with old as (select device_status from phones where id = ${phone.id} for update)
+      update phones set
+        device_status = ${JSON.stringify({ ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null })}::jsonb,
+        status_reported_at = ${ctx.now().toISOString()}::timestamptz
+      from old where phones.id = ${phone.id}
+      returning old.device_status as status`);
+    const lost = protectionLost(prev?.status ?? null, { ...input, lockIntact });
+    if (lost) {
+      await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
+    }
     return c.body(null, 204);
   });
+
+  // Requests from the person with the phone (spec 4 and 5). The phone shows the answers.
+  app.post("/requests", async (c) => {
+    const input = await body(
+      c,
+      z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("app"), packageName }),
+        z.object({ kind: z.literal("contact"), name: z.string().trim().min(1).max(60), number: phoneNumber }),
+      ]),
+    );
+    try {
+      const { request, created } = await createRequest(ctx, c.get("phone"), input);
+      return c.json(requestJson(request), created ? 201 : 200);
+    } catch (err) {
+      if (err instanceof RequestError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
+
+  app.get("/requests", async (c) => c.json({ requests: await phoneRequestList(ctx, c.get("phone").id) }));
 
   app.put("/push-token", async (c) => {
     const input = await body(c, z.object({ fcmToken: z.string().min(1).max(4096).nullable() }));

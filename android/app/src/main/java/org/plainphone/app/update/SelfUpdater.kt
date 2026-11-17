@@ -7,7 +7,7 @@ import java.io.IOException
 import org.json.JSONObject
 
 /**
- * What the server says the newest app release is (`GET /download/android/latest`).
+ * What the server says the newest app release is (`GET /download/android/latest.json`).
  * [url] is where the APK itself is; [sha256] is the file's hex SHA-256 when the release has it.
  */
 data class ReleaseInfo(val versionCode: Long, val versionName: String, val url: String, val sha256: String?) {
@@ -93,6 +93,7 @@ data class UpdateReport(val state: String, val detail: String?, val checkedAtMs:
 
 /** Remembers the last outcome and when the last full check ran. */
 interface UpdateStateStore {
+    var installingVersionCode: Long
     var lastCheckMs: Long
     var report: UpdateReport?
     /** The parent's last "Update now" that was handled (rules `update.requestedAt`). */
@@ -125,9 +126,11 @@ class SelfUpdater(
 
     private fun runLocked(force: Boolean): Outcome {
         val now = host.nowMs()
-        if (!force && now - store.lastCheckMs < CHECK_EVERY_MS) return Outcome.Skipped("checked recently")
+        if (!force && now - store.lastCheckMs in 0 until CHECK_EVERY_MS) return Outcome.Skipped("checked recently")
         if (host.inMaintenance()) return Outcome.Skipped("maintenance unlock")
 
+        if (!force && !host.downloadAllowed()) return Outcome.Skipped("waiting for Wi-Fi or charging")
+        store.lastCheckMs = now
         val installed = host.installed()
         val latest = try {
             host.fetchLatest()
@@ -147,12 +150,6 @@ class SelfUpdater(
             store.report = UpdateReport(STATE_PROMPTED, null, now, latest.versionName)
             return Outcome.Waiting("asked the user to update")
         }
-        if (!force && !host.downloadAllowed()) {
-            // Not marked as checked: the next periodic run tries again once on Wi-Fi or charging.
-            store.report = UpdateReport(STATE_AVAILABLE, "waiting for Wi-Fi or charging", now, latest?.versionName)
-            return Outcome.Waiting("waiting for Wi-Fi or charging")
-        }
-
         val apk = try {
             host.download(latest?.url ?: host.fallbackUrl(), latest?.sha256)
         } catch (e: Exception) {
@@ -167,16 +164,28 @@ class SelfUpdater(
                 is UpdatePolicy.Verdict.Refuse -> {
                     store.lastCheckMs = now
                     // No metadata and the newest APK is what we run: that is simply up to date.
-                    val state = if (candidate.versionCode == installed.versionCode) STATE_UP_TO_DATE else STATE_REFUSED
+                    val state = if (candidate == installed) STATE_UP_TO_DATE else STATE_REFUSED
                     store.report = UpdateReport(state, verdict.why.takeIf { state == STATE_REFUSED }, now, candidate.versionName)
                     return if (state == STATE_UP_TO_DATE) Outcome.UpToDate(installed.versionCode) else Outcome.Refused(verdict.why)
                 }
                 UpdatePolicy.Verdict.Install -> Unit
             }
+            // Re-read after downloading, in case another installer changed the installed app.
+            val current = host.installed()
+            if (UpdatePolicy.check(current, candidate) != UpdatePolicy.Verdict.Install) {
+                return failed("installed app changed during the download", latest)
+            }
+            if (host.inMaintenance()) return Outcome.Skipped("maintenance unlock")
             store.report = UpdateReport(STATE_INSTALLING, null, now, candidate.versionName)
+            store.installingVersionCode = candidate.versionCode
             // On success Android replaces the app and usually kills this process inside install();
             // the lease is then invalid (new versionCode) and MY_PACKAGE_REPLACED applies the lock.
-            val error = lease.hold(LEASE_HOLDER) { host.install(apk) }
+            val error = try {
+                lease.hold(InstallLease.SELF_UPDATE, INSTALL_LEASE_MS) { host.install(apk) }
+            } catch (e: Exception) {
+                e.message ?: e.javaClass.simpleName
+            }
+            store.installingVersionCode = 0L
             if (error != null) return failed("install failed: $error", latest)
             store.lastCheckMs = now
             store.report = UpdateReport(STATE_UP_TO_DATE, null, now, candidate.versionName)
@@ -193,10 +202,9 @@ class SelfUpdater(
 
     companion object {
         /** A full check about once a day; the periodic worker runs more often and skips until then. */
-        const val CHECK_EVERY_MS = 20 * 60 * 60_000L
-        const val LEASE_HOLDER = "self-update"
+        const val CHECK_EVERY_MS = 24 * 60 * 60_000L
+        private const val INSTALL_LEASE_MS = 6 * 60_000L
         const val STATE_UP_TO_DATE = "upToDate"
-        const val STATE_AVAILABLE = "available"
         const val STATE_INSTALLING = "installing"
         const val STATE_PROMPTED = "prompted"
         const val STATE_REFUSED = "refused"

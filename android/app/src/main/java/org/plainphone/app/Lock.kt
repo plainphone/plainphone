@@ -17,6 +17,13 @@ import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.light.LightLock
+import org.plainphone.app.light.LightRelease
+import org.plainphone.app.light.Mode
+import org.plainphone.app.light.Protections
+import org.plainphone.app.time.TimeGuard
+import org.plainphone.app.update.InstallLease
 
 /** Glue between Android entry points and [PolicyApplier]. */
 object Lock {
@@ -28,7 +35,9 @@ object Lock {
         AndroidDeviceControls(context.applicationContext),
         PrefsHiddenAppsStore(context.applicationContext),
         Build.VERSION.SDK_INT,
-        installsAllowed = { org.plainphone.app.update.InstallLease.android(context).isOpen() },
+        installsAllowed = { config ->
+            InstallLease.android(context).allowsInstall(config.installing != null)
+        },
     )
 
     /** Applies the lock on a background thread (private DNS does network I/O). */
@@ -41,16 +50,51 @@ object Lock {
         }
     }
 
+    fun applyForInstall(context: Context, reason: String, catalogChanged: Boolean) = synchronized(APPLY_LOCK) {
+        if (isInMaintenanceWindow(context)) return@synchronized
+        val result = if (catalogChanged) {
+            val results = applyNow(context, reason)
+            results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
+        } else {
+            applier(context).applyInstallRestriction(effectiveConfig(context))
+        }
+        check(result?.ok != false) { result?.detail ?: "Android could not apply the install restriction" }
+    }
+
+    fun recoverInstallAsync(context: Context, reason: String = "recover install restriction", done: () -> Unit = {}) {
+        executor.execute {
+            try {
+                InstallLease.android(context).recover(reason)
+            } catch (e: Exception) {
+                Log.e(TAG, "could not recover install restriction", e)
+            } finally {
+                done()
+            }
+        }
+    }
+
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
     fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
         val sync = SyncStore(context)
-        return EffectivePolicy.merge(ConfigStore(context).load(), sync.rules(), now, removed = sync.removed)
+        return EffectivePolicy.merge(
+            ConfigStore(context).load(),
+            sync.rules(),
+            now,
+            removed = sync.removed,
+            timeBlocked = TimeGuard.blockedNow(context, now),
+            installing = InstallWindow.current(context, now.toEpochMilli()),
+        )
     }
 
     /** Blocking. Never call on the main thread. */
     fun applyNow(context: Context, reason: String): List<StepResult> = synchronized(APPLY_LOCK) {
         val config = effectiveConfig(context)
-        val results = applier(context).apply(config)
+        // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
+        val results = if (Mode.isLight(context)) {
+            LightLock.apply(context, config)
+        } else {
+            applier(context).apply(config) + usageAccessStep(context)
+        }
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
         saveApplied(context, config, results)
@@ -76,6 +120,12 @@ object Lock {
         return applyNow(context, reason)
     }
 
+    /** Strong mode: time limits count with usage access, which only the user can grant (Today screen). */
+    private fun usageAccessStep(context: Context): List<StepResult> {
+        if (SyncStore(context).rules()?.timeLimits?.isEmpty != false) return emptyList()
+        return listOf(StepResult("usage access (time limits)", TimeGuard.hasUsageAccess(context), "Plainphone > Today"))
+    }
+
     /** When the lock was first applied on this phone (the setup moment). Null before that. */
     fun firstAppliedAtMs(context: Context): Long? = prefs(context).getLong("first_applied_at", 0L).takeIf { it > 0 }
 
@@ -83,8 +133,14 @@ object Lock {
     fun lockState(context: Context): LockState {
         val p = prefs(context)
         val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
+        val owner = dpm?.isDeviceOwnerApp(context.packageName) == true
+        val hasLimits = SyncStore(context).rules()?.timeLimits?.isEmpty == false
         return LockState(
-            deviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true,
+            mode = if (owner) Mode.STRONG else Mode.LIGHT,
+            protections = runCatching {
+                Protections.read(context, p.getString("dns_in_use", null), needsUsageAccess = hasLimits).toMap()
+            }.getOrNull(),
+            deviceOwner = owner,
             maintenance = isInMaintenanceWindow(context),
             failedPolicies = p.getString("applied_failed", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty(),
             appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
@@ -99,7 +155,7 @@ object Lock {
             .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
             .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") { it.name })
         // Android keeps the old host when the new one does not answer, so only a success changes it.
-        if (results.any { it.name == "private DNS" && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        if (results.any { (it.name == "private DNS" || it.name == "DNS filter (VPN)") && it.ok }) edit.putString("dns_in_use", config.dnsHost)
         val wasOwner = results.none { it.name == "device owner" && !it.ok }
         if (wasOwner && !prefs(context).contains("first_applied_at")) {
             edit.putLong("first_applied_at", now)
@@ -111,7 +167,13 @@ object Lock {
     private fun scheduleNextWindowChange(context: Context) {
         val am = context.getSystemService(AlarmManager::class.java)
         val rules = SyncStore(context).rules()
-        val next = rules?.let { Schedules.nextBoundary(it.schedules, Instant.now(), it.timezone) }
+        val now = Instant.now()
+        val windowChange = rules?.let { Schedules.nextBoundary(it.schedules, now, it.timezone) }
+        // Time limits start again at local midnight: used-up apps come back then.
+        val midnight = rules?.takeIf { !it.timeLimits.isEmpty }?.let {
+            now.atZone(it.timezone).toLocalDate().plusDays(1).atStartOfDay(it.timezone).toInstant()
+        }
+        val next = listOfNotNull(windowChange, midnight).minOrNull()
         if (next == null) {
             am.cancel(windowIntent(context))
             return
@@ -149,7 +211,13 @@ object Lock {
                 synchronized(APPLY_LOCK) {
                     val minutes = ConfigStore(app).load().relockMinutes
                     scheduleRelock(app, minutes)
-                    applier(app).lift().also { saveReport(app, "maintenance unlock for $minutes min", it) }
+                    // Light mode: the guard pauses while the window is open; nothing else to lift.
+                    val lifted = if (Mode.isLight(app)) {
+                        listOf(StepResult("guard paused", true, "$minutes min"))
+                    } else {
+                        applier(app).lift()
+                    }
+                    lifted.also { saveReport(app, "maintenance unlock for $minutes min", it) }
                 }
             }
             done(results)
@@ -161,7 +229,11 @@ object Lock {
         executor.execute {
             val results = guarded("release") {
                 cancelRelock(app)
-                applier(app).release().also { saveReport(app, "released Device Owner", it) }
+                if (Mode.isLight(app)) {
+                    LightRelease.release(app).also { saveReport(app, "light mode switched off", it) }
+                } else {
+                    applier(app).release().also { saveReport(app, "released Device Owner", it) }
+                }
             }
             done(results)
         }
@@ -224,5 +296,9 @@ class PrefsHiddenAppsStore(context: Context) : HiddenAppsStore {
     override fun load(): Set<String> = prefs.getStringSet("hidden_apps", null)?.toSet() ?: emptySet()
     override fun save(packages: Set<String>) {
         prefs.edit().putStringSet("hidden_apps", packages).apply()
+    }
+    override fun loadSuspended(): Set<String> = prefs.getStringSet("suspended_apps", null)?.toSet() ?: emptySet()
+    override fun saveSuspended(packages: Set<String>) {
+        prefs.edit().putStringSet("suspended_apps", packages).apply()
     }
 }

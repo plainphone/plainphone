@@ -19,6 +19,9 @@ import android.widget.TextView
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.light.HomeActivity
+import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.ui.PairingActivity
 
 /**
@@ -29,6 +32,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
     private lateinit var pairButton: Button
+    private lateinit var todayButton: Button
     private var taps = 0
     private var askedForDialer = false
     private var dialerDialogOpen = false
@@ -41,6 +45,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
+        if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
+            startActivity(if (LightSetup.isComplete(this)) HomeActivity.intent(this) else LightSetupActivity.intent(this))
+            finish()
+            return
+        }
         val pad = (20 * resources.displayMetrics.density).toInt()
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -63,6 +73,11 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(PairingActivity.intent(this@MainActivity, authorized = false)) }
         }
         column.addView(pairButton)
+        todayButton = Button(this).apply {
+            text = getString(R.string.today_title)
+            setOnClickListener { startActivity(HomeActivity.intent(this@MainActivity)) }
+        }
+        column.addView(todayButton)
         report = TextView(this).apply {
             typeface = Typeface.MONOSPACE
             textSize = 12f
@@ -166,6 +181,7 @@ class MainActivity : Activity() {
         }
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE
+        todayButton.visibility = if (HomeActivity.hasContent(this)) View.VISIBLE else View.GONE
     }
 
     private fun onVersionTapped() {

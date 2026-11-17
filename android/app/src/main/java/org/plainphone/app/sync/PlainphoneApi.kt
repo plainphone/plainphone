@@ -60,6 +60,9 @@ data class DeviceStatus(
     val dnsHost: String?,
     val appVersionCode: Long? = null,
     val update: org.plainphone.app.update.UpdateReport? = null,
+    val mode: String = "strong",
+    val protections: Map<String, Boolean>? = null,
+    val timeUsed: Map<String, Int>? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -72,7 +75,11 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .put("mode", mode)
         .apply {
+            // Optional fields (docs/sync-api.md): only sent when known.
+            protections?.let { put("protections", JSONObject(it)) }
+            timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
             appVersionCode?.let { put("appVersionCode", it) }
             update?.let { put("update", it.toJson()) }
         }
@@ -98,12 +105,13 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         token: String? = null,
         body: JSONObject? = null,
         headers: Map<String, String> = emptyMap(),
+        readTimeoutMs: Int = 30_000,
     ): Response {
         val conn = URL(base + path).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = method
             conn.connectTimeout = 15_000
-            conn.readTimeout = 30_000
+            conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             conn.instanceFollowRedirects = false // never send the token somewhere else
             conn.setRequestProperty("Accept", "application/json")
@@ -120,6 +128,17 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
             return Response(status, text, conn.getHeaderField("ETag"))
         } finally {
             conn.disconnect()
+        }
+    }
+
+    fun waitForUpdateRequest(token: String, afterMs: Long): Long? {
+        val response = call("GET", "/device/update-request?after=$afterMs", token, readTimeoutMs = 65_000)
+        return when (response.status) {
+            200 -> JSONObject(response.body).getLong("requestedAtMs").also {
+                if (it <= afterMs) throw IOException("update request was already handled")
+            }
+            204 -> null
+            else -> throw HttpError(response.status, response.body)
         }
     }
 

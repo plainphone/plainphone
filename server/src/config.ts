@@ -34,12 +34,29 @@ const schema = z.object({
   /** SHA-256 fingerprints (AA:BB:…) of the Android signing certificates, comma separated. */
   ANDROID_APP_CERT_SHA256: z.string().default(""),
   /**
+   * Web Push to the parent app. Without both keys, notifications are off. Make a pair with
+   * `node server/dist/lib/webpush.js`. Keep the private key secret; changing the pair
+   * invalidates every existing subscription.
+   */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  /** Contact the push services can reach (RFC 8292), a mailto: or https: URL. */
+  VAPID_SUBJECT: z.string().default("mailto:privacy@plainphone.org"),
+  /** Extra push service hosts to allow, comma separated (e.g. "push.example.org,*.example.net"). */
+  PUSH_EXTRA_HOSTS: z.string().default(""),
+  /**
+   * Tell parents when a phone has not been seen for this many hours, unless they chose
+   * another time for the phone. 0 switches the default off.
+   */
+  OFFLINE_ALERT_HOURS: z.coerce.number().int().min(0).max(168).default(12),
+  /**
    * Strong-mode setup (provisioning QR made in the dashboard). The phone downloads the app from
    * `${PUBLIC_URL}/download/android`, which redirects to APK_DOWNLOAD_URL when set, otherwise to
    * the newest APK released on GitHub in APK_RELEASES_REPO. Self-hosters with their own build set
    * APK_DOWNLOAD_URL and APK_SIGNATURE_CHECKSUM (base64url SHA-256 of the signing certificate).
    */
   APK_DOWNLOAD_URL: unsetIfEmpty(z.url().optional()),
+  APK_METADATA_URL: unsetIfEmpty(z.url({ protocol: /^https$/ }).optional()),
   APK_RELEASES_REPO: unsetIfEmpty(z.string().regex(/^[\w.-]+\/[\w.-]+$/).default("plainphone/plainphone")),
   APK_SIGNATURE_CHECKSUM: unsetIfEmpty(
     z
@@ -82,6 +99,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (cfg.MAIL_PROVIDER === "log" && cfg.NODE_ENV === "production") {
     throw new Error("MAIL_PROVIDER=log prints login links and is not allowed in production");
+  }
+  if (Boolean(cfg.VAPID_PUBLIC_KEY) !== Boolean(cfg.VAPID_PRIVATE_KEY)) {
+    throw new Error("set both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, or neither");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");

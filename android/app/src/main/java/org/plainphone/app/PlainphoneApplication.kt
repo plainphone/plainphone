@@ -12,6 +12,8 @@ import android.net.Network
 import android.util.Log
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.time.TimeTicker
 
 /**
  * Wakes the sync when it matters: the screen turns on (rules and "Find" within a minute while
@@ -24,7 +26,10 @@ class PlainphoneApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        runCatching { org.plainphone.app.update.SelfUpdate.onStart(this) }
+            .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
         try {
+            Lock.recoverInstallAsync(this)
             SyncScheduler.ensurePeriodic(this)
             registerReceiver(
                 object : BroadcastReceiver() {
@@ -34,6 +39,23 @@ class PlainphoneApplication : Application() {
                     }
                 },
                 IntentFilter(Intent.ACTION_SCREEN_ON),
+            )
+            TimeTicker.register(this)
+            // The filter went down (revoked or stopped): the parent hears it with this sync, not 15 minutes later.
+            org.plainphone.app.light.vpn.VpnEvents.listener = { event ->
+                if (event == org.plainphone.app.light.vpn.VpnEvent.Stopped) SyncScheduler.now(this, "DNS filter stopped")
+            }
+            // Install window (catalog apps) and new apps: react the moment a package arrives.
+            registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        val pkg = intent.data?.schemeSpecificPart ?: return
+                        if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return // an update, not a new app
+                        InstallWindow.onPackageAdded(context, pkg)
+                        SyncScheduler.now(context, "app installed")
+                    }
+                },
+                IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply { addDataScheme("package") },
             )
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {

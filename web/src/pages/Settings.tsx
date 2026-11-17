@@ -5,12 +5,14 @@ import { Field, errorMessage, LiveStatus, type Notice, PageTitle } from "../comp
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone } from "../lib/api";
 import { useMe, useSession } from "../lib/session";
+import { NotificationsSection } from "./Notifications";
 
 export function SettingsPage() {
   const { t } = useI18n();
   return (
     <>
       <PageTitle>{t("settings.title")}</PageTitle>
+      <NotificationsSection />
       <AccountSection />
     </>
   );

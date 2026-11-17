@@ -41,6 +41,13 @@ data class PolicyConfig(
     val enrollToken: String? = null,
     /** Set when rules from the server apply; null means the QR code alone decides. */
     val server: ServerOverlay? = null,
+    /** Apps whose time is used up today (time limits). Strong mode suspends them. */
+    val timeBlocked: Set<String> = emptySet(),
+    /**
+     * A catalog app being installed right now: app installs are allowed and Play is visible until
+     * the app is installed or the install window ends (docs/app-catalog.md, R2).
+     */
+    val installing: String? = null,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 
@@ -48,6 +55,7 @@ data class PolicyConfig(
         const val DEFAULT_DNS_HOST = "family.adguard-dns.com"
         const val DEFAULT_RELOCK_MINUTES = 30
         const val DEFAULT_SERVER_URL = "https://app.plainphone.org"
+        const val PLAY_STORE = "com.android.vending"
 
         // Extra apps that stay visible on top of phone, SMS, camera, clock,
         // contacts, launcher, settings and keyboard (resolved at runtime per maker).

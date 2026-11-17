@@ -64,6 +64,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair with the setup token from a dashboard QR code (phone)
+         * @description A provisioning QR code made in the dashboard carries a one-time enrollment token
+         *     (`plainphone.enroll` in the admin extras). Right after setup the phone sends it here and gets
+         *     its device token, with no code to type. The token is bound to the phone entry the parent made,
+         *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
+         *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
+         *     working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
+         *     token) pair with a code as before (`POST /device/pairings`).
+         */
+        post: operations["postDeviceEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/rules": {
         parameters: {
             query?: never;
@@ -121,6 +147,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/update-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wait briefly for a parent update request */
+        get: operations["waitForPhoneUpdateRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/status": {
         parameters: {
             query?: never;
@@ -135,6 +178,33 @@ export interface paths {
          */
         put: operations["putDeviceStatus"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The phone's requests and their answers (phone)
+         * @description Open requests and those answered in the last 30 days, newest first.
+         */
+        get: operations["getDeviceRequests"];
+        put?: never;
+        /**
+         * Ask for an app or a contact (phone)
+         * @description The person with the phone asks for an app from the phone's own app list (by package
+         *     name, as reported in `PUT /device/apps`) or for a contact. The parents get a push
+         *     notification. Asking again for the same thing while it is open returns the open
+         *     request (200). At most 10 open requests per phone. See docs/sync-api.md.
+         */
+        post: operations["postDeviceRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -241,6 +311,80 @@ export interface paths {
         head?: never;
         /** Change my language */
         patch: operations["patchMe"];
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My push subscriptions and muted phones */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register this browser or app install
+         * @description `web`: the PushSubscription from the browser. Only the browsers' push services are
+         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
+         *     now, sending to them comes with the native apps. Registering an endpoint that belongs
+         *     to someone else moves it to you (another person signed in on the same device).
+         */
+        post: operations["postNotificationSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/subscriptions/{sid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unregister a browser or app install */
+        delete: operations["deleteNotificationSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to my devices (or one of them) */
+        post: operations["postNotificationTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/households/{hid}": {
@@ -379,6 +523,52 @@ export interface paths {
          * @description Case and separators in the code do not matter. Rate limited.
          */
         post: operations["postPhonesClaim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a phone for setup with a provisioning QR code
+         * @description Makes a phone entry that waits for setup (`pairedAt` is null) and a one-time enrollment
+         *     token, valid 24 hours. The browser builds the provisioning QR code from `provisioning`, the
+         *     token and the maintenance PIN, which it hashes itself (PBKDF2-HMAC-SHA256, 120,000
+         *     iterations, 32 bytes, 16-byte random salt, as `scripts/provisioning-qr.py`). The PIN and
+         *     its hash never reach the server. Rate limited to 30 per day per user.
+         */
+        post: operations["postPhonesEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New setup token for a phone that is not set up yet
+         * @description Replaces earlier tokens for the phone. `409` once the phone is set up.
+         */
+        post: operations["postPhoneEnrollment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -758,6 +948,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn my notifications about this phone on or off */
+        put: operations["putPhoneNotifications"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open requests from the phone */
+        get: operations["getPhoneRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests/{rid}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a request
+         * @description Applies it as a rule change: the app is shown, or the contact is added. On a Self
+         *     phone that waits for the key (202). `name` corrects a contact's name.
+         */
+        post: operations["approvePhoneRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/requests/{rid}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline a request */
+        post: operations["rejectPhoneRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/location": {
         parameters: {
             query?: never;
@@ -769,6 +1031,26 @@ export interface paths {
         get: operations["getPhonesLocation"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the phone to check for a Plainphone update now
+         * @description Sets `update.requestedAt` in the rules and wakes the phone.
+         */
+        post: operations["requestPhoneUpdate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -927,6 +1209,61 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PhoneRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            kind: "app" | "contact";
+            packageName?: string | null;
+            /** @description Contact name */
+            name?: string | null;
+            /** @description Contact number, E.164 */
+            number?: string | null;
+            /** @enum {unknown} */
+            status: "pending" | "approved" | "rejected";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt?: string | null;
+        };
+        PushSubscription: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {unknown} */
+            platform?: "web" | "apns" | "fcm";
+            label?: string | null;
+            /** @description SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned. */
+            endpointHash?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            lastSuccessAt?: string | null;
+        };
+        Enrollment: {
+            phone?: components["schemas"]["PhoneSummary"];
+            enrollment?: {
+                /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
+                token?: string;
+                /** Format: date-time */
+                expiresAt?: string;
+            };
+            /** @description Values for the provisioning QR code */
+            provisioning?: {
+                /** @example org.plainphone.app/.PlainphoneAdminReceiver */
+                adminComponent?: string;
+                /**
+                 * Format: uri
+                 * @description Stable APK address (`/download/android`, outside `/api`); redirects to the newest release.
+                 */
+                downloadUrl?: string;
+                /** @description base64url SHA-256 of the app's signing certificate */
+                signatureChecksum?: string;
+                /** Format: uri */
+                serverUrl?: string;
+                /** @description Private DNS until the phone's own filter host is ready */
+                dnsHost?: string;
+            };
+        };
         Error: {
             error: string;
             issues?: {
@@ -1170,6 +1507,10 @@ export interface components {
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
+            update?: {
+                /** Format: date-time */
+                requestedAt?: string | null;
+            };
             location: {
                 enabled?: boolean;
                 /** @example 5 */
@@ -1207,12 +1548,26 @@ export interface components {
             /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
             dnsReady?: boolean;
             hasLocation?: boolean;
+            /** @description Open requests from the phone (apps, contacts) */
+            openRequests?: number;
+            /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
+            offlineAlertHours?: number | null;
+            offlineAlertHoursDefault?: number;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
         };
         DeviceStatusInput: {
             /** @example 0.4.0 */
             appVersion: string;
+            appVersionCode?: number;
+            update?: {
+                /** @enum {unknown} */
+                state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+                detail: string | null;
+                /** Format: date-time */
+                checkedAt: string | null;
+                latestVersion: string | null;
+            };
             batteryPct: number | null;
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
@@ -1434,6 +1789,59 @@ export interface operations {
             };
         };
     };
+    postDeviceEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @description Random id the phone makes once and keeps; only its hash is stored. */
+                    installId: string;
+                    deviceInfo?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Paired. Store `deviceToken` like a token from a pairing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status?: "paired";
+                        /** Format: uuid */
+                        phoneId?: string;
+                        deviceToken?: string;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            /** @description Unknown token. Fall back to pairing with a code. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     getDeviceRules: {
         parameters: {
             query?: never;
@@ -1535,6 +1943,46 @@ export interface operations {
             };
         };
     };
+    waitForPhoneUpdateRequest: {
+        parameters: {
+            query: {
+                /** @description Last handled request in epoch milliseconds. */
+                after: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A newer request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requestedAtMs: number;
+                    };
+                };
+            };
+            /** @description No newer request before the wait expired */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description The phone already has a waiter */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     putDeviceStatus: {
         parameters: {
             query?: never;
@@ -1556,6 +2004,101 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["Error"];
+        };
+    };
+    getDeviceRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: (components["schemas"]["PhoneRequest"] & {
+                            /** @description Approved on a Self phone, but the change still waits for the key */
+                            waitingForKey?: boolean;
+                            /**
+                             * Format: date-time
+                             * @description When a delay-key change takes effect
+                             */
+                            effectiveAt?: string | null;
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    postDeviceRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    kind: "app";
+                    /** @example com.spotify.music */
+                    packageName: string;
+                } | {
+                    /** @constant */
+                    kind: "contact";
+                    name: string;
+                    /** @description International format, e.g. +4512345678 */
+                    number: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The same thing is already asked for; the open request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneRequest"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneRequest"];
+                };
+            };
+            /** @description The app is not on the phone's app list */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The app is already allowed, or the number is already a contact */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many open requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     putDevicePushToken: {
@@ -1761,6 +2304,146 @@ export interface operations {
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description False when the server has no VAPID keys */
+                        webPushEnabled?: boolean;
+                        /** @description applicationServerKey for PushManager.subscribe */
+                        webPushPublicKey?: string | null;
+                        /** @description 0 means off */
+                        offlineAlertHours?: number;
+                        subscriptions?: components["schemas"]["PushSubscription"][];
+                        mutedPhoneIds?: string[];
+                    };
+                };
+            };
+        };
+    };
+    postNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    platform: "web";
+                    /** Format: uri */
+                    endpoint: string;
+                    keys: {
+                        p256dh: string;
+                        auth: string;
+                    };
+                    label?: string;
+                    /** @description The endpoint of the subscription this one replaces (sent by the service worker after the browser rotated it). That row is deleted and its label kept. */
+                    replaces?: string;
+                } | {
+                    /** @enum {unknown} */
+                    platform: "apns" | "fcm";
+                    token: string;
+                    label?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Registered */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushSubscription"];
+                };
+            };
+            /** @description Unknown push service or invalid keys */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Notifications are not set up on this server */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotificationSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postNotificationTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    subscriptionId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description How many were sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent?: number;
+                    };
+                };
+            };
+            /** @description Too many tests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1979,6 +2662,82 @@ export interface operations {
             };
         };
     };
+    postPhonesEnroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    /** @enum {unknown} */
+                    profile: "child" | "self";
+                    /** Format: uuid */
+                    householdId?: string;
+                    /** @example Europe/Copenhagen */
+                    timezone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Phone entry, token and what the QR code needs */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Household not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
+    postPhoneEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token and what the QR code needs (no `phone`) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already set up */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getPhone: {
         parameters: {
             query?: never;
@@ -2030,6 +2789,8 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     locationEnabled?: boolean;
+                    /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
+                    offlineAlertHours?: number | null;
                 };
             };
         };
@@ -2571,6 +3332,117 @@ export interface operations {
             202: components["responses"]["ChangePending"];
         };
     };
+    putPhoneNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPhoneRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open requests, oldest first, with the app's name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests?: (components["schemas"]["PhoneRequest"] & {
+                            /** Format: uuid */
+                            phoneId?: string;
+                            appLabel?: string | null;
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    approvePhoneRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description No longer open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rejectPhoneRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No longer open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getPhonesLocation: {
         parameters: {
             query?: never;
@@ -2584,6 +3456,33 @@ export interface operations {
         responses: {
             /** @description enabled, requestedAt, location {lat, lon, accuracyM, recordedAt} or null */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    requestPhoneUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requested */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Phone not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

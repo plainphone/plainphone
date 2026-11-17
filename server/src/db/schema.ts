@@ -88,6 +88,13 @@ export const householdInvites = pgTable("household_invites", {
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
   appVersion: string;
+  appVersionCode?: number;
+  update?: {
+    state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    detail: string | null;
+    checkedAt: string | null;
+    latestVersion: string | null;
+  };
   batteryPct: number | null;
   charging: boolean | null;
   deviceOwner: boolean;
@@ -151,6 +158,7 @@ export const phones = pgTable(
      */
     dnsConfirmedAt: timestamp("dns_confirmed_at", { withTimezone: true }),
     locationEnabled: boolean("location_enabled").notNull(),
+    updateRequestedAt: timestamp("update_requested_at", { withTimezone: true }),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
@@ -160,6 +168,10 @@ export const phones = pgTable(
     deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
+    /** When the parents were told the phone is offline; cleared when it is seen again. */
+    offlineAlertedAt: timestamp("offline_alerted_at", { withTimezone: true }),
+    /** Hours of silence before the parents are told; null = the server default, 0 = never. */
+    offlineAlertHours: integer("offline_alert_hours"),
     createdAt: createdAt(),
   },
   (t) => [index("phones_household_idx").on(t.householdId)],
@@ -369,6 +381,71 @@ export const dnsDeletions = pgTable("dns_deletions", {
   lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+/**
+ * Where to send notifications for a parent: one row per browser (Web Push) or, later,
+ * per native app install (APNs/FCM device token). Push messages are end-to-end encrypted
+ * for Web Push; the push service (Google, Apple, Mozilla) only sees the endpoint.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform", { enum: ["web", "apns", "fcm"] }).notNull(),
+    /** Web Push: the push service URL. APNs/FCM: the device token. */
+    endpoint: text("endpoint").notNull().unique(),
+    /** Web Push only: the browser's public key and auth secret (base64url). */
+    p256dh: text("p256dh"),
+    auth: text("auth"),
+    /** A short label the app shows, such as "Chrome on Android". Not used for anything else. */
+    label: text("label"),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+/** Phones a parent does not want notifications about. Absent means on. */
+export const notificationMutes = pgTable(
+  "notification_mutes",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.phoneId] })],
+);
+
+/** Something the person with the phone asks for: an app from its list, or a contact. */
+export const phoneRequests = pgTable(
+  "phone_requests",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["app", "contact"] }).notNull(),
+    packageName: text("package_name"),
+    contactName: text("contact_name"),
+    /** E.164. */
+    contactNumber: text("contact_number"),
+    status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+    /** On a Self phone an approval becomes a change that waits for the key. */
+    changeId: uuid("change_id").references(() => pendingChanges.id, { onDelete: "set null" }),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("phone_requests_phone_status_idx").on(t.phoneId, t.status)],
+);
 
 /**
  * One-time enrollment token in a provisioning QR code made in the dashboard. The phone sends it

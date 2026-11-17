@@ -31,7 +31,7 @@ class UpdateReceiver : BroadcastReceiver() {
             }
             ACTION_LEASE_EXPIRED -> {
                 val pending = goAsync()
-                Lock.applyAsync(context, "install lease expired") { pending.finish() }
+                Lock.recoverInstallAsync(context) { pending.finish() }
             }
         }
     }
@@ -66,14 +66,16 @@ class UpdateReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0,
         )
 
-        fun scheduleLeaseExpiry(context: Context, atMs: Long) {
+        fun scheduleLeaseExpiry(context: Context, holder: String, atMs: Long) {
             val intent = PendingIntent.getBroadcast(
                 context,
                 3,
-                Intent(context, UpdateReceiver::class.java).setAction(ACTION_LEASE_EXPIRED),
+                Intent(context, UpdateReceiver::class.java).setAction(ACTION_LEASE_EXPIRED)
+                    .setData(android.net.Uri.fromParts("plainphone", holder, null)),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            context.getSystemService(AlarmManager::class.java)?.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, intent)
+            checkNotNull(context.getSystemService(AlarmManager::class.java))
+                .setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)
         }
     }
 }

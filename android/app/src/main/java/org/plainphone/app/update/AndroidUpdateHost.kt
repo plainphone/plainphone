@@ -2,7 +2,6 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.update
 
-import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -37,7 +36,6 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
     override fun nowMs() = System.currentTimeMillis()
 
     override fun installed(): ApkInfo = apkInfo(Compat.packageInfo(pm, context.packageName, certFlags()))
-        ?: error("cannot read our own package")
 
     override fun isDeviceOwner(): Boolean =
         context.getSystemService(android.app.admin.DevicePolicyManager::class.java)?.isDeviceOwnerApp(context.packageName) == true
@@ -51,11 +49,21 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
     }
 
     override fun fetchLatest(): ReleaseInfo? {
-        val conn = open("$serverUrl/download/android/latest", followRedirects = false)
+        val conn = open("$serverUrl/download/android/latest.json", followRedirects = false)
         try {
             conn.setRequestProperty("Accept", "application/json")
             return when (val status = conn.responseCode) {
-                200 -> ReleaseInfo.parse(conn.inputStream.bufferedReader().use { it.readText().take(MAX_METADATA) })
+                200 -> ReleaseInfo.parse(conn.inputStream.use { stream ->
+                    val out = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(1024)
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count == -1) break
+                        if (out.size() + count > MAX_METADATA) throw IOException("release metadata is too large")
+                        out.write(buffer, 0, count)
+                    }
+                    out.toString(Charsets.UTF_8.name())
+                })
                 404 -> null // older server, or a self-hoster's own build without metadata
                 else -> throw IOException("release metadata: HTTP $status")
             }
@@ -106,6 +114,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
             return "Android refused the install session: ${e.message}"
         }
         val waiter = UpdateReceiver.expect(sessionId)
+        var succeeded = false
         try {
             installer.openSession(sessionId).use { session ->
                 session.openWrite("plainphone.apk", 0, apk.length()).use { out ->
@@ -114,30 +123,29 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                 }
                 session.commit(UpdateReceiver.statusIntent(context, sessionId).intentSender)
             }
-        } catch (e: Exception) {
+            // On success Android usually kills this process before the answer arrives.
+            val result = waiter.await(INSTALL_TIMEOUT_MIN, TimeUnit.MINUTES)
+                ?: return "no answer from the installer within $INSTALL_TIMEOUT_MIN minutes"
+            succeeded = result.status == PackageInstaller.STATUS_SUCCESS
+            return if (succeeded) null else "status ${result.status}: ${result.message ?: "no message"}"
+        } finally {
             UpdateReceiver.forget(sessionId)
-            runCatching { installer.abandonSession(sessionId) }
-            return "could not write the install session: ${e.message}"
-        }
-        // On success Android usually kills this process before the answer arrives.
-        val result = waiter.await(INSTALL_TIMEOUT_MIN, TimeUnit.MINUTES)
-        UpdateReceiver.forget(sessionId)
-        return when {
-            result == null -> "no answer from the installer within $INSTALL_TIMEOUT_MIN minutes"
-            result.status == PackageInstaller.STATUS_SUCCESS -> null
-            else -> "status ${result.status}: ${result.message ?: "no message"}"
+            if (!succeeded) runCatching { installer.abandonSession(sessionId) }
         }
     }
 
     override fun promptUpdate(latest: ReleaseInfo) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, context.getString(R.string.channel_updates), NotificationManager.IMPORTANCE_DEFAULT),
+            NotificationChannel(CHANNEL, context.getString(R.string.channel_updates), NotificationManager.IMPORTANCE_LOW),
         )
         val open = PendingIntent.getActivity(
             context,
             0,
-            Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_VIEW, Uri.parse(latest.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
@@ -161,23 +169,11 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun certFlags(): Int =
-        if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
-        else PackageManager.GET_SIGNATURES
+    private fun certFlags() = PackageManager.GET_SIGNING_CERTIFICATES
 
-    @SuppressLint("PackageManagerGetSignatures") // compared as a whole set, never "any one matches"
-    private fun apkInfo(info: PackageInfo): ApkInfo? {
-        val certs = signingCerts(info)
-        return ApkInfo(info.packageName ?: return null, info.longVersionCode, info.versionName ?: "", certs)
-    }
-
-    @Suppress("DEPRECATION")
-    private fun signingCerts(info: PackageInfo): Set<String> {
-        // signingInfo is not filled for APK files on some Android versions; signatures is.
-        val signing = info.signingInfo
-        val sigs = signing?.apkContentsSigners?.takeIf { it.isNotEmpty() } ?: info.signatures
-        return sigs.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
+    private fun apkInfo(info: PackageInfo): ApkInfo {
+        val certs = info.signingInfo?.apkContentsSigners.orEmpty().map { sha256Hex(it.toByteArray()) }.toSet()
+        return ApkInfo(info.packageName, info.longVersionCode, info.versionName ?: "", certs)
     }
 
     companion object {

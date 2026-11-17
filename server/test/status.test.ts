@@ -21,6 +21,34 @@ const report = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+describe("phone update requests", () => {
+  it("delivers a parent request in the rules and returns the phone's outcome", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const outsider = await signIn(h, "outsider@example.org");
+    expect((await outsider.post(`${path}/update`)).status).toBe(404);
+    const before = await device.get("/api/device/rules");
+    const waiting = device.get("/api/device/update-request?after=0");
+    expect(before.json.update.requestedAt).toBeNull();
+    await device.put("/api/device/push-token", { fcmToken: "update-test" });
+    expect((await parent.post(`${path}/update`)).status).toBe(202);
+    expect(h.push.sent).toEqual([{ token: "update-test", reason: "rules" }]);
+    expect(await waiting).toMatchObject({ status: 200, json: { requestedAtMs: h.clock.now.getTime() } });
+    const rules = await device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
+    expect(rules.status).toBe(200);
+    expect(rules.json.update.requestedAt).toBe(h.clock.now.toISOString());
+    const update = {
+      state: "failed",
+      detail: "download interrupted",
+      checkedAt: h.clock.now.toISOString(),
+      latestVersion: "0.4.1",
+    };
+    expect((await device.put("/api/device/status", report({ appVersionCode: 42, update }))).status).toBe(204);
+    expect((await parent.get(path)).json.status).toMatchObject({ appVersion: "0.4.0", appVersionCode: 42, update });
+  });
+});
+
 describe("DNS readiness", () => {
   it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
     const parent = await signIn(h, "parent@example.org");
