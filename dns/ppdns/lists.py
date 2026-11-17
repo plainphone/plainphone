@@ -15,6 +15,7 @@ import dataclasses
 import logging
 import os
 import tempfile
+import time
 import urllib.request
 
 log = logging.getLogger("ppdns.lists")
@@ -157,18 +158,38 @@ def retag_file(path: str, tag: str) -> bool:
         old = first[len(_HEADER):].strip()
         if old == tag:
             return False
-        rest = fh.readlines()
-    suffix = f"ctag={old}\n"
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".retag.")
-    with os.fdopen(fd, "w", encoding="utf-8") as out:
-        out.write(f"{_HEADER}{tag}\n")
-        out.writelines(line[: -len(suffix)] + f"ctag={tag}\n" if line.endswith(suffix) else line for line in rest)
-    os.chmod(tmp, 0o644)
-    os.replace(tmp, path)
+        suffix = f"ctag={old}\n"
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".retag.")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as out:
+                out.write(f"{_HEADER}{tag}\n")
+                out.writelines(
+                    line[:-len(suffix)] + f"ctag={tag}\n" if line.endswith(suffix) else line
+                    for line in fh
+                )
+            os.chmod(tmp, 0o644)
+            # A retag is not a download. Keep the upstream copy's age.
+            stat = os.fstat(fh.fileno())
+            os.utime(tmp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
     return True
 
 
-def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen) -> dict[str, str]:
+def _fresh(path: str, tag: str, max_age: float) -> bool:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            age = time.time() - os.fstat(fh.fileno()).st_mtime
+            return 0 <= age < max_age and fh.readline() == f"{_HEADER}{tag}\n" and bool(fh.readline())
+    except (OSError, UnicodeError):
+        return False
+
+
+def build(
+    lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlopen, max_age: float = 0,
+) -> dict[str, str]:
     """Download and rewrite every tagged list. Returns {key: "ok"|"kept"|"empty"}.
 
     A failed download keeps the previous file. If there is no previous file an
@@ -180,6 +201,10 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
         if source.tag is None:
             continue
         target = local_path(lists_dir, source)
+        if max_age > 0 and _fresh(target, source.tag, max_age):
+            result[source.key] = "kept"
+            continue
+        tmp = None
         try:
             request = urllib.request.Request(source.url, headers={"User-Agent": "plainphone-ppdns"})
             with opener(request, timeout=timeout) as response:
@@ -191,7 +216,6 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
                         out.write(rule)
                         count += 1
             if count < 2:
-                os.unlink(tmp)
                 raise ValueError("downloaded list has no rules")
             os.chmod(tmp, 0o644)
             os.replace(tmp, target)
@@ -210,4 +234,7 @@ def build(lists_dir: str, *, timeout: float = 120.0, opener=urllib.request.urlop
                 with open(target, "w", encoding="utf-8") as out:
                     out.write("! placeholder until the first successful download\n")
                 result[source.key] = "empty"
+        finally:
+            if tmp is not None and os.path.exists(tmp):
+                os.unlink(tmp)
     return result

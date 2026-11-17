@@ -200,6 +200,26 @@ class TagRulesTest(unittest.TestCase):
         self.assertTrue(set(mine) <= allowed)
         self.assertTrue(all(c.tag is None or c.tag in mine for c in profiles.CATEGORY_RULES.values()))
 
+    def test_init_reuses_only_fresh_tagged_downloads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sources = [s for s in lists.SOURCES if s.tag]
+            calls = []
+
+            def opener(request, **kwargs):
+                calls.append(request.full_url)
+                return io.BytesIO(b"example.org\n")
+
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [s.url for s in sources])
+            calls.clear()
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [])
+            os.utime(lists.local_path(tmp, sources[0]), (1, 1))
+            with open(lists.local_path(tmp, sources[1]), "w", encoding="utf-8") as out:
+                out.write("! placeholder until the first successful download\n")
+            lists.build(tmp, opener=opener, max_age=3600)
+            self.assertEqual(calls, [s.url for s in sources[:2]])
+
     def test_old_gambling_list_is_retagged_when_the_download_fails(self):
         def broken(*_args, **_kwargs):
             raise OSError("offline")
