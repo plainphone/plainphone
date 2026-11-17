@@ -132,11 +132,11 @@ describe("words for the settings", () => {
   it("has a name and a line of help for every setting, in both languages", () => {
     for (const spec of SETTING_SPECS) {
       for (const part of ["name", "desc"]) {
-        const key = `settings.${spec.key}.${part}`;
+        const key = `phoneSettings.${spec.key}.${part}`;
         expect(en, key).toHaveProperty([key]);
         expect(da, key).toHaveProperty([key]);
       }
-      expect(en, spec.key).toHaveProperty([`settings.group.${spec.group}`]);
+      expect(en, spec.key).toHaveProperty([`phoneSettings.group.${spec.group}`]);
     }
   });
 
@@ -144,8 +144,8 @@ describe("words for the settings", () => {
     for (const spec of SETTING_SPECS) {
       const picks = (["preset", "locked"] as const).some((m) => pickable(spec, m));
       if (picks) {
-        expect(en, spec.key).toHaveProperty([`settings.value.${spec.key}`]);
-        expect(da, spec.key).toHaveProperty([`settings.value.${spec.key}`]);
+        expect(en, spec.key).toHaveProperty([`phoneSettings.value.${spec.key}`]);
+        expect(da, spec.key).toHaveProperty([`phoneSettings.value.${spec.key}`]);
       }
     }
   });

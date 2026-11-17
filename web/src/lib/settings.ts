@@ -108,32 +108,32 @@ export function savesAtOnce(spec: SettingSpec, mode: SettingMode): boolean {
 }
 
 export function settingName(key: SettingKey, t: T): string {
-  return t(`settings.${key}.name` as MessageKey);
+  return t(`phoneSettings.${key}.name` as MessageKey);
 }
 
 /** A value in words, e.g. 300 as "5 minutes" and "noNewDevices" as "Only paired devices". */
 export function formatSettingValue(key: SettingKey, value: SettingValue, t: T): string {
   if (typeof value === "number") {
     if (key === "screenTimeout") {
-      if (value < 60) return t("settings.val.seconds", { n: value });
+      if (value < 60) return t("phoneSettings.val.seconds", { n: value });
       const m = Math.round(value / 60);
-      return m === 1 ? t("settings.val.oneMinute") : t("settings.val.minutes", { n: m });
+      return m === 1 ? t("phoneSettings.val.oneMinute") : t("phoneSettings.val.minutes", { n: m });
     }
-    return t("settings.val.percent", { n: value });
+    return t("phoneSettings.val.percent", { n: value });
   }
   switch (value) {
     case "on":
-      return t("settings.val.on");
+      return t("phoneSettings.val.on");
     case "off":
-      return t("settings.val.off");
+      return t("phoneSettings.val.off");
     case "auto":
-      return t("settings.val.auto");
+      return t("phoneSettings.val.auto");
     case "muted":
-      return t("settings.val.muted");
+      return t("phoneSettings.val.muted");
     case "noNewDevices":
-      return t("settings.val.paired");
+      return t("phoneSettings.val.paired");
     case "plainphone":
-      return t("settings.val.plainphone");
+      return t("phoneSettings.val.plainphone");
     default:
       return value;
   }

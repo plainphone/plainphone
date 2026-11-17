@@ -51,26 +51,26 @@ export function PhoneSettingsPage() {
 
   return (
     <>
-      <PageTitle sub={t("settings.intro")}>{t("settings.title")}</PageTitle>
+      <PageTitle sub={t("phoneSettings.intro")}>{t("phoneSettings.title")}</PageTitle>
       {light && (
         <p className="notice notice-info" role="status">
-          {t("settings.lightNote")}
+          {t("phoneSettings.lightNote")}
         </p>
       )}
-      {phone.profile === "self" && <p className="help">{t("settings.selfNote")}</p>}
+      {phone.profile === "self" && <p className="help">{t("phoneSettings.selfNote")}</p>}
       <details className="details details-lead">
-        <summary>{t("settings.explainTitle")}</summary>
+        <summary>{t("phoneSettings.explainTitle")}</summary>
         <ul className="explain">
-          <li>{t("settings.explainFree", { free: t(phone.profile === "self" ? "settings.mode.freeSelf" : "settings.mode.freeChild") })}</li>
-          <li>{t("settings.explainPreset")}</li>
-          <li>{t("settings.explainLocked")}</li>
+          <li>{t("phoneSettings.explainFree", { free: t(phone.profile === "self" ? "phoneSettings.mode.freeSelf" : "phoneSettings.mode.freeChild") })}</li>
+          <li>{t("phoneSettings.explainPreset")}</li>
+          <li>{t("phoneSettings.explainLocked")}</li>
         </ul>
       </details>
       <LoadGate res={res}>
         {(settings) =>
           SETTING_GROUPS.map((group) => (
             <section key={group} className="section" aria-labelledby={`group-${group}`}>
-              <h2 id={`group-${group}`}>{t(`settings.group.${group}` as MessageKey)}</h2>
+              <h2 id={`group-${group}`}>{t(`phoneSettings.group.${group}` as MessageKey)}</h2>
               <ul className="list">
                 {SETTING_SPECS.filter((s) => s.group === group).map((spec) => (
                   <SettingRow
@@ -113,12 +113,12 @@ function SettingRow({
   const shown = draft ?? saved;
   const choices = pickable(spec, shown.mode);
   const dirty = draft !== null && !sameSetting(draft, saved);
-  const freeLabel = t(phone.profile === "self" ? "settings.mode.freeSelf" : "settings.mode.freeChild");
+  const freeLabel = t(phone.profile === "self" ? "phoneSettings.mode.freeSelf" : "phoneSettings.mode.freeChild");
 
   const modeOptions: PickOption<SettingMode>[] = modesOf(spec).map((mode) => ({
     value: mode,
     quiet: mode === "free",
-    label: mode === "free" ? freeLabel : t(mode === "preset" ? "settings.mode.preset" : "settings.mode.locked"),
+    label: mode === "free" ? freeLabel : t(mode === "preset" ? "phoneSettings.mode.preset" : "phoneSettings.mode.locked"),
   }));
 
   async function commit(next: PhoneSetting) {
@@ -152,7 +152,7 @@ function SettingRow({
         {waiting && <span className="tag tag-waiting">{t("pending.waitingTag")}</span>}
       </div>
       <p className="help" id={`${id}-d`}>
-        {t(`settings.${spec.key}.desc` as MessageKey)}
+        {t(`phoneSettings.${spec.key}.desc` as MessageKey)}
       </p>
       <PickGroup
         name={`${id}-mode`}
@@ -165,7 +165,7 @@ function SettingRow({
       />
       {choices && (
         <div className="setting-value">
-          <label htmlFor={`${id}-v`}>{t(`settings.value.${spec.key}` as MessageKey)}</label>
+          <label htmlFor={`${id}-v`}>{t(`phoneSettings.value.${spec.key}` as MessageKey)}</label>
           <select id={`${id}-v`} value={String(shown.value)} disabled={disabled} onChange={(e) => pickValue(e.target.value)}>
             {choices.map((c) => (
               <option key={String(c)} value={String(c)}>
@@ -185,7 +185,7 @@ function SettingRow({
           </button>
         </div>
       )}
-      {spec.key === "location" && phone.locationEnabled && <p className="help setting-note">{t("settings.findNote")}</p>}
+      {spec.key === "location" && phone.locationEnabled && <p className="help setting-note">{t("phoneSettings.findNote")}</p>}
     </li>
   );
 }
