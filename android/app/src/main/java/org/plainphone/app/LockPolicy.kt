@@ -44,8 +44,9 @@ object LockPolicy {
         // Date/time tricks against schedules (phase 3) and certificate checks.
         add(UserManager.DISALLOW_CONFIG_DATE_TIME)
         // Phase 2: the default phone and SMS app (Plainphone) cannot be changed in Settings (Android 14+).
-        // Older phones: the maker's phone and SMS apps are hidden, so they cannot be chosen; a switch back to
-        // the system dialer shows up as a failed "default phone app" step in the parent's status.
+        // Older phones: the maker's extra dialers and SMS apps are hidden, but the system dialer is not (emergency
+        // fallback) and can be picked in Settings. Calls are then unfiltered until the role is back; the switch
+        // shows up as a failed "default phone app" step in the parent's status.
         if (sdkInt >= 34) add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
     }
 
@@ -81,13 +82,23 @@ object LockPolicy {
      * started from it still pass through Plainphone's call service, which
      * ends calls to numbers that are not approved.
      */
-    fun telephonyAppsToHide(apps: TelephonyApps, ownPackage: String, holdsDialer: Boolean, holdsSms: Boolean): Set<String> {
+    fun telephonyAppsToHide(
+        apps: TelephonyApps,
+        ownPackage: String,
+        holdsDialer: Boolean,
+        holdsSms: Boolean,
+        sdkInt: Int = 34,
+    ): Set<String> {
         val hide = mutableSetOf<String>()
         // Without a known system dialer we cannot tell which one Android falls back to: hide none.
-        if (holdsDialer && apps.systemDialer != null) hide += apps.dialers
+        // Android 10 to 13 cannot lock the default apps, so the extra dialers stay hidden even when the
+        // phone role was moved away from Plainphone: then only the system dialer can be picked in Settings.
+        if ((holdsDialer || sdkInt < 34) && apps.systemDialer != null) hide += apps.dialers
         if (holdsSms) hide += apps.smsApps
         hide -= ownPackage
         apps.systemDialer?.let { hide -= it }
+        // Never hide the app that holds the phone role right now: Android would have no phone app.
+        apps.defaultDialer?.let { hide -= it }
         return hide
     }
 

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.os.Build
 import android.os.Parcelable
+import android.telephony.SmsManager
 
 /**
  * Version switches for platform calls whose modern form needs a newer Android than the
@@ -54,6 +56,18 @@ internal object Compat {
         } else {
             @Suppress("DEPRECATION")
             pm.getApplicationInfo(pkg, flags)
+        }
+
+    /**
+     * SmsManager is only registered as a system service from Android 12; before that
+     * getSystemService(SmsManager::class.java) returns null and getDefault() is the way.
+     */
+    fun smsManager(context: Context): SmsManager =
+        if (Build.VERSION.SDK_INT >= 31) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            SmsManager.getDefault()
         }
 
     inline fun <reified T : Parcelable> parcelableExtra(intent: Intent, name: String): T? =

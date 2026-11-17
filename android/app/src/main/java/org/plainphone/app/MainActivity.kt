@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var pairButton: Button
     private var taps = 0
     private var askedForDialer = false
+    private var dialerDialogOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,10 +106,18 @@ class MainActivity : Activity() {
         val roles = getSystemService(RoleManager::class.java) ?: return false
         if (!roles.isRoleAvailable(RoleManager.ROLE_DIALER)) return false
         askedForDialer = true
-        return runCatching {
+        dialerDialogOpen = runCatching {
             @Suppress("DEPRECATION") // A plain Activity without the AndroidX result API.
             startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_DIALER), REQUEST_DIALER)
         }.isSuccess
+        return dialerDialogOpen
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Ask again the next time Plainphone is opened (the activity is singleTask and survives Home),
+        // but not when it is our own dialog that covers the screen.
+        if (!dialerDialogOpen) askedForDialer = false
     }
 
     @Deprecated("Plain Activity result callback.")
@@ -116,6 +125,7 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         // onResume follows and re-applies the lock: with the role held the maker's phone apps get hidden.
+        if (requestCode == REQUEST_DIALER) dialerDialogOpen = false
         if (requestCode == REQUEST_DIALER) Log.i("Plainphone", "phone app dialog: ${if (resultCode == RESULT_OK) "accepted" else "declined"}")
     }
 

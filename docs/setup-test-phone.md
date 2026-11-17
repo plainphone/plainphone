@@ -19,9 +19,9 @@ Total time: 10 to 15 minutes.
 | | Android 14+ | Android 10 to 13 |
 |---|---|---|
 | Lock, hidden apps, DNS filter, SMS contacts, sync, schedules, Find | yes | yes |
-| Plainphone becomes the phone app | by itself | tap **Set as default** in the dialog that appears right after setup |
-| Phone app locked in Settings | yes | no: the change is shown as a failure in the dashboard |
-| App cloning blocked | yes | not needed (no cloning profiles) |
+| Plainphone becomes the phone app | by itself | tap **Set as default** in Android's dialog (during setup on 12 and 13, right after it on 10 and 11) |
+| Phone app locked in Settings | yes | no: someone can switch back to the built-in dialer, and calls are then unfiltered until Plainphone is chosen again. The dashboard shows it as a failure |
+| App cloning blocked | yes | not blocked by Plainphone (maker features like Dual Messenger exist): test with the bypass checklist |
 | Factory reset protection with chosen accounts | yes | Android 11 to 13; not on Android 10 |
 
 Android 9 and older cannot be used: the phone says "Can't set up device" after the scan.
@@ -53,7 +53,7 @@ If the phone says "Can't set up device" or "The app couldn't be downloaded", see
 1. Open the **Plainphone** app. It should say "Locked: Plainphone is Device Owner".
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.
 3. The home screen should only show phone, messages, camera, clock, contacts, settings, Chrome, Maps and a few small apps. Play Store, YouTube, Gmail and games are gone.
-4. Android 10 to 13: right after setup Android asks "Set Plainphone as your default phone app?". Tap **Set as default**. If you miss it, open Plainphone again and it asks again.
+4. Android 10 to 13: Android asks "Set Plainphone as your default phone app?" (during setup on Android 12 and 13, when Plainphone opens after setup on 10 and 11). Tap **Set as default**. If you miss it, open Plainphone again and it asks again. If "Don't ask again" was ticked: Settings → Apps → Default apps → Phone app → Plainphone.
 5. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
 6. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 7), the list comes from the dashboard and is read-only here.
 7. Phase 4: right after setup the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), choose *Add phone* and scan the code. The phone says "Paired" and the status screen shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If you missed the pairing screen, use the button on the status screen (first hour) or the maintenance screen.

@@ -168,7 +168,7 @@ class PolicyApplier(
         // must not be able to open a way around approved contacts by showing one of them.
         val parentAllowed = if (config.server != null) emptySet() else config.allowedPackages - PolicyConfig.DEFAULT_ALLOWED_PACKAGES
         val telephony = LockPolicy.telephonyAppsToHide(
-            device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS),
+            device.telephonyApps(), device.ownPackage, device.holdsRole(ROLE_DIALER), device.holdsRole(ROLE_SMS), sdkInt,
         ) - parentAllowed
         // During school time and bedtime config.allowedPackages is already narrowed to the window's
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.

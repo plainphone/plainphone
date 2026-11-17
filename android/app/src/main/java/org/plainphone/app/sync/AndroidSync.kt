@@ -107,7 +107,7 @@ class LocationReader(private val context: Context) {
         if (!lm.isLocationEnabled) return null
         val known = lm.allProviders.toSet()
         val providers = buildList {
-            // LocationManager.FUSED_PROVIDER is only public from Android 12, but the "fused" provider is older.
+            // LocationManager.FUSED_PROVIDER is public from Android 12; older versions do not list it in allProviders.
             if (FUSED in known) add(FUSED)
             if (precise) add(LocationManager.GPS_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
@@ -171,8 +171,13 @@ class LocationReader(private val context: Context) {
             lm.removeUpdates(listener)
             thread.quitSafely()
         }
-        @Suppress("DEPRECATION") // The single-shot API before getCurrentLocation (Android 11).
-        lm.requestSingleUpdate(provider, listener, thread.looper)
+        try {
+            @Suppress("DEPRECATION") // The single-shot API before getCurrentLocation (Android 11).
+            lm.requestSingleUpdate(provider, listener, thread.looper)
+        } catch (e: RuntimeException) {
+            thread.quitSafely()
+            throw e
+        }
     }
 
     private fun Location.toFix() = LocationFix(latitude, longitude, if (hasAccuracy()) accuracy else null, time)

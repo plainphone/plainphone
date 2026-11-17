@@ -53,9 +53,11 @@ class OlderAndroidTest {
         val step = results.single { it.name == "default phone app" }
         assertThat(step.ok).isFalse()
         assertThat(step.detail).contains("Android 10")
-        // SMS works silently from Android 10, and the maker's dialer stays until Plainphone holds the phone role.
+        // SMS works silently from Android 10. The maker's extra dialer is hidden even without the phone role
+        // (Settings cannot be locked below Android 14); the system dialer stays as the emergency fallback.
         assertThat(device.smsPackage).isEqualTo(own)
-        assertThat(device.hidden).doesNotContain("com.oneplus.dialer")
+        assertThat(device.hidden).contains("com.oneplus.dialer")
+        assertThat(device.hidden).doesNotContain("com.google.android.dialer")
         assertThat(device.hidden).contains("com.google.android.apps.messaging")
         assertThat(device.hidden).contains("com.game")
     }
@@ -99,5 +101,30 @@ class OlderAndroidTest {
         assertThat(results.map { it.name }).contains("clear FRP policy")
         assertThat(device.dialerPackage).isNull()
         assertThat(device.owner).isFalse()
+    }
+
+    @Test
+    fun `after the role moved away on Android 13 only the system dialer can be picked`() {
+        val device = device().apply {
+            roles += FakeDevice.SMS
+            telephony = telephony.copy(defaultDialer = "com.google.android.dialer")
+        }
+        val results = PolicyApplier(device, MemoryHiddenStore(), sdkInt = 33).apply(config)
+        assertThat(results.single { it.name == "default phone app" }.ok).isFalse()
+        assertThat(device.hidden).contains("com.oneplus.dialer")
+        assertThat(device.hidden).doesNotContain("com.google.android.dialer")
+    }
+
+    @Test
+    fun `the app that holds the phone role is never hidden`() {
+        val apps = TelephonyApps(
+            dialers = setOf("com.google.android.dialer", "com.oneplus.dialer", own),
+            smsApps = emptySet(),
+            systemDialer = "com.google.android.dialer",
+            defaultDialer = "com.oneplus.dialer",
+        )
+        assertThat(LockPolicy.telephonyAppsToHide(apps, own, holdsDialer = false, holdsSms = false, sdkInt = 31)).isEmpty()
+        // Android 14 keeps the old rule: nothing is hidden until Plainphone holds the role.
+        assertThat(LockPolicy.telephonyAppsToHide(apps.copy(defaultDialer = null), own, holdsDialer = false, holdsSms = false, sdkInt = 34)).isEmpty()
     }
 }

@@ -66,6 +66,8 @@ data class TelephonyApps(
     val systemDialer: String?,
     /** SMS apps that came with the phone; preferred when the SMS role is given back. */
     val systemSmsApps: Set<String> = emptySet(),
+    /** TelecomManager.getDefaultDialerPackage(): the app that holds the phone role right now. */
+    val defaultDialer: String? = null,
 )
 
 class AndroidDeviceControls(private val context: Context) : DeviceControls {
@@ -207,6 +209,7 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
             dialers = dialScreens intersect inCall,
             smsApps = smsReceivers,
             systemDialer = context.getSystemService(TelecomManager::class.java)?.systemDialerPackage,
+            defaultDialer = context.getSystemService(TelecomManager::class.java)?.defaultDialerPackage,
             systemSmsApps = smsReceivers.filter(::isSystemApp).toSet(),
         )
     }

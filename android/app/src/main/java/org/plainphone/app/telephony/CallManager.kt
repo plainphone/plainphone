@@ -71,7 +71,6 @@ object CallManager {
 
     @RequiresApi(34)
     fun onEndpointChanged(endpoint: CallEndpoint) {
-        Endpoints.current = endpoint
         _audio.value = _audio.value.copy(onSpeaker = endpoint.endpointType == CallEndpoint.TYPE_SPEAKER)
     }
 
@@ -121,7 +120,6 @@ object CallManager {
     /** Android 14+ call endpoints. Only touched behind a version check, so the class never loads on older phones. */
     @RequiresApi(34)
     private object Endpoints {
-        var current: CallEndpoint? = null
         var available: List<CallEndpoint> = emptyList()
 
         fun setSpeaker(service: PlainphoneInCallService, on: Boolean) {

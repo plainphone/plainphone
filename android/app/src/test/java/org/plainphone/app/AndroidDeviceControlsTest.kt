@@ -98,5 +98,20 @@ class AndroidDeviceControlsApi29Test : AndroidDeviceControlsTest() {
     fun `the silent phone-app call refuses instead of crashing on Android 10`() {
         AndroidDeviceControls(context).setDefaultDialer(context.packageName)
     }
+
+    @Test
+    fun `SMS manager is found on Android 10 (no system service before Android 12)`() {
+        assertThat(Compat.smsManager(context)).isNotNull()
+    }
 }
 
+/** Android 11: still no SmsManager system service. */
+@Config(sdk = [30])
+class AndroidDeviceControlsApi30Test : AndroidDeviceControlsTest() {
+    override val sdk = 30
+
+    @Test
+    fun `SMS manager is found on Android 11`() {
+        assertThat(Compat.smsManager(context)).isNotNull()
+    }
+}

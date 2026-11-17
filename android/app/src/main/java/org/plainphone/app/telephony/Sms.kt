@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import org.plainphone.app.Compat
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -160,7 +161,7 @@ object SmsSender {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         try {
-            val sms = context.getSystemService(SmsManager::class.java)
+            val sms = Compat.smsManager(context)
             val parts = sms.divideMessage(text)
             // Only the last part reports back; the message counts as sent when all parts are.
             val intents = ArrayList<PendingIntent?>(parts.size).apply {
