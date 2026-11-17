@@ -1,0 +1,54 @@
+# Parent dashboard UX review
+
+## Scope and method
+
+Reviewed the production PWA build in sandboxed Chromium against the local Hono server and an isolated, migrated PostgreSQL database. The fixture followed the magic-link and device pairing flow from `server/test/e2e/phone-sync-server.ts` and `server/test/harness.ts`. It used synthetic child, self and pending-setup phones, installed apps, a contact, screen-time usage and limits, and a last known position. No actual phone was connected.
+
+The screenshot matrix covers 390 and 1280 CSS px, light and dark mode, and 100% and 200% root text size. The browser used Danish and the Copenhagen timezone. External requests were blocked, so the location screen shows the map fallback, the position's timestamp and accuracy, and the route links. Service workers were disabled for repeatable captures. This is a desktop-browser text resize check with narrow and wide viewports. Native browser text settings, service-worker behavior and screen-reader speech require separate device checks.
+
+The review used [WCAG 2.2](https://www.w3.org/TR/WCAG22/) AA for contrast, resize, focus and keyboard criteria, plus a project target of 44 CSS px for controls. The design principles arrived on main during the review. The changes follow the guidance on [visible location sharing and neutral language](design-principles.md). The dashboard still explains child-visible sharing and its time limits. This branch adds no translations.
+
+## Before and after
+
+Full-page captures for the six priority screens and Key are in [the screenshot directory](img/ux-review/). Filenames include stage, page, width, theme and text percentage. The route assessment below describes the wider screenshot set.
+
+| Screen | Before | After |
+| --- | --- | --- |
+| Phones | The title and add button aligned to different baselines. Unpaired phones also said they had never checked in. | The list starts below a single header row. “Not set up” is the only sync-related status shown for an unpaired phone. |
+| Phone overview | Routine device diagnostics pushed links to everyday controls down the page. | Everyday links lead, in one column on mobile and two on desktop. A reported lock problem still precedes those links. |
+| Apps | The catalog's large entry row competed with search and the installed apps. | The catalog is a compact secondary action near the title. Empty search results are announced through a status region. |
+| Contacts | An information panel displaced the actual contact list. The form looked like a second list card. | Contacts come first, with a visible note explaining the limits of the list. The form has a simple divider, and contact actions can wrap. |
+| Screen time | Today's usage looked like an editable part of the form. The weekday expander looked like a plain link. | Usage comes before the controls. The weekday expander shows its native open or closed marker and works with the keyboard. |
+| Key | The payment fields overflowed on a 390 px viewport at 200% text. | The fields can stack within their container. |
+| Location | Find, ring and check-in competed for attention. The ring option ran into its action. | Find remains primary when available. Ring and check-in are secondary, the ring option has breathing room, and the selected sharing mode has a visible surface tint. Map zoom buttons have 44 px targets. |
+
+The shared header wraps with large type so navigation remains visible. The skip link moves focus to main content, and route headings retain their existing programmatic focus. The main controls keep the existing green accent, legible text colors and native focus outlines.
+
+## Remaining findings
+
+| Priority | Screen | Finding |
+| --- | --- | --- |
+| P2 | Login | Clear email-first flow. Verify the sent-link, expired-link and resend states with keyboard and a screen reader. |
+| P2 | Browser sign-in callback | The missing-token screen gives a recovery action. Verify a valid and an expired magic link end to end. |
+| P2 | App sign-in callback | The missing-token fallback renders, but the valid link handoff and browser alternative need device testing. |
+| P2 | Invitation | The missing-link message is clear. Add a way back and check successful acceptance with a second account. |
+| P3 | Household | Member details and invitation already have separate headings. Exercise the populated multi-member, duplicate-invitation and permission states. |
+| P2 | Approvals | The empty state explains the purpose. Review a populated queue with a second account, including focus after approve or decline. |
+| P2 | Settings | Notification controls and account removal are visually distinct. Verify browser permission denial and device-specific push enrollment. |
+| P2 | Add phone | The ownership choice is clear. Review the complete multi-step path with a screen reader. The inline code link measures under 44 px at standard text size. |
+| P2 | Finish phone setup | PIN inputs have visible labels and help. Verify QR scanning, token expiry and keyboard focus after the step changes. |
+| P3 | Pair a phone | Code and profile are labelled. The code's example and error copy need checking with a phone showing a live pairing code. |
+| P3 | App catalog | Categories and search give two useful paths. Check long translated app names and focus after expanding or requesting an app. |
+| P2 | Web filter | The category list is scannable. The allow and block forms repeat similar prompts. Review error feedback and the technical details disclosure, including its target size. |
+| P2 | School and bedtime | The empty state leads to the creation action. Check the populated schedule editor, day selectors and locale-specific time input. |
+| P3 | Key | The alternatives are labelled. The payment/unlock explanation dominates the lower half, even when payment is unavailable. |
+| P2 | Location | Verify real map controls and fallback transitions on mobile Safari and Android. Countdown announcements during active ring and check-in should be reviewed for verbosity with a screen reader. |
+| P3 | Phone overview | “Last seen” is repeated in the title metadata and status. Consolidate it when the technical status wording is next reviewed. |
+
+## Verification
+
+Playwright captured 160 before and 160 after views across 20 routes. Seven routes overflowed at 390 px and 200% text in both themes before the change. All 160 after views fit the viewport. The after screenshots were taken before the main-branch copy update and the final accessible-name change on Screen time.
+
+Browser interaction checks passed for the skip link, keyboard navigation to a phone and its Apps page, app search and switching, contact validation and creation, the weekday expander, an empty app list, and Location loading, error, retry and map fallback. The route matrix included empty approvals and schedules plus the missing-token states for invitations and sign-in callbacks. Real devices, mail delivery, successful app-link handoff, push permission and map tiles remain open.
+
+The automated checks sampled the rendered controls and text. Manual screen-reader testing remains open.
