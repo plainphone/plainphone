@@ -44,16 +44,20 @@ object InstallWindow {
         active(context, nowMs)?.packageName
 
     /** Opens Play for this app. Call off the main thread. */
-    fun open(context: Context, packageName: String) = open(context, packageName, accountsAllowed = false)
+    fun open(context: Context, packageName: String) {
+        open(context, packageName, accountsAllowed = false)
+    }
 
     /** Only called after the parent PIN has been verified. */
     internal fun openForParent(context: Context, packageName: String) =
         open(context, packageName, accountsAllowed = true)
 
-    private fun open(context: Context, packageName: String, accountsAllowed: Boolean) {
+    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT }
+
+    private fun open(context: Context, packageName: String, accountsAllowed: Boolean): OpenResult {
         val app = context.applicationContext
-        if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false) return
-        if (isInstalled(app, packageName)) return
+        if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false) return OpenResult.UNAVAILABLE
+        if (isInstalled(app, packageName)) return OpenResult.UNAVAILABLE
 
         val changed = synchronized(stateLock) {
             val window = active(app)
@@ -62,7 +66,7 @@ object InstallWindow {
                 if (!accountsAllowed || window.accountsAllowed) return@synchronized false
                 p.edit().putBoolean("accountsAllowed", true).apply()
             } else {
-                if (!takeWindow(app)) return@synchronized false
+                if (!takeWindow(app)) return OpenResult.DAILY_LIMIT
                 p.edit().putString("pkg", packageName)
                     .putLong("until", System.currentTimeMillis() + WINDOW_MS)
                     .putBoolean("accountsAllowed", accountsAllowed)
@@ -73,6 +77,7 @@ object InstallWindow {
         }
         if (changed) runCatching { Lock.applyNow(app, "install window for $packageName") }
         launchPlay(app, packageName)
+        return OpenResult.OPENED
     }
 
     const val MAX_PER_DAY = 5

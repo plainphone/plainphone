@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -72,6 +72,18 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("shows the system check's own date even after a newer phone sync", async () => {
+    phoneApi({
+      ...PHONE,
+      lastSeenAt: new Date().toISOString(),
+      attestation: {
+        state: "verified", checkedAt: new Date(Date.now() - 3_600_000).toISOString(),
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("System checked 1 hour ago")).toBeTruthy();
+  });
+
   it("shows the sections, with the key only on Self phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE) });

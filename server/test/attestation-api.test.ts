@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { RevocationList, serialKey } from "../src/services/attestation.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
+
+vi.mock("node:child_process", { spy: true });
 
 const h = useHarness();
 
@@ -104,6 +107,14 @@ describe("attestation API", () => {
 
     revoked = false;
     h.clock.advance(60 * 60_000 + 1);
+    vi.mocked(spawnSync).mockReturnValueOnce({
+      error: new Error("timed out"), status: null, signal: "SIGTERM", pid: 0,
+      output: [null, Buffer.alloc(0), Buffer.alloc(0)], stdout: Buffer.alloc(0), stderr: Buffer.alloc(0),
+    });
+    expect((await submit(chain)).status).toBe(503);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
+      .toMatchObject({ state: "revoked", checkedAt, lastFailedAt: h.clock.now.toISOString() });
+    h.clock.advance(60_000);
     expect((await submit(chain)).json.state).toBe("verified");
     const { attestation } = (await parent.get(`/api/phones/${phoneId}`)).json;
     expect(attestation).toMatchObject({ state: "verified", checkedAt: h.clock.now.toISOString() });

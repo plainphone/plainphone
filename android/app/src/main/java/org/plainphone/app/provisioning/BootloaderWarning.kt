@@ -14,9 +14,6 @@ internal object BootloaderWarning {
         context.getSharedPreferences("plainphone_boot_warning", Context.MODE_PRIVATE)
 
     fun needsAcknowledgement(context: Context): Boolean =
-        needsAcknowledgement(context, ::reportsUnlocked)
-
-    internal fun needsAcknowledgement(context: Context, reportsUnlocked: () -> Boolean): Boolean =
         !acknowledged(context).getBoolean("acknowledged", false) && reportsUnlocked()
 
     fun acknowledge(context: Context) {
@@ -39,7 +36,7 @@ internal object BootloaderWarning {
             .show()
     }
 
-    fun reportsUnlocked(): Boolean = unlocked
+    internal var reportsUnlocked: () -> Boolean = { unlocked }
 
     private val unlocked: Boolean by lazy {
         runCatching {

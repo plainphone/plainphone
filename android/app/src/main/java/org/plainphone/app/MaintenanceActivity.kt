@@ -56,7 +56,7 @@ class MaintenanceActivity : Activity() {
             hint = getString(R.string.maintenance_pin_hint)
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
         }
-        val message = TextView(this)
+        val message = TextView(this).apply { accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE }
         val button = Button(this).apply { text = getString(R.string.maintenance_unlock) }
         val throttle = PinThrottle.forContext(this)
         button.setOnClickListener {
@@ -81,8 +81,18 @@ class MaintenanceActivity : Activity() {
                         val app = applicationContext
                         button.isEnabled = false
                         Thread {
-                            InstallWindow.openForParent(app, pkg)
-                            runOnUiThread { finish() }
+                            val result = InstallWindow.openForParent(app, pkg)
+                            runOnUiThread installResult@{
+                                if (isFinishing || isDestroyed) return@installResult
+                                when (result) {
+                                    InstallWindow.OpenResult.OPENED -> finish()
+                                    InstallWindow.OpenResult.DAILY_LIMIT ->
+                                        message.setText(R.string.maintenance_install_limit)
+                                    InstallWindow.OpenResult.UNAVAILABLE ->
+                                        message.setText(R.string.maintenance_install_unavailable)
+                                }
+                                button.isEnabled = true
+                            }
                         }.start()
                     } else if (ok) {
                         column.removeView(pin); column.removeView(button); column.removeView(message)

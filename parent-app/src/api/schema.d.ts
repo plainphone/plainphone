@@ -2615,6 +2615,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Certificate verifier temporarily unavailable. Request a new challenge to retry. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     putDevicePushToken: {

@@ -38,6 +38,7 @@ export interface AttestationResult {
 }
 
 export class ChallengeMismatch extends Error {}
+export class AttestationVerifierUnavailable extends Error {}
 
 export const UNVERIFIABLE_ATTESTATION: AttestationResult = {
   state: "unverifiable",
@@ -135,7 +136,9 @@ function validCertificatePath(certs: X509Certificate[], now: number): boolean {
     "",
   ].join("\0");
   const result = spawnSync("bash", ["-c", verify, "verify", String(Math.floor(now / 1000))], { input, timeout: 3000 });
-  if (result.error) throw result.error;
+  if (result.error || (result.status !== 0 && result.status !== 2)) {
+    throw new AttestationVerifierUnavailable("certificate verifier unavailable", { cause: result.error });
+  }
   return result.status === 0;
 }
 

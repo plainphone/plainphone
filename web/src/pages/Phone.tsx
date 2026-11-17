@@ -307,7 +307,7 @@ const RESET_PROTECTION_TEXT = {
 } as const;
 
 /** What the phone reported about its battery, app and lock, and whether the web filter is live. */
-function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
+export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);

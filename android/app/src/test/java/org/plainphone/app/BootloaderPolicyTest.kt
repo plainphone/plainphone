@@ -25,15 +25,21 @@ class BootloaderPolicyTest {
         shadowOf(dpm).setActiveAdmin(admin)
         assertThat(shadowOf(dpm).setDeviceOwner(admin)).isTrue()
 
-        val result = Lock.applyNow(context, "admin enabled") {
-            BootloaderWarning.needsAcknowledgement(it) { true }
-        }
-        assertThat(result.single().name).isEqualTo("bootloader warning")
-        assertThat(result.single().ok).isFalse()
-        assertThat(dpm.getUserRestrictions(admin).getBoolean(UserManager.DISALLOW_MODIFY_ACCOUNTS)).isFalse()
-        assertThat(Lock.firstAppliedAtMs(context)).isNull()
+        val detect = BootloaderWarning.reportsUnlocked
+        BootloaderWarning.reportsUnlocked = { true }
+        try {
+            val result = Lock.applyNow(context, "admin enabled")
+            assertThat(result.single().name).isEqualTo("bootloader warning")
+            assertThat(result.single().ok).isFalse()
+            val users = context.getSystemService(UserManager::class.java)
+            assertThat(users.hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS)).isFalse()
+            assertThat(Lock.firstAppliedAtMs(context)).isNull()
 
-        BootloaderWarning.acknowledge(context)
-        assertThat(BootloaderWarning.needsAcknowledgement(context) { true }).isFalse()
+            BootloaderWarning.acknowledge(context)
+            Lock.applyNow(context, "warning acknowledged")
+            assertThat(users.hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS)).isTrue()
+        } finally {
+            BootloaderWarning.reportsUnlocked = detect
+        }
     }
 }

@@ -30,7 +30,7 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
-| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock or an approved install window lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock or an install window authorized with the parent PIN lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
 | `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
@@ -116,7 +116,7 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
 - **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** Plainphone sets FRP and notifies Play services before blocking account changes. The FRP policy does not need the parent's account to be
   on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
   accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
-  maintenance unlock or by choosing “Install and add a Play account” and entering their maintenance PIN for an approved app. The test PIN cannot authorize account changes through this install option.
+  maintenance unlock or by choosing “Install and add a Play account” and entering their maintenance PIN for an approved app. The test PIN cannot authorize account changes through this install option. If all five daily installation windows have been used, the phone explains the limit and keeps Play closed.
 
 ## Hardware attestation of the boot state (#23)
 

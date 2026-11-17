@@ -8,7 +8,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { phones } from "../db/schema.js";
 import { body, RateLimiter } from "../lib/http.js";
-import { ChallengeMismatch, newChallenge, RevocationList, UNVERIFIABLE_ATTESTATION, verifyAttestation } from "../services/attestation.js";
+import { AttestationVerifierUnavailable, ChallengeMismatch, newChallenge, RevocationList, UNVERIFIABLE_ATTESTATION, verifyAttestation } from "../services/attestation.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { UNTRUSTED_BOOT, withAttestation } from "../services/phones.js";
 import type { Ctx } from "../services/context.js";
@@ -52,6 +52,7 @@ export function attestationRoutes(ctx: Ctx) {
       }
       challenges.delete(phone.id);
       let result;
+      let verifierUnavailable = false;
       try {
         result = input.chain.length === 0 ? UNVERIFIABLE_ATTESTATION : verifyAttestation(
           input.chain.map((s) => Buffer.from(s, "base64")),
@@ -61,7 +62,11 @@ export function attestationRoutes(ctx: Ctx) {
         );
       } catch (err) {
         if (err instanceof ChallengeMismatch) return c.json({ error: err.message }, 400);
-        return c.json({ error: `chain does not verify: ${(err as Error).message}` }, 400);
+        if (!(err instanceof AttestationVerifierUnavailable)) {
+          return c.json({ error: `chain does not verify: ${(err as Error).message}` }, 400);
+        }
+        verifierUnavailable = true;
+        result = UNVERIFIABLE_ATTESTATION;
       }
       const checkedAt = new Date(now).toISOString();
       const keepFinding = sql`${result.state === "unverifiable"} and
@@ -84,6 +89,7 @@ export function attestationRoutes(ctx: Ctx) {
         );
         if (lost) await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
       }
+      if (verifierUnavailable) return c.json({ error: "certificate verifier unavailable" }, 503);
       return c.json(result);
     });
   };

@@ -16,6 +16,8 @@
     <string name="maintenance_pin_hint">Parent PIN</string>
     <string name="maintenance_unlock">Open</string>
     <string name="maintenance_wrong_pin">Wrong PIN.</string>
+    <string name="maintenance_install_limit">All installation windows for today have been used. Try again tomorrow.</string>
+    <string name="maintenance_install_unavailable">This app is no longer waiting to be installed.</string>
     <plurals name="maintenance_wait">
         <item quantity="one">Too many attempts. Try again in %1$d second.</item>
         <item quantity="other">Too many attempts. Try again in %1$d seconds.</item>

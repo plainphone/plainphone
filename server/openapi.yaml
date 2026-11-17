@@ -1111,6 +1111,7 @@ paths:
               schema: { $ref: "#/components/schemas/Attestation" }
         "400": { description: The chain does not verify, or was made for another challenge }
         "409": { description: Unknown, used or expired challenge }
+        "503": { description: Certificate verifier temporarily unavailable. Request a new challenge to retry. }
   /device/push-token:
     put:
       operationId: putDevicePushToken
