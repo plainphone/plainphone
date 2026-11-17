@@ -3,14 +3,12 @@
 package org.plainphone.app.provisioning
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.os.Bundle
 import android.os.PersistableBundle
 import org.plainphone.app.Compat
 import org.plainphone.app.PlainphoneAdminReceiver
-import org.plainphone.app.R
 
 /**
  * Android 12+ QR provisioning asks the DPC which mode it wants.
@@ -26,16 +24,6 @@ class ProvisioningModeActivity : Activity() {
             // Personal-device flows (work profile) are not supported: abort provisioning.
             setResult(RESULT_CANCELED)
             finish()
-        } else if (BootloaderWarning.needsAcknowledgement(this)) {
-            AlertDialog.Builder(this)
-                .setMessage(R.string.setup_bootloader_warning)
-                .setPositiveButton(R.string.setup_bootloader_continue) { _, _ ->
-                    BootloaderWarning.acknowledge(this)
-                    accept(fullyManaged)
-                }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
-                .setOnCancelListener { finish() }
-                .show()
         } else {
             accept(fullyManaged)
         }

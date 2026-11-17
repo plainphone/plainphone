@@ -28,7 +28,7 @@ Record each result in the table at the bottom of a copy of this file, with the p
 | R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
 | R4 | Remove Plainphone as device admin | Not offered | Settings → Security → Device admin apps |
 | R5 | Reset from recovery with a parent's FRP account set | **Destructive.** Does setup accept the child's previous screen-lock PIN? Record whether the PIN alone completes setup. Then check that the parent's linked Google account can complete setup | Last, on the test phone only. Use an established Google account, OEM unlocking off, and wait until the phone reports reset protection set |
-| R6 | Add or remove an account in strong mode | Settings blocks account changes. Add the parent's account during a maintenance unlock. Confirm ordinary Install keeps account changes blocked. For an approved app, choose “Install and add a Play account”, check that a wrong PIN leaves accounts blocked, then confirm Play sign-in with the correct parent PIN. Account changes are blocked again after install or expiry. The dashboard lists account types only | Settings → Accounts |
+| R6 | Add or remove an account in strong mode | Settings blocks account changes. Add the parent's account during a maintenance unlock. Confirm ordinary Install keeps account changes blocked. For an approved app, choose “Install and add a Play account”, check that a wrong PIN leaves accounts blocked, then confirm Play sign-in with the correct parent PIN. Account changes are blocked again as soon as the Google account is added, while the approved app remains installable until install or expiry. The dashboard lists account types only | Settings → Accounts |
 | R7 | Clear Plainphone's data | Not offered for a Device Owner | Settings → Apps → Plainphone → Storage |
 | R8 | Reset app preferences / reset network settings | App preferences can be reset but do not show hidden apps. Network reset is blocked | Settings → System → Reset options |
 | R9 | Remote erase with a signed-in test account | **Destructive.** Record what setup asks for after the erase. Keep separate from R5 since the reset path differs | Optional, on the test phone only |
@@ -140,6 +140,10 @@ Before you start: add one approved contact on the maintenance screen (for exampl
 |---|---|---|---|
 | N13 | An allowed app with its own DNS-over-HTTPS | Only Chrome is allowed by default and its DoH is off. For any extra allowed app, note whether it reaches a blocked site. See [dns-bypass.md](dns-bypass.md) | Open a blocked site from inside each allowed app that can show web pages |
 | N14 | A DoH resolver by hostname (`https://cloudflare-dns.com/dns-query`) | Blocked by the Plainphone resolver once phase 2's DNS is live (with the AdGuard placeholder: note the result) | Open the URL in Chrome |
+
+## System check
+
+A rooted phone can still report `verified` if it uses a leaked attestation keybox that has not been revoked. Treat a positive attestation as one check, and verify expected lock behavior on the actual phone.
 
 ## Result log
 

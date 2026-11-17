@@ -42,7 +42,9 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
   }
 
   async function remove() {
+    if (!window.confirm(t("frp.removeConfirm"))) return;
     setBusy(true);
+    setNotice(null);
     try {
       await api.del(`/households/${householdId}/reset-protection/mine`);
       setNotice({ tone: "success", text: t("frp.removed") });
@@ -61,9 +63,12 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
       <LoadGate res={res}>
         {(data) => {
           const mine = data.accounts.find((a) => a.mine);
+          const now = Date.now();
+          const waiting = data.accounts.some((a) => Date.parse(a.activeFrom) > now);
           return (
             <>
               <p className="help">{t(data.available ? "frp.intro" : "frp.unavailable")}</p>
+              {waiting && <p className="notice notice-warn" role="note">{t("frp.waitBeforeReset")}</p>}
               {data.available && data.accounts.length === 0 ? (
                 <p className="muted">{t("frp.none")}</p>
               ) : (
@@ -73,7 +78,7 @@ export function ResetProtectionSection({ householdId }: { householdId: string })
                       <div>
                         <p className="row-title">{t(a.mine ? "frp.mine" : "frp.other")}</p>
                         <p className="row-meta">
-                          {new Date(a.activeFrom).getTime() > Date.now()
+                          {Date.parse(a.activeFrom) > now
                             ? t("frp.activeFrom", { time: formatDateTime(a.activeFrom, locale) })
                             : t("frp.active")}
                         </p>

@@ -172,6 +172,12 @@ class PolicyApplierTest {
     }
 
     @Test
+    fun `release succeeds when Device Owner is already gone`() {
+        device.owner = false
+        assertThat(applier.release().single().ok).isTrue()
+    }
+
+    @Test
     fun `release undoes everything and gives up Device Owner`() {
         val hardening = FakeHardening()
         val applier = PolicyApplier(device, store, 35, Hardening(hardening, 35))

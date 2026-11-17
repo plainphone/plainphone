@@ -30,7 +30,7 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
-| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock or an install window authorized with the parent PIN lifts it, so a parent can add the Google account Play needs; the lock comes back with the re-lock | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. A maintenance unlock or an install window authorized with the parent PIN lifts it, so a parent can add the Google account Play needs; account changes are blocked again as soon as a Google account is added during the install window or the window closes | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
 | `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
@@ -109,7 +109,8 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
   On Android 10, removing the last account clears Plainphone's managed configuration so normal
   Android FRP can apply. Permanent release explicitly disables the legacy configuration.
 - **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard shows
-  "Protects from" the time the account was linked plus 72 hours.
+  "Ready from" for the time the account was linked plus 72 hours. Wait until that time and check
+  the phone has saved the protection settings before resetting it.
 - **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
 - **OEM unlocking** switches FRP off. It is greyed out by `DISALLOW_FACTORY_RESET` and developer options are
   blocked, but a phone that arrives with an unlocked bootloader has no FRP.
@@ -130,9 +131,10 @@ used, so a self-hosted server needs no Google Cloud project. No serial number or
 If the keystore cannot provide a chain, the phone reports an unverifiable check. A positive verdict
 expires after 48 hours, and the dashboard shows the time of the last system check separately from
 ordinary sync. If a check cannot verify the phone after a negative finding, the dashboard keeps that finding and shows the failed check separately. A change to a boot state that breaks an intact lock triggers the existing protection alert.
-When Android exposes a local unlocked-bootloader signal, strong-mode policies wait until the user
-acknowledges the warning. Android 12+ shows it during provisioning. On Android 10 and 11 it appears
-when Plainphone opens.
+On Android 10 and 11, when Android reports an unlocked bootloader, the first strong-mode lock waits
+for the warning to be acknowledged on the phone. The dashboard shows the pending warning. Later
+policy runs reapply the lock without waiting. Android 12 and newer never wait for this local warning.
+After a network failure, the phone retries attestation on the first sync due at least an hour later.
 
 | Result | Dashboard |
 |---|---|

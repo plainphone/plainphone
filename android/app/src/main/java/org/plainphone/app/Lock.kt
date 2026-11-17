@@ -79,12 +79,13 @@ object Lock {
         if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
         // A release that has not finished yet: do not lock again in between, the next sync retries it.
         if (sync.releaseAsked) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
+        val config = effectiveConfig(context)
         if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
             return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
                 saveReport(context, "apply ($reason)", it)
+                saveApplied(context, config, it, waitingForBootWarning = true)
             }
         }
-        val config = effectiveConfig(context)
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {
             LightLock.apply(context, config)
@@ -147,11 +148,14 @@ object Lock {
         )
     }
 
-    private fun saveApplied(context: Context, config: PolicyConfig, results: List<StepResult>) {
+    private fun saveApplied(
+        context: Context,
+        config: PolicyConfig,
+        results: List<StepResult>,
+        waitingForBootWarning: Boolean = false,
+    ) {
         val now = System.currentTimeMillis()
         val edit = prefs(context).edit()
-            .putLong("applied_at", now)
-            .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
             .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") {
                 if (it.name == Hardening.EXTRA_USERS && it.detail.contains("extra profile present")) {
                     "${it.name}: ${it.detail}".take(200)
@@ -159,6 +163,14 @@ object Lock {
                     it.name
                 }
             })
+        if (waitingForBootWarning) {
+            // Report the failure without counting this as an applied configuration.
+            edit.remove("applied_fingerprint").remove("applied_at").apply()
+            return
+        }
+        edit.remove("owner_release_started")
+            .putLong("applied_at", now)
+            .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
         // Android keeps the old host when the new one does not answer, so only a success changes it.
         if (results.any { (it.name == "private DNS" || it.name == "DNS filter (VPN)") && it.ok }) edit.putString("dns_in_use", config.dnsHost)
         Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
@@ -246,10 +258,16 @@ object Lock {
     fun releaseNow(context: Context): List<StepResult> = synchronized(APPLY_LOCK) {
         cancelRelock(context)
         context.getSystemService(AlarmManager::class.java).cancel(windowIntent(context))
-        if (Mode.isLight(context)) {
-            LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
-        } else {
+        val state = prefs(context)
+        val ownerReleaseStarted = state.getBoolean("owner_release_started", false)
+        if (Mode.isStrong(context) || ownerReleaseStarted) {
+            // Keep the release path across a restart after Android has cleared Device Owner.
+            if (!ownerReleaseStarted && !state.edit().putBoolean("owner_release_started", true).commit()) {
+                return listOf(StepResult("release", false, "could not save release progress"))
+            }
             applier(context).release().also { saveReport(context, "released Device Owner", it) }
+        } else {
+            LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
         }
     }
 

@@ -106,6 +106,12 @@ class HardeningTest {
     }
 
     @Test
+    fun `release succeeds when Android does not support reset protection`() {
+        controls.frpUnsupported = true
+        assertThat(step(Hardening(controls, 30).release(), "clear FRP policy").ok).isTrue()
+    }
+
+    @Test
     fun `release clears FRP on both paths`() {
         apply(Hardening(controls, 29), withAccount)
         Hardening(controls, 29).release()

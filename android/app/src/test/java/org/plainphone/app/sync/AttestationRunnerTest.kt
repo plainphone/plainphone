@@ -3,6 +3,7 @@
 package org.plainphone.app.sync
 
 import com.google.common.truth.Truth.assertThat
+import java.io.IOException
 import java.util.Base64
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +14,7 @@ import org.robolectric.RobolectricTestRunner
 class AttestationRunnerTest {
     private class MemStore : AttestationStore {
         override var attestedAtMs = 0L
+        override var retrySoon = false
         override var state: String? = null
     }
 
@@ -20,7 +22,7 @@ class AttestationRunnerTest {
         var submitted: Pair<String, List<ByteArray>>? = null
         val challenge = Base64.getUrlEncoder().withoutPadding().encodeToString("server-challenge".toByteArray())
         override fun challenge(token: String): String {
-            check(!fail) { "offline" }
+            if (fail) throw IOException("offline")
             return challenge
         }
         override fun submit(token: String, challenge: String, chain: List<ByteArray>): String {
@@ -52,16 +54,20 @@ class AttestationRunnerTest {
     }
 
     @Test
-    fun `it runs once a day, also after a failure`() {
+    fun `it retries an offline check in one hour then returns to daily checks`() {
         val api = FakeApi(fail = true)
         var now = 10 * AttestationRunner.EVERY_MS
         val runner = AttestationRunner(api, { listOf(byteArrayOf(1), byteArrayOf(2)) }, MemStore(), nowMs = { now })
         assertThat(runner.runIfDue("t")).isNull()
         api.fail = false
-        now += AttestationRunner.EVERY_MS / 2
+        now += AttestationRunner.RETRY_MS - 1
         assertThat(runner.runIfDue("t")).isNull()
         assertThat(api.submitted).isNull()
-        now += AttestationRunner.EVERY_MS
+        now += 1
+        assertThat(runner.runIfDue("t")).isEqualTo("unlocked")
+        now += AttestationRunner.EVERY_MS - 1
+        assertThat(runner.runIfDue("t")).isNull()
+        now += 1
         assertThat(runner.runIfDue("t")).isEqualTo("unlocked")
     }
 }

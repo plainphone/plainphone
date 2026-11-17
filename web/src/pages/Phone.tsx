@@ -16,6 +16,7 @@ import {
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
+import { formatFailedPolicies } from "../lib/failedPolicies";
 import { formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
@@ -322,7 +323,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           <div>
             <p className="row-title">{t("phone.lockBroken")}</p>
             {s.failedPolicies.length > 0 && (
-              <p>{t("phone.lockFailed", { steps: formatList(s.failedPolicies, locale) })}</p>
+              <p>{t("phone.lockFailed", { steps: formatFailedPolicies(s.failedPolicies, locale) })}</p>
             )}
           </div>
         </div>

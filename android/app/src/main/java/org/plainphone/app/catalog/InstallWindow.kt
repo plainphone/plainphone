@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.catalog
 
+import android.accounts.AccountManager
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
@@ -11,6 +12,7 @@ import android.net.Uri
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.RelockReceiver
+import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
 
 /**
@@ -26,6 +28,7 @@ import org.plainphone.app.sync.SyncStore
  */
 object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
+    private const val GOOGLE = "com.google"
     private const val PREFS = "plainphone_install"
 
     private val stateLock = Any()
@@ -33,11 +36,14 @@ object InstallWindow {
     internal data class Active(val packageName: String, val accountsAllowed: Boolean)
 
     internal fun active(context: Context, nowMs: Long = System.currentTimeMillis()): Active? {
-        val state = prefs(context).all
-        val pkg = state["pkg"] as? String ?: return null
-        val until = state["until"] as? Long ?: return null
-        if (until <= nowMs || isInstalled(context, pkg)) return null
-        return Active(pkg, state["accountsAllowed"] == true)
+        return synchronized(stateLock) {
+            val p = prefs(context)
+            val pkg = p.getString("pkg", null) ?: return null
+            if (p.getLong("until", 0L) <= nowMs || isInstalled(context, pkg)) return null
+            val accountsAllowed = p.getBoolean("accountsAllowed", false) &&
+                googleAccountCount(context) <= p.getInt("googleAccounts", 0)
+            Active(pkg, accountsAllowed)
+        }
     }
 
     fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? =
@@ -60,16 +66,19 @@ object InstallWindow {
         if (isInstalled(app, packageName)) return OpenResult.UNAVAILABLE
 
         val changed = synchronized(stateLock) {
+            val allowAccounts = accountsAllowed && Mode.isStrong(app)
             val window = active(app)
             val p = prefs(app)
             if (window?.packageName == packageName) {
-                if (!accountsAllowed || window.accountsAllowed) return@synchronized false
-                p.edit().putBoolean("accountsAllowed", true).apply()
+                if (!allowAccounts || window.accountsAllowed) return@synchronized false
+                p.edit().putBoolean("accountsAllowed", true)
+                    .putInt("googleAccounts", googleAccountCount(app)).apply()
             } else {
                 if (!takeWindow(app)) return OpenResult.DAILY_LIMIT
                 p.edit().putString("pkg", packageName)
                     .putLong("until", System.currentTimeMillis() + WINDOW_MS)
-                    .putBoolean("accountsAllowed", accountsAllowed)
+                    .putBoolean("accountsAllowed", allowAccounts)
+                    .putInt("googleAccounts", if (allowAccounts) googleAccountCount(app) else 0)
                     .apply()
                 scheduleClose(app)
             }
@@ -79,6 +88,36 @@ object InstallWindow {
         launchPlay(app, packageName)
         return OpenResult.OPENED
     }
+
+    /** Reapply the account restriction as soon as Android reports a Google account change. */
+    fun watchAccounts(context: Context) {
+        val app = context.applicationContext
+        AccountManager.get(app).addOnAccountsUpdatedListener(
+            {
+                val closed = synchronized(stateLock) { updateAccountWindow(app) }
+                if (closed) Lock.applyIfNeededAsync(app, "Google account added during install") {}
+            },
+            null,
+            true,
+            arrayOf(GOOGLE),
+        )
+    }
+
+    private fun updateAccountWindow(context: Context): Boolean {
+        val p = prefs(context)
+        if (!p.getBoolean("accountsAllowed", false)) return false
+        val count = googleAccountCount(context)
+        val previous = p.getInt("googleAccounts", 0)
+        if (count > previous) {
+            p.edit().putBoolean("accountsAllowed", false).remove("googleAccounts").apply()
+            return true
+        }
+        // An account can be removed before a new one is added. Remember the lower count.
+        if (count < previous) p.edit().putInt("googleAccounts", count).apply()
+        return false
+    }
+
+    private fun googleAccountCount(context: Context) = AccountManager.get(context).getAccountsByType(GOOGLE).size
 
     const val MAX_PER_DAY = 5
 
@@ -96,7 +135,7 @@ object InstallWindow {
         val app = context.applicationContext
         synchronized(stateLock) {
             if (prefs(app).getString("pkg", null) == null) return
-            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed").apply()
+            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed").remove("googleAccounts").apply()
         }
         Lock.applyAsync(app, reason)
     }

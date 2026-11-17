@@ -9,6 +9,7 @@ import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneConte
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
+import { formatFailedPolicies } from "../../../shared/lib/failedPolicies";
 import { formatPatchMonth, formatRelative } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
@@ -194,6 +195,7 @@ function Overview() {
     phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phones.neverSeen"),
   ].join(", ");
 
+  const failedPolicies = phone.status?.failedPolicies ?? [];
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
@@ -202,6 +204,9 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {failedPolicies.length > 0 ? (
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatFailedPolicies(failedPolicies, locale) })} />
+      ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>
           {reset ? <Text>{t(resetStatus[reset])}</Text> : null}

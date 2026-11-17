@@ -141,7 +141,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
     private fun setFrp(ids: List<String>?) {
         if (sdkInt < 30) {
             controls.setLegacyFrpConfig(ids)
-        } else if (ids?.isEmpty() == true) {
+        } else if (ids.isNullOrEmpty()) {
             try {
                 controls.setFrpPolicy(null)
             } catch (_: UnsupportedOperationException) {

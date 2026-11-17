@@ -2,6 +2,8 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.accounts.Account
+import android.accounts.AccountManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
@@ -57,6 +59,24 @@ class MaintenanceInstallTest {
         assertThat(activity.isFinishing).isTrue()
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
         assertThat(accountsBlocked()).isFalse()
+    }
+
+    @Test
+    fun `a Google account closes account changes while the app install stays open`() {
+        submit(installPrompt(), pin)
+        assertThat(accountsBlocked()).isFalse()
+
+        val manager = AccountManager.get(context)
+        assertThat(manager.addAccountExplicitly(Account("test", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!accountsBlocked() && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(5)
+        }
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isEqualTo(pkg)
     }
 
     @Test

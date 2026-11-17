@@ -6,6 +6,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Log
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.KeyPairGenerator
@@ -31,6 +32,7 @@ fun interface KeyAttester {
 /** Where the last run is remembered. */
 interface AttestationStore {
     var attestedAtMs: Long
+    var retrySoon: Boolean
     var state: String?
 }
 
@@ -50,8 +52,10 @@ class AttestationRunner(
     fun runIfDue(token: String): String? {
         val now = nowMs()
         // Also back off after failures: a phone without attestation should not retry every minute.
-        if (now - store.attestedAtMs in 0 until EVERY_MS) return null
+        val interval = if (store.retrySoon) RETRY_MS else EVERY_MS
+        if (now - store.attestedAtMs in 0 until interval) return null
         store.attestedAtMs = now
+        store.retrySoon = false
         return try {
             val challenge = api.challenge(token)
             val challengeBytes = Base64.getUrlDecoder().decode(challenge)
@@ -63,6 +67,7 @@ class AttestationRunner(
             val evidence = chain.takeIf { it.size >= 2 }.orEmpty()
             api.submit(token, challenge, evidence).also { store.state = it }
         } catch (e: Exception) {
+            store.retrySoon = e is IOException && (e !is HttpError || e.status >= 500 || e.status == 429)
             Log.w(TAG, "attestation failed: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
@@ -70,6 +75,7 @@ class AttestationRunner(
 
     companion object {
         private const val TAG = "Plainphone"
+        const val RETRY_MS = 60 * 60_000L
         const val EVERY_MS = 24 * 60 * 60_000L
 
         fun forContext(context: Context): AttestationRunner {
@@ -87,6 +93,9 @@ class PrefsAttestationStore(context: Context) : AttestationStore {
     override var attestedAtMs: Long
         get() = prefs.getLong("at", 0L)
         set(v) = prefs.edit().putLong("at", v).apply()
+    override var retrySoon: Boolean
+        get() = prefs.getBoolean("retrySoon", false)
+        set(v) = prefs.edit().putBoolean("retrySoon", v).apply()
     override var state: String?
         get() = prefs.getString("state", null)
         set(v) = prefs.edit().putString("state", v).apply()

@@ -88,8 +88,9 @@ class PolicyApplier(
 
     /** Permanent exit for a test phone: undo everything, then give up Device Owner. */
     fun release(): List<StepResult> {
+        if (!device.isDeviceOwner()) return listOf(StepResult("give up Device Owner", true, "already released"))
         val results = lift().toMutableList()
-        if (!device.isDeviceOwner()) return results
+        if (!device.isDeviceOwner()) return listOf(StepResult("give up Device Owner", true, "already released"))
         // Once Device Owner is gone, nobody can show hidden apps again short of a factory reset.
         if (results.any { it.name == SHOW_HIDDEN && !it.ok }) {
             return results + StepResult("give up Device Owner", false, "stopped: some apps are still hidden; try again")
@@ -97,6 +98,7 @@ class PolicyApplier(
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
         hardening?.let { results += it.release() }
+        if (results.any { it.name == "clear FRP policy" && !it.ok } && device.isDeviceOwner()) return results
         results += step("give phone and SMS roles back") { giveRolesBack() }
         results += step("give up Device Owner") { device.clearDeviceOwner() }
         return results

@@ -5,7 +5,9 @@ package org.plainphone.app.provisioning
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.os.Build
 import java.util.concurrent.TimeUnit
+import org.plainphone.app.Lock
 import org.plainphone.app.R
 
 /** Best-effort local warning. Only server attestation can establish trust in the boot state. */
@@ -14,7 +16,8 @@ internal object BootloaderWarning {
         context.getSharedPreferences("plainphone_boot_warning", Context.MODE_PRIVATE)
 
     fun needsAcknowledgement(context: Context): Boolean =
-        !acknowledged(context).getBoolean("acknowledged", false) && reportsUnlocked()
+        Build.VERSION.SDK_INT in 29..30 && Lock.firstAppliedAtMs(context) == null &&
+            !acknowledged(context).getBoolean("acknowledged", false) && reportsUnlocked()
 
     fun acknowledge(context: Context) {
         acknowledged(context).edit().putBoolean("acknowledged", true).apply()
