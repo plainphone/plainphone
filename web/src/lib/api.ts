@@ -99,6 +99,40 @@ export interface SelfKey extends KeyInput {
   payUnlockCurrency: string;
 }
 
+export type SettingKey =
+  | "bluetooth"
+  | "wifi"
+  | "mobileNetworks"
+  | "roaming"
+  | "tethering"
+  | "nfc"
+  | "airplaneMode"
+  | "screenTimeout"
+  | "brightness"
+  | "volume"
+  | "wallpaper"
+  | "location"
+  | "camera"
+  | "screenCapture"
+  | "language";
+/** `free`: the child (or the Self user) decides. `preset`: set once. `locked`: set and kept. */
+export type SettingMode = "free" | "preset" | "locked";
+export type SettingValue = string | number;
+export interface PhoneSetting {
+  mode: SettingMode;
+  /** Only for `preset` and `locked`, and only for settings that have a value. */
+  value?: SettingValue;
+}
+/** Every setting, `free` filled in. */
+export type PhoneSettings = Record<SettingKey, PhoneSetting>;
+export interface Home {
+  layout: "list" | "grid";
+  theme: "system" | "light" | "dark";
+  palette: "grey" | "sage" | "sand";
+  /** Package names on the front page, in order. At most 8. */
+  apps: string[];
+}
+
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
@@ -109,6 +143,8 @@ export type Op =
   | { type: "schedule.create"; schedule: ScheduleInput }
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
+  | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
+  | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string };
 
@@ -213,6 +249,15 @@ export const api = {
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string) => request<T>("DELETE", p),
 };
+
+export const getPhoneSettings = (pid: string) =>
+  api.get<{ settings: PhoneSettings }>(`/phones/${pid}/settings`).then((r) => r.settings);
+/** A loosening change on a Self phone answers `pending`; everything else is `applied` at once. */
+export const putPhoneSetting = (pid: string, key: SettingKey, setting: PhoneSetting) =>
+  api.put<ChangeResult>(`/phones/${pid}/settings/${key}`, setting);
+export const getHome = (pid: string) => api.get<Home>(`/phones/${pid}/home`);
+/** Never waits for the key. Send the whole object. */
+export const putHome = (pid: string, home: Home) => api.put<ChangeResult>(`/phones/${pid}/home`, home);
 
 /** Mail is configured on this server. Works without a session via /api/health. */
 export async function serverHasMail(): Promise<boolean | null> {

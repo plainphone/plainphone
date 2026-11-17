@@ -10,6 +10,7 @@ import { AppsPage } from "./pages/Apps";
 import { AuthCallbackPage } from "./pages/AuthCallback";
 import { ContactsPage } from "./pages/Contacts";
 import { FilterPage } from "./pages/Filter";
+import { HomeScreenPage } from "./pages/HomeScreen";
 import { HouseholdPage } from "./pages/Household";
 import { InvitePage } from "./pages/Invite";
 import { KeyPage } from "./pages/Key";
@@ -17,6 +18,7 @@ import { LocationPage } from "./pages/Location";
 import { LoginPage } from "./pages/Login";
 import { PairPage } from "./pages/Pair";
 import { PhoneLayout, PhoneOverview } from "./pages/Phone";
+import { PhoneSettingsPage } from "./pages/PhoneSettings";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
 
@@ -51,6 +53,8 @@ function AppRoutes() {
           <Route path="filter" element={<FilterPage />} />
           <Route path="schedules" element={<SchedulesPage />} />
           <Route path="location" element={<LocationPage />} />
+          <Route path="settings" element={<PhoneSettingsPage />} />
+          <Route path="home" element={<HomeScreenPage />} />
           <Route path="key" element={<KeyPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
