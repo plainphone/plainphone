@@ -7,7 +7,7 @@ phone sends its position, how a parent finds a phone, and what the child sees.
 
 | Mode | The phone sends its position | Default for |
 |---|---|---|
-| `off` | never; the stored position is deleted | an adult's own phone (Self) |
+| `off` | never; switching off deletes the stored position and blocks any in-flight upload that has yet to be saved | an adult's own phone (Self) |
 | `find` | once each time a parent presses Find | |
 | `checkin` | on Find, and once when an "Are you okay?" goes unanswered | a child's phone |
 | `always` | every 5 minutes, plus the above, for 1 hour, today or 7 days | nobody: a parent has to choose it and how long |

@@ -47,7 +47,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
       mode: phone.locationMode,
       alwaysUntil: phone.locationMode === "always" ? (phone.locationAlwaysUntil?.toISOString() ?? null) : null,
       requestedAt: phone.locateRequestedAt?.toISOString() ?? null,
-      location: loc
+      location: loc && phone.locationMode !== "off"
         ? { lat: loc.lat, lon: loc.lon, accuracyM: loc.accuracyM, recordedAt: loc.recordedAt.toISOString() }
         : null,
       ring: ringJson(safety.ring, now),
@@ -148,15 +148,17 @@ export async function setLocationMode(
   alwaysFor?: AlwaysFor,
 ) {
   const until = mode === "always" ? alwaysUntil(alwaysFor ?? "hour", phone.timezone, ctx.now()) : null;
-  await ctx.db
-    .update(phonesTable)
-    .set({
-      locationMode: mode,
-      locationEnabled: mode !== "off",
-      locationAlwaysUntil: until,
-      ...(mode === "off" ? { locateRequestedAt: null } : {}),
-    })
-    .where(eq(phonesTable.id, phone.id));
-  if (mode === "off") await ctx.db.delete(locations).where(eq(locations.phoneId, phone.id));
+  await ctx.db.transaction(async (tx) => {
+    await tx
+      .update(phonesTable)
+      .set({
+        locationMode: mode,
+        locationEnabled: mode !== "off",
+        locationAlwaysUntil: until,
+        ...(mode === "off" ? { locateRequestedAt: null } : {}),
+      })
+      .where(eq(phonesTable.id, phone.id));
+    if (mode === "off") await tx.delete(locations).where(eq(locations.phoneId, phone.id));
+  });
   if (mode !== phone.locationMode || until) await wakePhone(ctx, phone.id, "rules");
 }

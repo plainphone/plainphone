@@ -90,7 +90,7 @@ export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationM
   return t >= r.endsAt.getTime() - CLOCK_SLACK_MS && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
 }
 
-export async function loadSafety(ctx: Ctx, phoneId: string) {
+export async function loadSafety(ctx: { db: Pick<Ctx["db"], "select"> }, phoneId: string) {
   const rows = await ctx.db.select().from(safetyRequests).where(eq(safetyRequests.phoneId, phoneId));
   return { ring: rows.find((r) => r.kind === "ring"), checkin: rows.find((r) => r.kind === "checkin") };
 }

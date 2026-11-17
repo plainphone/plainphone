@@ -15,9 +15,8 @@ import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
-import { withAttestation } from "../services/phones.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { rulesDocument } from "../services/phones.js";
+import { rulesDocument, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -219,7 +218,7 @@ export function deviceRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
   });
 
   app.put("/location", async (c) => {
-    const phone = c.get("phone");
+    const phoneId = c.get("phone").id;
     const input = await body(
       c,
       z.object({
@@ -229,46 +228,54 @@ export function deviceRoutes(ctx: Ctx, extra?: (app: Hono<Env>) => void) {
         recordedAt: z.iso.datetime({ offset: true }),
       }),
     );
-    if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    // Outside "always" the phone sends a position only when asked: a Find, or an unanswered
-    // "Are you okay?". The server holds it to that.
-    const { checkin } = await loadSafety(ctx, phone.id);
-    const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
-    const findOpen =
-      phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
-    const always =
-      phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > ctx.now();
-    if (!always && !findOpen && !forCheckin) {
-      return c.json({ error: "no position was asked for" }, 409);
-    }
     const recordedAt = new Date(input.recordedAt);
     if (recordedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
       return c.json({ error: "recordedAt is in the future" }, 400);
     }
     const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: ctx.now() };
-    // One row per phone (D7). An older fix never overwrites a newer one.
-    await ctx.db
-      .insert(locations)
-      .values({ phoneId: phone.id, ...values })
-      .onConflictDoUpdate({
-        target: locations.phoneId,
-        set: values,
-        setWhere: lte(locations.recordedAt, recordedAt),
-      });
-    if (phone.locateRequestedAt) {
-      await ctx.db
-        .update(phones)
-        .set({ locateRequestedAt: null })
-        .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
-    }
-    if (forCheckin) {
-      const first = await ctx.db
-        .update(safetyRequests)
-        .set({ locatedAt: ctx.now() })
-        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)))
-        .returning({ id: safetyRequests.id });
-      if (first.length) await notifySafety(ctx, phone, "located");
-    }
+    const result = await ctx.db.transaction(async (tx) => {
+      // Serialize with mode changes so disabling sharing cannot leave an in-flight position behind.
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("no key update");
+      if (!phone || phone.locationMode === "off") return { error: "location is off for this phone" } as const;
+      // Outside "always" the phone sends a position only when asked: a Find, or an unanswered
+      // "Are you okay?". The server holds it to that.
+      const { checkin } = await loadSafety({ db: tx }, phone.id);
+      const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
+      const findOpen =
+        phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
+      const always =
+        phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > ctx.now();
+      if (!always && !findOpen && !forCheckin) {
+        return { error: "no position was asked for" } as const;
+      }
+      // One row per phone (D7). An older fix never overwrites a newer one.
+      await tx
+        .insert(locations)
+        .values({ phoneId: phone.id, ...values })
+        .onConflictDoUpdate({
+          target: locations.phoneId,
+          set: values,
+          setWhere: lte(locations.recordedAt, recordedAt),
+        });
+      if (phone.locateRequestedAt) {
+        await tx
+          .update(phones)
+          .set({ locateRequestedAt: null })
+          .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
+      }
+      let notify = false;
+      if (forCheckin) {
+        const first = await tx
+          .update(safetyRequests)
+          .set({ locatedAt: ctx.now() })
+          .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)))
+          .returning({ id: safetyRequests.id });
+        notify = first.length > 0;
+      }
+      return { phone, notify } as const;
+    });
+    if ("error" in result) return c.json({ error: result.error }, 409);
+    if (result.notify) await notifySafety(ctx, result.phone, "located");
     return c.body(null, 204);
   });
 

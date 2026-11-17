@@ -193,7 +193,7 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
-    hasLocation: Boolean(loc),
+    hasLocation: phone.locationMode !== "off" && Boolean(loc),
     // Hardware attestation of the boot state (#23); null until the phone attested once.
     attestation: phone.attestation
       ? {

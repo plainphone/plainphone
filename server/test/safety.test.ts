@@ -17,6 +17,24 @@ async function setup(profile: "child" | "self" = "child") {
 const fix = (at: Date) => ({ lat: 55.6, lon: 12.5, accuracyM: 15, recordedAt: at.toISOString() });
 
 describe("location modes", () => {
+  it("discards a position when sharing is disabled after device authentication", async () => {
+    const { parent, phoneId, device } = await setup();
+    const mode = `/api/phones/${phoneId}/location/mode`;
+    expect((await parent.put(mode, { mode: "always", alwaysFor: "hour" })).status).toBe(200);
+    const request = new Request("https://app.example.test/api/device/location", {
+      method: "PUT",
+      headers: { authorization: `Bearer ${device.token}`, "content-type": "application/json" },
+      body: JSON.stringify(fix(h.clock.now)),
+    });
+    const read = request.text.bind(request);
+    request.text = async () => {
+      expect((await parent.put(mode, { mode: "off" })).status).toBe(200);
+      return read();
+    };
+    expect((await h.app.fetch(request)).status).toBe(409);
+    expect(await h.ctx.db.select().from(locations)).toHaveLength(0);
+  });
+
   it("defaults to Find and check-in for a child, and off for Self", async () => {
     const child = await setup();
     const c = (await child.parent.get(`/api/phones/${child.phoneId}/location`)).json;
