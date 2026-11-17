@@ -50,6 +50,9 @@ data class DeviceStatus(
     val rulesEtag: String?,
     val rulesAppliedAtMs: Long?,
     val dnsHost: String?,
+    val mode: String = "strong",
+    val protections: Map<String, Boolean>? = null,
+    val timeUsed: Map<String, Int>? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -62,6 +65,12 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .put("mode", mode)
+        .apply {
+            // Optional fields (docs/sync-api.md): only sent when known.
+            protections?.let { put("protections", JSONObject(it)) }
+            timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
+        }
 }
 
 internal fun iso(ms: Long): String = java.time.Instant.ofEpochMilli(ms).toString()

@@ -21,17 +21,26 @@ interface SyncDevice {
     fun battery(): Pair<Int?, Boolean?>
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean): LocationFix?
+    /** Minutes used today per limited app ("*" = total), or null without time limits. */
+    fun timeUsed(): Map<String, Int>? = null
 }
 
 data class LockState(
+    /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
+    val mode: String = "strong",
+    /** What protects the phone right now (light mode's checklist; also sent in strong mode). */
+    val protections: Map<String, Boolean>? = null,
     val deviceOwner: Boolean,
     val maintenance: Boolean,
     val failedPolicies: List<String>,
     val appliedAtMs: Long?,
     val dnsHost: String?,
 ) {
-    /** Every lock policy held and no maintenance unlock is running. */
-    val intact: Boolean get() = deviceOwner && !maintenance && failedPolicies.isEmpty() && appliedAtMs != null
+    /**
+     * Every lock policy held and no maintenance unlock is running. In light mode every protection
+     * is a lock step, so a missing one is a failed policy.
+     */
+    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && failedPolicies.isEmpty() && appliedAtMs != null
 }
 
 /**
@@ -142,9 +151,13 @@ class SyncRunner(
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
+            mode = lock.mode,
+            protections = lock.protections,
+            timeUsed = device.timeUsed(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
-        val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null).toString())
+        // Minutes used change every minute too: they ride along, but do not force a report.
+        val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null).toString())
         val now = device.nowMs()
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)

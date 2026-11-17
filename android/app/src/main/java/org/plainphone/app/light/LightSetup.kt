@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The Plainphone authors
+package org.plainphone.app.light
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.admin.DevicePolicyManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.net.VpnService
+import android.os.Build
+import android.provider.Settings
+import java.security.SecureRandom
+import org.plainphone.app.ConfigStore
+import org.plainphone.app.MaintenancePin
+import org.plainphone.app.R
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.time.TimeGuard
+
+/**
+ * The light-mode setup, one step per screen (docs/light-mode.md). A step is done when Android
+ * says so, so the list heals itself: if the child switches something off, Plainphone asks again.
+ */
+object LightSetup {
+    private const val PREFS = "plainphone_light_setup"
+
+    enum class Step(val title: Int, val body: Int, val action: Int, val optional: Boolean = false) {
+        PIN(R.string.light_step_pin_title, R.string.light_step_pin_body, R.string.light_step_pin_action),
+        PHONE(R.string.light_step_phone_title, R.string.light_step_phone_body, R.string.light_step_phone_action),
+        SMS(R.string.light_step_sms_title, R.string.light_step_sms_body, R.string.light_step_sms_action),
+        FILTER(R.string.light_step_filter_title, R.string.light_step_filter_body, R.string.light_step_filter_action),
+        USAGE(R.string.light_step_usage_title, R.string.light_step_usage_body, R.string.light_step_usage_action),
+        ADMIN(R.string.light_step_admin_title, R.string.light_step_admin_body, R.string.light_step_admin_action),
+        RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action),
+        LOCATION(R.string.light_step_location_title, R.string.light_step_location_body, R.string.light_step_location_action, optional = true),
+        GUARD(R.string.light_step_guard_title, R.string.light_step_guard_body, R.string.light_step_guard_action),
+        ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
+        PAIR(R.string.light_step_pair_title, R.string.light_step_pair_body, R.string.light_step_pair_action),
+    }
+
+    fun isDone(context: Context, step: Step): Boolean = when (step) {
+        Step.PIN -> !ConfigStore(context).load().usesDefaultPin
+        Step.PHONE -> roleHeld(context, android.app.role.RoleManager.ROLE_DIALER)
+        Step.SMS -> roleHeld(context, android.app.role.RoleManager.ROLE_SMS)
+        Step.FILTER -> VpnService.prepare(context) == null
+        Step.USAGE -> TimeGuard.hasUsageAccess(context)
+        Step.ADMIN -> context.getSystemService(DevicePolicyManager::class.java)?.isAdminActive(LightAdminReceiver.component(context)) == true
+        Step.RUNNING -> notificationsAllowed(context) &&
+            context.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
+        Step.LOCATION -> context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+            context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        Step.GUARD -> Protections.isGuardEnabled(context)
+        Step.ALWAYS_ON -> org.plainphone.app.light.vpn.PlainphoneVpnService.isAlwaysOn(context)
+        Step.PAIR -> SyncStore(context).isPaired
+    }
+
+    fun isSkipped(context: Context, step: Step) = step.optional && prefs(context).getBoolean("skip_${step.name}", false)
+
+    fun skip(context: Context, step: Step) {
+        prefs(context).edit().putBoolean("skip_${step.name}", true).apply()
+    }
+
+    /** The first step that still needs doing, or null when everything is set up. */
+    fun next(context: Context): Step? = Step.entries.firstOrNull { !isDone(context, it) && !isSkipped(context, it) }
+
+    /** Setup counts as complete once it was finished once; afterwards the guard protects the screens. */
+    fun isComplete(context: Context): Boolean = prefs(context).getBoolean("complete", false)
+
+    fun markComplete(context: Context) {
+        prefs(context).edit().putBoolean("complete", true).apply()
+    }
+
+    fun savePin(context: Context, pin: String) {
+        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+        val store = ConfigStore(context)
+        store.save(store.load().copy(pinHashHex = MaintenancePin.hash(pin, salt), pinSaltHex = salt))
+    }
+
+    /** What the step's button opens. Null when the step is handled inside Plainphone (PIN, pairing). */
+    @SuppressLint("BatteryLife") // Plainphone must keep running to filter calls and enforce the parent's rules.
+    fun intent(context: Context, step: Step): Intent? = when (step) {
+        Step.PIN, Step.PAIR -> null
+        Step.PHONE -> roleIntent(context, android.app.role.RoleManager.ROLE_DIALER)
+        Step.SMS -> roleIntent(context, android.app.role.RoleManager.ROLE_SMS)
+        Step.FILTER -> VpnService.prepare(context)
+        Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+            .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))
+            .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(R.string.light_admin_explanation))
+        Step.RUNNING -> if (!notificationsAllowed(context)) {
+            null // asked as a runtime permission by the activity
+        } else {
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+        }
+        Step.LOCATION -> null // runtime permissions, asked by the activity
+        Step.GUARD -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        Step.ALWAYS_ON -> Intent(Settings.ACTION_VPN_SETTINGS)
+    }
+
+    fun notificationsAllowed(context: Context): Boolean =
+        Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun roleHeld(context: Context, role: String) =
+        context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(role) == true
+
+    private fun roleIntent(context: Context, role: String): Intent? =
+        context.getSystemService(android.app.role.RoleManager::class.java)
+            ?.takeIf { it.isRoleAvailable(role) }
+            ?.createRequestRoleIntent(role)
+
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+}

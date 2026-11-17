@@ -12,6 +12,8 @@ class PairingController(
     private val api: SyncApi,
     private val nowMs: () -> Long,
     private val deviceInfo: Map<String, String>,
+    /** "strong" (Device Owner) or "light" (an ordinary app), sent with the pairing. */
+    private val mode: String = "strong",
 ) {
     /** The pairing on screen, if it is still good for at least a little while. */
     fun current(): Pairing? = store.pairing()?.takeIf { it.expiresAtMs - nowMs() > MIN_REMAINING_MS }
@@ -20,7 +22,7 @@ class PairingController(
     fun start(): Pairing {
         check(!store.isPaired) { "already paired" }
         current()?.let { return it }
-        return api.startPairing("strong", deviceInfo).also(store::savePairing)
+        return api.startPairing(mode, deviceInfo).also(store::savePairing)
     }
 
     /** One poll. On [PairPoll.Paired] the token is stored and the pairing cleared. */

@@ -12,6 +12,8 @@ import android.net.Network
 import android.util.Log
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.time.TimeTicker
 
 /**
  * Wakes the sync when it matters: the screen turns on (rules and "Find" within a minute while
@@ -34,6 +36,18 @@ class PlainphoneApplication : Application() {
                     }
                 },
                 IntentFilter(Intent.ACTION_SCREEN_ON),
+            )
+            TimeTicker.register(this)
+            // Install window (catalog apps) and new apps: react the moment a package arrives.
+            registerReceiver(
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) {
+                        val pkg = intent.data?.schemeSpecificPart ?: return
+                        InstallWindow.onPackageAdded(context, pkg)
+                        SyncScheduler.now(context, "app installed")
+                    }
+                },
+                IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply { addDataScheme("package") },
             )
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
