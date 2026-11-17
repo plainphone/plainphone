@@ -21,7 +21,13 @@ H/R/L envelopes supply the locally accepted scope commitment. For per-change
 envelopes bind the change context and check its trusted approval separately.
 `verifyLog` authenticates the bytes and immediate chain link. The roster
 consumer is responsible for trusting genesis and authorizing and applying each
-transition.
+transition. Populate each device's Self grants from the accepted roster,
+including the grant to the device that signs Self phone creation. Use
+`hasSelfScope` with that device's grants.
+
+After authenticating the rules record, call `rulesRejection` with its
+`rules-digest` and the last accepted revision and digest for that phone
+(or null before the first revision). Equal revisions require equal digests.
 
 The callers own durable nonce budgets, replay state, epoch and revision
 tracking, device enrollment, storage and key lifecycle. F1 has no app or sync

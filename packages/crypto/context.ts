@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { JsonObject } from "./encoding.ts";
 
-export function rulesRejection(header: JsonObject, role: string, acceptedVersion: number) {
+type RulesRevision = { version: number; digest: string };
+
+export function rulesRejection(header: JsonObject, role: string, receivedDigest: string, accepted: RulesRevision | null) {
   if (header.table !== "phone_state" || header.scope !== "R") return "wrong-scope";
   if (role !== "admin") return "wrong-role";
   if (typeof header.version !== "number" || !Number.isSafeInteger(header.version) ||
-      header.version < 1 || header.version < acceptedVersion) return "old-version";
+      header.version < 1 || (accepted && header.version < accepted.version)) return "old-version";
+  if (accepted && header.version === accepted.version && receivedDigest !== accepted.digest) return "revision-conflict";
   return null;
 }
 
@@ -19,7 +22,7 @@ export function selfBaseRejection(changeId: string, expected: SelfBase, accepted
   return null;
 }
 
-/** Scope grants and owner principal IDs must have been derived from an accepted roster. */
-export function hasSelfScope(phoneId: string, ownerPrincipalId: string, principalId: string, selfPhoneIds: readonly string[]) {
-  return principalId === ownerPrincipalId || selfPhoneIds.includes(phoneId);
+/** Use the device grants from the accepted roster, including the grant at Self phone creation. */
+export function hasSelfScope(phoneId: string, selfPhoneIds: readonly string[]) {
+  return selfPhoneIds.includes(phoneId);
 }

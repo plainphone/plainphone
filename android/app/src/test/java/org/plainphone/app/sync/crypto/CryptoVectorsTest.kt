@@ -59,6 +59,12 @@ class CryptoVectorsTest {
         }
     }
 
+    @Test fun selfScopeRequiresDeviceGrantEvenForOwnerPrincipal() {
+        assertFalse(hasSelfScope("phone", emptyList()))
+        assertFalse(hasSelfScope("phone", listOf("another-phone")))
+        assertTrue(hasSelfScope("phone", listOf("phone")))
+    }
+
     @Test fun protocolVectors() {
         val entries = protocol.rows("log")
         val admin = protocol.obj("signing").bytes("publicKey")
@@ -78,6 +84,14 @@ class CryptoVectorsTest {
             core.verifyLog(fork.obj("entry").obj("wire"),
                 CryptoCore.LogHead(entries[0].obj("wire").text("householdId"), 2, fork.text("acceptedHead")), admin)
         }
+        val forkEntry = fork.obj("entry")
+        signed("log", forkEntry, admin)
+        val householdId = entries[0].obj("wire").text("householdId")
+        val sharedHead = CryptoCore.LogHead(householdId, 1, entries[1].text("head"))
+        val alternateHead = core.verifyLog(forkEntry.obj("wire"), sharedHead, admin)
+        assertThrows(IllegalArgumentException::class.java) {
+            core.verifyLog(entries[3].obj("wire"), alternateHead, admin)
+        }
         val self = protocol.obj("selfChange")
         val find = protocol.obj("emergencyFind")
         for (row in listOf(protocol.obj("rules"), protocol.obj("householdLabel"), self.obj("baseRules"),
@@ -92,11 +106,22 @@ class CryptoVectorsTest {
         val sealedRecord = core.sealRecord(sampleHeader, sample["body"], sampleKey, seed)
         assertEquals(sample["body"], core.openRecord(sealedRecord, sampleHeader, admin, sampleKey))
 
+        fun revisionDigest(wire: JsonObject) = core.base64url(core.sha256(core.domain("rules-digest", wire)))
+        val accepted = RulesRevision(sampleHeader["version"].asLong, revisionDigest(sample.obj("wire")))
+        val revisedBody = JsonParser.parseString("""{"schema":1,"rules":{}}""")
+        val revisedWire = core.sealRecord(sampleHeader, revisedBody, sampleKey, seed)
+        assertEquals(revisedBody, core.openRecord(revisedWire, sampleHeader, admin, sampleKey))
+        assertEquals(null, rulesRejection(sampleHeader, "admin", accepted.digest, accepted))
+        assertEquals("revision-conflict",
+            rulesRejection(revisedWire.obj("header"), "admin", revisionDigest(revisedWire), accepted))
         for (row in negative.rows("rules")) {
             val role = row.text("role")
             val record = row.obj("record")
             signed("record", record, if (role == "admin") admin else emergency)
-            assertEquals(row.text("reason"), rulesRejection(record.obj("wire").obj("header"), role, row["acceptedVersion"].asLong))
+            val wire = record.obj("wire")
+            val acceptedVersion = row["acceptedVersion"].asLong
+            val acceptedState = if (acceptedVersion == 0L) null else RulesRevision(acceptedVersion, accepted.digest)
+            assertEquals(row.text("reason"), rulesRejection(wire.obj("header"), role, revisionDigest(wire), acceptedState))
         }
         val selfRecord = self.obj("record")
         val selfHeader = selfRecord.obj("wire").obj("header")
@@ -115,7 +140,7 @@ class CryptoVectorsTest {
         assertEquals(entries[0].obj("wire").obj("data").text("userId"), admission.text("userId"))
         assertEquals("other", admission.text("relationship"))
         assertEquals(owner["expectedAccess"].asBoolean,
-            hasSelfScope(owner.text("phoneId"), owner.text("ownerPrincipalId"), admission.text("deviceId"),
+            hasSelfScope(owner.text("phoneId"),
                 admission.getAsJsonArray("selfPhoneIds").map(JsonElement::getAsString)))
         val relabelled = negative.obj("join")
         for (row in listOf(protocol.obj("join"), relabelled.obj("relabelled"))) {
@@ -151,6 +176,13 @@ class CryptoVectorsTest {
         assertThrows(IllegalArgumentException::class.java) {
             core.openEnvelope(fresh, wrongEpoch, admin, sk, pk, commitment)
         }
+        val wrongKey = ByteArray(32)
+        assertFalse(wrongKey.contentEquals(keyVector.bytes("plaintext")))
+        val uncommitted = core.sealEnvelope(header, wrongKey, pk, seed)
+        val mismatch = assertThrows(IllegalArgumentException::class.java) {
+            core.openEnvelope(uncommitted, header, admin, sk, pk, commitment)
+        }
+        assertEquals("Scope commitment mismatch", mismatch.message)
         val corrupt = fresh.deepCopy().apply {
             val ct = bytes("ct").apply { this[0] = (this[0].toInt() xor 1).toByte() }
             addProperty("ct", core.base64url(ct))
@@ -163,7 +195,7 @@ class CryptoVectorsTest {
         signed("command-result", result, phone)
         equal(result.obj("hpke").text("info"), core.domain("command-result", result.obj("wire").obj("header")))
         equal(result.obj("hpke").text("plaintext"), core.pad(result["body"]))
-        hpke(result.obj("hpke"))
+        hpke(result.obj("hpke"), result.obj("wire"))
         val approval = self.obj("approval")
         signed("self-approval", approval, approval.bytes("signPub"))
         equal(approval.obj("wire").text("recordHash"), core.sha256(core.domain("self-change", selfRecord.obj("wire"))))
@@ -185,7 +217,7 @@ class CryptoVectorsTest {
         equal(dnsHpke.text("info"), core.domain("dns-config", dns.obj("wire").obj("header")))
         equal(dns.obj("wire").obj("header").text("ppdnsKeyId"), core.sha256(dnsHpke.bytes("recipientPublicKey")))
         assertTrue(dnsHpke.text("recipientPublicKey") != keyVector.text("recipientPublicKey"))
-        hpke(dnsHpke)
+        hpke(dnsHpke, dns.obj("wire"))
         equal(dns.text("policyDigest"), core.sha256(core.domain("dns-policy", core.parseCanonical(dnsHpke.bytes("plaintext")))))
     }
 
@@ -241,7 +273,9 @@ class CryptoVectorsTest {
         assertTrue(purpose, core.verify(key, input, signature))
     }
 
-    private fun hpke(row: JsonObject) {
+    private fun hpke(row: JsonObject, wire: JsonObject = row) {
+        assertEquals(row.text("enc"), wire.text("enc"))
+        assertEquals(row.text("ct"), wire.text("ct"))
         equal(row.text("plaintext"), core.hpkeOpen(row.bytes("recipientPrivateKey"), row.bytes("recipientPublicKey"),
             row.bytes("info"), row.bytes("enc"), row.bytes("ct"), row.bytes("aad")))
     }

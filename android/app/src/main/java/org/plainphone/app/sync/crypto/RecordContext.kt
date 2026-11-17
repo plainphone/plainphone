@@ -6,13 +6,17 @@ import com.google.gson.JsonPrimitive
 
 data class SelfBase(val version: Long, val digest: String, val epoch: Long)
 
-fun rulesRejection(header: JsonObject, role: String, acceptedVersion: Long): String? {
+data class RulesRevision(val version: Long, val digest: String)
+
+fun rulesRejection(header: JsonObject, role: String, receivedDigest: String, accepted: RulesRevision?): String? {
     if (header["table"] != JsonPrimitive("phone_state") || header["scope"] != JsonPrimitive("R")) return "wrong-scope"
     if (role != "admin") return "wrong-role"
     val version = header["version"] as? JsonPrimitive
     if (version == null || !version.isNumber) return "old-version"
     val revision = runCatching { WireEncoding.parseInteger(version.asString) }.getOrNull()
-    return if (revision == null || revision < 1 || revision < acceptedVersion) "old-version" else null
+    if (revision == null || revision < 1 || (accepted != null && revision < accepted.version)) return "old-version"
+    if (accepted != null && revision == accepted.version && receivedDigest != accepted.digest) return "revision-conflict"
+    return null
 }
 
 fun selfBaseRejection(changeId: String, expected: SelfBase, accepted: SelfBase, consumed: Set<String>): String? = when {
@@ -23,6 +27,6 @@ fun selfBaseRejection(changeId: String, expected: SelfBase, accepted: SelfBase, 
     else -> null
 }
 
-/** Scope grants and owner principal IDs must have been derived from an accepted roster. */
-fun hasSelfScope(phoneId: String, ownerPrincipalId: String, principalId: String, selfPhoneIds: List<String>): Boolean =
-    principalId == ownerPrincipalId || phoneId in selfPhoneIds
+/** Use the device grants from the accepted roster, including the grant at Self phone creation. */
+fun hasSelfScope(phoneId: String, selfPhoneIds: List<String>): Boolean =
+    phoneId in selfPhoneIds

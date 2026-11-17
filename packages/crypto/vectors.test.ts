@@ -25,6 +25,12 @@ test("restricted JSON and base64url", () => {
   for (const { value } of primitives.negative.base64url) assert.throws(() => bytes(value), value);
 });
 
+test("Self scope requires a device grant even for the owner principal", () => {
+  assert.equal(hasSelfScope("phone", []), false);
+  assert.equal(hasSelfScope("phone", ["another-phone"]), false);
+  assert.equal(hasSelfScope("phone", ["phone"]), true);
+});
+
 for (const backend of ["native", "noble"] as const) {
   const core = new CryptoCore(backend, backend);
   test(`${backend} primitives and strict signatures`, async () => {
@@ -61,14 +67,20 @@ for (const backend of ["native", "noble"] as const) {
     await assert.rejects(core.verifyLog(fork.entry.wire, {
       head: fork.acceptedHead, seq: 2, householdId: protocol.log[0].wire.householdId,
     }, admin));
+    await signed(core, "log", fork.entry, admin);
+    const logHead = (entry: typeof fork.entry) => ({
+      head: entry.head, seq: entry.wire.seq, householdId: entry.wire.householdId,
+    });
+    const alternateHead = await core.verifyLog(fork.entry.wire, logHead(protocol.log[1]), admin);
+    await assert.rejects(core.verifyLog(protocol.log[3].wire, alternateHead, admin), /Invalid log link/);
     const r1 = bytes(protocol.dedupe.rKey);
     const key = (n: number) => new Uint8Array(32).fill(n);
     for (const [record, recordKey, signer] of [
       ...protocol.padding.map((entry: typeof protocol.rules) => [entry, key(0x23), admin]),
       [protocol.rules, r1, admin], [protocol.householdLabel, key(0x23), admin],
       [protocol.report, r1, phone], [protocol.releaseAck, key(0x6a), phone],
-      ...protocol.commands.map((command: typeof protocol.rules, i: number) =>
-        [command, key(i === 3 ? 0x6a : 0x22), admin]),
+      ...protocol.commands.map((command: typeof protocol.rules) =>
+        [command, bytes(command.encryption.key), admin]),
       [protocol.selfChange.baseRules, key(0x6a), admin],
       [protocol.selfChange.resultingRules, key(0x6a), admin],
       [protocol.selfChange.record, key(0x63), admin],
@@ -83,9 +95,17 @@ for (const backend of ["native", "noble"] as const) {
     const sample = protocol.rules;
     const sealedRecord = await core.sealRecord(sample.wire.header, sample.body, r1, bytes(protocol.signing.seed));
     assert.deepEqual(await core.openRecord(sealedRecord, sample.wire.header, admin, r1), sample.body);
+    const revisionDigest = async (wire: typeof sample.wire) =>
+      base64url(await core.sha256(core.domain("rules-digest", wire)));
+    const accepted = { version: sample.wire.header.version, digest: await revisionDigest(sample.wire) };
+    const revisedWire = await core.sealRecord(sample.wire.header, { schema: 1, rules: {} }, r1, bytes(protocol.signing.seed));
+    assert.deepEqual(await core.openRecord(revisedWire, sample.wire.header, admin, r1), { schema: 1, rules: {} });
+    assert.equal(rulesRejection(sample.wire.header, "admin", accepted.digest, accepted), null);
+    assert.equal(rulesRejection(revisedWire.header, "admin", await revisionDigest(revisedWire), accepted), "revision-conflict");
     for (const { record, role, acceptedVersion, reason } of protocol.negative.rules) {
       await signed(core, "record", record, role === "admin" ? admin : emergency);
-      assert.equal(rulesRejection(record.wire.header, role, acceptedVersion), reason);
+      assert.equal(rulesRejection(record.wire.header, role, await revisionDigest(record.wire),
+        acceptedVersion === 0 ? null : { version: acceptedVersion, digest: accepted.digest }), reason);
     }
     const self = protocol.selfChange;
     const selfHeader = self.record.wire.header;
@@ -100,8 +120,7 @@ for (const backend of ["native", "noble"] as const) {
     const admission = owner.admission.wire.data;
     assert.equal(admission.userId, protocol.log[0].wire.data.userId);
     assert.equal(admission.relationship, "other");
-    assert.equal(hasSelfScope(owner.phoneId, owner.ownerPrincipalId, admission.deviceId,
-      admission.selfPhoneIds), owner.expectedAccess);
+    assert.equal(hasSelfScope(owner.phoneId, admission.selfPhoneIds), owner.expectedAccess);
     for (const join of [protocol.join, protocol.negative.join.relabelled]) {
       eq(core.domain("join-device", join.fields), join.input);
       eq(await core.sha256(bytes(join.input)), join.fingerprint);
@@ -129,6 +148,11 @@ for (const backend of ["native", "noble"] as const) {
       recipientPublic, commitment));
     await assert.rejects(core.openEnvelope(fresh, { ...vector.wire.header, epoch: 2 }, admin,
       recipientPrivate, recipientPublic, commitment));
+    const wrongKey = key(0);
+    assert.notDeepEqual(wrongKey, r1);
+    const uncommitted = await core.sealEnvelope(vector.wire.header, wrongKey, recipientPublic, bytes(protocol.signing.seed));
+    await assert.rejects(core.openEnvelope(uncommitted, vector.wire.header, admin, recipientPrivate,
+      recipientPublic, commitment), /Scope commitment mismatch/);
     const invalidCiphertext = bytes(fresh.ct);
     invalidCiphertext[0] = invalidCiphertext[0]! ^ 1;
     await assert.rejects(core.openEnvelope({ ...fresh, ct: base64url(invalidCiphertext) },
@@ -137,6 +161,8 @@ for (const backend of ["native", "noble"] as const) {
     const { result } = protocol.emergencyFind;
     await signed(core, "command-result", result, phone);
     eq(core.domain("command-result", result.wire.header), result.hpke.info);
+    assert.equal(result.wire.enc, result.hpke.enc);
+    assert.equal(result.wire.ct, result.hpke.ct);
     await checkHpke(core, result.hpke);
     eq(core.pad(result.body), result.hpke.plaintext);
     const { approval } = protocol.selfChange;
@@ -158,6 +184,8 @@ for (const backend of ["native", "noble"] as const) {
     eq(await core.sha256(bytes(dns.hpke.recipientPublicKey)), dns.wire.header.ppdnsKeyId);
     assert.notEqual(dns.hpke.recipientPublicKey, protocol.envelope.hpke.recipientPublicKey);
     eq(core.domain("dns-config", dns.wire.header), dns.hpke.info);
+    assert.equal(dns.wire.enc, dns.hpke.enc);
+    assert.equal(dns.wire.ct, dns.hpke.ct);
     await checkHpke(core, dns.hpke);
     eq(await core.sha256(core.domain("dns-policy", core.parseCanonical(bytes(dns.hpke.plaintext)))), dns.policyDigest);
   });
