@@ -13,6 +13,9 @@ import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
+import org.plainphone.app.settings.AndroidSettingsControls
+import org.plainphone.app.settings.PrefsPresetStore
+import org.plainphone.app.settings.SettingsApplier
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
@@ -24,11 +27,16 @@ object Lock {
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun applier(context: Context) = PolicyApplier(
-        AndroidDeviceControls(context.applicationContext),
-        PrefsHiddenAppsStore(context.applicationContext),
-        Build.VERSION.SDK_INT,
-    )
+    fun applier(context: Context): PolicyApplier {
+        val app = context.applicationContext
+        val device = AndroidDeviceControls(app)
+        return PolicyApplier(
+            device,
+            PrefsHiddenAppsStore(app),
+            Build.VERSION.SDK_INT,
+            SettingsApplier(device, AndroidSettingsControls(app), PrefsPresetStore(app), Build.VERSION.SDK_INT),
+        )
+    }
 
     /** Applies the lock on a background thread (private DNS does network I/O). */
     fun applyAsync(context: Context, reason: String, done: ((List<StepResult>) -> Unit)? = null) {
