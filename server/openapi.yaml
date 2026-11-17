@@ -804,7 +804,7 @@ paths:
                   required: [platform, endpoint, keys]
                   properties:
                     platform: { const: web }
-                    endpoint: { type: string, format: uri }
+                    endpoint: { type: string, format: uri, maxLength: 2000 }
                     keys:
                       type: object
                       required: [p256dh, auth]
@@ -814,12 +814,13 @@ paths:
                     label: { type: string, maxLength: 60 }
                     replaces:
                       type: string
+                      maxLength: 2000
                       description: The endpoint of the subscription this one replaces (sent by the service worker after the browser rotated it). That row is deleted and its label kept.
                 - type: object
                   required: [platform, token]
                   properties:
                     platform: { enum: [apns, fcm] }
-                    token: { type: string, maxLength: 1024 }
+                    token: { type: string, minLength: 16, maxLength: 1024 }
                     label: { type: string, maxLength: 60 }
       responses:
         "201":

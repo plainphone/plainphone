@@ -39,7 +39,7 @@ export function NotificationsSection() {
       if (mine) localStorage.setItem(DEVICE_KEY, mine.id);
       else localStorage.removeItem(DEVICE_KEY);
       setThisId(mine?.id ?? null);
-    });
+    }).catch(() => setThisId(null));
   }, [data]);
 
   if (!data) return null;
