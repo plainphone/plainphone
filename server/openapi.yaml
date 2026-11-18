@@ -2127,7 +2127,7 @@ paths:
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       responses:
-        "200": { description: "host, synced, blockedCategories, allowDomains, blockDomains" }
+        "200": { description: "host (null until provisioned), synced, blockedCategories, allowDomains, blockDomains" }
   /phones/{pid}/dns/categories/{category}:
     put:
       operationId: putPhonesDnsCategories

@@ -146,3 +146,26 @@ release notes.
 Build the app and the QR code with your own DNS host (the hostname pattern is
 `<ClientID>.<PPDNS_DOMAIN>`), and point your own Plainphone server at your ppdns
 API (`PPDNS_API_TOKEN` and the private address from `PPDNS_API_BIND`).
+
+## Use a phone's filter on a router or VPN
+
+In the web dashboard, open the phone's **Web filter**. The address appears for
+household members after the DNS service confirms provisioning. The hostname uses
+your configured DNS suffix. Treat it as private: sharing it gives other devices
+and apps access to the same filter rules.
+
+Android Private DNS takes the hostname alone. A compatible router or VPN takes
+the hostname and TCP port 853 in its DNS-over-TLS upstream settings, using the
+same hostname for TLS verification and SNI. Use `tls://<hostname>:853` only in
+clients that support that syntax. A plain DNS IP field cannot select the phone's
+profile, and the public resolver currently offers DoT.
+
+For Tailscale, use Android Private DNS and disable **Use Tailscale DNS settings**
+on that phone if you can give up MagicDNS names on it. If you need MagicDNS, an
+admin can configure a private tailnet DNS forwarder with the phone's DoT upstream.
+Tailscale's custom nameserver field takes the forwarder's IP. A global DNS
+override can apply the same phone's rules to all tailnet devices that accept and
+use those settings. For a company VPN, ask IT about an approved forwarder for
+public DNS queries that keeps internal domains on company DNS. The Tailscale and
+company VPN setups have yet to be verified on a phone. See the
+[VPN coexistence research](research/vpn-coexistence.md#resolver-addresses-and-integrations).

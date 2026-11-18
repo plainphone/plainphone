@@ -175,7 +175,7 @@ export interface Contact {
   number: string;
 }
 export interface DnsState {
-  host: string;
+  host: string | null;
   synced: boolean;
   blockedCategories: DnsCategory[];
   allowDomains: string[];

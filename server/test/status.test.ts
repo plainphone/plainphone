@@ -124,6 +124,24 @@ it("gives equal-duration overruns separate expiries without extending retries", 
 });
 
 describe("DNS readiness", () => {
+  it("returns the configured DoT host only to household members after provisioning", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    h.dns.failNext = 1;
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+
+    expect((await parent.get(path)).json.host).toBeNull();
+    await sweep(h.ctx);
+    const ready = await parent.get(path);
+    expect(ready.status).toBe(200);
+    expect(ready.json.host).toBe((await device.get("/api/device/rules")).json.dns.host);
+    expect(ready.headers.get("cache-control")).toBe("no-store");
+
+    const outsider = await signIn(h, "outsider@example.org");
+    expect((await outsider.get(path)).status).toBe(404);
+    expect((await new Client(h).get(path)).status).toBe(401);
+  });
+
   it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
     const parent = await signIn(h, "parent@example.org");
     h.dns.failNext = 1; // the first sync, right after the phone is claimed

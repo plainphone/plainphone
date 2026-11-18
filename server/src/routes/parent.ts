@@ -763,8 +763,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/phones/:pid/dns", async (c) => {
     const phone = await requirePhone(c);
     const [row] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
+    c.header("Cache-Control", "no-store");
     return c.json({
-      host: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      host: phone.dnsConfirmedAt === null ? null : `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       synced: !phone.dnsDirty,
       blockedCategories: row?.blockedCategories ?? [],
       allowDomains: row?.allowDomains ?? [],
