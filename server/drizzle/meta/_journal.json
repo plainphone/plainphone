@@ -92,6 +92,13 @@
       "when": 1794964044239,
       "tag": "0012_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794994595334,
+      "tag": "0013_dns_confirmation_provider",
+      "breakpoints": true
     }
   ]
 }

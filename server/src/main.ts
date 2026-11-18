@@ -9,6 +9,7 @@ import { NoParentPushProvider, WebPushProvider } from "./providers/parent-push.j
 import { NoPushProvider } from "./providers/push.js";
 import { validVapidKeys } from "./lib/webpush.js";
 import type { Ctx } from "./services/context.js";
+import { markUnconfirmedDnsDirty } from "./services/dns.js";
 import { startSweeper } from "./services/sweeper.js";
 
 const cfg = loadConfig();
@@ -36,6 +37,7 @@ const ctx: Ctx = {
   now: () => new Date(),
 };
 
+await markUnconfirmedDnsDirty(ctx);
 const app = createApp(ctx);
 const stopSweeper = startSweeper(ctx);
 const server = serve({ fetch: app.fetch, port: cfg.PORT }, (info) => {

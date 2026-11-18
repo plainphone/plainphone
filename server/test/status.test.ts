@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { phones } from "../src/db/schema.js";
+import { HttpDnsProvider } from "../src/providers/dns.js";
+import { markUnconfirmedDnsDirty } from "../src/services/dns.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -124,6 +126,39 @@ it("gives equal-duration overruns separate expiries without extending retries", 
 });
 
 describe("DNS readiness", () => {
+  function useHttpDns() {
+    h.ctx.cfg.DNS_PROVIDER = "http";
+    h.ctx.dns = new HttpDnsProvider("https://resolver.example.test", "test-token");
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(null, { status: 204 }));
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("provisions a clean mock-confirmed phone after switching to HTTP", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    expect((await parent.get(path)).json.synced).toBe(true);
+    const request = useHttpDns();
+
+    expect((await parent.get(path)).json.host).toBeNull();
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+
+    request.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls[2]?.[1]?.method).toBe("POST");
+    expect((await parent.get(path)).json).toMatchObject({
+      host: (await device.get("/api/device/rules")).json.dns.host,
+      synced: true,
+    });
+  });
+
   it("hides the dashboard host when the mock provider accepts the profile", async () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId } = await pairPhone(h, parent);
@@ -134,10 +169,24 @@ describe("DNS readiness", () => {
     expect(response.json.host).toBeNull();
   });
 
-  it("returns the configured DoT host only to household members after provisioning", async () => {
-    h.ctx.cfg.DNS_PROVIDER = "http";
+  it("marks legacy confirmations dirty at startup", async () => {
     const parent = await signIn(h, "parent@example.org");
-    h.dns.failNext = 1;
+    const { phoneId } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: null }).where(eq(phones.id, phoneId));
+    const request = useHttpDns();
+
+    await markUnconfirmedDnsDirty(h.ctx);
+    expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((await parent.get(path)).json.host).toMatch(/\.dns\.plainphone\.org$/);
+  });
+
+  it("returns the configured DoT host only to household members after provisioning", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
     const { phoneId, device } = await pairPhone(h, parent);
     const path = `/api/phones/${phoneId}/dns`;
 
@@ -151,6 +200,19 @@ describe("DNS readiness", () => {
     const outsider = await signIn(h, "outsider@example.org");
     expect((await outsider.get(path)).status).toBe(404);
     expect((await new Client(h).get(path)).status).toBe(401);
+  });
+
+  it("keeps the real confirmation after a transient sync failure", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    const { host } = (await parent.get(path)).json;
+    expect(host).toMatch(/\.dns\.plainphone\.org$/);
+
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await parent.put(`${path}/categories/games`, { blocked: false });
+    expect((await parent.get(path)).json).toMatchObject({ host, synced: false });
   });
 
   it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
