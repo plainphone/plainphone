@@ -1851,6 +1851,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChildContactSettings: {
+            suggestDeviceContacts: boolean;
+            lightContactRestriction: boolean;
+        };
         SetupUndoWindow: {
             undoRemainingMs: number;
         };
@@ -5115,12 +5119,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Settings saved */
-            204: {
+            /** @description Contact settings immediately before and after the save */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        before: components["schemas"]["ChildContactSettings"];
+                        after: components["schemas"]["ChildContactSettings"];
+                    };
+                };
             };
             400: components["responses"]["Error"];
             /** @description Child phone not found */

@@ -334,6 +334,59 @@ describe("Self profile with a trusted person", () => {
     expect((await helper.post(`${route}-qr`, { challenge: fresh.challenge, revision: updated.revision })).status).toBe(204);
   });
 
+  it("rejects approval after the domain is added to the opposite list", async () => {
+    const { me, phoneId } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+
+    const domain = "example.org";
+    const request = await me.post(`${phone}/dns/allow`, { domain });
+    expect(request.status).toBe(202);
+    const id = request.json.change.id;
+    const preview = async () => (await helper.get("/api/approvals")).json.approvals.find((row: { id: string }) => row.id === id);
+    const before = await preview();
+    expect((await me.post(`${phone}/dns/block`, { domain })).status).toBe(200);
+    const after = await preview();
+    expect(after.revision).not.toBe(before.revision);
+
+    const approve = (revision: string) => helper.post(`/api/changes/${id}/approve`, { revision });
+    expect((await approve(before.revision)).status).toBe(409);
+    expect((await me.get(`${phone}/dns`)).json.blockDomains).toContain(domain);
+    expect((await approve(after.revision)).status).toBe(204);
+    expect((await me.get(`${phone}/dns`)).json).toMatchObject({ allowDomains: [domain], blockDomains: [] });
+  });
+
+  it("keeps a pending limit when a stale approval follows a core app update", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    const packageName = "com.instagram.android";
+    const limit = `${phone}/time-limits/apps/${packageName}`;
+    expect((await me.put(limit, { minutes: 15 })).status).toBe(200);
+    await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+
+    const request = await me.put(limit, { minutes: 30 });
+    expect(request.status).toBe(202);
+    const id = request.json.change.id;
+    const preview = async () => (await helper.get("/api/approvals")).json.approvals[0];
+    const before = await preview();
+    expect((await device.put("/api/device/apps", { apps: [{ packageName, label: "Instagram", core: true }] })).status).toBe(204);
+    expect((await preview()).summary).toEqual(before.summary);
+    expect((await helper.post(`/api/changes/${id}/approve`, { revision: before.revision })).status).toBe(409);
+    expect(await preview()).toMatchObject({ id });
+  });
+
   it("rejects a stale fingerprint when different schedule rules have the same summary", async () => {
     const { me, phoneId, device } = await selfPhone();
     const helper = await signIn(h, "helper@example.org");

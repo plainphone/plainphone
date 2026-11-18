@@ -37,7 +37,9 @@ In the web dashboard, open the Child phone's **Contacts** and turn on **Suggest
 contacts from the phone**. It starts off for all phones, including new light
 phones. When turned on and Android grants contacts access, the phone sends only
 names and international phone numbers to the parents in the household. The child
-can see whether suggestions are on in the phone's Contacts tab.
+can see whether suggestions are on in the phone's Contacts tab. After a save, the
+dashboard shows the server's before and after values, including when the same
+setting was already saved in another tab.
 
 The phone reads the address book at most once every six hours while enabled and
 sends up to 2,000 of the most recently updated contacts. If the upload fails,

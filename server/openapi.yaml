@@ -82,6 +82,12 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    ChildContactSettings:
+      type: object
+      required: [suggestDeviceContacts, lightContactRestriction]
+      properties:
+        suggestDeviceContacts: { type: boolean }
+        lightContactRestriction: { type: boolean }
     SetupUndoWindow:
       type: object
       required: [undoRemainingMs]
@@ -2600,7 +2606,16 @@ paths:
                   type: boolean
                   description: Available on light phones only.
       responses:
-        "204": { description: "Settings saved" }
+        "200":
+          description: Contact settings immediately before and after the save
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [before, after]
+                properties:
+                  before: { $ref: "#/components/schemas/ChildContactSettings" }
+                  after: { $ref: "#/components/schemas/ChildContactSettings" }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: "Child phone not found" }
     post:

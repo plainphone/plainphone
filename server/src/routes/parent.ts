@@ -33,7 +33,7 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
-import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
+import { approvalAppLabel, approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, undoMinutesInput } from "../lib/setup-undo.js";
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -818,8 +818,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.lightContactRestriction !== undefined && phone.mode !== "light") {
       throw new HTTPException(400, { message: "contact restriction is always on in strong mode" });
     }
-    await updateChildContactSettings(ctx, phone.id, input);
-    return c.body(null, 204);
+    const settings = await updateChildContactSettings(ctx, phone.id, input);
+    if (!settings) throw new HTTPException(404, { message: "not found" });
+    return c.json(settings);
   });
 
   app.post("/phones/:pid/contacts", async (c) => {
@@ -1045,19 +1046,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/approvals", async (c) => {
     const rows = await ctx.db
-      .select({ change: pendingChanges, phoneName: phones.name, timezone: phones.timezone, requester: users.email, appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')` })
+      .select({ change: pendingChanges, phoneName: phones.name, timezone: phones.timezone, requester: users.email })
       .from(pendingChanges)
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .innerJoin(phones, eq(phones.id, pendingChanges.phoneId))
       .leftJoin(users, eq(users.id, pendingChanges.requestedBy))
-      // The trusted person cannot see the phone's app list, so name the app here.
-      .leftJoin(
-        phoneApps,
-        and(
-          eq(phoneApps.phoneId, pendingChanges.phoneId),
-          eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`),
-        ),
-      )
       .where(
         and(
           eq(selfKeys.trustedUserId, c.get("user").id),
@@ -1088,7 +1081,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           phoneName: r.phoneName,
           requestedBy: r.requester,
           op: { type: r.op.type },
-          appLabel: r.appLabel,
+          appLabel: approvalAppLabel(state, r.phoneId, r.op),
           summary,
           revision: approvalRevision(r.change, state, r.phoneId, r.op, bonusDate),
           createdAt: r.change.createdAt.toISOString(),

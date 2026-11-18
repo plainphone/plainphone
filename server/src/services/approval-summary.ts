@@ -111,8 +111,10 @@ function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonu
     case "catalog.add":
     case "catalog.remove":
       return app(op.packageName);
-    case "timeLimit.set":
-      return { limit: limit(op.packageName), label: app(op.packageName)?.label };
+    case "timeLimit.set": {
+      const currentApp = app(op.packageName);
+      return { limit: limit(op.packageName), label: currentApp?.label, core: currentApp?.core };
+    }
     case "timeLimit.bonus":
       return {
         limit: limit(op.packageName), label: app(op.packageName)?.label,
@@ -137,9 +139,13 @@ function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonu
     case "dns.category":
       return state.dns.find((row) => row.phoneId === phoneId)?.blockedCategories.includes(op.category);
     case "dns.allowDomain":
-      return state.dns.find((row) => row.phoneId === phoneId)?.allowDomains.includes(op.domain);
-    case "dns.blockDomain":
-      return state.dns.find((row) => row.phoneId === phoneId)?.blockDomains.includes(op.domain);
+    case "dns.blockDomain": {
+      const current = state.dns.find((row) => row.phoneId === phoneId);
+      return {
+        allowed: current?.allowDomains.includes(op.domain),
+        blocked: current?.blockDomains.includes(op.domain),
+      };
+    }
     case "setting.set":
       return state.settings.find((row) => row.phoneId === phoneId)?.settings[op.key];
     case "home.set":
@@ -169,6 +175,15 @@ export function approvalBonusDate(phone: { timezone: string }, now: Date) {
   return localDate(phone.timezone, now);
 }
 
+function approvalAppName(state: ApprovalState, phoneId: string, packageName: string) {
+  return appName(packageName, state.apps.find((row) => row.phoneId === phoneId && row.packageName === packageName)?.label);
+}
+
+export function approvalAppLabel(state: ApprovalState, phoneId: string, op: Op) {
+  if (!("packageName" in op)) return null;
+  return op.type === "catalog.add" ? appName(op.packageName, op.label) : approvalAppName(state, phoneId, op.packageName);
+}
+
 /** Describes the current rule and the requested change without returning the stored op. */
 export function formatApprovalSummary(
   state: ApprovalState,
@@ -176,8 +191,8 @@ export function formatApprovalSummary(
   op: Op,
   options: SummaryOptions = {},
 ) {
-  const label = (pkg: string) => appName(pkg, state.apps.find((row) => row.phoneId === phoneId && row.packageName === pkg)?.label);
-  const app = "packageName" in op ? label(op.packageName) : "";
+  const label = (pkg: string) => approvalAppName(state, phoneId, pkg);
+  const app = approvalAppLabel(state, phoneId, op) ?? "";
   switch (op.type) {
     case "app.set":
       return op.allowed ? copy(`Allow ${app}`, `Tillad ${app}`) : copy(`Hide ${app}`, `Skjul ${app}`);
@@ -277,7 +292,7 @@ export function formatApprovalSummary(
         return `${key[locale]}: ${from} → ${describe(next, changedHelper)}`;
       });
     }
-    case "catalog.add": return copy(`Add ${appName(op.packageName, op.label)} to the app list`, `Tilføj ${appName(op.packageName, op.label)} til applisten`);
+    case "catalog.add": return copy(`Add ${app} to the app list`, `Tilføj ${app} til applisten`);
     case "catalog.remove": return copy(`Remove ${app} from the app list`, `Fjern ${app} fra applisten`);
     case "phone.release": return copy("Release this phone", "Frigiv denne telefon");
     case "phone.remove": return copy("Remove this phone from Plainphone", "Fjern denne telefon fra Plainphone");
