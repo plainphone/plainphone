@@ -338,7 +338,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
           state: phone.attestation.state === "verified" &&
             (!phone.attestedAt || ctx.now().getTime() - phone.attestedAt.getTime() >= ATTESTATION_MAX_AGE_MS)
             ? "unverifiable" as const
-            : phone.attestation.state,
+            : legacyAmbiguousAttestation(phone.attestation) ? "unverifiable" : phone.attestation.state,
           checkedAt: phone.attestedAt?.toISOString() ?? null,
         }
       : null,
@@ -351,11 +351,16 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
 }
 
 /** States in which the lock cannot be trusted, whatever the phone itself reports (#23). */
-export const UNTRUSTED_BOOT = new Set(["unlocked", "custom-os", "failed-boot", "revoked"]);
+export const UNTRUSTED_BOOT = new Set(["unlocked", "custom-os", "failed-boot"]);
+
+function legacyAmbiguousAttestation(attestation: PhoneAttestation): boolean {
+  return attestation.state === "revoked" ||
+    (attestation.state === "unlocked" && attestation.deviceLocked === false && attestation.verifiedBootState === "verified");
+}
 
 /** A negative boot verdict counts as a broken lock in the dashboard. */
 export function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
-  if (!attestation || !UNTRUSTED_BOOT.has(attestation.state)) return status;
+  if (!attestation || !UNTRUSTED_BOOT.has(attestation.state) || legacyAmbiguousAttestation(attestation)) return status;
   return {
     ...status,
     lockIntact: false,

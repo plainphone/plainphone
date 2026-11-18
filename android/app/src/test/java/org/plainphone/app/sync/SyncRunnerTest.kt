@@ -326,6 +326,20 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `call role and parallel apps notices leave the lock intact`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        device.lock = device.lock.copy(callRoleActionNeeded = true, parallelAppsRemoved = true)
+        runner.run("status")
+
+        val status = api.statuses.single()
+        assertThat(status.lockIntact).isTrue()
+        assertThat(status.failedPolicies).isEmpty()
+        assertThat(status.toJson().getBoolean("callRoleActionNeeded")).isTrue()
+        assertThat(status.toJson().getBoolean("parallelAppsRemoved")).isTrue()
+    }
+
+    @Test
     fun `a failing report never stops the rules`() {
         pair()
         val failing = object : SyncApi by api {

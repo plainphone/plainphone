@@ -22,7 +22,7 @@ const TAG_OS_PATCH_LEVEL = 706;
  * - `custom-os`: locked, but with a system signed by someone other than the maker.
  * - `failed-boot`: verified boot reported a failure.
  * - `unverifiable`: no hardware attestation (software keystore, or a root that is not Google's).
- * - `revoked`: a certificate in the chain is on Google's revocation list.
+ * - `revoked`: legacy stored verdict. A revoked batch key cannot establish boot state.
  */
 export type AttestationState = "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
 
@@ -95,7 +95,7 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   const unverifiable = { ...UNVERIFIABLE_ATTESTATION, ...base };
   const rootKey = root.publicKey.export({ type: "spki", format: "der" }).toString("base64");
   if (!rootKeys.includes(rootKey)) return unverifiable;
-  if (revoked && certs.some((c) => revoked.has(serialKey(c)))) return { ...unverifiable, state: "revoked" };
+  if (revoked && certs.some((c) => revoked.has(serialKey(c)))) return unverifiable;
   if (level === "software" || level === null || !validCertificatePath(certs, now)) return unverifiable;
 
   const hardware = desc[7]!;
@@ -107,12 +107,14 @@ export function verifyAttestation(chainDer: Buffer[], challenge: Buffer, revoked
   const patch = explicitField(hardware, TAG_OS_PATCH_LEVEL);
   const osPatchLevel = patch ? asInt(patch) : null;
 
-  let state: AttestationState;
-  if (!deviceLocked || bootState === "unverified") state = "unlocked";
-  else if (bootState === "self-signed") state = "custom-os";
-  else if (bootState === "verified") state = revocationChecked ? "verified" : "unverifiable";
-  else state = "failed-boot";
-  return { ...base, state, deviceLocked, verifiedBootState: bootState, osPatchLevel };
+  return { ...base, state: bootVerdict(deviceLocked, bootState, revocationChecked), deviceLocked, verifiedBootState: bootState, osPatchLevel };
+}
+
+export function bootVerdict(locked: boolean, boot: AttestationResult["verifiedBootState"], revocationChecked: boolean): AttestationState {
+  if (boot === "unverified") return "unlocked";
+  if (boot === "failed") return "failed-boot";
+  if (boot === "self-signed") return "custom-os";
+  return boot === "verified" && locked && revocationChecked ? "verified" : "unverifiable";
 }
 
 /** Verify CA constraints, key usage, validity, and critical extensions against the pinned root. */

@@ -72,6 +72,8 @@ data class LockState(
     val resetProtection: String? = null,
     /** Account types on the phone ("com.google"), no names. */
     val accountTypes: List<String>? = null,
+    val callRoleActionNeeded: Boolean = false,
+    val parallelAppsRemoved: Boolean = false,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -405,6 +407,8 @@ class SyncRunner(
             dnsHost = lock.dnsHost,
             resetProtection = lock.resetProtection,
             accountTypes = lock.accountTypes,
+            callRoleActionNeeded = lock.callRoleActionNeeded,
+            parallelAppsRemoved = lock.parallelAppsRemoved,
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             mode = lock.mode,

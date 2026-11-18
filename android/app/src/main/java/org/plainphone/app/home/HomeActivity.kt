@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,8 +33,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.plainphone.app.AndroidDeviceControls
+import org.plainphone.app.AndroidHardeningControls
 import org.plainphone.app.Compat
+import org.plainphone.app.Hardening
+import org.plainphone.app.Lock
 import org.plainphone.app.contacts.HelpActivity
+import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
 import org.plainphone.app.time.TimeGuard
@@ -46,6 +51,16 @@ class HomeActivity : ComponentActivity() {
     private var resumed by mutableIntStateOf(0)
     /** Only refresh while the home screen can be seen: it lives as long as the phone is on. */
     private var onScreen by mutableStateOf(false)
+
+    private val askedRoles = mutableSetOf<String>()
+    private var roleDialogOpen = false
+    private val roleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        roleDialogOpen = false
+        Lock.applyIfNeededAsync(this, "call role dialog", maxAgeMs = 0) {
+            SyncScheduler.now(this, "call role dialog")
+        }
+        askForCallRole()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (!HomeGuard.starting(this)) {
@@ -110,11 +125,29 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumed++
+        askForCallRole()
+    }
+
+    private fun askForCallRole() {
+        if (roleDialogOpen || isFinishing || !onScreen || Lock.isInMaintenanceWindow(this) ||
+            android.os.Build.VERSION.SDK_INT >= 34 ||
+            getSystemService(DevicePolicyManager::class.java)?.isDeviceOwnerApp(packageName) != true
+        ) return
+        val roles = getSystemService(RoleManager::class.java) ?: return
+        val role = Hardening.nextRoleToRequest(
+            android.os.Build.VERSION.SDK_INT,
+            Lock.applier(this).needsDialerDialog() && roles.isRoleAvailable(RoleManager.ROLE_DIALER),
+            AndroidHardeningControls(this)::roleState,
+            askedRoles,
+        ) ?: return
+        askedRoles += role
+        roleDialogOpen = runCatching { roleRequest.launch(roles.createRequestRoleIntent(role)) }.isSuccess
     }
 
     override fun onStop() {
         super.onStop()
         onScreen = false
+        if (!roleDialogOpen) askedRoles.clear()
     }
 
     private fun openApp(app: HomeApp) {

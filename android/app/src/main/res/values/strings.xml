@@ -8,7 +8,7 @@
     <string name="status_maintenance">Maintenance unlock is active. The lock returns automatically.</string>
     <string name="status_dns">Private DNS: %1$s</string>
     <string name="setup_bootloader_warning">Another operating system can be installed on this phone. Plainphone cannot guarantee the lock or protect the phone after a reset.</string>
-    <string name="status_attestation_warning">Warning: the phone\'s security check says \"%1$s\". The lock cannot be trusted.</string>
+    <string name="status_attestation_warning">The phone’s security check found a problem with its system. The lock cannot be trusted.</string>
     <string name="status_default_pin">Warning: the maintenance PIN is the default test PIN.</string>
     <string name="version_line">Version %1$s</string>
     <string name="maintenance_title">Maintenance</string>
@@ -17,6 +17,9 @@
     <string name="maintenance_wrong_pin">Wrong PIN.</string>
     <string name="maintenance_install_limit">All installation windows for today have been used. Try again tomorrow.</string>
     <string name="maintenance_install_unavailable">This app is no longer waiting to be installed.</string>
+    <string name="maintenance_install_battery">Allow Plainphone to run without battery restrictions, then try again.</string>
+    <string name="maintenance_install_account_failed">Could not open access to add a Google account. Try again.</string>
+    <string name="maintenance_install_open_failed">Could not open the install window. Try again.</string>
     <plurals name="maintenance_wait">
         <item quantity="one">Too many attempts. Try again in %1$d second.</item>
         <item quantity="other">Too many attempts. Try again in %1$d seconds.</item>

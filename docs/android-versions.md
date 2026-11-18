@@ -31,7 +31,7 @@ A Plainphone on Android 9 would have no filter and no contact rules, so the app 
 | Automatic date, time and time zone required | yes | yes | yes | only automatic time (`setAutoTimeRequired`); manual changes are still blocked by `DISALLOW_CONFIG_DATE_TIME` |
 | Factory reset protection with chosen Google accounts | yes | yes | yes | yes, through Play services' managed configuration `factoryResetProtectionAdmin` (requires hardware verification) |
 | Force stop of Plainphone blocked (`setUserControlDisabledPackages`) | yes | yes | yes | no: Force stop works, the lock stays |
-| Second layer for calls (call screening and call redirection roles) | not needed (phone app locked) | yes, two extra role dialogs | same | same |
+| Second layer for calls (call screening and call redirection roles) | not needed (phone app locked) | fallback roles when Plainphone is not the default phone app | same | same |
 | Location on for "Find" | `setLocationEnabled` | same | same | `LOCATION_MODE` through `setSecureSetting` |
 | One position for "Find" | `getCurrentLocation` with a quality request | same | `getCurrentLocation` without a request | `requestSingleUpdate` |
 | Call notification with answer and decline | call style | call style | plain notification with two buttons | same |
@@ -67,10 +67,11 @@ On Android 10 to 13, the default-app setting remains available and the user can 
 dialer. The extra dialers and SMS apps stay hidden. If either additional call role below is declined
 or removed, filtering for that direction can be lost until the role is restored.
 
-**The second layer (#24).** On Android 10 to 13 Plainphone also asks for two more roles with
-Android's dialog, right after the phone app: **call screening** (`ROLE_CALL_SCREENING`) and **call
-redirection** (`ROLE_CALL_REDIRECTION`). Telecom uses them whichever app is the phone app, so after a
-switch to the built-in dialer:
+**The second layer (#24).** On Android 10 to 13 the strong-mode home screen can ask for
+**call screening** (`ROLE_CALL_SCREENING`) and **call redirection** (`ROLE_CALL_REDIRECTION`)
+when Plainphone is not the default phone app. The dashboard shows a consent notice while either
+fallback role is missing. Pending consent for these roles does not change the lock status.
+When the fallback roles are held and the built-in dialer is the default:
 
 - incoming calls from numbers that are not approved are still rejected, except calls with a hidden or
   unknown caller ID: Android does not pass those to a screening app that is not the phone app, so they

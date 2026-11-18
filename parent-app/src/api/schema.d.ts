@@ -2094,7 +2094,7 @@ export interface components {
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
         };
-        /** @description `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off). `custom-os`: locked with another system. `failed-boot`: verified boot failed. `unverifiable`: no hardware attestation (software keystore or a root that is not Google's). `revoked`: a certificate is revoked. */
+        /** @description `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off). `custom-os`: verified boot found a system signed by another key. `failed-boot`: verified boot failed. `unverifiable`: inconclusive evidence, including revoked keys or contradictory boot state. `revoked`: legacy verdict retained in the schema for compatibility. */
         Attestation: {
             /** @enum {unknown} */
             state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
@@ -2160,6 +2160,10 @@ export interface components {
             resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
             /** @description Account types signed in on the phone (`com.google`, a maker's account). Types only, no names. */
             accountTypes?: string[] | null;
+            /** @description A call role requires consent on the phone. This does not affect lock integrity. */
+            callRoleActionNeeded?: boolean;
+            /** @description The phone removed extra Android users or profiles during hardening. */
+            parallelAppsRemoved?: boolean;
             /**
              * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
              * @enum {unknown}

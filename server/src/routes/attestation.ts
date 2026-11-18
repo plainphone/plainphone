@@ -70,7 +70,9 @@ export function attestationRoutes(ctx: Ctx) {
       }
       const checkedAt = new Date(now).toISOString();
       const keepFinding = sql`${result.state === "unverifiable"} and
-        old.attestation->>'state' in (${sql.join([...UNTRUSTED_BOOT].map((state) => sql`${state}`), sql`, `)})`;
+        old.attestation->>'state' in (${sql.join([...UNTRUSTED_BOOT].map((state) => sql`${state}`), sql`, `)}) and
+        not (old.attestation->>'state' = 'unlocked' and
+          old.attestation @> '{"deviceLocked":false,"verifiedBootState":"verified"}'::jsonb)`;
       // Keep the finding and its original timestamp when the new check could not establish boot state.
       const [previous] = await ctx.db.execute<{
         attestation: Phone["attestation"]; status: Phone["deviceStatus"]; stored: Phone["attestation"];

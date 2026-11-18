@@ -84,8 +84,8 @@ Each is its own status step, so the parent sees exactly what held.
 | `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails when setting or clearing the policy is refused | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
 | `accounts on the phone` | Lists account types (`com.google`, a maker's account), no names | all | |
 | `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, which reduces delays from App Standby for re-lock and sync | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
-| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Reports a failed check when an extra profile was found, including whether removal succeeded. Reports counts only. In headless system-user mode, reports without removing users to protect the main interactive user | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
-| `call screening role`, `call redirection role`, `contacts permission for call screening` | A second layer for calls on Android 10 to 13, see [android-versions.md](android-versions.md). Fails until the role dialog is accepted on the phone | 10-13 | [link](https://developer.android.com/reference/android/telecom/CallRedirectionService) |
+| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Shows a dashboard notice after removal. Reports a failed check only if Android cannot remove all extra users or profiles. Reports counts only. In headless system-user mode, reports without removing users to protect the main interactive user | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
+| `call screening role`, `call redirection role`, `contacts permission for call screening` | A second layer for calls on Android 10 to 13, see [android-versions.md](android-versions.md). The strong-mode home screen asks for consent if Plainphone is not already the default phone app. Pending consent shows a dashboard warning and leaves the lock intact | 10-13 | [link](https://developer.android.com/reference/android/telecom/CallRedirectionService) |
 | `no lock screen widgets` | `KEYGUARD_DISABLE_WIDGETS_ALL`; the lock screen camera stays | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setKeyguardDisabledFeatures(android.content.ComponentName,%20int)) |
 | `only built-in keyboards` | `setPermittedInputMethods(empty)`: only keyboards that came with the phone. Fails if a keyboard from an app is enabled | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedInputMethods(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
 | `only built-in accessibility services` | `setPermittedAccessibilityServices(empty)`: TalkBack and other built-in services keep working | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedAccessibilityServices(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
@@ -131,7 +131,7 @@ and the OS patch level. Play Integrity is not
 used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is requested. Only the verification result and its timestamp are stored.
 If the keystore cannot provide a chain, the phone reports an unverifiable check. A positive verdict
 expires after 48 hours, and the dashboard shows the time of the last system check separately from
-ordinary sync. If a check cannot verify the phone after a negative finding, the dashboard keeps that finding and shows the failed check separately. A change to a boot state that breaks an intact lock triggers the existing protection alert.
+ordinary sync. An inconclusive check keeps a definite boot finding and records the new check separately. It replaces older findings based on revoked certificates or contradictory boot data. A change to a boot state that breaks an intact lock triggers the existing protection alert.
 On Android 10 and 11, when Android reports an unlocked bootloader, the first strong-mode lock waits
 for the warning to be acknowledged on the phone. The dashboard shows the pending warning. Later
 policy runs reapply the lock without waiting. Android 12 and newer never wait for this local warning.
@@ -141,11 +141,11 @@ After a network failure, the phone retries attestation on the first sync due at 
 |---|---|
 | `verified` | "System unchanged" |
 | `unlocked` | Lock shown as **not intact**: an unlocked bootloader switches FRP off and lets the system be replaced |
-| `failed-boot`, `revoked` | Lock shown as not intact |
+| `failed-boot` | Lock shown as not intact |
 | `custom-os` | Lock shown as not intact: the bootloader is locked with a system signed by someone other than the maker |
-| `unverifiable` | "Cannot be verified": a software keystore, or a root that is not Google's. Phones that launched before Android 8.0 (the OnePlus 5T launched with 7.1) may land here |
+| `unverifiable` | "Cannot be verified": A software keystore, an untrusted certificate path, a revoked key, or contradictory boot data such as verified boot with an unlocked bootloader. Phones that launched before Android 8.0 (the OnePlus 5T launched with 7.1) may land here |
 
-The phone shows a warning on its status screen for the results that are not `verified` or `unverifiable`.
+The phone shows a system warning on its status screen for `unlocked`, `custom-os` and `failed-boot`.
 
 ## Home screen and phone settings from the dashboard
 

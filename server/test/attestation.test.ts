@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { ChallengeMismatch, RevocationList, serialKey, verifyAttestation } from "../src/services/attestation.js";
+import { bootVerdict, ChallengeMismatch, RevocationList, serialKey, verifyAttestation } from "../src/services/attestation.js";
 
 function chain(name: string): Buffer[] {
   const pem = readFileSync(new URL(`./fixtures/attestation/${name}.pem`, import.meta.url), "utf8");
@@ -45,7 +45,22 @@ describe("key attestation", () => {
     const c = chain("sony-xperia10-iii-TEE_EC");
     const intermediate = new X509Certificate(c[1]!);
     const r = verifyAttestation(c, b64("Pq/k1d0AkN5aQrQytCSBr1zimWNlayWExZpJLeFtAMk="), new Set([serialKey(intermediate)]));
-    expect(r.state).toBe("revoked");
+    expect(r.state).toBe("unverifiable");
+  });
+
+  it.each([
+    [false, "verified", true, "unverifiable"],
+    [true, "verified", true, "verified"],
+    [true, "verified", false, "unverifiable"],
+    [false, "unverified", true, "unlocked"],
+    [true, "unverified", true, "unlocked"],
+    [false, "failed", true, "failed-boot"],
+    [true, "failed", true, "failed-boot"],
+    [true, "self-signed", true, "custom-os"],
+    [false, "self-signed", true, "custom-os"],
+    [false, null, true, "unverifiable"],
+  ] as const)("classifies locked=%s, boot=%s, revocation checked=%s", (locked, boot, checked, state) => {
+    expect(bootVerdict(locked, boot, checked)).toBe(state);
   });
 
   it("refuses a record made for another challenge, and a chain that does not link up", () => {

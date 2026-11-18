@@ -686,8 +686,9 @@ components:
       type: object
       description: >
         `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off).
-        `custom-os`: locked with another system. `failed-boot`: verified boot failed. `unverifiable`: no hardware
-        attestation (software keystore or a root that is not Google's). `revoked`: a certificate is revoked.
+        `custom-os`: verified boot found a system signed by another key. `failed-boot`: verified boot failed.
+        `unverifiable`: inconclusive evidence, including revoked keys or contradictory boot state.
+        `revoked`: legacy verdict retained in the schema for compatibility.
       required: [state, securityLevel, deviceLocked, verifiedBootState, osPatchLevel, revocationChecked]
       properties:
         state: { enum: [verified, unlocked, custom-os, failed-boot, unverifiable, revoked] }
@@ -752,6 +753,12 @@ components:
           maxItems: 20
           description: Account types signed in on the phone (`com.google`, a maker's account). Types only, no names.
           items: { type: string, minLength: 1, maxLength: 100 }
+        callRoleActionNeeded:
+          type: boolean
+          description: A call role requires consent on the phone. This does not affect lock integrity.
+        parallelAppsRemoved:
+          type: boolean
+          description: The phone removed extra Android users or profiles during hardening.
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.

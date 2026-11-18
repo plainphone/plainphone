@@ -10,7 +10,7 @@ import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Scr
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { formatFailedPolicies } from "../../../shared/lib/failedPolicies";
-import { formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { formatAccountTypes, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -205,12 +205,17 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
+      {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {failedPolicies.length > 0 ? (
         <Notice tone="warn" text={t("phone.lockFailed", { steps: formatFailedPolicies(failedPolicies, locale) })} />
       ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>
           {reset ? <Text>{t(resetStatus[reset])}</Text> : null}
+          {phone.status?.accountTypes?.length ? (
+            <Text variant="muted">{t("phone.accountTypes", { types: formatAccountTypes(phone.status.accountTypes, locale) })}</Text>
+          ) : null}
           {patchMonth ? <Text variant="muted">{t("phone.attPatchMonth", { month: patchMonth })}</Text> : null}
           {system && system !== "verified" && system !== "unverifiable"
             ? <Notice tone="warn" text={t(systemStatus[system])} />

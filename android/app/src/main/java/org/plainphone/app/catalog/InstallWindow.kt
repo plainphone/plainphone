@@ -11,10 +11,12 @@ import android.net.Uri
 import android.util.Log
 import java.security.MessageDigest
 import java.util.Base64
+import org.plainphone.app.CatalogAccountWindowException
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.update.BatteryExemptionMissingException
 import org.plainphone.app.update.InstallLease
 
 /**
@@ -31,7 +33,7 @@ import org.plainphone.app.update.InstallLease
 object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
     private const val GOOGLE = "com.google"
-    private const val ACCOUNT_BASELINE = "googleAccountFingerprints"
+    private const val ACCOUNT_BASELINE = "accountFingerprints"
     private const val PREFS = "plainphone_install"
 
     // Account callbacks run on the main thread, which must stay free to start the watchdog.
@@ -45,7 +47,7 @@ object InstallWindow {
             val p = prefs(context)
             val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
             val accountsAllowed = p.getBoolean("accountsAllowed", false) &&
-                baseline != null && baseline.containsAll(googleAccountFingerprints(context))
+                baseline != null && accountWindowStillAllowed(baseline, accountFingerprints(context))
             Active(pkg, accountsAllowed)
         }
     }
@@ -67,7 +69,7 @@ object InstallWindow {
     internal fun openForParent(context: Context, packageName: String): OpenResult =
         open(context, packageName, true, applyCatalogPolicy(context, packageName, requiresAccounts = true))
 
-    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT }
+    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT, BATTERY_EXEMPTION_NEEDED, ACCOUNT_WINDOW_FAILED, OPEN_FAILED }
 
     private fun applyCatalogPolicy(
         context: Context,
@@ -123,8 +125,8 @@ object InstallWindow {
                         check(p.edit().putString("pkg", packageName)
                             .putLong("until", System.currentTimeMillis() + WINDOW_MS)
                             .putBoolean("accountsAllowed", allowAccounts)
-                            .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) googleAccountFingerprints(app) else null)
-                            .remove("googleAccounts")
+                            .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) accountFingerprints(app) else null)
+                            .remove("googleAccounts").remove("googleAccountFingerprints")
                             .commit()) { "Could not save the catalog target" }
                     }
                     applyPolicy { usedWindow = true }
@@ -139,14 +141,14 @@ object InstallWindow {
                             Log.e("Plainphone", "could not restore the catalog quota")
                         }
                     }
-                    return OpenResult.UNAVAILABLE
+                    return openFailure(e)
                 }
             } else if (allowAccounts) {
                 val p = prefs(app)
                 if (!window.accountsAllowed) {
                     synchronized(accountLock) {
                         p.edit().putBoolean("accountsAllowed", true)
-                            .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
+                            .putStringSet(ACCOUNT_BASELINE, accountFingerprints(app)).remove("googleAccounts").remove("googleAccountFingerprints").apply()
                     }
                 }
                 try {
@@ -158,7 +160,7 @@ object InstallWindow {
                     }
                     Lock.applyAsync(app, "restore account restriction")
                     Log.w("Plainphone", "could not apply parent install window", e)
-                    return OpenResult.UNAVAILABLE
+                    return openFailure(e)
                 }
             }
         }
@@ -166,38 +168,48 @@ object InstallWindow {
         return OpenResult.OPENED
     }
 
-    /** Reapply the account restriction as soon as Android reports a Google account change. */
+    private fun openFailure(e: Exception): OpenResult = when (e) {
+        is BatteryExemptionMissingException -> OpenResult.BATTERY_EXEMPTION_NEEDED
+        is CatalogAccountWindowException -> OpenResult.ACCOUNT_WINDOW_FAILED
+        else -> OpenResult.OPEN_FAILED
+    }
+
+    /** Reapply the account restriction after a Google addition or a change to any other account. */
+    @Suppress("DEPRECATION") // Listen for all account types.
     fun watchAccounts(context: Context) {
         val app = context.applicationContext
         AccountManager.get(app).addOnAccountsUpdatedListener(
             {
                 val closed = synchronized(accountLock) { updateAccountWindow(app) }
-                if (closed) Lock.applyIfNeededAsync(app, "Google account added during install") {}
+                if (closed) Lock.applyIfNeededAsync(app, "account changed during install") {}
             },
             null,
             true,
-            arrayOf(GOOGLE),
         )
     }
 
     private fun updateAccountWindow(context: Context): Boolean {
         val p = prefs(context)
         if (!p.getBoolean("accountsAllowed", false)) return false
-        val current = googleAccountFingerprints(context)
+        val current = accountFingerprints(context)
         val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
-        if (baseline == null || !baseline.containsAll(current)) {
-            p.edit().putBoolean("accountsAllowed", false).remove(ACCOUNT_BASELINE).remove("googleAccounts").apply()
+        if (baseline == null || !accountWindowStillAllowed(baseline, current)) {
+            p.edit().putBoolean("accountsAllowed", false).remove(ACCOUNT_BASELINE).remove("googleAccounts").remove("googleAccountFingerprints").apply()
             return true
         }
         if (current != baseline) p.edit().putStringSet(ACCOUNT_BASELINE, current).apply()
         return false
     }
 
-    private fun googleAccountFingerprints(context: Context): Set<String> {
+    private fun accountWindowStillAllowed(baseline: Set<String>, current: Set<String>): Boolean =
+        baseline.containsAll(current) &&
+            baseline.filterNot { it.startsWith("$GOOGLE:") }.all { it in current }
+
+    private fun accountFingerprints(context: Context): Set<String> {
         val hash = MessageDigest.getInstance("SHA-256")
         val encode = Base64.getEncoder()
-        return AccountManager.get(context).getAccountsByType(GOOGLE).mapTo(mutableSetOf()) {
-            encode.encodeToString(hash.digest(it.name.toByteArray()))
+        return AccountManager.get(context).accounts.mapTo(mutableSetOf()) {
+            "${it.type}:${encode.encodeToString(hash.digest(it.name.toByteArray()))}"
         }
     }
 
@@ -211,7 +223,7 @@ object InstallWindow {
         if (expectedPackage != null && openPackage != expectedPackage) return
         synchronized(accountLock) {
             prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed")
-                .remove(ACCOUNT_BASELINE).remove("googleAccounts").apply()
+                .remove(ACCOUNT_BASELINE).remove("googleAccounts").remove("googleAccountFingerprints").apply()
         }
         try {
             InstallLease.android(app).invalidate(InstallLease.CATALOG)

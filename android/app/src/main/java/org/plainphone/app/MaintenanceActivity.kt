@@ -95,6 +95,12 @@ class MaintenanceActivity : Activity() {
                                         message.setText(R.string.maintenance_install_limit)
                                     InstallWindow.OpenResult.UNAVAILABLE ->
                                         message.setText(R.string.maintenance_install_unavailable)
+                                    InstallWindow.OpenResult.BATTERY_EXEMPTION_NEEDED ->
+                                        message.setText(R.string.maintenance_install_battery)
+                                    InstallWindow.OpenResult.ACCOUNT_WINDOW_FAILED ->
+                                        message.setText(R.string.maintenance_install_account_failed)
+                                    InstallWindow.OpenResult.OPEN_FAILED ->
+                                        message.setText(R.string.maintenance_install_open_failed)
                                 }
                                 button.isEnabled = true
                             }

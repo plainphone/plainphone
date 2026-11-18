@@ -30,6 +30,8 @@ import org.plainphone.app.time.TimeGuard
 import org.plainphone.app.update.InstallLease
 
 /** Glue between Android entry points and [PolicyApplier]. */
+internal class CatalogAccountWindowException(message: String) : IllegalStateException(message)
+
 object Lock {
     private const val TAG = "Plainphone"
     private val APPLY_LOCK = Any()
@@ -85,7 +87,7 @@ object Lock {
             val results = applyNow(context, reason, onInstallsAllowed)
             if (requiresAccounts && Mode.isStrong(context)) {
                 val accounts = results.firstOrNull { it.name == PolicyApplier.CATALOG_ACCOUNTS_STEP }
-                check(accounts?.ok == true) { accounts?.detail ?: "Catalog account window did not open" }
+                if (accounts?.ok != true) throw CatalogAccountWindowException(accounts?.detail ?: "Catalog account window did not open")
             }
             results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
         } else {
@@ -226,6 +228,8 @@ object Lock {
             appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
             dnsHost = p.getString("dns_in_use", null),
             resetProtection = p.getString("reset_protection", null),
+            callRoleActionNeeded = p.getBoolean("call_role_action_needed", false),
+            parallelAppsRemoved = p.getBoolean("parallel_apps_removed", false),
             accountTypes = p.getStringSet("account_types", null)?.sorted(),
         )
     }
@@ -245,6 +249,8 @@ object Lock {
                     it.name
                 }
             })
+        edit.putBoolean("call_role_action_needed", Hardening.callRoleActionNeeded(results))
+        if (Hardening.parallelAppsRemoved(results)) edit.putBoolean("parallel_apps_removed", true)
         if (waitingForBootWarning) {
             // Report the failure without counting this as an applied configuration.
             edit.remove("applied_fingerprint").remove("applied_at").apply()
@@ -292,11 +298,16 @@ object Lock {
     )
 
     /** For alarms and screen-on: re-applies only if the merged config changed (or is 15 min old); never during maintenance. */
-    fun applyIfNeededAsync(context: Context, reason: String, done: () -> Unit) {
+    fun applyIfNeededAsync(
+        context: Context,
+        reason: String,
+        maxAgeMs: Long = org.plainphone.app.sync.SyncRunner.APPLY_MAX_AGE_MS,
+        done: () -> Unit,
+    ) {
         val app = context.applicationContext
         executor.execute {
             try {
-                applyIfNeeded(app, reason, maxAgeMs = org.plainphone.app.sync.SyncRunner.APPLY_MAX_AGE_MS)
+                applyIfNeeded(app, reason, maxAgeMs)
             } catch (e: Exception) {
                 Log.e(TAG, "apply crashed", e)
             } finally {

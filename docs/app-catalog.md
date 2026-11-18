@@ -4,7 +4,8 @@ The catalog is a short list per country of apps a parent may want on a calm phon
 the bank, the travel planner, the school app, a music app. In the parent app a parent adds
 one with one tap. The phone then treats it as allowed and offers to install it. In strong mode,
 if Play needs an account, the parent can choose “Install and add a Play account” and enter their
-maintenance PIN. Account access ends when the app is installed or the window expires.
+maintenance PIN. Account access ends when a Google account is added, another account changes,
+the app is installed, or the window expires.
 
 Apps marked `"starter": true` form the starter pack: they are allowed from the start when a
 phone reports them.

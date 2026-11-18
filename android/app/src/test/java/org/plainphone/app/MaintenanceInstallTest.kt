@@ -108,9 +108,22 @@ class MaintenanceInstallTest {
 
         assertThat(activity.isFinishing).isFalse()
         assertThat(message(activity).text.toString())
-            .isEqualTo(activity.getString(R.string.maintenance_install_unavailable))
+            .isEqualTo(activity.getString(R.string.maintenance_install_account_failed))
         assertThat(accountsBlocked()).isTrue()
         assertThat(shadowOf(context as Application).nextStartedActivity).isNull()
+    }
+
+    @Test
+    fun `missing battery exemption has its own install error`() {
+        shadowOf(context.getSystemService(PowerManager::class.java))
+            .setIgnoringBatteryOptimizations(context.packageName, false)
+        val activity = installPrompt()
+
+        submit(activity, pin)
+
+        assertThat(activity.isFinishing).isFalse()
+        assertThat(message(activity).text.toString()).isEqualTo(activity.getString(R.string.maintenance_install_battery))
+        assertThat(accountsBlocked()).isTrue()
     }
 
     @Implements(DevicePolicyManager::class)
@@ -123,12 +136,19 @@ class MaintenanceInstallTest {
     }
 
     @Test
-    fun `a Google account closes account changes while the app install stays open`() {
+    fun `a Google account closes account changes while the app install stays open`() =
+        assertAccountAdditionClosesWindow("com.google")
+
+    @Test
+    fun `a non-Google account closes account changes while the app install stays open`() =
+        assertAccountAdditionClosesWindow("com.oneplus.account")
+
+    private fun assertAccountAdditionClosesWindow(type: String) {
         submit(installPrompt(), pin)
         assertThat(accountsBlocked()).isFalse()
 
         val manager = AccountManager.get(context)
-        assertThat(manager.addAccountExplicitly(Account("test", "com.google"), null, null)).isTrue()
+        assertThat(manager.addAccountExplicitly(Account("test", type), null, null)).isTrue()
         shadowOf(Looper.getMainLooper()).idle()
         val deadline = System.nanoTime() + 5_000_000_000L
         while (!accountsBlocked() && System.nanoTime() < deadline) {

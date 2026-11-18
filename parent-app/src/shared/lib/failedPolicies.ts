@@ -45,6 +45,11 @@ add("accessibility service (closes blocked apps)", "allow Plainphone to close bl
 add("install window: clear no_install_apps", "allow the approved app to be installed", "tillad installation af den godkendte app");
 add("install window: clear no_modify_accounts", "allow the parent to add a Google account", "giv forælderen lov til at tilføje en Google-konto");
 
+add("hardware attestation: unlocked", "check the phone’s startup lock", "tjek låsen, der beskytter telefonens system");
+add("hardware attestation: custom-os", "restore the manufacturer’s system", "gendan producentens system");
+add("hardware attestation: failed-boot", "check why the phone’s system did not pass its security check", "tjek, hvorfor telefonens system ikke bestod sikkerhedstjekket");
+add("hardware attestation", "check the phone’s system", "tjek telefonens system");
+
 const restrictions: Record<string, [string, string]> = {
   no_install_apps: ["block app installation", "blokér installation af apps"],
   no_install_unknown_sources: ["block apps from unknown sources", "blokér apps fra ukendte kilder"],
@@ -97,6 +102,7 @@ for (const [key, [en, da]] of Object.entries(settings)) {
 export function formatFailedPolicies(steps: string[], locale: Locale): string {
   return formatList(steps.map((step) => {
     const key = step.startsWith("extra users and profiles:") ? "extra users and profiles" : step;
-    return labels.get(key)?.[locale] ?? step;
+    return labels.get(key)?.[locale] ??
+      (key.startsWith("hardware attestation:") ? labels.get("hardware attestation")![locale] : step);
   }), locale);
 }

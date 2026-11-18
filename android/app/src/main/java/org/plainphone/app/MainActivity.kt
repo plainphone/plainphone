@@ -220,8 +220,8 @@ class MainActivity : Activity() {
             if (localBootWarning) appendLine(getString(R.string.setup_bootloader_warning))
             // #23: the server's verdict on the boot state; only shown when it is a warning.
             org.plainphone.app.sync.AttestationRunner.lastState(this@MainActivity)
-                ?.takeIf { it != "verified" && it != "unverifiable" }
-                ?.let { appendLine(getString(R.string.status_attestation_warning, it)) }
+                ?.takeIf { it in setOf("unlocked", "custom-os", "failed-boot") }
+                ?.let { appendLine(getString(R.string.status_attestation_warning)) }
         }
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE

@@ -166,3 +166,15 @@ export function todayIn(timezone: string, now: Date = new Date()): { isoDay: num
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return { isoDay: days.indexOf(get("weekday")) + 1, date: `${get("year")}-${get("month")}-${get("day")}` };
 }
+
+/** Android reports provider identifiers, never account names. */
+export function formatAccountTypes(types: string[], locale: Locale): string {
+  const labels = types.map((type) => {
+    if (type === "com.google") return "Google";
+    if (type === "com.oneplus" || type.startsWith("com.oneplus.")) return "OnePlus";
+    if (type === "com.samsung.android.account" || type === "com.osp.app.signin") return "Samsung";
+    if (type === "com.xiaomi") return "Xiaomi";
+    return locale === "da" ? "Anden konto" : "Other account";
+  });
+  return formatList([...new Set(labels)], locale);
+}

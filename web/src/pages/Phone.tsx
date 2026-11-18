@@ -17,7 +17,7 @@ import {
   type Protection,
 } from "../lib/api";
 import { formatFailedPolicies } from "../lib/failedPolicies";
-import { formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
+import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { PhoneAppVersion } from "./PhoneAppVersion";
@@ -340,6 +340,8 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           </div>
         </div>
       )}
+      {s?.callRoleActionNeeded && <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>}
+      {s?.parallelAppsRemoved && <p className="notice notice-warn" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.maintenance && (
         <p className="notice notice-warn" role="status">
           {t("phone.maintenance")}
@@ -370,7 +372,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
             {s.resetProtection && <li>{t(RESET_PROTECTION_TEXT[s.resetProtection])}</li>}
             {phone.mode === "strong" && !phone.attestation && <li>{t("phone.attPending")}</li>}
             {s.accountTypes && s.accountTypes.length > 0 && (
-              <li>{t("phone.accountTypes", { types: formatList(s.accountTypes, locale) })}</li>
+              <li>{t("phone.accountTypes", { types: formatAccountTypes(s.accountTypes, locale) })}</li>
             )}
             {patchMonth && <li>{t("phone.attPatchMonth", { month: patchMonth })}</li>}
             {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (

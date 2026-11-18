@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { X509Certificate } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { phones, type PhoneAttestation } from "../src/db/schema.js";
 import { createApp } from "../src/app.js";
 import { RevocationList, serialKey } from "../src/services/attestation.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -80,45 +82,63 @@ describe("attestation API", () => {
       .toMatchObject({ state: "unverifiable", checkedAt: h.clock.now.toISOString() });
   });
 
-  it("keeps revocation through inconclusive checks and clears it on verified evidence", async () => {
-    const chain = chainB64("frankel-TEE_EC_2026");
-    const challenge = Buffer.from("MTQ2YWFmMTYtNzgxNC00ZTQ0LWFjZGItZTVkNjUyYTdiNjAy", "base64");
-    const serial = serialKey(new X509Certificate(Buffer.from(chain[0]!, "base64")));
-    let revoked = true;
-    h.ctx.attestation = {
-      challenge: () => challenge,
-      revocations: new RevocationList(async () => ({ entries: revoked ? { [serial]: { status: "REVOKED" } } : {} })),
-    };
-    h.app = createApp(h.ctx);
-    h.clock.now = new Date("2026-11-16T00:00:00Z");
+  it.each([
+    ["revoked", null, null, false],
+    ["unlocked", false, "verified", false],
+    ["unlocked", false, "unverified", true],
+    ["custom-os", true, "self-signed", true],
+    ["failed-boot", false, "failed", true],
+  ] as const)("reassesses stored %s with locked=%s and boot=%s", async (state, deviceLocked, verifiedBootState, broken) => {
     const parent = await signIn(h, "mum@example.org");
     const { phoneId, device } = await pairPhone(h, parent);
-    const submit = async (evidence: string[]) => {
-      const ch = await device.post("/api/device/attestation/challenge");
-      return device.put("/api/device/attestation", { challenge: ch.json.challenge, chain: evidence });
-    };
-
-    expect((await submit(chain)).json.state).toBe("revoked");
     const checkedAt = h.clock.now.toISOString();
-    h.clock.advance(60_000);
-    expect((await submit([])).json.state).toBe("unverifiable");
-    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
-      .toMatchObject({ state: "revoked", checkedAt, lastFailedAt: h.clock.now.toISOString() });
-
-    revoked = false;
-    h.clock.advance(60 * 60_000 + 1);
-    vi.mocked(spawnSync).mockReturnValueOnce({
-      error: new Error("timed out"), status: null, signal: "SIGTERM", pid: 0,
-      output: [null, Buffer.alloc(0), Buffer.alloc(0)], stdout: Buffer.alloc(0), stderr: Buffer.alloc(0),
+    const previous: PhoneAttestation = {
+      state, deviceLocked, verifiedBootState, securityLevel: "tee", revocationChecked: true, osPatchLevel: null,
+    };
+    await device.put("/api/device/status", {
+      appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
+      maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,
+      callRoleActionNeeded: true, parallelAppsRemoved: true,
     });
-    expect((await submit(chain)).status).toBe(503);
-    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
-      .toMatchObject({ state: "revoked", checkedAt, lastFailedAt: h.clock.now.toISOString() });
+    await h.ctx.db.update(phones).set({ attestation: previous, attestedAt: h.clock.now }).where(eq(phones.id, phoneId));
+    const before = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(before.status).toMatchObject({ lockIntact: !broken, callRoleActionNeeded: true, parallelAppsRemoved: true });
+    const mailCount = h.mail.outbox.length;
     h.clock.advance(60_000);
-    expect((await submit(chain)).json.state).toBe("verified");
-    const { attestation } = (await parent.get(`/api/phones/${phoneId}`)).json;
-    expect(attestation).toMatchObject({ state: "verified", checkedAt: h.clock.now.toISOString() });
-    expect(attestation).not.toHaveProperty("lastFailedAt");
+    const ch = await device.post("/api/device/attestation/challenge");
+    expect((await device.put("/api/device/attestation", { challenge: ch.json.challenge, chain: [] })).json.state).toBe("unverifiable");
+    const after = (await parent.get(`/api/phones/${phoneId}`)).json;
+    expect(after.status.lockIntact).toBe(!broken);
+    expect(after.attestation).toMatchObject(broken
+      ? { state, checkedAt, lastFailedAt: h.clock.now.toISOString() }
+      : { state: "unverifiable", checkedAt: h.clock.now.toISOString() });
+    expect(h.mail.outbox).toHaveLength(mailCount);
+  });
+
+  it("does not turn a revoked batch key into a lock alert", async () => {
+    const chain = chainB64("akita-TEE_EC_NONE");
+    const serial = serialKey(new X509Certificate(Buffer.from(chain[0]!, "base64")));
+    h.ctx.attestation = {
+      challenge: () => Buffer.from("challenge"),
+      revocations: new RevocationList(async () => ({ entries: { [serial]: { status: "REVOKED" } } })),
+    };
+    h.app = createApp(h.ctx);
+    const parent = await signIn(h, "mum@example.org");
+    expect((await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/fcm/send/attestation",
+      keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) }, label: "Test browser",
+    })).status).toBe(201);
+    const { phoneId, device } = await pairPhone(h, parent);
+    await device.put("/api/device/status", {
+      appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,
+      maintenance: false, failedPolicies: [], rulesEtag: null, rulesAppliedAt: null, dnsHost: null,
+    });
+    const mailCount = h.mail.outbox.length;
+    const ch = await device.post("/api/device/attestation/challenge");
+    expect((await device.put("/api/device/attestation", { challenge: ch.json.challenge, chain })).json.state).toBe("unverifiable");
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.status.lockIntact).toBe(true);
+    expect(h.mail.outbox).toHaveLength(mailCount);
+    expect(h.parentPush.sent).toHaveLength(0);
   });
 
   it("expires a positive result after 48 hours and keeps the actual check time", async () => {
@@ -128,6 +148,11 @@ describe("attestation API", () => {
     h.clock.now = new Date("2026-11-16T00:00:00Z");
     const parent = await signIn(h, "mum@example.org");
     const { phoneId, device } = await pairPhone(h, parent);
+    await h.ctx.db.update(phones).set({
+      attestation: { state: "failed-boot", deviceLocked: false, verifiedBootState: "failed",
+        securityLevel: "tee", revocationChecked: true, osPatchLevel: null, lastFailedAt: h.clock.now.toISOString() },
+      attestedAt: h.clock.now,
+    }).where(eq(phones.id, phoneId));
     const ch = await device.post("/api/device/attestation/challenge");
     const checkedAt = h.clock.now.toISOString();
     expect((await device.put("/api/device/attestation", {
@@ -136,6 +161,7 @@ describe("attestation API", () => {
     h.clock.advance(48 * 60 * 60_000 - 1);
     expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation)
       .toMatchObject({ state: "verified", checkedAt });
+    expect((await parent.get(`/api/phones/${phoneId}`)).json.attestation).not.toHaveProperty("lastFailedAt");
     h.clock.advance(1);
     expect((await device.put("/api/device/status", {
       appVersion: "0.1.4", batteryPct: 50, charging: false, deviceOwner: true, lockIntact: true,

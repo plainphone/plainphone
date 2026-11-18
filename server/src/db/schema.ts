@@ -129,6 +129,8 @@ export interface DeviceStatus {
   resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
   /** Account types signed in on the phone ("com.google"), no names (#21). */
   accountTypes?: string[] | null;
+  callRoleActionNeeded?: boolean;
+  parallelAppsRemoved?: boolean;
   /** Missing on phones that predate light mode: strong. */
   mode?: "strong" | "light";
   /** What is active on the phone right now (light mode reports all of them). */

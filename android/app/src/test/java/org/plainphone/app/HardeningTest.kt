@@ -168,8 +168,9 @@ class HardeningTest {
     fun `an extra user or clone profile is removed`() {
         controls.users += listOf(ExtraUser(999, "profile"), ExtraUser(10, "user"))
         val s = step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.EXTRA_USERS)
-        assertThat(s.ok).isFalse()
-        assertThat(s.detail).isEqualTo("extra profile present; removed 2")
+        assertThat(s.ok).isTrue()
+        assertThat(s.detail).isEqualTo("removed 2")
+        assertThat(Hardening.parallelAppsRemoved(listOf(s))).isTrue()
         assertThat(controls.users).isEmpty()
     }
 
@@ -218,10 +219,14 @@ class HardeningTest {
 
     @Test
     fun `Android 10 to 13 need the call screening and redirection roles, Android 14 does not`() {
+        controls.roles[Hardening.ROLE_DIALER] = RoleState.NOT_HELD
         controls.roles[Hardening.ROLE_CALL_REDIRECTION] = RoleState.NOT_HELD
         val old = apply(Hardening(controls, 33), PolicyConfig())
         assertThat(step(old, Hardening.CALL_SCREENING_ROLE).ok).isTrue()
-        assertThat(step(old, Hardening.CALL_REDIRECTION_ROLE).ok).isFalse()
+        assertThat(step(old, Hardening.CALL_REDIRECTION_ROLE).ok).isTrue()
+        assertThat(Hardening.callRoleActionNeeded(old)).isTrue()
+        controls.roles[Hardening.ROLE_DIALER] = RoleState.HELD
+        assertThat(Hardening.callRoleActionNeeded(apply(Hardening(controls, 33), PolicyConfig()))).isFalse()
         assertThat(controls.granted).contains(Hardening.READ_CONTACTS)
         val new = apply(Hardening(controls, 34), PolicyConfig())
         assertThat(new.map { it.name }).containsNoneOf(Hardening.CALL_SCREENING_ROLE, Hardening.CALL_REDIRECTION_ROLE, Hardening.CONTACTS_PERMISSION)
@@ -229,6 +234,7 @@ class HardeningTest {
 
     @Test
     fun `a role the phone does not offer does not break the lock`() {
+        controls.roles[Hardening.ROLE_DIALER] = RoleState.NOT_HELD
         controls.roles[Hardening.ROLE_CALL_REDIRECTION] = RoleState.UNAVAILABLE
         assertThat(step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.CALL_REDIRECTION_ROLE).ok).isTrue()
     }
@@ -236,6 +242,7 @@ class HardeningTest {
     @Test
     fun `roles are asked phone app first, then the two extra roles, once each`() {
         val state = mutableMapOf(
+            Hardening.ROLE_DIALER to RoleState.NOT_HELD,
             Hardening.ROLE_CALL_SCREENING to RoleState.NOT_HELD,
             Hardening.ROLE_CALL_REDIRECTION to RoleState.NOT_HELD,
         )
@@ -243,10 +250,10 @@ class HardeningTest {
         fun next(needsDialer: Boolean, sdk: Int = 31) =
             Hardening.nextRoleToRequest(sdk, needsDialer, { state[it] ?: RoleState.HELD }, asked)?.also { asked += it }
         assertThat(next(needsDialer = true)).isEqualTo(Hardening.ROLE_DIALER)
-        // Declined: nothing else is asked during this visit.
-        assertThat(next(needsDialer = true)).isNull()
-        asked.clear()
-        assertThat(next(needsDialer = false)).isEqualTo(Hardening.ROLE_CALL_SCREENING)
+        assertThat(next(needsDialer = true)).isEqualTo(Hardening.ROLE_CALL_SCREENING)
+        state[Hardening.ROLE_DIALER] = RoleState.HELD
+        assertThat(next(needsDialer = false)).isNull()
+        state[Hardening.ROLE_DIALER] = RoleState.NOT_HELD
         state[Hardening.ROLE_CALL_SCREENING] = RoleState.HELD
         assertThat(next(needsDialer = false)).isEqualTo(Hardening.ROLE_CALL_REDIRECTION)
         assertThat(next(needsDialer = false)).isNull()

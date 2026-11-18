@@ -44,6 +44,8 @@ export interface PhoneStatus {
   resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
   /** Account types on the phone ("com.google"), no names (#21). */
   accountTypes?: string[] | null;
+  callRoleActionNeeded?: boolean;
+  parallelAppsRemoved?: boolean;
   /** Missing on older phones, which are strong mode. */
   mode?: "strong" | "light";
   /** What is active on the phone right now. */

@@ -79,6 +79,8 @@ data class DeviceStatus(
     val protections: Map<String, Boolean>? = null,
     val timeUsed: Map<String, Int>? = null,
     val installOverrunSequence: Long? = null,
+    val callRoleActionNeeded: Boolean = false,
+    val parallelAppsRemoved: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -98,6 +100,8 @@ data class DeviceStatus(
             // Optional fields (docs/sync-api.md): only sent when known.
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
+            if (callRoleActionNeeded) put("callRoleActionNeeded", true)
+            if (parallelAppsRemoved) put("parallelAppsRemoved", true)
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             appVersionCode?.let { put("appVersionCode", it) }
             update?.let { put("update", it.toJson()) }

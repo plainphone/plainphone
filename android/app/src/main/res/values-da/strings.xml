@@ -7,7 +7,7 @@
     <string name="status_maintenance">Vedligeholdsoplåsning er aktiv. Låsen kommer automatisk igen.</string>
     <string name="status_dns">Privat DNS: %1$s</string>
     <string name="setup_bootloader_warning">Telefonen er låst op, så der kan installeres et andet system. Plainphone kan ikke garantere låsen eller beskytte telefonen efter en nulstilling.</string>
-    <string name="status_attestation_warning">Advarsel: telefonens sikkerhedstjek siger \"%1$s\". Låsen kan ikke stoles på.</string>
+    <string name="status_attestation_warning">Telefonens sikkerhedstjek fandt et problem med systemet. Låsen kan ikke stoles på.</string>
     <string name="status_default_pin">Advarsel: vedligeholds-PIN\'en er standard-testkoden.</string>
     <string name="version_line">Version %1$s</string>
     <string name="maintenance_title">Vedligehold</string>
@@ -16,6 +16,9 @@
     <string name="maintenance_wrong_pin">Forkert PIN.</string>
     <string name="maintenance_install_limit">Dagens installationsvinduer er brugt. Prøv igen i morgen.</string>
     <string name="maintenance_install_unavailable">Denne app venter ikke længere på at blive installeret.</string>
+    <string name="maintenance_install_battery">Tillad, at Plainphone kører uden batteribegrænsninger, og prøv igen.</string>
+    <string name="maintenance_install_account_failed">Kunne ikke åbne for tilføjelse af en Google-konto. Prøv igen.</string>
+    <string name="maintenance_install_open_failed">Kunne ikke åbne for installation. Prøv igen.</string>
     <plurals name="maintenance_wait">
         <item quantity="one">For mange forsøg. Prøv igen om %1$d sekund.</item>
         <item quantity="other">For mange forsøg. Prøv igen om %1$d sekunder.</item>

@@ -89,7 +89,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         add(step("enable call role services") { controls.setCallRoleServicesEnabled(true) })
         // #24: Android 10 to 13 cannot lock the default phone app. These two roles keep calls filtered
         // when it is changed in Settings; Android 14+ locks the phone app with DISALLOW_CONFIG_DEFAULT_APPS.
-        if (sdkInt < 34) {
+        if (sdkInt < 34 && runCatching { controls.roleState(ROLE_DIALER) }.getOrNull() != RoleState.HELD) {
             add(role(CALL_SCREENING_ROLE, ROLE_CALL_SCREENING))
             add(role(CALL_REDIRECTION_ROLE, ROLE_CALL_REDIRECTION))
             // Telecom only passes calls from numbers in the phone's contacts to a screening app that is not
@@ -167,15 +167,16 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         val found = controls.extraUsers()
         if (found.isEmpty()) return@step "none"
         val left = found.filterNot { runCatching { controls.removeUser(it) }.getOrDefault(false) }
-        if (left.isEmpty()) return StepResult(EXTRA_USERS, false, "extra profile present; removed ${found.size}")
+        if (left.isEmpty()) return@step "removed ${found.size}"
         error("extra profile present; ${left.size} of ${found.size} could not be removed (${left.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }})")
     }
 
-    /** Fails until the role dialog was accepted on the phone (MainActivity asks), like the phone app itself. */
+    /** A missing role needs consent on the phone. */
     private fun role(name: String, role: String): StepResult = when (runCatching { controls.roleState(role) }.getOrNull()) {
         RoleState.HELD -> StepResult(name, true, "held")
         RoleState.UNAVAILABLE -> StepResult(name, true, "not offered by this phone")
-        else -> StepResult(name, false, "confirm Plainphone in the dialog on the phone")
+        RoleState.NOT_HELD -> StepResult(name, true, ACTION_NEEDED)
+        null -> StepResult(name, false, "could not check the role")
     }
 
     private inline fun step(name: String, block: () -> Any?): StepResult = try {
@@ -193,6 +194,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         const val LOCK_SCREEN_WIDGETS = "no lock screen widgets"
         const val KEYBOARDS = "only built-in keyboards"
         const val ACCESSIBILITY = "only built-in accessibility services"
+        private const val ACTION_NEEDED = "action needed"
         const val CALL_SCREENING_ROLE = "call screening role"
         const val CALL_REDIRECTION_ROLE = "call redirection role"
         const val CONTACTS_PERMISSION = "contacts permission for call screening"
@@ -204,16 +206,22 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         const val ROLE_DIALER = "android.app.role.DIALER"
 
         /**
-         * The next role MainActivity should ask for with the system dialog, or null. The phone app comes
-         * first (it covers both directions); the two extra roles follow on Android 10 to 13. Each role is
-         * asked once per visit to the screen ([asked]).
+         * Ask for the phone app first. On Android 10 to 13 the extra roles are a fallback.
+         * Each role is asked once per visit to the screen ([asked]).
          */
         fun nextRoleToRequest(sdkInt: Int, needsDialer: Boolean, state: (String) -> RoleState, asked: Set<String>): String? {
             if (needsDialer && ROLE_DIALER !in asked) return ROLE_DIALER
-            if (needsDialer || sdkInt >= 34) return null
+            if (sdkInt >= 34 || state(ROLE_DIALER) == RoleState.HELD) return null
             return listOf(ROLE_CALL_SCREENING, ROLE_CALL_REDIRECTION)
                 .firstOrNull { it !in asked && state(it) == RoleState.NOT_HELD }
         }
+
+        fun callRoleActionNeeded(results: List<StepResult>): Boolean = results.any {
+            (it.name == CALL_SCREENING_ROLE || it.name == CALL_REDIRECTION_ROLE) && it.detail == ACTION_NEEDED
+        }
+
+        fun parallelAppsRemoved(results: List<StepResult>): Boolean =
+            results.any { it.name == EXTRA_USERS && it.ok && it.detail.startsWith("removed ") }
 
         /** The secure camera on the lock screen stays. */
         const val KEYGUARD_DISABLE_WIDGETS_ALL = DevicePolicyManager.KEYGUARD_DISABLE_WIDGETS_ALL

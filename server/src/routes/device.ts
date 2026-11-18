@@ -396,6 +396,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         dnsHost: z.string().max(253).nullable(),
         resetProtection: z.enum(["on", "off", "no-play-services", "failed"]).nullable().optional(),
         accountTypes: z.array(z.string().min(1).max(100)).max(20).nullable().optional(),
+        callRoleActionNeeded: z.boolean().optional(),
+        parallelAppsRemoved: z.boolean().optional(),
         mode: z.enum(["strong", "light"]).optional(),
         protections: protections.optional(),
         timeUsed: z
