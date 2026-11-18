@@ -48,6 +48,13 @@ object LockPolicy {
         // fallback) and can be picked in Settings. Calls are then unfiltered until the role is back; the switch
         // shows up as a failed "default phone app" step in the parent's status.
         if (sdkInt >= 34) add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
+        // #21: no account the child controls (Google or the maker's) can become the FRP or "find and erase" owner.
+        // A parent can request Google sign-in through Plainphone, which keeps this restriction set.
+        add(UserManager.DISALLOW_MODIFY_ACCOUNTS)
+        // #26: screen content is not handed to assistants (Circle to Search, Lens) or suggestion services.
+        add(UserManager.DISALLOW_CONTENT_CAPTURE)
+        add(UserManager.DISALLOW_CONTENT_SUGGESTIONS)
+        if (sdkInt >= 35) add(UserManager.DISALLOW_ASSIST_CONTENT)
     }
 
     /**

@@ -16,7 +16,7 @@ import {
   PROTECTIONS,
   type Protection,
 } from "../lib/api";
-import { formatDateTime, formatDuration, formatList, formatRelative, installWindowOverrunSeconds } from "../lib/format";
+import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { lockStepLabel } from "../lib/lock-steps";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
@@ -300,28 +300,59 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
   );
 }
 
+const ATTESTATION_TEXT = {
+  verified: "phone.attVerified",
+  unlocked: "phone.attUnlocked",
+  "custom-os": "phone.attCustomOs",
+  "failed-boot": "phone.attFailedBoot",
+  revoked: "phone.attRevoked",
+  unverifiable: "phone.attUnverifiable",
+} as const;
+
+const RESET_PROTECTION_TEXT = {
+  on: "phone.frpOn",
+  off: "phone.frpOff",
+  "no-play-services": "phone.frpNoPlay",
+  failed: "phone.frpFailed",
+} as const;
+
 /** What the phone reported about its battery, app and lock, and whether the web filter is live. */
-function PhoneStatusBlock({ phone }: { phone: Phone }) {
+export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
+  const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
   const failures = s?.failedPolicies ?? [];
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
+  const when = (iso: string) => formatRelative(iso, now, locale);
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>
+      {s && !s.lockIntact && (
+        <div className="notice notice-error" role="status">
+          <div>
+            <p className="row-title">{t("phone.lockBroken")}</p>
+            {failedSteps.length > 0 && (
+              <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })}</p>
+            )}
+          </div>
+        </div>
+      )}
+      {s?.callRoleActionNeeded && <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>}
+      {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
+      {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
+      {s?.maintenance && (
+        <p className="notice notice-warn" role="status">
+          {t("phone.maintenance")}
+        </p>
+      )}
+      {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
+        <p className="notice notice-error" role="status">
+          {t(ATTESTATION_TEXT[phone.attestation.state])}
+        </p>
+      )}
       {s ? (
         <>
-          {!s.lockIntact && (
-            <div className="notice notice-error" role="status">
-              <div>
-                <p className="row-title">{t("phone.lockBroken")}</p>
-                {failedSteps.length > 0 && (
-                  <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t)))], locale) })}</p>
-                )}
-              </div>
-            </div>
-          )}
           {overrun !== undefined && (
             <p className="notice notice-warn" role="status">{t("phone.installWindowOverrun")}</p>
           )}
@@ -336,11 +367,6 @@ function PhoneStatusBlock({ phone }: { phone: Phone }) {
               )}
             </details>
           )}
-          {s.maintenance && (
-            <p className="notice notice-warn" role="status">
-              {t("phone.maintenance")}
-            </p>
-          )}
           <ul className="list status-list">
             {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
             {s.batteryPct !== null && (
@@ -350,10 +376,31 @@ function PhoneStatusBlock({ phone }: { phone: Phone }) {
               </li>
             )}
             <PhoneAppVersion key={phone.id} phoneId={phone.id} status={s} />
+            {s.resetProtection && <li>{t(RESET_PROTECTION_TEXT[s.resetProtection])}</li>}
+            {phone.mode === "strong" && !phone.attestation && <li>{t("phone.attPending")}</li>}
+            {s.accountTypes && s.accountTypes.length > 0 && (
+              <li>{t("phone.accountTypes", { types: formatAccountTypes(s.accountTypes, locale) })}</li>
+            )}
+            {patchMonth && <li>{t("phone.attPatchMonth", { month: patchMonth })}</li>}
+            {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
+              <li>{t(ATTESTATION_TEXT[phone.attestation.state])}</li>
+            )}
           </ul>
+          <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
         </>
       ) : (
-        <p className="muted">{t("phone.statusNone")}</p>
+        <>
+          <p className="muted">{t("phone.statusNone")}</p>
+          {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
+            <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
+          )}
+        </>
+      )}
+      {phone.attestation?.lastFailedAt && (
+        <p className="help status-updated">{t("phone.attLastFailedAt", { when: when(phone.attestation.lastFailedAt) })}</p>
+      )}
+      {phone.attestation?.checkedAt && (
+        <p className="help status-updated">{t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}
       {!phone.dnsReady && <p className="notice notice-info status-dns">{t("phone.dnsWaiting")}</p>}
     </section>
@@ -458,7 +505,7 @@ export function PhoneOverview() {
 
       {phone.openRequests > 0 && <RequestsSection />}
 
-      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} />}
+      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">
@@ -491,7 +538,7 @@ export function PhoneOverview() {
         </div>
       </section>
 
-      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} />}
+      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <ManagePhone />

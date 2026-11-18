@@ -14,8 +14,6 @@ class FakeDevice(
     val unhideable = mutableSetOf<String>()
     var dnsHost: String? = null
     var dnsFails = false
-    var frp: Set<String>? = null
-    var frpUnsupported = false
     val uninstallBlocked = mutableSetOf<String>()
     var autoTime = false
     val appRestrictions = mutableMapOf<String, Map<String, Any>?>()
@@ -40,10 +38,6 @@ class FakeDevice(
     }
     override fun releasePrivateDns() { dnsHost = null }
     override fun setAppRestrictions(pkg: String, values: Map<String, Any>?) { appRestrictions[pkg] = values }
-    override fun setFrpAccounts(accountIds: Set<String>?) {
-        if (frpUnsupported) throw UnsupportedOperationException("no FRP on this device")
-        frp = accountIds
-    }
     override fun setUninstallBlocked(pkg: String, blocked: Boolean) {
         if (blocked) uninstallBlocked += pkg else uninstallBlocked -= pkg
     }

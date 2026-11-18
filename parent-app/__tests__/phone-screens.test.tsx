@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: typeof PHONE & { status?: { lockIntact: boolean; failedPolicies: string[] } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -72,6 +72,18 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("shows the system check's own date even after a newer phone sync", async () => {
+    phoneApi({
+      ...PHONE,
+      lastSeenAt: new Date().toISOString(),
+      attestation: {
+        state: "verified", checkedAt: new Date(Date.now() - 3_600_000).toISOString(),
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("System checked 1 hour ago")).toBeTruthy();
+  });
+
   it("shows the sections, with the key only on Self phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE) });
@@ -82,10 +94,11 @@ describe("overview", () => {
     expect(screen.queryByText("Waiting changes")).toBeNull();
   });
 
-  it("shows the app installation warning even when the lock is intact", async () => {
-    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"] } });
+  it("shows installation and account warnings even when the lock is intact", async () => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"], lateGoogleAccount: true } });
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByText("App installation stayed open longer than planned during an update.")).toBeTruthy();
+    expect(screen.getByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
     expect(screen.queryByText("42 seconds longer than planned.")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Show technical details" }));
     expect(screen.getByText("42 seconds longer than planned.")).toBeTruthy();
@@ -353,6 +366,27 @@ describe("approvals", () => {
 });
 
 describe("household", () => {
+  it("warns before resetting with a pending account and confirms before removing it", async () => {
+    const path = `/households/${ME.households[0].id}/reset-protection`;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      [`GET /households/${ME.households[0].id}/members`]: { body: { members: [], invites: [] } },
+      [`GET ${path}`]: { body: { available: true, accounts: [{ userId: "u1", mine: true, activeFrom: FUTURE }] } },
+      [`DELETE ${path}/mine`]: { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/household" });
+    expect(await screen.findByText(/A new Google account can take up to 72 hours/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("frp-remove"));
+    expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(screen.queryByTestId("frp-remove-confirm")).toBeNull();
+    expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(0);
+    await fireEvent.press(screen.getByTestId("frp-remove"));
+    await fireEvent.press(screen.getByTestId("frp-remove-confirm"));
+    await waitFor(() => expect(api.calls.filter((c) => c.method === "DELETE")).toHaveLength(1));
+    expect(api.calls.find((c) => c.method === "DELETE")?.path).toBe(`${path}/mine`);
+  });
+
   it("invites another parent and hands over the link when the server cannot send mail", async () => {
     const hid = ME.households[0].id;
     const url = "https://app.plainphone.org/invite#token=pp_i_abcdefghij";

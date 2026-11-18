@@ -100,6 +100,8 @@ export const UPDATE_ERROR_CODES = [
   "unknown",
 ] as const;
 
+export type StatusNotice = { id?: string; receivedAt: string };
+
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
   appVersion: string;
@@ -125,12 +127,29 @@ export interface DeviceStatus {
   rulesAppliedAt: string | null;
   /** The private DNS host the phone actually uses. */
   dnsHost: string | null;
+  /** Factory reset protection on the phone: on, off, no-play-services or failed (#19). Missing on old apps. */
+  resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
+  /** Account types signed in on the phone ("com.google"), no names (#21). */
+  accountTypes?: string[] | null;
+  callRoleActionNeeded?: boolean;
+  parallelAppsRemoved?: boolean;
   /** Missing on phones that predate light mode: strong. */
   mode?: "strong" | "light";
   /** What is active on the phone right now (light mode reports all of them). */
   protections?: Partial<Record<Protection, boolean>>;
   /** Minutes used today per limited package; "*" is the total. */
   timeUsed?: Record<string, number>;
+}
+
+/** What the server read from the phone's key attestation (#23). No serial number or IMEI. */
+export interface PhoneAttestation {
+  state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+  securityLevel: "software" | "tee" | "strongbox" | null;
+  deviceLocked: boolean | null;
+  verifiedBootState: "verified" | "self-signed" | "unverified" | "failed" | null;
+  osPatchLevel: number | null;
+  revocationChecked: boolean;
+  lastFailedAt?: string;
 }
 
 /** The protections a phone can report in `PUT /device/status`. */
@@ -203,10 +222,15 @@ export const phones = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
-      installOverrun?: { policy: string; receivedAt: string };
+      parallelAppsRemovedNotice?: StatusNotice;
+      lateGoogleAccountNotice?: StatusNotice;
+      installOverrun?: { policy: string; sequence?: number; receivedAt: string };
     }>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
+    /** The last hardware attestation result (#23); null until the phone attested once. */
+    attestation: jsonb("attestation").$type<PhoneAttestation>(),
+    attestedAt: timestamp("attested_at", { withTimezone: true }),
     /** When the parents were told the phone is offline; cleared when it is seen again. */
     offlineAlertedAt: timestamp("offline_alerted_at", { withTimezone: true }),
     /** Hours of silence before the parents are told; null = the server default, 0 = never. */
@@ -560,4 +584,23 @@ export const enrollments = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("enrollments_phone_idx").on(t.phoneId)],
+);
+
+/**
+ * A parent's Google account for factory reset protection (#20), one per member and household.
+ * Only the numeric account ID (Google People API) is stored, no email address.
+ */
+export const frpAccounts = pgTable(
+  "frp_accounts",
+  {
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    googleAccountId: text("google_account_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.householdId, t.userId] })],
 );

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.app.AlertDialog
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.app.role.RoleManager
@@ -22,6 +23,7 @@ import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.light.HomeActivity
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
+import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.ui.PairingActivity
 
 /**
@@ -35,9 +37,11 @@ class MainActivity : Activity() {
     private lateinit var todayButton: Button
     private lateinit var sharingLine: TextView
     private var taps = 0
-    private var askedForDialer = false
-    private var dialerDialogOpen = false
+    /** Roles asked for during this visit to the screen (phone app, and on Android 10 to 13 call screening and redirection). */
+    private val askedRoles = mutableSetOf<String>()
+    private var roleDialogOpen = false
     private var started = false
+    private val localBootWarning by lazy { BootloaderWarning.reportsUnlocked() }
 
     override fun onStart() {
         super.onStart()
@@ -110,10 +114,22 @@ class MainActivity : Activity() {
         setContentView(ScrollView(this).apply { addView(column) })
     }
 
+    private var bootWarningDialog: AlertDialog? = null
+
     override fun onResume() {
         super.onResume()
         taps = 0
         refresh()
+        if (isDeviceOwner() && BootloaderWarning.needsAcknowledgement(this)) {
+            if (bootWarningDialog?.isShowing != true) {
+                bootWarningDialog = BootloaderWarning.confirm(this, ::applyOnOpen)
+            }
+            return
+        }
+        applyOnOpen()
+    }
+
+    private fun applyOnOpen() {
         // Self-healing: every time the app is opened the lock is re-applied,
         // unless a parent has lifted it for maintenance.
         val justProvisioned = intent?.action == DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL
@@ -121,8 +137,8 @@ class MainActivity : Activity() {
             Lock.applyAsync(this, if (justProvisioned) "provisioning successful" else "app opened") {
                 runOnUiThread {
                     refresh()
-                    // Android 10 to 13: the phone app can only be set with the system dialog.
-                    if (askForDialerRole()) return@runOnUiThread
+                    // Android 10 to 13: the phone app (and the call screening and redirection roles) can only be set with the system dialog.
+                    if (askForRole()) return@runOnUiThread
                     // Straight after setup: pair with the parent's dashboard (once).
                     if (justProvisioned && PairingActivity.canPairWithoutPin(this)) {
                         intent = Intent(this, MainActivity::class.java)
@@ -134,20 +150,27 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Shows Android's "set as default phone app" dialog once per screen visit when Device Owner
-     * cannot set it silently (before Android 14). Returns true if the dialog was opened.
+     * Shows Android's role dialog ("set as default phone app", then call screening and call
+     * redirection, #24) once per role and screen visit when Device Owner cannot set it silently
+     * (before Android 14). Returns true if a dialog was opened.
      */
-    private fun askForDialerRole(): Boolean {
+    private fun askForRole(): Boolean {
         // The lock is applied in the background; if the user left meanwhile, do not open a dialog over another app.
-        if (!started || askedForDialer || !Lock.applier(this).needsDialerDialog()) return false
+        if (!started || !isDeviceOwner()) return false
         val roles = getSystemService(RoleManager::class.java) ?: return false
-        if (!roles.isRoleAvailable(RoleManager.ROLE_DIALER)) return false
-        askedForDialer = true
-        dialerDialogOpen = runCatching {
+        val controls = AndroidHardeningControls(this)
+        val role = Hardening.nextRoleToRequest(
+            android.os.Build.VERSION.SDK_INT,
+            Lock.applier(this).needsDialerDialog() && roles.isRoleAvailable(RoleManager.ROLE_DIALER),
+            controls::roleState,
+            askedRoles,
+        ) ?: return false
+        askedRoles += role
+        roleDialogOpen = runCatching {
             @Suppress("DEPRECATION") // A plain Activity without the AndroidX result API.
-            startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_DIALER), REQUEST_DIALER)
+            startActivityForResult(roles.createRequestRoleIntent(role), REQUEST_ROLE)
         }.isSuccess
-        return dialerDialogOpen
+        return roleDialogOpen
     }
 
     override fun onStop() {
@@ -155,7 +178,7 @@ class MainActivity : Activity() {
         started = false
         // Ask again the next time Plainphone is opened (the activity is singleTask and survives Home),
         // but not when it is our own dialog that covers the screen.
-        if (!dialerDialogOpen) askedForDialer = false
+        if (!roleDialogOpen) askedRoles.clear()
     }
 
     @Deprecated("Plain Activity result callback.")
@@ -163,8 +186,8 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         // onResume follows and re-applies the lock: with the role held the maker's phone apps get hidden.
-        if (requestCode == REQUEST_DIALER) dialerDialogOpen = false
-        if (requestCode == REQUEST_DIALER) Log.i("Plainphone", "phone app dialog: ${if (resultCode == RESULT_OK) "accepted" else "declined"}")
+        if (requestCode == REQUEST_ROLE) roleDialogOpen = false
+        if (requestCode == REQUEST_ROLE) Log.i("Plainphone", "role dialog: ${if (resultCode == RESULT_OK) "accepted" else "declined"}")
     }
 
     private fun refresh() {
@@ -194,6 +217,11 @@ class MainActivity : Activity() {
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))
+            if (localBootWarning) appendLine(getString(R.string.setup_bootloader_warning))
+            // #23: the server's verdict on the boot state; only shown when it is a warning.
+            org.plainphone.app.sync.AttestationRunner.lastState(this@MainActivity)
+                ?.takeIf { it in setOf("unlocked", "custom-os", "failed-boot") }
+                ?.let { appendLine(getString(R.string.status_attestation_warning)) }
         }
         report.text = Lock.lastReport(this)
         pairButton.visibility = if (PairingActivity.canPairWithoutPin(this)) View.VISIBLE else View.GONE
@@ -220,7 +248,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val TAPS_TO_MAINTENANCE = 7
-        private const val REQUEST_DIALER = 1
+        private const val REQUEST_ROLE = 1
     }
 }
 

@@ -10,6 +10,8 @@ import android.net.Uri
 import android.util.Log
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.update.BatteryExemptionMissingException
 import org.plainphone.app.update.InstallLease
 
 /**
@@ -36,26 +38,52 @@ object InstallWindow {
     }
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
-    fun open(context: Context, packageName: String) = open(context, packageName) { onInstallsAllowed ->
-        Lock.applyForInstall(context.applicationContext, "install window for $packageName", true, onInstallsAllowed)
+    fun open(context: Context, packageName: String) {
+        if (open(context, packageName, applyCatalogPolicy(context, packageName)) == OpenResult.OPENED &&
+            current(context) == packageName
+        ) {
+            launchPlay(context.applicationContext, packageName)
+        }
+    }
+
+    /** Only called after the parent PIN has been verified. */
+    internal fun openForParent(context: Context, packageName: String): OpenResult =
+        open(context, packageName, applyCatalogPolicy(context, packageName))
+
+    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT, BATTERY_EXEMPTION_NEEDED, OPEN_FAILED }
+
+    private fun applyCatalogPolicy(
+        context: Context,
+        packageName: String,
+    ): (() -> Unit) -> Unit = { onInstallsAllowed ->
+        Lock.applyForInstall(
+            context.applicationContext, "install window for $packageName",
+            catalogChanged = true, onInstallsAllowed = onInstallsAllowed,
+        )
     }
 
     @SuppressLint("ApplySharedPref")
-    internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) {
+    internal fun open(
+        context: Context,
+        packageName: String,
+        applyPolicy: (() -> Unit) -> Unit,
+    ): OpenResult {
         val app = context.applicationContext
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
         // lets Play through for the window instead of closing it.
         // Tapping again does not extend an open window, or Play could be kept open for good.
         // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
         synchronized(this) {
-            if (isInstalled(app, packageName)) return
+            if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false ||
+                isInstalled(app, packageName)
+            ) return OpenResult.UNAVAILABLE
             if (current(app) != packageName) {
                 val day = java.time.LocalDate.now().toString()
                 val p = prefs(app)
                 val previousDay = p.getString("day", null)
                 val previousCount = p.getInt("windows", 0)
                 val used = if (previousDay == day) previousCount else 0
-                if (used >= MAX_PER_DAY) return
+                if (used >= MAX_PER_DAY) return OpenResult.DAILY_LIMIT
 
                 val lease = InstallLease.android(app)
                 var started = false
@@ -75,17 +103,23 @@ object InstallWindow {
                 } catch (e: Exception) {
                     Log.w("Plainphone", "catalog install window failed", e)
                     try {
-                        if (started) close(app, "catalog install window failed", packageName)
+                        if (started) runCatching { close(app, "catalog install window failed", packageName) }
+                            .onFailure { Log.w("Plainphone", "could not close failed catalog window", it) }
                     } finally {
                         if (!usedWindow && !p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
                             Log.e("Plainphone", "could not restore the catalog quota")
                         }
                     }
-                    return
+                    return openFailure(e)
                 }
             }
         }
-        launchPlay(app, packageName)
+        return OpenResult.OPENED
+    }
+
+    private fun openFailure(e: Exception): OpenResult = when (e) {
+        is BatteryExemptionMissingException -> OpenResult.BATTERY_EXEMPTION_NEEDED
+        else -> OpenResult.OPEN_FAILED
     }
 
     const val MAX_PER_DAY = 5
@@ -123,7 +157,7 @@ object InstallWindow {
         Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    private fun launchPlay(context: Context, packageName: String) {
+    internal fun launchPlay(context: Context, packageName: String) {
         val play = playIntent(packageName).setPackage(PolicyConfig.PLAY_STORE)
         try {
             context.startActivity(play)

@@ -30,6 +30,8 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. The maintenance unlock lifts the restriction. For Play sign-in authorized by the parent PIN, Plainphone first requests a Google account as Device Owner with the restriction still set. If that fails, the parent can briefly lift it within the same installation window | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
 ## Phone and SMS (phase 2)
@@ -41,11 +43,26 @@ The lock is applied:
 | `setPermissionGrantState` | Grants Plainphone's own phone, call log, SMS and notification permissions | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | Hide the maker's phone and SMS apps | Once Plainphone holds a role, the other apps for that role are hidden, **except the system dialer** (emergency fallback). On Android 10 to 13 the extra dialers are hidden even without the role | [contacts.md](contacts.md) |
 
-The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. Releasing Device Owner gives the roles back to the system dialer and the maker's SMS app. The approved-contacts rule itself is described in [contacts.md](contacts.md).
+The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps are hidden. If Android refuses a role, no phone or SMS app is hidden. On release, Plainphone restores the SMS app and, on Android 14+, the system dialer. Release disables Plainphone's screening and redirection services. If Android retains either role assignment, clear it in Settings. On Android 10 to 13, choose the system dialer there too. The services also stop filtering if Device Owner is lost outside the release flow. The approved-contacts rule itself is described in [contacts.md](contacts.md).
 
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
-`DISALLOW_MODIFY_ACCOUNTS` is **not** set in phase 1, because a Google account may be needed for Play Store installs (see R2 in the phase 1 report). It is a candidate for later.
+`DISALLOW_MODIFY_ACCOUNTS` is set in strong mode (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock or the parent-PIN catalog install option. Which account types are on the phone (types only, no names) is reported to the dashboard.
+
+If sign-in fails, **Allow accounts briefly** retries it using the same daily quota reservation. Account changes are allowed for at most three minutes from the button tap and only while the catalog window is still open. The same watchdog and startup recovery restore the restriction. The restriction also returns when sign-in reports a result or when Android reports any change to the accounts visible to Plainphone. Exactly one new Google account with no other change is the expected result. Other changes visible when the fallback relocks trigger a dashboard warning. Once relocked, subsequent account changes are outside the fallback window. The initial restricted sign-in still warns if a visible Google account is added after the catalog window closes. Plainphone keeps account fingerprints on the phone and sends only the warning. Sign-in markers expire 15 minutes after the original install deadline.
+
+Android can hide accounts from Plainphone. A hidden account change can leave the fallback open until sign-in ends or the watchdog relocks it, without a dashboard warning. This is a known residual risk. [AccountManager visibility rules](https://developer.android.com/reference/android/accounts/AccountManager#getAccounts())
+
+On a physical strong-mode phone with Google Play services:
+
+1. Run `adb shell dumpsys user | grep no_modify_accounts`. Try an ordinary approved app installation and verify that account changes stay blocked. Try catalog sign-in with a wrong PIN and confirm the same.
+2. During a maintenance unlock, add the parent's Google account. End maintenance and confirm that adding or removing accounts is blocked again. On a debug build, inspect the baseline at `CatalogAccounts.start` during a catalog sign-in request. With the known Google account present, its Google fingerprint set must be non-empty. Check only the count and keep the fingerprints off the dashboard and out of logs.
+3. Complete Google sign-in with the correct PIN. If Google rejects restricted sign-in, select **Allow accounts briefly**. Exactly one new Google account must restore `no_modify_accounts` before Play opens, with no dashboard warning. Repeat with cancellation and with the authenticator left open for three minutes. Account changes must be blocked again in both cases.
+4. In separate fallback runs, press Home and use **Settings → Accounts** to remove an existing account visible to Plainphone or add a non-Google account visible to Plainphone. Confirm immediate relock and check for the unexpected account change warning in the dashboard after the phone syncs. Let an initial restricted Google sign-in complete after the catalog window closes, then check for the warning and confirm the account remains on the phone.
+5. During fallback, run `adb shell am kill org.plainphone.app`. Verify the process actually exited, since Android may keep a foreground service alive. Start Plainphone again and confirm that `no_modify_accounts` is set. See the [R3 and R6 device checks](bypass-checklist.md#r6-on-a-physical-phone).
+6. With the restriction set, try **Settings → Accounts → Add**, **Add account** in Play, and sign-in in Chrome and YouTube. All must block adding an account.
+
+On Android 10, force-stopping Plainphone during an open fallback window can leave the account restriction lifted until Plainphone starts again. This is a known residual risk.
 
 ## Other policies
 
@@ -54,7 +71,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 | `setGlobalPrivateDnsModeSpecifiedHost` | Forces DNS-over-TLS to `family.adguard-dns.com` (phase 1 placeholder; phase 2 uses Plainphone's own resolver). The call checks that the host answers, so it fails while the phone is offline and is retried later. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setGlobalPrivateDnsModeSpecifiedHost(android.content.ComponentName,%20java.lang.String)) |
 | `setApplicationHidden` | Hides every launchable app that is not allowed. Hidden apps behave as if uninstalled and cannot be opened. | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setApplicationHidden(android.content.ComponentName,%20java.lang.String,%20boolean)) |
 | `setApplicationRestrictions` (Chrome) | `DnsOverHttpsMode=off`, `IncognitoModeAvailability=1`, `ForceGoogleSafeSearch`, `ForceYouTubeRestrict=2` | [Chrome policy list](https://chromeenterprise.google/policies/) |
-| `setFactoryResetProtectionPolicy` | Only set when Google account IDs are given in the QR code (see below) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setFactoryResetProtectionPolicy(android.content.ComponentName,%20android.app.admin.FactoryResetProtectionPolicy)) |
+| `setFactoryResetProtectionPolicy` (Android 11+), Play services' `factoryResetProtectionAdmin` managed configuration (Android 10) | The parent's Google account IDs, from "Protect against reset" in the dashboard or from the QR code. Followed by the broadcast `com.google.android.gms.auth.FRP_CONFIG_CHANGED` to Play services. See "Factory reset protection" below | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
 | `setUninstallBlocked` | Plainphone cannot be uninstalled | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUninstallBlocked(android.content.ComponentName,%20java.lang.String,%20boolean)) |
 
 ### Which apps stay visible
@@ -72,6 +89,78 @@ phone syncs is in [phone-sync.md](phone-sync.md).
 | `setGlobalPrivateDnsModeSpecifiedHost` | Switches to the phone's own `<id>.dns.plainphone.org` only when the server says the DNS service has accepted the ID (`dns.ready`). | see above |
 | `setPermissionGrantState` (location) | Fine, coarse and background location for Plainphone, only while the parent has location on | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermissionGrantState(android.content.ComponentName,%20java.lang.String,%20java.lang.String,%20int)) |
 | `setLocationEnabled` + `DISALLOW_CONFIG_LOCATION` | Location on and locked on while the parent has location on; the restriction is lifted when it is turned off | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setLocationEnabled(android.content.ComponentName,%20boolean)) |
+
+## Hardening ([Hardening.kt](../android/app/src/main/java/org/plainphone/app/Hardening.kt))
+
+Each is its own status step, so the parent sees exactly what held.
+
+| Step | What it does | Android | Reference |
+|---|---|---|---|
+| `factory reset protection` | Sets the parents' Google account IDs (see below). The detail says `on`, `off` (no account set), `no-play-services` or `failed`; the dashboard shows it. Fails when setting or clearing the policy is refused | 10+ | [link](https://developer.android.com/work/dpc/security#enable_enterprise_frp) |
+| `accounts on the phone` | Lists account types (`com.google`, a maker's account), no names | all | |
+| `no force stop of Plainphone` | `setUserControlDisabledPackages`: Force stop and Clear data are greyed out, and Plainphone is exempt from App Standby, which reduces delays from App Standby for re-lock and sync | 11+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setUserControlDisabledPackages(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+| `extra users and profiles` | Finds users and profiles other than the main one (OnePlus Parallel Apps, Xiaomi Dual apps, guests) and removes them with `removeUser`. Shows a dashboard notice whenever at least one profile or user is removed, including when some remain. Reports a failed check only if Android cannot remove all extra users or profiles. Reports counts only. In headless system-user mode, reports without removing users to protect the main interactive user | 10+ | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#removeUser(android.content.ComponentName,%20android.os.UserHandle)) |
+| `call screening role`, `call redirection role`, `contacts permission for call screening` | A second layer for calls on Android 10 to 13, see [android-versions.md](android-versions.md). The strong-mode home screen asks for consent if Plainphone is not already the default phone app. Pending consent shows a dashboard warning and leaves the lock intact | 10-13 | [link](https://developer.android.com/reference/android/telecom/CallRedirectionService) |
+| `no lock screen widgets` | `KEYGUARD_DISABLE_WIDGETS_ALL`; the lock screen camera stays | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setKeyguardDisabledFeatures(android.content.ComponentName,%20int)) |
+| `only built-in keyboards` | `setPermittedInputMethods(empty)`: only keyboards that came with the phone. Fails if a keyboard from an app is enabled | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedInputMethods(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+| `only built-in accessibility services` | `setPermittedAccessibilityServices(empty)`: TalkBack and other built-in services keep working | all | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setPermittedAccessibilityServices(android.content.ComponentName,%20java.util.List%3Cjava.lang.String%3E)) |
+
+Releasing Device Owner undoes all of them.
+
+## Factory reset protection
+
+A reset from recovery mode cannot be blocked by any app. What protects the phone afterwards is FRP:
+Android's setup can ask for an eligible Google account before the phone can be used.
+A phone may also offer the previous screen-lock PIN. Check R5 on the exact model and Android build before relying on FRP to keep the phone locked after a reset.
+
+- **The parent's account.** In the dashboard, Household → "Protect against reset", a parent signs in with
+  Google. The server keeps only the numeric Google account ID from the People API,
+  no email address, and sends it to every phone in the household in the rules (`resetProtection.accountIds`).
+  Each parent in the household can add their own account. A parent who leaves the household stops
+  protecting the phones at the next sync. The dashboard and parent app ask for confirmation before
+  removing an account. The removal takes effect at the next sync.
+- **On the phone:** Android 11+ uses `setFactoryResetProtectionPolicy`; Android 10 uses the legacy path Google
+  documents, the managed configuration `factoryResetProtectionAdmin` of `com.google.android.gms`. Both are
+  followed by the broadcast `FRP_CONFIG_CHANGED`, which Play services needs to pick up the change.
+  On Android 10, removing the last account clears Plainphone's managed configuration so normal
+  Android FRP can apply. Permanent release explicitly disables the legacy configuration.
+- **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard and parent app show
+  "Ready from" for the time the account was linked plus 72 hours. Wait until that time and check
+  the phone has saved the protection settings before resetting it.
+- **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
+- **OEM unlocking** switches FRP off. It is greyed out by `DISALLOW_FACTORY_RESET` and developer options are
+  blocked, but a phone that arrives with an unlocked bootloader has no FRP.
+- **Order of steps with `DISALLOW_MODIFY_ACCOUNTS`:** Plainphone sets FRP and notifies Play services before blocking account changes. The FRP policy does not need the parent's account to be
+  on the phone, so the account restriction cannot lock a parent out. Android's own FRP (no policy) uses the
+  accounts on the phone; those can no longer be removed by the child, and a parent adds theirs during a
+  maintenance unlock or by choosing “Install and add a Play account” and entering their maintenance PIN for an approved app. The test PIN cannot authorize account changes through this install option. If all five daily installation windows have been used, the phone explains the limit and keeps Play closed.
+
+## Hardware attestation of the boot state (#23)
+
+Once a day (and right after pairing) the phone asks the server for a challenge, makes a key in its
+TEE or StrongBox with it (`setAttestationChallenge`) and sends the certificate chain to
+`PUT /device/attestation`. The **server** validates the certificate path against a pinned Google
+attestation root with OpenSSL and checks a revocation list refreshed hourly. An unavailable fresh
+list prevents a positive verdict. The server reads `RootOfTrust` (`deviceLocked`, `verifiedBootState`)
+and the OS patch level. Play Integrity is not
+used, so a self-hosted server needs no Google Cloud project. No serial number or IMEI is requested. Only the verification result and its timestamp are stored.
+If the keystore cannot provide a chain, the phone reports an unverifiable check. A positive verdict
+expires after 48 hours, and the dashboard shows the time of the last system check separately from
+ordinary sync. An inconclusive check keeps a definite boot finding and records the new check separately. It replaces older findings based on revoked certificates or contradictory boot data. A change to a boot state that breaks an intact lock triggers the existing protection alert.
+On Android 10 and 11, when Android reports an unlocked bootloader, the first strong-mode lock waits
+for the warning to be acknowledged on the phone. The dashboard shows the pending warning. Later
+policy runs reapply the lock without waiting. Android 12 and newer never wait for this local warning.
+After a network failure, the phone retries attestation on the first sync due at least an hour later.
+
+| Result | Dashboard |
+|---|---|
+| `verified` | "System unchanged" |
+| `unlocked` | Lock shown as **not intact**: an unlocked bootloader switches FRP off and lets the system be replaced |
+| `failed-boot` | Lock shown as not intact |
+| `custom-os` | Lock shown as not intact: the bootloader is locked with a system signed by someone other than the maker |
+| `unverifiable` | "Cannot be verified": A software keystore, an untrusted certificate path, a revoked key, or contradictory boot data such as verified boot with an unlocked bootloader. Phones that launched before Android 8.0 (the OnePlus 5T launched with 7.1) may land here |
+
+The phone shows a system warning on its status screen for `unlocked`, `custom-os` and `failed-boot`.
 
 ## Home screen and phone settings from the dashboard
 
@@ -118,7 +207,7 @@ The PIN only travels in the QR code as a PBKDF2-SHA256 hash (120,000 rounds, ran
 ## Time limits and catalog installs (strong mode)
 
 - **Time limits** ([time-limits.md](time-limits.md)): an app whose minutes are used up today is suspended with `setPackagesSuspended` (the icon stays; Android says the app is paused) and comes back at local midnight. Core apps (phone, messages, maps, clock, Settings, launcher, keyboard, camera, contacts) are never counted and never suspended, so calls and emergency calls are never affected. Counting needs usage access, which only the user can grant (Plainphone > Today); until then the step "usage access (time limits)" fails and the parent sees it.
-- **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone.
+- **Installing a catalog app** ([app-catalog.md](app-catalog.md), R2): for an app the parent approved, Plainphone lifts `DISALLOW_INSTALL_APPS`, shows Play and opens the app's page (`market://details?id=`). The restriction and the hidden Play come back as soon as the package is installed, or after 15 minutes. Any other app installed meanwhile is unknown to the parent and therefore hidden. Play needs a Google account on the phone. The ordinary Install button keeps account changes blocked. Adding an account through the parent PIN is limited to the same watchdog-backed catalog window described in [Android updates](android-updates.md).
 
 Light mode, where none of this is available, is described in [light-mode.md](light-mode.md).
 

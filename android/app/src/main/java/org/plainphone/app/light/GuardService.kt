@@ -7,8 +7,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -29,13 +31,27 @@ class GuardService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var foreground: String? = null
+    private var watchingContent = false
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
+    private val pendingSettingsPackages = mutableSetOf<String>()
+    private val pendingSettingsWindowIds = mutableSetOf<Int>()
+    private val settingsCheck = Runnable {
+        val packages = pendingSettingsPackages.toSet()
+        val windowIds = pendingSettingsWindowIds.toSet()
+        clearSettingsCheck()
+        if (canGuardSettings()) guardSettings(packages, windowIds)
+    }
+    private val vpnRetry = Runnable {
+        if (canGuardSettings()) closeVpnDialog()
+    }
+
     private val tick = object : Runnable {
         override fun run() {
+            if (!isInteractive()) return
             foreground?.let { checkTime(it, force = true) }
             main.postDelayed(this, TICK_MS)
         }
@@ -50,37 +66,139 @@ class GuardService : AccessibilityService() {
         screenReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 main.removeCallbacks(tick)
-                if (intent.action == Intent.ACTION_SCREEN_ON) main.postDelayed(tick, TICK_MS)
+                if (intent.action == Intent.ACTION_SCREEN_ON && isInteractive()) main.postDelayed(tick, TICK_MS)
             }
         }.also {
             registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })
         }
-        main.postDelayed(tick, TICK_MS)
+        if (isInteractive()) main.postDelayed(tick, TICK_MS)
         protectionChanged("accessibility on")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
-        val pkg = e.packageName?.toString() ?: return
-        if (Mode.isStrong(this) || Lock.isInMaintenanceWindow(this)) return
-        when (e.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                if (pkg != foreground && !isOverlay(pkg)) foreground = pkg
-                guard(pkg)
+        if (Mode.isStrong(this)) {
+            cancelSettingsChecks()
+            updateEventTypes(watchContent = false)
+            return
+        }
+
+        val maintenance = Lock.isInMaintenanceWindow(this)
+        if (maintenance) cancelSettingsChecks()
+
+        if (e.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            val changes = e.windowChanges
+            if (changes == 0 || (changes and WINDOW_INVENTORY_CHANGES) != 0) {
+                updateWindowSubscription(focusChanges = if (maintenance) 0 else changes)
             }
-            // Settings swaps fragments without a new window; look again when its content changes.
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                if (pkg in SettingsGuard.SETTINGS_PACKAGES || pkg in SettingsGuard.INSTALLER_PACKAGES) guardSettings(pkg)
-            else -> Unit // the service only subscribes to the two types above
+            return
+        }
+
+        val pkg = e.packageName?.toString() ?: return
+        val windowChanged = e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        val guarded = guardsSettings(pkg)
+        if (windowChanged) {
+            if (!isOverlay(pkg)) foreground = pkg
+            // Keep tracking windows during maintenance so checks can resume in place.
+            if (guarded) updateEventTypes(watchContent = true) else updateWindowSubscription()
+        }
+        if (maintenance) return
+
+        when {
+            guarded && windowChanged && pkg == SettingsGuard.VPN_DIALOGS -> {
+                if (LightSetup.isComplete(this) && !closeVpnDialog() && !main.hasCallbacks(vpnRetry)) {
+                    VPN_RETRY_DELAYS_MS.forEach { main.postDelayed(vpnRetry, it) }
+                }
+            }
+            guarded && windowChanged -> {
+                // During setup the user needs access to the protected screens.
+                if (LightSetup.isComplete(this)) {
+                    // The active root can still belong to the previous screen.
+                    scheduleSettingsCheck(pkg)
+                    guardSettings(setOf(pkg))
+                }
+            }
+            // Settings can swap fragments without changing windows.
+            guarded && e.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> scheduleSettingsCheck(pkg)
+            windowChanged -> guard(pkg)
         }
     }
 
+    private fun guardsSettings(pkg: String) =
+        pkg in SettingsGuard.SETTINGS_PACKAGES ||
+            pkg in SettingsGuard.INSTALLER_PACKAGES ||
+            pkg == SettingsGuard.VPN_DIALOGS
+
+    @Suppress("DEPRECATION")
+    private fun updateWindowSubscription(focusChanges: Int = 0) {
+        val visibleWindows = windows
+        var watchContent = visibleWindows.isEmpty()
+        for (window in visibleWindows) {
+            try {
+                val root = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    window.getRoot(0)
+                } else {
+                    window.root
+                }
+                val pkg = root?.packageName?.toString()
+                root?.let(::recycle)
+                if (pkg != null && !guardsSettings(pkg)) continue
+                watchContent = true
+                val gainedFocus = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_FOCUSED) != 0 &&
+                    window.isFocused
+                val becameActive = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_ACTIVE) != 0 &&
+                    window.isActive
+                if (gainedFocus || becameActive) {
+                    if (pkg == null) {
+                        pendingSettingsWindowIds.add(window.id)
+                        scheduleSettingsCheck()
+                    } else {
+                        scheduleSettingsCheck(pkg)
+                    }
+                }
+            } finally {
+                if (Build.VERSION.SDK_INT < 33) window.recycle()
+            }
+        }
+        updateEventTypes(watchContent)
+    }
+
+    private fun updateEventTypes(watchContent: Boolean) {
+        if (watchingContent == watchContent) return
+        val info = serviceInfo ?: return
+        info.eventTypes = if (watchContent) {
+            WINDOW_EVENTS or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        } else {
+            WINDOW_EVENTS
+        }
+        setServiceInfo(info)
+        watchingContent = watchContent
+    }
+
+    private fun scheduleSettingsCheck(pkg: String? = null) {
+        if (pkg != null) pendingSettingsPackages.add(pkg)
+        if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, SETTINGS_MAX_WAIT_MS)
+    }
+
+    private fun clearSettingsCheck() {
+        main.removeCallbacks(settingsCheck)
+        pendingSettingsPackages.clear()
+        pendingSettingsWindowIds.clear()
+    }
+
+    private fun cancelSettingsChecks() {
+        clearSettingsCheck()
+        main.removeCallbacks(vpnRetry)
+    }
+
+    private fun canGuardSettings() =
+        !Mode.isStrong(this) && !Lock.isInMaintenanceWindow(this) && LightSetup.isComplete(this)
+
+    private fun isInteractive(): Boolean =
+        getSystemService(PowerManager::class.java)?.isInteractive == true
+
     private fun guard(pkg: String) {
         if (pkg == packageName) return
-        if (pkg in SettingsGuard.SETTINGS_PACKAGES || pkg in SettingsGuard.INSTALLER_PACKAGES || pkg == SettingsGuard.VPN_DIALOGS) {
-            guardSettings(pkg)
-            return
-        }
         when (LightLock.plan(this).why(pkg)) {
             LightPlan.Why.NOT_ALLOWED -> block(pkg, BlockedActivity.Reason.NOT_ALLOWED)
             LightPlan.Why.TIME_USED_UP -> block(pkg, BlockedActivity.Reason.TIME_USED_UP)
@@ -88,17 +206,49 @@ class GuardService : AccessibilityService() {
         }
     }
 
-    private fun guardSettings(pkg: String) {
-        // While setting up, the user has to visit exactly these screens.
-        if (!LightSetup.isComplete(this)) return
-        val k = keywords ?: return
-        val root = rootInActiveWindow ?: return
+    private fun guardSettings(packages: Set<String>, windowIds: Set<Int> = emptySet()) {
+        val root = if (packages.size == 1 && SettingsGuard.VPN_DIALOGS in packages && windowIds.isEmpty()) {
+            activeRootWithoutPrefetch()
+        } else {
+            rootInActiveWindow
+        } ?: return
+        val pkg = root.packageName?.toString()
+        if (pkg == null || (pkg !in packages && (root.windowId !in windowIds || !guardsSettings(pkg)))) {
+            recycle(root)
+            return
+        }
+        if (pkg == SettingsGuard.VPN_DIALOGS) {
+            recycle(root)
+            dismissVpnDialog()
+            return
+        }
+        val k = keywords
+        if (k == null) {
+            recycle(root)
+            return
+        }
         val texts = ArrayList<String>()
         collect(root, texts, depth = 0)
-        if (SettingsGuard.isProtectedScreen(pkg, texts, k)) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            block(pkg, BlockedActivity.Reason.PROTECTION)
-        }
+        if (!SettingsGuard.isProtectedScreen(pkg, texts, k)) return
+        if (performGlobalAction(GLOBAL_ACTION_BACK)) clearSettingsCheck()
+        block(pkg, BlockedActivity.Reason.PROTECTION)
+    }
+
+    private fun activeRootWithoutPrefetch() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getRootInActiveWindow(0) else rootInActiveWindow
+
+    private fun closeVpnDialog(): Boolean {
+        val root = activeRootWithoutPrefetch() ?: return false
+        val matchesPackage = root.packageName?.toString() == SettingsGuard.VPN_DIALOGS
+        recycle(root)
+        return matchesPackage && dismissVpnDialog()
+    }
+
+    private fun dismissVpnDialog(): Boolean {
+        if (!performGlobalAction(GLOBAL_ACTION_BACK)) return false
+        main.removeCallbacks(vpnRetry)
+        block(SettingsGuard.VPN_DIALOGS, BlockedActivity.Reason.PROTECTION)
+        return true
     }
 
     /** Time limits: re-evaluated when an app comes to the front and every [TICK_MS] while it stays there. */
@@ -132,10 +282,19 @@ class GuardService : AccessibilityService() {
     }
 
     private fun collect(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
-        if (depth > 25 || out.size > 400) return
-        node.text?.let { out += it.toString() }
-        node.contentDescription?.let { out += it.toString() }
-        for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, out, depth + 1) }
+        try {
+            if (depth > 25 || out.size > 400) return
+            node.text?.let { out += it.toString() }
+            node.contentDescription?.let { out += it.toString() }
+            for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, out, depth + 1) }
+        } finally {
+            recycle(node)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun recycle(node: AccessibilityNodeInfo) {
+        if (Build.VERSION.SDK_INT < 33) node.recycle()
     }
 
     /** The shade, the keyboard and the launcher are not "an app in front". */
@@ -175,6 +334,7 @@ class GuardService : AccessibilityService() {
         if (!isConnected) return
         isConnected = false
         main.removeCallbacks(tick)
+        cancelSettingsChecks()
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
         worker.shutdown()
@@ -189,6 +349,13 @@ class GuardService : AccessibilityService() {
 
     companion object {
         private const val TAG = "Plainphone"
+        private const val SETTINGS_MAX_WAIT_MS = 150L
+        private val VPN_RETRY_DELAYS_MS = listOf(50L, 150L, 300L, 600L, 1_000L)
+        private const val WINDOW_EVENTS =
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        private const val WINDOW_INVENTORY_CHANGES = AccessibilityEvent.WINDOWS_CHANGE_ADDED or
+            AccessibilityEvent.WINDOWS_CHANGE_REMOVED or AccessibilityEvent.WINDOWS_CHANGE_FOCUSED or
+            AccessibilityEvent.WINDOWS_CHANGE_ACTIVE
         private const val TICK_MS = 30_000L
 
         @Volatile var isConnected = false

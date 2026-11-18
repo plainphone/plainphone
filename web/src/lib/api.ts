@@ -40,6 +40,13 @@ export interface PhoneStatus {
   rulesEtag: string | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
+  /** Factory reset protection on the phone (#19); missing on apps before 0.1.4. */
+  resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
+  /** Account types on the phone ("com.google"), no names (#21). */
+  accountTypes?: string[] | null;
+  callRoleActionNeeded?: boolean;
+  parallelAppsRemoved?: boolean;
+  lateGoogleAccount?: boolean;
   /** Missing on older phones, which are strong mode. */
   mode?: "strong" | "light";
   /** What is active on the phone right now. */
@@ -80,6 +87,8 @@ export interface Phone {
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
   dnsReady: boolean;
   hasLocation: boolean;
+  /** Hardware attestation of the boot state (#23); null until the phone attested once. Missing on old servers. */
+  attestation?: PhoneAttestation | null;
   /** Null until the phone has reported once. */
   status: PhoneStatus | null;
   /** Open requests from the phone (apps, contacts). */
@@ -117,6 +126,13 @@ export interface PhoneRequest {
   number: string | null;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+}
+export interface PhoneAttestation {
+  state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+  deviceLocked: boolean | null;
+  osPatchLevel: number | null;
+  checkedAt: string | null;
+  lastFailedAt?: string;
 }
 export interface App {
   packageName: string;
@@ -310,6 +326,11 @@ export interface Approval {
 export interface Members {
   members: { id: string; email: string; role: "owner" | "parent" }[];
   invites: { id: string; email: string; expiresAt: string }[];
+}
+/** `GET /households/{hid}/reset-protection` (#20). Account IDs never reach the browser. */
+export interface ResetProtectionState {
+  available: boolean;
+  accounts: { mine: boolean; userId: string; addedAt: string; activeFrom: string }[];
 }
 export interface InviteResult {
   id: string;

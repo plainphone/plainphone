@@ -47,7 +47,7 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
       mode: phone.locationMode,
       alwaysUntil: phone.locationMode === "always" ? (phone.locationAlwaysUntil?.toISOString() ?? null) : null,
       requestedAt: phone.locateRequestedAt?.toISOString() ?? null,
-      location: loc
+      location: loc && phone.locationMode !== "off"
         ? { lat: loc.lat, lon: loc.lon, accuracyM: loc.accuracyM, recordedAt: loc.recordedAt.toISOString() }
         : null,
       ring: ringJson(safety.ring, now),

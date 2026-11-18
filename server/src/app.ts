@@ -9,10 +9,12 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
+import { attestationRoutes } from "./routes/attestation.js";
 import { publicCatalogRoutes } from "./routes/catalog.js";
 import { deviceRoutes } from "./routes/device.js";
 import { downloadRoutes } from "./routes/download.js";
 import { parentRoutes } from "./routes/parent.js";
+import { resetProtectionRoutes } from "./routes/reset-protection.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
 import { UpdateWake } from "./services/update-wake.js";
@@ -118,10 +120,12 @@ export function createApp(ctx: Ctx) {
   });
 
   const updateWake = new UpdateWake();
-  app.route("/api/device", deviceRoutes(ctx, updateWake));
   // Public, so it is mounted before the parent API and its session check.
   app.route("/api/catalog", publicCatalogRoutes());
-  app.route("/api", parentRoutes(ctx, updateWake));
+  app.route("/api/device", deviceRoutes(ctx, updateWake, attestationRoutes(ctx)));
+  const resetProtection = resetProtectionRoutes(ctx);
+  app.route("/api/reset-protection", resetProtection.callback);
+  app.route("/api", parentRoutes(ctx, updateWake, resetProtection.parent));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   // Stable APK address for provisioning QR codes (redirects to the newest release).
   app.route("/download", downloadRoutes(ctx));

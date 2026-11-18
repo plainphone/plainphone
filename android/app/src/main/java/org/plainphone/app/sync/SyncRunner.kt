@@ -68,6 +68,11 @@ data class LockState(
     val failedPolicies: List<String>,
     val appliedAtMs: Long?,
     val dnsHost: String?,
+    /** [org.plainphone.app.ResetProtection.wire]; null before the first lock run that checked it. */
+    val resetProtection: String? = null,
+    /** Account types on the phone ("com.google"), no names. */
+    val accountTypes: List<String>? = null,
+    val callRoleActionNeeded: Boolean = false,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -239,7 +244,11 @@ class SyncRunner(
         // Once an older position has been shared, give later retry slots to fresh lookups.
         val cachedFind = if (find != null && savedFind == null && now < find.expiresAt) {
             device.lastKnownLocation()?.takeIf {
-                !store.isLocationRejected(it) && (it.recordedAtMs >= find.start || store.shownLocateMs != find.start)
+                !store.isLocationRejected(it) && if (it.recordedAtMs >= find.start) {
+                    (it.accuracyM ?: Float.POSITIVE_INFINITY) <= PRECISE_ACCURACY_METERS
+                } else {
+                    store.shownLocateMs != find.start
+                }
             }?.let { PendingLocation(it, find.purpose, now) }
         } else null
         val readyFind = savedFind ?: cachedFind
@@ -386,6 +395,9 @@ class SyncRunner(
         val lock = device.lockState()
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
+        val notices = store.statusNotices
+        val parallelAppsRemoved = notices.pending(StatusNotices.PARALLEL_APPS_REMOVED)
+        val lateGoogleAccount = notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
@@ -399,19 +411,27 @@ class SyncRunner(
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
+            resetProtection = lock.resetProtection,
+            accountTypes = lock.accountTypes,
+            callRoleActionNeeded = lock.callRoleActionNeeded,
+            parallelAppsRemovedId = parallelAppsRemoved,
+            lateGoogleAccountId = lateGoogleAccount,
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             mode = lock.mode,
             protections = lock.protections,
             timeUsed = device.timeUsed(),
+            installOverrunSequence = overrun?.sequence,
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
         val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
-        val hash = sha256(comparable.toString() + (overrun?.sequence?.let { ":$it" } ?: ""))
+        val hash = sha256(comparable.toString())
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
+        parallelAppsRemoved?.let { notices.acknowledge(StatusNotices.PARALLEL_APPS_REMOVED, it) }
+        lateGoogleAccount?.let { notices.acknowledge(StatusNotices.LATE_GOOGLE_ACCOUNT, it) }
         store.statusHash = hash
         store.statusAtMs = now
     }

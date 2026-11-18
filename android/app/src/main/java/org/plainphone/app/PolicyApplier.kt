@@ -2,11 +2,12 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.os.UserManager
 import org.plainphone.app.settings.PhoneSettings
 import org.plainphone.app.settings.SettingsApplier
 
 /** One line in the status report: what was attempted and whether it held. */
-data class StepResult(val name: String, val ok: Boolean, val detail: String = "") {
+data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false) {
     override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
 }
 
@@ -28,10 +29,12 @@ class PolicyApplier(
     private val device: DeviceControls,
     private val hiddenStore: HiddenAppsStore,
     private val sdkInt: Int,
+    private val hardening: Hardening? = null,
     /** Phone settings and the home screen (docs/phone-settings.md); null leaves them alone. */
     private val settings: SettingsApplier? = null,
     private val onInstallsAllowed: () -> Unit = {},
     private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
+    private val enforceAccountRestriction: (() -> Unit) -> Unit = { it() },
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
@@ -66,9 +69,14 @@ class PolicyApplier(
         // Roles first: DISALLOW_CONFIG_DEFAULT_APPS below then keeps the user from changing them back (Android 14+).
         results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
+        hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
-            else step("restriction $key") { device.addRestriction(key) }
+            else step("restriction $key") {
+                if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                    enforceAccountRestriction { device.addRestriction(key) }
+                } else device.addRestriction(key)
+            }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
@@ -82,14 +90,8 @@ class PolicyApplier(
         results += step("Chrome managed config (no DoH, no incognito, SafeSearch)") {
             device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, LockPolicy.chromeRestrictions)
         }
-        results += when {
-            config.frpAccountIds.isEmpty() ->
-                StepResult("factory reset protection", true, "no account IDs configured; Android default FRP applies")
-            sdkInt < 30 -> StepResult("factory reset protection", true, "needs Android 11; Android default FRP applies")
-            else -> step("factory reset protection (${config.frpAccountIds.size} account(s))") {
-                device.setFrpAccounts(config.frpAccountIds)
-            }
-        }
+        // Factory reset protection, force stop, accounts, extra users, keyboards (Hardening.kt).
+        hardening?.let { results += it.applyOtherPolicies() }
         // Last, because it waits on the network.
         results += step("private DNS") { device.forcePrivateDns(config.dnsHost) }
         return results
@@ -111,24 +113,17 @@ class PolicyApplier(
 
     /** Permanent exit for a test phone: undo everything, then give up Device Owner. */
     fun release(): List<StepResult> {
-        if (!device.isDeviceOwner()) {
-            return listOf(StepResult("give up Device Owner", true, "already released"))
-        }
+        if (!device.isDeviceOwner()) return listOf(StepResult("give up Device Owner", true, "already released"))
         val results = lift().toMutableList()
+        if (!device.isDeviceOwner()) return listOf(StepResult("give up Device Owner", true, "already released"))
         // Once Device Owner is gone, nobody can show hidden apps again short of a factory reset.
         if (results.any { it.name == SHOW_HIDDEN && !it.ok }) {
             return results + StepResult("give up Device Owner", false, "stopped: some apps are still hidden; try again")
         }
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
-        if (sdkInt >= 30) results += step("clear FRP policy") {
-            try {
-                device.setFrpAccounts(null)
-                null
-            } catch (_: UnsupportedOperationException) {
-                "FRP policy is not supported on this device"
-            }
-        }
+        hardening?.let { results += it.release() }
+        if (results.any { it.name == "clear FRP policy" && !it.ok } && device.isDeviceOwner()) return results
         results += step("give phone and SMS roles back") { giveRolesBack() }
         // Failed cleanup may need Device Owner on the next attempt.
         if (results.all { it.ok }) results += step("give up Device Owner") { device.clearDeviceOwner() }
@@ -223,7 +218,7 @@ class PolicyApplier(
         ) - parentAllowed
         // During school time and bedtime config.allowedPackages is already narrowed to the window's
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
-        val keep = device.corePackages() + config.allowedPackages + device.ownPackage - telephony +
+        val keep = protectedCallPackages() + device.corePackages() + config.allowedPackages - telephony +
             listOfNotNull(config.installing?.let { PolicyConfig.PLAY_STORE })
         val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
         val nowHidden = previously.toMutableSet()
@@ -254,11 +249,14 @@ class PolicyApplier(
      * is paused) until the day ends. Core apps never get here (see TimeGuard.exempt).
      */
     private fun suspendUsedUp(config: PolicyConfig): StepResult = step("time limits") {
-        val target = config.timeBlocked - device.corePackages() - device.ownPackage
+        val target = config.timeBlocked - device.corePackages() - protectedCallPackages()
         val refused = setSuspended(target)
         (if (target.isEmpty()) "nothing used up" else "${target.size} used up for today") +
             if (refused.isEmpty()) "" else "; Android refused: ${refused.joinToString()}"
     }
+
+    private fun protectedCallPackages(): Set<String> =
+        setOfNotNull(device.ownPackage, device.telephonyApps().systemDialer)
 
     private fun setSuspended(target: Set<String>): Set<String> {
         val before = hiddenStore.loadSuspended()

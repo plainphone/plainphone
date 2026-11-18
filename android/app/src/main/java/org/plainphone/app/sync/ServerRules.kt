@@ -32,6 +32,8 @@ data class ServerRules(
     /** Set when a parent pressed "Find" and the phone has not answered yet. */
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
+    /** #20: the parents' Google account IDs for factory reset protection. Empty clears the policy. */
+    val frpAccountIds: Set<String> = emptySet(),
     /** Phone settings the parent set or locked (docs/phone-settings.md). Empty from older servers. */
     val settings: PhoneSettings = PhoneSettings.NONE,
     /** How the home screen looks. Defaults from older servers. */
@@ -95,6 +97,10 @@ data class ServerRules(
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { Instant.parse(it) },
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
+                // Old servers do not send it. Only decimal IDs: FRP takes nothing else.
+                frpAccountIds = j.optJSONObject("resetProtection")?.optJSONArray("accountIds")
+                    ?.let(::strings)?.filter { id -> id.isNotEmpty() && id.length <= 30 && id.all(Char::isDigit) }?.toSet()
+                    .orEmpty(),
                 settings = PhoneSettings.parse(j.optJSONObject("settings")),
                 home = HomePrefs.parse(j.optJSONObject("home")),
                 // Older servers do not send "update".

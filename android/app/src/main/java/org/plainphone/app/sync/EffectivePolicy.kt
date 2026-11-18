@@ -43,6 +43,8 @@ object EffectivePolicy {
             dnsHost = if (rules.dnsReady && rules.dnsHost != null && !removed) rules.dnsHost else qr.dnsHost,
             // During a window, an app needs both: the window allows it and the app list shows it.
             allowedPackages = windowAllowed?.let { it intersect allowed } ?: allowed,
+            // The parents' accounts from the dashboard join any from the QR code (#20).
+            frpAccountIds = qr.frpAccountIds + rules.frpAccountIds,
             server = ServerOverlay(
                 windowActive = windows.isNotEmpty(),
                 locationRequired = rules.locationEnabled,

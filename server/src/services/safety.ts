@@ -103,7 +103,7 @@ export function legacyUntaggedTargets(phone: Phone, checkin: SafetyRequest | und
   };
 }
 
-export async function loadSafety(ctx: Ctx, phoneId: string) {
+export async function loadSafety(ctx: { db: Pick<Ctx["db"], "select"> }, phoneId: string) {
   const rows = await ctx.db.select().from(safetyRequests).where(eq(safetyRequests.phoneId, phoneId));
   return { ring: rows.find((r) => r.kind === "ring"), checkin: rows.find((r) => r.kind === "checkin") };
 }

@@ -34,6 +34,8 @@ services:
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: ${DNS_HOST_SUFFIX:-dns.plainphone.org}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       # Setup QR codes (docs/self-hosting.md): leave empty for the project's own app releases.
       APK_DOWNLOAD_URL: ${APK_DOWNLOAD_URL:-}
       APK_METADATA_URL: ${APK_METADATA_URL:-}

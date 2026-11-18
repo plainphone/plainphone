@@ -6,6 +6,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { InviteResult, Members } from "../api/models";
 import { ItemRow } from "../components/parts";
 import { RequireAuth } from "../components/RequireAuth";
+import { ResetProtection } from "../components/ResetProtection";
 import { Button, Card, errorMessage, Field, LiveStatus, LoadGate, Notice, type NoticeValue, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useMe, useSession } from "../lib/session";
@@ -170,6 +171,8 @@ function Household() {
           )
         }
       </LoadGate>
+
+      <ResetProtection hid={hid} />
 
       <Card>
         <Text variant="heading">{t("house.inviteTitle")}</Text>

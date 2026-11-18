@@ -17,21 +17,23 @@ import org.plainphone.app.PlainphoneAdminReceiver
 class ProvisioningModeActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)
-            ?.let { PlainphoneAdminReceiver.saveExtras(this, it) }
-
         // The extra exists from Android 12; on Android 10 and 11 it is absent and the result is fully managed.
         val allowed = intent.getIntArrayExtra(ALLOWED_MODES)
         val fullyManaged = DevicePolicyManager.PROVISIONING_MODE_FULLY_MANAGED_DEVICE
         if (allowed != null && fullyManaged !in allowed) {
             // Personal-device flows (work profile) are not supported: abort provisioning.
             setResult(RESULT_CANCELED)
+            finish()
         } else {
-            setResult(
-                RESULT_OK,
-                Intent().putExtra(DevicePolicyManager.EXTRA_PROVISIONING_MODE, fullyManaged),
-            )
+            accept(fullyManaged)
         }
+    }
+
+    private fun accept(mode: Int) {
+        Compat.parcelableExtra<PersistableBundle>(intent, DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE)
+            ?.let { PlainphoneAdminReceiver.saveExtras(this, it) }
+
+        setResult(RESULT_OK, Intent().putExtra(DevicePolicyManager.EXTRA_PROVISIONING_MODE, mode))
         finish()
     }
 

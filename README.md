@@ -44,20 +44,23 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 
 A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
 
+Adding a Play account during an approved app install needs the parent PIN. Plainphone requests Google sign-in directly while Android keeps user account changes blocked. If sign-in fails, the parent can retry with account changes allowed briefly within the same [installation window](docs/app-catalog.md). The retry option expires when that window ends. Once tapped, it allows account changes for at most three minutes. The dashboard warns if Plainphone detects an unexpected account change. Reset protection and hardware system checks are described in [docs/policies.md](docs/policies.md).
+
 [docs/policies.md](docs/policies.md) lists every policy, what Android does not let us block, and links to the Android documentation.
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. See [docs/light-mode.md](docs/light-mode.md).
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 
 - **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. See [docs/contacts.md](docs/contacts.md).
+- **Protection after a reset.** Link a parent’s Google account in the dashboard. Wait until the account is ready and the phone reports that it has saved the protection settings before resetting the phone. See [docs/policies.md](docs/policies.md#factory-reset-protection).
 - **Helplines.** Children can reach listed support services from Help. See [the helpline policy](docs/policies.md#help-lines).
 - **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). Both parent apps explain the filter's limits even when the DNS settings cannot load. How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
 - **Rules from the server.** App list, approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. See [docs/phone-sync.md](docs/phone-sync.md).
 - **Location on request.** By default the phone shares its position when a parent presses Find or when a check-in reaches its reply deadline without an answer. The server waits briefly before showing a check-in position so a reply arriving at the same time can still win. The phone sends saved or cached positions before requesting new ones, then looks up new positions in order of server expiry. Older Android apps can answer both requests with one position. The map can show the last known position with its original time if a lookup fails. An older position leaves Find open for a newer one. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
-- **Status.** Battery, when the phone was last online, app version and whether the lock is intact. The web dashboard groups phone rules by what they control, when they apply, and what they change on the phone. If a lock step fails, the dashboard describes it in plain language and offers technical details. Both parent apps show a warning if app installation stayed open longer than planned during an update, even when the lock is intact.
+- **Status.** Battery, when the phone was last online, app version and whether the lock is intact. The web dashboard groups phone rules by what they control, when they apply, and what they change on the phone. If a lock step fails, the dashboard describes it in plain language and offers technical details. Both parent apps show a warning if app installation stayed open longer than planned during an update, even when the lock is intact. Both apps also show when the phone detects an unexpected account change, needs consent for a call role, or has removed parallel apps.
 - **Self profile.** For adults using Plainphone on their own phone: changes that loosen the rules wait for a delay, or need approval from a person you trust.
 
 ## Get started
@@ -100,6 +103,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 

@@ -255,6 +255,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/attestation/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A fresh challenge for hardware key attestation (#23)
+         * @description Valid for 10 minutes, one open challenge per phone.
+         */
+        post: operations["postDeviceAttestationChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/attestation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Send the attestation certificate chain of a key made with the challenge
+         * @description The server checks the chain against Google's attestation roots and revocation list and reads the boot state. Verification happens only on the server. No serial number or IMEI is attested.
+         */
+        put: operations["putDeviceAttestation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/push-token": {
         parameters: {
             query?: never;
@@ -477,6 +517,83 @@ export interface paths {
         post?: never;
         /** Remove a member (owner) or leave (yourself) */
         delete: operations["deleteHouseholdsMembers"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who protects the household's phones against a reset
+         * @description `available` is false when the server has no Google OAuth client (`GOOGLE_OAUTH_CLIENT_ID`). `activeFrom` is the time the link was added plus 72 hours (Google's delay for new accounts). Account IDs never leave the server.
+         */
+        get: operations["getResetProtection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Google sign-in for reset protection
+         * @description Returns the Google URL to open. People API profile scope without email, PKCE, single-use state valid for 10 minutes.
+         */
+        post: operations["postResetProtectionGoogle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/reset-protection/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove your own Google account; the phones clear it at the next sync */
+        delete: operations["deleteResetProtectionMine"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reset-protection/google/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Google redirects here after sign-in
+         * @description No session is needed: the `state` from the start call says who signed in. Stores the numeric account ID and redirects to `${PUBLIC_URL}/household?reset-protection=ok|cancelled|failed`.
+         */
+        get: operations["getResetProtectionCallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1853,6 +1970,10 @@ export interface components {
             home: components["schemas"]["Home"];
             /** @description Self profile; show them with a countdown on the phone. */
             pendingChanges: components["schemas"]["PendingChange"][];
+            /** @description Factory reset protection (#20). Numeric Google account IDs (from the Google People API) of the household's parents who turned it on. The phone sets them with `setFactoryResetProtectionPolicy` (Android 11+) or Play services' managed configuration (Android 10). Empty clears the policy. Old servers do not send the field. */
+            resetProtection?: {
+                accountIds?: string[];
+            };
             /**
              * @description True once the parents have released the phone. The phone then switches Plainphone off
              *     (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
@@ -1963,6 +2084,8 @@ export interface components {
             /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
             dnsReady?: boolean;
             hasLocation?: boolean;
+            /** @description The phone's last hardware attestation (#23); null when it has not attested. */
+            attestation?: components["schemas"]["Attestation"] | null;
             /** @description Open requests from the phone (apps, contacts) */
             openRequests?: number;
             /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
@@ -1970,6 +2093,29 @@ export interface components {
             offlineAlertHoursDefault?: number;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
+        };
+        /** @description `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off). `custom-os`: verified boot found a system signed by another key. `failed-boot`: verified boot failed. `unverifiable`: inconclusive evidence, including revoked keys or contradictory boot state. `revoked`: legacy verdict retained in the schema for compatibility. */
+        Attestation: {
+            /** @enum {unknown} */
+            state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";
+            /** @enum {unknown} */
+            securityLevel: "software" | "tee" | "strongbox" | null;
+            deviceLocked: boolean | null;
+            /** @enum {unknown} */
+            verifiedBootState: "verified" | "self-signed" | "unverified" | "failed" | null;
+            /** @description YYYYMM */
+            osPatchLevel: number | null;
+            revocationChecked: boolean;
+            /**
+             * Format: date-time
+             * @description Only in PhoneSummary.
+             */
+            checkedAt?: string | null;
+            /**
+             * Format: date-time
+             * @description Most recent inconclusive check when a negative finding is retained. Only in PhoneSummary.
+             */
+            lastFailedAt?: string;
         };
         DeviceStatusInput: {
             /** @example 0.4.0 */
@@ -1995,6 +2141,8 @@ export interface components {
             maintenance: boolean;
             /** @description Names of the lock steps that failed. */
             failedPolicies: string[];
+            /** @description Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry. */
+            installOverrunSequence?: number;
             /** @description ETag of the rules the phone last applied. */
             rulesEtag: string | null;
             /**
@@ -2004,6 +2152,28 @@ export interface components {
             rulesAppliedAt: string | null;
             /** @description The private DNS host the phone actually uses. */
             dnsHost: string | null;
+            /**
+             * @description Factory reset protection on the phone: `on`, `off` (no parent account; Android's own FRP), `no-play-services` or `failed`. Optional for older apps.
+             * @example on
+             * @enum {string|null}
+             */
+            resetProtection?: "on" | "off" | "no-play-services" | "failed" | null;
+            /** @description Account types signed in on the phone (`com.google`, a maker's account). Types only, no names. */
+            accountTypes?: string[] | null;
+            /** @description A call role requires consent on the phone. This does not affect lock integrity. */
+            callRoleActionNeeded?: boolean;
+            /** @description The phone removed extra Android users or profiles during hardening. */
+            parallelAppsRemoved?: boolean;
+            /**
+             * Format: uuid
+             * @description Stable identifier for retrying the removal notice.
+             */
+            parallelAppsRemovedId?: string;
+            /**
+             * Format: uuid
+             * @description Stable identifier for an unexpected catalog account change. Account identities are never sent.
+             */
+            lateGoogleAccountId?: string;
             /**
              * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
              * @enum {unknown}
@@ -2016,6 +2186,8 @@ export interface components {
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
             /** Format: date-time */
             reportedAt: string;
+            /** @description The phone detected an unexpected account change during catalog fallback or a late Google sign-in. */
+            lateGoogleAccount?: boolean;
         };
         ScheduleInput: {
             /** @enum {unknown} */
@@ -2581,6 +2753,79 @@ export interface operations {
             };
         };
     };
+    postDeviceAttestationChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Challenge (base64url) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        challenge: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+        };
+    };
+    putDeviceAttestation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge: string;
+                    /** @description Two or more DER certificates, base64, leaf first. Empty when the keystore cannot provide an attestation chain. */
+                    chain: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attestation"];
+                };
+            };
+            /** @description The chain does not verify */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Certificate verifier temporarily unavailable. Request a new challenge to retry. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     putDevicePushToken: {
         parameters: {
             query?: never;
@@ -2998,6 +3243,116 @@ export interface operations {
             };
             /** @description Last member */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getResetProtection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        available: boolean;
+                        accounts: {
+                            mine: boolean;
+                            /** Format: uuid */
+                            userId: string;
+                            /** Format: date-time */
+                            addedAt: string;
+                            /** Format: date-time */
+                            activeFrom: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postResetProtectionGoogle: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description With bearer authentication, returns to the native parent app after Google sign-in. */
+                "X-Plainphone-App"?: "parent";
+            };
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sign-in URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+            /** @description Google sign-in is not set up on this server */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteResetProtectionMine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getResetProtectionCallback: {
+        parameters: {
+            query: {
+                code?: string;
+                state: string;
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to the dashboard */
+            302: {
                 headers: {
                     [name: string]: unknown;
                 };

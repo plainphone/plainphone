@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   contacts,
+  type DeviceStatus,
+  type PhoneAttestation,
+  type StatusNotice,
   DNS_CATEGORIES,
   dnsSettings,
   locations,
@@ -17,6 +20,8 @@ import {
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
+import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
+import { householdAccountIds } from "./reset-protection.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 
@@ -102,7 +107,7 @@ function hhmm(minute: number): string {
 }
 
 async function loadRulesInputs(ctx: Ctx, phone: Phone) {
-  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own] = await Promise.all([
+  const [allApps, contactRows, scheduleRows, dnsRow, pending, limits, safetyRows, own, accountIds] = await Promise.all([
     ctx.db
       .select({
         packageName: phoneApps.packageName,
@@ -154,6 +159,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     loadTimeLimits(ctx.db, phone, ctx.now()),
     loadSafety(ctx, phone.id),
     readPhoneSettings(ctx.db, phone.id),
+    householdAccountIds(ctx, phone.householdId),
   ]);
   const safety = safetyForPhone(phone, safetyRows, ctx.now());
   return {
@@ -179,13 +185,14 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     limits,
     safety,
     own,
+    accountIds,
   };
 }
 
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
@@ -239,6 +246,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       keyType: c.keyType,
       effectiveAt: c.effectiveAt?.toISOString() ?? null,
     })),
+    // Factory reset protection (#20): Google account IDs that may set the phone up after a reset.
+    resetProtection: { accountIds },
     // True once the parents have released the phone: it switches Plainphone off and then
     // calls POST /device/released. Older phones ignore the field.
     release: phone.releaseRequestedAt !== null,
@@ -278,28 +287,51 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
   return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0);
 }
 
-const INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000;
+const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
 
 export function isInstallOverrun(policy: string): boolean {
   return /^install window overran: \d+s$/.test(policy);
 }
 
-export function installOverrunFromStatus(status: Phone["deviceStatus"], reportedAt: Date | null) {
+export function installOverrunFromStatus(
+  status: Phone["deviceStatus"],
+  reportedAt: Date | null,
+): NonNullable<Phone["deviceStatus"]>["installOverrun"] {
   if (status?.installOverrun) return status.installOverrun;
   // Older snapshots kept the notice in failedPolicies with only the status timestamp.
   const policy = status?.failedPolicies.find(isInstallOverrun);
   return policy && reportedAt ? { policy, receivedAt: reportedAt.toISOString() } : undefined;
 }
 
+export function parallelAppsRemovalFromStatus(
+  status: Phone["deviceStatus"],
+  reportedAt: Date | null,
+): StatusNotice | undefined {
+  return status?.parallelAppsRemovedNotice ??
+    (status?.parallelAppsRemoved && reportedAt ? { receivedAt: reportedAt.toISOString() } : undefined);
+}
+
+function visibleNotice(notice: StatusNotice | undefined, now: Date): true | undefined {
+  return notice && now.getTime() - Date.parse(notice.receivedAt) < STATUS_NOTICE_TTL_MS ? true : undefined;
+}
+
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
-  const { installOverrun: _storedOverrun, ...status } = phone.deviceStatus;
+  const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
+    lateGoogleAccountNotice, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
-  const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < INSTALL_OVERRUN_TTL_MS;
-  const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
+  const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
+  const assessed = withAttestation(status, phone.attestation);
+  const failedPolicies = assessed.failedPolicies.filter((policy) => !isInstallOverrun(policy));
   // Reserve the last slot for the notice only when the current report leaves room.
   if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
-  return { ...status, failedPolicies, reportedAt: phone.statusReportedAt.toISOString() };
+  return {
+    ...assessed,
+    failedPolicies,
+    parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
+    lateGoogleAccount: visibleNotice(lateGoogleAccountNotice, now),
+    reportedAt: phone.statusReportedAt.toISOString(),
+  };
 }
 
 function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {
@@ -318,11 +350,40 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
     dnsReady: phone.dnsConfirmedAt !== null,
-    hasLocation,
+    hasLocation: phone.locationMode !== "off" && hasLocation,
+    // Hardware attestation of the boot state (#23); null until the phone attested once.
+    attestation: phone.attestation
+      ? {
+          ...phone.attestation,
+          state: phone.attestation.state === "verified" &&
+            (!phone.attestedAt || ctx.now().getTime() - phone.attestedAt.getTime() >= ATTESTATION_MAX_AGE_MS)
+            ? "unverifiable" as const
+            : legacyAmbiguousAttestation(phone.attestation) ? "unverifiable" : phone.attestation.state,
+          checkedAt: phone.attestedAt?.toISOString() ?? null,
+        }
+      : null,
     openRequests,
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
     status: summaryStatus(phone, ctx.now()),
+  };
+}
+
+/** States in which the lock cannot be trusted, whatever the phone itself reports (#23). */
+export const UNTRUSTED_BOOT = new Set(["unlocked", "custom-os", "failed-boot"]);
+
+function legacyAmbiguousAttestation(attestation: PhoneAttestation): boolean {
+  return attestation.state === "revoked" ||
+    (attestation.state === "unlocked" && attestation.deviceLocked === false && attestation.verifiedBootState === "verified");
+}
+
+/** A negative boot verdict counts as a broken lock in the dashboard. */
+export function withAttestation(status: DeviceStatus, attestation: PhoneAttestation | null): DeviceStatus {
+  if (!attestation || !UNTRUSTED_BOOT.has(attestation.state) || legacyAmbiguousAttestation(attestation)) return status;
+  return {
+    ...status,
+    lockIntact: false,
+    failedPolicies: [...status.failedPolicies, `hardware attestation: ${attestation.state}`],
   };
 }

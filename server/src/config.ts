@@ -66,6 +66,13 @@ const schema = z.object({
   ),
   /** Private DNS the phone uses from setup until its own filter host is ready. */
   PROVISIONING_DNS_HOST: unsetIfEmpty(z.string().default("family.adguard-dns.com")),
+  /**
+   * Google OAuth client (type "Web application") for "Protect against reset" (#20). Redirect URI:
+   * `<PUBLIC_URL>/api/reset-protection/google/callback`, People API enabled. Without it the
+   * dashboard explains that the feature is not set up on this server.
+   */
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   /** Pay to unlock (D13). Off until a payment provider is integrated. */
   PAYMENTS_ENABLED: z
     .enum(["true", "false"])

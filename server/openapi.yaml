@@ -35,6 +35,8 @@ tags:
   - name: rules
   - name: self
     description: Self profile key, pending changes and the trusted person.
+  - name: reset-protection
+    description: Factory reset protection with the parent's Google account (#20). Only the numeric account ID is stored.
   - name: notifications
     description: Push notifications to parents (Web Push now; APNs/FCM tokens are stored for the native apps).
   - name: limits
@@ -561,6 +563,17 @@ components:
           type: array
           description: Self profile; show them with a countdown on the phone.
           items: { $ref: "#/components/schemas/PendingChange" }
+        resetProtection:
+          type: object
+          description: >
+            Factory reset protection (#20). Numeric Google account IDs (from the Google People API) of the
+            household's parents who turned it on. The phone sets them with
+            `setFactoryResetProtectionPolicy` (Android 11+) or Play services' managed configuration
+            (Android 10). Empty clears the policy. Old servers do not send the field.
+          properties:
+            accountIds:
+              type: array
+              items: { type: string, pattern: "^[0-9]{1,30}$" }
         release:
           type: boolean
           description: |
@@ -653,6 +666,11 @@ components:
           type: boolean
           description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
         hasLocation: { type: boolean }
+        attestation:
+          description: The phone's last hardware attestation (#23); null when it has not attested.
+          oneOf:
+            - $ref: "#/components/schemas/Attestation"
+            - type: "null"
         openRequests: { type: integer, description: "Open requests from the phone (apps, contacts)" }
         offlineAlertHours:
           type: [integer, "null"]
@@ -663,6 +681,24 @@ components:
           oneOf:
             - $ref: "#/components/schemas/PhoneStatus"
             - type: "null"
+
+    Attestation:
+      type: object
+      description: >
+        `verified`: locked bootloader with the maker's system. `unlocked`: bootloader unlocked (FRP is off).
+        `custom-os`: verified boot found a system signed by another key. `failed-boot`: verified boot failed.
+        `unverifiable`: inconclusive evidence, including revoked keys or contradictory boot state.
+        `revoked`: legacy verdict retained in the schema for compatibility.
+      required: [state, securityLevel, deviceLocked, verifiedBootState, osPatchLevel, revocationChecked]
+      properties:
+        state: { enum: [verified, unlocked, custom-os, failed-boot, unverifiable, revoked] }
+        securityLevel: { enum: [software, tee, strongbox, null] }
+        deviceLocked: { type: [boolean, "null"] }
+        verifiedBootState: { enum: [verified, self-signed, unverified, failed, null] }
+        osPatchLevel: { type: [integer, "null"], description: YYYYMM }
+        revocationChecked: { type: boolean }
+        checkedAt: { type: [string, "null"], format: date-time, description: Only in PhoneSummary. }
+        lastFailedAt: { type: string, format: date-time, description: Most recent inconclusive check when a negative finding is retained. Only in PhoneSummary. }
 
     DeviceStatusInput:
       type: object
@@ -691,6 +727,10 @@ components:
           maxItems: 50
           description: Names of the lock steps that failed.
           items: { type: string, minLength: 1, maxLength: 200 }
+        installOverrunSequence:
+          type: integer
+          minimum: 1
+          description: Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry.
         rulesEtag:
           type: [string, "null"]
           maxLength: 100
@@ -703,6 +743,32 @@ components:
           type: [string, "null"]
           maxLength: 253
           description: The private DNS host the phone actually uses.
+        resetProtection:
+          type: [string, "null"]
+          enum: ["on", "off", "no-play-services", "failed", null]
+          description: "Factory reset protection on the phone: `on`, `off` (no parent account; Android's own FRP), `no-play-services` or `failed`. Optional for older apps."
+          examples: ["on"]
+        accountTypes:
+          type: [array, "null"]
+          maxItems: 20
+          description: Account types signed in on the phone (`com.google`, a maker's account). Types only, no names.
+          items: { type: string, minLength: 1, maxLength: 100 }
+        callRoleActionNeeded:
+          type: boolean
+          description: A call role requires consent on the phone. This does not affect lock integrity.
+        parallelAppsRemoved:
+          type: boolean
+          description: The phone removed extra Android users or profiles during hardening.
+        parallelAppsRemovedId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for retrying the removal notice.
+        lateGoogleAccountId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for an unexpected catalog account change. Account identities are never sent.
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
@@ -717,6 +783,9 @@ components:
           required: [reportedAt]
           properties:
             reportedAt: { type: string, format: date-time }
+            lateGoogleAccount:
+              type: boolean
+              description: The phone detected an unexpected account change during catalog fallback or a late Google sign-in.
 
     ScheduleInput:
       type: object
@@ -1098,6 +1167,57 @@ paths:
                               format: date-time
                               description: When a delay-key change takes effect
 
+  /device/attestation/challenge:
+    post:
+      operationId: postDeviceAttestationChallenge
+      tags: [device]
+      summary: A fresh challenge for hardware key attestation (#23)
+      description: Valid for 10 minutes, one open challenge per phone.
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: Challenge (base64url)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge, expiresAt]
+                properties:
+                  challenge: { type: string }
+                  expiresAt: { type: string, format: date-time }
+  /device/attestation:
+    put:
+      operationId: putDeviceAttestation
+      tags: [device]
+      summary: Send the attestation certificate chain of a key made with the challenge
+      description: >
+        The server checks the chain against Google's attestation roots and revocation list and reads
+        the boot state. Verification happens only on the server. No serial number or IMEI is attested.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge, chain]
+              properties:
+                challenge: { type: string, maxLength: 100 }
+                chain:
+                  type: array
+                  maxItems: 10
+                  not: { minItems: 1, maxItems: 1 }
+                  description: Two or more DER certificates, base64, leaf first. Empty when the keystore cannot provide an attestation chain.
+                  items: { type: string, minLength: 1, maxLength: 12000 }
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Attestation" }
+        "400": { description: The chain does not verify, or was made for another challenge }
+        "409": { description: Unknown, used or expired challenge }
+        "503": { description: Certificate verifier temporarily unavailable. Request a new challenge to retry. }
   /device/push-token:
     put:
       operationId: putDevicePushToken
@@ -1387,6 +1507,80 @@ paths:
       responses:
         "204": { description: "Removed" }
         "409": { description: "Last member" }
+  /households/{hid}/reset-protection:
+    get:
+      operationId: getResetProtection
+      tags: [reset-protection]
+      summary: Who protects the household's phones against a reset
+      description: >
+        `available` is false when the server has no Google OAuth client (`GOOGLE_OAUTH_CLIENT_ID`).
+        `activeFrom` is the time the link was added plus 72 hours (Google's delay for new accounts).
+        Account IDs never leave the server.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: State
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, accounts]
+                properties:
+                  available: { type: boolean }
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      required: [mine, userId, addedAt, activeFrom]
+                      properties:
+                        mine: { type: boolean }
+                        userId: { type: string, format: uuid }
+                        addedAt: { type: string, format: date-time }
+                        activeFrom: { type: string, format: date-time }
+  /households/{hid}/reset-protection/google:
+    post:
+      operationId: postResetProtectionGoogle
+      tags: [reset-protection]
+      summary: Start Google sign-in for reset protection
+      description: Returns the Google URL to open. People API profile scope without email, PKCE, single-use state valid for 10 minutes.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/householdId" }
+        - name: X-Plainphone-App
+          in: header
+          schema: { const: parent }
+          description: With bearer authentication, returns to the native parent app after Google sign-in.
+      responses:
+        "200":
+          description: Sign-in URL
+          content:
+            application/json:
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        "409": { description: Google sign-in is not set up on this server }
+  /households/{hid}/reset-protection/mine:
+    delete:
+      operationId: deleteResetProtectionMine
+      tags: [reset-protection]
+      summary: Remove your own Google account; the phones clear it at the next sync
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "204": { description: Removed }
+  /reset-protection/google/callback:
+    get:
+      operationId: getResetProtectionCallback
+      tags: [reset-protection]
+      summary: Google redirects here after sign-in
+      description: >
+        No session is needed: the `state` from the start call says who signed in. Stores the
+        numeric account ID and redirects to `${PUBLIC_URL}/household?reset-protection=ok|cancelled|failed`.
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Back to the dashboard }
   /households/{hid}/invites:
     post:
       operationId: postHouseholdsInvites

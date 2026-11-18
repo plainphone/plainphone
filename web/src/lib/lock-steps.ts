@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { MessageKey, T } from "../i18n/translate";
+import type { Locale } from "./api";
+import { failedPolicyLabel } from "./failedPolicies";
 import { SETTING_SPECS, settingName } from "./settings";
 
 // Names reported by Android's PolicyApplier, SettingsApplier and LightLock.
@@ -51,13 +53,13 @@ const stepKeys = new Map<string, MessageKey>([
   ["usage access (time limits)", "lockStep.usageAccess"],
 ]);
 
-export function lockStepLabel(step: string, t: T): string {
+export function lockStepLabel(step: string, t: T, locale: Locale): string {
   const name = step.replace(/^(factory reset protection) \(\d+ account\(s\)\)$/, "$1");
   const key = stepKeys.get(name);
   if (key) return t(key);
 
   const setting = SETTING_SPECS.find(({ key }) => step === `setting ${key}`);
-  if (!setting) return t("phone.lockUnknown");
+  if (!setting) return failedPolicyLabel(name, locale) ?? t("phone.lockUnknown");
 
   const label = settingName(setting.key, t);
   if (setting.key === "bluetooth" || setting.key === "wifi" || setting.key === "nfc") return label;
