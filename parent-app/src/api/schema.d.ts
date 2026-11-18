@@ -2140,6 +2140,8 @@ export interface components {
             lastSeenAt?: string | null;
             dnsHost?: string;
             dnsSynced?: boolean;
+            /** @description Whether this server has a DNS filter service configured */
+            dnsConfigured?: boolean;
             /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
             dnsReady?: boolean;
             hasLocation?: boolean;

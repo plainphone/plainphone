@@ -60,7 +60,7 @@ function PhoneFilter() {
         {(dns) => (
           <>
             {!phone.dnsReady ? (
-              <p className="notice notice-info">{t("filter.waitingDns")}</p>
+              <p className="notice notice-info">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "filter.waitingDns")}</p>
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
             )}

@@ -86,6 +86,7 @@ export interface Phone {
   dnsHost: string;
   dnsSynced: boolean;
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
+  dnsConfigured?: boolean;
   dnsReady: boolean;
   hasLocation: boolean;
   /** Hardware attestation of the boot state (#23); null until the phone attested once. Missing on old servers. */

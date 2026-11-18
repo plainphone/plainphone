@@ -352,6 +352,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
+    dnsConfigured: ctx.cfg.DNS_PROVIDER === "http",
     dnsReady: isDnsReady(ctx, phone),
     hasLocation: phone.locationMode !== "off" && hasLocation,
     // Hardware attestation of the boot state (#23); null until the phone attested once.

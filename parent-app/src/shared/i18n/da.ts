@@ -283,6 +283,7 @@ export const da: Messages = {
   "filter.noneBlocked": "Der er ingen hjemmesider på listen.",
   "filter.removeLabel": "Fjern {domain}",
   "filter.notSynced": "De nye regler for webfilteret gælder ikke endnu. Plainphone prøver igen automatisk.",
+  "filter.noDnsService": "Der er intet webfilter på denne server.",
   "filter.waitingDns": "Webfilteret er ved at blive sat op. Det virker ikke endnu.",
   "filter.addressTitle": "Brug dette filter med din router eller VPN",
   "filter.addressLimits": "Kun enheder og apps, der sender deres DNS-forespørgsler hertil, bruger dette filter. Det blokerer domæner og kan ikke filtrere enkelte sider på et websted, trafik direkte til en IP-adresse eller apps, der bruger en anden DNS-tjeneste.",

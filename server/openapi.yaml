@@ -665,6 +665,7 @@ components:
         lastSeenAt: { type: [string, "null"], format: date-time }
         dnsHost: { type: string }
         dnsSynced: { type: boolean }
+        dnsConfigured: { type: boolean, description: Whether this server has a DNS filter service configured }
         dnsReady:
           type: boolean
           description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.

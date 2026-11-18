@@ -284,6 +284,7 @@ export const en = {
   "filter.noneBlocked": "No websites are on this list.",
   "filter.removeLabel": "Remove {domain}",
   "filter.notSynced": "The new web filter rules aren’t active yet. Plainphone will try again automatically.",
+  "filter.noDnsService": "This server has no web filter service.",
   "filter.waitingDns": "The web filter is being set up. It isn’t active yet.",
   "filter.addressTitle": "Use this filter with your router or VPN",
   "filter.addressLimits": "Only devices and apps that send their DNS requests here use this filter. It blocks domains, and cannot filter pages inside a site, direct IP traffic, or apps using a different DNS service.",

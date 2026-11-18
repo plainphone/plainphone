@@ -196,6 +196,10 @@ describe("DNS readiness", () => {
     const { phoneId, device } = await pairPhone(h, parent);
 
     expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json).toMatchObject({
+      dnsConfigured: false,
+      dnsReady: false,
+    });
     expect(h.dns.clients.size).toBe(1);
     const response = await parent.get(`/api/phones/${phoneId}/dns`);
     expect(response.status).toBe(200);

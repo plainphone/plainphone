@@ -402,7 +402,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
       {phone.attestation?.checkedAt && (
         <p className="help status-updated">{t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}
-      {!phone.dnsReady && <p className="notice notice-info status-dns">{t("phone.dnsWaiting")}</p>}
+      {!phone.dnsReady && <p className="notice notice-info status-dns">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "phone.dnsWaiting")}</p>}
     </section>
   );
 }
