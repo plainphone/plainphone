@@ -47,7 +47,7 @@ import org.plainphone.app.update.SelfUpdate
 object Sync {
     fun runner(context: Context): SyncRunner {
         val app = context.applicationContext
-        return SyncRunner(SyncStore(app), PlainphoneApi(ConfigStore(app).load().serverUrl), AndroidSyncDevice(app))
+        return SyncRunner(SyncStore(app), PlainphoneApi(ConfigStore(app).load().serverUrl, app), AndroidSyncDevice(app))
     }
 }
 

@@ -36,12 +36,8 @@ class SyncWorkBudgetTest {
         val context = ApplicationProvider.getApplicationContext<Application>()
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val manager = WorkManager.getInstance(context)
-        val app = PlainphoneApplication()
-        ReflectionHelpers.callInstanceMethod<Unit>(
-            app, "attach", ReflectionHelpers.ClassParameter.from(Context::class.java, context),
-        )
+        val app = attachPlainphoneApplication(context)
         val store = SyncStore(context, FakeSecretBox())
-        app.onCreate()
         store.savePaired("phone", "test-token")
         // Robolectric has no Android Keystore. Seed the process cache as if the token had been opened.
         val prefs = context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE)
@@ -54,11 +50,14 @@ class SyncWorkBudgetTest {
         )
         ReflectionHelpers.setStaticField(SyncStore::class.java, "tokenCache", cached)
 
+        val now = System.currentTimeMillis()
+        recordCleanInventory(store, now)
+        app.onCreate()
+        assertThat(store.appScanGeneration(now, emptySet())).isNotNull()
+
         // The real boot receiver delegates sync scheduling to this entry point.
         SyncScheduler.onBoot(context)
-        val now = System.currentTimeMillis()
-        store.finishAppScan(checkNotNull(store.appScanGeneration(now, emptySet())), "test-inventory", now, emptySet())
-        assertThat(store.appScanGeneration(now, emptySet())).isNull()
+        recordCleanInventory(store, now)
         fun checkBudget() {
             val jobs = manager.getWorkInfos(WorkQuery.fromTags(listOf(SyncWorker::class.java.name)))
                 .get(5, TimeUnit.SECONDS).filterNot { it.state.isFinished }
@@ -103,4 +102,38 @@ class SyncWorkBudgetTest {
         checkImmediateSync()
         assertThat(store.appScanGeneration(now, emptySet())).isNotNull()
     }
+
+    @Test
+    fun `package removal change and locale change each invalidate a clean inventory`() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        attachPlainphoneApplication(context).onCreate()
+        val store = SyncStore(context, FakeSecretBox())
+        val now = System.currentTimeMillis()
+        val packageUri = Uri.parse("package:org.example.app")
+        val broadcasts = listOf(
+            Intent(Intent.ACTION_PACKAGE_REMOVED, packageUri),
+            Intent(Intent.ACTION_PACKAGE_CHANGED, packageUri),
+            Intent(Intent.ACTION_LOCALE_CHANGED),
+        )
+        val invalidated = broadcasts.mapNotNull { intent ->
+            recordCleanInventory(store, now)
+            context.sendBroadcast(intent)
+            shadowOf(Looper.getMainLooper()).idle()
+            intent.action.takeIf { store.appScanGeneration(now, emptySet()) != null }
+        }
+        assertThat(invalidated).containsExactlyElementsIn(broadcasts.map { it.action })
+    }
+
+    private fun recordCleanInventory(store: SyncStore, now: Long) {
+        store.appScanGeneration(now, emptySet())?.let { store.finishAppScan(it, "test-inventory", now, emptySet()) }
+        assertThat(store.appScanGeneration(now, emptySet())).isNull()
+    }
+
+    private fun attachPlainphoneApplication(context: Context): PlainphoneApplication =
+        PlainphoneApplication().also { app ->
+            ReflectionHelpers.callInstanceMethod<Unit>(
+                app, "attach", ReflectionHelpers.ClassParameter.from(Context::class.java, context),
+            )
+        }
 }

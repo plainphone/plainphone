@@ -1,6 +1,6 @@
 # Android wakeups and scheduling
 
-These call sites cover alarms, WorkManager scheduling, receiver registrations and delayed handlers in the app source.
+These call sites cover alarms, WorkManager scheduling, receiver and network registrations, delayed handlers, wake locks, and location requests in the app source.
 A receiver or a handler does not itself wake a sleeping CPU. WorkManager timing depends on constraints and
 Android power management. Android can defer inexact alarms and throttle alarms allowed while idle.
 
@@ -12,6 +12,8 @@ in this table against the production source, including both branches of platform
 | `PlainphoneApplication.kt` `registerReceiver(` | On screen-on | On | Reapply the lock and enqueue immediate rules sync. |
 | `PlainphoneApplication.kt` `registerReceiver(` | On screen-off | Off | Arm the idle safety poll. |
 | `PlainphoneApplication.kt` `registerReceiver(` | On package add, remove or change | Either | Invalidate the inventory. A new installation also reconciles its install window and requests sync. |
+| `PlainphoneApplication.kt` `registerReceiver(` | On locale change | Either | Invalidate localized app labels. |
+| `PlainphoneApplication.kt` `getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(` | When the default network becomes available | Either | Request sync, throttled to once a minute. |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)` | On default-role changes | Either | Recheck phone and SMS roles (Android 13+). |
 | `RoleWatcher.kt` `context.registerReceiver(receiver, filter)` | On default-role changes | Either | Recheck phone and SMS roles (older Android). |
 | `Lock.kt` `am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli() + 1_000L, windowIntent(context))` | Next rule-window boundary + 1 s | Either | Apply school time and bedtime transitions. |
@@ -33,16 +35,29 @@ in this table against the production source, including both branches of platform
 | `sync/AndroidSync.kt` `WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)` | On demand | Either | Coalesce immediate sync triggers into one unique work item. |
 | `sync/AndroidSync.kt` `WorkManager.getInstance(context).enqueueUniqueWork(SOON, ExistingWorkPolicy.REPLACE, request)` | Normally 60 s; 10 s during an active safety request | Normally on; either during active safety requests | Schedule the next sync with the server-provided interval. |
 | `sync/AndroidSync.kt` `WorkManager.getInstance(context).enqueueUniqueWork(ENROLL, ExistingWorkPolicy.KEEP, request)` | On provisioning or boot if enrollment is pending | Either | Redeem the enrollment token with backoff. |
+| `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<SyncWorker>()` | On demand | Either | Build the coalesced immediate sync. |
+| `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<SyncWorker>()` | At the next poll | Normally on; either during active safety requests | Build the follow-up sync. |
+| `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<EnrollWorker>()` | On provisioning or boot | Either | Build the pending enrollment work. |
+| `sync/AndroidSync.kt` `lm.getCurrentLocation(provider, request, cancel, DIRECT_EXECUTOR) { done(it) }` | On a location lookup that requires a fresh fix | Either | Request a one-shot fix on Android 12+. |
+| `sync/AndroidSync.kt` `lm.getCurrentLocation(provider, cancel, DIRECT_EXECUTOR) { done(it) }` | On a location lookup | Either | Request a one-shot fix on Android 11+. |
+| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, request, DIRECT_EXECUTOR, listener)` | On an active location lookup fallback | Either | Listen for a fresh fix with a bounded request. |
+| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, 0L, 0f, listener, thread.looper)` | On a fresh location lookup on older Android | Either | Listen until a fresh fix arrives or the lookup ends. |
+| `sync/AndroidSync.kt` `lm.requestSingleUpdate(provider, listener, thread.looper)` | On a single location lookup on older Android | Either | Request a one-shot fix. |
 | `time/TimeTicker.kt` `main.postDelayed(this, EVERY_MS)` | 60 s | On | Recheck time limits in strong mode. |
 | `time/TimeTicker.kt` `context.registerReceiver(` | On screen-on or screen-off | Either | Start or stop the time-limit ticker. |
 | `time/TimeTicker.kt` `if (intent.action == Intent.ACTION_SCREEN_ON) main.postDelayed(tick, EVERY_MS)` | On screen-on, first tick in 60 s | On | Resume time-limit checks. |
 | `time/TimeTicker.kt` `main.postDelayed(tick, EVERY_MS)` | On registration, first tick in 60 s | On | Start time-limit checks if the screen is already interactive. |
+| `update/InstallRecoveryWorker.kt` `val request = OneTimeWorkRequestBuilder<InstallRecoveryWorker>()` | At install-lease expiry | Either | Build the recovery backup with a delay. |
+| `update/InstallRecoveryWorker.kt` `WorkManager.getInstance(context).enqueue(request).result.get(5, TimeUnit.SECONDS)` | At install-lease expiry | Either | Persist the recovery backup before lifting the restriction. |
+| `update/InstallWatchdogService.kt` `.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Plainphone:install-watchdog")` | When the watchdog starts | Either | Create the partial wake lock used for install recovery. |
+| `update/InstallWatchdogService.kt` `wakeLock.acquire(InstallLease.MAX_MS + 5_000L)` | When a lease is armed | Either | Keep the CPU available until recovery, with a bounded timeout. |
 | `update/InstallWatchdogService.kt` `check(timer.postDelayed({ onDeadline(ticket.deadline) }, remaining))` | At install-lease expiry | Either | Restore the install restriction before releasing the watchdog’s bounded wake lock. |
 | `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, remaining)` | At the remaining lease deadline | Either | Re-arm a watchdog callback that arrived early. |
 | `update/InstallWatchdogService.kt` `timer.postDelayed({ onDeadline(deadline, force) }, 1_000L)` | 1 s after a recovery error | Either | Retry restoring the install restriction. |
 | `update/UpdateRequestListener.kt` `app.registerReceiver(object : BroadcastReceiver() {` | On screen-on, screen-off or user-present | Either | Start or stop the interactive update long poll. |
 | `update/UpdateWorker.kt` `val request = PeriodicWorkRequestBuilder<UpdateWorker>(6, TimeUnit.HOURS)` | 6 h, with 10 min initial delay | Either | Build the periodic update request used by both constraint paths. |
 | `update/UpdateWorker.kt` `WorkManager.getInstance(context).enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.UPDATE, request)` | 6 h per variant | Either | Enqueue the unmetered and connected-plus-charging checks; they share a daily gate. |
+| `update/UpdateWorker.kt` `val request = OneTimeWorkRequestBuilder<UpdateWorker>()` | Once per parent request | Either | Build the force-update check. |
 | `update/UpdateWorker.kt` `WorkManager.getInstance(context).enqueueUniqueWork("$NOW-$requestedAtMs", ExistingWorkPolicy.KEEP, request)` | Once per parent request | Either | Queue the force-update check under its request timestamp. |
 | `update/UpdateReceiver.kt` `alarms.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)` | At install-lease expiry | Either | Restore the install restriction via an exact alarm where available. |
 | `update/UpdateReceiver.kt` `alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atMs, intent)` | At install-lease expiry | Either | Restore the install restriction via the inexact fallback. |

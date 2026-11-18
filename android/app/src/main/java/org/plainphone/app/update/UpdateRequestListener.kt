@@ -62,7 +62,7 @@ object UpdateRequestListener {
         while (session.canPoll() && !pairing.removed) {
             val token = pairing.deviceToken() ?: return
             try {
-                val api = PlainphoneApi(ConfigStore(app).load().serverUrl)
+                val api = PlainphoneApi(ConfigStore(app).load().serverUrl, app)
                 if (!session.canPoll()) return
                 val requested = api.waitForUpdateRequest(token, state.handledRequestMs, session.cancellation)
                 if (requested != null && session.canPoll() && !pairing.removed && pairing.deviceToken() == token) {

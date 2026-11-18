@@ -18,15 +18,13 @@ import java.util.concurrent.TimeUnit
 
 /** Runs [SelfUpdater]. Periodic (it skips until a day has passed) and on the parent's "Update now". */
 class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
-    override fun doWork(): Result {
-        val force = inputData.getBoolean(KEY_FORCE, false)
-        try {
-            org.plainphone.app.Lock.recoverInstall(applicationContext, "update check")
-            SelfUpdate.reconcileOnStart(applicationContext)
-        } catch (e: Exception) {
-            Log.e("Plainphone", "could not recover the previous install before the update check", e)
-            return Result.retry()
-        }
+    override fun doWork(): Result = runUpdateCheck(
+        recoverInstall = { org.plainphone.app.Lock.recoverInstall(applicationContext, "update check") },
+        reconcileOnStart = { SelfUpdate.reconcileOnStart(applicationContext) },
+        checkForUpdate = { checkForUpdate(inputData.getBoolean(KEY_FORCE, false)) },
+    )
+
+    private fun checkForUpdate(force: Boolean): Result {
         return try {
             val outcome = SelfUpdate.updater(applicationContext).run(force)
             Log.i("Plainphone", "self-update (${if (force) "requested" else "periodic"}): $outcome")
@@ -48,6 +46,24 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
     companion object {
         const val KEY_FORCE = "force"
     }
+}
+
+internal fun <T> runUpdateCheck(
+    recoverInstall: () -> Unit,
+    reconcileOnStart: () -> Unit,
+    checkForUpdate: () -> T,
+): T {
+    try {
+        recoverInstall()
+    } catch (e: Exception) {
+        Log.e("Plainphone", "could not recover the previous install before the update check", e)
+    }
+    try {
+        reconcileOnStart()
+    } catch (e: Exception) {
+        Log.e("Plainphone", "could not reconcile the previous install before the update check", e)
+    }
+    return checkForUpdate()
 }
 
 object SelfUpdate {
