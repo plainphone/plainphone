@@ -46,10 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.common.BitMatrix
-import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -63,6 +59,8 @@ import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.ui.qr.QrCode
+import org.plainphone.app.ui.qr.QrSegment
 
 /**
  * Shows the pairing code and QR code until a parent claims the phone in the dashboard.
@@ -234,22 +232,22 @@ private fun PairingScreen(onDone: () -> Unit) {
 /** Dark modules on white with a quiet zone, also in dark mode, so every camera can read it. */
 @Composable
 private fun QrCode(text: String, modifier: Modifier) {
-    val matrix = remember(text) { encodeQr(text) }
+    val matrix = remember(text) { encodePairingQr(text) }
     val label = stringResource(R.string.pairing_qr_description)
     Box(modifier.background(Color.White).padding(12.dp).semantics { contentDescription = label }) {
         Canvas(Modifier.fillMaxSize()) {
-            val cell = size.minDimension / matrix.width
-            for (y in 0 until matrix.height) {
-                for (x in 0 until matrix.width) {
-                    if (matrix[x, y]) drawRect(Color.Black, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f))
+            val cell = size.minDimension / matrix.size
+            for (y in 0 until matrix.size) {
+                for (x in 0 until matrix.size) {
+                    if (matrix.getModule(x, y)) drawRect(Color.Black, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f))
                 }
             }
         }
     }
 }
 
-private fun encodeQr(text: String): BitMatrix =
-    QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, mapOf(EncodeHintType.MARGIN to 0))
+internal fun encodePairingQr(text: String): QrCode =
+    QrCode.encodeSegments(QrSegment.makeSegments(text), QrCode.Ecc.LOW, 1, 40, -1, false)
 
 private const val POLL_MS = 3_000L
 /** About a minute of trying the QR code's token before a code is shown as well. */

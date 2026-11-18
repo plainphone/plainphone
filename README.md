@@ -48,7 +48,7 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. See [docs/light-mode.md](docs/light-mode.md).
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 
@@ -100,6 +100,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ```
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
