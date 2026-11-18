@@ -13,7 +13,7 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 [plainphone.org](https://plainphone.org) · [Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Releases](https://github.com/plainphone/plainphone/releases)
 
-> **Status: early, pre-release.** The releases are test builds signed with a test key, and not every part has been tested on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
+> **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
 
 ## Why
 
@@ -126,7 +126,13 @@ keyPassword=...
 PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleRelease
 ```
 
-Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. The pre-release APKs on GitHub are signed with a **test key** (certificate CN "Plainphone TEST key (not for production)"). Do not trust that key for anything except testing.
+Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
+
+```text
+8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215
+```
+
+Android cannot update in place from the test key used through v0.1.9. In light mode, uninstall Plainphone, install the current release and pair it again. In strong mode (Device Owner), factory reset the phone and set it up again with a fresh setup QR code. A factory reset erases the phone's data.
 
 ### Setup QR code
 

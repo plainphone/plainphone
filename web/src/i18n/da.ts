@@ -199,7 +199,7 @@ export const da: Messages = {
   "phone.updateDetails": "Vis tekniske detaljer",
   "phone.updateBatteryExemptionMissing": "Tillad, at Plainphone kører i baggrunden, og prøv igen.",
   "phone.updateNetwork": "Telefonen kunne ikke hente opdateringen.",
-  "phone.updateSignatureMismatch": "Telefonen kunne ikke bekræfte, at opdateringen kom fra Plainphone.",
+  "phone.updateSignatureMismatch": "Opdateringen bruger en anden signeringsnøgle, eller telefonen kunne ikke bekræfte den. Hvis du går fra Plainphone v0.1.9 eller ældre til v0.1.10 eller nyere, skal du sætte telefonen op igen. I let tilstand skal du afinstallere og geninstallere Plainphone. I stærk tilstand skal du tage en sikkerhedskopi og nulstille telefonen.",
   "phone.updateVersionNotNewer": "Opdateringen er ikke nyere end den installerede app.",
   "phone.updateMetadataMismatch": "Den hentede fil matcher ikke den forventede opdatering.",
   "phone.updateInstallFailed": "Telefonen kunne ikke installere opdateringen.",

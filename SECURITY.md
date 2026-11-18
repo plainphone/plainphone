@@ -10,7 +10,7 @@ We aim to answer within a week. No filter or lock is perfect, and we will say so
 
 ## Supported versions
 
-Only the newest release is supported. Phase 1 builds are test builds signed with a test key and are not meant for real use.
+Only the newest release is supported. Releases from v0.1.10 use the production signing key. Pre-releases through v0.1.9 used a test key.
 
 ## End-to-end encryption
 

@@ -200,7 +200,7 @@ export const en = {
   "phone.updateDetails": "Show technical details",
   "phone.updateBatteryExemptionMissing": "Allow Plainphone to run in the background, then try again.",
   "phone.updateNetwork": "The phone could not download the update.",
-  "phone.updateSignatureMismatch": "The phone could not verify that the update came from Plainphone.",
+  "phone.updateSignatureMismatch": "The update uses a different signing key or the phone could not verify it. If you are moving from Plainphone v0.1.9 or earlier to v0.1.10 or later, set up the phone again. In light mode, uninstall and reinstall Plainphone. In strong mode, back up your data and factory reset the phone.",
   "phone.updateVersionNotNewer": "The update is no newer than the installed app.",
   "phone.updateMetadataMismatch": "The downloaded file did not match the expected update.",
   "phone.updateInstallFailed": "The phone could not install the update.",
