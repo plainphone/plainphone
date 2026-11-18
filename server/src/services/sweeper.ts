@@ -33,7 +33,6 @@ export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
-  await deliverSetupUndoNotices(ctx);
   const now = ctx.now();
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
@@ -102,6 +101,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
     // Rings and "Are you okay?" requests, a day after they ended.
     safety: await deleteOldSafetyRequests(ctx),
   };
+  await deliverSetupUndoNotices(ctx);
   return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };
 }
 

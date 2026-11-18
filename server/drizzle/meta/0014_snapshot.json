@@ -2157,6 +2157,12 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "household_id": {
+          "name": "household_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "phone_id": {
           "name": "phone_id",
           "type": "uuid",
@@ -2206,6 +2212,19 @@
         }
       },
       "foreignKeys": {
+        "setup_undo_notices_household_id_households_id_fk": {
+          "name": "setup_undo_notices_household_id_households_id_fk",
+          "tableFrom": "setup_undo_notices",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "setup_undo_notices_user_id_users_id_fk": {
           "name": "setup_undo_notices_user_id_users_id_fk",
           "tableFrom": "setup_undo_notices",

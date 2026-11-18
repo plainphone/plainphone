@@ -57,8 +57,8 @@ requesting permissions. Child and Myself confirm the phone and check the dashboa
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
 even offline. When the phone reconnects, it updates the dashboard and makes Plainphone available
-for uninstallation. Device Owner setup also waits
-for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
+for uninstallation. Undo notices are sent only to current household members. Device Owner setup
+also waits for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 

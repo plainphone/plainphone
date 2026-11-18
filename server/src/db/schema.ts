@@ -532,6 +532,7 @@ export const pushSubscriptions = pgTable(
 // A deleted phone must no longer be needed to deliver its final notice.
 export const setupUndoNotices = pgTable("setup_undo_notices", {
   id: id(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
   phoneId: uuid("phone_id").notNull(),
   phoneName: text("phone_name").notNull(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
