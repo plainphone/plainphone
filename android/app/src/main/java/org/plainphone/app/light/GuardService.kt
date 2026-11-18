@@ -42,7 +42,8 @@ class GuardService : AccessibilityService() {
         val packages = pendingSettingsPackages.toList()
         pendingSettingsPackages.clear()
         if (!canGuardSettings()) return@Runnable
-        packages.forEach { guardSettings(it) }
+        val textPackages = packages.filterNot { it == SettingsGuard.VPN_DIALOGS }
+        if (!guardSettings(textPackages) && SettingsGuard.VPN_DIALOGS in packages) closeVpnDialog()
     }
     private val vpnRetry = Runnable {
         if (canGuardSettings()) closeVpnDialog()
@@ -110,7 +111,10 @@ class GuardService : AccessibilityService() {
                     VPN_RETRY_DELAYS_MS.forEach { main.postDelayed(vpnRetry, it) }
                 }
             }
-            guarded && windowChanged -> guardSettings(pkg)
+            guarded && windowChanged -> {
+                // During setup the user needs access to the protected screens.
+                if (LightSetup.isComplete(this)) guardSettings(listOf(pkg))
+            }
             // Settings can swap fragments without changing windows.
             guarded && e.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> scheduleSettingsCheck(pkg)
             windowChanged -> guard(pkg)
@@ -158,18 +162,16 @@ class GuardService : AccessibilityService() {
         }
     }
 
-    private fun guardSettings(pkg: String) {
-        // While setting up, the user has to visit exactly these screens.
-        if (!LightSetup.isComplete(this)) return
-        if (pkg == SettingsGuard.VPN_DIALOGS) {
-            closeVpnDialog()
-            return
-        }
-        val k = keywords ?: return
-        val root = rootInActiveWindow ?: return
+    private fun guardSettings(packages: List<String>): Boolean {
+        if (packages.isEmpty()) return false
+        val k = keywords ?: return false
+        val root = rootInActiveWindow ?: return false
         val texts = ArrayList<String>()
         collect(root, texts, depth = 0)
-        if (SettingsGuard.isProtectedScreen(pkg, texts, k)) closeProtectedWindow(pkg)
+        val pkg = packages.firstOrNull { SettingsGuard.isProtectedScreen(it, texts, k) } ?: return false
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        block(pkg, BlockedActivity.Reason.PROTECTION)
+        return true
     }
 
     private fun closeVpnDialog(): Boolean {
@@ -180,15 +182,10 @@ class GuardService : AccessibilityService() {
         } ?: return false
         val matchesPackage = root.packageName?.toString() == SettingsGuard.VPN_DIALOGS
         recycle(root)
-        if (!matchesPackage) return false
+        if (!matchesPackage || !performGlobalAction(GLOBAL_ACTION_BACK)) return false
         main.removeCallbacks(vpnRetry)
-        closeProtectedWindow(SettingsGuard.VPN_DIALOGS)
+        block(SettingsGuard.VPN_DIALOGS, BlockedActivity.Reason.PROTECTION)
         return true
-    }
-
-    private fun closeProtectedWindow(pkg: String) {
-        performGlobalAction(GLOBAL_ACTION_BACK)
-        block(pkg, BlockedActivity.Reason.PROTECTION)
     }
 
     /** Time limits: re-evaluated when an app comes to the front and every [TICK_MS] while it stays there. */

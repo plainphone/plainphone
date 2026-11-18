@@ -111,16 +111,21 @@ class GuardServiceTest {
             val shadow = prepareGuard(service)
             service.event(STATE, SETTINGS)
             service.event(CONTENT, SETTINGS)
+            shadow.root = AccessibilityNodeInfo().apply {
+                packageName = SETTINGS
+                text = "Force stop Plainphone"
+            }
             service.event(STATE, overlay)
             assertEquals(STATE or CONTENT, service.serviceInfo.eventTypes)
+            assertEquals(emptyList<Int>(), shadow.globalActions)
 
             val looper = shadowOf(Looper.getMainLooper())
-            var reads = shadow.rootReads
             looper.idleFor(Duration.ofMillis(150))
-            assertEquals(++reads, shadow.rootReads)
+            assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
             service.event(CONTENT, SETTINGS)
             looper.idleFor(Duration.ofMillis(150))
-            assertEquals(++reads, shadow.rootReads)
+            assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
         }
     }
 
@@ -156,11 +161,46 @@ class GuardServiceTest {
         assertEquals(5, shadow.rootReads)
     }
 
+    @Test fun sendsBackOnlyOnceForSettingsAndInstallerContentInTheSameBatch() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val installer = "com.google.android.packageinstaller"
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = installer
+            text = "Uninstall Plainphone"
+        }
+
+        service.event(CONTENT, SETTINGS)
+        service.event(CONTENT, installer)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+        assertEquals(1, shadow.rootReads)
+    }
+
+    @Test fun keepsVpnRetriesWhenAndroidRejectsBack() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        service.event(STATE, SettingsGuard.VPN_DIALOGS)
+        shadow.root = AccessibilityNodeInfo().apply { packageName = SettingsGuard.VPN_DIALOGS }
+        shadow.acceptGlobalAction = false
+
+        looper.idleFor(Duration.ofMillis(50))
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        shadow.acceptGlobalAction = true
+        looper.idleFor(Duration.ofMillis(100))
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+        looper.idleFor(Duration.ofMillis(150))
+        assertEquals(3, shadow.rootReads)
+    }
+
     private fun prepareGuard(service: GuardService): ServiceShadow {
         service.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE)
             .edit().putBoolean("complete", true).apply()
         org.robolectric.util.ReflectionHelpers.setField(service, "keywords", SettingsGuard.Keywords(
-            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = listOf("force stop"), uninstall = emptyList(),
+            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = listOf("force stop", "uninstall"),
         ))
         val shadow = org.robolectric.shadow.api.Shadow.extract<ServiceShadow>(service)
         shadow.root = AccessibilityNodeInfo().apply { packageName = SETTINGS }
@@ -176,6 +216,7 @@ class GuardServiceTest {
         private var submittedEventTypes = STATE
         var root: AccessibilityNodeInfo? = null
         var rootReads = 0
+        var acceptGlobalAction = true
 
         val prefetchFlags = mutableListOf<Int>()
         val globalActions = mutableListOf<Int>()
@@ -190,7 +231,7 @@ class GuardServiceTest {
 
         @Implementation fun performGlobalAction(action: Int): Boolean {
             globalActions += action
-            return true
+            return acceptGlobalAction
         }
 
         @Implementation fun setCacheEnabled(enabled: Boolean): Boolean {
