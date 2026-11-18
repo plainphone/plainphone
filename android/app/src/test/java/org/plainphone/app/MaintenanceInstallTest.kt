@@ -6,9 +6,11 @@ import android.accounts.Account
 import android.accounts.AccountManager
 import android.app.Application
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
+import android.os.SystemClock
 import android.os.Looper
 import android.os.UserManager
 import android.view.View
@@ -22,11 +24,14 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import java.time.LocalDate
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.json.JSONArray
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
@@ -38,7 +43,11 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowAlarmManager
+import org.robolectric.shadows.ShadowDevicePolicyManager
+import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
@@ -175,14 +184,82 @@ class MaintenanceInstallTest {
     }
 
     @Test
-    fun `fallback deadline relocks accounts while catalog stays open`() {
+    @Config(shadows = [AccountRelockShadow::class])
+    fun `authenticator completion detects a removal before the restriction returns`() {
+        val manager = AccountManager.get(context)
+        val existing = Account("parent", "com.google")
+        shadowOf(manager).addAccount(existing)
         startFallback()
+        val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val (id, encoded) = markers.all.entries.single()
+        val marker = JSONArray(encoded as String)
+        val baseline = marker.getJSONArray(1)
+        val request = CatalogAccounts.Request(
+            id, marker.getString(2), pkg, (0 until baseline.length()).map(baseline::getString).toSet(), true,
+        )
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        Shadow.extract<AccountRelockShadow>(dpm).beforeAccountRelock = {
+            // Android delivers the notification asynchronously; the shadow delivers it inline.
+            listeners.clear()
+            try {
+                assertThat(manager.removeAccountExplicitly(existing)).isTrue()
+            } finally {
+                listeners.putAll(registered)
+            }
+        }
+
+        assertThat(CatalogAccounts.complete(context, request)).isFalse()
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `expired fallback does not warn for a subsequent maintenance account removal`() {
+        val manager = AccountManager.get(context)
+        val existing = Account("parent", "com.google")
+        shadowOf(manager).addAccount(existing)
+        startFallback()
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(3))
+        InstallLease.android(context).recover()
+        assertThat(accountsBlocked()).isTrue()
+
+        val lifted = CountDownLatch(1)
+        Lock.liftAsync(context) { lifted.countDown() }
+        pumpUntil { lifted.count == 0L }
+        assertThat(accountsBlocked()).isFalse()
+        assertThat(manager.removeAccountExplicitly(existing)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Implements(DevicePolicyManager::class)
+    class AccountRelockShadow : ShadowDevicePolicyManager() {
+        var beforeAccountRelock: (() -> Unit)? = null
+
+        @Implementation
+        override fun addUserRestriction(admin: ComponentName, restriction: String) {
+            if (restriction == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                val action = beforeAccountRelock
+                beforeAccountRelock = null
+                action?.invoke()
+            }
+            super.addUserRestriction(admin, restriction)
+        }
+    }
+
+    @Test
+    fun `fallback deadline relocks accounts while catalog stays open`() {
+        var tappedAt = 0L
+        startFallback { tappedAt = SystemClock.elapsedRealtime() }
         UpdateReceiver.cancelLeaseExpiry(context, InstallLease.CATALOG_ACCOUNTS)
         val prefs = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
         val marker = checkNotNull(prefs.getString(InstallLease.CATALOG_ACCOUNTS, null))
         val deadline = marker.substringBefore(',').toLong()
-        val remaining = deadline - android.os.SystemClock.elapsedRealtime()
-        assertThat(remaining).isIn(1..180_000L)
+        assertThat(deadline).isEqualTo(tappedAt + 180_000L)
+        val remaining = deadline - SystemClock.elapsedRealtime()
         val watchdog = shadowOf(service.get().timerLooper)
         watchdog.idleFor(Duration.ofMillis(remaining - 1))
         assertThat(accountsBlocked()).isFalse()
@@ -292,12 +369,13 @@ class MaintenanceInstallTest {
         assertThat(message(activity).text.toString()).doesNotContain(fallback(activity).text.toString())
     }
 
-    private fun startFallback(): MaintenanceActivity {
+    private fun startFallback(beforeTap: () -> Unit = {}): MaintenanceActivity {
         val activity = installPrompt()
         submit(activity, pin, expectAccountRequest = true)
         completeWithoutGoogleAccount()
         pumpUntil { fallback(activity).visibility == View.VISIBLE }
         assertThat(fallback(activity).visibility).isEqualTo(View.VISIBLE)
+        beforeTap()
         fallback(activity).performClick()
         pumpUntil { !accountsBlocked() }
         shadowOf(Looper.getMainLooper()).idle()

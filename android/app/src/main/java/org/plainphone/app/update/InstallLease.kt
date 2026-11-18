@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.Settings
 import java.util.UUID
+import org.plainphone.app.catalog.CatalogAccounts
 
 /**
  * Lease states under LOCK: absent → open → closing → absent.
@@ -23,6 +24,7 @@ class InstallLease(
     private val tracksOverruns: () -> Boolean = { false },
     private val onRecovered: (Boolean) -> Unit = {},
     private val relockCatalogAccounts: () -> Unit = {},
+    private val onCatalogAccountsClosed: (String, Boolean) -> Unit = { _, _ -> },
     /** Opens the restriction through the normal policy path. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
@@ -224,7 +226,8 @@ class InstallLease(
     ): Boolean? {
         val durable = store.load()
         val current = withPendingClosures(durable)
-        val open = if (force) emptyMap() else valid(current).filterKeys {
+        val validLeases = if (force) emptyMap() else valid(current)
+        val open = validLeases.filterKeys {
             it != closingHolder && !(closingHolder == CATALOG && it == CATALOG_ACCOUNTS)
         }
         val closing = current - open.keys
@@ -268,6 +271,10 @@ class InstallLease(
         if (completed != pending) saveClosingLocked(open + completed)
         val otherClears = clearsInFlight - if (finishingClear) 1 else 0
         if (otherClears != 0) return false
+        closing[CATALOG_ACCOUNTS]?.id?.let { id ->
+            val allowSuccess = closingHolder == CATALOG_ACCOUNTS && CATALOG_ACCOUNTS in validLeases
+            onCatalogAccountsClosed(id, allowSuccess)
+        }
         val overrun = completed.values.mapNotNull { it.pendingOverrunMs }.maxOrNull()
         store.retire(open, overrun?.let { (it + 999) / 1_000 })
         closing.forEach { (holder, lease) ->
@@ -394,6 +401,9 @@ class InstallLease(
                     ) {
                         device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
                     }
+                },
+                onCatalogAccountsClosed = { id, allowSuccess ->
+                    CatalogAccounts.recordFallbackOutcome(app, id, allowSuccess)
                 },
                 restrictionLifted = {
                     val sync = org.plainphone.app.sync.SyncStore(app)

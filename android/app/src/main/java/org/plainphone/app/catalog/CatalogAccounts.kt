@@ -89,20 +89,31 @@ internal object CatalogAccounts {
 
     @Synchronized
     fun complete(context: Context, request: Request): Boolean {
-        try {
-            reconcile(context)
-        } finally {
-            if (request.fallback) InstallLease.android(context).finishCatalogAccounts(request.id)
+        if (request.fallback) {
+            InstallLease.android(context).finishCatalogAccounts(request.id)
+            val outcome = recentMarkers(context)[request.id]?.takeIf { it.hasOutcome() } ?: return false
+            prefs(context).edit().remove(request.id).apply()
+            return outcome.optBoolean(6) && expectedGoogleAddition(request.baseline, fingerprints(context, allTypes = true))
         }
-        val current = fingerprints(context, allTypes = request.fallback)
-        val added = if (request.fallback) {
-            recentMarkers(context)[request.id]?.optBoolean(6) == true &&
-                expectedGoogleAddition(request.baseline, current)
-        } else {
-            current.keys.any { it !in request.baseline }
-        }
+        reconcile(context)
+        val added = fingerprints(context, allTypes = false).keys.any { it !in request.baseline }
         prefs(context).edit().remove(request.id).apply()
         return added
+    }
+
+    // Called under the lease lock after relock. Taking the listener lock here would invert lock order.
+    @SuppressLint("ApplySharedPref")
+    fun recordFallbackOutcome(context: Context, id: String, allowSuccess: Boolean) {
+        val p = prefs(context)
+        val marker = p.getString(id, null)?.let(::JSONArray) ?: return
+        if (!marker.optBoolean(5) || marker.hasOutcome()) return
+
+        val baseline = baseline(marker)
+        val current = fingerprints(context, allTypes = true)
+        val expected = allowSuccess && expectedGoogleAddition(baseline, current)
+        if (baseline != current.keys && !expected) reportUnexpectedChange(context)
+        marker.put(6, expected)
+        check(p.edit().putString(id, marker.toString()).commit())
     }
 
     @Synchronized
@@ -115,22 +126,20 @@ internal object CatalogAccounts {
         val google = current.filterValues { it == GOOGLE }
         val lease = InstallLease.android(context)
         markers.forEach { (id, marker) ->
-            val baselineJson = marker.getJSONArray(1)
-            val baseline = (0 until baselineJson.length()).map(baselineJson::getString).toSet()
+            val baseline = baseline(marker)
             if (marker.optBoolean(5)) {
-                if (baseline == current.keys) return@forEach
-                val expected = lease.allowsCatalogAccountChanges(id) && expectedGoogleAddition(baseline, current)
-                lease.finishCatalogAccounts(id)
-                if (!expected) reportUnexpectedChange(context)
-                // Keep the first observed outcome for the authenticator callback.
-                marker.put(6, expected)
-                prefs(context).edit().putString(id, marker.toString()).apply()
+                if (baseline != current.keys) lease.finishCatalogAccounts(id)
             } else if (google.keys.any { it !in baseline }) {
                 // A matching open request must not suppress the warning for a matching closed one.
                 if (!isOpen(context, marker.getString(2), marker.getString(0))) reportUnexpectedChange(context)
                 prefs(context).edit().remove(id).apply()
             }
         }
+    }
+
+    private fun baseline(marker: JSONArray): Set<String> {
+        val accounts = marker.getJSONArray(1)
+        return (0 until accounts.length()).map(accounts::getString).toSet()
     }
 
     private fun JSONArray.hasOutcome() = length() > 6

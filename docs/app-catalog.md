@@ -6,8 +6,10 @@ one with one tap. The phone then treats it as allowed and offers to install it. 
 if Play needs an account, the parent can choose “Install and add a Play account” and enter their
 maintenance PIN. Plainphone requests Google sign-in directly while Android continues to block
 user account changes. If sign-in fails, **Allow accounts briefly** retries within the same
-window and restores the restriction when Android reports an account, sign-in ends, or the
-window closes. Play opens after sign-in if the approved install window is still active.
+window. The restriction returns when Android reports a visible account change, sign-in ends,
+or the catalog window closes. It also returns at most three minutes after tapping the button,
+even if there is time left to install the app. Play opens after successful sign-in if the approved
+install window is still active.
 
 Apps marked `"starter": true` form the starter pack: they are allowed from the start when a
 phone reports them.
