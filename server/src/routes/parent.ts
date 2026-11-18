@@ -5,6 +5,7 @@
 import { and, desc, eq, gt, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -48,9 +49,10 @@ import {
   type Op,
   submitChange,
 } from "../services/changes.js";
+import { childContactSettingsInput, pendingContactSuggestions, reviewContactSuggestions, reviewContactSuggestionsInput, updateChildContactSettings } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
-import { syncDns } from "../services/dns.js";
+import { isDnsReady, syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
@@ -779,10 +781,45 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
+  app.get("/phones/:pid/contact-suggestions", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    return c.json({ suggestions: await pendingContactSuggestions(ctx, phone.id) });
+  });
+
+  app.post("/phones/:pid/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    await reviewContactSuggestions(ctx, phone.id, await body(c, reviewContactSuggestionsInput));
+    return c.body(null, 204);
+  });
+
+  app.put("/phones/:pid/contact-schedule", async (c) => {
+    const phone = await requirePhone(c);
+    const { restricted } = await body(c, z.strictObject({ restricted: z.boolean() }));
+    return change(c, phone, { type: "contact.schedule", restricted });
+  });
+
   app.get("/phones/:pid/contacts", async (c) => {
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
-    return c.json({ contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })) });
+    return c.json({
+      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })),
+      selfScheduleContacts: phone.selfScheduleContacts,
+      suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
+      lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
+    });
+  });
+
+  app.patch("/phones/:pid/contacts", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    const input = await body(c, childContactSettingsInput);
+    if (input.lightContactRestriction !== undefined && phone.mode !== "light") {
+      throw new HTTPException(400, { message: "contact restriction is always on in strong mode" });
+    }
+    await updateChildContactSettings(ctx, phone.id, input);
+    return c.body(null, 204);
   });
 
   app.post("/phones/:pid/contacts", async (c) => {
@@ -800,8 +837,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/phones/:pid/dns", async (c) => {
     const phone = await requirePhone(c);
     const [row] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
+    c.header("Cache-Control", "no-store");
     return c.json({
-      host: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      host: isDnsReady(ctx, phone)
+        ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`
+        : null,
       synced: !phone.dnsDirty,
       blockedCategories: row?.blockedCategories ?? [],
       allowDomains: row?.allowDomains ?? [],
@@ -1041,7 +1081,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       approvals: targets.map((r) => {
         const id = r.change.id;
         const bonusDate = r.op.type === "timeLimit.bonus" ? approvalBonusDate(r, now) : undefined;
-        const summary = formatApprovalSummary(state, r.phoneId, r.op, r.appLabel, { id, bonusDate });
+        const summary = formatApprovalSummary(state, r.phoneId, r.op, { id, bonusDate });
         return {
           id,
           phoneId: r.phoneId,
@@ -1050,7 +1090,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           op: { type: r.op.type },
           appLabel: r.appLabel,
           summary,
-          revision: approvalRevision(id, summary),
+          revision: approvalRevision(r.change, state, r.phoneId, r.op, bonusDate),
           createdAt: r.change.createdAt.toISOString(),
         };
       }),
@@ -1121,10 +1161,6 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     key: typeof selfKeys.$inferSelect | undefined,
   ) {
     const op = r.op as Op;
-    const [app] = "packageName" in op
-      ? await ctx.db.select({ label: phoneApps.label }).from(phoneApps)
-        .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)))
-      : [];
     const state = await loadApprovalSummaries(ctx.db, [{ phoneId: phone.id, op }]);
     const now = ctx.now();
     const appliesAt = r.effectiveAt && r.effectiveAt > now ? r.effectiveAt : now;
@@ -1132,7 +1168,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       id: r.id,
       op,
       // The owner already receives contact details and can see them in the pending list.
-      summary: op.type === "contact.add" ? undefined : formatApprovalSummary(state, phone.id, op, app?.label ?? null, {
+      summary: op.type === "contact.add" ? undefined : formatApprovalSummary(state, phone.id, op, {
         id: r.id, owner: true, bonusDate: approvalBonusDate(phone, appliesAt),
       }),
       keyType: r.keyType,

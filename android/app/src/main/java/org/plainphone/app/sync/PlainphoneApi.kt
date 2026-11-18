@@ -20,6 +20,8 @@ import javax.net.ssl.SSLPeerUnverifiedException
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.DeviceContact
 
 /** The phone's side of the sync API (server/openapi.yaml, tag "device"). Faked in unit tests. */
 interface SyncApi {
@@ -31,6 +33,7 @@ interface SyncApi {
     /** Pairs with the one-time token from a dashboard-made provisioning QR code (POST /device/enroll). */
     fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult
     fun fetchRules(token: String, etag: String?): RulesResult
+    fun reportContactSuggestions(token: String, contacts: List<DeviceContact>) {}
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
     fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean
@@ -440,6 +443,20 @@ class PlainphoneApi private constructor(
             401 -> RulesResult.Unpaired
             else -> throw HttpError(r.status, r.body)
         }
+    }
+
+    fun setFavourite(token: String, contact: ApprovedContact, favourite: Boolean): Boolean {
+        val request = JSONObject().put("name", contact.name).put("number", contact.number).put("favourite", favourite)
+        val result = call("POST", "/device/self/favourites", token, request)
+        if (result.status !in setOf(202, 204)) throw IOException("favourite change returned HTTP ${result.status}")
+        return result.status == 204
+    }
+
+    override fun reportContactSuggestions(token: String, contacts: List<DeviceContact>) {
+        val entries = JSONArray()
+        contacts.forEach { entries.put(JSONObject().put("name", it.name).put("numbers", JSONArray(it.numbers))) }
+        val result = call("PUT", "/device/contact-suggestions", token, JSONObject().put("contacts", entries))
+        if (result.status != 204) throw IOException("contact suggestions returned HTTP ${result.status}")
     }
 
     override fun reportApps(token: String, apps: List<InstalledApp>) {

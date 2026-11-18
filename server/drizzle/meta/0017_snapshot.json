@@ -1,9 +1,110 @@
 {
-  "id": "a9296bd4-3ef5-4f4f-a799-1c079e73eb32",
-  "prevId": "75d1a21c-fbdf-4abc-9453-699410616749",
+  "id": "8ded7666-1586-45e0-b389-701e38944a79",
+  "prevId": "1899f263-7d57-4fe9-967e-46bbf9bc212e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.contact_suggestions": {
+      "name": "contact_suggestions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contact_suggestions_phone_number_uq": {
+          "name": "contact_suggestions_phone_number_uq",
+          "columns": [
+            {
+              "expression": "phone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contact_suggestions_phone_group_idx": {
+          "name": "contact_suggestions_phone_group_idx",
+          "columns": [
+            {
+              "expression": "phone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contact_suggestions_phone_id_phones_id_fk": {
+          "name": "contact_suggestions_phone_id_phones_id_fk",
+          "tableFrom": "contact_suggestions",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.contacts": {
       "name": "contacts",
       "schema": "",
@@ -982,6 +1083,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "approval_fingerprint_key": {
+          "name": "approval_fingerprint_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "awaiting_qr_helper": {
           "name": "awaiting_qr_helper",
           "type": "boolean",
@@ -1413,6 +1521,27 @@
           "primaryKey": false,
           "notNull": true
         },
+        "suggest_device_contacts": {
+          "name": "suggest_device_contacts",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "light_contact_restriction": {
+          "name": "light_contact_restriction",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "self_schedule_contacts": {
+          "name": "self_schedule_contacts",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
         "mode": {
           "name": "mode",
           "type": "text",
@@ -1456,6 +1585,12 @@
         "dns_confirmed_at": {
           "name": "dns_confirmed_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dns_confirmed_provider": {
+          "name": "dns_confirmed_provider",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

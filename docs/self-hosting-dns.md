@@ -141,8 +141,52 @@ first release" in [dns/README.md](../dns/README.md)). AdGuard Home
 itself is pinned in `compose.yaml`; raise the version there after reading its
 release notes.
 
+Before moving to a new DNS hostname or resolver, register the existing phones'
+ClientIDs and filter settings on the destination resolver. Verify that the new
+per-phone hostnames resolve and answer DNS-over-TLS queries before changing
+`DNS_HOST_SUFFIX` or switching traffic. The rules API can serve the new hostname
+as ready immediately for previously confirmed phones, before background sync
+re-provisions them. A resolver that does not recognize a phone's ClientID can
+refuse its queries.
+
 ## Using your own filter with the Plainphone app
 
 Build the app and the QR code with your own DNS host (the hostname pattern is
 `<ClientID>.<PPDNS_DOMAIN>`), and point your own Plainphone server at your ppdns
 API (`PPDNS_API_TOKEN` and the private address from `PPDNS_API_BIND`).
+
+## Use a phone's filter on a router or VPN
+
+In the web dashboard, open the phone's **Web filter**. The address appears for
+household members after the DNS service confirms provisioning with
+`DNS_PROVIDER=http`. After switching from `mock` to `http`, changing
+`DNS_API_URL` or `DNS_HOST_SUFFIX`, or upgrading from an older confirmation
+format, the background sync provisions existing phones with the configured
+resolver before the dashboard shows their addresses.
+
+Migration `0015_dns_confirmation_provider` keeps the existing confirmation
+timestamps. Previously confirmed phones keep using their filter during retries,
+including when the resolver's administration API is temporarily unavailable.
+A phone with a confirmation from the mock provider waits for a successful HTTP
+sync when the server switches to HTTP DNS.
+
+Treat the hostname as private: sharing it gives other devices and apps access
+to the same filter rules.
+
+Android Private DNS takes the hostname alone. A compatible router or VPN takes
+the hostname and TCP port 853 in its DNS-over-TLS upstream settings, using the
+same hostname for TLS verification and SNI. Use `tls://<hostname>:853` only in
+clients that support that syntax. A plain DNS IP field cannot select the phone's
+profile, and the public resolver currently offers DoT.
+
+For Tailscale, use Android Private DNS and disable **Use Tailscale DNS settings**
+on that phone if you can give up MagicDNS names on it. If you need MagicDNS, an
+admin can configure a private tailnet DNS forwarder with the phone's DoT upstream.
+Tailscale's custom nameserver field takes the forwarder's IP. On the phone,
+turn on **Use Tailscale DNS settings** and set Android Private DNS to
+**Automatic** so Tailscale can handle DNS. A global DNS
+override can apply the same phone's rules to all tailnet devices that accept and
+use those settings. For a company VPN, ask IT about an approved forwarder for
+public DNS queries that keeps internal domains on company DNS. The Tailscale and
+company VPN setups have yet to be verified on a phone. See the
+[VPN coexistence research](research/vpn-coexistence.md#resolver-addresses-and-integrations).

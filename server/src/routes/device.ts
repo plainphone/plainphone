@@ -4,22 +4,24 @@
 
 import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_UNDO_MS, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
-import { applyDueChanges, deletePhone, type Op } from "../services/changes.js";
+import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
 import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
+import { selfFavouriteInput, suggestContacts, suggestedContactsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
@@ -67,6 +69,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
+  const suggestionLimit = new RateLimiter(30, 60 * 60_000);
+  const favouriteLimit = new RateLimiter(30, 60 * 60_000);
 
   // --- Pairing (no device token yet) -------------------------------------------
 
@@ -255,6 +259,33 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
 
+  app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    if (!phone.suggestDeviceContacts) throw new HTTPException(403, { message: "contact suggestions are off" });
+    if (!suggestionLimit.take(phone.id)) throw new HTTPException(429, { message: "too many suggestion uploads" });
+    const accepted = await suggestContacts(ctx, phone.id, await body(c, suggestedContactsInput));
+    if (!accepted) throw new HTTPException(403, { message: "contact suggestions are off" });
+    return c.body(null, 204);
+  });
+
+  app.post("/self/favourites", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    if (!favouriteLimit.take(phone.id)) throw new HTTPException(429, { message: "too many favourite requests" });
+    const { favourite, ...input } = await body(c, selfFavouriteInput);
+    const [owner] = await ctx.db.select({ id: householdMembers.userId }).from(householdMembers)
+      .where(and(eq(householdMembers.householdId, phone.householdId), eq(householdMembers.role, "owner")))
+      .orderBy(householdMembers.userId);
+    if (!owner) throw new HTTPException(404, { message: "not found" });
+    const op = favourite ? { type: "contact.add" as const, ...input } : await ctx.db.select({ contactId: contacts.id })
+      .from(contacts).where(and(eq(contacts.phoneId, phone.id), eq(contacts.number, input.number)))
+      .then(([row]) => row ? { type: "contact.remove" as const, contactId: row.contactId } : null);
+    if (!op) return c.body(null, 204);
+    const result = await submitChange(ctx, phone, owner.id, op, true);
+    return c.body(null, result.status === "applied" ? 204 : 202);
+  });
+
   app.get("/rules", async (c) => {
     let phone = c.get("phone");
     if (await applyDueChanges(ctx, phone.id)) {
@@ -385,7 +416,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const bonusDate = approvalBonusDate(phone, ctx.now());
     return c.json({ changes: targets.map(({ id, op, appLabel }) => ({
       id, type: op.type, appLabel,
-      summary: formatApprovalSummary(state, phone.id, op, appLabel, { id, owner: true, bonusDate }),
+      summary: formatApprovalSummary(state, phone.id, op, { id, owner: true, bonusDate }),
     })) });
   });
 
@@ -397,11 +428,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
       if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return null;
       const [change] = await tx.select({
-        id: pendingChanges.id, op: pendingChanges.op, appLabel: phoneApps.label, helperId: selfKeys.trustedUserId,
+        id: pendingChanges.id, op: pendingChanges.op, helperId: selfKeys.trustedUserId,
+        approvalFingerprintKey: pendingChanges.approvalFingerprintKey,
       }).from(pendingChanges)
         .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
-        .leftJoin(phoneApps, and(eq(phoneApps.phoneId, pendingChanges.phoneId),
-          eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`)))
         .where(and(
           eq(pendingChanges.id, changeId), eq(pendingChanges.phoneId, phone.id),
           eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "trusted"),
@@ -411,10 +441,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const op = change.op as Op;
       const state = await loadApprovalSummaries(tx, [{ phoneId: phone.id, op }]);
       const now = ctx.now();
-      const options = { id: changeId, bonusDate: approvalBonusDate(fresh, now) };
-      const helperSummary = formatApprovalSummary(state, phone.id, op, change.appLabel, options);
-      const summary = formatApprovalSummary(state, phone.id, op, change.appLabel, { ...options, owner: true });
-      const revision = approvalRevision(changeId, helperSummary);
+      const options = { id: changeId, bonusDate: op.type === "timeLimit.bonus" ? approvalBonusDate(fresh, now) : undefined };
+      const summary = formatApprovalSummary(state, phone.id, op, { ...options, owner: true });
+      const revision = approvalRevision(change, state, phone.id, op, options.bonusDate);
       const challenge = issueApprovalChallenge(phone.id, changeId, now);
       await tx.update(pendingChanges).set({ approvalChallengeHash: approvalChallengeHash(challenge, change.helperId, revision) })
         .where(eq(pendingChanges.id, changeId));
@@ -472,6 +501,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const pack = starterPack(phone.timezone);
     await ctx.db.transaction(async (tx) => {
+      await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
       for (const a of input.apps) {
         await tx
           .insert(phoneApps)

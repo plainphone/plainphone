@@ -180,9 +180,11 @@ function Overview() {
   }
 
   type Section = "apps" | "contacts" | "filter" | "schedules" | "location" | "key";
-  const items: { to: Section; label: string; hint: string }[] = [
+  const items: { to: Section; label: string; hint?: string }[] = [
     { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
-    { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
+    phone.profile === "self"
+      ? { to: "contacts", label: t("contacts.favourites") }
+      : { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
     { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
     { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
     { to: "location", label: t("phone.location"), hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff") },

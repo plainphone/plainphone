@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, inArray } from "drizzle-orm";
-import { contacts, phoneApps, phoneSettings, schedules, selfKeys, timeLimits } from "../db/schema.js";
-import { sha256 } from "../lib/crypto.js";
+import { createHmac } from "node:crypto";
+import { inArray } from "drizzle-orm";
+import { contacts, dnsSettings, phoneApps, phones, phoneSettings, schedules, selfKeys, timeBonuses, timeLimits } from "../db/schema.js";
 import type { SettingState } from "../lib/phone-settings.js";
 import type { ScheduleInput } from "../lib/validation.js";
 import type { Op } from "./changes.js";
@@ -14,6 +14,7 @@ const copy = (en: string, da: string) => ({ en, da });
 const localized = (format: (locale: Locale) => string) => copy(format("en"), format("da"));
 const clock = (minutes: number) => [Math.floor(minutes / 60), minutes % 60].map((n) => String(n).padStart(2, "0")).join(":");
 const safe = (value: string) => value.replace(/[\p{Cc}\p{Bidi_Control}]/gu, " ").trim();
+const appName = (pkg: string, label?: string | null) => safe(label ?? "") || pkg;
 const dayName = (day: number, locale: Locale) => new Intl.DateTimeFormat(locale, {
   weekday: "short", timeZone: "UTC",
 }).format(new Date(Date.UTC(2024, 0, day))); // January 1 was Monday.
@@ -66,34 +67,102 @@ type SummaryOptions = { id?: string; owner?: boolean; bonusDate?: string };
 export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
   const phonesFor = (...types: Op["type"][]) =>
     [...new Set(targets.filter(({ op }) => types.includes(op.type)).map(({ phoneId }) => phoneId))];
-  const limitsFor = phonesFor("timeLimit.set");
+  const limitsFor = phonesFor("timeLimit.set", "timeLimit.bonus");
   const schedulesFor = phonesFor("schedule.update", "schedule.delete");
-  const settingsFor = phonesFor("setting.set");
+  const settingsFor = phonesFor("setting.set", "home.set");
   const keysFor = phonesFor("key.set");
-  const removals = targets.flatMap(({ phoneId, op }) =>
-    op.type === "contact.remove" ? [{ phoneId, id: op.contactId }] : []);
-  const [limits, previousSchedules, settings, keys, contactRows] = await Promise.all([
+  const contactsFor = phonesFor("contact.add", "contact.remove");
+  const dnsFor = phonesFor("dns.category", "dns.allowDomain", "dns.blockDomain");
+  const bonusesFor = phonesFor("timeLimit.bonus");
+  const phoneRulesFor = phonesFor("contact.schedule", "phone.release", "phone.remove");
+  const [limits, previousSchedules, settings, keys, contactRows, dns, bonuses, phoneRules] = await Promise.all([
     limitsFor.length ? db.select().from(timeLimits).where(inArray(timeLimits.phoneId, limitsFor)) : [],
     schedulesFor.length ? db.select().from(schedules).where(inArray(schedules.phoneId, schedulesFor)) : [],
     settingsFor.length ? db.select().from(phoneSettings).where(inArray(phoneSettings.phoneId, settingsFor)) : [],
     keysFor.length ? db.select().from(selfKeys).where(inArray(selfKeys.phoneId, keysFor)) : [],
-    removals.length ? db.select().from(contacts).where(and(
-      inArray(contacts.phoneId, removals.map(({ phoneId }) => phoneId)),
-      inArray(contacts.id, removals.map(({ id }) => id)),
-    )) : [],
+    contactsFor.length ? db.select().from(contacts).where(inArray(contacts.phoneId, contactsFor)) : [],
+    dnsFor.length ? db.select().from(dnsSettings).where(inArray(dnsSettings.phoneId, dnsFor)) : [],
+    bonusesFor.length ? db.select().from(timeBonuses).where(inArray(timeBonuses.phoneId, bonusesFor)) : [],
+    phoneRulesFor.length ? db.select({
+      phoneId: phones.id, selfScheduleContacts: phones.selfScheduleContacts, mode: phones.mode,
+      pairedAt: phones.pairedAt, releaseRequestedAt: phones.releaseRequestedAt,
+    }).from(phones).where(inArray(phones.id, phoneRulesFor)) : [],
   ]);
   const scheduleLabelsFor = [...new Set([
+    ...targets.filter(({ op }) => "packageName" in op).map(({ phoneId }) => phoneId),
     ...previousSchedules.filter((row) => row.allowedPackages.length).map((row) => row.phoneId),
     ...targets.flatMap(({ phoneId, op }) =>
       "schedule" in op && op.schedule.allowedPackages.length ? [phoneId] : []),
   ])];
-  const labels = scheduleLabelsFor.length
-    ? await db.select().from(phoneApps).where(inArray(phoneApps.phoneId, scheduleLabelsFor)) : [];
-  return { limits, previousSchedules, settings, keys, labels, contactRows };
+  const apps = scheduleLabelsFor.length ? await db.select({
+    phoneId: phoneApps.phoneId, packageName: phoneApps.packageName, label: phoneApps.label,
+    allowed: phoneApps.allowed, core: phoneApps.core, installed: phoneApps.installed, requested: phoneApps.requested,
+  }).from(phoneApps).where(inArray(phoneApps.phoneId, scheduleLabelsFor)) : [];
+  return { limits, previousSchedules, settings, keys, apps, contactRows, dns, bonuses, phoneRules };
 }
 
-export function approvalRevision(id: string, summary: ReturnType<typeof copy>) {
-  return sha256(JSON.stringify([id, summary.en, summary.da]));
+type ApprovalState = Awaited<ReturnType<typeof loadApprovalSummaries>>;
+
+function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonusDate?: string) {
+  const app = (pkg: string) => state.apps.find((row) => row.phoneId === phoneId && row.packageName === pkg);
+  const limit = (pkg: string) => state.limits.find((row) => row.phoneId === phoneId && row.packageName === pkg);
+  switch (op.type) {
+    case "app.set":
+    case "catalog.add":
+    case "catalog.remove":
+      return app(op.packageName);
+    case "timeLimit.set":
+      return { limit: limit(op.packageName), label: app(op.packageName)?.label };
+    case "timeLimit.bonus":
+      return {
+        limit: limit(op.packageName), label: app(op.packageName)?.label,
+        minutes: state.bonuses.filter((row) => row.phoneId === phoneId &&
+          row.packageName === op.packageName && row.day === bonusDate).reduce((total, row) => total + row.minutes, 0),
+      };
+    case "schedule.create":
+    case "schedule.update":
+    case "schedule.delete": {
+      const previous = "scheduleId" in op
+        ? state.previousSchedules.find((row) => row.phoneId === phoneId && row.id === op.scheduleId) : undefined;
+      const next = "schedule" in op ? op.schedule.allowedPackages : [];
+      const packages = new Set([...(previous?.allowedPackages ?? []), ...next]);
+      return { previous, apps: [...packages].sort().map(app) };
+    }
+    case "contact.add":
+    case "contact.remove":
+      return state.contactRows.find((row) => row.phoneId === phoneId &&
+        (op.type === "contact.add" ? row.number === op.number : row.id === op.contactId));
+    case "contact.schedule":
+      return state.phoneRules.find((row) => row.phoneId === phoneId)?.selfScheduleContacts;
+    case "dns.category":
+      return state.dns.find((row) => row.phoneId === phoneId)?.blockedCategories.includes(op.category);
+    case "dns.allowDomain":
+      return state.dns.find((row) => row.phoneId === phoneId)?.allowDomains.includes(op.domain);
+    case "dns.blockDomain":
+      return state.dns.find((row) => row.phoneId === phoneId)?.blockDomains.includes(op.domain);
+    case "setting.set":
+      return state.settings.find((row) => row.phoneId === phoneId)?.settings[op.key];
+    case "home.set":
+      return state.settings.find((row) => row.phoneId === phoneId)?.home;
+    case "key.set":
+      return state.keys.find((row) => row.phoneId === phoneId);
+    case "phone.release":
+    case "phone.remove":
+      return state.phoneRules.find((row) => row.phoneId === phoneId);
+  }
+}
+
+export function approvalRevision(
+  change: { id: string; approvalFingerprintKey: string }, state: ApprovalState, phoneId: string, op: Op, bonusDate?: string,
+) {
+  const before = approvalBeforeState(state, phoneId, op, bonusDate) ?? null;
+  // JSONB object key order is immaterial. Preserve array order and exact values.
+  const canonical = JSON.stringify({ id: change.id, phoneId, op, before, bonusDate }, (_key, value: unknown) =>
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
+      : value);
+  // Keep private values such as phone numbers out of reach of offline guessing.
+  return createHmac("sha256", change.approvalFingerprintKey).update(canonical).digest("hex");
 }
 
 export function approvalBonusDate(phone: { timezone: string }, now: Date) {
@@ -102,13 +171,13 @@ export function approvalBonusDate(phone: { timezone: string }, now: Date) {
 
 /** Describes the current rule and the requested change without returning the stored op. */
 export function formatApprovalSummary(
-  state: Awaited<ReturnType<typeof loadApprovalSummaries>>,
+  state: ApprovalState,
   phoneId: string,
   op: Op,
-  appLabel: string | null,
   options: SummaryOptions = {},
 ) {
-  const app = safe(appLabel ?? ("packageName" in op ? op.packageName : "")) || ("packageName" in op ? op.packageName : "");
+  const label = (pkg: string) => appName(pkg, state.apps.find((row) => row.phoneId === phoneId && row.packageName === pkg)?.label);
+  const app = "packageName" in op ? label(op.packageName) : "";
   switch (op.type) {
     case "app.set":
       return op.allowed ? copy(`Allow ${app}`, `Tillad ${app}`) : copy(`Hide ${app}`, `Skjul ${app}`);
@@ -131,7 +200,6 @@ export function formatApprovalSummary(
         ? state.previousSchedules.find((row) => row.phoneId === phoneId && row.id === op.scheduleId)
         : undefined;
       const next = "schedule" in op ? op.schedule : undefined;
-      const label = (pkg: string) => safe(state.labels.find((row) => row.phoneId === phoneId && row.packageName === pkg)?.label ?? pkg);
       const titles = { bedtime: copy("Bedtime", "Sengetid"), school: copy("School time", "Skoletid") };
       const kind = (next ?? previous)?.kind;
       const title = kind ? titles[kind] : copy("Schedule", "Tidsplan");
@@ -159,6 +227,14 @@ export function formatApprovalSummary(
       };
       const category = categories[op.category] ?? copy(op.category, op.category);
       return op.blocked ? copy(`Block ${category.en}`, `Blokér ${category.da}`) : copy(`Allow ${category.en}`, `Tillad ${category.da}`);
+    }
+    case "contact.schedule": {
+      const current = state.phoneRules.find((row) => row.phoneId === phoneId)?.selfScheduleContacts;
+      const title = copy("Calls and texts during schedules", "Opkald og beskeder under tidsplaner");
+      const describe = (restricted: boolean | null | undefined) => restricted === null
+        ? copy("favourites only at all times", "kun favoritter hele tiden")
+        : restricted ? copy("favourites only", "kun favoritter") : copy("anyone", "alle");
+      return localized((locale) => `${title[locale]}: ${describe(current)[locale]} → ${describe(op.restricted)[locale]}`);
     }
     case "contact.add":
     case "contact.remove": {
@@ -201,7 +277,7 @@ export function formatApprovalSummary(
         return `${key[locale]}: ${from} → ${describe(next, changedHelper)}`;
       });
     }
-    case "catalog.add": return copy(`Add ${safe(op.label)} to the app list`, `Tilføj ${safe(op.label)} til applisten`);
+    case "catalog.add": return copy(`Add ${appName(op.packageName, op.label)} to the app list`, `Tilføj ${appName(op.packageName, op.label)} til applisten`);
     case "catalog.remove": return copy(`Remove ${app} from the app list`, `Fjern ${app} fra applisten`);
     case "phone.release": return copy("Release this phone", "Frigiv denne telefon");
     case "phone.remove": return copy("Remove this phone from Plainphone", "Fjern denne telefon fra Plainphone");

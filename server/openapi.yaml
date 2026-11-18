@@ -87,6 +87,16 @@ components:
       required: [undoRemainingMs]
       properties:
         undoRemainingMs: { type: integer, minimum: 0, maximum: 3600000 }
+    SuggestedContactInput:
+      type: object
+      additionalProperties: false
+      required: [name, numbers]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        numbers:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/E164" }
     PhoneRequest:
       type: object
       required: [id, kind, status, createdAt]
@@ -175,6 +185,10 @@ components:
           properties:
             type: { const: contact.remove }
             contactId: { type: string, format: uuid }
+        - type: object
+          properties:
+            type: { const: contact.schedule }
+            restricted: { type: boolean }
         - type: object
           properties:
             type: { const: dns.category }
@@ -480,9 +494,18 @@ components:
               type: array
               description: Only today's and tomorrow's (phone time zone, server clock).
               items: { $ref: "#/components/schemas/Bonus" }
+        suggestDeviceContacts:
+          type: boolean
+          description: Parent opt-in to send names and numbers from a Child phone.
+        lightContactRestriction:
+          type: boolean
+          description: Enforce the approved list on a light Child phone. Missing means off in light mode.
+        selfScheduleContacts:
+          type: [boolean, "null"]
+          description: True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone.
         contacts:
           type: array
-          description: Calls and SMS to or from other numbers are blocked. Emergency numbers always work.
+          description: Approved numbers on Child phones or favourites on Self phones. Emergency numbers always work.
           items:
             type: object
             properties:
@@ -514,7 +537,7 @@ components:
               examples: [k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org]
             ready:
               type: boolean
-              description: The DNS service has accepted this phone's ClientID. Until it is true the phone keeps its current private DNS host, because the DNS service refuses unknown ClientIDs and the phone would lose DNS entirely. It never goes back to false.
+              description: The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone uses the private DNS host from its setup profile.
             blockedCategories:
               type: array
               description: Informational; filtering happens in the DNS service.
@@ -682,9 +705,10 @@ components:
         lastSeenAt: { type: [string, "null"], format: date-time }
         dnsHost: { type: string }
         dnsSynced: { type: boolean }
+        dnsConfigured: { type: boolean, description: Whether this server has a DNS filter service configured }
         dnsReady:
           type: boolean
-          description: The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone.
+          description: The configured HTTP DNS resolver has confirmed provisioning of this phone's ClientID.
         hasLocation: { type: boolean }
         attestation:
           description: The phone's last hardware attestation (#23); null when it has not attested.
@@ -1114,6 +1138,57 @@ paths:
               schema: { $ref: "#/components/schemas/Rules" }
         "304": { description: "Unchanged" }
         "401": { description: "Token unknown (phone removed by a parent). Keep the last rules and show \"pair again\"." }
+
+  /device/self/favourites:
+    post:
+      operationId: setDeviceFavourite
+      tags: [device]
+      summary: Add or remove a Self phone favourite
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, number, favourite]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+                number: { $ref: "#/components/schemas/E164" }
+                favourite: { type: boolean }
+      responses:
+        "202": { description: "Waiting for the Self key" }
+        "204": { description: "Applied" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Self phone not found" }
+
+  /device/contact-suggestions:
+    put:
+      operationId: putDeviceContactSuggestions
+      tags: [device]
+      summary: Replace pending suggestions with the current address book of a child phone
+      description: Send up to 2,000 of the most recently updated contacts when the parent has opted in, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contacts]
+              properties:
+                contacts:
+                  type: array
+                  items: { $ref: "#/components/schemas/SuggestedContactInput" }
+      responses:
+        "204": { description: "Received" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { description: "Contact suggestions are off" }
+        "404": { description: "Available only for child phones" }
+        "413": { description: "Snapshot exceeds 4 MiB" }
+        "429": { description: "Too many suggestion uploads" }
 
   /device/apps:
     put:
@@ -2395,6 +2470,87 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "400": { $ref: "#/components/responses/Error" }
 
+  /phones/{pid}/contact-suggestions:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getContactSuggestions
+      tags: [rules]
+      summary: List the child's contacts awaiting review
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: "Pending suggestions"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suggestions]
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, numbers]
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        numbers:
+                          type: array
+                          items: { $ref: "#/components/schemas/E164" }
+        "404": { description: "Child phone not found" }
+    post:
+      operationId: reviewContactSuggestions
+      tags: [rules]
+      summary: Approve or dismiss a contact suggestion, or approve the suggestions shown together
+      description: Each ID represents the displayed name and numbers. IDs that are no longer pending are ignored.
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [action, id]
+                  properties:
+                    action: { type: string, enum: [approve, reject] }
+                    id: { type: string, format: uuid }
+                - type: object
+                  required: [action, suggestionIds]
+                  properties:
+                    action: { type: string, enum: [approveAll] }
+                    suggestionIds:
+                      type: array
+                      minItems: 1
+                      items: { type: string, format: uuid }
+      responses:
+        "204": { description: "Reviewed" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Child phone not found" }
+        "413": { description: "Review exceeds 4 MiB" }
+
+  /phones/{pid}/contact-schedule:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    put:
+      operationId: setContactSchedule
+      tags: [rules]
+      summary: Restrict a Self phone to favourites during active schedules
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [restricted]
+              properties:
+                restricted: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "400": { $ref: "#/components/responses/Error" }
+
   /phones/{pid}/contacts:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -2403,7 +2559,50 @@ paths:
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "Approved contacts" }
+        "200":
+          description: Approved contacts or favourites and contact settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contacts]
+                properties:
+                  contacts:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, number]
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        number: { $ref: "#/components/schemas/E164" }
+                  selfScheduleContacts: { type: [boolean, "null"] }
+                  suggestDeviceContacts: { type: boolean }
+                  lightContactRestriction: { type: boolean }
+    patch:
+      operationId: patchChildContactSettings
+      summary: Update a child phone's contact settings
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                suggestDeviceContacts:
+                  type: boolean
+                  description: Turning this off also deletes all undecided suggestions.
+                lightContactRestriction:
+                  type: boolean
+                  description: Available on light phones only.
+      responses:
+        "204": { description: "Settings saved" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Child phone not found" }
     post:
       operationId: postPhonesContacts
       summary: Post phones contacts
@@ -2441,7 +2640,7 @@ paths:
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       responses:
-        "200": { description: "host, synced, blockedCategories, allowDomains, blockDomains" }
+        "200": { description: "host (null in mock mode or before provisioning), synced, blockedCategories, allowDomains, blockDomains" }
   /phones/{pid}/dns/categories/{category}:
     put:
       operationId: putPhonesDnsCategories

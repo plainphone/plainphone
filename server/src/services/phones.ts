@@ -21,6 +21,7 @@ import {
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
+import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
 import { loadTimeLimits } from "./limits.js";
@@ -167,10 +168,13 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     phone: {
       id: phone.id,
       profile: phone.profile,
+      suggestDeviceContacts: phone.suggestDeviceContacts,
+      lightContactRestriction: phone.lightContactRestriction,
+      selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
-      dnsReady: phone.dnsConfirmedAt !== null,
+      dnsReady: isRulesDnsReady(ctx, phone),
       locationEnabled: phone.locationEnabled,
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,
@@ -199,6 +203,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   const doc = {
     phoneId: phone.id,
     profile: phone.profile,
+    suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
+    lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
+    selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
     apps: {
@@ -351,7 +358,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
-    dnsReady: phone.dnsConfirmedAt !== null,
+    dnsConfigured: ctx.cfg.DNS_PROVIDER === "http",
+    dnsReady: isDnsReady(ctx, phone),
     hasLocation: phone.locationMode !== "off" && hasLocation,
     // Hardware attestation of the boot state (#23); null until the phone attested once.
     attestation: phone.attestation

@@ -1,13 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0
+import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsDeletions, dnsSettings, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+
+function dnsConfirmationTag(cfg: Ctx["cfg"]): string {
+  if (cfg.DNS_PROVIDER === "mock") return "mock";
+  // Keep resolver configuration out of the database while invalidating legacy "http" tags.
+  const resolver = JSON.stringify([cfg.DNS_API_URL, cfg.DNS_HOST_SUFFIX]);
+  return `http:${createHash("sha256").update(resolver).digest("hex")}`;
+}
+
+type DnsConfirmation = Pick<typeof phones.$inferSelect, "dnsConfirmedAt" | "dnsConfirmedProvider">;
+
+export function isRulesDnsReady(ctx: Ctx, phone: DnsConfirmation): boolean {
+  return phone.dnsConfirmedAt !== null &&
+    !(ctx.cfg.DNS_PROVIDER === "http" && phone.dnsConfirmedProvider === "mock");
+}
+
+export function isDnsReady(
+  ctx: Ctx,
+  phone: DnsConfirmation,
+): boolean {
+  return ctx.cfg.DNS_PROVIDER === "http" &&
+    phone.dnsConfirmedAt !== null &&
+    phone.dnsConfirmedProvider === dnsConfirmationTag(ctx.cfg);
+}
+
+function needsDnsConfirmation(tag: string) {
+  return or(isNull(phones.dnsConfirmedAt), sql`${phones.dnsConfirmedProvider} is distinct from ${tag}`);
+}
+
+export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
+  const tag = dnsConfirmationTag(ctx.cfg);
+  await ctx.db
+    .update(phones)
+    .set({ dnsDirty: true })
+    .where(and(eq(phones.dnsDirty, false), needsDnsConfirmation(tag)));
+}
 
 /**
  * Pushes a phone's DNS rules to the DNS service. On failure the phone stays
  * marked dirty and the sweeper retries; the API call that caused it still succeeds.
  */
 export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
+  const tag = dnsConfirmationTag(ctx.cfg);
   const [bumped] = await ctx.db
     .update(phones)
     .set({ dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` })
@@ -28,12 +65,11 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
       allowDomains: row.dns.allowDomains,
       blockDomains: row.dns.blockDomains,
     });
-    // The DNS service knows this ClientID now. Record that once and never take it back, so a
-    // later failed sync cannot make a phone that already uses its private DNS look unregistered.
+    // Keep the first successful confirmation for this resolver through later failures.
     await ctx.db
       .update(phones)
-      .set({ dnsConfirmedAt: ctx.now() })
-      .where(and(eq(phones.id, phoneId), isNull(phones.dnsConfirmedAt)));
+      .set({ dnsConfirmedAt: ctx.now(), dnsConfirmedProvider: tag })
+      .where(and(eq(phones.id, phoneId), needsDnsConfirmation(tag)));
     const [still] = await ctx.db
       .update(phones)
       .set({ dnsDirty: false })
@@ -52,14 +88,14 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
 }
 
 /**
- * Retries phones whose rules the DNS service has not received, and syncs phones that were
- * last synced before `dnsConfirmedAt` existed so they too become ready.
+ * Retries dirty phones and confirms legacy or previously provisioned phones with the current provider.
  */
 export async function syncDirtyDns(ctx: Ctx): Promise<number> {
+  await markUnconfirmedDnsDirty(ctx);
   const dirty = await ctx.db
     .select({ id: phones.id })
     .from(phones)
-    .where(or(eq(phones.dnsDirty, true), isNull(phones.dnsConfirmedAt)));
+    .where(eq(phones.dnsDirty, true));
   let ok = 0;
   for (const p of dirty) if (await syncDns(ctx, p.id)) ok++;
   return ok;

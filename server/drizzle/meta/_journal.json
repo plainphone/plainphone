@@ -108,9 +108,23 @@
       "breakpoints": true
     },
     {
+      "idx": 15,
+      "version": "7",
+      "when": 1795005826365,
+      "tag": "0015_dns_confirmation_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795006325723,
+      "tag": "0016_contact_suggestions_and_self_schedule",
+      "breakpoints": true
+    },
+    {
       "idx": 17,
       "version": "7",
-      "when": 1795008744360,
+      "when": 1795013515914,
       "tag": "0017_self_buddies",
       "breakpoints": true
     }

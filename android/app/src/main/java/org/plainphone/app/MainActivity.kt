@@ -90,7 +90,7 @@ class MainActivity : Activity() {
         column.addView(status)
         pairButton = Button(this).apply {
             text = getString(R.string.pair_button)
-            setOnClickListener { startActivity(PairingActivity.intent(this@MainActivity, authorized = false)) }
+            setOnClickListener { startActivity(PairingActivity.setupIntent(this@MainActivity)) }
         }
         column.addView(pairButton)
         todayButton = Button(this).apply {
@@ -116,11 +116,14 @@ class MainActivity : Activity() {
     }
 
     private var bootWarningDialog: AlertDialog? = null
-    private val enrollmentNotice by lazy { EnrollmentAccountNotice(this) }
+    private var setupForeground = false
+    private var readyForFavourites = false
+    private val enrollmentNotice by lazy { EnrollmentAccountNotice(this) { readyForFavourites } }
 
     override fun onResume() {
         super.onResume()
         if (!::status.isInitialized) return
+        setupForeground = true
         enrollmentNotice.start()
         taps = 0
         refresh()
@@ -143,12 +146,16 @@ class MainActivity : Activity() {
                     refresh()
                     // Android 10 to 13: the phone app (and the call screening and redirection roles) can only be set with the system dialog.
                     if (askForRole()) return@runOnUiThread
+                    if (setupForeground) {
+                        readyForFavourites = true
+                        enrollmentNotice.start()
+                    }
                     // A dashboard QR is handled by EnrollWorker. Script-made QR codes need a pairing code.
                     if (started && justProvisioned && SyncStore(this).enrollToken() == null &&
                         PairingActivity.canPairWithoutPin(this)
                     ) {
                         intent = Intent(this, MainActivity::class.java)
-                        startActivity(PairingActivity.intent(this, authorized = false))
+                        startActivity(PairingActivity.setupIntent(this))
                     }
                 }
             }
@@ -180,6 +187,8 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        setupForeground = false
+        readyForFavourites = false
         if (::status.isInitialized) enrollmentNotice.stop()
         super.onPause()
     }
@@ -224,7 +233,7 @@ class MainActivity : Activity() {
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
             val contacts = ContactPolicySources.get(this@MainActivity).rules()
             appendLine(resources.getQuantityString(R.plurals.status_contacts, contacts.contacts.size, contacts.contacts.size))
-            if (!contacts.enforced) appendLine(getString(R.string.status_contacts_not_enforced))
+            if (!contacts.enforced && !contacts.selfProfile) appendLine(getString(R.string.status_contacts_not_enforced))
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))

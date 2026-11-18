@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { eq, sql } from "drizzle-orm";
-import { householdMembers, phones, selfKeys } from "../src/db/schema.js";
+import { householdMembers, phones, schedules, selfKeys } from "../src/db/schema.js";
 import { describe, expect, it } from "vitest";
 import { coverage, scheduleLoosens } from "../src/services/changes.js";
 import { sweep } from "../src/services/sweeper.js";
@@ -332,6 +332,44 @@ describe("Self profile with a trusted person", () => {
     const fresh = await scan();
     expect((await helper.post(`${route}-qr`, { challenge: fresh.challenge, revision: old.revision })).status).toBe(409);
     expect((await helper.post(`${route}-qr`, { challenge: fresh.challenge, revision: updated.revision })).status).toBe(204);
+  });
+
+  it("rejects a stale fingerprint when different schedule rules have the same summary", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    const bedtime = { kind: "bedtime", days: [1], startMinute: 1260, endMinute: 420 };
+    await me.post(`${phone}/schedules`, { ...bedtime, allowedPackages: [] });
+    const scheduleId = (await me.get(`${phone}/schedules`)).json.schedules[0].id;
+    await device.put("/api/device/apps", { apps: [
+      { packageName: "com.example.first", label: "Same app" },
+      { packageName: "com.example.second", label: "Same app" },
+      { packageName: "com.example.blank", label: "\u200e" },
+    ] });
+    await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    await h.ctx.db.update(schedules).set({ allowedPackages: ["com.example.first"] }).where(eq(schedules.id, scheduleId));
+    const request = await me.put(`${phone}/schedules/${scheduleId}`, {
+      ...bedtime, allowedPackages: ["com.example.blank"],
+    });
+    expect(request.status).toBe(202);
+    const changeId = request.json.change.id;
+    const preview = async () => (await helper.get("/api/approvals")).json.approvals[0];
+    const before = await preview();
+    const qr = (await device.post("/api/device/approval-challenge", { changeId })).json;
+    await h.ctx.db.update(schedules).set({ allowedPackages: ["com.example.second"] }).where(eq(schedules.id, scheduleId));
+    const after = await preview();
+    expect(before.summary).toEqual(after.summary);
+    expect(before.revision).not.toBe(after.revision);
+    expect(after.summary.en).toContain("com.example.blank");
+    const route = `/api/changes/${changeId}/approve`;
+    expect((await helper.post(route, { revision: before.revision })).status).toBe(409);
+    expect((await helper.post(`${route}-qr`, { challenge: qr.challenge, revision: after.revision })).status).toBe(409);
+    expect((await helper.post(route, { revision: after.revision })).status).toBe(204);
   });
 
   it("refreshes a trusted bonus date after the phone's local midnight", async () => {

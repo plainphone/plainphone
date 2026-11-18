@@ -61,3 +61,11 @@ The Plainphone resolver (phase 2, `dns/`) blocks the hostnames of public DoH, Do
 ## Test
 
 The bypass checklist has the tests: N2-N4 (Chrome and in-app browsers) and C11 (a messenger's link preview and in-app browser). For each app a parent allows, open a known adult site from inside the app if it can show web pages.
+
+## Using the phone's filter on another device
+
+Copying or seeing the address under **Web filter** gives no indication of whether
+protection is on. Only devices and apps that send their DNS requests to that
+address use the filter. It blocks domains. Pages inside a site, direct IP
+traffic and requests resolved by another DNS service are outside its scope.
+See [router and VPN setup](self-hosting-dns.md#use-a-phones-filter-on-a-router-or-vpn).

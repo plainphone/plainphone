@@ -86,6 +86,7 @@ export interface Phone {
   dnsHost: string;
   dnsSynced: boolean;
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
+  dnsConfigured?: boolean;
   dnsReady: boolean;
   hasLocation: boolean;
   /** Hardware attestation of the boot state (#23); null until the phone attested once. Missing on old servers. */
@@ -176,7 +177,7 @@ export interface Contact {
   number: string;
 }
 export interface DnsState {
-  host: string;
+  host: string | null;
   synced: boolean;
   blockedCategories: DnsCategory[];
   allowDomains: string[];
@@ -291,6 +292,7 @@ export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
+  | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }

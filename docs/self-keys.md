@@ -43,7 +43,9 @@ including the current and requested limit when it changes. Choose a request
 to show its details and QR code. The helper can scan it from the dashboard,
 the Plainphone parent app, or the phone camera. The helper reads the same
 rule details before choosing Approve. If the rule changes in the meantime,
-the helper must review the updated request. For a QR approval, the owner
+the helper must review the updated request, even if the summary still looks
+the same. The server checks a fingerprint of the requested operation and
+the current rule before applying it. For a QR approval, the owner
 shows a new code. Extra time applies on the day of approval in the phone's
 time zone. If midnight passes between preview and approval, review the new
 date before approving.

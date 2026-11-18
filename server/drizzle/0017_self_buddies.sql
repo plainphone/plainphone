@@ -6,6 +6,7 @@ CREATE TABLE "self_rule_templates" (
 --> statement-breakpoint
 ALTER TABLE "household_invites" ADD COLUMN "trusted_phone_id" uuid;--> statement-breakpoint
 ALTER TABLE "pending_changes" ADD COLUMN "approval_challenge_hash" text;--> statement-breakpoint
+ALTER TABLE "pending_changes" ADD COLUMN "approval_fingerprint_key" uuid DEFAULT gen_random_uuid() NOT NULL;--> statement-breakpoint
 ALTER TABLE "pending_changes" ADD COLUMN "awaiting_qr_helper" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "phones" ADD COLUMN "setup_undo_minutes" integer;--> statement-breakpoint
 ALTER TABLE "phones" ADD COLUMN "setup_completed_at" timestamp with time zone;--> statement-breakpoint

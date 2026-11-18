@@ -107,7 +107,7 @@ class PhoneSyncContractTest {
         assertThat(rules.phoneId).isEqualTo(phoneId)
         assertThat(rules.allowedApps).containsAtLeast("com.android.dialer", "com.spotify.music") // Danish starter pack
         assertThat(rules.hiddenApps).contains("com.example.game")
-        assertThat(rules.dnsReady).isTrue() // mock DNS service accepts at once
+        assertThat(rules.dnsReady).isTrue()
         assertThat(rules.dnsHost).endsWith(".dns.plainphone.org")
         assertThat(rules.locationEnabled).isTrue()
         assertThat(device.applies).isNotEmpty()
