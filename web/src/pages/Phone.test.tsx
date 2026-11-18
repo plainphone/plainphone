@@ -102,6 +102,11 @@ it.each([
       },
     });
     expect(html).toContain(guidance);
+    if (mode === "light") {
+      expect(html).toContain("deletes its saved rules");
+      expect(html).toContain("24 hours by default without a key");
+      expect(html).toContain("approval from the trusted person");
+    }
     expect(html).not.toContain(makeT("en")("phone.updateNow"));
   } finally {
     latestAndroid = undefined;
