@@ -260,7 +260,7 @@ class GuardServiceTest {
         shadow.root = null
         service.event(STATE, SETTINGS)
         shadow.root = protectedSettingsRoot()
-        looper.idleFor(Duration.ofMillis(150))
+        looper.idleFor(Duration.ofMillis(250))
 
         assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
     }
@@ -367,8 +367,70 @@ class GuardServiceTest {
         }
         service.event(STATE, SETTINGS)
         assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+        // A page still shown once the suppression ends is checked again.
         looper.idleFor(Duration.ofMillis(300))
+        assertEquals(List(3) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
+    @Test fun keepsQueuedFocusCheckForAnotherSettingsWindowAfterImmediateBack() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        shadow.root = null
+        shadow.windowList = listOf(window(SETTINGS, focused = true, id = 7), window(SETTINGS, id = 3))
+        service.event(WINDOWS, null, AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = protectedSettingsRoot().also { ReflectionHelpers.setField(it, "mWindowId", 3) }
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = SETTINGS
+            text = "Uninstall Plainphone"
+            ReflectionHelpers.setField(this, "mWindowId", 7)
+        }
+        looper.idleFor(Duration.ofMillis(150))
         assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
+    @Test fun checksANewPageWithTheSameKeywordsOnceTheSuppressionEnds() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        shadow.root = protectedSettingsRoot()
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        // Back led to another protected page with the same keywords, which then stands still.
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = SETTINGS
+            text = "Force stop Plainphone and its services"
+        }
+        service.event(STATE, SETTINGS)
+        looper.idleFor(Duration.ofMillis(200))
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+        looper.idleFor(Duration.ofMillis(100))
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
+    @Test fun keepsSuppressionWhenTheActiveRootIsBrieflyUnavailable() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        val page = protectedSettingsRoot()
+        shadow.root = page
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = null
+        service.event(STATE, SETTINGS)
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = page
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
     }
 
     @Test fun maintenanceCancelsBothPendingChecks() = assertCancelsBothPendingChecks { service ->

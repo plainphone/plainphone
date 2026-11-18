@@ -151,12 +151,9 @@ class GuardService : AccessibilityService() {
                 val becameActive = (focusChanges and AccessibilityEvent.WINDOWS_CHANGE_ACTIVE) != 0 &&
                     window.isActive
                 if (gainedFocus || becameActive) {
-                    if (pkg == null) {
-                        pendingSettingsWindowIds.add(window.id)
-                        scheduleSettingsCheck()
-                    } else {
-                        scheduleSettingsCheck(pkg)
-                    }
+                    // By window: another window of the same package can be closed first (split screen).
+                    pendingSettingsWindowIds.add(window.id)
+                    scheduleSettingsCheck(pkg)
                 }
             } finally {
                 if (Build.VERSION.SDK_INT < 33) window.recycle()
@@ -215,8 +212,8 @@ class GuardService : AccessibilityService() {
             rootInActiveWindow
         }
         val pkg = root?.packageName?.toString()
-        handledPage?.let { if (root == null || root.windowId != it.windowId || pkg != it.pkg) handledPage = null }
         if (root == null) return
+        handledPage?.let { if (root.windowId != it.windowId || pkg != it.pkg) handledPage = null }
         if (pkg == null || (pkg !in packages && (root.windowId !in windowIds || !guardsSettings(pkg)))) {
             recycle(root)
             return
@@ -241,14 +238,16 @@ class GuardService : AccessibilityService() {
         // The active root can keep showing a page Back already closed; a second Back would hit the next one.
         val now = SystemClock.elapsedRealtime()
         val page = HandledPage(windowId, pkg, SettingsGuard.marks(texts, k), now + HANDLED_PAGE_MS)
-        handledPage?.let { if (now < it.until && it.sameAs(page)) return }
-        if (performGlobalAction(GLOBAL_ACTION_BACK)) {
-            handledPage = page
-            // Only this window is done: a check queued for another window (split screen) stays.
-            pendingSettingsPackages.remove(pkg)
-            pendingSettingsWindowIds.remove(windowId)
-            if (pendingSettingsPackages.isEmpty() && pendingSettingsWindowIds.isEmpty()) main.removeCallbacks(settingsCheck)
+        handledPage?.let {
+            if (now < it.until && it.sameAs(page)) {
+                // It may be a new page with the same keywords: check again once the suppression ends.
+                pendingSettingsWindowIds.add(windowId)
+                if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, it.until - now)
+                return
+            }
         }
+        // Queued checks stay: they may be for another window (split screen) or the page Back leads to.
+        if (performGlobalAction(GLOBAL_ACTION_BACK)) handledPage = page
         block(pkg, BlockedActivity.Reason.PROTECTION)
     }
 
