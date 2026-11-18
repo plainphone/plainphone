@@ -174,9 +174,9 @@ class GuardService : AccessibilityService() {
         watchingContent = watchContent
     }
 
-    private fun scheduleSettingsCheck(pkg: String? = null) {
+    private fun scheduleSettingsCheck(pkg: String? = null, delayMs: Long = SETTINGS_MAX_WAIT_MS) {
         if (pkg != null) pendingSettingsPackages.add(pkg)
-        if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, SETTINGS_MAX_WAIT_MS)
+        if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, delayMs)
     }
 
     private fun clearSettingsCheck() {
@@ -242,7 +242,7 @@ class GuardService : AccessibilityService() {
             if (now < it.until && it.sameAs(page)) {
                 // It may be a new page with the same keywords: check again once the suppression ends.
                 pendingSettingsWindowIds.add(windowId)
-                if (!main.hasCallbacks(settingsCheck)) main.postDelayed(settingsCheck, it.until - now)
+                scheduleSettingsCheck(delayMs = it.until - now)
                 return
             }
         }
