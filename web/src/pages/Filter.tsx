@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useState } from "react";
-import { Field, LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
+import { useParams } from "react-router";
+import { DnsAddress } from "../components/DnsAddress";
+import { Field, Loading, LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../lib/api";
 import { categoryLabel } from "../lib/ops";
@@ -19,6 +21,13 @@ export function cleanDomain(raw: string): string {
 export const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$/;
 
 export function FilterPage() {
+  const { pid } = useParams();
+  const { phone } = usePhone();
+  if (phone.id !== pid) return <Loading />;
+  return <PhoneFilter key={phone.id} />;
+}
+
+function PhoneFilter() {
   const { t } = useI18n();
   const { phone, run, pending } = usePhone();
   const res = useLoad(() => api.get<DnsState>(`/phones/${phone.id}/dns`), [phone.id]);
@@ -50,8 +59,8 @@ export function FilterPage() {
       <LoadGate res={res}>
         {(dns) => (
           <>
-            {!phone.dnsReady ? (
-              <p className="notice notice-info">{t("filter.waitingDns")}</p>
+            {dns.host === null ? (
+              <p className="notice notice-info">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "filter.waitingDns")}</p>
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
             )}
@@ -74,12 +83,7 @@ export function FilterPage() {
             </section>
             <DomainList kind="allow" domains={dns.allowDomains} onChanged={() => void res.reload()} />
             <DomainList kind="block" domains={dns.blockDomains} onChanged={() => void res.reload()} />
-            <details className="details">
-              <summary>{t("filter.technical")}</summary>
-              <p>
-                {t("filter.host")}: <code>{dns.host}</code>
-              </p>
-            </details>
+            <DnsAddress host={dns.host} />
           </>
         )}
       </LoadGate>

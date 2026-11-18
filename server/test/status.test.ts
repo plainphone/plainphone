@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { eq, sql } from "drizzle-orm";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { phones } from "../src/db/schema.js";
+import { HttpDnsProvider } from "../src/providers/dns.js";
+import { markUnconfirmedDnsDirty } from "../src/services/dns.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -124,9 +127,194 @@ it("gives equal-duration overruns separate expiries without extending retries", 
 });
 
 describe("DNS readiness", () => {
+  function useHttpDns() {
+    h.ctx.cfg.DNS_PROVIDER = "http";
+    h.ctx.cfg.DNS_API_URL = "https://resolver.example.test";
+    h.ctx.dns = new HttpDnsProvider(h.ctx.cfg.DNS_API_URL, "test-token");
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(null, { status: 204 }));
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("provisions a clean mock-confirmed phone after switching to HTTP", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    expect((await parent.get(path)).json.synced).toBe(true);
+    const request = useHttpDns();
+
+    expect((await parent.get(path)).json.host).toBeNull();
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+
+    request.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls[2]?.[1]?.method).toBe("POST");
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+    expect((await parent.get(path)).json).toMatchObject({
+      host: (await device.get("/api/device/rules")).json.dns.host,
+      synced: true,
+    });
+  });
+
+  it.each(["DNS_API_URL", "DNS_HOST_SUFFIX"] as const)(
+    "reprovisions a clean HTTP-confirmed phone when %s changes",
+    async (setting) => {
+      const request = useHttpDns();
+      const parent = await signIn(h, "parent@example.org");
+      const { phoneId, device } = await pairPhone(h, parent);
+      const path = `/api/phones/${phoneId}/dns`;
+      const before = (await parent.get(path)).json;
+      expect(before.host).toBeTruthy();
+
+      h.ctx.cfg[setting] = setting === "DNS_API_URL" ? "https://new-resolver.example.test" : "dot.example.test";
+      h.ctx.dns = new HttpDnsProvider(h.ctx.cfg.DNS_API_URL!, "test-token");
+      request.mockClear();
+
+      expect((await parent.get(path)).json.host).toBeNull();
+      expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+      await markUnconfirmedDnsDirty(h.ctx);
+      expect((await parent.get(path)).json.synced).toBe(false);
+
+      await sweep(h.ctx);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(String(request.mock.calls[0]?.[0])).toContain(h.ctx.cfg.DNS_API_URL);
+      const { dns } = (await device.get("/api/device/rules")).json;
+      expect(dns.ready).toBe(true);
+      expect(dns.host).toBe(`${before.host.split(".")[0]}.${h.ctx.cfg.DNS_HOST_SUFFIX}`);
+      expect((await parent.get(path)).json).toMatchObject({ host: dns.host, synced: true });
+    },
+  );
+
+  it("hides the dashboard host when the mock provider accepts the profile", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
+    expect((await parent.get(`/api/phones/${phoneId}`)).json).toMatchObject({
+      dnsConfigured: false,
+      dnsReady: false,
+    });
+    expect(h.dns.clients.size).toBe(1);
+    const response = await parent.get(`/api/phones/${phoneId}/dns`);
+    expect(response.status).toBe(200);
+    expect(response.json.host).toBeNull();
+  });
+
+  it.each([null, "http"])("marks legacy confirmation %s dirty at startup", async (tag) => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: tag }).where(eq(phones.id, phoneId));
+    const request = useHttpDns();
+
+    await markUnconfirmedDnsDirty(h.ctx);
+    expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((await parent.get(path)).json.host).toMatch(/\.dns\.plainphone\.org$/);
+  });
+
+  it("preserves DNS on every confirmed phone across migration 0015 and a retry", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    const existing: { phoneId: string; device: Client; dns: { host: string; ready: boolean } }[] = [];
+    for (const name of ["Alma", "Bo"]) {
+      const { phoneId, device } = await pairPhone(h, parent, { name });
+      const { dns } = (await device.get("/api/device/rules")).json;
+      expect(dns.ready).toBe(true);
+      existing.push({ phoneId, device, dns });
+    }
+
+    const migration = await readFile(new URL("../drizzle/0015_dns_confirmation_provider.sql", import.meta.url), "utf8");
+    await h.ctx.db.transaction(async (tx) => {
+      await tx.execute(sql`alter table phones drop column dns_confirmed_provider`);
+      await tx.execute(sql.raw(migration));
+    });
+
+    const originalClientUrls = request.mock.calls.map(([url]) => String(url));
+    request.mockClear();
+    const expectLegacyRules = async () => {
+      for (const { device, dns } of existing) {
+        expect((await device.get("/api/device/rules")).json.dns).toEqual(dns);
+      }
+    };
+    await expectLegacyRules();
+    await markUnconfirmedDnsDirty(h.ctx);
+    expect(request).not.toHaveBeenCalled();
+    for (const { phoneId } of existing) {
+      expect((await parent.get(`/api/phones/${phoneId}/dns`)).json)
+        .toMatchObject({ host: null, synced: false });
+    }
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    await expectLegacyRules();
+    // One client failed to update. Both keep their rules while that client retries.
+    const rows = await h.ctx.db.select().from(phones);
+    expect(rows.filter((row) => row.dnsConfirmedProvider === null)).toHaveLength(1);
+    for (const row of rows) {
+      const path = `/api/phones/${row.id}/dns`;
+      if (row.dnsConfirmedProvider === null) {
+        expect(row.dnsConfirmedAt).toEqual(h.clock.now);
+        expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+      }
+    }
+
+    await sweep(h.ctx);
+    await expectLegacyRules();
+    expect(request.mock.calls.map(([, init]) => init?.method)).toEqual(["PATCH", "PATCH", "PATCH"]);
+    expect(new Set(request.mock.calls.map(([url]) => String(url)))).toEqual(new Set(originalClientUrls));
+    for (const { phoneId, dns } of existing) {
+      expect(await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) }))
+        .toMatchObject({ dnsConfirmedProvider: expect.stringMatching(/^http:/), dnsDirty: false });
+      expect((await parent.get(`/api/phones/${phoneId}/dns`)).json)
+        .toMatchObject({ host: dns.host, synced: true });
+    }
+  });
+
+  it("returns the configured DoT host only to household members after provisioning", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+
+    expect((await parent.get(path)).json.host).toBeNull();
+    await sweep(h.ctx);
+    const ready = await parent.get(path);
+    expect(ready.status).toBe(200);
+    expect(ready.json.host).toBe((await device.get("/api/device/rules")).json.dns.host);
+    expect(ready.headers.get("cache-control")).toBe("no-store");
+
+    const outsider = await signIn(h, "outsider@example.org");
+    expect((await outsider.get(path)).status).toBe(404);
+    expect((await new Client(h).get(path)).status).toBe(401);
+  });
+
+  it("keeps the real confirmation after a transient sync failure", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    const { host } = (await parent.get(path)).json;
+    expect(host).toMatch(/\.dns\.plainphone\.org$/);
+
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await parent.put(`${path}/categories/games`, { blocked: false });
+    expect((await parent.get(path)).json).toMatchObject({ host, synced: false });
+    expect((await device.get("/api/device/rules")).json.dns).toMatchObject({ host, ready: true });
+  });
+
   it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
     const parent = await signIn(h, "parent@example.org");
-    h.dns.failNext = 1; // the first sync, right after the phone is claimed
+    const request = useHttpDns();
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
     const { phoneId, device } = await pairPhone(h, parent);
 
     const before = await device.get("/api/device/rules");
@@ -135,9 +323,8 @@ describe("DNS readiness", () => {
     const summary = (await parent.get(`/api/phones/${phoneId}`)).json;
     expect(summary.dnsReady).toBe(false);
     expect(summary.dnsSynced).toBe(false);
-    expect(h.dns.clients.size).toBe(0);
 
-    // The sweeper retries, the mock accepts, and the phone is told it may switch.
+    // The sweeper retries and the phone is told it may switch.
     await sweep(h.ctx);
     const after = await device.get("/api/device/rules");
     expect(after.json.dns.ready).toBe(true);
@@ -145,7 +332,7 @@ describe("DNS readiness", () => {
     expect((await parent.get(`/api/phones/${phoneId}`)).json.dnsReady).toBe(true);
 
     // A later failed sync leaves the phone dirty but still ready: it already uses its DNS.
-    h.dns.failNext = 1;
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
     await parent.put(`/api/phones/${phoneId}/dns/categories/games`, { blocked: false });
     const dirty = (await parent.get(`/api/phones/${phoneId}`)).json;
     expect(dirty.dnsSynced).toBe(false);
@@ -154,6 +341,7 @@ describe("DNS readiness", () => {
   });
 
   it("is true at once when the first sync works", async () => {
+    useHttpDns();
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);
     expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
@@ -173,6 +361,7 @@ describe("DNS readiness", () => {
   });
 
   it("syncs phones that were synced before the flag existed", async () => {
+    useHttpDns();
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);
     await h.ctx.db.update(phones).set({ dnsDirty: false, dnsConfirmedAt: null }).where(eq(phones.id, phoneId));

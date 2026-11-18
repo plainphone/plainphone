@@ -103,8 +103,8 @@ describe("rules (child profile)", () => {
   });
 
   it("syncs the web filter to the DNS service and retries when it fails", async () => {
-    const { parent, phoneId } = await setup();
-    const clientId = (await parent.get(`/api/phones/${phoneId}/dns`)).json.host.split(".")[0];
+    const { parent, phoneId, device } = await setup();
+    const clientId = (await device.get("/api/device/rules")).json.dns.host.split(".")[0];
 
     await parent.put(`/api/phones/${phoneId}/dns/categories/games`, { blocked: false });
     await parent.post(`/api/phones/${phoneId}/dns/allow`, { domain: "Example.COM." });

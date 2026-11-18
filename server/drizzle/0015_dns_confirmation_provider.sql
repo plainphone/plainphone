@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "dns_confirmed_provider" text;

@@ -74,12 +74,14 @@ function FilterScreenBody() {
             </VStack>
             <DomainList kind="allow" domains={dns.allowDomains} onChanged={() => void res.reload()} />
             <DomainList kind="block" domains={dns.blockDomains} onChanged={() => void res.reload()} />
-            <Disclosure title={t("filter.technical")}>
-              <Text>{t("filter.host")}</Text>
-              <Text variant="mono" selectable>
-                {dns.host}
-              </Text>
-            </Disclosure>
+            {dns.host && (
+              <Disclosure title={t("filter.technical")}>
+                <Text>{t("filter.host")}</Text>
+                <Text variant="mono" selectable>
+                  {dns.host}
+                </Text>
+              </Disclosure>
+            )}
           </>
         )}
       </LoadGate>
