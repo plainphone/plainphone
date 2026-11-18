@@ -177,13 +177,15 @@ parent (PWA)                                server                          phon
   key to escape from yet).
 
 **Undo light-mode setup.** The phone registers completion once with
-`POST /device/setup-completion`, sending the elapsed time since local completion. The server
-only accepts a first registration within one hour of the first authenticated rules sync or
-setup-link redemption. It returns the remaining time on a fixed ten-minute deadline.
-`GET /device/setup-completion` recovers the remaining time after a reboot. Before releasing,
-the phone calls `POST /device/undo-setup/authorize` within the window. After local release
-succeeds, `POST /device/undo-setup` removes the phone and sends the standard protection-loss
-notice. An authorized release and its acknowledgement can be retried after the deadline.
+`POST /device/setup-completion`. It sends the elapsed time since completion on the current boot,
+or the saved Unix timestamp if it rebooted before registration succeeded. The server accepts a
+first registration within 24 hours of the first authenticated rules sync or setup-link redemption
+and fixes the ten-minute deadline at completion. `GET /device/setup-completion` reads the time
+left after registration. A tap sends `POST /device/undo-setup/authorize` immediately with its
+monotonic age. The server checks that the tap fell inside the window, with up to five seconds
+for transit and a hard two-minute retry limit. After local release succeeds,
+`POST /device/undo-setup` removes the phone and sends the standard protection-loss notice.
+An authorized release and its acknowledgement can be retried after the deadline.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up

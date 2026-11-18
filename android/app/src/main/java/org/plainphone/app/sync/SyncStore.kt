@@ -75,7 +75,10 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     }
 
     @SuppressLint("ApplySharedPref") // Release must resume after process death.
-    fun beginSetupUndo(): Boolean = prefs.edit().putBoolean("setup_undo", true).commit()
+    fun saveSetupUndoAccepted(token: String): Boolean = synchronized(tokenLock) {
+        if (deviceToken() != token) return@synchronized false
+        prefs.edit().putBoolean("setup_undo", true).putBoolean("setup_undo_authorized", true).commit()
+    }
 
     /**
      * True once a parent's release has switched Plainphone off on this phone. From then on the

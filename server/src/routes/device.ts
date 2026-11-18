@@ -26,7 +26,9 @@ import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
 const SETUP_UNDO_MS = 10 * 60_000;
-const SETUP_COMPLETION_LIMIT_MS = 60 * 60_000;
+const SETUP_UNDO_RETRY_MS = 2 * 60_000;
+const SETUP_UNDO_TRANSIT_MS = 5_000;
+const SETUP_COMPLETION_LIMIT_MS = 24 * 60 * 60_000;
 
 function setupUndoRemaining(phone: Phone, now: Date): number {
   if (phone.mode !== "light" || !phone.setupCompletedAt || phone.setupUndoAuthorizedAt) return 0;
@@ -301,15 +303,24 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/setup-completion", async (c) => {
-    const { elapsedMs } = await body(c, z.object({ elapsedMs: z.number().int().min(0).max(SETUP_UNDO_MS) }));
+    const completion = await body(c, z.union([
+      z.object({ completedAtMs: z.number().int().positive() }),
+      z.object({ elapsedMs: z.number().int().min(0).max(SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) }),
+    ]));
     const phone = c.get("phone");
     const remaining = await ctx.db.transaction(async (tx) => {
       const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
       if (!fresh || fresh.mode !== "light" || !fresh.pairedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
       const now = ctx.now();
       if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
-      if (now.getTime() - fresh.pairedAt.getTime() >= SETUP_COMPLETION_LIMIT_MS) return 0;
-      const completedAt = new Date(Math.max(fresh.pairedAt.getTime(), now.getTime() - elapsedMs));
+      const pairedAtMs = fresh.pairedAt.getTime();
+      const nowMs = now.getTime();
+      if (nowMs - pairedAtMs >= SETUP_COMPLETION_LIMIT_MS) return 0;
+      const completedAtMs = "completedAtMs" in completion
+        ? completion.completedAtMs : Math.max(pairedAtMs, nowMs - completion.elapsedMs);
+      if (completedAtMs < pairedAtMs || completedAtMs > nowMs ||
+        nowMs - completedAtMs > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0;
+      const completedAt = new Date(completedAtMs);
       await tx.update(phones).set({ setupCompletedAt: completedAt }).where(eq(phones.id, phone.id));
       return setupUndoRemaining({ ...fresh, setupCompletedAt: completedAt }, now);
     });
@@ -318,14 +329,26 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.post("/undo-setup/authorize", async (c) => {
+    const receivedAtMs = ctx.now().getTime();
+    const { tapAgeMs, tapRemainingMs } = await body(c, z.object({
+      tapAgeMs: z.number().int().min(0).max(SETUP_UNDO_RETRY_MS).default(0),
+      tapRemainingMs: z.number().int().min(1).max(SETUP_UNDO_MS).optional(),
+    }));
     const phone = c.get("phone");
     const authorized = await ctx.db.transaction(async (tx) => {
       const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
       if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return false;
       if (fresh.setupUndoAuthorizedAt) return true;
-      const now = ctx.now();
-      if (setupUndoRemaining(fresh, now) === 0) return false;
-      await tx.update(phones).set({ setupUndoAuthorizedAt: now }).where(eq(phones.id, phone.id));
+      const completedAtMs = fresh.setupCompletedAt?.getTime();
+      if (completedAtMs === undefined) return false;
+      const tappedAtMs = receivedAtMs - tapAgeMs;
+      const deadlineMs = completedAtMs + SETUP_UNDO_MS;
+      if (tappedAtMs < completedAtMs || receivedAtMs >= deadlineMs + SETUP_UNDO_RETRY_MS) return false;
+      if (tappedAtMs >= deadlineMs) {
+        // The age is measured at send time. Check the recorded time left against a bounded transit delay.
+        if (tapRemainingMs === undefined || tappedAtMs - deadlineMs + tapRemainingMs > SETUP_UNDO_TRANSIT_MS) return false;
+      }
+      await tx.update(phones).set({ setupUndoAuthorizedAt: ctx.now() }).where(eq(phones.id, phone.id));
       return true;
     });
     if (!authorized) return c.json({ error: "setup undo window closed" }, 409);

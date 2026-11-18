@@ -121,7 +121,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
-            if (light) UndoSetupAction(this@HomeActivity, refresh) { refresh++ }
+            if (light) UndoSetupAction(this@HomeActivity, refresh)
             androidx.compose.material3.TextButton(onClick = {
                 startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
             }) { Text(stringResource(R.string.help_lines_title)) }

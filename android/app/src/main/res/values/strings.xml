@@ -261,6 +261,9 @@
     <string name="setup_admin_self">This makes it harder to remove Plainphone. Your dashboard will be notified if protection is switched off.</string>
     <string name="setup_done_self">Plainphone now follows your rules. You can change them in your dashboard.</string>
     <string name="setup_undo">Undo setup</string>
-    <string name="setup_undo_requested">Undo requested. Plainphone needs a connection before the undo window ends.</string>
+    <string name="setup_undo_requested">Undo accepted. Plainphone is turning off protection.</string>
+    <string name="setup_undo_sending">Sending undo request…</string>
+    <string name="setup_undo_retry">Could not send the request. Check your connection and try again.</string>
+    <string name="setup_undo_closed">The undo window has closed.</string>
     <string name="setup_pair_self_title">Connect phone</string>
 </resources>

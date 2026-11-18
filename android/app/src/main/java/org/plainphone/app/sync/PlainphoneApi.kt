@@ -325,15 +325,22 @@ class PlainphoneApi private constructor(
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
 
-    fun setupUndoRemaining(token: String, elapsedMs: Long?): Long {
-        val body = elapsedMs?.let { JSONObject().put("elapsedMs", it) }
+    fun setupUndoRemaining(token: String, elapsedMs: Long?, completedAtMs: Long? = null): Long {
+        val body = when {
+            elapsedMs != null -> JSONObject().put("elapsedMs", elapsedMs)
+            completedAtMs != null -> JSONObject().put("completedAtMs", completedAtMs)
+            else -> null
+        }
         val r = call(if (body == null) "GET" else "POST", "/device/setup-completion", token, body)
         if (r.status != 200) throw HttpError(r.status, r.body)
         return JSONObject(r.body).getLong("undoRemainingMs")
     }
 
-    override fun authorizeSetupUndo(token: String): Boolean {
-        val r = call("POST", "/device/undo-setup/authorize", token, JSONObject(), replayable = true)
+    override fun authorizeSetupUndo(token: String): Boolean = authorizeSetupUndo(token, 0)
+
+    fun authorizeSetupUndo(token: String, tapAgeMs: Long, tapRemainingMs: Long? = null): Boolean {
+        val body = JSONObject().put("tapAgeMs", tapAgeMs).put("tapRemainingMs", tapRemainingMs)
+        val r = call("POST", "/device/undo-setup/authorize", token, body)
         return when (r.status) {
             204 -> true
             401, 409 -> false

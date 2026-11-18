@@ -256,7 +256,7 @@ export interface paths {
         /** Read the remaining setup undo window (phone) */
         get: operations["getDeviceSetupCompletion"];
         put?: never;
-        /** Record completion once for a newly paired light-mode phone */
+        /** Record completion once for a light-mode phone paired within the past 24 hours */
         post: operations["postDeviceSetupCompletion"];
         delete?: never;
         options?: never;
@@ -273,7 +273,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Authorize local release within the setup undo window (phone) */
+        /** Authorize local release for a tap within the setup undo window (phone) */
         post: operations["postDeviceAuthorizeUndoSetup"];
         delete?: never;
         options?: never;
@@ -2901,7 +2901,11 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Monotonic age of completion on the current boot. */
                     elapsedMs: number;
+                } | {
+                    /** @description Original Unix timestamp of completion when the phone has rebooted. */
+                    completedAtMs: number;
                 };
             };
         };
@@ -2926,7 +2930,19 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Monotonic age of the original tap at send time.
+                     * @default 0
+                     */
+                    tapAgeMs?: number;
+                    /** @description Window remaining at the tap. Used to account for up to five seconds of transit. */
+                    tapRemainingMs?: number;
+                };
+            };
+        };
         responses: {
             /** @description Release authorized. Safe to retry. */
             204: {
@@ -2935,6 +2951,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             409: components["responses"]["Error"];
         };

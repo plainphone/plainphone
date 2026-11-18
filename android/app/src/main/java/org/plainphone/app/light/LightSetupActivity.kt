@@ -610,7 +610,7 @@ class LightSetupActivity : ComponentActivity() {
             onPrimary = onFinish,
             progress = 1f,
         ) {
-            UndoSetupAction(this@LightSetupActivity, refresh, ::finish)
+            UndoSetupAction(this@LightSetupActivity, refresh)
         }
     }
 

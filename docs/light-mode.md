@@ -106,10 +106,10 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    **Allow from this source** in Android settings.
 
 **Undo setup** is available without a PIN on the finish and Today screens for the first ten
-minutes after completing light-mode setup. Plainphone must reach the server to register
-completion and start undo. If you reboot during the window, Plainphone gets the time left from
-the server. Android's elapsed time counts down while the phone is asleep, and changing its
-clock cannot add time. Once authorized, undo uses the existing release path for the guard,
+minutes after completing light-mode setup. If you reboot during the window, Plainphone sends
+the saved completion time on the next start if the server has yet to receive it. The phone sends
+the undo request when you tap. If the connection fails, use **Try again** within two minutes
+of the original tap on the same boot. Once authorized, undo uses the existing release path for the guard,
 VPN and device admin, and retries updating the dashboard if the connection drops. The server
 removes the phone and sends the household its normal protection-loss notice. Android keeps
 its default Phone and SMS apps selected until you change them in Settings or uninstall Plainphone.

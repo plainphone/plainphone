@@ -1194,17 +1194,22 @@ paths:
     post:
       operationId: postDeviceSetupCompletion
       tags: [device]
-      summary: Record completion once for a newly paired light-mode phone
+      summary: Record completion once for a light-mode phone paired within the past 24 hours
       security: [{ device: [] }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [elapsedMs]
-              properties:
-                elapsedMs: { type: integer, minimum: 0, maximum: 600000 }
+              oneOf:
+                - type: object
+                  required: [elapsedMs]
+                  properties:
+                    elapsedMs: { type: integer, minimum: 0, maximum: 720000, description: Monotonic age of completion on the current boot. }
+                - type: object
+                  required: [completedAtMs]
+                  properties:
+                    completedAtMs: { type: integer, minimum: 1, description: Original Unix timestamp of completion when the phone has rebooted. }
       responses:
         "200":
           description: The time left, or zero when setup undo is unavailable.
@@ -1218,10 +1223,20 @@ paths:
     post:
       operationId: postDeviceAuthorizeUndoSetup
       tags: [device]
-      summary: Authorize local release within the setup undo window (phone)
+      summary: Authorize local release for a tap within the setup undo window (phone)
       security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tapAgeMs: { type: integer, minimum: 0, maximum: 120000, default: 0, description: Monotonic age of the original tap at send time. }
+                tapRemainingMs: { type: integer, minimum: 1, maximum: 600000, description: Window remaining at the tap. Used to account for up to five seconds of transit. }
       responses:
         "204": { description: "Release authorized. Safe to retry." }
+        "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 

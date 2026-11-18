@@ -71,7 +71,15 @@ intact. Open **Show technical details** to see how long the installation window 
 On the web filter screen, **What the filter can and can’t do** explains false positives and
 exceptions even when the DNS settings fail to load.
 
-The server applies migration `0014_setup_undo_window` at startup for the timed light-mode undo. It requires no new environment variables. Release an APK containing the
+Light-mode setup can be undone for ten minutes after the permissions are finished on a phone
+paired within the past 24 hours. Setup and Home retry an unconfirmed completion after a restart.
+The phone sends **Undo setup** immediately and waits for server confirmation before turning off
+protection. If the connection fails, **Try again** reuses the original tap for up to two minutes
+on the same boot. Test the restart during the window and a connection loss during undo on a
+physical phone.
+
+The server applies migration `0014_setup_undo_window` at startup for the timed light-mode undo.
+It requires no new environment variables. Release an APK containing the
 browser-to-app handoff before publishing the light-mode guide and dashboard flow. Test Chrome to
 APK to Chrome to Plainphone on Android 10 and Android 13 or newer, including OnePlus, Xiaomi and
 Samsung battery settings where available. Use the scripts and manual steps in

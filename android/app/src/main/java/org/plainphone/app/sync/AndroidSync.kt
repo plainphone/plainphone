@@ -425,6 +425,7 @@ object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
     private const val NOW = "plainphone-sync-now"
     private const val SOON = "plainphone-sync-soon"
+    private const val FINISH_UNDO = "plainphone-sync-finish-undo"
     private const val ENROLL = "plainphone-enroll"
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -439,7 +440,11 @@ object SyncScheduler {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
-    fun now(context: Context, reason: String) {
+    fun now(context: Context, reason: String) = enqueueNow(context, reason, NOW)
+
+    fun finishSetupUndo(context: Context) = enqueueNow(context, "undo setup", FINISH_UNDO)
+
+    private fun enqueueNow(context: Context, reason: String, workName: String) {
         if (!SyncStore(context).hasStoredPairing) return
         org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
@@ -447,7 +452,7 @@ object SyncScheduler {
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setInputData(workDataOf(SyncWorker.KEY_REASON to reason))
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
     }
 
     fun soon(context: Context, delaySeconds: Int) {
@@ -484,6 +489,7 @@ object SyncScheduler {
         WorkManager.getInstance(context).apply {
             cancelUniqueWork(PERIODIC)
             cancelUniqueWork(NOW)
+            cancelUniqueWork(FINISH_UNDO)
             cancelUniqueWork(SOON)
         }
     }

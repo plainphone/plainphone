@@ -257,6 +257,9 @@
     <string name="setup_admin_self">Det gør det sværere at fjerne Plainphone. Du får besked, hvis beskyttelsen slås fra.</string>
     <string name="setup_done_self">Plainphone følger nu dine regler. Du kan ændre dem i dit dashboard.</string>
     <string name="setup_undo">Fortryd opsætning</string>
-    <string name="setup_undo_requested">Du har bedt om at fortryde. Plainphone skal have forbindelse, inden fristen udløber.</string>
+    <string name="setup_undo_requested">Fortrydelse godkendt. Plainphone slår beskyttelsen fra.</string>
+    <string name="setup_undo_sending">Sender anmodningen…</string>
+    <string name="setup_undo_retry">Anmodningen kunne ikke sendes. Tjek forbindelsen, og prøv igen.</string>
+    <string name="setup_undo_closed">Fristen for at fortryde er udløbet.</string>
     <string name="setup_pair_self_title">Forbind telefon</string>
 </resources>
