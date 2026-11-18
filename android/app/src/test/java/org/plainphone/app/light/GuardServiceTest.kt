@@ -54,19 +54,32 @@ class GuardServiceTest {
         assertEquals(1, shadow.rootReads)
     }
 
-    @Test fun closesVpnDialogImmediatelyWithoutReadingTheTree() {
+    @Test fun closesActiveVpnDialogImmediatelyWithOneRootLookup() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
         val shadow = prepareGuard(service)
+        shadow.root = AccessibilityNodeInfo().apply { packageName = SettingsGuard.VPN_DIALOGS }
 
         service.event(STATE, SettingsGuard.VPN_DIALOGS)
 
         assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
-        assertEquals(0, shadow.rootReads)
+        assertEquals(1, shadow.rootReads)
+        assertEquals(listOf(false), shadow.cacheSettings)
 
         // A queued content event can arrive after the dialog has already closed.
+        shadow.root = null
         service.event(CONTENT, SettingsGuard.VPN_DIALOGS)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
         assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+    }
+
+    @Test fun ignoresQueuedVpnWindowEventAfterTheActivePackageChanges() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        shadow.root = AccessibilityNodeInfo().apply { packageName = service.packageName }
+
+        service.event(STATE, SettingsGuard.VPN_DIALOGS)
+
+        assertEquals(emptyList<Int>(), shadow.globalActions)
     }
 
     @Test fun contentBurstWalksTheTreeOnceAfterTheLastEvent() {

@@ -137,20 +137,24 @@ class GuardService : AccessibilityService() {
     private fun guardSettings(pkg: String, vpnDialogOpened: Boolean = false) {
         // While setting up, the user has to visit exactly these screens.
         if (!LightSetup.isComplete(this)) return
-        if (!vpnDialogOpened) {
-            val k = keywords ?: return
-            if (!isProtectedWindow(pkg, k)) return
-        }
+        val k = keywords
+        if (!vpnDialogOpened && k == null) return
+        if (!isProtectedWindow(pkg, k, vpnDialogOpened)) return
         performGlobalAction(GLOBAL_ACTION_BACK)
         block(pkg, BlockedActivity.Reason.PROTECTION)
     }
 
-    private fun isProtectedWindow(pkg: String, keywords: SettingsGuard.Keywords): Boolean {
+    private fun isProtectedWindow(
+        pkg: String,
+        keywords: SettingsGuard.Keywords?,
+        vpnDialogOpened: Boolean,
+    ): Boolean {
         try {
             val root = rootInActiveWindow ?: return false
-            if (root.packageName?.toString() != pkg) {
+            val matchesPackage = root.packageName?.toString() == pkg
+            if (!matchesPackage || vpnDialogOpened || keywords == null) {
                 recycle(root)
-                return false
+                return matchesPackage && vpnDialogOpened
             }
             val texts = ArrayList<String>()
             collect(root, texts, depth = 0)
