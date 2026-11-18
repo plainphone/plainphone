@@ -7,8 +7,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -29,13 +31,21 @@ class GuardService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var foreground: String? = null
+    private var watchingContent = false
     private var lastBlockAt = 0L
     private var lastTimeCheck = 0L
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
+    private val settingsCheck = Runnable {
+        val pkg = foreground ?: return@Runnable
+        if (!guardsSettings(pkg) || Mode.isStrong(this) || Lock.isInMaintenanceWindow(this)) return@Runnable
+        guardSettings(pkg)
+    }
+
     private val tick = object : Runnable {
         override fun run() {
+            if (!isInteractive()) return
             foreground?.let { checkTime(it, force = true) }
             main.postDelayed(this, TICK_MS)
         }
@@ -50,37 +60,66 @@ class GuardService : AccessibilityService() {
         screenReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 main.removeCallbacks(tick)
-                if (intent.action == Intent.ACTION_SCREEN_ON) main.postDelayed(tick, TICK_MS)
+                if (intent.action == Intent.ACTION_SCREEN_ON && isInteractive()) main.postDelayed(tick, TICK_MS)
             }
         }.also {
             registerReceiver(it, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })
         }
-        main.postDelayed(tick, TICK_MS)
+        if (isInteractive()) main.postDelayed(tick, TICK_MS)
         protectionChanged("accessibility on")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
         val pkg = e.packageName?.toString() ?: return
-        if (Mode.isStrong(this) || Lock.isInMaintenanceWindow(this)) return
+        if (Mode.isStrong(this) || Lock.isInMaintenanceWindow(this)) {
+            main.removeCallbacks(settingsCheck)
+            updateEventTypes(watchContent = false)
+            return
+        }
         when (e.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                if (pkg != foreground && !isOverlay(pkg)) foreground = pkg
-                guard(pkg)
+                if (!isOverlay(pkg)) {
+                    if (pkg != foreground) main.removeCallbacks(settingsCheck)
+                    foreground = pkg
+                    updateEventTypes(watchContent = guardsSettings(pkg))
+                }
+                if (guardsSettings(pkg)) {
+                    scheduleSettingsCheck()
+                } else {
+                    guard(pkg)
+                }
             }
-            // Settings swaps fragments without a new window; look again when its content changes.
+            // Settings can swap fragments without changing windows.
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                if (pkg in SettingsGuard.SETTINGS_PACKAGES || pkg in SettingsGuard.INSTALLER_PACKAGES) guardSettings(pkg)
-            else -> Unit // the service only subscribes to the two types above
+                if (pkg == foreground && guardsSettings(pkg)) scheduleSettingsCheck()
         }
     }
 
+    private fun guardsSettings(pkg: String) =
+        pkg in SettingsGuard.SETTINGS_PACKAGES ||
+            pkg in SettingsGuard.INSTALLER_PACKAGES ||
+            pkg == SettingsGuard.VPN_DIALOGS
+
+    private fun updateEventTypes(watchContent: Boolean) {
+        if (watchingContent == watchContent) return
+        val info = serviceInfo ?: return
+        val state = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        info.eventTypes = if (watchContent) state or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED else state
+        setServiceInfo(info)
+        watchingContent = watchContent
+    }
+
+    private fun scheduleSettingsCheck() {
+        main.removeCallbacks(settingsCheck)
+        main.postDelayed(settingsCheck, SETTINGS_DEBOUNCE_MS)
+    }
+
+    private fun isInteractive(): Boolean =
+        getSystemService(PowerManager::class.java)?.isInteractive == true
+
     private fun guard(pkg: String) {
         if (pkg == packageName) return
-        if (pkg in SettingsGuard.SETTINGS_PACKAGES || pkg in SettingsGuard.INSTALLER_PACKAGES || pkg == SettingsGuard.VPN_DIALOGS) {
-            guardSettings(pkg)
-            return
-        }
         when (LightLock.plan(this).why(pkg)) {
             LightPlan.Why.NOT_ALLOWED -> block(pkg, BlockedActivity.Reason.NOT_ALLOWED)
             LightPlan.Why.TIME_USED_UP -> block(pkg, BlockedActivity.Reason.TIME_USED_UP)
@@ -94,6 +133,10 @@ class GuardService : AccessibilityService() {
         val k = keywords ?: return
         val root = rootInActiveWindow ?: return
         val texts = ArrayList<String>()
+        if (root.packageName?.toString() != pkg) {
+            recycle(root)
+            return
+        }
         collect(root, texts, depth = 0)
         if (SettingsGuard.isProtectedScreen(pkg, texts, k)) {
             performGlobalAction(GLOBAL_ACTION_BACK)
@@ -132,10 +175,19 @@ class GuardService : AccessibilityService() {
     }
 
     private fun collect(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
-        if (depth > 25 || out.size > 400) return
-        node.text?.let { out += it.toString() }
-        node.contentDescription?.let { out += it.toString() }
-        for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, out, depth + 1) }
+        try {
+            if (depth > 25 || out.size > 400) return
+            node.text?.let { out += it.toString() }
+            node.contentDescription?.let { out += it.toString() }
+            for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, out, depth + 1) }
+        } finally {
+            recycle(node)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun recycle(node: AccessibilityNodeInfo) {
+        if (Build.VERSION.SDK_INT < 33) node.recycle()
     }
 
     /** The shade, the keyboard and the launcher are not "an app in front". */
@@ -175,6 +227,7 @@ class GuardService : AccessibilityService() {
         if (!isConnected) return
         isConnected = false
         main.removeCallbacks(tick)
+        main.removeCallbacks(settingsCheck)
         screenReceiver?.let { runCatching { unregisterReceiver(it) } }
         screenReceiver = null
         worker.shutdown()
@@ -189,6 +242,7 @@ class GuardService : AccessibilityService() {
 
     companion object {
         private const val TAG = "Plainphone"
+        private const val SETTINGS_DEBOUNCE_MS = 250L
         private const val TICK_MS = 30_000L
 
         @Volatile var isConnected = false

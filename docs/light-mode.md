@@ -28,6 +28,8 @@ the code is already split so that is a build setting, not a rewrite.
 | Time limits | Usage access (`UsageStatsManager`), counted on the phone and evaluated offline ([time-limits.md](time-limits.md)) | Time limits do not count. The parent is told when limits are set |
 | Find | Runtime location permission, "allow all the time" | No position |
 
+The guard listens for window changes. It also listens for content changes while Settings, an installer, or the VPN dialog is in front, and waits for a 250 ms pause before reading the active window. Its 30-second time-limit tick runs only while the screen is interactive.
+
 Every protection is a step in the lock. A missing one is a failed policy, so `lockIntact` is
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
