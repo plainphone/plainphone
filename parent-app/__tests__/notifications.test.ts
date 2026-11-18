@@ -2,7 +2,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { client, setSessionToken } from "../src/api/client";
-import { enablePush, getPushSubscriptionId } from "../src/lib/notifications";
+import { enablePush } from "../src/lib/notifications";
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 test.each([["android", "fcm"], ["ios", "apns"]] as const)(
-  "registers the native %s token as %s and stores its subscription ID",
+  "registers the native %s token as %s",
   async (os, platform) => {
     jest.replaceProperty(Platform, "OS", os);
     setSessionToken("mock-session");
@@ -22,6 +22,5 @@ test.each([["android", "fcm"], ["ios", "apns"]] as const)(
     });
     expect(await enablePush("en")).toBe("granted");
     expect(post).toHaveBeenCalledWith("/notifications/subscriptions", { body: { platform, token } });
-    expect(await getPushSubscriptionId()).toBe("mock-subscription");
   },
 );

@@ -5,8 +5,8 @@
 // sent once, when it happens, never on every poll. A failed push never fails the request
 // that caused it.
 
-import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
-import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
+import { and, eq, gt, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
+import { householdMembers, notificationMutes, phones, pushSubscriptions, sessions, users } from "../db/schema.js";
 import { type Locale, phoneAlertMail, toLocale } from "../lib/mail-templates.js";
 import type { NativePushMessage, PushMessage } from "../providers/parent-push.js";
 import type { Ctx } from "./context.js";
@@ -174,8 +174,10 @@ export async function notifyUsers(
       .select({ sub: pushSubscriptions, locale: users.locale })
       .from(pushSubscriptions)
       .innerJoin(users, eq(users.id, pushSubscriptions.userId))
+      .leftJoin(sessions, eq(sessions.id, pushSubscriptions.sessionId))
       .where(
         and(
+          or(eq(pushSubscriptions.platform, "web"), gt(sessions.expiresAt, ctx.now())),
           inArray(pushSubscriptions.userId, userIds),
           inArray(pushSubscriptions.platform, platforms),
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
@@ -203,6 +205,7 @@ export async function notifyUsers(
           eq(pushSubscriptions.id, sub.id),
           eq(pushSubscriptions.userId, sub.userId),
           eq(pushSubscriptions.platform, sub.platform),
+          sub.sessionId ? eq(pushSubscriptions.sessionId, sub.sessionId) : isNull(pushSubscriptions.sessionId),
         );
         if (outcome === "sent") {
           await ctx.db

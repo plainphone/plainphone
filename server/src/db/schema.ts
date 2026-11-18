@@ -544,6 +544,7 @@ export const pushSubscriptions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id").references(() => sessions.id, { onDelete: "cascade" }),
     platform: text("platform", { enum: ["web", "apns", "fcm"] }).notNull(),
     /** Web Push: the push service URL. APNs/FCM: the device token. */
     endpoint: text("endpoint").notNull().unique(),
@@ -556,7 +557,7 @@ export const pushSubscriptions = pgTable(
     failures: integer("failures").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+  (t) => [index("push_subscriptions_user_idx").on(t.userId), index("push_subscriptions_session_idx").on(t.sessionId)],
 );
 
 // A deleted phone must no longer be needed to deliver its final notice.

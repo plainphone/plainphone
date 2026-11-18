@@ -73,10 +73,15 @@ configuration independently.
 [Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api)
 
 With system notification permission already granted, the app registers the current
-native token after sign-in and when it returns to the foreground. Signing out or
-switching accounts with a login link detaches this installation's previous
-subscription on the server. If sign-out with a registered subscription fails,
-the app keeps the session so the user can retry.
+native token after sign-in and when it returns to the foreground. The server
+binds each native registration to the session that created it. Token rotation
+replaces that session's previous token for the same platform. Signing out or
+switching accounts with a login link ends the previous session and removes its
+native registrations. The app keeps the session for retry if the logout request
+fails. An expired session stops receiving notifications immediately, and the
+server removes its registrations when it sweeps the session. Existing native
+registrations resume delivery after the app registers again. Browser Web Push
+remains independent of the session.
 
 FCM tokens are removed on Firebase's token-specific `UNREGISTERED` (HTTP 404)
 response. Other failures keep the subscription.

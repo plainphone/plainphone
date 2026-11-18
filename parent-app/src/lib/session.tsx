@@ -6,7 +6,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { clearPushSubscription, getPushSubscriptionId, usePushRegistration, withPushRegistration } from "./notifications";
+import { usePushRegistration, withPushRegistration } from "./notifications";
 import { loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -131,15 +131,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         taking.current = null;
         let sessionToken: string;
         try {
-          const previousSubscriptionId = await getPushSubscriptionId();
-          const previousSession = previousSubscriptionId ? getSessionToken() ?? await getItem(TOKEN_KEY) : null;
+          const previousSession = getSessionToken() ?? await getItem(TOKEN_KEY);
           const out = await unwrap<{ sessionToken?: string }>(client.POST("/auth/verify", {
             ...(previousSession ? { headers: { authorization: `Bearer ${previousSession}` } } : {}),
             body: {
               token: linkToken,
               locale: localeRef.current,
               client: "native",
-              ...(previousSession && previousSubscriptionId ? { previousSubscriptionId } : {}),
             },
           }));
           if (!out.sessionToken) throw new ApiError(500, "no session token");
@@ -150,7 +148,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           if (!getSessionToken()) await restore();
           throw err;
         }
-        await clearPushSubscription().catch(() => undefined);
         setSessionToken(sessionToken);
         await setItem(TOKEN_KEY, sessionToken);
         return refresh();
@@ -162,16 +159,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => withPushRegistration(async () => {
-    const subscriptionId = await getPushSubscriptionId();
     try {
-      await unwrap(client.POST("/auth/logout", {
-        params: { query: { subscriptionId: subscriptionId ?? undefined } },
-      }));
+      await unwrap(client.POST("/auth/logout"));
     } catch (err) {
-      // With push enabled, keep the session available to retry server-side cleanup.
-      if (subscriptionId) throw err;
+      // An expired or revoked session cannot receive push. Other failures can be retried.
+      if (!(err instanceof ApiError && err.status === 401)) throw err;
     }
-    if (subscriptionId) await clearPushSubscription().catch(() => undefined);
     await signOutLocally();
   }), [signOutLocally]);
 

@@ -1647,7 +1647,7 @@ paths:
       security: []
       tags: [auth]
       summary: Exchange the link token for a session
-      description: The link is `${PUBLIC_URL}/auth/callback#token=…`; the page posts the token here. Creates the account and a household on first sign-in.
+      description: The link is `${PUBLIC_URL}/auth/callback#token=…`; the page posts the token here. Creates the account and a household on first sign-in. For the native client, a successful exchange revokes the previous session supplied as a Bearer token.
       requestBody:
         required: true
         content:
@@ -1657,10 +1657,6 @@ paths:
               required: [token]
               properties:
                 token: { type: string }
-                previousSubscriptionId:
-                  type: string
-                  format: uuid
-                  description: Native subscription to remove from the account authenticated by the previous Bearer token.
                 locale: { enum: [en, da] }
                 client:
                   enum: [web, native]
@@ -1686,12 +1682,7 @@ paths:
   /auth/logout:
     post:
       operationId: postAuthLogout
-      summary: Post auth logout
-      parameters:
-        - in: query
-          name: subscriptionId
-          schema: { type: string, format: uuid }
-          description: Native subscription on this install to remove during Bearer-authenticated logout.
+      summary: End the session and remove its native push registrations
       tags: [auth]
       security: [{ session: [] }, { cookie: [] }]
       responses:
@@ -1820,7 +1811,6 @@ paths:
                   required: [platform, token]
                   properties:
                     platform: { enum: [apns, fcm] }
-                    replacesSubscriptionId: { type: string, format: uuid }
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     label: { type: string, maxLength: 60 }
       responses:

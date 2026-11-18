@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq, gt, inArray, isNull, lt } from "drizzle-orm";
-import { householdMembers, households, magicLinks, pushSubscriptions, selfKeys, sessions, users } from "../db/schema.js";
+import { and, eq, gt, isNull, lt } from "drizzle-orm";
+import { householdMembers, households, magicLinks, selfKeys, sessions, users } from "../db/schema.js";
 import { randomToken, sha256 } from "../lib/crypto.js";
 import { loginMail, type Locale } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
@@ -39,7 +39,7 @@ export async function requestMagicLink(
 
 /** Exchanges a magic-link token for a session. Creates the user and a household on first login. */
 export async function verifyMagicLink(
-  ctx: Ctx, token: string, locale: Locale, previousPush?: { session: string; id: string },
+  ctx: Ctx, token: string, locale: Locale, previousSession?: string,
 ) {
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
@@ -56,7 +56,7 @@ export async function verifyMagicLink(
       const [household] = await tx.insert(households).values({ name: "Home" }).returning();
       await tx.insert(householdMembers).values({ householdId: household!.id, userId: user!.id, role: "owner" });
     }
-    if (previousPush) await detachNativePush(tx, previousPush.session, previousPush.id);
+    if (previousSession) await tx.delete(sessions).where(eq(sessions.tokenHash, sha256(previousSession)));
 
     // A trusted person chosen by email before they had an account.
     await tx
@@ -83,18 +83,6 @@ export async function userForSession(ctx: Ctx, token: string) {
   return row?.user ?? null;
 }
 
-async function detachNativePush(db: Pick<Ctx["db"], "delete" | "select">, session: string, id: string) {
-  const owner = db.select({ userId: sessions.userId }).from(sessions).where(eq(sessions.tokenHash, sha256(session)));
-  await db.delete(pushSubscriptions).where(and(
-    eq(pushSubscriptions.id, id),
-    eq(pushSubscriptions.userId, owner),
-    inArray(pushSubscriptions.platform, ["fcm", "apns"]),
-  ));
-}
-
-export async function endSession(ctx: Ctx, token: string, subscriptionId?: string) {
-  await ctx.db.transaction(async (tx) => {
-    if (subscriptionId) await detachNativePush(tx, token, subscriptionId);
-    await tx.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
-  });
+export async function endSession(ctx: Ctx, token: string) {
+  await ctx.db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
 }

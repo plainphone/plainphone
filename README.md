@@ -125,7 +125,8 @@ The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web
 
 Android parent-app push for approvals uses `GOOGLE_SERVICES_JSON` in the EAS
 environment (or a local `parent-app/google-services.json`) and
-`FCM_SERVICE_ACCOUNT_JSON` on the server. See the
+`FCM_SERVICE_ACCOUNT_JSON` on the server. Native push registrations follow the
+parent app session and expire with it. See the
 [parent-app push setup](docs/parent-app.md#push-notifications).
 
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.

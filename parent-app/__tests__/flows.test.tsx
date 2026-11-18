@@ -150,10 +150,8 @@ describe("login links in other situations", () => {
     (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });
 
-  it("sends the previous subscription and session when a login link cold-starts the app", async () => {
-    const id = "11111111-1111-4111-8111-111111111111";
+  it("sends the previous session when a login link cold-starts the app", async () => {
     await SecureStore.setItemAsync("pp.session", "pp_s_previous");
-    await SecureStore.setItemAsync("pp.pushSubscription", id);
     jest.mocked(Linking.getInitialURL).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_switch1234");
     const api = fakeApi({
       "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_new" } },
@@ -165,9 +163,8 @@ describe("login links in other situations", () => {
     expect(await screen.findByText("Alma")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/auth/verify")).toMatchObject({
       auth: "Bearer pp_s_previous",
-      body: { previousSubscriptionId: id },
+      body: { client: "native" },
     });
-    expect(await SecureStore.getItemAsync("pp.pushSubscription")).toBeNull();
   });
 
   it("opens on top of the login screen and leaves no login screen behind", async () => {
@@ -231,9 +228,7 @@ describe("signed in", () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
   });
 
-  it("retries logout with the subscription ID if the server cannot sign out yet", async () => {
-    const subscriptionId = "11111111-1111-4111-8111-111111111111";
-    await SecureStore.setItemAsync("pp.pushSubscription", subscriptionId);
+  it("retries logout with the session if the server cannot sign out yet", async () => {
     let attempts = 0;
     const api = fakeApi({
       "GET /me": { body: ME },
@@ -248,9 +243,8 @@ describe("signed in", () => {
     await fireEvent.press(screen.getByTestId("logout"));
     await waitFor(() => expect(screen).toHavePathname("/login"));
 
-    expect(api.calls.filter((call) => call.path === "/auth/logout").map((call) => call.query.get("subscriptionId")))
-      .toEqual([subscriptionId, subscriptionId]);
-    expect(await SecureStore.getItemAsync("pp.pushSubscription")).toBeNull();
+    expect(api.calls.filter((call) => call.path === "/auth/logout").map((call) => call.auth))
+      .toEqual(["Bearer pp_s_saved", "Bearer pp_s_saved"]);
   });
 
   it("refreshes the native push token on foreground without opening settings", async () => {
@@ -279,7 +273,7 @@ describe("signed in", () => {
       });
       await waitFor(() => expect(registrations().slice(0, 2).map((call) => call.body)).toEqual([
         { platform: "fcm", token: "original-token" },
-        { platform: "fcm", token: "rotated-token", replacesSubscriptionId: "11111111-1111-4111-8111-111111111111" },
+        { platform: "fcm", token: "rotated-token" },
       ]));
     } finally {
       os.restore();

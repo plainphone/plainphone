@@ -509,7 +509,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange the link token for a session
-         * @description The link is `${PUBLIC_URL}/auth/callback#token=…`; the page posts the token here. Creates the account and a household on first sign-in.
+         * @description The link is `${PUBLIC_URL}/auth/callback#token=…`; the page posts the token here. Creates the account and a household on first sign-in. For the native client, a successful exchange revokes the previous session supplied as a Bearer token.
          */
         post: operations["postAuthVerify"];
         delete?: never;
@@ -527,7 +527,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Post auth logout */
+        /** End the session and remove its native push registrations */
         post: operations["postAuthLogout"];
         delete?: never;
         options?: never;
@@ -3725,11 +3725,6 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
-                    /**
-                     * Format: uuid
-                     * @description Native subscription to remove from the account authenticated by the previous Bearer token.
-                     */
-                    previousSubscriptionId?: string;
                     /** @enum {unknown} */
                     locale?: "en" | "da";
                     /**
@@ -3763,10 +3758,7 @@ export interface operations {
     };
     postAuthLogout: {
         parameters: {
-            query?: {
-                /** @description Native subscription on this install to remove during Bearer-authenticated logout. */
-                subscriptionId?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -3927,8 +3919,6 @@ export interface operations {
                 } | {
                     /** @enum {unknown} */
                     platform: "apns" | "fcm";
-                    /** Format: uuid */
-                    replacesSubscriptionId?: string;
                     token: string;
                     label?: string;
                 };

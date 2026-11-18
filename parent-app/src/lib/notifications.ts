@@ -5,9 +5,6 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { client, getSessionToken, unwrap } from "../api/client";
-import { getItem, removeItem, setItem } from "./storage";
-
-const SUBSCRIPTION_KEY = "pp.pushSubscription";
 
 export type PushKind = "approval" | "location";
 
@@ -49,7 +46,7 @@ async function ensureChannels(locale: "en" | "da") {
 
 export type PushState = "unsupported" | "granted" | "denied" | "undetermined" | "unavailable";
 
-// Session changes must wait for an in-flight registration to persist its subscription ID.
+// Session changes and registration use the same queue to preserve their order.
 let pending: Promise<unknown> = Promise.resolve();
 
 export function withPushRegistration<T>(run: () => Promise<T>): Promise<T> {
@@ -83,25 +80,14 @@ async function registerPush(locale: "en" | "da", ask: boolean): Promise<PushStat
   }
   if (nativeToken.type !== Platform.OS || typeof nativeToken.data !== "string") return "unavailable";
 
-  const previous = await getPushSubscriptionId();
   if (getSessionToken() !== session) return "unavailable";
-  const { id } = await unwrap<{ id: string }>(client.POST("/notifications/subscriptions", {
+  await unwrap(client.POST("/notifications/subscriptions", {
     body: {
       platform: nativeToken.type === "android" ? "fcm" : "apns",
       token: nativeToken.data,
-      ...(previous ? { replacesSubscriptionId: previous } : {}),
     },
   }));
-  await setItem(SUBSCRIPTION_KEY, id);
   return "granted";
-}
-
-export function getPushSubscriptionId() {
-  return getItem(SUBSCRIPTION_KEY);
-}
-
-export function clearPushSubscription() {
-  return removeItem(SUBSCRIPTION_KEY);
 }
 
 /** Reconcile the token after sign-in and whenever the app returns to the foreground. */

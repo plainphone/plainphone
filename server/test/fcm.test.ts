@@ -2,6 +2,7 @@
 import { generateKeyPairSync } from "node:crypto";
 import { expect, it, vi } from "vitest";
 import { createFcmProvider } from "../src/providers/fcm.js";
+import { sweep } from "../src/services/sweeper.js";
 import { notifyUsers } from "../src/services/notifications.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
@@ -85,12 +86,13 @@ it("retains an FCM subscription on a generic 404", async () => {
 it("cleans up only this install's native subscription on logout", async () => {
   const parent = await signIn(h, "parent@example.test");
   const otherInstall = await signIn(h, "parent@example.test");
-  const { json: subscription } = await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
+  await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
+  await parent.post("/api/notifications/subscriptions", { platform: "fcm", token: "c".repeat(40) });
   const { json: other } = await otherInstall.post("/api/notifications/subscriptions", {
     platform: "fcm", token: "b".repeat(40),
   });
 
-  expect((await parent.post(`/api/auth/logout?subscriptionId=${subscription.id}`)).status).toBe(204);
+  expect((await parent.post("/api/auth/logout")).status).toBe(204);
   expect((await parent.get("/api/me")).status).toBe(401);
   expect((await otherInstall.get("/api/notifications")).json.subscriptions).toEqual([
     expect.objectContaining({ id: other.id }),
@@ -100,28 +102,29 @@ it("cleans up only this install's native subscription on logout", async () => {
 it("detaches the previous account's subscription when a native login link succeeds", async () => {
   const parent = await signIn(h, "parent@example.test");
   const sameAccount = await signIn(h, "parent@example.test");
-  const { json: subscription } = await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
+  await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
   await parent.post("/api/auth/request", { email: "other@example.test", client: "native" });
   const link = decodeURIComponent(/#token=([^\s"&<]+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
   const verify = (token: string) => parent.post("/api/auth/verify", {
-    client: "native", token, previousSubscriptionId: subscription.id,
+    client: "native", token,
   });
 
   expect((await verify("pp_m_invalid")).status).toBe(400);
   expect((await sameAccount.get("/api/notifications")).json.subscriptions).toHaveLength(1);
   const { status, json } = await verify(link);
   expect(status).toBe(200);
+  expect((await parent.get("/api/me")).status).toBe(401);
   expect((await sameAccount.get("/api/notifications")).json.subscriptions).toEqual([]);
   const other = new Client(h);
   other.token = json.sessionToken;
   expect((await other.get("/api/notifications")).json.subscriptions).toEqual([]);
 });
 
-it("replaces a rotated native token and tolerates an already removed subscription", async () => {
+it("replaces a rotated token in the same session without a locally stored subscription ID", async () => {
   const parent = await signIn(h, "parent@example.test");
-  const { json: previous } = await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
+  await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
   const register = () => parent.post("/api/notifications/subscriptions", {
-    platform: "fcm", token: "c".repeat(40), replacesSubscriptionId: previous.id,
+    platform: "fcm", token: "c".repeat(40),
   });
   const latest = await register();
   expect(latest.status).toBe(201);
@@ -129,4 +132,21 @@ it("replaces a rotated native token and tolerates an already removed subscriptio
   expect((await parent.get("/api/notifications")).json.subscriptions).toEqual([
     expect.objectContaining({ id: latest.json.id }),
   ]);
+});
+
+it("stops native delivery when the session expires and removes the subscription when swept", async () => {
+  const send = vi.fn(async () => "sent" as const);
+  h.ctx.nativeParentPush = { platform: "fcm", send };
+  const parent = await signIn(h, "parent@example.test");
+  const { json: me } = await parent.get("/api/me");
+  await parent.post("/api/notifications/subscriptions", { platform: "fcm", token });
+  h.clock.advance(61 * 86_400_000);
+
+  expect((await parent.get("/api/me")).status).toBe(401);
+  expect(await notifyUsers(h.ctx, [me.user.id], { type: "test" })).toBe(0);
+  expect(send).not.toHaveBeenCalled();
+
+  await sweep(h.ctx);
+  const next = await signIn(h, "parent@example.test");
+  expect((await next.get("/api/notifications")).json.subscriptions).toEqual([]);
 });

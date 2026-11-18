@@ -2,7 +2,7 @@
 //
 // The API the parent app (PWA, later native apps) talks to. Contract: server/openapi.yaml.
 
-import { and, desc, eq, gt, inArray, isNull, notExists, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, ne, notExists, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { bodyLimit } from "hono/body-limit";
@@ -24,6 +24,7 @@ import {
   pushSubscriptions,
   schedules,
   selfKeys,
+  sessions,
   users,
 } from "../db/schema.js";
 import { DEFAULT_PUSH_HOSTS, pushHostAllowed } from "../providers/parent-push.js";
@@ -62,7 +63,7 @@ import { locationRoutes, setLocationMode } from "./location.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
-type Env = { Variables: { user: User; viaCookie: boolean } };
+export type ParentEnv = { Variables: { user: User; viaCookie: boolean; sessionToken: string } };
 
 export const SESSION_COOKIE = "pp_session";
 const INVITE_DAYS = 7;
@@ -81,8 +82,8 @@ function changeJson(r: ChangeResult) {
       };
 }
 
-export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<Env>) => void) {
-  const app = new Hono<Env>();
+export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<ParentEnv>) => void) {
+  const app = new Hono<ParentEnv>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
   const loginIpLimit = new RateLimiter(20, 60 * 60_000);
@@ -123,14 +124,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         locale: v.locale.default("en"),
         /** Native apps ask for the token; the PWA only gets the HttpOnly cookie. */
         client: z.enum(["web", "native"]).default("web"),
-        previousSubscriptionId: z.uuid().optional(),
       }),
     );
     const auth = c.req.header("authorization");
-    const previousPush = input.client === "native" && input.previousSubscriptionId && auth?.startsWith("Bearer ")
-      ? { session: auth.slice(7), id: input.previousSubscriptionId }
+    const previousSession = input.client === "native" && auth?.startsWith("Bearer ")
+      ? auth.slice(7)
       : undefined;
-    const out = await verifyMagicLink(ctx, input.token, input.locale, previousPush);
+    const out = await verifyMagicLink(ctx, input.token, input.locale, previousSession);
     if (!out) return c.json({ error: "this link is expired or already used" }, 400);
     setCookie(c, SESSION_COOKIE, out.sessionToken, {
       httpOnly: true,
@@ -166,6 +166,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
     c.set("user", user);
     c.set("viaCookie", viaCookie);
+    c.set("sessionToken", token);
     await next();
   });
 
@@ -173,11 +174,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   extra?.(app);
 
   app.post("/auth/logout", async (c) => {
-    const auth = c.req.header("authorization") ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : getCookie(c, SESSION_COOKIE);
-    const subscriptionId = z.uuid().optional().safeParse(c.req.query("subscriptionId"));
-    if (!subscriptionId.success) throw new HTTPException(400, { message: "invalid subscription id" });
-    if (token) await endSession(ctx, token, auth.startsWith("Bearer ") ? subscriptionId.data : undefined);
+    await endSession(ctx, c.get("sessionToken"));
     deleteCookie(c, SESSION_COOKIE, { path: "/api" });
     return c.body(null, 204);
   });
@@ -275,7 +272,6 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         }),
         z.object({
           platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label,
-          replacesSubscriptionId: z.uuid().optional(),
         }),
       ]),
     );
@@ -291,25 +287,37 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         : { endpoint: input.token, p256dh: null, auth: null };
     // The same browser or app install signing in as someone else takes the row over.
     const row = await ctx.db.transaction(async (tx) => {
+      let sessionId: string | null = null;
+      if (input.platform !== "web") {
+        // Lock the session so rotation, logout and account switching cannot race registration.
+        const [session] = await tx.select({ id: sessions.id }).from(sessions).where(and(
+          eq(sessions.tokenHash, sha256(c.get("sessionToken"))),
+          eq(sessions.userId, user.id),
+          gt(sessions.expiresAt, ctx.now()),
+        )).for("update");
+        if (!session) throw new HTTPException(401, { message: "sign in first" });
+        sessionId = session.id;
+      }
       const [registered] = await tx
         .insert(pushSubscriptions)
-        .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
+        .values({ userId: user.id, platform: input.platform, sessionId, label: input.label ?? null, ...values })
         .onConflictDoUpdate({
           target: pushSubscriptions.endpoint,
           set: {
             userId: user.id,
             platform: input.platform,
+            sessionId,
             label: sql`coalesce(excluded.label, ${pushSubscriptions.label})`,
             failures: 0,
             ...values,
           },
         })
         .returning();
-      if (input.platform !== "web" && input.replacesSubscriptionId && input.replacesSubscriptionId !== registered!.id) {
+      if (sessionId) {
         await tx.delete(pushSubscriptions).where(and(
-          eq(pushSubscriptions.id, input.replacesSubscriptionId),
-          eq(pushSubscriptions.userId, user.id),
+          eq(pushSubscriptions.sessionId, sessionId),
           eq(pushSubscriptions.platform, input.platform),
+          ne(pushSubscriptions.id, registered!.id),
         ));
       }
       return registered!;
@@ -345,7 +353,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // --- Households -------------------------------------------------------------
 
-  async function requireMember(c: Context<Env>, householdId: string) {
+  async function requireMember(c: Context<ParentEnv>, householdId: string) {
     const [m] = await ctx.db
       .select()
       .from(householdMembers)
@@ -513,7 +521,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return rows.map((r) => r.id);
   }
 
-  async function requirePhone(c: Context<Env>): Promise<Phone> {
+  async function requirePhone(c: Context<ParentEnv>): Promise<Phone> {
     const pid = param(c, "pid");
     const [row] = await ctx.db
       .select({ phone: phones })
@@ -527,7 +535,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return row.phone;
   }
 
-  async function change(c: Context<Env>, phone: Phone, op: Op) {
+  async function change(c: Context<ParentEnv>, phone: Phone, op: Op) {
     try {
       const r = await submitChange(ctx, phone, c.get("user").id, op);
       return c.json(changeJson(r), r.status === "applied" ? 200 : 202);
@@ -1028,7 +1036,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   // Requests for a trusted person
-  async function requireTrusted(c: Context<Env>) {
+  async function requireTrusted(c: Context<ParentEnv>) {
     const cid = param(c, "cid");
     const [row] = await ctx.db
       .select({ change: pendingChanges })
