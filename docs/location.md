@@ -60,7 +60,8 @@ provider the first 15 seconds when it is enabled. If no fix accurate to 100 m or
 arrives in that time, GPS and the network provider join in parallel while fused keeps
 listening. If fused is unavailable, GPS and the network provider start immediately.
 The first fix accurate to 100 m or better wins. At the deadline, the phone uses the most
-accurate fix received.
+accurate fix received. Each lookup removes its provider listeners and stops its callback threads
+before returning.
 Regular `always` reports use fused when enabled and Android 12's low-power setting. On older
 Android versions without fused, regular reports give the network provider up to 500 ms to
 deliver a fix accurate to 100 m or better before starting GPS. Both providers share the same

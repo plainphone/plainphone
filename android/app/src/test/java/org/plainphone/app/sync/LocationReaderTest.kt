@@ -10,10 +10,9 @@ import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.time.Duration
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,7 +50,7 @@ class LocationReaderTest {
             assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
             assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -69,7 +68,7 @@ class LocationReaderTest {
             manager.simulateLocation(fix(network, 80f).apply { time = requestedAt })
             assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(requestedAt)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -91,7 +90,7 @@ class LocationReaderTest {
             manager.simulateLocation(live)
             assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(live.time)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -112,50 +111,52 @@ class LocationReaderTest {
             manager.simulateLocation(live)
             assertThat(result.get(1, TimeUnit.SECONDS)?.recordedAtMs).isEqualTo(live.time)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
     @Test
     @Config(sdk = [31])
-    fun `an unresponsive fused provider starts GPS and network after 15 seconds within the budget`() {
+    fun `fused gets a 15 second head start and all providers share the 30 second budget`() {
         val fused = LocationManager.FUSED_PROVIDER
         manager.setProviderEnabled(fused, true)
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            val started = System.nanoTime()
-            val deadline = started + TimeUnit.SECONDS.toNanos(32)
-            val result = executor.submit<LocationFix?> {
-                LocationReader(context).current(precise = true)
+        var now = 0L
+        val second = TimeUnit.SECONDS.toNanos(1)
+        val waits = mutableListOf<Long>()
+        val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
+            waits += remaining
+            when (now) {
+                0L, 14 * second -> {
+                    assertThat(manager.getLocationRequests(fused).single().durationMillis).isEqualTo(30_000L)
+                    assertThat(manager.getLocationRequests(gps)).isEmpty()
+                    assertThat(manager.getLocationRequests(network)).isEmpty()
+                    if (now == 0L) {
+                        now = 14 * second
+                        manager.simulateLocation(fix(fused, 250f))
+                    }
+                }
+                15 * second -> {
+                    assertThat(manager.getLocationRequests(fused)).hasSize(1)
+                    for (provider in listOf(gps, network)) {
+                        assertThat(manager.getLocationRequests(provider).single().durationMillis).isEqualTo(15_000L)
+                    }
+                    now = 29 * second
+                    manager.simulateLocation(fix(gps, 150f))
+                    manager.simulateLocation(fix(network, 200f))
+                }
             }
-            awaitRequests(fused)
-            assertThat(manager.getLocationRequests(gps)).isEmpty()
-            assertThat(manager.getLocationRequests(network)).isEmpty()
-            val beforeFallback = started + TimeUnit.SECONDS.toNanos(14)
-            TimeUnit.NANOSECONDS.sleep(beforeFallback - System.nanoTime())
-            awaitRequests(gps, network, timeoutSeconds = 3)
-            for (provider in listOf(gps, network)) {
-                val remainingBudget = manager.getLocationRequests(provider).single().durationMillis
-                // The request duration is computed at registration. Leave 500 ms for scheduling.
-                assertThat(remainingBudget).isAtLeast(14_500L)
-                assertThat(remainingBudget).isAtMost(15_000L)
+            results.poll() ?: run {
+                now += remaining
+                null
             }
-            assertThat(manager.getLocationRequests(fused)).hasSize(1)
-            manager.simulateLocation(fix(gps, 150f))
-            manager.simulateLocation(fix(network, 200f))
-            val beforeDeadline = started + TimeUnit.SECONDS.toNanos(29)
-            assertThrows(TimeoutException::class.java) {
-                result.get(beforeDeadline - System.nanoTime(), TimeUnit.NANOSECONDS)
-            }
-            assertThat(manager.getLocationRequests(fused)).hasSize(1)
-            assertThat(result.get(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)?.accuracyM)
-                .isEqualTo(150f)
-            assertThat(manager.getLocationRequests(fused)).isEmpty()
-            assertThat(manager.getLocationRequests(gps)).isEmpty()
-            assertThat(manager.getLocationRequests(network)).isEmpty()
-        } finally {
-            executor.shutdownNow()
-        }
+        })
+
+        assertThat(reader.current(precise = true)?.accuracyM).isEqualTo(150f)
+        assertThat(now).isEqualTo(30 * second)
+        assertThat(waits).containsExactly(15 * second, second, 15 * second, second, second).inOrder()
+        assertThat(manager.getLocationRequests(fused)).isEmpty()
+        assertThat(manager.getLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLocationRequests(network)).isEmpty()
     }
 
     @Test
@@ -190,18 +191,19 @@ class LocationReaderTest {
 
     @Test
     fun `two unresponsive providers share the 30 second budget and are cancelled`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(32)
-            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = true) }
-            awaitRequests(gps, network)
-            val remaining = deadline - System.nanoTime()
-            assertThat(result.get(remaining, TimeUnit.NANOSECONDS)).isNull()
-            assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
-            assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
-        } finally {
-            executor.shutdownNow()
-        }
+        var now = 0L
+        val reader = LocationReader(context, nanoTime = { now }, poll = { _, remaining ->
+            assertThat(manager.getLegacyLocationRequests(gps)).hasSize(1)
+            assertThat(manager.getLegacyLocationRequests(network)).hasSize(1)
+            now += remaining
+            null
+        })
+
+        assertThat(reader.current(precise = true, timeoutMs = Long.MAX_VALUE)).isNull()
+        assertThat(now).isEqualTo(TimeUnit.SECONDS.toNanos(30))
+        assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+        assertThat(Thread.getAllStackTraces().keys.none { it.name == "plainphone-location" }).isTrue()
     }
 
     @Test
@@ -220,7 +222,7 @@ class LocationReaderTest {
             manager.simulateLocation(fix(fused, 250f))
             assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(250f)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -238,7 +240,7 @@ class LocationReaderTest {
             manager.simulateLocation(fix(gps, 200f))
             assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(200f)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -274,16 +276,26 @@ class LocationReaderTest {
 
     @Test
     fun `always gets a GPS fix when the older network provider stays silent`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            val result = executor.submit<LocationFix?> { LocationReader(context).current(precise = false) }
-            awaitRequests(gps, network)
-            manager.simulateLocation(fix(gps, 75f))
-            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(75f)
-            assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
-        } finally {
-            executor.shutdownNow()
-        }
+        var now = 0L
+        val headStart = TimeUnit.MILLISECONDS.toNanos(500)
+        val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
+            if (now == 0L) {
+                assertThat(remaining).isEqualTo(headStart)
+                assertThat(manager.getLegacyLocationRequests(network)).hasSize(1)
+                assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+                now += remaining
+                null
+            } else {
+                assertThat(remaining).isEqualTo(TimeUnit.SECONDS.toNanos(30) - headStart)
+                assertThat(manager.getLegacyLocationRequests(gps)).hasSize(1)
+                manager.simulateLocation(fix(gps, 75f))
+                // Bound the wait for the real Android 10 callback thread, independently of the lookup clock.
+                checkNotNull(results.poll(1, TimeUnit.SECONDS)) { "GPS callback was not delivered" }
+            }
+        })
+
+        assertThat(reader.current(precise = false)?.accuracyM).isEqualTo(75f)
+        assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
     }
 
     @Test
@@ -299,7 +311,7 @@ class LocationReaderTest {
             manager.simulateLocation(fix(network, 90f))
             assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(90f)
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
@@ -312,48 +324,59 @@ class LocationReaderTest {
             manager.simulateLocation(fix(network, 100f))
             assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(100f)
             assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+            assertThat(Thread.getAllStackTraces().keys.none { it.name == "plainphone-location" }).isTrue()
         } finally {
-            executor.shutdownNow()
+            stopExecutor(executor)
         }
     }
 
     @Test
     @Config(sdk = [31])
     fun `precise lookup accepts a better update from the same provider`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            val result = executor.submit<LocationFix?> {
-                LocationReader(context).current(precise = true, timeoutMs = 3_000)
+        var sent = false
+        val reader = LocationReader(context, nanoTime = { 0L }, poll = { results, _ ->
+            if (!sent) {
+                sent = true
+                manager.simulateLocation(fix(network, 150f))
+                manager.simulateLocation(fix(gps, 200f))
+                manager.simulateLocation(fix(gps, 60f))
             }
-            awaitRequests(gps, network)
-            manager.simulateLocation(fix(network, 150f))
-            manager.simulateLocation(fix(gps, 200f))
-            manager.simulateLocation(fix(gps, 60f))
-            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(60f)
-            assertThat(manager.getLocationRequests(network)).isEmpty()
-        } finally {
-            executor.shutdownNow()
-        }
+            results.poll()
+        })
+
+        assertThat(reader.current(precise = true)?.accuracyM).isEqualTo(60f)
+        assertThat(manager.getLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLocationRequests(network)).isEmpty()
     }
 
     @Test
+    @Config(sdk = [31])
     fun `a precise lookup keeps a 150 m fix when GPS times out`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
-            val result = executor.submit<LocationFix?> {
-                LocationReader(context).current(precise = true, timeoutMs = 1_000)
+        var now = 0L
+        val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
+            if (now == 0L) {
+                now = TimeUnit.MILLISECONDS.toNanos(100)
+                manager.simulateLocation(fix(network, 150f))
             }
-            awaitRequests(gps, network)
-            manager.simulateLocation(fix(network, 150f))
-            assertThat(result.get(2, TimeUnit.SECONDS)?.accuracyM).isEqualTo(150f)
-            assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
-        } finally {
-            executor.shutdownNow()
-        }
+            results.poll() ?: run {
+                now += remaining
+                null
+            }
+        })
+
+        assertThat(reader.current(precise = true, timeoutMs = 1_000)?.accuracyM).isEqualTo(150f)
+        assertThat(now).isEqualTo(TimeUnit.SECONDS.toNanos(1))
+        assertThat(manager.getLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLocationRequests(network)).isEmpty()
     }
 
-    private fun awaitRequests(vararg providers: String, timeoutSeconds: Long = 2) {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+    private fun stopExecutor(executor: ExecutorService) {
+        executor.shutdownNow()
+        check(executor.awaitTermination(5, TimeUnit.SECONDS)) { "Location lookup executor did not stop" }
+    }
+
+    private fun awaitRequests(vararg providers: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
         while (System.nanoTime() < deadline && providers.any { manager.getLegacyLocationRequests(it).isEmpty() }) {
             Thread.sleep(10)
         }

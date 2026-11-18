@@ -15,6 +15,7 @@ import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performFirstLinkClick
@@ -291,6 +292,10 @@ class HelplinesTest {
         val manager = context.getSystemService(NotificationManager::class.java)
         val open = shadowOf(manager.activeNotifications.single().notification.contentIntent).savedIntent
         Robolectric.buildActivity(PhoneActivity::class.java, open).setup().use {
+            // The activity loads contact rules on Dispatchers.IO, outside Compose's idling scope.
+            compose.waitUntil(timeoutMillis = 5_000) {
+                compose.onAllNodesWithText("Approved contact").fetchSemanticsNodes().isNotEmpty()
+            }
             compose.onNodeWithText("Approved contact").assertExists()
             compose.onNodeWithText("headspace").assertDoesNotExist()
         }
