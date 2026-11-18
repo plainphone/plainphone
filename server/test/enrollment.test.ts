@@ -52,6 +52,10 @@ describe("setup from the dashboard (enrollment)", () => {
     const parent = await signIn(h, "p@example.org");
     const { phone, enrollment } = await addPhone(parent);
     const r = await enroll(enrollment.token);
+    expect(r.json.account).toEqual({
+      maskedEmail: "p***@example.org",
+      householdName: (await parent.get("/api/me")).json.households[0].name,
+    });
     expect(r.status).toBe(200);
     expect(r.json.phoneId).toBe(phone.id);
     expect(r.json.deviceToken).toMatch(/^pp_d_/);

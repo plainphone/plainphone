@@ -98,11 +98,13 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
     @SuppressLint("ApplySharedPref")
-    fun savePaired(phoneId: String, token: String) {
+    fun savePaired(phoneId: String, token: String, account: PlainphoneApi.PollAccount? = null) {
         synchronized(tokenLock) {
             val pairing = prefs.edit()
                 .putString(KEY_TOKEN, box.seal(token))
                 .putString(KEY_PHONE_ID, phoneId)
+                .putString(KEY_CONNECTED_EMAIL, account?.maskedEmail)
+                .putString(KEY_CONNECTED_HOUSEHOLD, account?.householdName)
                 .putBoolean(KEY_EVER_PAIRED, true)
                 .putBoolean(KEY_REMOVED, false)
                 .remove(KEY_RELEASED).remove(KEY_SETUP_UNDO_PENDING)
@@ -119,6 +121,22 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             tokenCache = null
         }
     }
+
+    internal fun enrollmentAccount(): PlainphoneApi.PollAccount? {
+        val email = prefs.getString(KEY_CONNECTED_EMAIL, null) ?: return null
+        if (!hasStoredPairing || released || releaseAsked) return null
+        return PlainphoneApi.PollAccount(email, prefs.getString(KEY_CONNECTED_HOUSEHOLD, null))
+    }
+
+    internal fun dismissEnrollmentAccount() {
+        prefs.edit().remove(KEY_CONNECTED_EMAIL).remove(KEY_CONNECTED_HOUSEHOLD).apply()
+    }
+
+    internal fun watchEnrollmentAccount(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+
+    internal fun unwatchEnrollmentAccount(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
 
     /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
     fun enrollToken(): String? = prefs.getString(KEY_ENROLL, null)?.let(box::open)
@@ -362,6 +380,8 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_RELEASED = "released"
         private const val KEY_EVER_PAIRED = "ever_paired"
         private const val KEY_PAIRING = "pairing"
+        private const val KEY_CONNECTED_EMAIL = "connected_email"
+        private const val KEY_CONNECTED_HOUSEHOLD = "connected_household"
         private const val KEY_ENROLL = "enroll_token"
         private const val KEY_INSTALL_ID = "install_id"
         private const val KEY_ETAG = "etag"

@@ -255,7 +255,9 @@
     <string name="setup_not_you">Not you? Cancel</string>
     <string name="setup_pair_self">Open app.plainphone.org to connect your phone. Choose Myself in the dashboard, then check the account shown on this phone.</string>
     <string name="setup_profile_mismatch">This link uses a different profile. Go back to change your choice, or cancel to use another link.</string>
-    <string name="setup_strong_pair_body">Check the dashboard account on this phone before turning on protection.</string>
+    <string name="setup_connected_account">Connected to %1$s</string>
+    <string name="setup_connected_household">Connected to %1$s (%2$s)</string>
+    <string name="setup_connected_release">Wrong account? Use the maintenance PIN or release the phone from the dashboard.</string>
     <string name="setup_saved_link_body">Check the account before connecting this phone. Your saved PIN will still work.</string>
     <string name="setup_link_self">Check that %1$s is your dashboard. Choose a PIN with 6 to 12 digits and enter it twice.</string>
     <string name="setup_admin_self">This makes it harder to remove Plainphone. Your dashboard will be notified if protection is switched off.</string>

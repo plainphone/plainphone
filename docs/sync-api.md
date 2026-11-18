@@ -162,8 +162,9 @@ parent (PWA)                                server                          phon
   token in a package-scoped Android intent. The parent enters the PIN twice in the app, which
   salts and hashes it locally. The phone first calls `POST /device/enrollment-review` with the
   setup token and mode. The response identifies the profile, household and masked issuer. Sending
-  `cancel: true` instead removes the unused phone and token. Strong mode reviews the account
-  after Android provisioning and before redeeming the dashboard token.
+  `cancel: true` instead removes the unused phone and token. Strong mode redeems the dashboard
+  token automatically. Its enrollment response includes the masked issuer and household, when
+  available, for an informational notice on the phone.
 - `mode` defaults to `strong` for existing clients. Enrollment keeps the selected mode on
   the phone entry. The phone separately reports what Android granted in its protection status.
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
@@ -236,6 +237,11 @@ stop, and Plainphone is an ordinary app that can be uninstalled. This is differe
 Until the phone has done this, the dashboard shows the phone as "Releasing" (`releaseRequestedAt`
 on the phone summary). A phone that is switched off or offline keeps its lock until it connects.
 To remove such a phone from the dashboard without releasing it, use `DELETE /api/phones/{pid}`.
+
+Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
+the phone and queues an undo notice up to 48 hours after pairing. After that it returns `409`.
+The phone then tries the ordinary release acknowledgement and stays released. If the server
+has no dashboard release on record, the old entry can be removed from the dashboard.
 
 ### Requests (asking for an app or a contact)
 

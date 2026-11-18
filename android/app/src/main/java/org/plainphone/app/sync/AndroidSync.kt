@@ -415,7 +415,7 @@ class LocalSetupUndoWorker(context: Context, params: WorkerParameters) : Worker(
 }
 
 /**
- * Retries pairing in the background once the account on a provisioning QR code has been confirmed. Scheduled by
+ * Pairs with the dashboard QR code in the background as soon as a network is available. Scheduled by
  * [SyncScheduler.enrollIfNeeded]; retried with backoff until the token is used or refused.
  */
 class EnrollWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
@@ -505,7 +505,7 @@ object SyncScheduler {
         // Light setup redeems in the foreground.
         if (org.plainphone.app.light.Mode.isLight(context)) return
         val store = SyncStore(context)
-        if (store.isPaired || !store.enrollmentConfirmed || store.enrollToken() == null) return
+        if (store.isPaired || store.enrollToken() == null) return
         val request = OneTimeWorkRequestBuilder<EnrollWorker>()
             .setConstraints(network)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)

@@ -196,7 +196,9 @@ class SyncRunner(
     private fun acknowledgeRelease(token: String): Outcome? {
         val done = try {
             if (store.setupUndoPending) {
-                api.reportSetupUndo(token)
+                // The phone has already switched off locally. An expired undo can only
+                // acknowledge an ordinary dashboard release, and must never restore protection.
+                if (!api.reportSetupUndo(token)) api.ackReleased(token)
                 device.removeSetupUndoAdmin()
                 true
             } else api.ackReleased(token)

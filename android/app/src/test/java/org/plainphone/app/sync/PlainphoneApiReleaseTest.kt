@@ -180,11 +180,13 @@ class PlainphoneApiReleaseTest {
         answer = 503
         assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
         answer = 204
-        api().reportSetupUndo("test-token")
+        assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 401
-        api().reportSetupUndo("test-token")
+        assertThat(api().reportSetupUndo("test-token")).isTrue()
+        answer = 409
+        assertThat(api().reportSetupUndo("test-token")).isFalse()
         assertThat(seen).containsExactlyElementsIn(
-            List(3) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
+            List(4) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
         )
     }
 

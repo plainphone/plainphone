@@ -56,7 +56,7 @@ If the phone says "Can't set up device" or "The app couldn't be downloaded", see
 4. Android 10 to 13: Android asks "Set Plainphone as your default phone app?" (during setup on Android 12 and 13, when Plainphone opens after setup on 10 and 11). Tap **Set as default**. If you miss it, open Plainphone again and it asks again. If "Don't ask again" was ticked: Settings → Apps → Default apps → Phone app → Plainphone.
 5. Phase 2: the status screen also says "Phone app: Plainphone." and "SMS app: Plainphone.", and the lines `default phone app`, `default SMS app` and `phone and SMS permissions` say `OK`. The home screen has Plainphone's **Phone** and **Messages** icons. The maker's messages app is gone; the maker's own phone app stays (it is the emergency fallback, see [contacts.md](contacts.md)).
 6. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 7), the list comes from the dashboard and is read-only here.
-7. Pairing. **QR code from the dashboard:** the phone shows "Connecting to the parent's dashboard…" and pairs by itself; the dashboard page with the QR code switches to "connected" within a few seconds. **QR code from the script:** the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), scan the code with the camera, or choose *Add phone*, *Type the code*. Either way the status screen then shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If pairing did not happen, use the button on the status screen (first hour) or the maintenance screen.
+7. Pairing. **QR code from the dashboard:** the phone pairs by itself and shows the masked account and household when connected. The dashboard page with the QR code switches to "connected" within a few seconds. **QR code from the script:** the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), scan the code with the camera, or choose *Add phone*, *Type the code*. Either way the status screen then shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If pairing did not happen, use the button on the status screen (first hour) or the maintenance screen.
 
 Then work through [bypass-checklist.md](bypass-checklist.md).
 
@@ -81,7 +81,7 @@ adb install plainphone.apk
 adb shell dpm set-device-owner org.plainphone.app/.PlainphoneAdminReceiver
 ```
 
-Open Plainphone and confirm whose phone it is to apply the lock, including the adb block. This path does not get the QR settings (PIN, DNS host), so the test PIN `000000` applies.
+Open Plainphone and check that the lock, including the adb block, is on. This path does not get the QR settings (PIN, DNS host), so the test PIN `000000` applies.
 
 ## Troubleshooting
 

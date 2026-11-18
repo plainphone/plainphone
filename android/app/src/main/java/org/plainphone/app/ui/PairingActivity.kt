@@ -112,9 +112,9 @@ class PairingActivity : ComponentActivity() {
                     "appVersion" to version.take(200),
                 ),
                 mode = Mode.name(app),
-                profile = LightSetup.profile(app),
+                profile = LightSetup.profile(app).takeIf { Mode.isLight(app) },
                 canRedeemEnrollment = {
-                    if (Mode.isLight(app)) LightSetup.linkReviewed(app) else SyncStore(app).enrollmentConfirmed
+                    Mode.isStrong(app) || LightSetup.linkReviewed(app)
                 },
             )
         }
@@ -195,10 +195,7 @@ private fun PairingScreen(onDone: () -> Unit) {
         }
     }
     BackHandler(ui is PairingUi.Confirm) {
-        if (!confirmationStarted) {
-            if ((ui as? PairingUi.Confirm)?.matchesProfile == false && Mode.isStrong(context)) onDone()
-            else decide(false)
-        }
+        if (!confirmationStarted) decide(false)
     }
 
     LaunchedEffect(attempt) {
@@ -208,7 +205,7 @@ private fun PairingScreen(onDone: () -> Unit) {
         if (enrollmentToken != null && !store.isPaired) {
             ui = PairingUi.Connecting
             try {
-                if (store.enrollmentConfirmed) {
+                if (Mode.isStrong(context) || store.enrollmentConfirmed) {
                     withContext(Dispatchers.IO) { controller.enroll() }
                     if (store.isPaired) {
                         SyncScheduler.ensurePeriodic(context)
@@ -289,7 +286,7 @@ private fun PairingScreen(onDone: () -> Unit) {
                 PairingUi.Connecting -> Text(stringResource(R.string.pairing_connecting), textAlign = TextAlign.Center)
                 PairingUi.Loading -> Text(stringResource(R.string.pairing_loading))
                 is PairingUi.Showing -> {
-                    Text(stringResource(if (LightSetup.profile(context) == "self") R.string.setup_pair_self else R.string.pairing_instructions), textAlign = TextAlign.Center)
+                    Text(stringResource(if (Mode.isLight(context) && LightSetup.profile(context) == "self") R.string.setup_pair_self else R.string.pairing_instructions), textAlign = TextAlign.Center)
                     QrCode(state.pairing.qrUrl, Modifier.size(240.dp))
                     Text(
                         text = state.pairing.code,
@@ -311,11 +308,6 @@ private fun PairingScreen(onDone: () -> Unit) {
                         }
                     } else {
                         Text(stringResource(R.string.setup_profile_mismatch))
-                        if (Mode.isStrong(context)) {
-                            androidx.compose.material3.OutlinedButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.setup_back))
-                            }
-                        }
                     }
                     if (!confirmationStarted) {
                         androidx.compose.material3.OutlinedButton(

@@ -45,7 +45,7 @@ class PairingController(
         val token = store.enrollToken() ?: return null
         val result = api.enroll(token, store.installId(), deviceInfo)
         when (result) {
-            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken)
+            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
             EnrollResult.Rejected -> store.saveEnrollToken(null)
         }
         return result

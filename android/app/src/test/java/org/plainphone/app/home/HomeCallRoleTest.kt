@@ -11,7 +11,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.TimeUnit
-import org.plainphone.app.light.LightSetup
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.Hardening
@@ -33,7 +32,6 @@ class HomeCallRoleTest {
         val devicePolicy = shadowOf(context.getSystemService(DevicePolicyManager::class.java))
         devicePolicy.setActiveAdmin(admin)
         assertThat(devicePolicy.setDeviceOwner(admin)).isTrue()
-        LightSetup.saveProfile(context, "child")
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val roles = context.getSystemService(RoleManager::class.java)
         val screening = Hardening.ROLE_CALL_SCREENING

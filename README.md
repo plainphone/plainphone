@@ -56,9 +56,8 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
-even offline. When the phone reconnects, it updates the dashboard and makes Plainphone available
-for uninstallation. Undo notices are sent only to current household members. Device Owner setup
-also waits for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
+even offline. The phone can report Undo for up to 48 hours after pairing. Undo notices are sent
+only to current household members. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 
@@ -158,6 +157,11 @@ The script reads the signing certificate checksum from the APK (or takes `--chec
 - `--server-url https://your.server` points the phone at a self-hosted server (default `https://app.plainphone.org`). Once paired, the server registers the phone's own DNS ClientID and the phone switches to it by itself, so `--dns-host` can stay at the default.
 - `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
+
+In strong mode the dashboard QR code confirms the profile and account. Plainphone applies
+policies during Android provisioning, pairs automatically, and shows the masked account and
+household when the connection is ready. Use the maintenance PIN or dashboard release if the
+account is wrong.
 
 A phone configured with the script can show a pairing code, which the parent claims in the dashboard and the phone confirms after showing the account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 

@@ -40,7 +40,7 @@ interface SyncApi {
      * release (409). Other answers and network errors throw.
      */
     fun ackReleased(token: String): Boolean
-    fun reportSetupUndo(token: String): Unit = throw IOException("setup undo reporting unavailable")
+    fun reportSetupUndo(token: String): Boolean = throw IOException("setup undo reporting unavailable")
     /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
@@ -65,7 +65,11 @@ sealed interface PairPoll {
 }
 
 sealed interface EnrollResult {
-    data class Paired(val phoneId: String, val deviceToken: String) : EnrollResult
+    data class Paired(
+        val phoneId: String,
+        val deviceToken: String,
+        val account: PlainphoneApi.PollAccount? = null,
+    ) : EnrollResult
     /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
     data object Rejected : EnrollResult
 }
@@ -324,16 +328,27 @@ class PlainphoneApi private constructor(
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
 
-    override fun reportSetupUndo(token: String) {
+    override fun reportSetupUndo(token: String): Boolean {
         val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
-        if (r.status != 204 && r.status != 401) throw HttpError(r.status, r.body)
+        return when (r.status) {
+            204, 401 -> true
+            409 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
     }
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
-            200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
+            200 -> JSONObject(r.body).let { info ->
+                val account = info.optJSONObject("account")?.let {
+                    val email = it.optString("maskedEmail")
+                    val household = if (it.isNull("householdName")) null else it.optString("householdName")
+                    email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
+                }
+                EnrollResult.Paired(info.getString("phoneId"), info.getString("deviceToken"), account)
+            }
             400, 404, 410 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }

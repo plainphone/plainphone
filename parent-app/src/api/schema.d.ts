@@ -94,8 +94,9 @@ export interface paths {
         /**
          * Pair with a dashboard setup token (phone)
          * @description A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
-         *     setup link carries a one-time enrollment token. After confirming the account, the phone sends it here and gets
-         *     its device token, with no code to type. The token is bound to the phone entry the parent made,
+         *     setup link carries a one-time enrollment token. Strong mode redeems it automatically and
+         *     shows the connected account for information. Light mode redeems it after account confirmation.
+         *     The phone gets its device token with no code to type. The token is bound to the phone entry the parent made,
          *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
          *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
          *     working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
@@ -257,7 +258,9 @@ export interface paths {
         put?: never;
         /**
          * Report local undo of light-mode setup (phone)
-         * @description The phone decides the window and switches off locally. It retries this report until the phone is removed (204 or 401).
+         * @description The phone decides its local undo window and switches off locally. The server accepts
+         *     this report only for light mode within 48 hours of pairing. On 409, the phone uses
+         *     the ordinary release acknowledgement path and stays switched off.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -2584,6 +2587,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId?: string;
                         deviceToken?: string;
+                        /** @description Masked token issuer for a new strong-mode enrollment, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };

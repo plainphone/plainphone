@@ -13,7 +13,6 @@ import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
-import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.settings.AndroidSettingsControls
 import org.plainphone.app.settings.PrefsPresetStore
@@ -75,7 +74,6 @@ object Lock {
         onInstallsAllowed: () -> Unit = {},
     ) = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
-        check(!StrongSetup.needsConfirmation(context)) { "Phone setup is pending" }
         val sync = SyncStore(context)
         check(!sync.released && !sync.releaseAsked) { "Phone release is active" }
         val result = if (catalogChanged) {
@@ -90,7 +88,6 @@ object Lock {
 
     fun <T> createUpdateSession(context: Context, create: () -> T): T = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
-        check(!StrongSetup.needsConfirmation(context)) { "Phone setup is pending" }
         // Android checks DISALLOW_INSTALL_APPS when creating the session. Keep the
         // restriction in place while writing, committing and waiting for its result.
         InstallLease.android(context).hold(InstallLease.SELF_UPDATE, 10_000L, create)
@@ -152,9 +149,6 @@ object Lock {
         if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
         // A release that has not finished yet: do not lock again in between, the next sync retries it.
         if (sync.releaseAsked || sync.setupUndoPending) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
-        if (StrongSetup.needsConfirmation(context)) {
-            return listOf(StepResult("setup", false, "confirm protection on the phone"))
-        }
         val config = effectiveConfig(context)
         if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
             return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
@@ -184,7 +178,7 @@ object Lock {
      */
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
-        if (isInMaintenanceWindow(context) || StrongSetup.needsConfirmation(context)) return null
+        if (isInMaintenanceWindow(context)) return null
         SyncStore(context).let { if (it.released || it.releaseAsked || it.setupUndoPending) return null }
         recoverInstall(context, reason)
         val p = prefs(context)

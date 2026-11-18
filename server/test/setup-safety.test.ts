@@ -8,10 +8,10 @@ import { Client, signIn, useHarness } from "./harness.js";
 describe("onboarding safety", () => {
   const h = useHarness();
 
-  async function start(account?: Client, mode: "light" | "strong" = "light") {
+  async function start(account?: Client, mode: "light" | "strong" = "light", profile = "self") {
     const parent = account ?? await signIn(h, "claimer@example.org");
     const device = new Client(h);
-    const result = await device.post("/api/device/pairings", { mode, profile: "self", confirmOnPhone: true });
+    const result = await device.post("/api/device/pairings", { mode, profile, confirmOnPhone: true });
     expect(result.status).toBe(201);
     const { code, pairingId, pollSecret } = result.json;
     const path = `/api/device/pairings/${pairingId}`;
@@ -20,7 +20,7 @@ describe("onboarding safety", () => {
       parent, device, code,
       poll: () => device.get(path, headers),
       decide: (action: string) => device.call("POST", path, { action }, headers),
-      claim: (profile = "self") => parent.post("/api/phones/claim", { code, profile, name: "My phone" }),
+      claim: (chosenProfile = profile) => parent.post("/api/phones/claim", { code, profile: chosenProfile, name: "My phone" }),
     };
   }
 
@@ -49,7 +49,8 @@ describe("onboarding safety", () => {
     const { parent, device, decide, claim } = await start();
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
-    h.clock.advance(3 * 24 * 60 * 60_000);
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    h.clock.advance(48 * 60 * 60_000);
     const before = h.mail.outbox.length;
     const path = "/api/device/undo-setup";
     const reports = await Promise.all([device.post(path), device.post(path)]);
@@ -63,10 +64,27 @@ describe("onboarding safety", () => {
     expect(notices[0]?.text).toContain("Set-up was undone on the phone");
   });
 
+  it("rejects setup undo after 48 hours and still allows dashboard release", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    h.clock.advance(48 * 60 * 60_000 + 1);
+    const phone = `/api/phones/${claimed.json.id}`;
+
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect((await parent.get(phone)).status).toBe(200);
+    expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+    expect((await device.post("/api/device/released")).status).toBe(409);
+    expect((await parent.post(`${phone}/release`)).status).toBe(200);
+    expect((await device.post("/api/device/released")).status).toBe(204);
+  });
+
   it("recovers an unsent notice after the phone deletion is committed", async () => {
     const { parent, device, decide, claim } = await start();
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     expect((await parent.post("/api/notifications/subscriptions", {
       platform: "web", endpoint: "https://fcm.googleapis.com/test", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
     })).status).toBe(201);
@@ -103,6 +121,7 @@ describe("onboarding safety", () => {
 
     expect((await claim()).status).toBe(201);
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     const memberId = (await member.get("/api/me")).json.user.id;
     expect((await parent.call("DELETE", `/api/households/${household.id}/members/${memberId}`)).status).toBe(204);
@@ -118,6 +137,7 @@ describe("onboarding safety", () => {
     const before = h.mail.outbox.length;
     expect((await claim()).status).toBe(201);
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     const [notice] = await h.ctx.db.select().from(setupUndoNotices);
     await h.ctx.db.insert(setupUndoNotices).values(Array.from({ length: 10 }, () => ({ ...notice!, id: undefined })));
@@ -132,6 +152,7 @@ describe("onboarding safety", () => {
     const { device, decide, claim } = await start();
     expect((await claim()).status).toBe(201);
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
 
     const before = h.mail.outbox.length;
@@ -157,6 +178,7 @@ describe("onboarding safety", () => {
     const { device, decide, claim } = await start();
     expect((await claim()).status).toBe(201);
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     const [notice] = await h.ctx.db.select().from(setupUndoNotices);
     await h.ctx.db.insert(setupUndoNotices).values({ ...notice!, id: undefined });
@@ -205,6 +227,7 @@ describe("onboarding safety", () => {
     const { parent, device, decide, claim } = await start(undefined, "strong");
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
     const before = h.mail.outbox.length;
     expect((await device.post("/api/device/undo-setup")).status).toBe(409);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);

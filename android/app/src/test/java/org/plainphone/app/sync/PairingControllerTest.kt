@@ -71,11 +71,13 @@ class PairingControllerTest {
     @Test
     fun `the setup QR code's token pairs the phone without a code, once`() {
         store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
-        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        val account = PlainphoneApi.PollAccount("p***@example.org", "Household")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr", account)
         assertThat(controller.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.deviceToken()).isEqualTo("pp_d_from_qr")
         assertThat(store.phoneId).isEqualTo("phone-9")
+        assertThat(store.enrollmentAccount()).isEqualTo(account)
         assertThat(store.everPaired).isTrue()
         assertThat(store.enrollToken()).isNull()
         assertThat(api.enrollCalls.single().first).isEqualTo("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")

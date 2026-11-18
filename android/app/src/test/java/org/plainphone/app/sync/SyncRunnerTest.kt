@@ -626,9 +626,10 @@ class SyncRunnerTest {
         store.markReleased()
         var attempts = 0
         val reporting = object : SyncApi by api {
-            override fun reportSetupUndo(token: String) {
+            override fun reportSetupUndo(token: String): Boolean {
                 assertThat(token).isEqualTo("pp_d_token")
                 if (++attempts <= 4) throw IOException("offline")
+                return true
             }
         }
         repeat(4) {
@@ -642,6 +643,23 @@ class SyncRunnerTest {
         assertThat(attempts).isEqualTo(5)
         assertThat(device.releases).isEqualTo(0)
         assertThat(api.tokensUsed).isEmpty()
+    }
+
+    @Test
+    fun `expired setup undo falls back to release acknowledgement and stays released`() {
+        pair()
+        assertThat(store.markSetupUndoPending(checkNotNull(store.phoneId))).isTrue()
+        store.markReleased()
+        api.ackResult = false
+        val reporting = object : SyncApi by api {
+            override fun reportSetupUndo(token: String): Boolean = false
+        }
+
+        assertThat(SyncRunner(store, reporting, device).run("expired undo")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(api.acks).containsExactly("pp_d_token")
+        assertThat(store.released).isTrue()
+        assertThat(store.setupUndoPending).isFalse()
+        assertThat(device.applies).isEmpty()
     }
 
     @Test

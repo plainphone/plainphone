@@ -7,9 +7,10 @@
 
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull, lt, ne } from "drizzle-orm";
-import { enrollments, phones } from "../db/schema.js";
+import { enrollments, households, phones, users } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
+import { pairingAccount } from "./pairing-account.js";
 
 export const ENROLLMENT_HOURS = 24;
 /** A phone whose answer got lost may ask again with the same token and install id this long. */
@@ -47,7 +48,7 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
 }
 
 export type EnrollResult =
-  | { status: 200; phoneId: string; deviceToken: string }
+  | { status: 200; phoneId: string; deviceToken: string; account: ReturnType<typeof pairingAccount> }
   | { status: 404 | 410; error: string };
 
 /**
@@ -69,6 +70,17 @@ export async function redeemEnrollment(
     const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
     if (!phone) return { status: 404, error: "unknown setup code" };
 
+    const paired = async () => {
+      const [user] = phone.mode === "strong" && e.createdBy
+        ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, e.createdBy))
+        : [];
+      const [household] = user
+        ? await tx.select({ name: households.name }).from(households).where(eq(households.id, phone.householdId))
+        : [];
+      const account = pairingAccount(e.createdBy, user, household?.name ?? null);
+      return { status: 200 as const, phoneId: phone.id, deviceToken, account };
+    };
+
     if (e.usedAt) {
       const retry =
         e.installIdHash !== null &&
@@ -76,7 +88,7 @@ export async function redeemEnrollment(
         now.getTime() - e.usedAt.getTime() <= ENROLLMENT_RETRY_MINUTES * 60_000;
       if (!retry) return { status: 410, error: "this setup code was already used" };
       await tx.update(phones).set({ deviceTokenHash: sha256(deviceToken) }).where(eq(phones.id, phone.id));
-      return { status: 200, phoneId: phone.id, deviceToken };
+      return paired();
     }
     if (e.expiresAt <= now) return { status: 410, error: "this setup code has expired; make a new one in the dashboard" };
     // Paired some other way meanwhile (a pairing code): the entry is taken.
@@ -88,6 +100,6 @@ export async function redeemEnrollment(
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
     await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phone.id), ne(enrollments.id, e.id)));
-    return { status: 200, phoneId: phone.id, deviceToken };
+    return paired();
   });
 }

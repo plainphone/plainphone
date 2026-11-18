@@ -19,7 +19,6 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import org.plainphone.app.light.LightSetup
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Before
@@ -83,7 +82,6 @@ class UpdateAlarmTest {
         val admin = PlainphoneAdminReceiver.component(context)
         dpm.setActiveAdmin(admin)
         assertTrue(dpm.setDeviceOwner(admin))
-        LightSetup.saveProfile(context, "child")
         shadowOf(context.getSystemService(PowerManager::class.java))
             .setIgnoringBatteryOptimizations(context.packageName, true)
         WorkManagerTestInitHelper.initializeTestWorkManager(context)

@@ -116,8 +116,8 @@ acknowledges it, Plainphone removes its device administrator so Android allows n
 uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
 If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
 
-The server removes the phone from the dashboard and queues the standard protection-removed
-notice in the same database transaction. Delivery runs in the background and is retried if a
+For reports received within 48 hours of pairing, the server removes the phone from the
+dashboard and queues the protection-removed notice in the same database transaction. Delivery runs in the background and is retried if a
 configured mail or push provider is unavailable. Before sending, the server checks that the
 recipient still belongs to the household. Android keeps its default Phone and SMS apps
 selected until you change them in Settings or uninstall Plainphone.
@@ -126,13 +126,13 @@ In light mode, the phone already enforces protection locally. A time-boxed windo
 the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the
 report to remove the phone and tell the parent.
 
-Device Owner mode starts through the Android welcome screen on a new or reset phone. Android
-grants Device Owner during provisioning. Plainphone waits for the Child or Myself confirmation
-and, for dashboard provisioning, confirmation of the masked account before applying its
-policies or asking for call roles. If you cancel, Plainphone removes the pending dashboard
-phone and stays unlocked. Device Owner remains installed. Use the existing maintenance PIN
-or dashboard release on a protected phone. A PIN-free undo would permit removing Device
-Owner and its reset protection, which cannot be reinstated by the app.
+If an offline report arrives more than 48 hours after pairing, the phone stays released and
+can acknowledge a dashboard release. If the entry remains in the dashboard, remove it there.
+
+Device Owner mode starts through the Android welcome screen on a new or reset phone.
+The dashboard QR scan confirms the chosen profile and account, and Plainphone applies policies
+during provisioning. It pairs automatically and shows the masked account and household when
+connected. Use the maintenance PIN or dashboard release if the account is wrong.
 
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 

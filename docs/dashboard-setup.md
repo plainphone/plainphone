@@ -64,8 +64,10 @@ physical-device testing.
 
 Strong mode starts inside Android's provisioning screens. Plainphone cannot report download or
 installation progress before it runs. The dashboard waits for an actual enrollment and then shows
-the connection. Confirm the phone and masked dashboard account on Android before Plainphone
-applies policies. On Android 10–13, also confirm the default phone-app dialog and check the phone's
+the connection. The QR scan confirms the dashboard profile and account. Plainphone applies
+policies during provisioning and pairs automatically. Check the informational account screen
+when the connection is ready. If the account is wrong, use the maintenance PIN or dashboard
+release. On Android 10–13, also confirm the default phone-app dialog and check the phone's
 reported lock status. Both parent apps show the app installation warning even when the lock is
 intact. Open **Show technical details** to see how long the installation window overran.
 On the web filter screen, **What the filter can and can’t do** explains false positives and
