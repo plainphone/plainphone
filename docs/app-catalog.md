@@ -5,7 +5,9 @@ the bank, the travel planner, the school app, a music app. In the parent app a p
 one with one tap. The phone then treats it as allowed and offers to install it. In strong mode,
 if Play needs an account, the parent can choose “Install and add a Play account” and enter their
 maintenance PIN. Plainphone requests Google sign-in directly while Android continues to block
-user account changes. Play opens after sign-in if the approved install window is still active.
+user account changes. If sign-in fails, **Allow accounts briefly** retries within the same
+window and restores the restriction when Android reports an account, sign-in ends, or the
+window closes. Play opens after sign-in if the approved install window is still active.
 
 Apps marked `"starter": true` form the starter pack: they are allowed from the start when a
 phone reports them.

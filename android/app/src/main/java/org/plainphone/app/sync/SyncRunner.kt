@@ -73,7 +73,6 @@ data class LockState(
     /** Account types on the phone ("com.google"), no names. */
     val accountTypes: List<String>? = null,
     val callRoleActionNeeded: Boolean = false,
-    val parallelAppsRemoved: Boolean = false,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -396,6 +395,9 @@ class SyncRunner(
         val lock = device.lockState()
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
+        val notices = store.statusNotices
+        val parallelAppsRemoved = notices.pending(StatusNotices.PARALLEL_APPS_REMOVED)
+        val lateGoogleAccount = notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
@@ -412,7 +414,8 @@ class SyncRunner(
             resetProtection = lock.resetProtection,
             accountTypes = lock.accountTypes,
             callRoleActionNeeded = lock.callRoleActionNeeded,
-            parallelAppsRemoved = lock.parallelAppsRemoved,
+            parallelAppsRemovedId = parallelAppsRemoved,
+            lateGoogleAccountId = lateGoogleAccount,
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             mode = lock.mode,
@@ -427,6 +430,8 @@ class SyncRunner(
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
+        parallelAppsRemoved?.let { notices.acknowledge(StatusNotices.PARALLEL_APPS_REMOVED, it) }
+        lateGoogleAccount?.let { notices.acknowledge(StatusNotices.LATE_GOOGLE_ACCOUNT, it) }
         store.statusHash = hash
         store.statusAtMs = now
     }

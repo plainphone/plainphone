@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item type="id" name="maintenance_allow_accounts" />
     <string name="app_name" translatable="false">Plainphone</string>
     <string name="admin_description">Applies phone rules for app installs, factory reset, safe mode and DNS settings.</string>
     <string name="phase_notice">Phase 4: rules from the parent\'s dashboard. Not for real use yet.</string>
@@ -18,7 +19,8 @@
     <string name="maintenance_install_limit">All installation windows for today have been used. Try again tomorrow.</string>
     <string name="maintenance_install_unavailable">This app is no longer waiting to be installed.</string>
     <string name="maintenance_install_battery">Allow Plainphone to run without battery restrictions, then try again.</string>
-    <string name="maintenance_install_account_failed">Could not open access to add a Google account. Try again.</string>
+    <string name="maintenance_install_account_failed">Could not add a Google account. Try “Allow accounts briefly”, or use maintenance unlock.</string>
+    <string name="maintenance_allow_accounts">Allow accounts briefly</string>
     <string name="maintenance_install_open_failed">Could not open the install window. Try again.</string>
     <plurals name="maintenance_wait">
         <item quantity="one">Too many attempts. Try again in %1$d second.</item>

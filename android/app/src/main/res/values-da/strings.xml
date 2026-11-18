@@ -17,7 +17,8 @@
     <string name="maintenance_install_limit">Dagens installationsvinduer er brugt. Prøv igen i morgen.</string>
     <string name="maintenance_install_unavailable">Denne app venter ikke længere på at blive installeret.</string>
     <string name="maintenance_install_battery">Tillad, at Plainphone kører uden batteribegrænsninger, og prøv igen.</string>
-    <string name="maintenance_install_account_failed">Kunne ikke åbne for tilføjelse af en Google-konto. Prøv igen.</string>
+    <string name="maintenance_install_account_failed">Kunne ikke tilføje en Google-konto. Prøv »Åbn kortvarigt for konti«, eller brug vedligeholdsoplåsning.</string>
+    <string name="maintenance_allow_accounts">Åbn kortvarigt for konti</string>
     <string name="maintenance_install_open_failed">Kunne ikke åbne for installation. Prøv igen.</string>
     <plurals name="maintenance_wait">
         <item quantity="one">For mange forsøg. Prøv igen om %1$d sekund.</item>

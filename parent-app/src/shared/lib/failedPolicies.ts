@@ -43,7 +43,6 @@ add("light mode switched off with the PIN", "turn light mode back on", "slå let
 add("device admin (uninstall needs it switched off first)", "protect Plainphone from removal", "beskyt Plainphone mod at blive fjernet");
 add("accessibility service (closes blocked apps)", "allow Plainphone to close blocked apps", "giv Plainphone lov til at lukke blokerede apps");
 add("install window: clear no_install_apps", "allow the approved app to be installed", "tillad installation af den godkendte app");
-add("install window: clear no_modify_accounts", "allow the parent to add a Google account", "giv forælderen lov til at tilføje en Google-konto");
 
 add("hardware attestation: unlocked", "check the phone’s startup lock", "tjek låsen, der beskytter telefonens system");
 add("hardware attestation: custom-os", "restore the manufacturer’s system", "gendan producentens system");

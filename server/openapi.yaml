@@ -759,6 +759,16 @@ components:
         parallelAppsRemoved:
           type: boolean
           description: The phone removed extra Android users or profiles during hardening.
+        parallelAppsRemovedId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for retrying the removal notice.
+        lateGoogleAccountId:
+          type: string
+          format: uuid
+          writeOnly: true
+          description: Stable identifier for an account added after the catalog window closed. Account identities are never sent.
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
@@ -773,6 +783,9 @@ components:
           required: [reportedAt]
           properties:
             reportedAt: { type: string, format: date-time }
+            lateGoogleAccount:
+              type: boolean
+              description: A Google account was added after the catalog install window closed.
 
     ScheduleInput:
       type: object

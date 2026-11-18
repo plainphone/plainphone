@@ -341,7 +341,8 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         </div>
       )}
       {s?.callRoleActionNeeded && <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>}
-      {s?.parallelAppsRemoved && <p className="notice notice-warn" role="status">{t("phone.parallelAppsRemoved")}</p>}
+      {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
+      {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
       {s?.maintenance && (
         <p className="notice notice-warn" role="status">
           {t("phone.maintenance")}

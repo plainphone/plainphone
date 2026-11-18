@@ -2165,6 +2165,16 @@ export interface components {
             /** @description The phone removed extra Android users or profiles during hardening. */
             parallelAppsRemoved?: boolean;
             /**
+             * Format: uuid
+             * @description Stable identifier for retrying the removal notice.
+             */
+            parallelAppsRemovedId?: string;
+            /**
+             * Format: uuid
+             * @description Stable identifier for an account added after the catalog window closed. Account identities are never sent.
+             */
+            lateGoogleAccountId?: string;
+            /**
              * @description Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
              * @enum {unknown}
              */
@@ -2176,6 +2186,8 @@ export interface components {
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
             /** Format: date-time */
             reportedAt: string;
+            /** @description A Google account was added after the catalog install window closed. */
+            lateGoogleAccount?: boolean;
         };
         ScheduleInput: {
             /** @enum {unknown} */

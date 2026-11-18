@@ -46,6 +46,7 @@ export interface PhoneStatus {
   accountTypes?: string[] | null;
   callRoleActionNeeded?: boolean;
   parallelAppsRemoved?: boolean;
+  lateGoogleAccount?: boolean;
   /** Missing on older phones, which are strong mode. */
   mode?: "strong" | "light";
   /** What is active on the phone right now. */

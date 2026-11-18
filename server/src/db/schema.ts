@@ -100,6 +100,8 @@ export const UPDATE_ERROR_CODES = [
   "unknown",
 ] as const;
 
+export type StatusNotice = { id?: string; receivedAt: string };
+
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
   appVersion: string;
@@ -220,6 +222,8 @@ export const phones = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
+      parallelAppsRemovedNotice?: StatusNotice;
+      lateGoogleAccountNotice?: StatusNotice;
       installOverrun?: { policy: string; sequence?: number; receivedAt: string };
     }>(),
     /** Server time of that report. */

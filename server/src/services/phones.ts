@@ -5,6 +5,7 @@ import {
   contacts,
   type DeviceStatus,
   type PhoneAttestation,
+  type StatusNotice,
   DNS_CATEGORIES,
   dnsSettings,
   locations,
@@ -286,7 +287,7 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
   return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0);
 }
 
-const INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000;
+const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
 
 export function isInstallOverrun(policy: string): boolean {
   return /^install window overran: \d+s$/.test(policy);
@@ -302,16 +303,35 @@ export function installOverrunFromStatus(
   return policy && reportedAt ? { policy, receivedAt: reportedAt.toISOString() } : undefined;
 }
 
+export function parallelAppsRemovalFromStatus(
+  status: Phone["deviceStatus"],
+  reportedAt: Date | null,
+): StatusNotice | undefined {
+  return status?.parallelAppsRemovedNotice ??
+    (status?.parallelAppsRemoved && reportedAt ? { receivedAt: reportedAt.toISOString() } : undefined);
+}
+
+function visibleNotice(notice: StatusNotice | undefined, now: Date): true | undefined {
+  return notice && now.getTime() - Date.parse(notice.receivedAt) < STATUS_NOTICE_TTL_MS ? true : undefined;
+}
+
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
-  const { installOverrun: _storedOverrun, ...status } = phone.deviceStatus;
+  const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
+    lateGoogleAccountNotice, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
-  const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < INSTALL_OVERRUN_TTL_MS;
+  const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
   const assessed = withAttestation(status, phone.attestation);
   const failedPolicies = assessed.failedPolicies.filter((policy) => !isInstallOverrun(policy));
   // Reserve the last slot for the notice only when the current report leaves room.
   if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
-  return { ...assessed, failedPolicies, reportedAt: phone.statusReportedAt.toISOString() };
+  return {
+    ...assessed,
+    failedPolicies,
+    parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
+    lateGoogleAccount: visibleNotice(lateGoogleAccountNotice, now),
+    reportedAt: phone.statusReportedAt.toISOString(),
+  };
 }
 
 function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {

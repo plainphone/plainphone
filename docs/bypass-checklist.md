@@ -28,11 +28,17 @@ Record each result in the table at the bottom of a copy of this file, with the p
 | R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
 | R4 | Remove Plainphone as device admin | Not offered | Settings → Security → Device admin apps |
 | R5 | Reset from recovery with a parent's FRP account set | **Destructive.** Does setup accept the child's previous screen-lock PIN? Record whether the PIN alone completes setup. Then check that the parent's linked Google account can complete setup | Last, on the test phone only. Use an established Google account, OEM unlocking off, and wait until the phone reports reset protection set |
-| R6 | Add or remove an account in strong mode | Settings blocks account changes. Add the parent's account during a maintenance unlock. Confirm ordinary Install keeps account changes blocked. For an approved app, choose “Install and add a Play account”, check that a wrong PIN leaves accounts blocked, then confirm Play sign-in with the correct parent PIN. Account changes are blocked again as soon as the Google account is added, while the approved app remains installable until install or expiry. The dashboard lists account types only | Settings → Accounts |
+| R6 | Add or remove an account in strong mode | Settings, Play, Chrome and YouTube block adding an account. Verify the parent-PIN catalog flow and its fallback on a physical phone (recipe below) | Settings → Accounts |
 | R7 | Clear Plainphone's data | Not offered for a Device Owner | Settings → Apps → Plainphone → Storage |
 | R8 | Reset app preferences / reset network settings | App preferences can be reset but do not show hidden apps. Network reset is blocked | Settings → System → Reset options |
 | R9 | Remote erase with a signed-in test account | **Destructive.** Record what setup asks for after the erase. Keep separate from R5 since the reset path differs | Optional, on the test phone only |
 | R10 | Force stop and maintenance expiry | On Android 11+, Force stop and Clear data should be unavailable. On OnePlus Android 10, check the existing behavior and let a 30-minute maintenance unlock expire with the screen off | Settings → Apps → Plainphone |
+
+### R6 on a physical phone
+
+1. Run `adb shell dumpsys user | grep no_modify_accounts` and watch `adb logcat -s AccountManagerService Plainphone`. Try the catalog sign-in with a wrong PIN and verify that accounts stay blocked.
+2. Use the correct PIN and complete Google sign-in. If Play services rejects sign-in while restricted, choose **Allow accounts briefly** and complete it in the same window. Run the restriction check again and confirm that `no_modify_accounts` is set afterward. Repeat with cancellation and expiry. If an in-flight sign-in completes after expiry, check that the dashboard warns and that the account is still present.
+3. Confirm that **Settings → Accounts → Add**, Play's **Add account**, and Chrome and YouTube sign-in all block adding a new account once the restriction is back.
 
 ## Safe mode, users and profiles
 

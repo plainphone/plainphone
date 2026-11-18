@@ -11,6 +11,7 @@ import android.content.Intent
 import android.os.PowerManager
 import android.os.Looper
 import android.os.UserManager
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -27,6 +28,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
 import org.plainphone.app.update.InstallLease
@@ -82,6 +84,7 @@ class MaintenanceInstallTest {
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
         assertThat(accountsBlocked()).isTrue()
         assertThat(shadowOf(activity).nextStartedActivity).isNull()
+        assertThat(fallback(activity).visibility).isEqualTo(View.GONE)
 
         val accounts = shadowOf(AccountManager.get(context))
         accounts.addAccount(Account("test", "com.google"))
@@ -105,7 +108,92 @@ class MaintenanceInstallTest {
         assertThat(activity.isFinishing).isTrue()
         assertThat(accountsBlocked()).isTrue()
         assertThat(shadowOf(activity).nextStartedActivity).isNull()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+        assertThat(AccountManager.get(context).getAccountsByType("com.google")).hasLength(1)
     }
+
+    @Test
+    fun `only failed sign-in offers fallback and a failed retry relocks without charging quota`() {
+        val accounts = shadowOf(AccountManager.get(context))
+        val activity = installPrompt()
+        assertThat(fallback(activity).visibility).isEqualTo(View.GONE)
+
+        submit(activity, pin, expectAccountRequest = true)
+        assertThat(fallback(activity).visibility).isEqualTo(View.GONE)
+        completeWithoutGoogleAccount()
+        pumpUntil { fallback(activity).visibility == View.VISIBLE }
+        assertThat(fallback(activity).visibility).isEqualTo(View.VISIBLE)
+        assertThat(accountsBlocked()).isTrue()
+
+        fallback(activity).performClick()
+        assertThat(accountsBlocked()).isFalse()
+        accounts.setAuthenticationErrorOnNextResponse(true)
+        completeWithoutGoogleAccount()
+        pumpUntil { accountsBlocked() }
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isEqualTo(pkg)
+        assertThat(context.getSharedPreferences("plainphone_install", Context.MODE_PRIVATE)
+            .getInt("windows", 0)).isEqualTo(1)
+    }
+
+    @Test
+    fun `account updates relock before the authenticator returns a result`() {
+        startFallback()
+        val accountManager = AccountManager.get(context)
+        assertThat(accountManager.addAccountExplicitly(Account("test", "com.google"), null, null)).isTrue()
+        pumpUntil { accountsBlocked() }
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isEqualTo(pkg)
+    }
+
+    @Test
+    fun `closing the install window relocks accounts`() {
+        startFallback()
+        InstallWindow.close(context, "test explicit close", pkg)
+        pumpUntil { accountsBlocked() }
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isNull()
+    }
+
+    @Test
+    fun `deadline recovery relocks accounts`() {
+        startFallback()
+        ShadowSystemClock.advanceBy(Duration.ofMillis(InstallWindow.WINDOW_MS))
+        InstallLease.android(context).recover()
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isNull()
+    }
+
+    @Test
+    fun `startup recovery relocks accounts from a previous process before the deadline`() {
+        startFallback()
+        val prefs = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
+        val marker = checkNotNull(prefs.getString(InstallLease.CATALOG, null)).split(',').toMutableList()
+        marker[3] = "previous-process"
+        prefs.edit().putString(InstallLease.CATALOG, marker.joinToString(",")).apply()
+        Lock.recoverInstallAsync(context)
+        pumpUntil { accountsBlocked() }
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isNull()
+    }
+
+    private fun startFallback() {
+        val activity = installPrompt()
+        submit(activity, pin, expectAccountRequest = true)
+        completeWithoutGoogleAccount()
+        pumpUntil { fallback(activity).visibility == View.VISIBLE }
+        assertThat(fallback(activity).visibility).isEqualTo(View.VISIBLE)
+        fallback(activity).performClick()
+        assertThat(accountsBlocked()).isFalse()
+    }
+
+    private fun completeWithoutGoogleAccount() {
+        // Robolectric completes the pending authenticator callback on addAccount.
+        shadowOf(AccountManager.get(context)).addAccount(Account("test", "org.example"))
+    }
+
+    private fun fallback(activity: MaintenanceActivity) =
+        activity.findViewById<Button>(R.id.maintenance_allow_accounts)
 
     @Test
     fun `missing battery exemption has its own install error`() {

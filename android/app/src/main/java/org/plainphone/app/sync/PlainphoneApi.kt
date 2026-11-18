@@ -80,7 +80,8 @@ data class DeviceStatus(
     val timeUsed: Map<String, Int>? = null,
     val installOverrunSequence: Long? = null,
     val callRoleActionNeeded: Boolean = false,
-    val parallelAppsRemoved: Boolean = false,
+    val parallelAppsRemovedId: String? = null,
+    val lateGoogleAccountId: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -101,7 +102,11 @@ data class DeviceStatus(
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
             if (callRoleActionNeeded) put("callRoleActionNeeded", true)
-            if (parallelAppsRemoved) put("parallelAppsRemoved", true)
+            parallelAppsRemovedId?.let {
+                put("parallelAppsRemoved", true)
+                put("parallelAppsRemovedId", it)
+            }
+            lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             appVersionCode?.let { put("appVersionCode", it) }
             update?.let { put("update", it.toJson()) }

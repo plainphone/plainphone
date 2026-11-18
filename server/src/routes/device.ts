@@ -17,7 +17,7 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { installOverrunFromStatus, isInstallOverrun, respondWithRules, withAttestation } from "../services/phones.js";
+import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
@@ -398,6 +398,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         accountTypes: z.array(z.string().min(1).max(100)).max(20).nullable().optional(),
         callRoleActionNeeded: z.boolean().optional(),
         parallelAppsRemoved: z.boolean().optional(),
+        parallelAppsRemovedId: z.uuid().optional(),
+        lateGoogleAccountId: z.uuid().optional(),
         mode: z.enum(["strong", "light"]).optional(),
         protections: protections.optional(),
         timeUsed: z
@@ -422,7 +424,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           LIGHT_LOCK.every((k) => p[k] === true) &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
-    const { installOverrunSequence: sequence, ...reportedStatus } = input;
+    const { installOverrunSequence: sequence, parallelAppsRemoved, parallelAppsRemovedId,
+      lateGoogleAccountId, ...reportedStatus } = input;
     const status = { ...reportedStatus, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
     const policy = input.failedPolicies.find(isInstallOverrun);
     const lost = await ctx.db.transaction(async (tx) => {
@@ -441,8 +444,19 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const installOverrun = policy && !repeatedOverrun
         ? { policy, sequence, receivedAt: now.toISOString() }
         : previousOverrun;
+      const previousRemoval = parallelAppsRemovalFromStatus(prev.status, prev.reportedAt);
+      const removalIsNew = parallelAppsRemovedId
+        ? parallelAppsRemovedId !== previousRemoval?.id
+        : parallelAppsRemoved && !previousRemoval;
+      const parallelAppsRemovedNotice = removalIsNew
+        ? { id: parallelAppsRemovedId, receivedAt: now.toISOString() }
+        : previousRemoval;
+      const previousLateAccount = prev.status?.lateGoogleAccountNotice;
+      const lateGoogleAccountNotice = lateGoogleAccountId && lateGoogleAccountId !== previousLateAccount?.id
+        ? { id: lateGoogleAccountId, receivedAt: now.toISOString() }
+        : previousLateAccount;
       await tx.update(phones).set({
-        deviceStatus: { ...status, installOverrun },
+        deviceStatus: { ...status, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice },
         statusReportedAt: now,
       }).where(eq(phones.id, phone.id));
       return protectionLost(

@@ -296,3 +296,25 @@ describe("PUT /device/status", () => {
     expect((await parent.get(`/api/phones/${other.phoneId}`)).json.status).toBeNull();
   });
 });
+
+it("keeps acknowledged notices for seven days without extending expiry on retry", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const path = `/api/phones/${phoneId}`;
+  const firstReport = h.clock.now.getTime();
+  const notices = {
+    parallelAppsRemoved: true,
+    parallelAppsRemovedId: "4e2dfc0a-44b6-43f4-a9b2-20e2372840ae",
+    lateGoogleAccountId: "133d1c12-3432-47ed-9ebb-967029aae50f",
+  };
+  expect((await device.put("/api/device/status", report(notices))).status).toBe(204);
+  h.clock.now = new Date(firstReport + 6 * 24 * 60 * 60_000);
+  expect((await device.put("/api/device/status", report(notices))).status).toBe(204);
+  expect((await device.put("/api/device/status", report())).status).toBe(204);
+  const { status } = (await parent.get(path)).json;
+  expect(status).toMatchObject({ parallelAppsRemoved: true, lateGoogleAccount: true, lockIntact: true });
+  expect(status).not.toHaveProperty("lateGoogleAccountId");
+  h.clock.now = new Date(firstReport + 7 * 24 * 60 * 60_000);
+  expect((await parent.get(path)).json.status).not.toHaveProperty("parallelAppsRemoved");
+  expect((await parent.get(path)).json.status).not.toHaveProperty("lateGoogleAccount");
+});

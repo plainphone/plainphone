@@ -30,7 +30,7 @@ The lock is applied:
 | `DISALLOW_CONFIG_CREDENTIALS` | Installing user CA certificates (a proxy could otherwise get around filtering) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_CREDENTIALS) |
 | `DISALLOW_USB_FILE_TRANSFER`, `DISALLOW_MOUNT_PHYSICAL_MEDIA` | Copying files in over USB or from an SD card | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_USB_FILE_TRANSFER) |
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
-| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. The maintenance unlock lifts the restriction. For Play sign-in authorized by the parent PIN, Plainphone requests a Google account directly as Device Owner while Android keeps user account changes blocked | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
+| `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. The maintenance unlock lifts the restriction. For Play sign-in authorized by the parent PIN, Plainphone first requests a Google account as Device Owner with the restriction still set. If that fails, the parent can briefly lift it within the same installation window | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
 | `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
@@ -48,6 +48,14 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 `DISALLOW_UNINSTALL_APPS` is **not** set. Uninstalling an allowed app does not loosen the lock, and Plainphone itself is protected with `setUninstallBlocked` (a Device Owner cannot be uninstalled anyway).
 
 `DISALLOW_MODIFY_ACCOUNTS` is set in strong mode (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock or the parent-PIN catalog install option. Which account types are on the phone (types only, no names) is reported to the dashboard.
+
+If sign-in fails, **Allow accounts briefly** retries it using the existing catalog deadline and daily quota reservation. The account restriction returns as soon as sign-in reports a result, Android reports a new Google account, or the lease is closed or recovered, including at startup. The dashboard warns if an account arrives after the window closes. The account stays on the phone. Plainphone compares account fingerprints locally and sends only the warning.
+
+On a physical strong-mode phone with Google Play services:
+
+1. Before sign-in, run `adb shell dumpsys user | grep no_modify_accounts`. Watch `adb logcat -s AccountManagerService Plainphone` while using **Install and add a Play account** with the parent PIN.
+2. Complete Google sign-in and repeat the restriction check. If Google sign-in rejects the restricted flow, use **Allow accounts briefly**, complete sign-in, and verify that `no_modify_accounts` is set again before Play opens. Also try cancelling the fallback and letting the window expire mid-sign-in.
+3. With the restriction set, try adding an account in **Settings → Accounts → Add**, **Add account** in Play, and the Chrome and YouTube sign-in screens. All must block adding a new account.
 
 ## Other policies
 

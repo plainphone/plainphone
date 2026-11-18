@@ -20,6 +20,7 @@ import org.plainphone.app.settings.SettingsApplier
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
+import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.light.LightLock
@@ -52,6 +53,7 @@ object Lock {
                 installLease.clearIfAllowed(config.installing != null, clear)
             },
             installsAllowed = { config -> installLease.allowsInstall(config.installing != null) },
+            enforceAccountRestriction = installLease::enforceAccountRestriction,
         )
     }
 
@@ -216,7 +218,6 @@ object Lock {
             dnsHost = p.getString("dns_in_use", null),
             resetProtection = p.getString("reset_protection", null),
             callRoleActionNeeded = p.getBoolean("call_role_action_needed", false),
-            parallelAppsRemoved = p.getBoolean("parallel_apps_removed", false),
             accountTypes = p.getStringSet("account_types", null)?.sorted(),
         )
     }
@@ -237,7 +238,7 @@ object Lock {
                 }
             })
         edit.putBoolean("call_role_action_needed", Hardening.callRoleActionNeeded(results))
-        if (Hardening.parallelAppsRemoved(results)) edit.putBoolean("parallel_apps_removed", true)
+        if (Hardening.parallelAppsRemoved(results)) StatusNotices(context).record(StatusNotices.PARALLEL_APPS_REMOVED)
         if (waitingForBootWarning) {
             // Report the failure without counting this as an applied configuration.
             edit.remove("applied_fingerprint").remove("applied_at").apply()

@@ -425,6 +425,7 @@ export const da: Messages = {
   "phone.attPending": "Telefonen har endnu ikke sendt et systemtjek.",
   "phone.callRoleActionNeeded": "Åbn Plainphone på telefonen og tryk Tillad",
   "phone.parallelAppsRemoved": "Parallelle apps er fjernet.",
+  "phone.lateGoogleAccount": "En Google-konto blev tilføjet efter tidsvinduet",
   "phone.accountTypes": "Konti på telefonen: {types}",
   "phone.attVerified": "Systemet er uændret (tjekket af telefonens sikkerhedschip)",
   "phone.attUnlocked": "Telefonen er låst op, så der kan installeres et andet system. Plainphone kan ikke garantere låsen eller beskytte telefonen efter en nulstilling.",

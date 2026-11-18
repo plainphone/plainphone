@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.os.UserManager
 import org.plainphone.app.settings.PhoneSettings
 import org.plainphone.app.settings.SettingsApplier
 
@@ -33,6 +34,7 @@ class PolicyApplier(
     private val settings: SettingsApplier? = null,
     private val onInstallsAllowed: () -> Unit = {},
     private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
+    private val enforceAccountRestriction: (() -> Unit) -> Unit = { it() },
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
@@ -70,7 +72,11 @@ class PolicyApplier(
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
-            else step("restriction $key") { device.addRestriction(key) }
+            else step("restriction $key") {
+                if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                    enforceAccountRestriction { device.addRestriction(key) }
+                } else device.addRestriction(key)
+            }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }

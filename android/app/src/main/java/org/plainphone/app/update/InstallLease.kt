@@ -70,6 +70,29 @@ class InstallLease(
     fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean =
         clearWhileAllowed({ allowsInstallLocked(catalogApproved) }, clear)
 
+    internal fun catalogId(): String? = synchronized(LOCK) { valid(loadLocked())[CATALOG]?.id }
+
+    internal fun clearCatalogAccountsIfAllowed(id: String, requestId: String, eligible: () -> Boolean, clear: () -> Unit): Boolean =
+        clearWhileAllowed({
+            if (catalogId() != id || accountClear != null || !eligible()) false
+            else {
+                accountClear = id to requestId
+                true
+            }
+        }, clear) && catalogId() == id
+
+    internal fun finishCatalogAccounts(requestId: String) = synchronized(LOCK) {
+        if (accountClear?.second == requestId) {
+            relockCatalogAccounts()
+            accountClear = null
+        }
+    }
+
+    internal fun enforceAccountRestriction(addRestriction: () -> Unit) = synchronized(LOCK) {
+        val id = accountClear?.first
+        if (id == null || catalogId() != id) addRestriction()
+    }
+
     private fun clearWhileAllowed(allowed: () -> Boolean, clear: () -> Unit): Boolean {
         synchronized(LOCK) {
             if (!allowed()) return false
@@ -214,7 +237,10 @@ class InstallLease(
                 else relockNow.invoke()
             }
         } finally {
-            if (CATALOG in closing) relockCatalogAccounts()
+            if (CATALOG in closing) {
+                relockCatalogAccounts()
+                accountClear = null
+            }
         }
 
         if (closing.isEmpty()) return false
@@ -324,6 +350,7 @@ class InstallLease(
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
         private var clearsInFlight = 0
+        private var accountClear: Pair<String, String>? = null
         // Android creates a new InstallLease for each recovery entry point.
         private val pendingClosures = mutableMapOf<Pair<String, Lease>, Lease>()
 

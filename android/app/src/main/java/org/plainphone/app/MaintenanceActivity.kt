@@ -10,15 +10,17 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.UserManager
 import android.provider.Settings
 import android.text.InputType
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.update.InstallLease
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
@@ -66,6 +68,11 @@ class MaintenanceActivity : Activity() {
         }
         val message = TextView(this).apply { accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE }
         val button = Button(this).apply { text = getString(R.string.maintenance_unlock) }
+        val fallback = Button(this).apply {
+            id = R.id.maintenance_allow_accounts
+            setText(R.string.maintenance_allow_accounts)
+            visibility = View.GONE
+        }
         val throttle = PinThrottle.forContext(this)
         button.setOnClickListener {
             val waitSeconds = ((throttle.remainingMs() + 999) / 1000).toInt()
@@ -74,6 +81,7 @@ class MaintenanceActivity : Activity() {
                 return@setOnClickListener
             }
             val entered = pin.text.toString()
+            fallback.visibility = View.GONE
             pin.text.clear()
             button.isEnabled = false
             // PBKDF2 takes a moment on slow phones: keep it off the UI thread.
@@ -95,7 +103,7 @@ class MaintenanceActivity : Activity() {
                                 when (result) {
                                     InstallWindow.OpenResult.OPENED -> {
                                         if (Mode.isStrong(this)) {
-                                            addPlayAccount(pkg, message, button)
+                                            addPlayAccount(pkg, message, button, fallback)
                                             return@installResult
                                         }
                                         openPlay(pkg)
@@ -124,27 +132,48 @@ class MaintenanceActivity : Activity() {
         column.addView(pin)
         column.addView(button)
         column.addView(message)
+        if (installPackage != null) column.addView(fallback)
     }
 
-    private fun addPlayAccount(pkg: String, message: TextView, button: Button) {
-        // Android lets the device owner request an account by type while user account changes stay blocked.
+    private fun addPlayAccount(pkg: String, message: TextView, button: Button, fallback: Button, leaseId: String? = null) {
+        val app = applicationContext
+        val originalLease = leaseId ?: InstallLease.android(app).catalogId()
+        fun failed() {
+            if (isFinishing || isDestroyed) return
+            message.setText(R.string.maintenance_install_account_failed)
+            button.isEnabled = true
+            if (originalLease != null && InstallLease.android(app).catalogId() == originalLease &&
+                InstallWindow.current(app) == pkg
+            ) {
+                fallback.visibility = View.VISIBLE
+                fallback.setOnClickListener {
+                    fallback.visibility = View.GONE
+                    button.isEnabled = false
+                    message.text = ""
+                    addPlayAccount(pkg, message, button, fallback, originalLease)
+                }
+            }
+        }
+        // The device owner can ask Android to add an account while user account changes stay blocked.
+        val request = runCatching { CatalogAccounts.start(app, pkg, leaseId) }.getOrElse {
+            failed()
+            return
+        }
         val started = runCatching {
-            check(InstallWindow.current(this) == pkg &&
-                getSystemService(UserManager::class.java).hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS))
-            AccountManager.get(this).addAccount("com.google", null, null, Bundle(), this, { future ->
+            AccountManager.get(this).addAccount(CatalogAccounts.GOOGLE, null, null, Bundle(), this, {
+                val added = runCatching { CatalogAccounts.complete(app, request) }
+                    .onFailure { android.util.Log.w("Plainphone", "Could not finish Google sign-in", it) }
+                    .getOrDefault(false)
                 if (!isFinishing && !isDestroyed) {
-                    if (runCatching { future.result.containsKey(AccountManager.KEY_ACCOUNT_NAME) }.getOrDefault(false)) {
-                        openPlay(pkg)
-                    } else {
-                        message.setText(R.string.maintenance_install_account_failed)
-                        button.isEnabled = true
-                    }
+                    if (added) {
+                        if (InstallLease.android(app).catalogId() == request.leaseId) openPlay(pkg) else finish()
+                    } else failed()
                 }
             }, null)
         }.isSuccess
         if (!started) {
-            message.setText(R.string.maintenance_install_account_failed)
-            button.isEnabled = true
+            runCatching { CatalogAccounts.complete(app, request) }
+            failed()
         }
     }
 
