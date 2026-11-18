@@ -30,7 +30,8 @@ export interface NativePushMessage {
 
 export interface NativeParentPushProvider {
   readonly platform: Exclude<PushTarget["platform"], "web">;
-  send(token: string, message: NativePushMessage): Promise<SendOutcome>;
+  /** The returned function starts the request synchronously while the caller holds the session lock. */
+  prepare(): Promise<(token: string, message: NativePushMessage) => Promise<SendOutcome>>;
 }
 
 export interface ParentPushProvider {

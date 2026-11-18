@@ -186,6 +186,13 @@ export async function notifyUsers(
     const urgent = e.type === "protection";
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
+        const sameSubscription = and(
+          eq(pushSubscriptions.id, sub.id),
+          eq(pushSubscriptions.userId, sub.userId),
+          eq(pushSubscriptions.platform, sub.platform),
+          eq(pushSubscriptions.endpoint, sub.endpoint),
+          sub.sessionId ? eq(pushSubscriptions.sessionId, sub.sessionId) : isNull(pushSubscriptions.sessionId),
+        );
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
           const language = toLocale(locale);
@@ -193,20 +200,28 @@ export async function notifyUsers(
             outcome = await ctx.parentPush.send(sub, pushMessage(e, language), { urgent });
           } else {
             const message = nativePushMessage(e, language);
-            outcome = native?.platform === sub.platform && message
-              ? await native.send(sub.endpoint, message)
-              : "unsupported";
+            if (native?.platform !== sub.platform || !message || !sub.sessionId) return 0;
+            const sessionId = sub.sessionId;
+            const send = await native.prepare();
+            const dispatched = await ctx.db.transaction(async (tx) => {
+              // Match registration's lock order. Revocation and token reassignment
+              // must either finish first or wait until the provider starts the POST.
+              const [session] = await tx.select({ expiresAt: sessions.expiresAt }).from(sessions)
+                .where(and(eq(sessions.id, sessionId), eq(sessions.userId, sub.userId))).for("update");
+              if (!session) return;
+              const [registration] = await tx.select({ id: pushSubscriptions.id }).from(pushSubscriptions)
+                .where(sameSubscription).for("update");
+              if (!registration || session.expiresAt <= ctx.now()) return;
+              // Carry the response promise out of the transaction so the locks
+              // cover dispatch without waiting for the remote response.
+              return { outcome: send(sub.endpoint, message) };
+            });
+            outcome = dispatched ? await dispatched.outcome : "unsupported";
           }
         } catch (err) {
           console.error(`push send failed: ${(err as Error).message}`);
           outcome = "failed";
         }
-        const sameSubscription = and(
-          eq(pushSubscriptions.id, sub.id),
-          eq(pushSubscriptions.userId, sub.userId),
-          eq(pushSubscriptions.platform, sub.platform),
-          sub.sessionId ? eq(pushSubscriptions.sessionId, sub.sessionId) : isNull(pushSubscriptions.sessionId),
-        );
         if (outcome === "sent") {
           await ctx.db
             .update(pushSubscriptions)

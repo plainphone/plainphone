@@ -79,9 +79,12 @@ replaces that session's previous token for the same platform. Signing out or
 switching accounts with a login link ends the previous session and removes its
 native registrations. The app keeps the session for retry if the logout request
 fails. An expired session stops receiving notifications immediately, and the
-server removes its registrations when it sweeps the session. Existing native
-registrations resume delivery after the app registers again. Browser Web Push
-remains independent of the session.
+server removes its registrations when it sweeps the session. The server also
+checks the session and registration after obtaining Firebase credentials, before
+starting the send. Firebase may deliver a previously submitted notification
+after sign-out. The upgrade removes native registrations without a session.
+They resume delivery when the app registers again. Browser Web Push remains
+independent of the session.
 
 FCM tokens are removed on Firebase's token-specific `UNREGISTERED` (HTTP 404)
 response. Other failures keep the subscription.

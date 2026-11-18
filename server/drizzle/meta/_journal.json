@@ -141,6 +141,13 @@
       "when": 1795024444324,
       "tag": "0019_session_bound_native_push",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795024444325,
+      "tag": "0020_remove_unbound_native_push",
+      "breakpoints": true
     }
   ]
 }

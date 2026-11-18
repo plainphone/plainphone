@@ -57,9 +57,17 @@ class FcmProvider implements NativeParentPushProvider {
     return token.access_token;
   }
 
-  async send(token: string, message: NativePushMessage): Promise<SendOutcome> {
+  async prepare() {
     try {
       const accessToken = await this.getAccessToken();
+      return (token: string, message: NativePushMessage) => this.send(accessToken, token, message);
+    } catch {
+      throw new Error("FCM token exchange failed");
+    }
+  }
+
+  private async send(accessToken: string, token: string, message: NativePushMessage): Promise<SendOutcome> {
+    try {
       const { title, body, type } = message;
       const response = await this.fetchImpl(`https://fcm.googleapis.com/v1/projects/${this.account.project_id}/messages:send`, {
         method: "POST",
@@ -80,7 +88,7 @@ class FcmProvider implements NativeParentPushProvider {
       if (response.status === 401 && this.accessToken?.value === accessToken) this.accessToken = undefined;
       console.error(`FCM send failed with HTTP ${response.status}`);
     } catch {
-      console.error("FCM token exchange or send failed");
+      console.error("FCM send failed");
     }
     return "failed";
   }
