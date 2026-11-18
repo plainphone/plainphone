@@ -120,10 +120,10 @@ export async function signIn(h: Harness, email: string, locale: "en" | "da" = "e
 export async function pairPhone(
   h: Harness,
   parent: Client,
-  opts: { name?: string; profile?: "child" | "self" } = {},
+  opts: { name?: string; profile?: "child" | "self"; mode?: "strong" | "light" } = {},
 ) {
   const device = new Client(h);
-  const start = await device.post("/api/device/pairings", { mode: "strong", deviceInfo: { model: "Test" } });
+  const start = await device.post("/api/device/pairings", { mode: opts.mode ?? "strong", deviceInfo: { model: "Test" } });
   const claim = await parent.post("/api/phones/claim", {
     code: start.json.code,
     name: opts.name ?? "Alma",

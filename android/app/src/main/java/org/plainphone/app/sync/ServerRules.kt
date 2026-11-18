@@ -58,6 +58,8 @@ data class ServerRules(
     /** An open "Are you okay?"; null means close it. */
     val checkIn: CheckInRequest? = null,
     /** Null (also in cached rules without this field) keeps the previous contact policy. */
+    val suggestDeviceContacts: Boolean = false,
+    val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
 ) {
     companion object {
@@ -84,6 +86,8 @@ data class ServerRules(
                 phoneId = j.getString("phoneId"),
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
+                suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),
+                lightContactRestriction = j.optBoolean("lightContactRestriction", false),
                 selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),
                 allowedApps = strings(apps.getJSONArray("allowed")),
                 hiddenApps = strings(apps.getJSONArray("hidden")),

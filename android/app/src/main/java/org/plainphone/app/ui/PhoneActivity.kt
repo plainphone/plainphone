@@ -352,7 +352,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
 
 @Composable
 internal fun NewMessageAction(rules: ContactRules, onOpen: (SmsThread) -> Unit) {
-    if (!rules.selfProfile || rules.enforced) return
+    if ((!rules.selfProfile && !rules.childProfile) || rules.enforced) return
     var open by remember { mutableStateOf(false) }
     val title = stringResource(R.string.message_new)
     TextButton(onClick = { open = true }) { Text(title) }
@@ -434,7 +434,7 @@ private fun ContactsScreen(
     var permissionRefresh by remember { mutableIntStateOf(0) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         permissionRefresh++
-        if (granted && rules.childProfile) SyncScheduler.now(context, "contact permission granted")
+        if (granted && rules.suggestDeviceContacts) SyncScheduler.now(context, "contact permission granted")
     }
     val canRead = remember(resumed, permissionRefresh) { DeviceContacts.canRead(context) }
     val setupStore = remember { SyncStore(context) }
@@ -465,8 +465,10 @@ private fun ContactsScreen(
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
         if (rules.childProfile || rules.selfProfile) item {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                if (rules.childProfile) Text(stringResource(R.string.contacts_child_sharing))
-                if (!canRead) {
+                if (rules.childProfile) {
+                    Text(stringResource(if (rules.suggestDeviceContacts) R.string.contacts_child_sharing else R.string.contacts_child_sharing_off))
+                }
+                if (!canRead && (rules.selfProfile || rules.suggestDeviceContacts)) {
                     TextButton(onClick = { permission.launch(Manifest.permission.READ_CONTACTS) }) {
                         Text(stringResource(R.string.contacts_read_permission))
                     }
@@ -546,7 +548,7 @@ private fun ContactsScreen(
                 }
             }
         }
-        if (!rules.selfProfile && list.isNotEmpty()) item { Footnote(stringResource(R.string.contacts_footnote)) }
+        if (!rules.selfProfile && rules.enforced && list.isNotEmpty()) item { Footnote(stringResource(R.string.contacts_footnote)) }
     }
 }
 
@@ -629,7 +631,7 @@ private fun MoreHistory(retry: Boolean = false, onClick: () -> Unit) {
 }
 
 private fun SmsThread.canCompose(rules: ContactRules): Boolean =
-    kind == SmsThreadKind.CONTACT && rules.selfProfile && !rules.enforced &&
+    kind == SmsThreadKind.CONTACT && (rules.selfProfile || rules.childProfile) && !rules.enforced &&
         android.telephony.PhoneNumberUtils.isGlobalPhoneNumber(number)
 
 @Composable

@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { contactSuggestions, contacts } from "../db/schema.js";
+import { contactSuggestions, contacts, phones } from "../db/schema.js";
 import { phoneNumber } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
 import { wakePhone } from "./phones.js";
@@ -34,9 +34,26 @@ function groupRows(rows: { id: string; name: string | null; number: string }[]):
 
 const suggestionKey = ({ name, numbers }: Omit<Suggestion, "id">) => JSON.stringify([name, numbers]);
 
-export async function suggestContacts(ctx: Ctx, phoneId: string, input: z.infer<typeof suggestedContactsInput>) {
+export const childContactSettingsInput = z.strictObject({
+  suggestDeviceContacts: z.boolean().optional(),
+  lightContactRestriction: z.boolean().optional(),
+}).refine((input) => input.suggestDeviceContacts !== undefined || input.lightContactRestriction !== undefined);
+
+export async function updateChildContactSettings(ctx: Ctx, phoneId: string, input: z.infer<typeof childContactSettingsInput>) {
   await ctx.db.transaction(async (tx) => {
-    await tx.execute(sql`select id from phones where id = ${phoneId} for update`);
+    await tx.update(phones).set(input).where(eq(phones.id, phoneId));
+    if (input.suggestDeviceContacts === false) {
+      await tx.delete(contactSuggestions).where(and(eq(contactSuggestions.phoneId, phoneId), isNotNull(contactSuggestions.name)));
+    }
+  });
+  await wakePhone(ctx, phoneId, "rules");
+}
+
+export async function suggestContacts(ctx: Ctx, phoneId: string, input: z.infer<typeof suggestedContactsInput>) {
+  return ctx.db.transaction(async (tx) => {
+    const [phone] = await tx.select({ enabled: phones.suggestDeviceContacts }).from(phones)
+      .where(eq(phones.id, phoneId)).for("update");
+    if (!phone?.enabled) return false;
     const approved = await tx.select({ number: contacts.number }).from(contacts).where(eq(contacts.phoneId, phoneId));
     const existing = await tx.select({
       number: contactSuggestions.number,
@@ -73,6 +90,7 @@ export async function suggestContacts(ctx: Ctx, phoneId: string, input: z.infer<
     for (let offset = 0; offset < candidates.length; offset += 100) {
       await tx.insert(contactSuggestions).values(candidates.slice(offset, offset + 100));
     }
+    return true;
   });
 }
 

@@ -244,6 +244,12 @@ export const en = {
   "apps.shown": "{app} is shown.",
   "apps.hidden": "{app} is hidden.",
 
+  "contacts.suggestFromPhone": "Suggest contacts from the phone",
+  "contacts.suggestSharing": "Only names and phone numbers are sent to the parents in your household.",
+  "contacts.lightRestrict": "Only approved contacts can call and text",
+  "contacts.lightEmptyWarning": "Nobody can call or text this phone except emergency numbers.",
+  "contacts.emptyUnrestricted": "No approved contacts have been added.",
+  "contacts.settingsError": "Could not save contact settings. Try again.",
   "contacts.suggestions": "Suggested contacts",
   "contacts.noSuggestions": "No contacts to review.",
   "contacts.approveAll": "Approve all",

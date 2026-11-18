@@ -14,13 +14,15 @@ function ContactsList() {
   const { t } = useI18n();
   const { phone, run, pending, notify } = usePhone();
   const self = phone.profile === "self";
+  const lightChild = !self && phone.mode === "light";
   const res = useLoad(
-    () => unwrap<{ contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
+    () => unwrap<{ contacts: Contact[]; selfScheduleContacts?: boolean | null; suggestDeviceContacts?: boolean; lightContactRestriction?: boolean }>(
       client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } }),
     ),
     [phone.id],
   );
-  const suggestions = useLoad(() => self ? Promise.resolve([]) : loadContactSuggestions(phone.id), [phone.id, self]);
+  const sharing = !self && res.data?.suggestDeviceContacts === true;
+  const suggestions = useLoad(() => sharing ? loadContactSuggestions(phone.id) : Promise.resolve([]), [phone.id, sharing]);
   const addLabel = t(self ? "contacts.addFavourite" : "contacts.add");
   const selfIntro = res.data && t(res.data.selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro");
   const [name, setName] = useState("");
@@ -85,13 +87,17 @@ function ContactsList() {
       onRefresh={() => void Promise.all([res.reload(), suggestions.reload()])}
       refreshing={(res.loading && res.data !== undefined) || (!self && suggestions.loading && suggestions.data !== undefined)}
     >
-      <PageTitle sub={self ? selfIntro : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
+      <PageTitle sub={self ? selfIntro : lightChild ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
       {!self && <Notice tone="info" text={t("contacts.otherApps")} />}
+
+      {lightChild && res.data?.lightContactRestriction && res.data.contacts.length === 0 && (
+        <Notice tone="info" text={t("contacts.lightEmptyWarning")} />
+      )}
 
       <LoadGate res={res}>
         {({ contacts: list }) =>
           list.length === 0 && waitingAdds.length === 0 ? (
-            <Text variant="muted">{t(self ? "contacts.noFavourites" : "contacts.empty")}</Text>
+            <Text variant="muted">{t(self ? "contacts.noFavourites" : lightChild && !res.data?.lightContactRestriction ? "contacts.emptyUnrestricted" : "contacts.empty")}</Text>
           ) : (
             <VStack gap={space.sm}>
               {list.map((c) => (
@@ -113,7 +119,7 @@ function ContactsList() {
         }
       </LoadGate>
 
-      {!self && <ContactSuggestions pid={phone.id} result={suggestions} onApproved={res.reload} />}
+      {sharing && <ContactSuggestions pid={phone.id} result={suggestions} onApproved={res.reload} />}
 
       <Card>
         <Text variant="heading">{addLabel}</Text>

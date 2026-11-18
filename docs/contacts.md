@@ -1,7 +1,13 @@
 # Approved contacts (phase 2)
 
-Plainphone is the phone's default **phone app** and **SMS app**. Child phones
-limit calls and text messages to approved numbers. New Self phones allow
+Plainphone is the phone's default **phone app** and **SMS app**. Strong Child
+phones enforce the approved contact list. For light Child phones, the dashboard
+has an **Only approved contacts can call and text** setting in **Contacts**.
+It starts on for new pairings and off for phones already paired at the time of
+the upgrade. An older server that does not send the setting leaves calls and
+texts unrestricted in light mode. With the setting on and an empty approved
+list, the dashboard warns that nobody can call or text the phone except
+emergency numbers. New Self phones allow
 everyone by default and can limit calls and texts to favourites during schedules.
 Emergency numbers always work.
 
@@ -26,15 +32,19 @@ including private RCS conversations, cannot be imported.
 
 ## Child contact suggestions
 
-When a paired Child phone grants contacts access, Plainphone reads phone entries
-from the Android address book, including synced accounts, and groups each
-contact's international numbers in a single suggestion. The dashboard offers **Approve**,
-**Dismiss** and **Approve all**. Only approved numbers can be called and texted.
-Suggestions refresh with phone sync, including edits and deletions. Approval
-covers the suggestions shown on the web dashboard or in the parent app. If a
-suggestion changes before review, the updated suggestion stays pending. A reviewed
-number does not come back, even if the name changes or the phone reports the
-same address book again. The child can see what is shared on the Contacts tab. See [Privacy](privacy.md).
+In the web dashboard, open the Child phone's **Contacts** and turn on **Suggest
+contacts from the phone**. It starts off for all phones, including new light
+phones. When turned on and Android grants contacts access, the phone sends only
+names and international phone numbers to the parents in the household. The child
+can see whether suggestions are on in the phone's Contacts tab.
+
+The phone reads the address book at most once every six hours while enabled and
+sends up to 2,000 of the most recently updated contacts. The dashboard and
+parent app offer **Approve**, **Dismiss** and **Approve all**. If a suggestion
+changes before review, its replacement stays pending. Reviewed numbers stay
+excluded from later suggestions. Turning suggestions off stops uploads and
+deletes undecided suggestions. Approved contacts remain on the approved list.
+See [Privacy](privacy.md).
 
 ## Self favourites
 

@@ -258,6 +258,12 @@ export const da: Messages = {
   "apps.shown": "{app} vises.",
   "apps.hidden": "{app} er skjult.",
 
+  "contacts.suggestFromPhone": "Foreslå kontakter fra telefonen",
+  "contacts.suggestSharing": "Kun navne og telefonnumre sendes til forældrene i din husstand.",
+  "contacts.lightRestrict": "Kun godkendte kontakter kan ringe og sende sms",
+  "contacts.lightEmptyWarning": "Ingen kan ringe eller sende sms til telefonen bortset fra alarmnumre.",
+  "contacts.emptyUnrestricted": "Der er endnu ingen godkendte kontakter.",
+  "contacts.settingsError": "Kontaktindstillingerne kunne ikke gemmes. Prøv igen.",
   "contacts.suggestions": "Kontaktforslag",
   "contacts.noSuggestions": "Ingen kontakter at gennemgå.",
   "contacts.approveAll": "Godkend alle",

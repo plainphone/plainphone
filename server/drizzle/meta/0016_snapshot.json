@@ -1482,6 +1482,20 @@
           "primaryKey": false,
           "notNull": true
         },
+        "suggest_device_contacts": {
+          "name": "suggest_device_contacts",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "light_contact_restriction": {
+          "name": "light_contact_restriction",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "self_schedule_contacts": {
           "name": "self_schedule_contacts",
           "type": "boolean",

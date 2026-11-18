@@ -168,6 +168,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     phone: {
       id: phone.id,
       profile: phone.profile,
+      suggestDeviceContacts: phone.suggestDeviceContacts,
+      lightContactRestriction: phone.lightContactRestriction,
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
@@ -201,6 +203,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   const doc = {
     phoneId: phone.id,
     profile: phone.profile,
+    suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
+    lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,

@@ -77,6 +77,7 @@
     <string name="messages_empty">No messages yet.</string>
     <string name="messages_footnote">Some conversations are read-only. Existing picture and group messages appear as placeholders.</string>
     <string name="contacts_child_sharing">Your parent can review the names and numbers saved in this phone’s contacts.</string>
+    <string name="contacts_child_sharing_off">Contact suggestions from this phone are off.</string>
     <string name="contacts_read_permission">Allow contacts access</string>
     <string name="contacts_favourites_choose">Choose favourites</string>
     <string name="contacts_favourites_done">Done</string>

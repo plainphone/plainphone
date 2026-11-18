@@ -74,6 +74,7 @@
     <string name="messages_empty">Ingen beskeder endnu.</string>
     <string name="messages_footnote">Nogle samtaler kan kun læses. Eksisterende billed- og gruppebeskeder vises uden indhold.</string>
     <string name="contacts_child_sharing">Din forælder kan gennemgå navne og telefonnumre fra telefonens kontakter.</string>
+    <string name="contacts_child_sharing_off">Kontaktforslag fra denne telefon er slået fra.</string>
     <string name="contacts_read_permission">Giv adgang til kontakter</string>
     <string name="contacts_favourites_choose">Vælg favoritter</string>
     <string name="contacts_favourites_done">Færdig</string>

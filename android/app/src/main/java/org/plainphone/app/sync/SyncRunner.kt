@@ -5,15 +5,16 @@ package org.plainphone.app.sync
 import android.util.Log
 import java.io.IOException
 import java.security.MessageDigest
-import org.json.JSONArray
 import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.DeviceContact
+import org.plainphone.app.contacts.DeviceContacts
 
 internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
     fun nowMs(): Long
+    fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
     fun appVersion(): String
     /** Core packages whose membership can change without a package event. */
@@ -159,27 +160,35 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
-        if (rules?.profile == "child") guarded("report contact suggestions") {
-            val contacts = device.contactSuggestions() ?: return@guarded
-            val canonical = contacts.map { it.copy(numbers = it.numbers.distinct().sorted()) }
-                .distinct()
-                .sortedWith(compareBy({ it.name }, { it.numbers.joinToString(",") }))
-            val snapshot = JSONArray().apply {
-                canonical.forEach { put(JSONArray(listOf(it.name, JSONArray(it.numbers)))) }
-            }
-            val fingerprint = sha256("snapshot:$snapshot")
-            if (store.contactSuggestionsFingerprint != fingerprint) {
-                api.reportContactSuggestions(token, canonical)
-                store.contactSuggestionsFingerprint = fingerprint
-            }
-        }
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
         guarded("report status") { reportStatus(token) }
+        if (rules?.profile == "child" && rules.suggestDeviceContacts) {
+            guarded("report contact suggestions") { reportContactSuggestions(token) }
+        } else if (store.contactSuggestionsReadAt != null) {
+            store.contactSuggestionsReadAt = null
+        }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
+    }
+
+    private fun reportContactSuggestions(token: String) {
+        val now = device.nowMs()
+        val last = store.contactSuggestionsReadAt
+        if (last != null && now - last in 0 until CONTACT_SUGGESTIONS_INTERVAL_MS) return
+        if (!device.canReadContactSuggestions()) return
+        store.contactSuggestionsReadAt = now
+        val contacts = device.contactSuggestions() ?: return
+        // Bound number count as well, so even many numbers per contact fit the 4 MiB body limit.
+        var numbersLeft = 100_000
+        val snapshot = contacts.take(DeviceContacts.SUGGESTION_LIMIT).mapNotNull { contact ->
+            val numbers = contact.numbers.distinct().take(numbersLeft)
+            numbersLeft -= numbers.size
+            numbers.takeIf { it.isNotEmpty() }?.let { contact.copy(numbers = it) }
+        }
+        api.reportContactSuggestions(token, snapshot)
     }
 
     /**
@@ -478,6 +487,7 @@ class SyncRunner(
     }
 
     companion object {
+        private const val CONTACT_SUGGESTIONS_INTERVAL_MS = 6 * 60 * 60_000L
         private const val TAG = "Plainphone"
         private val LOCK = Any()
         /** The lock is re-applied at least this often, so a change on the phone heals itself. */

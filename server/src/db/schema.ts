@@ -188,6 +188,8 @@ export const phones = pgTable(
     name: text("name").notNull(),
     profile: text("profile", { enum: ["child", "self"] }).notNull(),
     /** Null preserves the always-on contact restriction on previously paired Strong Self phones. */
+    suggestDeviceContacts: boolean("suggest_device_contacts").notNull().default(false),
+    lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),

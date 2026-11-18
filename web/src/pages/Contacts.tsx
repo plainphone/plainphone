@@ -12,11 +12,17 @@ export function cleanNumber(raw: string): string {
 }
 export const NUMBER_RE = /^\+[1-9]\d{6,14}$/;
 
+type ChildContactSettings = {
+  suggestDeviceContacts?: boolean;
+  lightContactRestriction?: boolean;
+};
+
 export function ContactsPage() {
   const { t } = useI18n();
   const { phone, run, pending } = usePhone();
   const self = phone.profile === "self";
-  const res = useLoad(() => api.get<{ contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
+  const lightChild = !self && phone.mode === "light";
+  const res = useLoad(() => api.get<ChildContactSettings & { contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
     `/phones/${phone.id}/contacts`,
   ), [phone.id]);
   const [name, setName] = useState("");
@@ -25,6 +31,22 @@ export function ContactsPage() {
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsFailed, setSettingsFailed] = useState(false);
+
+  async function changeSettings(settings: ChildContactSettings) {
+    setSavingSettings(true);
+    setSettingsFailed(false);
+    try {
+      await api.patch<void>(`/phones/${phone.id}/contacts`, settings);
+      res.setData((data) => data && { ...data, ...settings });
+    } catch {
+      setSettingsFailed(true);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   const waitingSchedule = pending.some((change) => change.op.type === "contact.schedule");
   async function changeSchedule(restricted: boolean) {
     setSavingSchedule(true);
@@ -79,12 +101,37 @@ export function ContactsPage() {
 
   return (
     <>
-      <PageTitle sub={self ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
+      <PageTitle sub={self || lightChild ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
       {!self && <p className="help">{t("contacts.otherApps")}</p>}
 
       <LoadGate res={res}>
-        {({ contacts: list, selfScheduleContacts }) => (
+        {({ contacts: list, selfScheduleContacts, suggestDeviceContacts, lightContactRestriction }) => (
           <>
+            {!self && (
+              <>
+                {settingsFailed && <p role="alert">{t("contacts.settingsError")}</p>}
+                {lightChild && (
+                  <>
+                    <label className="item">
+                      <span>{t("contacts.lightRestrict")}</span>
+                      <input type="checkbox" checked={lightContactRestriction === true}
+                        disabled={savingSettings || lightContactRestriction === undefined}
+                        onChange={(event) => void changeSettings({ lightContactRestriction: event.currentTarget.checked })} />
+                    </label>
+                    {lightContactRestriction && list.length === 0 && (
+                      <p role="alert">{t("contacts.lightEmptyWarning")}</p>
+                    )}
+                  </>
+                )}
+                <label className="item">
+                  <span>{t("contacts.suggestFromPhone")}</span>
+                  <input type="checkbox" checked={suggestDeviceContacts === true} aria-describedby="contact-sharing-help"
+                    disabled={savingSettings || suggestDeviceContacts === undefined}
+                    onChange={(event) => void changeSettings({ suggestDeviceContacts: event.currentTarget.checked })} />
+                </label>
+                <p className="help" id="contact-sharing-help">{t("contacts.suggestSharing")}</p>
+              </>
+            )}
             {self && (
               <>
                 <p className="help">{t(selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro")}</p>
@@ -106,7 +153,7 @@ export function ContactsPage() {
             )}
             {waitingSchedule && <p className="help" role="status">{t("pending.waitingTag")}</p>}
             {list.length === 0 && waitingAdds.length === 0 ? (
-                <p className="empty-inline">{t(self ? "contacts.noFavourites" : "contacts.empty")}</p>
+                <p className="empty-inline">{t(self ? "contacts.noFavourites" : lightChild && !lightContactRestriction ? "contacts.emptyUnrestricted" : "contacts.empty")}</p>
               ) : (
                 <ul className="list contacts-list">
                   {list.map((c) => (
@@ -141,7 +188,7 @@ export function ContactsPage() {
         )}
       </LoadGate>
 
-      {phone.profile === "child" && <ContactSuggestions phoneId={phone.id} onApproved={async () => { await res.reload(); }} />}
+      {!self && res.data?.suggestDeviceContacts && <ContactSuggestions phoneId={phone.id} onApproved={async () => { await res.reload(); }} />}
 
       <section className="section" aria-labelledby="add-contact">
         <h2 id="add-contact">{t(self ? "contacts.addFavourite" : "contacts.add")}</h2>

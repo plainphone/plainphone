@@ -53,6 +53,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
+  const suggestionLimit = new RateLimiter(30, 60 * 60_000);
   const favouriteLimit = new RateLimiter(30, 60 * 60_000);
 
   // --- Pairing (no device token yet) -------------------------------------------
@@ -211,7 +212,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
-    await suggestContacts(ctx, phone.id, await body(c, suggestedContactsInput));
+    if (!phone.suggestDeviceContacts) throw new HTTPException(403, { message: "contact suggestions are off" });
+    if (!suggestionLimit.take(phone.id)) throw new HTTPException(429, { message: "too many suggestion uploads" });
+    const accepted = await suggestContacts(ctx, phone.id, await body(c, suggestedContactsInput));
+    if (!accepted) throw new HTTPException(403, { message: "contact suggestions are off" });
     return c.body(null, 204);
   });
 

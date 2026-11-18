@@ -183,9 +183,16 @@ class SyncedContactPolicySource(
         val base = local.rules()
         val server = store.rules()
         val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts) ?: return base
-        val controlled = base.enforced || (Mode.isLight(app) && LightSetup.isComplete(app) &&
+        val restrictInLight = server?.lightContactRestriction == true ||
+            (server?.profile == "self" && server.selfScheduleContacts == true)
+        val controlled = base.enforced || (restrictInLight && Mode.isLight(app) && LightSetup.isComplete(app) &&
             !LightRelease.isReleased(app) && !Lock.isInMaintenanceWindow(app))
-        val synced = base.copy(enforced = controlled, contacts = fromServer, childProfile = server?.profile == "child")
+        val synced = base.copy(
+            enforced = controlled,
+            contacts = fromServer,
+            childProfile = server?.profile == "child",
+            suggestDeviceContacts = server?.profile == "child" && server.suggestDeviceContacts,
+        )
         return if (server?.profile == "self") {
             val restriction = server.selfScheduleContacts
             // Before this setting existed, only a locked Device Owner enforced the list.

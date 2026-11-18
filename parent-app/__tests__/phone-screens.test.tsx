@@ -214,7 +214,7 @@ describe("contacts", () => {
     let suggestions = [alex, sam];
     let contacts: { id: string; name: string; number: string }[] = [];
     const api = phoneApi(PHONE, {
-      [`GET /phones/${PHONE.id}/contacts`]: () => ({ body: { contacts } }),
+      [`GET /phones/${PHONE.id}/contacts`]: () => ({ body: { contacts, suggestDeviceContacts: true } }),
       [`GET ${path}`]: () => ({ body: { suggestions } }),
       [`POST ${path}`]: ({ body }) => {
         if ((body as { action: string }).action === "reject") {

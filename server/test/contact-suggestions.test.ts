@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { readFile } from "node:fs/promises";
+import { sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -7,6 +9,7 @@ const h = useHarness();
 it("keeps suggestions separate from rules until approved and remembers reviewed numbers", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  expect((await parent.patch(`/api/phones/${phoneId}/contacts`, { suggestDeviceContacts: true })).status).toBe(204);
   const path = `/api/phones/${phoneId}/contact-suggestions`;
   const contacts = [
     { name: "Alex", numbers: ["+4512345678", "+4512345679"] },
@@ -39,6 +42,7 @@ it("keeps suggestions separate from rules until approved and remembers reviewed 
 it("only approves the groups and numbers shown in the review", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  expect((await parent.patch(`/api/phones/${phoneId}/contacts`, { suggestDeviceContacts: true })).status).toBe(204);
   const path = `/api/phones/${phoneId}/contact-suggestions`;
   const report = (contacts: { name: string; numbers: string[] }[]) =>
     device.put("/api/device/contact-suggestions", { contacts });
@@ -69,6 +73,7 @@ it("only approves the groups and numbers shown in the review", async () => {
 it("accepts a complete address book including contacts with more than 100 numbers", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  expect((await parent.patch(`/api/phones/${phoneId}/contacts`, { suggestDeviceContacts: true })).status).toBe(204);
   const numbers = Array.from({ length: 101 }, (_, i) => `+451234${(1000 + i).toString()}`);
   const ordinary = Array.from({ length: 101 }, (_, i) => ({ name: `Contact ${i}`, numbers: [`+452345${1000 + i}`] }));
   expect((await device.put("/api/device/contact-suggestions", {
@@ -82,6 +87,7 @@ it("accepts a complete address book including contacts with more than 100 number
 it("accepts only names and numbers from a child phone", async () => {
   const parent = await signIn(h, "parent@example.org");
   const child = await pairPhone(h, parent, { profile: "child" });
+  expect((await parent.patch(`/api/phones/${child.phoneId}/contacts`, { suggestDeviceContacts: true })).status).toBe(204);
   const self = await pairPhone(h, parent, { profile: "self" });
   const path = "/api/device/contact-suggestions";
   const contact = { name: "Alex", numbers: ["+4512345678"] };
@@ -106,4 +112,52 @@ it("sets up favourites before restrictions and uses the Self key to loosen them"
   const rules = (await device.get("/api/device/rules")).json;
   expect(rules.contacts).toEqual([alex]);
   expect(rules.selfScheduleContacts).toBe(true);
+});
+
+it("requires opt-in and clears pending suggestions after opt-out", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const path = `/api/phones/${phoneId}/contact-suggestions`;
+  const settings = `/api/phones/${phoneId}/contacts`;
+  const report = () => device.put("/api/device/contact-suggestions", { contacts: [
+    { name: "Alex", numbers: ["+4512345678"] },
+  ] });
+  const rules = () => device.get("/api/device/rules");
+  expect((await rules()).json.suggestDeviceContacts).toBe(false);
+  expect((await report()).status).toBe(403);
+  expect((await parent.patch(settings, { suggestDeviceContacts: true })).status).toBe(204);
+  expect((await rules()).json.suggestDeviceContacts).toBe(true);
+  expect((await report()).status).toBe(204);
+  expect((await parent.get(path)).json.suggestions).toHaveLength(1);
+  expect((await parent.patch(settings, { suggestDeviceContacts: false })).status).toBe(204);
+  expect((await rules()).json.suggestDeviceContacts).toBe(false);
+  expect((await report()).status).toBe(403);
+  expect((await parent.get(path)).json.suggestions).toEqual([]);
+});
+
+it("keeps the contact restriction off for paired light children when upgrading", async () => {
+  const migration = await readFile(new URL("../drizzle/0016_contact_suggestions_and_self_schedule.sql", import.meta.url), "utf8");
+  await h.ctx.db.transaction(async (tx) => {
+    await tx.execute(sql`create temp table phones (mode text, profile text, paired_at timestamptz) on commit drop`);
+    await tx.execute(sql`insert into phones values ('light', 'child', now())`);
+    for (const statement of migration.split("--> statement-breakpoint").filter((part) => /"suggest_device_contacts"|"light_contact_restriction"/.test(part))) {
+      await tx.execute(sql.raw(statement));
+    }
+    await tx.execute(sql`insert into phones values ('light', 'child', null)`);
+    const rows = await tx.execute(sql`
+      select suggest_device_contacts, light_contact_restriction from phones order by paired_at nulls last
+    `);
+    expect([...rows]).toEqual([
+      { suggest_device_contacts: false, light_contact_restriction: false },
+      { suggest_device_contacts: false, light_contact_restriction: true },
+    ]);
+  });
+});
+
+it("enables contact restriction on newly paired light children and lets the parent turn it off", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child", mode: "light" });
+  expect((await device.get("/api/device/rules")).json.lightContactRestriction).toBe(true);
+  expect((await parent.patch(`/api/phones/${phoneId}/contacts`, { lightContactRestriction: false })).status).toBe(204);
+  expect((await device.get("/api/device/rules")).json.lightContactRestriction).toBe(false);
 });

@@ -477,6 +477,12 @@ components:
               type: array
               description: Only today's and tomorrow's (phone time zone, server clock).
               items: { $ref: "#/components/schemas/Bonus" }
+        suggestDeviceContacts:
+          type: boolean
+          description: Parent opt-in to send names and numbers from a Child phone.
+        lightContactRestriction:
+          type: boolean
+          description: Enforce the approved list on a light Child phone. Missing means off in light mode.
         selfScheduleContacts:
           type: [boolean, "null"]
           description: True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone.
@@ -1102,7 +1108,7 @@ paths:
       operationId: putDeviceContactSuggestions
       tags: [device]
       summary: Replace pending suggestions with the current address book of a child phone
-      description: Send one complete snapshot, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
+      description: Send up to 2,000 of the most recently updated contacts when the parent has opted in, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -1119,8 +1125,10 @@ paths:
       responses:
         "204": { description: "Received" }
         "400": { $ref: "#/components/responses/Error" }
+        "403": { description: "Contact suggestions are off" }
         "404": { description: "Available only for child phones" }
         "413": { description: "Snapshot exceeds 4 MiB" }
+        "429": { description: "Too many suggestion uploads" }
 
   /device/apps:
     put:
@@ -2382,7 +2390,50 @@ paths:
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "Approved contacts or favourites, with the Self schedule restriction setting" }
+        "200":
+          description: Approved contacts or favourites and contact settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contacts]
+                properties:
+                  contacts:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, number]
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        number: { $ref: "#/components/schemas/E164" }
+                  selfScheduleContacts: { type: [boolean, "null"] }
+                  suggestDeviceContacts: { type: boolean }
+                  lightContactRestriction: { type: boolean }
+    patch:
+      operationId: patchChildContactSettings
+      summary: Update a child phone's contact settings
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                suggestDeviceContacts:
+                  type: boolean
+                  description: Turning this off also deletes all undecided suggestions.
+                lightContactRestriction:
+                  type: boolean
+                  description: Available on light phones only.
+      responses:
+        "204": { description: "Settings saved" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Child phone not found" }
     post:
       operationId: postPhonesContacts
       summary: Post phones contacts
