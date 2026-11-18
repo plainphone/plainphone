@@ -27,7 +27,7 @@ object LightRelease {
                 error("switch it off in Settings > Accessibility")
             }
         })
-        context.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE).edit().clear().apply()
+        LightSetup.clearAfterRelease(context, undoPending)
     }
 
     internal fun removeAdmin(context: Context) {

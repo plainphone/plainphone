@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { LoadGate, PageTitle, PickGroup, type PickOption, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
@@ -199,10 +199,10 @@ function SetupUndoSetting() {
   const { phone, run } = usePhone();
   const id = useId();
   const path = `/phones/${phone.id}/setup-undo`;
-  const res = useLoad(() => api.get<{ minutes: number; editable: boolean }>(path), [path]);
+  const res = useLoad(() => api.get<{ minutes: number; editable: boolean; undoUntil: string | null }>(path), [path]);
   const [saving, setSaving] = useState(false);
 
-  return <LoadGate res={res}>{({ minutes, editable }) => (
+  return <LoadGate res={res}>{({ minutes, editable, undoUntil }) => (
     <div className="stack">
       <label htmlFor={id}>{t("setupUndo.label")}</label>
       <select id={id} value={minutes} disabled={!editable || saving} onChange={async (e) => {
@@ -221,7 +221,26 @@ function SetupUndoSetting() {
           {value === 0 ? t("setupUndo.off") : t("setupUndo.minutes", { minutes: value })}
         </option>)}
       </select>
-      <p className="help">{t(editable ? "setupUndo.help" : "setupUndo.closed")}</p>
+      {undoUntil && minutes > 0 ? <SetupUndoDeadline undoUntil={undoUntil} /> :
+        <p className="help">{t(editable ? "setupUndo.help" : "setupUndo.closed")}</p>}
     </div>
   )}</LoadGate>;
+}
+
+function SetupUndoDeadline({ undoUntil }: { undoUntil: string }) {
+  const { locale, t } = useI18n();
+  const deadline = new Date(undoUntil);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const remaining = Date.parse(undoUntil) - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), remaining);
+    return () => window.clearTimeout(timer);
+  }, [undoUntil]);
+
+  return <p className="help">{deadline.getTime() > now
+    ? t("setupUndo.until", { time: deadline.toLocaleTimeString(locale === "da" ? "da-DK" : "en-GB", {
+      hour: "2-digit", minute: "2-digit",
+    }) })
+    : t("setupUndo.ended")}</p>;
 }

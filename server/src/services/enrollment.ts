@@ -95,7 +95,7 @@ export async function redeemEnrollment(
     // Paired some other way meanwhile (a pairing code): the entry is taken.
     if (phone.deviceTokenHash !== null) return { status: 410, error: "this phone is already paired" };
 
-    if (input.key && !(await setInitialSelfKey(tx, phone, input.key))) return { status: 400, error: "invalid setup key" };
+    if (input.key && !(await setInitialSelfKey(tx, phone, input.key, now))) return { status: 400, error: "invalid setup key" };
 
     await tx
       .update(phones)

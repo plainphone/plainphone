@@ -37,6 +37,7 @@ import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.SelfApprovalChoices
 import org.plainphone.app.light.SelfApprovalQr
 import org.plainphone.app.light.UndoSetupAction
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -62,6 +63,7 @@ class PlainphoneApiReleaseTest {
     @Volatile private var answer = 204
     @Volatile private var responseBody = """{"error":"x"}"""
     private val seen = mutableListOf<Triple<String, String, String?>>()
+    private val completionReports = mutableListOf<JSONObject>()
 
 
     @Before
@@ -69,10 +71,14 @@ class PlainphoneApiReleaseTest {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { ex ->
             seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
-            ex.requestBody.readBytes()
-            val body = if (answer == 204) ByteArray(0) else responseBody.toByteArray()
-            ex.sendResponseHeaders(answer, if (answer == 204) -1 else body.size.toLong())
-            if (answer != 204) ex.responseBody.use { it.write(body) }
+            val request = ex.requestBody.readBytes()
+            val status = if (ex.requestURI.path == "/api/device/setup-completion") {
+                completionReports += JSONObject(request.decodeToString())
+                if (answer == 204) 200 else answer
+            } else answer
+            val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
+            ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
+            if (status != 204) ex.responseBody.use { it.write(body) }
             ex.close()
         }
         server.start()
@@ -166,7 +172,12 @@ class PlainphoneApiReleaseTest {
         answer = 204
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
         assertThat(policy.isAdminActive(admin)).isFalse()
-        assertThat(seen).hasSize(2)
+        assertThat(seen.map { it.second }).containsExactly(
+            "/api/device/setup-completion", "/api/device/setup-completion", "/api/device/undo-setup",
+        ).inOrder()
+        assertThat(completionReports.map { it.getInt("undoMinutes") }).containsExactly(30, 30)
+        assertThat(completionReports.all { it.getLong("elapsedMs") >= 0 }).isTrue()
+        assertThat(LightSetup.pendingCompletion(context, "test-phone")).isNull()
     }
 
     @Test
@@ -206,6 +217,7 @@ class PlainphoneApiReleaseTest {
         val config = ConfigStore(context)
         config.save(config.load().copy(serverUrl = "http://127.0.0.1:${server.address.port}"))
         LightSetup.saveProfile(context, "self")
+        LightSetup.saveUndoMinutes(context, 30)
         LightSetup.markComplete(context)
         return context
     }

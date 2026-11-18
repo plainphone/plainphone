@@ -291,6 +291,7 @@
     <string name="setup_undo_choice_minutes">%1$d minutter</string>
     <string name="setup_key_title">Vælg din nøgle</string>
     <string name="setup_key_body">Strammere regler gælder, så snart telefonen er online. Din nøgle bruges, når du vil lempe reglerne eller fjerne Plainphone.</string>
+    <string name="setup_key_overrides_dashboard">Dit valg her erstatter en eventuel nøgle fra kontrolpanelet.</string>
     <string name="setup_key_wait">Ventetid</string>
     <string name="setup_key_trusted">En person, jeg stoler på</string>
     <string name="setup_key_email">Personens mailadresse</string>

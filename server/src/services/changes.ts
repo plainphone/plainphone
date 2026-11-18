@@ -256,9 +256,14 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
         .select()
         .from(phoneApps)
         .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
-      if (!app) throw new ChangeError(404, "app not reported by this phone");
+      if (!app) {
+        // A copied per-app limit can already exist before the new phone reports any apps.
+        const [copiedLimit] = op.type === "timeLimit.set" ? await db.select({ p: timeLimits.packageName }).from(timeLimits)
+          .where(and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName))) : [];
+        if (!copiedLimit) throw new ChangeError(404, "app not reported by this phone");
+      }
       // Core apps (dialer, messages, maps, clock, settings...) must always work.
-      if (app.core) throw new ChangeError(400, "core apps such as the dialer cannot have a time limit");
+      if (app?.core) throw new ChangeError(400, "core apps such as the dialer cannot have a time limit");
       return;
     }
     case "catalog.add": {
@@ -290,7 +295,7 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
     case "app.set":
       await db
         .update(phoneApps)
-        .set({ allowed: op.allowed })
+        .set({ allowed: op.allowed, explicitlyBlocked: !op.allowed })
         .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
       return { dns: false };
     case "contact.add":
@@ -463,13 +468,13 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
         })
         .onConflictDoUpdate({
           target: [phoneApps.phoneId, phoneApps.packageName],
-          set: { allowed: true, requested: true },
+          set: { allowed: true, requested: true, explicitlyBlocked: false },
         });
       return { dns: false };
     case "catalog.remove":
       await db
         .update(phoneApps)
-        .set({ requested: false, allowed: false })
+        .set({ requested: false, allowed: false, explicitlyBlocked: true })
         .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)));
       return { dns: false };
   }
@@ -524,8 +529,7 @@ export async function submitChange(
       if (queued) return { status: "pending" as const, op, change: queued, notify: null };
     }
     const connected = fresh.pairedAt !== null || fresh.deviceTokenHash !== null;
-    const draftRule = /^(app|timeLimit|schedule|dns)\./.test(op.type);
-    if (fresh.profile === "self" && !unrestrictedFavourite && (connected || !draftRule) && (await isLoosening(tx, fresh, op))) {
+    if (fresh.profile === "self" && !unrestrictedFavourite && connected && (await isLoosening(tx, fresh, op))) {
       const [key] = await tx.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
       // An unavailable helper leaves the delay as a way to change the key.
       const helperId = key?.keyType === "trusted" ? key.trustedUserId : null;

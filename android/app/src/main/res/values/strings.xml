@@ -295,6 +295,7 @@
     <string name="setup_undo_choice_minutes">%1$d minutes</string>
     <string name="setup_key_title">Choose your key</string>
     <string name="setup_key_body">Stricter rules apply as soon as your phone connects. Loosening rules or removing Plainphone uses your key.</string>
+    <string name="setup_key_overrides_dashboard">Your choice here replaces any key set in the dashboard.</string>
     <string name="setup_key_wait">Wait time</string>
     <string name="setup_key_trusted">A person I trust</string>
     <string name="setup_key_email">Their email address</string>

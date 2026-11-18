@@ -7,7 +7,9 @@ loosening requests. Until the person joins, new requests use a 24-hour wait. Whe
 joins, requests made while waiting for that helper switch to trusted approval
 if their wait has yet to expire.
 Existing phones and older Android versions keep their established key or the
-legacy 24-hour default.
+legacy 24-hour default. You can edit a draft's rules, favourites and key in the
+dashboard before connecting. The key selected on the phone during setup replaces
+the draft key.
 
 ## Undo setup
 
@@ -18,7 +20,11 @@ pairing. This lets a family shorten the window or allow extra time to test the
 setup. A dashboard choice takes precedence over the phone's choice. Completion
 seals the original window. Edits cannot re-open it. Android measures elapsed
 time across sleep. Rebooting closes the window. Undo works offline, and the
-phone reports it when it reconnects. Device Owner mode uses its existing release flow.
+phone retries its completion and undo reports when it reconnects. The dashboard
+shows the end time reported by the phone. The server accepts undo reports up to
+48 hours after that window closes. Older phones that have never reported
+completion can still report undo without that cutoff. Both paths notify the
+current household. Device Owner mode uses its existing release flow.
 
 ## Help another person
 
@@ -59,6 +65,8 @@ The code works for the person you chose, wherever they are, for 2 minutes.
 It is meant for when you are together, but it cannot prove that. The helper
 can approve from a forwarded image during that time. Showing a new code for
 the same change replaces the old one, and each change can be approved once.
+The household check cannot catch a second account the owner controls outside
+the household. The system also cannot prevent helpers from coordinating approvals.
 
 ## Copy rules into a new setup
 
@@ -66,12 +74,15 @@ Show **Set up like me** from Today or the owner's dashboard. The invitee scans
 the code to begin a Myself setup in their own dashboard. If they already opened
 a light-mode setup link on Android, **Copy rules from a friend** replaces
 the rule choices in that same draft after confirmation. The setup link remains
-usable. The copied rules include time limits and weekday overrides, schedules,
-app choices and blocked web categories. The recipient can edit those rules in
-their dashboard before pairing. Contacts, locations,
-domain exceptions, usage history and helper relationships stay with the original
-account. The server deletes the shared snapshot after expiry and stores it with
-no source-account identifier.
+usable. The template copies explicitly blocked app package names, total and
+per-app time limits with weekday overrides, schedules with their allowed app
+package names, and the web filter's blocked categories. Only explicit blocks
+recorded after this update can be shared.
+The recipient can edit the rules before pairing. The allowed and installed app
+inventory, app labels, contacts, locations, domain exceptions, usage history and
+helper relationships stay with the original account. Each code works once and
+expires after 15 minutes. The server stores the temporary snapshot without a
+source-account identifier.
 
 ## Evidence
 

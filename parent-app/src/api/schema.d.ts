@@ -363,7 +363,7 @@ export interface paths {
         /** Read the remaining setup undo window (phone) */
         get: operations["getDeviceSetupCompletion"];
         put?: never;
-        /** Record completion once for a newly paired light-mode phone */
+        /** Record completion once for a light-mode phone */
         post: operations["postDeviceSetupCompletion"];
         delete?: never;
         options?: never;
@@ -383,7 +383,8 @@ export interface paths {
         /**
          * Report local undo of light-mode setup (phone)
          * @description The phone decides its local undo window and switches off locally. The server accepts
-         *     authenticated report for light mode at any time and queues a notice when it removes the phone.
+         *     an authenticated report up to 48 hours after the recorded window ends, or at any time
+         *     for a legacy phone without a completion report. Removing the phone queues a notice.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -3431,6 +3432,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Time since local setup completed. */
                     elapsedMs: number;
                     /**
                      * @description Optional Self phone choice.
@@ -5669,12 +5671,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Minutes and editable flag */
+            /** @description Minutes, editability, and the deadline reported by the phone */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        minutes: 0 | 5 | 10 | 30 | 60;
+                        editable: boolean;
+                        /** Format: date-time */
+                        undoUntil: string | null;
+                    };
+                };
             };
         };
     };

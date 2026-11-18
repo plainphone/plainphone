@@ -44,6 +44,7 @@ interface SyncApi {
      * release (409). Other answers and network errors throw.
      */
     fun ackReleased(token: String): Boolean
+    fun reportSetupCompletion(token: String, completion: SetupCompletion): Unit = throw IOException("setup completion reporting unavailable")
     fun reportSetupUndo(token: String): Boolean = throw IOException("setup undo reporting unavailable")
     /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
@@ -400,6 +401,13 @@ class PlainphoneApi private constructor(
         read()
     } catch (error: JSONException) {
         throw IOException("Invalid approval response", error)
+    }
+
+    override fun reportSetupCompletion(token: String, completion: SetupCompletion) {
+        val body = JSONObject().put("elapsedMs", completion.elapsedMs).put("undoMinutes", completion.undoMinutes)
+        val r = call("POST", "/device/setup-completion", token, body, replayable = true)
+        // A server from before setup completion can still receive the legacy undo report.
+        if (r.status !in listOf(200, 401, 404)) throw HttpError(r.status, r.body)
     }
 
     override fun reportSetupUndo(token: String): Boolean {

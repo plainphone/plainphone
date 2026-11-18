@@ -281,6 +281,8 @@ export const phoneApps = pgTable(
     packageName: text("package_name").notNull(),
     label: text("label").notNull(),
     allowed: boolean("allowed").notNull(),
+    /** Explicit block, distinct from the default for newly reported apps. */
+    explicitlyBlocked: boolean("explicitly_blocked").notNull().default(false),
     /** Reported by the phone: dialer, messages, settings, launcher... Never hidden. */
     core: boolean("core").notNull().default(false),
     installed: boolean("installed").notNull().default(true),

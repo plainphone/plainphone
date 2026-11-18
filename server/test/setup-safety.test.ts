@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it, vi } from "vitest";
-import { setupUndoNotices } from "../src/db/schema.js";
+import { pendingChanges, setupUndoNotices } from "../src/db/schema.js";
 import { deliverSetupUndoNotices } from "../src/services/setup-undo-notices.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, signIn, useHarness } from "./harness.js";
@@ -80,6 +80,27 @@ describe("onboarding safety", () => {
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map(({ text }) => text))
       .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
+  });
+
+  it.each([true, false])("checks the reported undo deadline with time left: %s", async (withinGrace) => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const claimed = await claim();
+    const path = `/api/phones/${claimed.json.id}`;
+    expect((await parent.put(`${path}/setup-undo`, { minutes: 5 })).status).toBe(200);
+    device.token = (await decide("confirm")).json.deviceToken;
+    await device.get("/api/device/rules");
+    const completed = h.clock.now.getTime();
+    h.clock.advance(2 * 60 * 60_000);
+    await device.post("/api/device/setup-completion", { elapsedMs: 2 * 60 * 60_000, undoMinutes: 5 });
+    expect((await parent.get(`${path}/setup-undo`)).json.undoUntil)
+      .toBe(new Date(completed + 5 * 60_000).toISOString());
+    h.clock.advance((46 * 60 + 5) * 60_000 + (withinGrace ? 0 : 1));
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(withinGrace ? 204 : 409);
+    expect((await parent.get(path)).status).toBe(withinGrace ? 404 : 200);
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).filter(({ text }) => text.includes("Set-up was undone on the phone")))
+      .toHaveLength(withinGrace ? 1 : 0);
   });
 
   it("recovers an unsent notice after the phone deletion is committed", async () => {
@@ -260,6 +281,43 @@ describe("onboarding safety", () => {
     await device.get("/api/device/rules");
     expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: 60 })).json.undoRemainingMs)
       .toBe((minutes ?? 10) * 60_000);
+  });
+
+  it("pairs a Self draft with favourites and uses the phone's key choice", async () => {
+    const parent = await signIn(h, "owner@example.org");
+    const draft = await parent.post("/api/phones/enroll", { name: "My phone", profile: "self", mode: "light" });
+    expect(draft.status).toBe(201);
+    const path = `/api/phones/${draft.json.phone.id}`;
+    const favourite = { name: "Favourite", number: "+12025550123" };
+    expect((await parent.post(`${path}/contacts`, favourite)).status).toBe(200);
+    const dashboardKey = {
+      keyType: "delay", delayHours: 12, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    };
+    expect((await parent.put(`${path}/key`, dashboardKey)).status).toBe(200);
+    expect((await parent.get(`${path}/key`)).json.delayHours).toBe(12);
+    expect((await parent.get(`${path}/changes`)).json.changes).toEqual([]);
+
+    // A draft saved by an older server may still have a queued dashboard key.
+    await h.ctx.db.insert(pendingChanges).values({
+      phoneId: draft.json.phone.id, keyType: "delay", op: { type: "key.set", key: dashboardKey },
+      effectiveAt: new Date(h.clock.now.getTime() + 3_600_000),
+    });
+    const device = new Client(h);
+    const enrollment = { token: draft.json.enrollment.token, installId: "self-draft-install" };
+    expect((await device.post("/api/device/enroll", {
+      ...enrollment, key: { keyType: "trusted", trustedEmail: "owner@example.org" },
+    })).status).toBe(400);
+    expect((await parent.get(`${path}/changes`)).json.changes).toHaveLength(1);
+    const paired = await device.post("/api/device/enroll", {
+      ...enrollment, key: { keyType: "delay", delayHours: 6 },
+    });
+    expect(paired.status).toBe(200);
+    device.token = paired.json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await parent.get(`${path}/contacts`)).json.contacts).toMatchObject([favourite]);
+    h.clock.advance(3_600_000);
+    await sweep(h.ctx);
+    expect((await parent.get(`${path}/key`)).json.delayHours).toBe(6);
   });
 
   it("sets the explicitly chosen wait time before a Self phone activates", async () => {

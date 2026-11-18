@@ -209,7 +209,8 @@ class LightSetupActivity : ComponentActivity() {
                     CalmScreen(
                         eyebrow = null,
                         title = stringResource(R.string.setup_key_title),
-                        body = stringResource(R.string.setup_key_body),
+                        body = stringResource(R.string.setup_key_body) + "\n" +
+                            stringResource(R.string.setup_key_overrides_dashboard),
                         primary = if (ready) stringResource(R.string.setup_continue) else null,
                         onPrimary = { keyChosen = true },
                         secondary = stringResource(R.string.setup_back),

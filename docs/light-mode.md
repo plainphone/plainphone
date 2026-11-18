@@ -120,7 +120,10 @@ time since boot at completion. Changing the clock has no effect. Rebooting close
 The maintenance PIN and dashboard release remain available.
 
 Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
-The phone saves the accepted undo and retries the report after reconnecting. Once the server
+The phone saves completion and any accepted undo and retries the reports after reconnecting.
+The dashboard shows the reported end time. After a completion report, the server accepts undo
+reports for 48 hours after the window ends. Phones without a completion report use the legacy
+flow. Once the server
 acknowledges it, Plainphone removes its device administrator so Android allows normal
 uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
 If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.

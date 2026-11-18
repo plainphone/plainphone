@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { householdMembers, pendingChanges, phones, selfKeys, users } from "../db/schema.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
@@ -16,27 +16,29 @@ export type InitialSelfKey = z.infer<typeof initialSelfKey>;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 /** Only called while the pairing or enrollment transaction holds the phone lock. */
-export async function setInitialSelfKey(tx: Tx, phone: typeof phones.$inferSelect, choice: InitialSelfKey) {
+export async function setInitialSelfKey(tx: Tx, phone: typeof phones.$inferSelect, choice: InitialSelfKey, now: Date) {
   if (phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return false;
-  const [pending] = await tx.select({ id: pendingChanges.id }).from(pendingChanges)
-    .where(eq(pendingChanges.phoneId, phone.id)).limit(1);
-  if (pending) return false;
-  if (choice.keyType === "delay") {
-    await tx.update(selfKeys).set({ keyType: "delay", delayHours: choice.delayHours, trustedEmail: null, trustedUserId: null })
-      .where(eq(selfKeys.phoneId, phone.id));
-    return true;
+
+  let trustedUserId: string | null = null;
+  if (choice.keyType === "trusted") {
+    const [helper] = await tx.select({ id: users.id, member: householdMembers.userId }).from(users)
+      .leftJoin(householdMembers, and(eq(householdMembers.userId, users.id), eq(householdMembers.householdId, phone.householdId)))
+      .where(eq(users.email, choice.trustedEmail));
+    if (helper?.member) return false;
+    trustedUserId = helper?.id ?? null;
   }
-  if (choice.keyType === "trustedQr") {
-    await tx.update(selfKeys).set({ keyType: "trusted", delayHours: 24, trustedEmail: null, trustedUserId: null })
-      .where(eq(selfKeys.phoneId, phone.id));
-    return true;
-  }
-  const [helper] = await tx.select({ id: users.id, member: householdMembers.userId }).from(users)
-    .leftJoin(householdMembers, and(eq(householdMembers.userId, users.id), eq(householdMembers.householdId, phone.householdId)))
-    .where(eq(users.email, choice.trustedEmail));
-  if (helper?.member) return false;
-  await tx.update(selfKeys).set({ keyType: "trusted", delayHours: 24, trustedEmail: choice.trustedEmail, trustedUserId: helper?.id ?? null })
-    .where(eq(selfKeys.phoneId, phone.id));
+
+  await tx.update(selfKeys).set({
+    keyType: choice.keyType === "delay" ? "delay" : "trusted",
+    delayHours: choice.keyType === "delay" ? choice.delayHours : 24,
+    trustedEmail: choice.keyType === "trusted" ? choice.trustedEmail : null,
+    trustedUserId,
+  }).where(eq(selfKeys.phoneId, phone.id));
+  // A dashboard key queued by an older version must not replace the phone's choice.
+  await tx.update(pendingChanges).set({ status: "cancelled", decidedAt: now }).where(and(
+    eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
+    sql`${pendingChanges.op}->>'type' = 'key.set'`,
+  ));
   return true;
 }
 

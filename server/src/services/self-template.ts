@@ -9,7 +9,7 @@ import type { Ctx } from "./context.js";
 
 export const templateCode = z.string().regex(/^pp_r_[A-Za-z0-9_-]{30,70}$/);
 const templateRules = z.object({
-  apps: z.array(z.object({ packageName, allowed: z.boolean() })).max(1000),
+  blockedPackages: z.array(packageName).max(1000),
   schedules: z.array(scheduleInput).max(200),
   limits: z.array(limitInput.extend({ packageName: limitTarget })).max(1000),
   blockedCategories: z.array(z.enum(DNS_CATEGORIES)),
@@ -21,8 +21,8 @@ export async function shareSelfTemplate(ctx: Ctx, phone: typeof phones.$inferSel
   return ctx.db.transaction(async (tx) => {
     const [fresh] = await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
     if (!fresh) return null;
-    const apps = await tx.select({ packageName: phoneApps.packageName, allowed: phoneApps.allowed })
-      .from(phoneApps).where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.core, false)));
+    const blocks = await tx.select({ packageName: phoneApps.packageName }).from(phoneApps)
+      .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.core, false), eq(phoneApps.explicitlyBlocked, true)));
     const windows = await tx.select({
       kind: schedules.kind, days: schedules.days, startMinute: schedules.startMinute,
       endMinute: schedules.endMinute, allowedPackages: schedules.allowedPackages,
@@ -31,7 +31,10 @@ export async function shareSelfTemplate(ctx: Ctx, phone: typeof phones.$inferSel
       .from(timeLimits).where(eq(timeLimits.phoneId, phone.id));
     const [dns] = await tx.select({ blockedCategories: dnsSettings.blockedCategories }).from(dnsSettings)
       .where(eq(dnsSettings.phoneId, phone.id));
-    const rules = templateRules.safeParse({ apps, schedules: windows, limits, blockedCategories: dns?.blockedCategories ?? [] });
+    const rules = templateRules.safeParse({
+      blockedPackages: blocks.map((app) => app.packageName), schedules: windows, limits,
+      blockedCategories: dns?.blockedCategories ?? [],
+    });
     if (!rules.success) return null;
     const code = randomToken("pp_r_");
     await tx.insert(selfRuleTemplates).values({
@@ -42,9 +45,10 @@ export async function shareSelfTemplate(ctx: Ctx, phone: typeof phones.$inferSel
 }
 
 export async function readSelfTemplate(tx: Tx, code: string, now: Date) {
-  const [row] = await tx.select({ rules: selfRuleTemplates.rules }).from(selfRuleTemplates)
-    .where(and(eq(selfRuleTemplates.tokenHash, sha256(code)), gt(selfRuleTemplates.expiresAt, now)));
-  return row ? templateRules.parse(row.rules) : null;
+  const [row] = await tx.delete(selfRuleTemplates)
+    .where(and(eq(selfRuleTemplates.tokenHash, sha256(code)), gt(selfRuleTemplates.expiresAt, now)))
+    .returning({ rules: selfRuleTemplates.rules });
+  return row ? templateRules.safeParse(row.rules).data ?? null : null;
 }
 
 /** Caller holds the unpaired Self draft's phone lock. */
@@ -56,9 +60,9 @@ export async function replaceDraftTemplate(tx: Tx, phoneId: string, rules: z.inf
 }
 
 export async function applySelfTemplate(tx: Tx, phoneId: string, rules: z.infer<typeof templateRules>, now: Date) {
-  if (rules.apps.length) {
-    await tx.insert(phoneApps).values(rules.apps.map((app) => ({
-      ...app, phoneId, label: app.packageName, installed: false, reportedAt: now,
+  if (rules.blockedPackages.length) {
+    await tx.insert(phoneApps).values(rules.blockedPackages.map((packageName) => ({
+      packageName, phoneId, label: packageName, allowed: false, explicitlyBlocked: true, installed: false, reportedAt: now,
     }))).onConflictDoNothing();
   }
   if (rules.schedules.length) await tx.insert(schedules).values(rules.schedules.map((rule) => ({ ...rule, phoneId })));

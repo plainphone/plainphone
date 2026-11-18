@@ -1242,6 +1242,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "explicitly_blocked": {
+          "name": "explicitly_blocked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "core": {
           "name": "core",
           "type": "boolean",

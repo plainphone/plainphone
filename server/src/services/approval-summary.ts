@@ -274,7 +274,7 @@ export function formatApprovalSummary(
         const hours = (value: number) => `${value} ${locale === "da" ? "timer" : "h"}`;
         const trusted = copy("trusted person", "betroet person");
         const newHelper = copy("new trusted person", "ny betroet person");
-        const fallback = copy("wait if unavailable", "vent hvis personen er utilgængelig");
+        const fallback = copy("wait if the person has not joined", "ventetid hvis personen ikke er tilmeldt");
         const pay = copy("pay to unlock", "betal for at låse op");
         const describe = (rule: Pick<typeof next, "keyType" | "delayHours" | "payUnlockEnabled" | "payUnlockAmount">, newPerson = false) => {
           const wait = hours(rule.delayHours);

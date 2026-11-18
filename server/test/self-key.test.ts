@@ -511,11 +511,20 @@ describe("Self profile with a trusted person", () => {
   });
 
   it("copies editable rule choices without contacts, private domains or a helper relationship", async () => {
-    const { me, phoneId } = await selfPhone();
+    const { me, phoneId, device: sender } = await selfPhone();
     const stranger = await signIn(h, "template-recipient@example.org");
     const source = `/api/phones/${phoneId}`;
+    await sender.put("/api/device/apps", { apps: [
+      { packageName: "com.instagram.android", label: "Instagram" },
+      { packageName: "com.example.health", label: "Private health app" },
+      { packageName: "com.example.bank", label: "Private bank app" },
+      { packageName: "com.example.reader", label: "Private reader label" },
+    ] });
+    await me.put(`${source}/apps/com.instagram.android`, { allowed: false });
+    await me.put(`${source}/apps/com.example.bank`, { allowed: true });
+    expect((await me.put(`${source}/time-limits/apps/com.example.reader`, { minutes: 15 })).status).toBe(200);
     await me.put(`${source}/time-limits/total`, { minutes: 50, days: { "1": 40 } });
-    await me.post(`${source}/schedules`, { kind: "bedtime", days: [1], startMinute: 1260, endMinute: 420, allowedPackages: [] });
+    await me.post(`${source}/schedules`, { kind: "bedtime", days: [1], startMinute: 1260, endMinute: 420, allowedPackages: ["com.example.reader"] });
     await me.post(`${source}/contacts`, { name: "Private contact", number: "+12025550123" });
     await me.post(`${source}/dns/block`, { domain: "private.example.org" });
     h.clock.advance(24 * 3_600_000);
@@ -529,22 +538,30 @@ describe("Self profile with a trusted person", () => {
     expect((await device.post("/api/device/enrollment-template", { token: childDraft.json.enrollment.token, template })).status).toBe(404);
     const imported = await stranger.post("/api/phones/enroll", { name: "Copy", profile: "self", mode: "light" });
     const { token } = imported.json.enrollment;
-    for (let i = 0; i < 2; i++) {
-      expect((await device.post("/api/device/enrollment-template", { token, template })).status).toBe(204);
-    }
+    const imports = await Promise.all([
+      device.post("/api/device/enrollment-template", { token, template }),
+      device.post("/api/device/enrollment-template", { token, template }),
+    ]);
+    expect(imports.map(({ status }) => status).sort()).toEqual([204, 404]);
     expect(imported.status).toBe(201);
     const copy = `/api/phones/${imported.json.phone.id}`;
     expect((await stranger.get(`${copy}/time-limits`)).json.total).toEqual({ minutes: 50, days: { "1": 40 } });
-    expect((await stranger.get(`${copy}/schedules`)).json.schedules).toMatchObject([{ kind: "bedtime", days: [1] }]);
-    expect((await stranger.get(`${copy}/apps`)).json.apps).toEqual(expect.arrayContaining([expect.objectContaining({ packageName: "com.instagram.android", allowed: false })]));
+    expect((await stranger.get(`${copy}/schedules`)).json.schedules).toMatchObject([{ kind: "bedtime", days: [1], allowedPackages: ["com.example.reader"] }]);
+    expect((await stranger.get(`${copy}/time-limits`)).json.apps).toMatchObject([{ packageName: "com.example.reader", label: "com.example.reader", limit: { minutes: 15 } }]);
+    expect((await stranger.get(`${copy}/apps`)).json.apps).toEqual([
+      expect.objectContaining({ packageName: "com.instagram.android", allowed: false }),
+    ]);
     expect((await stranger.get(`${copy}/contacts`)).json.contacts).toEqual([]);
     expect((await stranger.get(`${copy}/dns`)).json.blockDomains).toEqual([]);
     expect((await stranger.get("/api/people-i-help")).json.people).toEqual([]);
     expect((await stranger.put(`${copy}/time-limits/total`, { minutes: 70 })).status).toBe(200);
+    expect((await stranger.put(`${copy}/time-limits/apps/com.example.reader`, { minutes: 20 })).status).toBe(200);
     expect((await device.post("/api/device/enroll", { token, installId: "template-copy-install" })).json.phoneId).toBe(imported.json.phone.id);
     expect((await device.post("/api/device/enrollment-template", { token, template })).status).toBe(404);
+    const unused = await me.post(`${source}/self-template`);
+    const expired = new URLSearchParams(new URL(unused.json.url).hash.slice(1)).get("template");
     h.clock.advance(15 * 60_000);
-    expect((await stranger.post("/api/phones/enroll", { name: "Expired", profile: "self", template })).status).toBe(404);
+    expect((await stranger.post("/api/phones/enroll", { name: "Expired", profile: "self", template: expired })).status).toBe(404);
   });
 
   it("refuses yourself as trusted person", async () => {

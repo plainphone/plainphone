@@ -1426,7 +1426,7 @@ paths:
     post:
       operationId: postDeviceSetupCompletion
       tags: [device]
-      summary: Record completion once for a newly paired light-mode phone
+      summary: Record completion once for a light-mode phone
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -1436,7 +1436,7 @@ paths:
               type: object
               required: [elapsedMs]
               properties:
-                elapsedMs: { type: integer, minimum: 0, maximum: 3600000 }
+                elapsedMs: { type: integer, minimum: 0, description: Time since local setup completed. }
                 undoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional Self phone choice. }
       responses:
         "200":
@@ -1454,7 +1454,8 @@ paths:
       summary: Report local undo of light-mode setup (phone)
       description: |
         The phone decides its local undo window and switches off locally. The server accepts
-        authenticated report for light mode at any time and queues a notice when it removes the phone.
+        an authenticated report up to 48 hours after the recorded window ends, or at any time
+        for a legacy phone without a completion report. Removing the phone queues a notice.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }
@@ -2957,7 +2958,17 @@ paths:
       tags: [self]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: Minutes and editable flag }
+        "200":
+          description: Minutes, editability, and the deadline reported by the phone
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [minutes, editable, undoUntil]
+                properties:
+                  minutes: { type: integer, enum: [0, 5, 10, 30, 60] }
+                  editable: { type: boolean }
+                  undoUntil: { type: [string, "null"], format: date-time }
     put:
       operationId: putPhoneSetupUndo
       summary: Set the setup undo period on a light-mode phone before pairing

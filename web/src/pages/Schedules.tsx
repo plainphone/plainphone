@@ -129,7 +129,12 @@ function Editor({ initial, apps, onDone }: { initial?: Schedule; apps: App[]; on
   const [allowed, setAllowed] = useState<Set<string>>(new Set(initial?.allowedPackages ?? []));
   const [errors, setErrors] = useState<{ days?: string; start?: string; end?: string }>({});
   const [saving, setSaving] = useState(false);
-  const choosable = apps.filter((a) => !a.core).sort((a, b) => a.label.localeCompare(b.label, locale));
+  const reported = new Set(apps.map((app) => app.packageName));
+  const existingExceptions = (initial?.allowedPackages ?? [])
+    .filter((packageName) => !reported.has(packageName))
+    .map((packageName) => ({ packageName, label: packageName }));
+  const choosable = [...apps.filter((app) => !app.core), ...existingExceptions]
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
 
   const s = hhmmToMinutes(start);
   const e = hhmmToMinutes(end);

@@ -554,6 +554,8 @@ export const en = {
   "setupUndo.minutes": "{minutes} minutes",
   "setupUndo.help": "Choose how long this phone can undo setup. Set this before connecting the phone.",
   "setupUndo.closed": "The undo window is set when the phone finishes setup.",
+  "setupUndo.until": "Undo possible until {time}.",
+  "setupUndo.ended": "The undo window has ended.",
   "appr.appRule": "Change a rule for {app}",
   "appr.apps": "Change an app rule",
   "appr.namedTimeRule": "Time limit: {name}",

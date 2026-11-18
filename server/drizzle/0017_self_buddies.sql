@@ -1,3 +1,5 @@
+ALTER TABLE "phone_apps" ADD COLUMN "explicitly_blocked" boolean DEFAULT false NOT NULL;
+--> statement-breakpoint
 CREATE TABLE "self_rule_templates" (
 	"token_hash" text PRIMARY KEY NOT NULL,
 	"rules" jsonb NOT NULL,

@@ -553,6 +553,8 @@ export const da: Messages = {
   "setupUndo.minutes": "{minutes} minutter",
   "setupUndo.help": "Vælg, hvor længe opsætningen kan fortrydes på telefonen. Vælg tiden, før telefonen forbindes.",
   "setupUndo.closed": "Fristen for at fortryde fastlægges, når telefonen er sat op.",
+  "setupUndo.until": "Opsætningen kan fortrydes indtil kl. {time}.",
+  "setupUndo.ended": "Fristen for at fortryde er udløbet.",
   "appr.appRule": "Ændr en regel for {app}",
   "appr.apps": "Ændr en appregel",
   "appr.namedTimeRule": "Tidsgrænse: {name}",

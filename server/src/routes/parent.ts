@@ -34,7 +34,7 @@ import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
 import { approvalAppLabel, approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
-import { DEFAULT_SETUP_UNDO_MINUTES, undoMinutesInput } from "../lib/setup-undo.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
@@ -923,8 +923,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/phones/:pid/setup-undo", async (c) => {
     const phone = await requirePhone(c);
+    const deadline = setupUndoDeadline(phone);
     return c.json({
       minutes: phone.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES,
+      undoUntil: deadline === null ? null : new Date(deadline).toISOString(),
       editable: phone.mode === "light" && !phone.pairedAt && !phone.setupCompletedAt,
     });
   });

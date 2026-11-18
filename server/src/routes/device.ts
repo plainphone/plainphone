@@ -11,7 +11,7 @@ import { contacts, householdMembers, enrollments, households, pairings, pendingC
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
-import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_UNDO_MS, undoMinutesInput } from "../lib/setup-undo.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
@@ -35,13 +35,9 @@ import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
 
-const SETUP_COMPLETION_LIMIT_MS = MAX_SETUP_UNDO_MS;
-
 function setupUndoRemaining(phone: Phone, now: Date): number {
-  if (phone.mode !== "light" || !phone.setupCompletedAt) return 0;
-  const duration = undoMinutesInput.safeParse(phone.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES);
-  if (!duration.success) return 0;
-  return Math.min(duration.data * 60_000, Math.max(0, phone.setupCompletedAt.getTime() + duration.data * 60_000 - now.getTime()));
+  const deadline = setupUndoDeadline(phone);
+  return deadline === null ? 0 : Math.max(0, deadline - now.getTime());
 }
 export const DEVICE_PREFIX = "pp_d_";
 
@@ -140,7 +136,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         if (!p.claimedBy) return { status: 410 as const };
         if (key) {
           const [phone] = await tx.select().from(phones).where(eq(phones.id, p.phoneId)).for("update");
-          if (!phone || !(await setInitialSelfKey(tx, phone, key))) return { status: 400 as const };
+          if (!phone || !(await setInitialSelfKey(tx, phone, key, now))) return { status: 400 as const };
         }
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
@@ -357,12 +353,17 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     app.post(path, async (c) => {
       const phone = c.get("phone");
       const undo = path === "/undo-setup";
+      const receivedAt = ctx.now().getTime();
       const result = await ctx.db.transaction(async (tx) => {
         // Only the request that deletes the authenticated pairing may queue the notice.
         const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
+          const deadline = setupUndoDeadline(fresh);
+          if (fresh.setupCompletedAt && (deadline === null || receivedAt > deadline + SETUP_UNDO_REPORT_GRACE_MS)) {
+            return { status: 409 as const, error: "the setup undo reporting window has expired" };
+          }
           await queueSetupUndoNotices(ctx, tx, fresh);
         } else if (!fresh.releaseRequestedAt) {
           return { status: 409 as const, error: "this phone has not been asked to release" };
@@ -461,17 +462,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/setup-completion", async (c) => {
     const { elapsedMs, undoMinutes } = await body(c, z.object({
-      elapsedMs: z.number().int().min(0).max(MAX_SETUP_UNDO_MS),
+      elapsedMs: z.number().int().min(0),
       undoMinutes: undoMinutesInput.optional(),
     }));
     const phone = c.get("phone");
     const remaining = await ctx.db.transaction(async (tx) => {
       const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh || fresh.mode !== "light" || !fresh.pairedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
+      if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
       const now = ctx.now();
       if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
-      if (now.getTime() - fresh.pairedAt.getTime() >= SETUP_COMPLETION_LIMIT_MS) return 0;
-      const completedAt = new Date(Math.max(fresh.pairedAt.getTime(), now.getTime() - elapsedMs));
+      const completedAt = new Date(Math.max(fresh.pairedAt?.getTime() ?? 0, now.getTime() - elapsedMs));
       const setupUndoMinutes = fresh.setupUndoMinutes ??
         (fresh.profile === "self" ? undoMinutes : undefined) ?? DEFAULT_SETUP_UNDO_MINUTES;
       const completion = { setupCompletedAt: completedAt, setupUndoMinutes };
