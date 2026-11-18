@@ -186,7 +186,10 @@ export interface Limit {
   days: Partial<Record<string, number>>;
 }
 
+export type ApprovalSummary = Record<Locale, string>;
+
 export interface PendingChange {
+  summary?: ApprovalSummary;
   id: string;
   op: Op;
   keyType: "delay" | "trusted";
@@ -199,9 +202,7 @@ export interface Approval {
   id: string;
   phoneName: string;
   requestedBy: string | null;
-  op: Pick<Op, "type">;
-  /** The app's name for app.set ops, when the phone has reported it. */
-  appLabel: string | null;
+  summary: ApprovalSummary;
   createdAt: string;
 }
 export interface Members {

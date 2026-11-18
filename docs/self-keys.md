@@ -17,9 +17,8 @@ An adult can set the same choices in the dashboard's phone settings before
 pairing. This lets a family shorten the window or allow extra time to test the
 setup. A dashboard choice takes precedence over the phone's choice. Completion
 seals the original window. Edits cannot re-open it. Android measures elapsed
-time across sleep, and the server holds the deadline and authorizes the release.
-After a reboot Android asks the server for the remaining time. Device Owner
-mode uses its existing release flow.
+time across sleep. Rebooting closes the window. Undo works offline, and the
+phone reports it when it reconnects. Device Owner mode uses its existing release flow.
 
 ## Help another person
 
@@ -39,21 +38,16 @@ until that person chooses to change their key. During upgrade, pending legacy
 requests whose helper is ineligible move to the existing wait time, starting at
 the upgrade.
 
-On the phone's Today screen, **Ask for approval** shows the pending trusted
-requests. App permissions and time limits name the affected app or the total
-limit. Choose a request and show the QR. The helper can scan it from the
-dashboard with camera access, in the Plainphone parent app, or with the
-phone camera.
-**Scan a Plainphone code** in the Android app opens the dashboard camera flow
-in the browser. Review the named rule and approve as the signed-in helper.
+On the phone's Today screen, **Ask for approval** lists the requested changes,
+including the current and requested limit when it changes. Choose a request
+to show its details and QR code. The helper can scan it from the dashboard,
+the Plainphone parent app, or the phone camera. The helper reads the same
+change details before choosing Approve.
 
-The server signs each challenge for one phone and change, and validates its
-two-minute deadline and current helper when approving. Applying the request
-consumes the opportunity to use the code. The Android dialog blocks system
-screenshots. A copied image of an unused code can still be scanned by the
-assigned helper before the code expires. The code cannot verify that the
-two people are in the same place. Service restarts invalidate open
-approval codes.
+The code works for the person you chose, wherever they are, for 2 minutes.
+It is meant for when you are together, but it cannot prove that. The helper
+can approve from a forwarded image during that time. Showing a new code for
+the same change replaces the old one, and each change can be approved once.
 
 ## Copy rules into a new setup
 

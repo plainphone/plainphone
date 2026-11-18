@@ -32,6 +32,7 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
+import { approvalSummary } from "../services/approval-summary.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, undoMinutesInput } from "../lib/setup-undo.js";
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -937,7 +938,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     const [k] = await ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
     const rows = await listPending(ctx, [phone.id]);
-    return c.json({ changes: rows.map((r) => pendingJson(r, phone, k)) });
+    return c.json({ changes: await Promise.all(rows.map((r) => pendingJson(r, phone, k))) });
   });
 
   app.post("/changes/:cid/cancel", async (c) => {
@@ -1033,15 +1034,16 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       )
       .orderBy(desc(pendingChanges.createdAt));
     return c.json({
-      approvals: rows.map((r) => ({
+      approvals: await Promise.all(rows.map(async (r) => ({
         id: r.change.id,
         phoneId: r.change.phoneId,
         phoneName: r.phoneName,
         requestedBy: r.requester,
         op: { type: (r.change.op as Op).type },
         appLabel: r.appLabel,
+        summary: await approvalSummary(ctx.db, r.change.phoneId, r.change.op as Op, r.appLabel),
         createdAt: r.change.createdAt.toISOString(),
-      })),
+      }))),
     });
   });
 
@@ -1101,14 +1103,21 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
   }
 
-  function pendingJson(
+  async function pendingJson(
     r: typeof pendingChanges.$inferSelect,
     phone: Phone,
     key: typeof selfKeys.$inferSelect | undefined,
   ) {
+    const op = r.op as Op;
+    const [app] = "packageName" in op
+      ? await ctx.db.select({ label: phoneApps.label }).from(phoneApps)
+        .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)))
+      : [];
     return {
       id: r.id,
-      op: r.op,
+      op,
+      // The owner already receives contact details and can see them in the pending list.
+      summary: op.type === "contact.add" ? undefined : await approvalSummary(ctx.db, phone.id, op, app?.label ?? null),
       keyType: r.keyType,
       effectiveAt: r.effectiveAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

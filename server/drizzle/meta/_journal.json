@@ -108,31 +108,10 @@
       "breakpoints": true
     },
     {
-      "idx": 15,
-      "version": "7",
-      "when": 1794995598706,
-      "tag": "0015_setup_undo_choices",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1794996024133,
-      "tag": "0016_trusted_phone_invites",
-      "breakpoints": true
-    },
-    {
       "idx": 17,
       "version": "7",
-      "when": 1794996216802,
-      "tag": "0017_self_rule_templates",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1794997912187,
-      "tag": "0018_recover_trusted_requests",
+      "when": 1795006098709,
+      "tag": "0017_self_buddies",
       "breakpoints": true
     }
   ]

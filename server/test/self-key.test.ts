@@ -160,8 +160,8 @@ describe("Self profile with a trusted person", () => {
       values (${phone.id}, ${requesterId}, ${JSON.stringify({ type: "app.set", packageName: "com.instagram.android", allowed: true })}::jsonb, 'trusted')
       returning id`);
     assert.ok(change);
-    const migration = await readFile(new URL("../drizzle/0018_recover_trusted_requests.sql", import.meta.url), "utf8");
-    await h.ctx.db.execute(sql.raw(migration.split("--> statement-breakpoint")[1]!));
+    const migration = await readFile(new URL("../drizzle/0017_self_buddies.sql", import.meta.url), "utf8");
+    await h.ctx.db.execute(sql.raw(migration.split("--> statement-breakpoint").at(-1)!));
     const [row] = await h.ctx.db.execute<{ key_type: string; effective_at: string }>(sql`
       select key_type, effective_at from pending_changes where id = ${change.id}`);
     assert.ok(row);
@@ -249,19 +249,26 @@ describe("Self profile with a trusted person", () => {
     await me.put(`${phone}/time-limits/apps/com.spotify.music`, { minutes: 10 });
     const appLimit = await me.put(`${phone}/time-limits/apps/com.spotify.music`, { minutes: 20 });
     expect(appLimit.status).toBe(202);
+    const otherAppLimit = await me.put(`${phone}/time-limits/apps/com.spotify.music`, { minutes: 60 });
+    expect(otherAppLimit.status).toBe(202);
     const limit = await me.put(`${phone}/time-limits/total`, { minutes: 60 });
     expect(limit.status).toBe(202);
     const app = await me.put(`${phone}/apps/com.instagram.android`, { allowed: true });
     expect(app.status).toBe(202);
-    expect((await device.get("/api/device/approval-challenge")).json.changes).toEqual(expect.arrayContaining([
-      { id: limit.json.change.id, type: "timeLimit.set", appLabel: "*" },
-      { id: appLimit.json.change.id, type: "timeLimit.set", appLabel: "Spotify" },
-      { id: app.json.change.id, type: "app.set", appLabel: "Instagram" },
-    ]));
-    expect((await helper.get("/api/approvals")).json.approvals).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: limit.json.change.id, appLabel: "*" }),
-      expect.objectContaining({ id: appLimit.json.change.id, appLabel: "Spotify" }),
-    ]));
+    const phoneRows = (await device.get("/api/device/approval-challenge")).json.changes;
+    const helperRows = (await helper.get("/api/approvals")).json.approvals;
+    for (const [change, label] of [
+      [appLimit.json.change, "Spotify: 10 → 20 min a day"],
+      [otherAppLimit.json.change, "Spotify: 10 → 60 min a day"],
+      [limit.json.change, "All apps: 30 → 60 min a day"],
+      [app.json.change, "Allow Instagram"],
+    ] as const) {
+      for (const rows of [phoneRows, helperRows]) {
+        expect(rows.find((row: { id: string }) => row.id === change.id)?.summary.en).toBe(label);
+      }
+      const qr = await device.post("/api/device/approval-challenge", { changeId: change.id });
+      expect(qr.json.summary.en).toBe(label);
+    }
   });
 
   it("binds QR approval to the current helper, change and expiry and consumes it on approval", async () => {
@@ -283,7 +290,10 @@ describe("Self profile with a trusted person", () => {
     expect(typeof expired).toBe("string");
     h.clock.advance(120_000);
     expect((await approve(helper, first, expired)).status).toBe(409);
+    const replaced = await challenge();
     const fresh = await challenge();
+    expect(fresh).not.toBe(replaced);
+    expect((await approve(helper, first, replaced)).status).toBe(409);
     expect((await approve(other, first, fresh)).status).toBe(404);
     expect((await approve(me, first, fresh)).status).toBe(404);
     expect((await approve(helper, second, fresh)).status).toBe(409);

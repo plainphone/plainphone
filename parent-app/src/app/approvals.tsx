@@ -13,7 +13,6 @@ import { SERVER_URL } from "../lib/config";
 import { savePendingInvite } from "../lib/pendingInvite";
 import { space } from "../lib/theme";
 import { formatDateTime } from "../shared/lib/format";
-import { describeApproval } from "../shared/lib/ops";
 
 function selfCode(raw: string) {
   try {
@@ -89,7 +88,7 @@ function ApprovalsList() {
           ) : (
             <VStack gap={space.sm}>
               {list.map((a) => {
-                const what = describeApproval(a.op.type, t, a.appLabel);
+                const what = a.summary[locale];
                 const from = a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : t("appr.fromPhone", { phone: a.phoneName });
                 return (
                   <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={`${from}\n${t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}`}>

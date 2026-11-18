@@ -11,6 +11,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.work.ListenableWorker
@@ -32,6 +33,7 @@ import org.plainphone.app.light.LightAdminReceiver
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.SelfApprovalAction
 import org.plainphone.app.light.UndoSetupAction
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -56,7 +58,7 @@ class PlainphoneApiReleaseTest {
 
     private lateinit var server: HttpServer
     @Volatile private var answer = 204
-    @Volatile private var errorBody = """{"error":"x"}"""
+    @Volatile private var responseBody = """{"error":"x"}"""
     private val seen = mutableListOf<Triple<String, String, String?>>()
 
 
@@ -66,7 +68,7 @@ class PlainphoneApiReleaseTest {
         server.createContext("/") { ex ->
             seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
             ex.requestBody.readBytes()
-            val body = if (answer == 204) ByteArray(0) else errorBody.toByteArray()
+            val body = if (answer == 204) ByteArray(0) else responseBody.toByteArray()
             ex.sendResponseHeaders(answer, if (answer == 204) -1 else body.size.toLong())
             if (answer != 204) ex.responseBody.use { it.write(body) }
             ex.close()
@@ -84,12 +86,39 @@ class PlainphoneApiReleaseTest {
     @Test
     fun `an invalid setup key is distinct from a rejected enrollment token`() {
         answer = 400
-        errorBody = """{"error":"invalid setup key"}"""
+        responseBody = """{"error":"invalid setup key"}"""
         assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
-        errorBody = """{"error":"invalid input","issues":[{"path":"key.trustedEmail","message":"Invalid email"}]}"""
+        responseBody = """{"error":"invalid input","issues":[{"path":"key.trustedEmail","message":"Invalid email"}]}"""
         assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
         answer = 410
         assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+    }
+
+    @Test
+    @Config(shadows = [PairedStore::class], instrumentedPackages = ["org.plainphone.app.sync"])
+    fun `approval choices and QR show the requested limit`() {
+        val context = completeSetup()
+        val shorter = "Instagram: 15 → 30 min a day"
+        val longer = "Instagram: 15 → 60 min a day"
+        responseBody = """{"changes":[
+            {"id":"short","summary":{"en":"$shorter","da":"$shorter"}},
+            {"id":"long","summary":{"en":"$longer","da":"$longer"}}
+        ]}"""
+        answer = 200
+        compose.setContent { SelfApprovalAction() }
+        compose.onNodeWithText(context.getString(R.string.self_approval_title)).performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(longer).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(shorter).assertIsDisplayed()
+        compose.onNodeWithText(longer).assertIsDisplayed()
+
+        val qr = "http://127.0.0.1/approvals#code=phone.long.expiry.nonce"
+        responseBody = """{"url":"$qr","summary":{"en":"$longer","da":"$longer"}}"""
+        compose.onNodeWithText(longer).performClick()
+        val scan = context.getString(R.string.self_approval_scan)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(scan).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(longer).assertIsDisplayed()
+        compose.onNodeWithText(shorter).assertDoesNotExist()
+        assertThat(seen.map { it.first }).containsExactly("GET", "POST").inOrder()
     }
 
     @Test

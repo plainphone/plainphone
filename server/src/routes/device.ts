@@ -9,10 +9,11 @@ import { z } from "zod";
 import { enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
-import { issueApprovalChallenge } from "../lib/approval-challenge.js";
+import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_UNDO_MS, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
-import { applyDueChanges, deletePhone } from "../services/changes.js";
+import { approvalSummary } from "../services/approval-summary.js";
+import { applyDueChanges, deletePhone, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
@@ -140,9 +141,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
       }
+      const [setup] = p.mode === "light" ? await tx.select({ setupUndoMinutes: phones.setupUndoMinutes })
+        .from(phones).where(eq(phones.id, p.phoneId)) : [];
       // Keep the token recoverable if the response is lost before the phone saves it.
       if (!p.deliveredAt) await tx.update(pairings).set({ deliveredAt: now }).where(eq(pairings.id, id));
-      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, ownerId: p.claimedBy, account: p.mode === "strong" ? details : null };
+      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, ownerId: p.claimedBy, setupUndoMinutes: setup?.setupUndoMinutes, account: p.mode === "strong" ? details : null };
     });
   };
 
@@ -164,7 +167,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await syncDns(ctx, result.phoneId);
       await sendInitialKeyInvite(ctx, decision?.key, result.ownerId);
     }
-    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.account && { account: result.account }) }, 200);
+    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.setupUndoMinutes != null && { setupUndoMinutes: result.setupUndoMinutes }), ...(result.account && { account: result.account }) }, 200);
   });
 
   app.post("/enrollment-review", async (c) => {
@@ -233,8 +236,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
     if (r.status !== 200) return c.json({ error: r.error }, r.status);
-    const { phoneId, deviceToken, account } = r;
-    return c.json({ status: "paired", phoneId, deviceToken, ...(account && { account }) }, 200);
+    const { phoneId, deviceToken, account, setupUndoMinutes } = r;
+    return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
   });
 
   // --- Everything below needs the device token ------------------------------
@@ -377,24 +380,38 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         eq(pendingChanges.keyType, "trusted"), eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
       )).orderBy(pendingChanges.createdAt);
     c.header("Cache-Control", "no-store");
-    return c.json({ changes: rows.map(({ id, op, appLabel }) => ({ id, type: (op as { type: string }).type, appLabel })) });
+    return c.json({ changes: await Promise.all(rows.map(async ({ id, op, appLabel }) => ({
+      id, type: (op as Op).type, appLabel, summary: await approvalSummary(ctx.db, phone.id, op as Op, appLabel),
+    }))) });
   });
 
   app.post("/approval-challenge", async (c) => {
     const phone = c.get("phone");
     const { changeId } = await body(c, z.object({ changeId: z.uuid() }));
     if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
-    const [change] = await ctx.db.select({ id: pendingChanges.id }).from(pendingChanges)
-      .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
-      .where(and(
-        eq(pendingChanges.id, changeId), eq(pendingChanges.phoneId, phone.id),
-        eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "trusted"),
-        eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
-      ));
-    if (!change) throw new HTTPException(404, { message: "not found" });
+    const result = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return null;
+      const [change] = await tx.select({
+        id: pendingChanges.id, op: pendingChanges.op, appLabel: phoneApps.label, helperId: selfKeys.trustedUserId,
+      }).from(pendingChanges)
+        .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
+        .leftJoin(phoneApps, and(eq(phoneApps.phoneId, pendingChanges.phoneId),
+          eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`)))
+        .where(and(
+          eq(pendingChanges.id, changeId), eq(pendingChanges.phoneId, phone.id),
+          eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "trusted"),
+          eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
+        ));
+      if (!change?.helperId) return null;
+      const summary = await approvalSummary(tx, phone.id, change.op as Op, change.appLabel);
+      const challenge = issueApprovalChallenge(phone.id, changeId, ctx.now());
+      await tx.update(pendingChanges).set({ approvalChallengeHash: approvalChallengeHash(challenge, change.helperId) }).where(eq(pendingChanges.id, changeId));
+      return { challenge, summary, url: `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/approvals#code=${challenge}` };
+    });
+    if (!result) throw new HTTPException(404, { message: "not found" });
     c.header("Cache-Control", "no-store");
-    const challenge = issueApprovalChallenge(phone.id, changeId, ctx.now());
-    return c.json({ challenge, url: `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/approvals#code=${challenge}` });
+    return c.json(result);
   });
 
   app.get("/setup-completion", (c) => {

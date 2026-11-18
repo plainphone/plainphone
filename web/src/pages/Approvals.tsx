@@ -5,7 +5,6 @@ import { errorMessage, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } f
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Approval } from "../lib/api";
 import { formatDateTime } from "../lib/format";
-import { describeApproval } from "../lib/ops";
 
 export function ApprovalsPage() {
   const { t, locale } = useI18n();
@@ -47,14 +46,14 @@ export function ApprovalsPage() {
       {list.map((a) => (
         <li key={a.id} className="item item-stack">
           <div>
-            <p className="row-title">{describeApproval(a.op.type, t, a.appLabel)}</p>
+            <p className="row-title">{a.summary[locale]}</p>
             {showOwner && <p className="row-meta">
               {a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : a.phoneName}
             </p>}
             <p className="row-meta">{t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}</p>
           </div>
           <div className="actions">
-            <button type="button" className="btn btn-primary" onClick={() => void decide(a, "approve")} disabled={busy !== null}>
+            <button type="button" className="btn btn-primary" onClick={() => void decide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[locale]}`} disabled={busy !== null}>
               {t("appr.approve")}
             </button>
             {!code && <button type="button" className="btn btn-secondary" onClick={() => void decide(a, "reject")} disabled={busy !== null}>

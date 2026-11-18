@@ -353,22 +353,22 @@ describe("approvals", () => {
       "GET /approvals": {
         body: {
           approvals: [
-            {
-              id: "a1",
+            ...[30, 60].map((minutes, index) => ({
+              id: `a${index + 1}`,
               phoneName: "Mine",
               requestedBy: "friend@example.org",
-              op: { type: "app.set", packageName: "com.example.insta", allowed: true },
-              appLabel: "Instagram",
+              summary: { en: `Instagram: 15 → ${minutes} min a day`, da: `Instagram: 15 → ${minutes} min om dagen` },
               createdAt: new Date().toISOString(),
-            },
+            })),
           ],
         },
       },
       "POST /changes/a1/approve": { status: 204 },
     });
     await renderRouter(routes, { initialUrl: "/approvals" });
-    expect(await screen.findByText("Show Instagram")).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText("Approve: Show Instagram"));
+    expect(await screen.findByText("Instagram: 15 → 30 min a day")).toBeTruthy();
+    expect(screen.getByText("Instagram: 15 → 60 min a day")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Approve: Instagram: 15 → 30 min a day"));
     expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/changes/a1/approve")).toBe(true);
   });

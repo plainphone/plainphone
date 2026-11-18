@@ -283,13 +283,7 @@
     <string name="self_approval_scan">Ask your trusted person to scan this code. It expires after two minutes.</string>
     <string name="self_approval_loading">Loading requests…</string>
     <string name="self_approval_empty">No changes are waiting for your trusted person.</string>
-    <string name="self_approval_release">Release this phone</string>
-    <string name="self_approval_rule">Change a rule</string>
     <string name="setup_key_invalid">Use another email address. Your helper needs a separate household.</string>
-    <string name="self_approval_all_apps">All apps together</string>
-    <string name="self_approval_time_limit">Time limit: %1$s</string>
-    <string name="self_approval_app">App rule: %1$s</string>
-    <string name="self_approval_item">%1$d. %2$s</string>
     <string name="setup_key_qr">Invite by QR code</string>
     <string name="setup_key_qr_help">You can show the invite code as soon as your phone connects.</string>
     <string name="self_invite_scan">Ask your friend to scan and accept this invitation. It expires after 15 minutes.</string>

@@ -139,8 +139,10 @@ object LightSetup {
         val edit = prefs(context).edit().putBoolean("complete", true)
         val sync = SyncStore(context)
         if (profile(context) != null && sync.isPaired && !sync.released && !sync.setupUndoPending) {
+            val chosenMinutes = if (profile(context) == "self") prefs(context).getInt("setupUndoMinutes", 10) else 10
+            val windowMs = (sync.setupUndoMinutes() ?: chosenMinutes) * 60_000L
             edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
-                .putLong("undoWindowMs", if (profile(context) == "self") prefs(context).getInt("setupUndoMinutes", 10) * 60_000L else SETUP_UNDO_MS)
+                .putLong("undoWindowMs", windowMs)
                 .putInt("completedBoot", bootCount(context))
                 .putString("completedPhoneId", sync.phoneId)
         }

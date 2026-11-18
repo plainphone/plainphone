@@ -63,7 +63,7 @@ even offline. The phone reports Undo when it reconnects, even before its first r
 
 Choose a wait time or invite a trusted person by email or QR. Each person manages
 their own account and can hold the other's key. A helper can approve a request in
-the dashboard or scan a two-minute QR. **Set up like me** copies selected rules
+the dashboard or scan a two-minute QR. Both show the requested change before approval. **Set up like me** copies selected rules
 into a friend's editable draft, including one already opened from a light-mode
 setup link. See [Self keys](docs/self-keys.md).
 

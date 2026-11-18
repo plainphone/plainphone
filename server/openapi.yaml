@@ -388,12 +388,20 @@ components:
       properties:
         status: { const: applied }
 
+    ApprovalSummary:
+      type: object
+      required: [en, da]
+      properties:
+        en: { type: string }
+        da: { type: string }
+
     PendingChange:
       type: object
       required: [id, op, keyType, effectiveAt]
       properties:
         id: { type: string, format: uuid }
         op: { $ref: "#/components/schemas/Op" }
+        summary: { $ref: "#/components/schemas/ApprovalSummary" }
         keyType: { enum: [delay, trusted] }
         effectiveAt:
           type: [string, "null"]
@@ -910,6 +918,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string, examples: [pp_d_…] }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked claimer and household for strong-mode pairing, when available.
@@ -960,6 +969,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked claimer and household for strong-mode pairing, when available.
@@ -1069,6 +1079,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked token issuer for a new strong-mode enrollment, when available.
@@ -1262,16 +1273,17 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, type, appLabel]
+                      required: [id, type, appLabel, summary]
                       properties:
                         id: { type: string, format: uuid }
                         type: { type: string }
                         appLabel: { type: [string, "null"], description: "App label, package fallback, or * for the total time limit." }
+                        summary: { $ref: "#/components/schemas/ApprovalSummary" }
     post:
       operationId: postDeviceApprovalChallenge
       security: [{ device: [] }]
       tags: [device]
-      summary: Make a signed two-minute approval code
+      summary: Issue a two-minute code and replace any earlier code for this change
       requestBody:
         required: true
         content:
@@ -1282,7 +1294,17 @@ paths:
               properties:
                 changeId: { type: string, format: uuid }
       responses:
-        "200": { description: Challenge and QR URL }
+        "200":
+          description: Challenge, QR URL and the change shown with it.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge, url, summary]
+                properties:
+                  challenge: { type: string }
+                  url: { type: string, format: uri }
+                  summary: { $ref: "#/components/schemas/ApprovalSummary" }
         "404": { $ref: "#/components/responses/Error" }
   /device/trusted-invite:
     post:
@@ -2830,13 +2852,32 @@ paths:
       summary: Requests waiting for me as a trusted person
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "approvals: id, phoneId, phoneName, requestedBy, op.type, appLabel (name of the app for app.set, or null), createdAt" }
+        "200":
+          description: Pending approvals with the change shown to the helper.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approvals]
+                properties:
+                  approvals:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, phoneId, phoneName, requestedBy, summary, createdAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        phoneId: { type: string, format: uuid }
+                        phoneName: { type: string }
+                        requestedBy: { type: [string, "null"] }
+                        summary: { $ref: "#/components/schemas/ApprovalSummary" }
+                        createdAt: { type: string, format: date-time }
   /changes/{cid}/approve-qr:
     post:
       operationId: postChangesApproveQr
       tags: [self]
       security: [{ session: [] }, { cookie: [] }]
-      summary: Approve with a signed QR challenge as the current trusted person
+      summary: Approve with a one-time QR challenge as the current trusted person
       parameters: [{ $ref: "#/components/parameters/changeId" }]
       requestBody:
         required: true
@@ -2850,7 +2891,7 @@ paths:
       responses:
         "204": { description: Applied }
         "404": { description: Not my request to decide }
-        "409": { description: Invalid, used, or expired code }
+        "409": { description: Invalid, replaced, used, or expired code }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove

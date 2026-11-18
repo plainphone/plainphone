@@ -608,7 +608,7 @@ export async function applyPending(
     const now = ctx.now();
     if (decidedBy) {
       if (!(await canDecideTrusted(tx, phone, change, decidedBy))) return null;
-      if (challenge !== undefined && !matchesApprovalChallenge(challenge, phone.id, change.id, now)) return null;
+      if (challenge !== undefined && !matchesApprovalChallenge(challenge, decidedBy, change.approvalChallengeHash, now)) return null;
     } else if (change.keyType !== "delay" || !change.effectiveAt || change.effectiveAt > now) return null;
     let dns = false;
     let status: "applied" | "failed" = "applied";
@@ -622,7 +622,7 @@ export async function applyPending(
     }
     await tx
       .update(pendingChanges)
-      .set({ status, decidedBy, decidedAt: ctx.now() })
+      .set({ status, decidedBy, decidedAt: ctx.now(), approvalChallengeHash: null })
       .where(eq(pendingChanges.id, change.id));
     return { phoneId: phone.id, dns, op: change.op as Op, requestedBy: change.requestedBy, status };
   });

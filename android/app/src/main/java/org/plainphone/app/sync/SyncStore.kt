@@ -98,11 +98,17 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
     @SuppressLint("ApplySharedPref")
-    fun savePaired(phoneId: String, token: String, account: PlainphoneApi.PollAccount? = null) {
+    fun savePaired(
+        phoneId: String,
+        token: String,
+        account: PlainphoneApi.PollAccount? = null,
+        setupUndoMinutes: Int? = null,
+    ) {
         synchronized(tokenLock) {
             val pairing = prefs.edit()
                 .putString(KEY_TOKEN, box.seal(token))
                 .putString(KEY_PHONE_ID, phoneId)
+                .putInt("paired_setup_undo_minutes", setupUndoMinutes ?: -1)
                 .putString(KEY_CONNECTED_EMAIL, account?.maskedEmail)
                 .putString(KEY_CONNECTED_HOUSEHOLD, account?.householdName)
                 .putBoolean(KEY_EVER_PAIRED, true)
@@ -121,6 +127,9 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             tokenCache = null
         }
     }
+
+    internal fun setupUndoMinutes(): Int? = prefs.getInt("paired_setup_undo_minutes", -1)
+        .takeIf { it in org.plainphone.app.light.SETUP_UNDO_CHOICES }
 
     internal fun enrollmentAccount(): PlainphoneApi.PollAccount? {
         val email = prefs.getString(KEY_CONNECTED_EMAIL, null) ?: return null

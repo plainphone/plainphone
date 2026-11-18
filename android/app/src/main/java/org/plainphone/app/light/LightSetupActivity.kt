@@ -255,7 +255,6 @@ class LightSetupActivity : ComponentActivity() {
                         if (choice == SetupAudience.MYSELF) {
                             LightSetup.saveSelfKey(this, waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
                         }
-                        if (choice == SetupAudience.MYSELF && Mode.isStrong(this)) StrongSetup.requireAccount(this)
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
                         refresh++
                     },

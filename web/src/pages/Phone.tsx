@@ -199,7 +199,7 @@ function ChangeBar({
   const [busy, setBusy] = useState(false);
   let text: string | null = null;
   if (banner) {
-    const what = describeOp(banner.op, t, locale, appLabel);
+    const what = banner.summary?.[locale] ?? describeOp(banner.op, t, locale, appLabel);
     let when: string;
     if (banner.keyType === "trusted" || !banner.effectiveAt) when = t("pending.trustedBanner");
     else {
@@ -283,7 +283,7 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
       {pending.map((c) => (
         <li key={c.id} className="pending-item">
           <div>
-            <p className="row-title">{describeOp(c.op, t, locale, appLabel)}</p>
+            <p className="row-title">{c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel)}</p>
             <p className="row-meta">{pendingWhen(c, now, t, locale)}</p>
           </div>
           <button

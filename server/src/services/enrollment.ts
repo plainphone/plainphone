@@ -49,7 +49,7 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
 }
 
 export type EnrollResult =
-  | { status: 200; phoneId: string; deviceToken: string; account: ReturnType<typeof pairingAccount> }
+  | { status: 200; phoneId: string; deviceToken: string; setupUndoMinutes: number | null; account: ReturnType<typeof pairingAccount> }
   | { status: 400 | 404 | 410; error: string };
 
 /**
@@ -79,7 +79,7 @@ export async function redeemEnrollment(
         ? await tx.select({ name: households.name }).from(households).where(eq(households.id, phone.householdId))
         : [];
       const account = pairingAccount(e.createdBy, user, household?.name ?? null);
-      return { status: 200 as const, phoneId: phone.id, deviceToken, account };
+      return { status: 200 as const, phoneId: phone.id, deviceToken, account, setupUndoMinutes: phone.mode === "light" ? phone.setupUndoMinutes : null };
     };
 
     if (e.usedAt) {

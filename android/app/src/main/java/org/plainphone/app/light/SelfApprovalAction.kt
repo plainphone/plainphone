@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
@@ -47,15 +48,17 @@ internal fun SelfApprovalAction() {
     var error by remember { mutableStateOf(false) }
     var requests by remember { mutableStateOf<List<PlainphoneApi.ApprovalRequest>?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
+    val language = LocalConfiguration.current.locales[0].language
+    var qrSummary by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<String?>(null) }
-    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null }
+    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null }
     TextButton(onClick = { open = true }) { Text(stringResource(R.string.self_approval_title)) }
     TextButton(onClick = { invite = true; open = true }) { Text(stringResource(R.string.setup_key_qr)) }
     TextButton(onClick = { template = true; open = true }) { Text(stringResource(R.string.self_template_share)) }
     ScanPlainphoneCode()
     if (!open) return
     val api = remember { PlainphoneApi(ConfigStore(context).load().serverUrl, context) }
-    LaunchedEffect(selected, invite, template) {
+    LaunchedEffect(selected, invite, template, language) {
         val id = selected
         try {
             if (template) {
@@ -70,12 +73,15 @@ internal fun SelfApprovalAction() {
                     qr = null
                     requests = emptyList()
                 }
-            } else if (id == null) requests = withContext(Dispatchers.IO) { api.approvalRequests(token) }
+            } else if (id == null) requests = withContext(Dispatchers.IO) { api.approvalRequests(token, language) }
             else {
                 val started = SystemClock.elapsedRealtime()
-                qr = withContext(Dispatchers.IO) { api.approvalQrUrl(token, id) }
+                val approval = withContext(Dispatchers.IO) { api.approvalQr(token, id, language) }
+                qrSummary = approval.summary
+                qr = approval.url
                 delay((120_000 - (SystemClock.elapsedRealtime() - started)).coerceAtLeast(0))
                 qr = null
+                qrSummary = null
                 selected = null
             }
         } catch (_: IOException) {
@@ -98,26 +104,13 @@ internal fun SelfApprovalAction() {
                     error -> Text(stringResource(R.string.pairing_failed))
                     url != null -> {
                         Text(stringResource(when { template -> R.string.self_template_help; invite -> R.string.self_invite_scan; else -> R.string.self_approval_scan }))
+                        qrSummary?.let { Text(it) }
                         QrCode(url, Modifier.size(200.dp))
                     }
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
-                    else -> rows.forEachIndexed { index, request ->
-                        val target = when (request.appLabel) {
-                            "*" -> stringResource(R.string.self_approval_all_apps)
-                            else -> request.appLabel
-                        }
-                        val title = when {
-                            request.type == "phone.release" -> stringResource(R.string.self_approval_release)
-                            request.type.startsWith("key.") -> stringResource(R.string.setup_key_title)
-                            request.type.startsWith("timeLimit.") && target != null ->
-                                stringResource(R.string.self_approval_time_limit, target)
-                            target != null -> stringResource(R.string.self_approval_app, target)
-                            else -> stringResource(R.string.self_approval_rule)
-                        }
-                        TextButton(onClick = { selected = request.id }) {
-                            Text(stringResource(R.string.self_approval_item, index + 1, title))
-                        }
+                    else -> rows.forEach { request ->
+                        TextButton(onClick = { selected = request.id }) { Text(request.summary) }
                     }
                 }
             }

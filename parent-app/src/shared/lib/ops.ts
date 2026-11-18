@@ -104,28 +104,3 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
 export function minuteWords(t: T) {
   return { hm: t("duration.hm"), h: t("duration.h"), m: t("duration.m"), lessThanMinute: t("duration.lessThanMinute") };
 }
-
-/** Trusted people see the rule name, without the owner's private values. */
-export function describeApproval(type: Op["type"], t: T, app: string | null) {
-  switch (type) {
-    case "app.set": return app ? t("op.appShow", { app }) : t("appr.apps");
-    case "catalog.add":
-    case "catalog.remove":
-      return app ? t("appr.appRule", { app }) : t("appr.apps");
-    case "timeLimit.set":
-    case "timeLimit.bonus": return app ? t("appr.namedTimeRule", { name: app === "*" ? t("time.totalTitle") : app }) : t("appr.timeRule");
-    case "dns.category":
-    case "dns.allowDomain":
-    case "dns.blockDomain": return t("appr.webRule");
-    case "schedule.create":
-    case "schedule.update":
-    case "schedule.delete": return t("appr.scheduleRule");
-    case "contact.add":
-    case "contact.remove": return t("appr.contactRule");
-    case "setting.set": return t("appr.settingRule");
-    case "key.set": return t("appr.keyRule");
-    case "home.set": return t("op.homeSet");
-    case "phone.remove": return t("op.phoneRemove");
-    case "phone.release": return t("op.phoneRelease");
-  }
-}
