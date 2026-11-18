@@ -72,6 +72,11 @@ class InstallLease(
 
     internal fun catalogId(): String? = synchronized(LOCK) { valid(loadLocked())[CATALOG]?.id }
 
+    internal fun catalogRemainingMs(id: String): Long = synchronized(LOCK) {
+        valid(loadLocked())[CATALOG]?.takeIf { it.id == id }
+            ?.let { (it.untilMs - env.nowMs()).coerceAtLeast(0) } ?: 0
+    }
+
     internal fun clearCatalogAccountsIfAllowed(id: String, requestId: String, eligible: () -> Boolean, clear: () -> Unit): Boolean =
         clearWhileAllowed({
             if (catalogId() != id || accountClear != null || !eligible()) false

@@ -5,6 +5,7 @@ package org.plainphone.app.catalog
 import android.accounts.AccountManager
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.SystemClock
 import android.os.UserManager
 import android.util.Log
 import java.security.MessageDigest
@@ -22,6 +23,7 @@ import org.plainphone.app.update.InstallLease
 internal object CatalogAccounts {
     const val GOOGLE = "com.google"
     private const val PREFS = "plainphone_catalog_accounts"
+    private const val LATE_ACCOUNT_GRACE_MS = 15 * 60_000L
     private const val RESTRICTION = UserManager.DISALLOW_MODIFY_ACCOUNTS
     private var watchedManager: AccountManager? = null
 
@@ -47,17 +49,21 @@ internal object CatalogAccounts {
 
     @SuppressLint("ApplySharedPref")
     @Synchronized
-    fun start(context: Context, pkg: String, expectedLease: String? = null): Request {
+    fun start(context: Context, pkg: String, expectedLease: String? = null): Request? {
         val lease = InstallLease.android(context)
         val id = checkNotNull(lease.catalogId())
         check(expectedLease == null || id == expectedLease)
         check(InstallWindow.current(context) == pkg && eligible(context))
-        check(prefs(context).all.values.none { JSONArray(it as String).getString(2) == id }) { "Google sign-in is already running in this window" }
+        if (recentMarkers(context).values.any { it.getString(2) == id }) return null
+        val remainingMs = lease.catalogRemainingMs(id)
+        check(remainingMs > 0)
         check(context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
         watchAccounts(context)
         val baseline = fingerprints(context)
         val request = Request(UUID.randomUUID().toString(), id, pkg, baseline, expectedLease != null)
+        val ttlMs = remainingMs + LATE_ACCOUNT_GRACE_MS
         val marker = JSONArray().put(pkg).put(JSONArray(baseline)).put(id)
+            .put(System.currentTimeMillis() + ttlMs).put(SystemClock.elapsedRealtime() + ttlMs)
         // The authenticator can outlive Plainphone. Record the baseline before starting it.
         check(prefs(context).edit().putString(request.id, marker.toString()).commit())
         try {
@@ -80,32 +86,49 @@ internal object CatalogAccounts {
     fun complete(context: Context, request: Request): Boolean {
         val lease = InstallLease.android(context)
         if (request.fallback) lease.finishCatalogAccounts(request.id)
-        val newAccount = fingerprints(context).any { it !in request.baseline }
-        if (prefs(context).contains(request.id)) {
-            if (newAccount && !isOpen(context, request.leaseId, request.pkg)) reportLate(context)
-            prefs(context).edit().remove(request.id).apply()
-        }
-        return newAccount
+        val current = fingerprints(context)
+        reconcile(context, current)
+        prefs(context).edit().remove(request.id).apply()
+        return current.any { it !in request.baseline }
     }
 
     @Synchronized
-    private fun accountsUpdated(context: Context) {
-        val current = fingerprints(context)
-        if (current.isEmpty()) return
-        val p = prefs(context)
-        val additions = p.all.mapNotNull { (id, value) ->
-            val marker = JSONArray(value as String)
+    private fun accountsUpdated(context: Context) = reconcile(context, fingerprints(context))
+
+    private fun reconcile(context: Context, current: Set<String>) {
+        val additions = recentMarkers(context).filterValues { marker ->
             val baseline = marker.getJSONArray(1)
             val seen = (0 until baseline.length()).map(baseline::getString).toSet()
-            if (current.any { it !in seen }) id to isOpen(context, marker.getString(2), marker.getString(0)) else null
+            current.any { it !in seen }
         }
         if (additions.isEmpty()) return
         val lease = InstallLease.android(context)
-        additions.forEach { (id, _) -> lease.finishCatalogAccounts(id) }
-        // Account broadcasts cannot identify an authenticator session. Prefer the current
-        // request if multiple sessions could have produced the account.
-        if (additions.none { it.second }) reportLate(context)
-        p.edit().apply { additions.forEach { (id, _) -> remove(id) } }.apply()
+        additions.keys.forEach(lease::finishCatalogAccounts)
+        // Android does not identify the originating sign-in. A matching open request
+        // must not suppress the warning for a matching closed one.
+        if (additions.values.any { !isOpen(context, it.getString(2), it.getString(0)) }) reportLate(context)
+        prefs(context).edit().apply { additions.keys.forEach { remove(it) } }.apply()
+    }
+
+    private fun recentMarkers(context: Context): Map<String, JSONArray> {
+        val p = prefs(context)
+        val wallNow = System.currentTimeMillis()
+        val elapsedNow = SystemClock.elapsedRealtime()
+        val validRemainingMs = 1..(InstallLease.MAX_MS + LATE_ACCOUNT_GRACE_MS)
+        val recent = mutableMapOf<String, JSONArray>()
+        val cleanup = p.edit()
+        p.all.forEach { (id, value) ->
+            val marker = JSONArray(value as String)
+            val wallRemainingMs = marker.optLong(3, 0L) - wallNow
+            val elapsedRemainingMs = marker.optLong(4, 0L) - elapsedNow
+            if (wallRemainingMs in validRemainingMs && elapsedRemainingMs in validRemainingMs) {
+                recent[id] = marker
+            } else {
+                cleanup.remove(id)
+            }
+        }
+        cleanup.apply()
+        return recent
     }
 
     private fun isOpen(context: Context, id: String, pkg: String) =

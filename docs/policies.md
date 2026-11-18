@@ -49,7 +49,7 @@ The roles are taken first, before `DISALLOW_CONFIG_DEFAULT_APPS` and before apps
 
 `DISALLOW_MODIFY_ACCOUNTS` is set in strong mode (#21). A Google account that is already on the phone stays (and cannot be removed by the child). To add one, for example the parent's account for Play, use a maintenance unlock or the parent-PIN catalog install option. Which account types are on the phone (types only, no names) is reported to the dashboard.
 
-If sign-in fails, **Allow accounts briefly** retries it using the existing catalog deadline and daily quota reservation. The account restriction returns as soon as sign-in reports a result, Android reports a new Google account, or the lease is closed or recovered, including at startup. The dashboard warns if an account arrives after the window closes. The account stays on the phone. Plainphone compares account fingerprints locally and sends only the warning.
+If sign-in fails, **Allow accounts briefly** retries it using the existing catalog deadline and daily quota reservation. The account restriction returns as soon as sign-in reports a result, Android reports a new Google account, or the lease is closed or recovered, including at startup. The dashboard warns if a newly observed Google account could belong to a recently closed catalog window, even if another window is open. Sign-in markers expire 15 minutes after the original install deadline. The account stays on the phone. Plainphone compares account fingerprints locally and sends only the warning.
 
 On a physical strong-mode phone with Google Play services:
 

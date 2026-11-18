@@ -177,6 +177,63 @@ class MaintenanceInstallTest {
         assertThat(InstallWindow.current(context)).isNull()
     }
 
+    @Test
+    fun `a newer window cannot suppress a matching late account warning`() {
+        val first = installPrompt()
+        submit(first, pin, expectAccountRequest = true)
+        InstallWindow.close(context, "test overlap", pkg)
+        val second = installPrompt()
+        val pinFields = fields(second)
+        (pinFields.getChildAt(1) as EditText).setText(pin)
+        (pinFields.getChildAt(2) as Button).performClick()
+        val requests = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        pumpUntil { requests.all.size == 2 }
+        assertThat(requests.all).hasSize(2)
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `a stale catalog sign-in cannot flag a later account`() {
+        val activity = installPrompt()
+        submit(activity, pin, expectAccountRequest = true)
+        ShadowSystemClock.advanceBy(Duration.ofDays(1))
+        InstallLease.android(context).recover()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("unrelated", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+        assertThat(context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE).all).isEmpty()
+    }
+
+    @Test
+    fun `a second PIN prompt does not offer fallback while sign-in is pending`() {
+        submit(installPrompt(), pin, expectAccountRequest = true)
+        val reopened = installPrompt()
+        submit(reopened, pin)
+
+        assertThat(fallback(reopened).visibility).isEqualTo(View.GONE)
+        assertThat(accountsBlocked()).isTrue()
+    }
+
+    @Test
+    fun `the fallback offer disappears at the catalog deadline`() {
+        val activity = installPrompt()
+        submit(activity, pin, expectAccountRequest = true)
+        completeWithoutGoogleAccount()
+        pumpUntil { fallback(activity).visibility == View.VISIBLE }
+        assertThat(fallback(activity).visibility).isEqualTo(View.VISIBLE)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(InstallWindow.WINDOW_MS))
+
+        assertThat(fallback(activity).visibility).isEqualTo(View.GONE)
+        assertThat(message(activity).text.toString()).doesNotContain(fallback(activity).text.toString())
+    }
+
     private fun startFallback() {
         val activity = installPrompt()
         submit(activity, pin, expectAccountRequest = true)
