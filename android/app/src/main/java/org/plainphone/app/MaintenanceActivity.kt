@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import android.accounts.AccountManager
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.UserManager
 import android.provider.Settings
 import android.text.InputType
 import android.view.WindowManager
@@ -17,6 +19,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.plainphone.app.catalog.InstallWindow
+import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
@@ -90,15 +93,19 @@ class MaintenanceActivity : Activity() {
                             runOnUiThread installResult@{
                                 if (isFinishing || isDestroyed) return@installResult
                                 when (result) {
-                                    InstallWindow.OpenResult.OPENED -> finish()
+                                    InstallWindow.OpenResult.OPENED -> {
+                                        if (Mode.isStrong(this)) {
+                                            addPlayAccount(pkg, message, button)
+                                            return@installResult
+                                        }
+                                        openPlay(pkg)
+                                    }
                                     InstallWindow.OpenResult.DAILY_LIMIT ->
                                         message.setText(R.string.maintenance_install_limit)
                                     InstallWindow.OpenResult.UNAVAILABLE ->
                                         message.setText(R.string.maintenance_install_unavailable)
                                     InstallWindow.OpenResult.BATTERY_EXEMPTION_NEEDED ->
                                         message.setText(R.string.maintenance_install_battery)
-                                    InstallWindow.OpenResult.ACCOUNT_WINDOW_FAILED ->
-                                        message.setText(R.string.maintenance_install_account_failed)
                                     InstallWindow.OpenResult.OPEN_FAILED ->
                                         message.setText(R.string.maintenance_install_open_failed)
                                 }
@@ -117,6 +124,33 @@ class MaintenanceActivity : Activity() {
         column.addView(pin)
         column.addView(button)
         column.addView(message)
+    }
+
+    private fun addPlayAccount(pkg: String, message: TextView, button: Button) {
+        // Android lets the device owner request an account by type while user account changes stay blocked.
+        val started = runCatching {
+            check(InstallWindow.current(this) == pkg &&
+                getSystemService(UserManager::class.java).hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS))
+            AccountManager.get(this).addAccount("com.google", null, null, Bundle(), this, { future ->
+                if (!isFinishing && !isDestroyed) {
+                    if (runCatching { future.result.containsKey(AccountManager.KEY_ACCOUNT_NAME) }.getOrDefault(false)) {
+                        openPlay(pkg)
+                    } else {
+                        message.setText(R.string.maintenance_install_account_failed)
+                        button.isEnabled = true
+                    }
+                }
+            }, null)
+        }.isSuccess
+        if (!started) {
+            message.setText(R.string.maintenance_install_account_failed)
+            button.isEnabled = true
+        }
+    }
+
+    private fun openPlay(pkg: String) {
+        if (InstallWindow.current(this) == pkg) InstallWindow.launchPlay(this, pkg)
+        finish()
     }
 
     private fun showActions() {

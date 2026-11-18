@@ -6,7 +6,7 @@ import org.plainphone.app.settings.PhoneSettings
 import org.plainphone.app.settings.SettingsApplier
 
 /** One line in the status report: what was attempted and whether it held. */
-data class StepResult(val name: String, val ok: Boolean, val detail: String = "") {
+data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false) {
     override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
 }
 
@@ -33,10 +33,6 @@ class PolicyApplier(
     private val settings: SettingsApplier? = null,
     private val onInstallsAllowed: () -> Unit = {},
     private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
-    private val clearCatalogAccountsIfAllowed: (() -> Unit) -> Boolean = { clear ->
-        clear()
-        true
-    },
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
@@ -74,17 +70,6 @@ class PolicyApplier(
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
-            else if (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS &&
-                config.installing != null && config.installAccountsAllowed
-            ) step(CATALOG_ACCOUNTS_STEP) {
-                var opened = false
-                try {
-                    opened = clearCatalogAccountsIfAllowed { device.clearRestriction(key) }
-                    check(opened) { "Catalog account window is no longer open" }
-                } finally {
-                    if (!opened) device.addRestriction(key)
-                }
-            }
             else step("restriction $key") { device.addRestriction(key) }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
@@ -294,7 +279,6 @@ class PolicyApplier(
 
     companion object {
         const val INSTALL_RESTRICTION_STEP = "restriction no_install_apps"
-        const val CATALOG_ACCOUNTS_STEP = "install window: clear no_modify_accounts"
         /** Android version for an API level, for status texts (29 = 10 ... 33 = 13). */
         private fun androidVersion(sdkInt: Int) = if (sdkInt in 29..33) (sdkInt - 19).toString() else "API $sdkInt"
 

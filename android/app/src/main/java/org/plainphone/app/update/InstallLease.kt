@@ -70,9 +70,6 @@ class InstallLease(
     fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean =
         clearWhileAllowed({ allowsInstallLocked(catalogApproved) }, clear)
 
-    fun clearCatalogAccountsIfAllowed(clear: () -> Unit): Boolean =
-        clearWhileAllowed({ CATALOG in valid(loadLocked()) }, clear) && isOpen(CATALOG)
-
     private fun clearWhileAllowed(allowed: () -> Boolean, clear: () -> Unit): Boolean {
         synchronized(LOCK) {
             if (!allowed()) return false

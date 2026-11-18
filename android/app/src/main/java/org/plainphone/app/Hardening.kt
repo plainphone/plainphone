@@ -163,12 +163,21 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
      * #25: Parallel Apps, Dual apps and similar create another user outside the hide plan.
      * Try to remove it; the step fails while one is left, so the parent sees the lock as broken.
      */
-    private fun extraUsers(): StepResult = step(EXTRA_USERS) {
-        val found = controls.extraUsers()
-        if (found.isEmpty()) return@step "none"
+    private fun extraUsers(): StepResult {
+        val found = try {
+            controls.extraUsers()
+        } catch (e: Exception) {
+            return StepResult(EXTRA_USERS, false, "${e.javaClass.simpleName}: ${e.message}")
+        }
+        if (found.isEmpty()) return StepResult(EXTRA_USERS, true, "none")
         val left = found.filterNot { runCatching { controls.removeUser(it) }.getOrDefault(false) }
-        if (left.isEmpty()) return@step "removed ${found.size}"
-        error("extra profile present; ${left.size} of ${found.size} could not be removed (${left.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }})")
+        if (left.isEmpty()) return StepResult(EXTRA_USERS, true, "removed ${found.size}", profilesRemoved = true)
+        val types = left.groupingBy { it.kind }.eachCount().entries.joinToString { "${it.value} ${it.key}" }
+        return StepResult(
+            EXTRA_USERS, false,
+            "extra profile present; ${left.size} of ${found.size} could not be removed ($types)",
+            profilesRemoved = left.size < found.size,
+        )
     }
 
     /** A missing role needs consent on the phone. */
@@ -221,7 +230,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
         }
 
         fun parallelAppsRemoved(results: List<StepResult>): Boolean =
-            results.any { it.name == EXTRA_USERS && it.ok && it.detail.startsWith("removed ") }
+            results.any { it.profilesRemoved }
 
         /** The secure camera on the lock screen stays. */
         const val KEYGUARD_DISABLE_WIDGETS_ALL = DevicePolicyManager.KEYGUARD_DISABLE_WIDGETS_ALL

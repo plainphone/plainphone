@@ -44,7 +44,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 
 A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
 
-Adding a Play account during an approved app install needs the parent PIN ([docs/app-catalog.md](docs/app-catalog.md)). Reset protection and hardware system checks are described in [docs/policies.md](docs/policies.md).
+Adding a Play account during an approved app install needs the parent PIN. Plainphone requests Google sign-in directly while Android keeps user account changes blocked ([docs/app-catalog.md](docs/app-catalog.md)). Reset protection and hardware system checks are described in [docs/policies.md](docs/policies.md).
 
 [docs/policies.md](docs/policies.md) lists every policy, what Android does not let us block, and links to the Android documentation.
 

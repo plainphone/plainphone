@@ -6,7 +6,6 @@ import android.accounts.Account
 import android.accounts.AccountManager
 import android.app.Application
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
@@ -22,7 +21,6 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import java.time.LocalDate
-import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Before
@@ -37,10 +35,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.Implementation
-import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowAlarmManager
-import org.robolectric.shadows.ShadowDevicePolicyManager
 import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
@@ -64,6 +59,7 @@ class MaintenanceInstallTest {
         ShadowAlarmManager.setCanScheduleExactAlarms(true)
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
         dpm.addUserRestriction(admin, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+        shadowOf(AccountManager.get(context)).addAuthenticator("com.google")
         val salt = "0123456789abcdef"
         ConfigStore(context).save(PolicyConfig(pinHashHex = MaintenancePin.hash(pin, salt), pinSaltHex = salt))
         SyncStore(context).saveRules("test", rulesJson(toInstall = """[{"packageName":"$pkg","label":"Approved"}]"""), 0)
@@ -75,42 +71,40 @@ class MaintenanceInstallTest {
     }
 
     @Test
-    fun `only the correct parent PIN lifts the account restriction for Play`() {
+    fun `the correct PIN requests only Google sign-in and keeps accounts blocked`() {
         val activity = installPrompt()
         submit(activity, "111111")
         assertThat(message(activity).text.toString()).isEqualTo(activity.getString(R.string.maintenance_wrong_pin))
         assertThat(InstallWindow.current(context)).isNull()
-        assertThat(accountsBlocked()).isTrue()
 
-        submit(activity, pin)
-        assertThat(activity.isFinishing).isTrue()
+        submit(activity, pin, expectAccountRequest = true)
+        assertThat(activity.isFinishing).isFalse()
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
-        assertThat(accountsBlocked()).isFalse()
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(shadowOf(activity).nextStartedActivity).isNull()
+
+        val accounts = shadowOf(AccountManager.get(context))
+        accounts.addAccount(Account("test", "com.google"))
+        pumpUntil { activity.isFinishing }
+
+        assertThat(activity.isFinishing).isTrue()
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(shadowOf(activity).nextStartedActivity.data).isEqualTo(InstallWindow.playIntent(pkg).data)
     }
 
     @Test
-    fun `deadline recovery restores account changes synchronously`() {
-        submit(installPrompt(), pin)
-        assertThat(accountsBlocked()).isFalse()
+    fun `late account completion cannot launch Play after the window closes`() {
+        val activity = installPrompt()
+        submit(activity, pin, expectAccountRequest = true)
         ShadowSystemClock.advanceBy(Duration.ofMillis(InstallWindow.WINDOW_MS))
-
         InstallLease.android(context).recover()
 
+        shadowOf(AccountManager.get(context)).addAccount(Account("test", "com.google"))
+        pumpUntil { activity.isFinishing }
+
+        assertThat(activity.isFinishing).isTrue()
         assertThat(accountsBlocked()).isTrue()
-    }
-
-    @Test
-    @Config(shadows = [RefuseAccountClear::class])
-    fun `refused account clear keeps the PIN screen open and does not launch Play`() {
-        val activity = installPrompt()
-
-        submit(activity, pin)
-
-        assertThat(activity.isFinishing).isFalse()
-        assertThat(message(activity).text.toString())
-            .isEqualTo(activity.getString(R.string.maintenance_install_account_failed))
-        assertThat(accountsBlocked()).isTrue()
-        assertThat(shadowOf(context as Application).nextStartedActivity).isNull()
+        assertThat(shadowOf(activity).nextStartedActivity).isNull()
     }
 
     @Test
@@ -124,57 +118,6 @@ class MaintenanceInstallTest {
         assertThat(activity.isFinishing).isFalse()
         assertThat(message(activity).text.toString()).isEqualTo(activity.getString(R.string.maintenance_install_battery))
         assertThat(accountsBlocked()).isTrue()
-    }
-
-    @Implements(DevicePolicyManager::class)
-    class RefuseAccountClear : ShadowDevicePolicyManager() {
-        @Implementation
-        override fun clearUserRestriction(admin: ComponentName, key: String) {
-            if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) throw SecurityException("Account clear refused")
-            super.clearUserRestriction(admin, key)
-        }
-    }
-
-    @Test
-    fun `a Google account closes account changes while the app install stays open`() =
-        assertAccountAdditionClosesWindow("com.google")
-
-    @Test
-    fun `a non-Google account closes account changes while the app install stays open`() =
-        assertAccountAdditionClosesWindow("com.oneplus.account")
-
-    private fun assertAccountAdditionClosesWindow(type: String) {
-        submit(installPrompt(), pin)
-        assertThat(accountsBlocked()).isFalse()
-
-        val manager = AccountManager.get(context)
-        assertThat(manager.addAccountExplicitly(Account("test", type), null, null)).isTrue()
-        shadowOf(Looper.getMainLooper()).idle()
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (!accountsBlocked() && System.nanoTime() < deadline) {
-            shadowOf(Looper.getMainLooper()).idle()
-            Thread.sleep(5)
-        }
-
-        assertThat(accountsBlocked()).isTrue()
-        assertThat(InstallWindow.current(context)).isEqualTo(pkg)
-    }
-
-    @Test
-    @Config(application = Application::class)
-    fun `replacing a Google account closes account changes even when the count stays the same`() {
-        val manager = AccountManager.get(context)
-        val old = Account("first", "com.google")
-        assertThat(manager.addAccountExplicitly(old, null, null)).isTrue()
-        val opened = FutureTask { InstallWindow.openForParent(context, pkg) }
-        Thread(opened).start()
-        pumpUntil { opened.isDone }
-        assertThat(opened.get(1, TimeUnit.SECONDS)).isEqualTo(InstallWindow.OpenResult.OPENED)
-        assertThat(InstallWindow.active(context)?.accountsAllowed).isTrue()
-
-        assertThat(manager.removeAccountExplicitly(old)).isTrue()
-        assertThat(manager.addAccountExplicitly(Account("second", "com.google"), null, null)).isTrue()
-        assertThat(InstallWindow.active(context)?.accountsAllowed).isFalse()
     }
 
     @Test
@@ -203,13 +146,18 @@ class MaintenanceInstallTest {
 
     private fun message(activity: MaintenanceActivity) = fields(activity).getChildAt(3) as TextView
 
-    private fun submit(activity: MaintenanceActivity, entered: String) {
+    private fun submit(activity: MaintenanceActivity, entered: String, expectAccountRequest: Boolean = false) {
         val fields = fields(activity)
         (fields.getChildAt(1) as EditText).setText(entered)
         val button = fields.getChildAt(2) as Button
         button.performClick()
-        pumpUntil { activity.isFinishing || button.isEnabled }
-        assertThat(activity.isFinishing || button.isEnabled).isTrue()
+        fun done() = if (expectAccountRequest) {
+            shadowOf(AccountManager.get(context)).peekNextAddAccountOptions() != null
+        } else {
+            activity.isFinishing || button.isEnabled
+        }
+        pumpUntil(::done)
+        assertThat(done()).isTrue()
     }
 
     private fun pumpUntil(done: () -> Boolean) {

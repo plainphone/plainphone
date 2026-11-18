@@ -2,19 +2,14 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.catalog
 
-import android.accounts.AccountManager
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import java.security.MessageDigest
-import java.util.Base64
-import org.plainphone.app.CatalogAccountWindowException
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
-import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.update.BatteryExemptionMissingException
 import org.plainphone.app.update.InstallLease
@@ -32,25 +27,7 @@ import org.plainphone.app.update.InstallLease
  */
 object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
-    private const val GOOGLE = "com.google"
-    private const val ACCOUNT_BASELINE = "accountFingerprints"
     private const val PREFS = "plainphone_install"
-
-    // Account callbacks run on the main thread, which must stay free to start the watchdog.
-    private val accountLock = Any()
-
-    internal data class Active(val packageName: String, val accountsAllowed: Boolean)
-
-    internal fun active(context: Context, nowMs: Long = System.currentTimeMillis()): Active? {
-        return synchronized(accountLock) {
-            val pkg = current(context, nowMs) ?: return null
-            val p = prefs(context)
-            val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
-            val accountsAllowed = p.getBoolean("accountsAllowed", false) &&
-                baseline != null && accountWindowStillAllowed(baseline, accountFingerprints(context))
-            Active(pkg, accountsAllowed)
-        }
-    }
 
     /** The package whose install window is open right now, or null. */
     fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? {
@@ -62,34 +39,33 @@ object InstallWindow {
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
     fun open(context: Context, packageName: String) {
-        open(context, packageName, false, applyCatalogPolicy(context, packageName, requiresAccounts = false))
+        if (open(context, packageName, applyCatalogPolicy(context, packageName)) == OpenResult.OPENED &&
+            current(context) == packageName
+        ) {
+            launchPlay(context.applicationContext, packageName)
+        }
     }
 
     /** Only called after the parent PIN has been verified. */
     internal fun openForParent(context: Context, packageName: String): OpenResult =
-        open(context, packageName, true, applyCatalogPolicy(context, packageName, requiresAccounts = true))
+        open(context, packageName, applyCatalogPolicy(context, packageName))
 
-    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT, BATTERY_EXEMPTION_NEEDED, ACCOUNT_WINDOW_FAILED, OPEN_FAILED }
+    internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT, BATTERY_EXEMPTION_NEEDED, OPEN_FAILED }
 
     private fun applyCatalogPolicy(
         context: Context,
         packageName: String,
-        requiresAccounts: Boolean,
     ): (() -> Unit) -> Unit = { onInstallsAllowed ->
         Lock.applyForInstall(
             context.applicationContext, "install window for $packageName",
-            catalogChanged = true, onInstallsAllowed = onInstallsAllowed, requiresAccounts = requiresAccounts,
+            catalogChanged = true, onInstallsAllowed = onInstallsAllowed,
         )
     }
 
-    internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) =
-        open(context, packageName, false, applyPolicy)
-
     @SuppressLint("ApplySharedPref")
-    private fun open(
+    internal fun open(
         context: Context,
         packageName: String,
-        accountsAllowed: Boolean,
         applyPolicy: (() -> Unit) -> Unit,
     ): OpenResult {
         val app = context.applicationContext
@@ -101,9 +77,7 @@ object InstallWindow {
             if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false ||
                 isInstalled(app, packageName)
             ) return OpenResult.UNAVAILABLE
-            val allowAccounts = accountsAllowed && Mode.isStrong(app)
-            val window = active(app)
-            if (window?.packageName != packageName) {
+            if (current(app) != packageName) {
                 val day = java.time.LocalDate.now().toString()
                 val p = prefs(app)
                 val previousDay = p.getString("day", null)
@@ -121,14 +95,9 @@ object InstallWindow {
                     }
                     lease.begin(InstallLease.CATALOG, WINDOW_MS)
                     started = true
-                    synchronized(accountLock) {
-                        check(p.edit().putString("pkg", packageName)
-                            .putLong("until", System.currentTimeMillis() + WINDOW_MS)
-                            .putBoolean("accountsAllowed", allowAccounts)
-                            .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) accountFingerprints(app) else null)
-                            .remove("googleAccounts").remove("googleAccountFingerprints")
-                            .commit()) { "Could not save the catalog target" }
-                    }
+                    check(p.edit().putString("pkg", packageName)
+                        .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                        .commit()) { "Could not save the catalog target" }
                     applyPolicy { usedWindow = true }
                     check(current(app) == packageName) { "Catalog target is no longer eligible" }
                 } catch (e: Exception) {
@@ -143,74 +112,14 @@ object InstallWindow {
                     }
                     return openFailure(e)
                 }
-            } else if (allowAccounts) {
-                val p = prefs(app)
-                if (!window.accountsAllowed) {
-                    synchronized(accountLock) {
-                        p.edit().putBoolean("accountsAllowed", true)
-                            .putStringSet(ACCOUNT_BASELINE, accountFingerprints(app)).remove("googleAccounts").remove("googleAccountFingerprints").apply()
-                    }
-                }
-                try {
-                    applyPolicy {}
-                    check(current(app) == packageName) { "Catalog target is no longer eligible" }
-                } catch (e: Exception) {
-                    synchronized(accountLock) {
-                        p.edit().remove("accountsAllowed").remove(ACCOUNT_BASELINE).apply()
-                    }
-                    Lock.applyAsync(app, "restore account restriction")
-                    Log.w("Plainphone", "could not apply parent install window", e)
-                    return openFailure(e)
-                }
             }
         }
-        launchPlay(app, packageName)
         return OpenResult.OPENED
     }
 
     private fun openFailure(e: Exception): OpenResult = when (e) {
         is BatteryExemptionMissingException -> OpenResult.BATTERY_EXEMPTION_NEEDED
-        is CatalogAccountWindowException -> OpenResult.ACCOUNT_WINDOW_FAILED
         else -> OpenResult.OPEN_FAILED
-    }
-
-    /** Reapply the account restriction after a Google addition or a change to any other account. */
-    @Suppress("DEPRECATION") // Listen for all account types.
-    fun watchAccounts(context: Context) {
-        val app = context.applicationContext
-        AccountManager.get(app).addOnAccountsUpdatedListener(
-            {
-                val closed = synchronized(accountLock) { updateAccountWindow(app) }
-                if (closed) Lock.applyIfNeededAsync(app, "account changed during install") {}
-            },
-            null,
-            true,
-        )
-    }
-
-    private fun updateAccountWindow(context: Context): Boolean {
-        val p = prefs(context)
-        if (!p.getBoolean("accountsAllowed", false)) return false
-        val current = accountFingerprints(context)
-        val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
-        if (baseline == null || !accountWindowStillAllowed(baseline, current)) {
-            p.edit().putBoolean("accountsAllowed", false).remove(ACCOUNT_BASELINE).remove("googleAccounts").remove("googleAccountFingerprints").apply()
-            return true
-        }
-        if (current != baseline) p.edit().putStringSet(ACCOUNT_BASELINE, current).apply()
-        return false
-    }
-
-    private fun accountWindowStillAllowed(baseline: Set<String>, current: Set<String>): Boolean =
-        baseline.containsAll(current) &&
-            baseline.filterNot { it.startsWith("$GOOGLE:") }.all { it in current }
-
-    private fun accountFingerprints(context: Context): Set<String> {
-        val hash = MessageDigest.getInstance("SHA-256")
-        val encode = Base64.getEncoder()
-        return AccountManager.get(context).accounts.mapTo(mutableSetOf()) {
-            "${it.type}:${encode.encodeToString(hash.digest(it.name.toByteArray()))}"
-        }
     }
 
     const val MAX_PER_DAY = 5
@@ -221,10 +130,7 @@ object InstallWindow {
         val app = context.applicationContext
         val openPackage = prefs(app).getString("pkg", null) ?: return
         if (expectedPackage != null && openPackage != expectedPackage) return
-        synchronized(accountLock) {
-            prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed")
-                .remove(ACCOUNT_BASELINE).remove("googleAccounts").remove("googleAccountFingerprints").apply()
-        }
+        prefs(app).edit().remove("pkg").remove("until").apply()
         try {
             InstallLease.android(app).invalidate(InstallLease.CATALOG)
         } finally {
@@ -251,7 +157,7 @@ object InstallWindow {
         Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    private fun launchPlay(context: Context, packageName: String) {
+    internal fun launchPlay(context: Context, packageName: String) {
         val play = playIntent(packageName).setPackage(PolicyConfig.PLAY_STORE)
         try {
             context.startActivity(play)

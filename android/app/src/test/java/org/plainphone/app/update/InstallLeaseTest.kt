@@ -69,32 +69,20 @@ class InstallLeaseTest {
         assertFalse(lease.hasMarkers())
     }
 
-    @Test fun expiredCatalogRelocksAccountsDuringAndAfterALateClearEvenIfStorageFails() {
+    @Test fun expiredLegacyCatalogRestoresAccountRestrictionDuringSelfUpdate() {
         val f = Fixture()
-        var accountsRestricted = true
+        var accountsRestricted = false
         val lease = f.lease { accountsRestricted = true }
         lease.begin(CATALOG, 10_000)
         lease.begin(SELF_UPDATE, 60_000)
         f.restricted = false
+        f.now += 10_000
 
-        assertFalse(lease.clearCatalogAccountsIfAllowed {
-            accountsRestricted = false
-            f.now += 10_000
-            f.failWrites = true
-            assertThrows(IllegalStateException::class.java) { lease.recover() }
-            assertTrue(accountsRestricted)
-            assertFalse(f.restricted)
-            // Android can finish a clear that began before recovery.
-            accountsRestricted = false
-            f.failWrites = false
-        })
+        lease.recover()
 
         assertTrue(accountsRestricted)
-        assertFalse(lease.clearCatalogAccountsIfAllowed { error("Expired catalog lease admitted a clear") })
         assertFalse(f.restricted)
         assertEquals(setOf(SELF_UPDATE), f.saved.keys)
-        lease.release(SELF_UPDATE)
-        assertTrue(f.restricted)
     }
 
     @Test fun changingCatalogTargetKeepsTheOriginalWatchdogAndDeadline() {

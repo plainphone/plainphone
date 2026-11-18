@@ -30,8 +30,6 @@ import org.plainphone.app.time.TimeGuard
 import org.plainphone.app.update.InstallLease
 
 /** Glue between Android entry points and [PolicyApplier]. */
-internal class CatalogAccountWindowException(message: String) : IllegalStateException(message)
-
 object Lock {
     private const val TAG = "Plainphone"
     private val APPLY_LOCK = Any()
@@ -54,11 +52,6 @@ object Lock {
                 installLease.clearIfAllowed(config.installing != null, clear)
             },
             installsAllowed = { config -> installLease.allowsInstall(config.installing != null) },
-            clearCatalogAccountsIfAllowed = { clear ->
-                InstallWindow.active(app)?.accountsAllowed == true &&
-                    installLease.clearCatalogAccountsIfAllowed(clear) &&
-                    InstallWindow.active(app)?.accountsAllowed == true
-            },
         )
     }
 
@@ -77,7 +70,6 @@ object Lock {
         reason: String,
         catalogChanged: Boolean,
         onInstallsAllowed: () -> Unit = {},
-        requiresAccounts: Boolean = false,
     ) = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
         val sync = SyncStore(context)
@@ -85,10 +77,6 @@ object Lock {
         val result = if (catalogChanged) {
             check(effectiveConfig(context).installing != null) { "Catalog target is no longer eligible" }
             val results = applyNow(context, reason, onInstallsAllowed)
-            if (requiresAccounts && Mode.isStrong(context)) {
-                val accounts = results.firstOrNull { it.name == PolicyApplier.CATALOG_ACCOUNTS_STEP }
-                if (accounts?.ok != true) throw CatalogAccountWindowException(accounts?.detail ?: "Catalog account window did not open")
-            }
             results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
         } else {
             applier(context, onInstallsAllowed).applyInstallRestriction(effectiveConfig(context))
@@ -135,15 +123,14 @@ object Lock {
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
     fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
         val sync = SyncStore(context)
-        val install = InstallWindow.active(context, now.toEpochMilli())
+        val install = InstallWindow.current(context, now.toEpochMilli())
         return EffectivePolicy.merge(
             ConfigStore(context).load(),
             sync.rules(),
             now,
             removed = sync.removed,
             timeBlocked = TimeGuard.blockedNow(context, now),
-            installing = install?.packageName,
-            installAccountsAllowed = install?.accountsAllowed == true,
+            installing = install,
         )
     }
 

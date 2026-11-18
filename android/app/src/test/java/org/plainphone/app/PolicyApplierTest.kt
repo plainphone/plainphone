@@ -368,15 +368,6 @@ class TimeLimitApplierTest {
     }
 
     @Test
-    fun `parent authorization allows Play sign-in only during the approved install window`() {
-        applier.apply(config)
-        applier.apply(config.copy(installing = "dk.mitid.app.android", installAccountsAllowed = true))
-        assertThat(device.restrictions).containsNoneOf("no_install_apps", "no_modify_accounts")
-        applier.apply(config.copy(installAccountsAllowed = true))
-        assertThat(device.restrictions).containsAtLeast("no_install_apps", "no_modify_accounts")
-    }
-
-    @Test
     fun `a maintenance unlock lifts suspensions too`() {
         applier.apply(config.copy(timeBlocked = setOf("com.spotify")))
         applier.lift()

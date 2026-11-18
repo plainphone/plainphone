@@ -246,6 +246,43 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a coarse post-request cache does not skip the precise Find lookup`() {
+        pair()
+        val requested = device.now
+        val precise = requireNotNull(device.fix).copy(recordedAtMs = requested)
+        device.lastKnownFix = precise.copy(accuracyM = 2_000f)
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with a coarse cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(precise)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
+    fun `a coarse post-request cache is still sent when the Find lookup has no fix`() {
+        pair()
+        val requested = device.now
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested, accuracyM = 2_000f)
+        device.fix = null
+        device.lastKnownFix = cached
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with only a coarse cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(cached)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
     fun `always reports cached positions during Find backoff without starting a lookup`() {
         pair()
         val fix = requireNotNull(device.fix).copy(recordedAtMs = device.now - 1)

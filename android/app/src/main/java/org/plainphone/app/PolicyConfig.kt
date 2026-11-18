@@ -48,7 +48,6 @@ data class PolicyConfig(
      * the app is installed or the install window ends (docs/app-catalog.md, R2).
      */
     val installing: String? = null,
-    val installAccountsAllowed: Boolean = false,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 

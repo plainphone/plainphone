@@ -181,6 +181,7 @@ class HardeningTest {
         val s = step(apply(Hardening(controls, 29), PolicyConfig()), Hardening.EXTRA_USERS)
         assertThat(s.ok).isFalse()
         assertThat(s.detail).contains("1 of 2")
+        assertThat(Hardening.parallelAppsRemoved(listOf(s))).isTrue()
         assertThat(s.detail).contains("1 profile")
         assertThat(s.detail).doesNotContain("999")
     }

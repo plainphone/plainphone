@@ -75,7 +75,9 @@ Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unansw
 clock, and only if the child has yet to answer. Both stop scheduling lookups after
 success or after 30 minutes. A delayed sync runs only the latest due attempt.
 The phone sends saved uploads first, starting with check-in, then a saved or
-cached Find position. It runs any remaining lookups in order of server expiry,
+eligible cached Find position. A post-request cached fix must be accurate to 100 m or better
+to skip the precise lookup. A coarser fix is available as a fallback after the lookup.
+The phone runs any remaining lookups in order of server expiry,
 and uploads each result before starting the next lookup. The server allows
 30 minutes from the check-in reply deadline or the time Find was requested.
 A cached Find position can also go out between GPS attempts, including after the

@@ -121,6 +121,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 }
 
+internal const val PRECISE_ACCURACY_METERS = 100f
+
 /**
  * One position via the platform's location service. The platform "fused" provider is used when
  * the phone has one (on phones with Google Play services it is backed by Google's fused location),
@@ -309,7 +311,6 @@ class LocationReader(private val context: Context) {
 
     private companion object {
         const val FUSED = "fused"
-        const val PRECISE_ACCURACY_METERS = 100f
         val DIRECT_EXECUTOR = Executor { it.run() }
     }
 }

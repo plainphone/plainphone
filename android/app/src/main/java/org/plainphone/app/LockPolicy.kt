@@ -49,7 +49,7 @@ object LockPolicy {
         // shows up as a failed "default phone app" step in the parent's status.
         if (sdkInt >= 34) add(UserManager.DISALLOW_CONFIG_DEFAULT_APPS)
         // #21: no account the child controls (Google or the maker's) can become the FRP or "find and erase" owner.
-        // The parent-approved install window closes account access after a Google addition or any other account change.
+        // A parent can request Google sign-in through Plainphone, which keeps this restriction set.
         add(UserManager.DISALLOW_MODIFY_ACCOUNTS)
         // #26: screen content is not handed to assistants (Circle to Search, Lens) or suggestion services.
         add(UserManager.DISALLOW_CONTENT_CAPTURE)
