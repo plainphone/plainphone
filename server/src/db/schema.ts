@@ -204,6 +204,7 @@ export const phones = pgTable(
      * REFUSED for ClientIDs it does not know, so the phone would lose DNS entirely.
      */
     dnsConfirmedAt: timestamp("dns_confirmed_at", { withTimezone: true }),
+    dnsConfirmedProvider: text("dns_confirmed_provider"),
     /** Kept equal to `locationMode !== "off"`, for phones and clients that only know the boolean. */
     locationEnabled: boolean("location_enabled").notNull(),
     updateRequestedAt: timestamp("update_requested_at", { withTimezone: true }),

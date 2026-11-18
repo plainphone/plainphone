@@ -129,6 +129,7 @@ raw step names and app installation overruns under **Show technical details**.
 - The phone does not yet show pending Self-profile changes with a countdown, or let the child
   ask for a new app or contact.
 - Nothing here has run on a real phone yet. The chain is tested end to end against the real
-  server ([`scripts/e2e-phone-sync.sh`](../scripts/e2e-phone-sync.sh)), but the Android calls
-  themselves (WorkManager timing in Doze, location on Samsung and Xiaomi, `setLocationEnabled`)
-  need the test phone.
+  server ([`scripts/e2e-phone-sync.sh`](../scripts/e2e-phone-sync.sh)). A local HTTP stub confirms
+  DNS provisioning so the test can check that the phone applies its assigned host. Android calls
+  (WorkManager timing in Doze, location on Samsung and Xiaomi, `setLocationEnabled`) need the
+  test phone.

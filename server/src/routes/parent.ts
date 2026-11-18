@@ -47,7 +47,7 @@ import {
 import { pendingContactSuggestions, reviewContactSuggestions, reviewContactSuggestionsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
-import { syncDns } from "../services/dns.js";
+import { isDnsReady, syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
@@ -800,8 +800,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/phones/:pid/dns", async (c) => {
     const phone = await requirePhone(c);
     const [row] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
+    c.header("Cache-Control", "no-store");
     return c.json({
-      host: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
+      host: isDnsReady(ctx, phone)
+        ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`
+        : null,
       synced: !phone.dnsDirty,
       blockedCategories: row?.blockedCategories ?? [],
       allowDomains: row?.allowDomains ?? [],

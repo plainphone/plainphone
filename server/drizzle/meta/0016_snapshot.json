@@ -1,6 +1,6 @@
 {
   "id": "1899f263-7d57-4fe9-967e-46bbf9bc212e",
-  "prevId": "75d1a21c-fbdf-4abc-9453-699410616749",
+  "prevId": "f18180b9-1a2b-4fbf-b29a-70155b1b29ef",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1532,6 +1532,12 @@
         "dns_confirmed_at": {
           "name": "dns_confirmed_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dns_confirmed_provider": {
+          "name": "dns_confirmed_provider",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

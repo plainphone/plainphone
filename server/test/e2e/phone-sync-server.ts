@@ -6,6 +6,7 @@
 // to the file given as the first argument. Uses DATABASE_URL if set, otherwise an
 // embedded PostgreSQL 18 in a temporary directory. Stops on SIGTERM/SIGINT.
 
+import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,7 +14,7 @@ import { serve } from "@hono/node-server";
 import { createApp } from "../../src/app.js";
 import { loadConfig } from "../../src/config.js";
 import { createDb, runMigrations } from "../../src/db/client.js";
-import { MockDnsProvider } from "../../src/providers/dns.js";
+import { HttpDnsProvider } from "../../src/providers/dns.js";
 import { MemoryMailProvider } from "../../src/providers/mail.js";
 import { MemoryParentPushProvider } from "../../src/providers/parent-push.js";
 import { RecordingPushProvider } from "../../src/providers/push.js";
@@ -44,11 +45,49 @@ const { db, sql } = createDb(databaseUrl);
 await runMigrations(db);
 const mail = new MemoryMailProvider();
 const publicUrl = `http://127.0.0.1:${port}`;
+// Confirm HTTP provisioning without requiring a DNS resolver in CI.
+const dnsToken = "e2e-dns-token";
+const dnsClients = new Set<string>();
+const dnsServer = serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch: async (request) => {
+    if (request.headers.get("authorization") !== `Bearer ${dnsToken}`) {
+      return new Response(null, { status: 401 });
+    }
+    const path = new URL(request.url).pathname;
+    if (request.method === "POST" && path === "/v1/clients") {
+      const { client_id } = await request.json() as { client_id?: string };
+      if (!client_id) return new Response(null, { status: 400 });
+      dnsClients.add(client_id);
+      return new Response(null, { status: 201 });
+    }
+    const clientId = path.match(/^\/v1\/clients\/([^/]+)$/)?.[1];
+    if (!clientId || !dnsClients.has(clientId)) return new Response(null, { status: 404 });
+    if (request.method === "PATCH") return new Response(null, { status: 204 });
+    if (request.method === "DELETE") {
+      dnsClients.delete(clientId);
+      return new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 405 });
+  },
+});
+await once(dnsServer, "listening");
+const dnsAddress = dnsServer.address();
+if (!dnsAddress || typeof dnsAddress === "string") throw new Error("DNS stub has no TCP address");
+const dnsUrl = `http://127.0.0.1:${dnsAddress.port}`;
 const ctx: Ctx = {
   db,
-  cfg: loadConfig({ DATABASE_URL: databaseUrl, PUBLIC_URL: publicUrl, NODE_ENV: "test" }),
+  cfg: loadConfig({
+    DATABASE_URL: databaseUrl,
+    PUBLIC_URL: publicUrl,
+    NODE_ENV: "test",
+    DNS_PROVIDER: "http",
+    DNS_API_URL: dnsUrl,
+    DNS_API_TOKEN: dnsToken,
+  }),
   mail,
-  dns: new MockDnsProvider(),
+  dns: new HttpDnsProvider(dnsUrl, dnsToken),
   push: new RecordingPushProvider(),
   parentPush: new MemoryParentPushProvider(),
   now: () => new Date(),
@@ -80,6 +119,7 @@ const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port }, async ()
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     server.close(async () => {
+      dnsServer.close();
       await sql.end();
       await stopPg();
       process.exit(0);
