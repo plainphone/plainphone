@@ -79,9 +79,12 @@ on the next sync while the request is still open. If the server rejects the payl
 invalid, the phone discards it and waits for the next retry slot. Find and check-in
 each have their own lookup, purpose tag and pending upload. When both are due,
 the phone sends a saved or last known Find position before starting the check-in
-lookup. In the last 30 seconds of Find, the phone tries Find first even when
-it must start a lookup. The check-in retry window is measured from its deadline
-at the start of the location sync.
+lookup. The phone can send a cached Find position between GPS attempts,
+including after the last scheduled attempt. In the final 30 seconds of the
+check-in upload window, a saved check-in position goes first. Otherwise, in the
+last 30 seconds of Find, the phone tries Find first even when it must start a
+lookup. The check-in retry window is measured from its deadline at the start of
+the location sync.
 
 The server holds a check-in fix privately for at least one second after both receipt
 and the server deadline. The next sweeper pass publishes it if the check-in still

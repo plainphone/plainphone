@@ -75,6 +75,7 @@ class FakeSyncApi : SyncApi {
     /** What PUT /device/location answers: false = 409. */
     var locationAccepted = true
     var locationFailure: IOException? = null
+    var beforeLocationUpload: ((String) -> Unit)? = null
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
@@ -108,6 +109,7 @@ class FakeSyncApi : SyncApi {
     val locationPurposes = mutableListOf<String>()
 
     override fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean {
+        beforeLocationUpload?.invoke(purpose)
         locationFailure?.let { throw it }
         locationPurposes += purpose
         locations += fix

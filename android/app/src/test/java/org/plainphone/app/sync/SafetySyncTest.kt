@@ -310,9 +310,40 @@ class SafetySyncTest {
     }
 
     @Test
+    fun `Find sends a cached position after its final GPS attempt and before check-in lookup`() {
+        val requested = device.now
+        val deadline = requested + 20 * 60_000L
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested - 1)
+        device.fix = null
+        device.now = requested + 15 * 60_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested),
+            checkIn = checkIn(deadline, locationDue = true),
+        ))
+        runner.run("final Find lookup")
+        assertThat(store.lastFindAttempt(requested)).isEqualTo(device.now)
+        assertThat(api.locations).isEmpty()
+
+        device.now = deadline
+        device.lastKnownFix = cached
+        device.beforeLocation = {
+            assertThat(api.locationPurposes).containsExactly("find:$requested")
+        }
+        api.rules = RulesResult.Unchanged
+        runner.run("cached position arrives")
+        assertThat(api.locations).containsExactly(cached)
+        assertThat(device.freshLocationRequests).containsExactly(false, true).inOrder()
+    }
+
+    @Test
     fun `a slow Find does not discard a pending check-in upload`() {
         val deadline = device.now - SyncRunner.FIND_RETRY_MS + 10_000L
         val requested = deadline
+        api.beforeLocationUpload = { purpose ->
+            if (purpose == "checkin:$id" && device.now >= deadline + SyncRunner.FIND_RETRY_MS) {
+                throw HttpError(409, "check-in location is no longer due")
+            }
+        }
         val saved = PendingLocation(requireNotNull(device.fix).copy(recordedAtMs = deadline), "checkin:$id", deadline)
         store.savePendingLocation(saved)
         device.locationDelayMs = 30_000L
@@ -323,8 +354,8 @@ class SafetySyncTest {
 
         runner.run("Find consumes the remaining check-in window")
 
-        assertThat(api.locationPurposes).containsExactly("find:$requested", saved.purpose).inOrder()
-        assertThat(api.locations.last()).isEqualTo(saved.fix)
+        assertThat(api.locationPurposes).containsExactly(saved.purpose, "find:$requested").inOrder()
+        assertThat(api.locations.first()).isEqualTo(saved.fix)
         assertThat(device.freshLocationRequests).containsExactly(false)
     }
 

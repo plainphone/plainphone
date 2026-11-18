@@ -230,9 +230,27 @@ class SyncRunner(
                 it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
         }
         val findNearExpiry = requested != null && now - requested >= FIND_RETRY_MS - LOCATION_LOOKUP_BUDGET_MS
-        val cachedFind = if (requested != null && (checkIn != null || findNearExpiry)) device.lastKnownLocation() else null
+        val cachedFind = requested?.let { start ->
+            val lookupDue = locationAttemptDue(start, maxOf(now, start), store.lastFindAttempt(start))
+            if (now - start >= FIND_RETRY_MS || (checkIn == null && !findNearExpiry && lookupDue)) {
+                null
+            } else {
+                device.lastKnownLocation()?.takeIf {
+                    lookupDue || it.recordedAtMs >= start || store.shownLocateMs != start
+                }
+            }
+        }
         val savedFind = requested != null && checkIn != null && store.pendingLocation()?.purpose == "find:$requested"
-        val findFirst = cachedFind != null || savedFind || findNearExpiry
+        // A saved check-in can still reach the server before its deadline if we upload it
+        // before spending the remaining window on Find.
+        val urgentSavedCheckIn = checkIn?.let {
+            val deadline = it.deadline.toEpochMilli()
+            now - deadline >= FIND_RETRY_MS - LOCATION_LOOKUP_BUDGET_MS &&
+                store.pendingLocation(checkIn = true)?.let { saved ->
+                    saved.purpose == "checkin:${it.id}" && saved.fix.recordedAtMs >= deadline
+                } == true
+        } == true
+        val findFirst = !urgentSavedCheckIn && (cachedFind != null || savedFind || findNearExpiry)
         var attemptedFind = false
         fun reportFind() {
             if (requested == null) {
@@ -241,8 +259,10 @@ class SyncRunner(
             }
             guarded("report Find location") {
                 attemptedFind = true
-                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, device.nowMs()) {
-                    cachedFind ?: device.location(precise = true, notBeforeMs = requested) ?: device.lastKnownLocation()
+                attemptedFind = reportRequestedLocation(
+                    token, "find:$requested", requested, device.nowMs(), cachedFix = cachedFind,
+                ) {
+                    device.location(precise = true, notBeforeMs = requested) ?: device.lastKnownLocation()
                 }
             }
         }
@@ -287,6 +307,7 @@ class SyncRunner(
         start: Long,
         now: Long,
         checkInId: String? = null,
+        cachedFix: LocationFix? = null,
         lookup: () -> LocationFix?,
     ): Boolean {
         val isCheckIn = checkInId != null
@@ -305,8 +326,8 @@ class SyncRunner(
             saved
         } else {
             store.clearPendingLocation(checkIn = isCheckIn)
-            if (!locationAttemptDue(start, maxOf(now, start), lastAttempt)) return false
-            val fix = lookup()
+            if (cachedFix == null && !locationAttemptDue(start, maxOf(now, start), lastAttempt)) return false
+            val fix = cachedFix ?: lookup()
             if (fix == null) {
                 recordAttempt(now)
                 Log.w(TAG, "no position available")
