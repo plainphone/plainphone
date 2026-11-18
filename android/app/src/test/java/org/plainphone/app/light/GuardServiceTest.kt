@@ -25,12 +25,15 @@ import java.time.Duration
 class GuardServiceTest {
     @Test fun subscribesOnlyWhileGuardedPackagesAreInFront() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
         assertEquals(STATE, service.serviceInfo.eventTypes)
         for (pkg in listOf(SETTINGS, "com.google.android.packageinstaller", SettingsGuard.VPN_DIALOGS)) {
+            shadow.root = AccessibilityNodeInfo().apply { packageName = pkg }
             service.event(STATE, pkg)
             assertEquals(STATE or CONTENT, service.serviceInfo.eventTypes)
             service.event(STATE, "com.android.systemui")
             assertEquals(STATE or CONTENT, service.serviceInfo.eventTypes)
+            shadow.root = AccessibilityNodeInfo().apply { packageName = service.packageName }
             service.event(STATE, service.packageName)
             assertEquals(STATE, service.serviceInfo.eventTypes)
         }
@@ -67,7 +70,7 @@ class GuardServiceTest {
         assertEquals(1, shadow.rootReads)
         val supportsPrefetchFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
         assertEquals(if (supportsPrefetchFlags) listOf(0) else emptyList(), shadow.prefetchFlags)
-        assertEquals(if (supportsPrefetchFlags) listOf(false) else emptyList(), shadow.cacheSettings)
+        assertEquals(emptyList<Boolean>(), shadow.cacheSettings)
 
         // A queued content event can arrive after the dialog has already closed.
         shadow.root = null
@@ -86,32 +89,78 @@ class GuardServiceTest {
         assertEquals(emptyList<Int>(), shadow.globalActions)
     }
 
-    @Test fun contentBurstWalksTheTreeOnceAfterTheLastEvent() {
+    @Test fun checksWindowsImmediatelyAndContentWithin150msOfFirstEvent() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
         val shadow = prepareGuard(service)
         service.event(STATE, SETTINGS)
+        assertEquals(1, shadow.rootReads)
+
         val looper = shadowOf(Looper.getMainLooper())
-        repeat(20) {
+        repeat(20) { index ->
             service.event(CONTENT, SETTINGS)
             looper.idleFor(Duration.ofMillis(10))
+            if (index == 14) assertEquals(2, shadow.rootReads)
         }
-        looper.idleFor(Duration.ofMillis(239))
-        assertEquals(0, shadow.rootReads)
-        looper.idleFor(Duration.ofMillis(1))
-        assertEquals(1, shadow.rootReads)
-        assertEquals(listOf(false), shadow.cacheSettings)
+        looper.idleFor(Duration.ofMillis(100))
+        assertEquals(3, shadow.rootReads)
+    }
 
-        service.event(CONTENT, SETTINGS)
-        service.event(STATE, service.packageName)
-        looper.idleFor(Duration.ofMillis(250))
+    @Test fun keyboardAndBubbleWindowEventsKeepSettingsChecksEnabled() {
+        for (overlay in listOf("com.samsung.android.honeyboard", "example.bubble")) {
+            val service = Robolectric.buildService(GuardService::class.java).create().get()
+            val shadow = prepareGuard(service)
+            service.event(STATE, SETTINGS)
+            service.event(CONTENT, SETTINGS)
+            service.event(STATE, overlay)
+            assertEquals(STATE or CONTENT, service.serviceInfo.eventTypes)
+
+            val looper = shadowOf(Looper.getMainLooper())
+            var reads = shadow.rootReads
+            looper.idleFor(Duration.ofMillis(150))
+            assertEquals(++reads, shadow.rootReads)
+            service.event(CONTENT, SETTINGS)
+            looper.idleFor(Duration.ofMillis(150))
+            assertEquals(++reads, shadow.rootReads)
+        }
+    }
+
+    @Test fun evaluatesSettingsTextsWhenTheRootHasADifferentPackage() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = service.packageName
+            text = "Force stop Plainphone"
+        }
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+    }
+
+    @Test fun retriesVpnAtFixedDeadlinesWhenTheActiveWindowLags() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        service.event(STATE, SettingsGuard.VPN_DIALOGS)
+        looper.idleFor(Duration.ofMillis(49))
         assertEquals(1, shadow.rootReads)
+        looper.idleFor(Duration.ofMillis(1))
+        assertEquals(2, shadow.rootReads)
+        service.event(STATE, SettingsGuard.VPN_DIALOGS)
+        looper.idleFor(Duration.ofMillis(100))
+        assertEquals(4, shadow.rootReads)
+        shadow.root = AccessibilityNodeInfo().apply { packageName = SettingsGuard.VPN_DIALOGS }
+        looper.idleFor(Duration.ofMillis(149))
+        assertEquals(emptyList<Int>(), shadow.globalActions)
+        looper.idleFor(Duration.ofMillis(1))
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+        looper.idleFor(Duration.ofMillis(400))
+        assertEquals(5, shadow.rootReads)
     }
 
     private fun prepareGuard(service: GuardService): ServiceShadow {
         service.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE)
             .edit().putBoolean("complete", true).apply()
         org.robolectric.util.ReflectionHelpers.setField(service, "keywords", SettingsGuard.Keywords(
-            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = emptyList(), uninstall = emptyList(),
+            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = listOf("force stop"), uninstall = emptyList(),
         ))
         val shadow = org.robolectric.shadow.api.Shadow.extract<ServiceShadow>(service)
         shadow.root = AccessibilityNodeInfo().apply { packageName = SETTINGS }
