@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import org.plainphone.app.Lock
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
@@ -48,6 +49,8 @@ object TimeTicker {
                 addAction(Intent.ACTION_SCREEN_OFF)
             },
         )
-        main.postDelayed(tick, EVERY_MS)
+        if (context.getSystemService(PowerManager::class.java)?.isInteractive == true) {
+            main.postDelayed(tick, EVERY_MS)
+        }
     }
 }

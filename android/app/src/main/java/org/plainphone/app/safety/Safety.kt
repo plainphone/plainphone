@@ -52,7 +52,6 @@ object Safety {
 
     /** Brings the phone in line with the rules: ring or not, question or not, "always" notice or not. */
     fun onRules(context: Context, rules: ServerRules, nowMs: Long = System.currentTimeMillis()) {
-        createChannels(context)
         val store = SafetyStore(context)
 
         val ring = rules.ring
@@ -141,7 +140,6 @@ object Safety {
     fun positionSent(context: Context, why: String, nowMs: Long = System.currentTimeMillis()) {
         SafetyStore(context).logPosition(why, nowMs)
         if (why == "always") return // the ongoing notice says it already
-        createChannels(context)
         val text = context.getString(
             if (why == "checkin") R.string.location_sent_checkin else R.string.location_sent_find,
             time(context, nowMs),
@@ -170,9 +168,15 @@ object Safety {
         } else {
             context.getString(R.string.location_always_body)
         }
+        val title = context.getString(R.string.location_always_title)
+        val active = nm.activeNotifications.firstOrNull { it.id == ID_LOCATION_ALWAYS && it.tag == null }
+        if (active?.isOngoing == true &&
+            active.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() == title &&
+            active.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() == body
+        ) return
         val n = Notification.Builder(context, CHANNEL_LOCATION)
             .setSmallIcon(R.drawable.ic_plainphone)
-            .setContentTitle(context.getString(R.string.location_always_title))
+            .setContentTitle(title)
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))
             .setContentIntent(sharingPage(context))

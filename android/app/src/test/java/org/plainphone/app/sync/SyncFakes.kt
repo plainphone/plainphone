@@ -36,7 +36,11 @@ class FakeSyncDevice(
 
     override fun nowMs() = now
     override fun appVersion() = "0.1.2"
-    override fun installedApps() = apps
+    var installedAppsCalls = 0
+    override fun installedApps(): List<InstalledApp> {
+        installedAppsCalls++
+        return apps
+    }
     override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) { applies += reason }
     override fun lockState() = lock
     override fun release(): List<StepResult> {
@@ -68,6 +72,7 @@ class FakeSyncApi : SyncApi {
     var rules: RulesResult = RulesResult.Unchanged
     var failRules: IOException? = null
     val etagsSent = mutableListOf<String?>()
+    var onReportApps: (() -> Unit)? = null
     val appsReported = mutableListOf<List<InstalledApp>>()
     val locations = mutableListOf<LocationFix>()
     val statuses = mutableListOf<DeviceStatus>()
@@ -105,7 +110,10 @@ class FakeSyncApi : SyncApi {
         failRules?.let { throw it }
         return rules
     }
-    override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
+    override fun reportApps(token: String, apps: List<InstalledApp>) {
+        onReportApps?.invoke()
+        appsReported += apps
+    }
     val locationPurposes = mutableListOf<String>()
 
     override fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean {

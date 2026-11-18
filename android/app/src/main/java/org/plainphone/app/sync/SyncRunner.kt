@@ -203,11 +203,12 @@ class SyncRunner(
     }
 
     private fun reportApps(token: String) {
+        val at = device.nowMs()
+        val generation = store.appScanGeneration(at) ?: return
         val apps = device.installedApps().sortedBy { it.packageName }
         val hash = sha256(apps.joinToString("\n") { "${it.packageName}\t${it.label}\t${it.core}" })
-        if (hash == store.appsHash) return
-        api.reportApps(token, apps)
-        store.appsHash = hash
+        if (hash != store.appsHash) api.reportApps(token, apps)
+        store.finishAppScan(generation, hash, at)
     }
 
     private fun reportSafetyEvents(token: String) {

@@ -13,7 +13,7 @@ import org.json.JSONObject
  * the last good rules and their ETag, and what was last reported. The rules survive reboots
  * and keep applying while the server cannot be reached.
  */
-class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox()) {
+class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     private val app = context.applicationContext
     private val prefs: SharedPreferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -32,12 +32,28 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     // --- Pairing -----------------------------------------------------------------
 
-    fun deviceToken(): String? = prefs.getString(KEY_TOKEN, null)?.let { sealed ->
-        box.open(sealed).also { if (it == null) Log.w(TAG, "stored device token cannot be opened") }
+    fun deviceToken(): String? {
+        val sealed = prefs.getString(KEY_TOKEN, null) ?: return null
+        // Injected boxes are independent of the real device keystore.
+        if (box !== DEVICE_BOX) return openToken(sealed)
+        if (removed) return null
+        tokenCache?.takeIf { it.prefs === prefs && it.sealed == sealed }?.let { return it.token }
+        return synchronized(tokenLock) {
+            val current = prefs.getString(KEY_TOKEN, null) ?: return@synchronized null
+            if (removed) return@synchronized null
+            tokenCache?.takeIf { it.prefs === prefs && it.sealed == current }?.token
+                ?: openToken(current)?.also { tokenCache = CachedToken(prefs, current, it) }
+        }
     }
 
-    /** Paired and the token still opens (a lost keystore key means pairing again, behind the PIN). */
-    val isPaired: Boolean get() = prefs.contains(KEY_TOKEN) && !removed && deviceToken() != null
+    private fun openToken(sealed: String): String? =
+        box.open(sealed).also { if (it == null) Log.w(TAG, "stored device token cannot be opened") }
+
+    /** Cheap scheduling hint. The worker still needs a usable token before it can sync. */
+    internal val hasStoredPairing: Boolean get() = prefs.contains(KEY_TOKEN) && !removed
+
+    /** A lost keystore key still permits re-pairing behind the PIN. */
+    val isPaired: Boolean get() = hasStoredPairing && deviceToken() != null
 
     /** True after the server answered 401: the phone was removed from the dashboard. Rules keep applying. */
     val removed: Boolean get() = prefs.getBoolean(KEY_REMOVED, false)
@@ -75,20 +91,25 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
     @SuppressLint("ApplySharedPref")
     fun savePaired(phoneId: String, token: String) {
-        prefs.edit()
-            .putString(KEY_TOKEN, box.seal(token))
-            .putString(KEY_PHONE_ID, phoneId)
-            .putBoolean(KEY_EVER_PAIRED, true)
-            .putBoolean(KEY_REMOVED, false)
-            .remove(KEY_RELEASED)
-            // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
-            .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
-            .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
-            .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
-            .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
-            .remove(KEY_PAIRING)
-            .remove(KEY_ENROLL)
-            .commit()
+        synchronized(tokenLock) {
+            val pairing = prefs.edit()
+                .putString(KEY_TOKEN, box.seal(token))
+                .putString(KEY_PHONE_ID, phoneId)
+                .putBoolean(KEY_EVER_PAIRED, true)
+                .putBoolean(KEY_REMOVED, false)
+                .remove(KEY_RELEASED)
+                // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
+                .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
+                .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
+                .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
+                .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
+                .remove(KEY_PAIRING)
+                .remove(KEY_ENROLL)
+            synchronized(appReportLock) {
+                pairing.putLong(KEY_APPS_GENERATION, nextAppGeneration()).commit()
+            }
+            tokenCache = null
+        }
     }
 
     /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
@@ -109,7 +130,11 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     }
 
     fun markRemoved() {
-        prefs.edit().putBoolean(KEY_REMOVED, true).remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION).apply()
+        synchronized(tokenLock) {
+            prefs.edit().putBoolean(KEY_REMOVED, true).remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION).apply()
+            tokenCache = null
+        }
+        rulesCache = null
     }
 
     fun pairing(): Pairing? = prefs.getString(KEY_PAIRING, null)?.let { raw ->
@@ -133,14 +158,20 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     /** The last rules that parsed. Null before the first successful fetch. */
     fun rules(): ServerRules? = prefs.getString(KEY_RULES, null)?.let { text ->
-        runCatching { ServerRules.parse(text) }.onFailure { Log.e(TAG, "stored rules do not parse", it) }.getOrNull()
+        rulesCache?.takeIf { it.first == text }?.second
+            ?: runCatching { ServerRules.parse(text) }
+                .onFailure { Log.e(TAG, "stored rules do not parse", it) }
+                .getOrNull()
+                ?.also { rulesCache = text to it }
     }
 
     /** Stores the rules only after they parsed, so a broken answer never replaces good rules. */
     @SuppressLint("ApplySharedPref") // on disk before they are applied, so a crash cannot lose them
     fun saveRules(etag: String, body: String, nowMs: Long) {
-        ServerRules.parse(body)
+        val parsed = ServerRules.parse(body)
         prefs.edit().putString(KEY_RULES, body).putString(KEY_ETAG, etag).putLong(KEY_SYNC_AT, nowMs).commit()
+        rulesCache = body to parsed
+        markAppsDirty()
     }
 
     fun markSynced(nowMs: Long) {
@@ -152,9 +183,37 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
 
     // --- What was reported --------------------------------------------------------
 
-    var appsHash: String?
-        get() = prefs.getString(KEY_APPS_HASH, null)
-        set(v) { prefs.edit().putString(KEY_APPS_HASH, v).apply() }
+    val appsHash: String? get() = prefs.getString(KEY_APPS_HASH, null)
+
+    // Use a generation so a package broadcast during a scan or upload still triggers another scan.
+    internal fun markAppsDirty() {
+        synchronized(appReportLock) {
+            prefs.edit().putLong(KEY_APPS_GENERATION, nextAppGeneration()).apply()
+        }
+    }
+
+    private fun nextAppGeneration() = prefs.getLong(KEY_APPS_GENERATION, 0L) + 1
+
+    internal fun appScanGeneration(nowMs: Long): Long? = synchronized(appReportLock) {
+        val generation = prefs.getLong(KEY_APPS_GENERATION, 0L)
+        val lastScan = prefs.getLong(KEY_APPS_SCANNED_AT, 0L)
+        generation.takeIf {
+            appsHash == null || lastScan == 0L || nowMs - lastScan !in 0 until APP_SCAN_INTERVAL_MS ||
+                generation != prefs.getLong(KEY_APPS_SCANNED_GENERATION, -1L)
+        }
+    }
+
+    internal fun finishAppScan(generation: Long, hash: String, nowMs: Long) {
+        synchronized(appReportLock) {
+            if (prefs.getLong(KEY_APPS_GENERATION, 0L) != generation) {
+                // The server may now hold a different hash from the one we last recorded.
+                prefs.edit().remove(KEY_APPS_HASH).apply()
+                return
+            }
+            prefs.edit().putString(KEY_APPS_HASH, hash).putLong(KEY_APPS_SCANNED_AT, nowMs)
+                .putLong(KEY_APPS_SCANNED_GENERATION, generation).apply()
+        }
+    }
 
     var statusHash: String?
         get() = prefs.getString(KEY_STATUS_HASH, null)
@@ -265,7 +324,15 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             if (checkInId != null) remove(KEY_PENDING_CHECKIN_LOCATION)
         }.commit()
 
+    private data class CachedToken(val prefs: SharedPreferences, val sealed: String, val token: String)
+
     companion object {
+        private val DEVICE_BOX = KeystoreSecretBox()
+        private val tokenLock = Any()
+        private val appReportLock = Any()
+        @Volatile private var tokenCache: CachedToken? = null
+        @Volatile private var rulesCache: Pair<String, ServerRules>? = null
+        private const val APP_SCAN_INTERVAL_MS = 24 * 60 * 60_000L
         private const val TAG = "Plainphone"
         private const val KEY_ACKED_INSTALL_OVERRUN = "acked_install_overrun"
         private const val INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000L
@@ -282,6 +349,9 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_RULES = "rules"
         private const val KEY_SYNC_AT = "sync_at"
         private const val KEY_APPS_HASH = "apps_hash"
+        private const val KEY_APPS_GENERATION = "apps_generation"
+        private const val KEY_APPS_SCANNED_AT = "apps_scanned_at"
+        private const val KEY_APPS_SCANNED_GENERATION = "apps_scanned_generation"
         private const val KEY_STATUS_HASH = "status_hash"
         private const val KEY_STATUS_AT = "status_at"
         private const val KEY_LOCATE_ANSWERED = "locate_answered"

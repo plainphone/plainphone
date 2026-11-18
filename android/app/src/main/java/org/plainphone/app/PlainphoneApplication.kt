@@ -13,9 +13,11 @@ import android.util.Log
 import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.home.HomeGuard
+import org.plainphone.app.safety.Safety
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.TimeTicker
+import org.plainphone.app.update.SelfUpdate
 
 /**
  * Wakes the sync when it matters: the screen turns on (rules and "Find" within a minute while
@@ -31,11 +33,19 @@ class PlainphoneApplication : Application() {
         Lock.recoverInstallAsync(this)
         runCatching { CatalogAccounts.watchAccounts(this) }
             .onFailure { Log.w("Plainphone", "Could not watch Google accounts", it) }
-        runCatching { org.plainphone.app.update.SelfUpdate.onStart(this) }
+        runCatching { Safety.createChannels(this) }
+            .onFailure { Log.e("Plainphone", "could not set up safety notifications", it) }
+        // Package broadcasts can be missed while the process is stopped.
+        SyncStore(this).markAppsDirty()
+        // Reconcile an interrupted install before an update worker can start in this process.
+        runCatching { SelfUpdate.onStart(this) }
             .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
         try {
             HomeGuard.onAppStart(this)
-            SyncScheduler.ensurePeriodic(this)
+            Thread({
+                runCatching { SyncScheduler.ensurePeriodic(this) }
+                    .onFailure { Log.e("Plainphone", "could not set up periodic sync", it) }
+            }, "plainphone-sync-startup").start()
             registerReceiver(
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {
@@ -49,7 +59,7 @@ class PlainphoneApplication : Application() {
             registerReceiver(
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {
-                        org.plainphone.app.safety.Safety.scheduleIdlePoll(context)
+                        Safety.scheduleIdlePoll(context)
                     }
                 },
                 IntentFilter(Intent.ACTION_SCREEN_OFF),
@@ -64,12 +74,19 @@ class PlainphoneApplication : Application() {
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {
                         val pkg = intent.data?.schemeSpecificPart ?: return
-                        if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return // an update, not a new app
+                        SyncStore(context).markAppsDirty()
+                        if (intent.action != Intent.ACTION_PACKAGE_ADDED ||
+                            intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+                        ) return
                         InstallWindow.onPackageAdded(context, pkg)
                         SyncScheduler.now(context, "app installed")
                     }
                 },
-                IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply { addDataScheme("package") },
+                IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply {
+                    addAction(Intent.ACTION_PACKAGE_REMOVED)
+                    addAction(Intent.ACTION_PACKAGE_CHANGED)
+                    addDataScheme("package")
+                },
             )
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {

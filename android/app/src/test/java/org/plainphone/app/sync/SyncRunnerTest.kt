@@ -107,9 +107,68 @@ class SyncRunnerTest {
         runner.run("2")
         assertThat(api.appsReported).hasSize(1)
         device.apps = device.apps + InstalledApp("com.example.new", "New", core = false)
+        store.markAppsDirty()
         runner.run("3")
         assertThat(api.appsReported).hasSize(2)
         assertThat(api.appsReported.last().map { it.packageName }).contains("com.example.new")
+    }
+
+    @Test
+    fun `a quiet sync only fetches rules and skips the app scan`() {
+        pair()
+        store.saveRules("e1", rulesJson(locationEnabled = false), device.now)
+        runner.run("first report")
+        api.etagsSent.clear()
+        api.appsReported.clear()
+        api.statuses.clear()
+        device.installedAppsCalls = 0
+        device.now += 60_000
+
+        runner.run("unchanged")
+
+        assertThat(device.installedAppsCalls).isEqualTo(0)
+        assertThat(api.etagsSent).hasSize(1)
+        assertThat(api.appsReported).isEmpty()
+        assertThat(api.statuses).isEmpty()
+        assertThat(api.locations).isEmpty()
+        assertThat(api.safetyEvents).isEmpty()
+        assertThat(api.acks).isEmpty()
+    }
+
+    @Test
+    fun `a change during an upload is still reported on the next sync`() {
+        pair()
+        runner.run("initial inventory")
+        val originalApps = device.apps
+        device.apps += InstalledApp("com.example.new", "New", core = false)
+        store.markAppsDirty()
+        api.onReportApps = {
+            device.apps = originalApps
+            store.markAppsDirty()
+        }
+        runner.run("installed")
+        api.onReportApps = null
+
+        runner.run("uninstalled")
+
+        assertThat(api.appsReported).hasSize(3)
+        assertThat(api.appsReported.last()).isEqualTo(originalApps)
+    }
+
+    @Test
+    fun `a failed upload stays dirty and the same inventory is rescanned after a day`() {
+        pair()
+        api.onReportApps = { throw IOException("offline") }
+        runner.run("failed inventory")
+        api.onReportApps = null
+        runner.run("retry inventory")
+        assertThat(device.installedAppsCalls).isEqualTo(2)
+        assertThat(api.appsReported).hasSize(1)
+
+        device.now += 24 * 60 * 60_000L
+        runner.run("daily rescan")
+        assertThat(device.installedAppsCalls).isEqualTo(3)
+        assertThat(api.appsReported).hasSize(1)
     }
 
     @Test
