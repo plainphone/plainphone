@@ -1,5 +1,5 @@
 {
-  "id": "ffefda3e-4887-40f1-9072-f1f315a6ac67",
+  "id": "75d1a21c-fbdf-4abc-9453-699410616749",
   "prevId": "59e6fdb4-2c66-447d-a6d9-e574c807c687",
   "version": "7",
   "dialect": "postgresql",
@@ -1476,18 +1476,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "setup_completed_at": {
-          "name": "setup_completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "setup_undo_authorized_at": {
-          "name": "setup_undo_authorized_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "release_requested_at": {
           "name": "release_requested_at",
           "type": "timestamp with time zone",
@@ -2154,6 +2142,118 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.setup_undo_notices": {
+      "name": "setup_undo_notices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_name": {
+          "name": "phone_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "setup_undo_notices_due_idx": {
+          "name": "setup_undo_notices_due_idx",
+          "columns": [
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "setup_undo_notices_household_id_households_id_fk": {
+          "name": "setup_undo_notices_household_id_households_id_fk",
+          "tableFrom": "setup_undo_notices",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "setup_undo_notices_user_id_users_id_fk": {
+          "name": "setup_undo_notices_user_id_users_id_fk",
+          "tableFrom": "setup_undo_notices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "setup_undo_notices_subscription_id_push_subscriptions_id_fk": {
+          "name": "setup_undo_notices_subscription_id_push_subscriptions_id_fk",
+          "tableFrom": "setup_undo_notices",
+          "tableTo": "push_subscriptions",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

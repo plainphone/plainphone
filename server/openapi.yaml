@@ -660,6 +660,9 @@ components:
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
         pairedAt: { type: [string, "null"], format: date-time }
+        setupQrAvailable:
+          type: boolean
+          description: Whether the dashboard can issue a new setup QR code for this phone.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -892,7 +895,7 @@ paths:
       security: []
       tags: [device]
       summary: Poll pairing (phone)
-      description: Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
+      description: Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token automatically and can display the account. After delivery, the same poll secret can recover the token for up to 24 hours or until the first rules sync.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
@@ -907,6 +910,13 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string, examples: [pp_d_…] }
+                  account:
+                    type: object
+                    description: Masked claimer and household for strong-mode pairing, when available.
+                    required: [maskedEmail, householdName]
+                    properties:
+                      maskedEmail: { type: string }
+                      householdName: { type: [string, "null"] }
         "202":
           description: Waiting for a claim or for the phone to review the masked account.
           content:
@@ -918,7 +928,7 @@ paths:
                   maskedEmail: { type: string }
                   householdName: { type: [string, "null"] }
         "404": { description: "Unknown pairing or wrong secret" }
-        "410": { description: "Expired, or the token was already delivered. Start again." }
+        "410": { description: "Expired, or the phone already synced. Start again if the token was lost." }
 
     post:
       operationId: postDevicePairingDecision
@@ -950,6 +960,13 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  account:
+                    type: object
+                    description: Masked claimer and household for strong-mode pairing, when available.
+                    required: [maskedEmail, householdName]
+                    properties:
+                      maskedEmail: { type: string }
+                      householdName: { type: [string, "null"] }
         "204": { description: "Cancelled. Any pending phone entry was removed." }
         "404": { description: "Unknown pairing or wrong secret" }
         "410": { description: "Expired or already confirmed" }
@@ -1016,8 +1033,9 @@ paths:
       summary: Pair with a dashboard setup token (phone)
       description: |
         A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
-        setup link carries a one-time enrollment token. After confirming the account, the phone sends it here and gets
-        its device token, with no code to type. The token is bound to the phone entry the parent made,
+        setup link carries a one-time enrollment token. Strong mode redeems it automatically and
+        shows the connected account for information. Light mode redeems it after account confirmation.
+        The phone gets its device token with no code to type. The token is bound to the phone entry the parent made,
         works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
         may ask again for 60 minutes; it then gets a new device token and the earlier one stops
         working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
@@ -1051,6 +1069,13 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  account:
+                    type: object
+                    description: Masked token issuer for a new strong-mode enrollment, when available.
+                    required: [maskedEmail, householdName]
+                    properties:
+                      maskedEmail: { type: string }
+                      householdName: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: Unknown token. Fall back to pairing with a code. }
         "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
@@ -1315,23 +1340,14 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
 
-  /device/undo-setup/authorize:
-    post:
-      operationId: postDeviceAuthorizeUndoSetup
-      tags: [device]
-      summary: Authorize local release within the setup undo window (phone)
-      security: [{ device: [] }]
-      responses:
-        "204": { description: "Release authorized. Safe to retry." }
-        "401": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-
   /device/undo-setup:
     post:
       operationId: postDeviceUndoSetup
       tags: [device]
-      summary: Acknowledge local undo of a new light-mode setup (phone)
-      description: The phone sends this after an authorized local release. It retries the acknowledgement if offline.
+      summary: Report local undo of light-mode setup (phone)
+      description: |
+        The phone decides its local undo window and switches off locally. The server accepts
+        authenticated report for light mode at any time and queues a notice when it removes the phone.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }

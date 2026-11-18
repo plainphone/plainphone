@@ -5,7 +5,7 @@ import { hashPin, isValidPin, newSalt, provisioningPayload, provisioningQr } fro
 const info = {
   adminComponent: "org.plainphone.app/.PlainphoneAdminReceiver",
   downloadUrl: "https://app.plainphone.org/download/android",
-  signatureChecksum: "mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM",
+  signatureChecksum: "iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU",
   serverUrl: "https://app.plainphone.org",
   dnsHost: "family.adguard-dns.com",
 };

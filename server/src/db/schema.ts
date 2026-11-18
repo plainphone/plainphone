@@ -217,7 +217,6 @@ export const phones = pgTable(
     pairedAt: timestamp("paired_at", { withTimezone: true }),
     setupUndoMinutes: integer("setup_undo_minutes"),
     setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
-    setupUndoAuthorizedAt: timestamp("setup_undo_authorized_at", { withTimezone: true }),
     /**
      * Set when the parents asked to release the phone: it switches Plainphone off on its own
      * and then calls `POST /device/released`, which deletes this row. Until then the rules
@@ -534,6 +533,17 @@ export const pushSubscriptions = pgTable(
   },
   (t) => [index("push_subscriptions_user_idx").on(t.userId)],
 );
+
+// A deleted phone must no longer be needed to deliver its final notice.
+export const setupUndoNotices = pgTable("setup_undo_notices", {
+  id: id(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
+  phoneId: uuid("phone_id").notNull(),
+  phoneName: text("phone_name").notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
+}, (t) => [index("setup_undo_notices_due_idx").on(t.nextAttemptAt)]);
 
 /** Phones a parent does not want notifications about. Absent means on. */
 export const notificationMutes = pgTable(

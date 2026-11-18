@@ -37,8 +37,8 @@ import org.plainphone.app.AndroidHardeningControls
 import org.plainphone.app.Compat
 import org.plainphone.app.Hardening
 import org.plainphone.app.Lock
-import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.contacts.HelpActivity
+import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
@@ -49,6 +49,7 @@ import org.plainphone.app.time.TimeGuard
  * home screen Android always opens; light mode offers to pick it.
  */
 class HomeActivity : ComponentActivity() {
+    private val enrollmentNotice by lazy { EnrollmentAccountNotice(this) }
     private var resumed by mutableIntStateOf(0)
     /** Only refresh while the home screen can be seen: it lives as long as the phone is on. */
     private var onScreen by mutableStateOf(false)
@@ -130,10 +131,16 @@ class HomeActivity : ComponentActivity() {
         super.onResume()
         resumed++
         askForCallRole()
+        enrollmentNotice.start()
+    }
+
+    override fun onPause() {
+        enrollmentNotice.stop()
+        super.onPause()
     }
 
     private fun askForCallRole() {
-        if (roleDialogOpen || isFinishing || !onScreen || Lock.isInMaintenanceWindow(this) || StrongSetup.needsConfirmation(this) ||
+        if (roleDialogOpen || isFinishing || !onScreen || Lock.isInMaintenanceWindow(this) ||
             android.os.Build.VERSION.SDK_INT >= 34 ||
             getSystemService(DevicePolicyManager::class.java)?.isDeviceOwnerApp(packageName) != true
         ) return

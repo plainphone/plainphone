@@ -41,7 +41,6 @@ import kotlinx.coroutines.withContext
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
-import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.R
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
@@ -89,11 +88,16 @@ class LightSetupActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Mode.isStrong(this)) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
         requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
         restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
         receiveLink(intent)
         val store = SyncStore(this)
-        if (Mode.isLight(this) && pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {
+        if (pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {
             pendingLink = store.enrollToken()?.let { LightEnrollment.Link(it, ConfigStore(this).load().serverUrl) }
         }
         enableEdgeToEdge()
@@ -104,8 +108,6 @@ class LightSetupActivity : ComponentActivity() {
                 val step = LightSetup.next(this)
                 if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) {
                     AudienceScreen()
-                } else if (Mode.isStrong(this)) {
-                    StrongSetupScreen()
                 } else if (link != null) {
                     key(link) { ConfirmLink(link) }
                 } else if (step == null) {
@@ -255,8 +257,7 @@ class LightSetupActivity : ComponentActivity() {
                         }
                         if (choice == SetupAudience.MYSELF && Mode.isStrong(this)) StrongSetup.requireAccount(this)
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
-                        if (Mode.isStrong(this) && !StrongSetup.needsAccount(this)) finishStrongSetup()
-                        else refresh++
+                        refresh++
                     },
                     secondary = stringResource(R.string.setup_back),
                     onSecondary = back,
@@ -265,54 +266,9 @@ class LightSetupActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun StrongSetupScreen() {
-        val paired = SyncStore(this).isPaired
-        var attempt by remember { mutableIntStateOf(0) }
-        var failed by remember { mutableStateOf(false) }
-        LaunchedEffect(paired, attempt) {
-            if (!paired) return@LaunchedEffect
-            withContext(Dispatchers.IO) { Sync.runner(applicationContext).run("initial Device Owner setup") }
-            if (!StrongSetup.needsConfirmation(this@LightSetupActivity)) finishStrongSetup()
-            else {
-                failed = true
-                refresh++
-            }
-        }
-        CalmScreen(
-            eyebrow = null,
-            title = stringResource(if (LightSetup.profile(this) == "self") R.string.setup_pair_self_title else R.string.light_step_pair_title),
-            body = stringResource(when {
-                failed -> R.string.pairing_failed
-                paired -> R.string.light_link_rules
-                else -> R.string.setup_strong_pair_body
-            }),
-            primary = when {
-                failed && paired -> stringResource(R.string.pairing_retry)
-                !paired -> stringResource(R.string.pair_button)
-                else -> null
-            },
-            onPrimary = {
-                failed = false
-                if (paired) attempt++
-                else {
-                    StrongSetup.requireAccount(this)
-                    startActivity(PairingActivity.intent(this, authorized = true))
-                }
-            },
-            secondary = if (paired) null else stringResource(R.string.setup_back),
-            onSecondary = ::changeAudience,
-        )
-    }
-
     private fun changeAudience() {
         LightSetup.clearProfile(this)
         refresh++
-    }
-
-    private fun finishStrongSetup() {
-        startActivity(Intent(this, MainActivity::class.java))
-        finish()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -443,11 +399,8 @@ class LightSetupActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (isFinishing) return
         refresh++
-        if (Mode.isStrong(this)) {
-            if (!StrongSetup.needsConfirmation(this)) finishStrongSetup()
-            return
-        }
         if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) return
         if (LightSetup.next(this) == null && !LightRelease.isReleased(this)) LightSetup.markComplete(this)
         if (SyncStore(this).isPaired && !Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
@@ -698,7 +651,7 @@ class LightSetupActivity : ComponentActivity() {
             progress = 1f,
         ) {
             if (LightSetup.selfKey(this@LightSetupActivity)?.optString("keyType") == "trustedQr") SelfApprovalAction()
-            UndoSetupAction(this@LightSetupActivity, refresh, ::finish)
+            UndoSetupAction(this@LightSetupActivity, refresh)
         }
     }
 

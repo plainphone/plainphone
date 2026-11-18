@@ -801,6 +801,7 @@ export const da: Messages = {
   "setup.alreadyBody": "Den er forbundet med dit dashboard, så den skal ikke have en ny QR-kode.",
   "setup.pendingTitle": "Ikke sat op endnu",
   "setup.pendingBody": "Scan opsætnings-QR-koden med telefonen. Har du lavet en kode før, holder den op med at virke, når du laver en ny.",
+  "setup.codePendingBody": "Fortsæt opsætningen på telefonen. Hvis koden er udløbet, skal du fjerne telefonen under »Denne telefon« og parre igen med en ny kode.",
   "setup.showQr": "Vis QR-koden til opsætning",
   "phones.notSetUp": "Ikke sat op",
   "nav.settings": "Indstillinger",

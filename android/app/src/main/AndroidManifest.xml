@@ -107,7 +107,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Android 12+ provisioning: we apply the policies before setup finishes. -->
+        <!-- Android 12+ Device Owner provisioning: apply policies before returning setup success. -->
         <activity
             android:name=".provisioning.PolicyComplianceActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection|fontScale"

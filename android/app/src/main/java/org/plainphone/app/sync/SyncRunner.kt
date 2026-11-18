@@ -30,6 +30,7 @@ interface SyncDevice {
      * relock. Blocking. Every step that did not hold is in the list as a failure.
      */
     fun release(): List<StepResult>
+    fun removeSetupUndoAdmin()
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
     fun lastKnownLocation(): LocationFix?
@@ -112,18 +113,7 @@ class SyncRunner(
         // Released already: Plainphone is off, so the lock is never applied again. Only the
         // server still has to be told (it may have been unreachable the last time).
         if (store.released) acknowledgeRelease(token)?.let { return it }
-        if (store.setupUndoPending && !store.setupUndoAuthorized) {
-            val authorized = try {
-                api.authorizeSetupUndo(token)
-            } catch (e: IOException) {
-                return Outcome.Failed("setup undo authorization pending: ${e.message}")
-            }
-            if (!authorized) store.clearSetupUndo()
-            else if (!store.markSetupUndoAuthorized()) return Outcome.Failed("could not save setup undo authorization")
-        }
-        if (store.setupUndoAuthorized) {
-            return releaseIfAsked(token) ?: Outcome.Failed("setup undo pending")
-        }
+        if (store.setupUndoPending) return releaseIfAsked(token) ?: Outcome.Failed("pairing changed during setup undo")
 
         // Apps first: a newly installed app then shows up (hidden) in the rules fetched right after.
         guarded("report apps") { reportApps(token) }
@@ -182,7 +172,7 @@ class SyncRunner(
      * nothing is reported to the parent meanwhile, since they asked for the protection to go.
      */
     private fun releaseIfAsked(token: String): Outcome? {
-        if (!store.releaseAsked && !store.setupUndoAuthorized) return null
+        if (!store.releaseAsked && !store.setupUndoPending) return null
         val results = try {
             device.release()
         } catch (e: Exception) {
@@ -205,7 +195,13 @@ class SyncRunner(
      */
     private fun acknowledgeRelease(token: String): Outcome? {
         val done = try {
-            if (store.setupUndoPending) api.ackSetupUndo(token) else api.ackReleased(token)
+            if (store.setupUndoPending) {
+                // An older server can reject a delayed undo. Try acknowledging a dashboard
+                // release in that case and keep local protection switched off.
+                if (!api.reportSetupUndo(token)) api.ackReleased(token)
+                device.removeSetupUndoAdmin()
+                true
+            } else api.ackReleased(token)
         } catch (e: IOException) {
             return Outcome.Failed("release not acknowledged yet: ${e.message ?: e.javaClass.simpleName}")
         }
@@ -213,7 +209,6 @@ class SyncRunner(
             store.markRemoved()
             return Outcome.Removed
         }
-        if (store.setupUndoPending) return Outcome.Failed("setup undo not acknowledged yet")
         store.clearReleased()
         return null
     }
@@ -446,6 +441,9 @@ class SyncRunner(
         val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
         val hash = sha256(comparable.toString())
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
+        // A local undo can switch protection off while this sync is collecting status.
+        // Its release report supplies the notice.
+        if (store.setupUndoPending) return
         api.reportStatus(token, status)
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
         parallelAppsRemoved?.let { notices.acknowledge(StatusNotices.PARALLEL_APPS_REMOVED, it) }

@@ -13,7 +13,7 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 [plainphone.org](https://plainphone.org) · [Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Releases](https://github.com/plainphone/plainphone/releases)
 
-> **Status: early, pre-release.** The releases are test builds signed with a test key, and not every part has been tested on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
+> **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
 
 ## Why
 
@@ -54,8 +54,10 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 
 The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
-before Android asks for permissions. In light mode, **Myself** chooses up to one hour to
-undo setup with a server connection. Child phones default to ten minutes. Device Owner setup also waits for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
+before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
+minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
+even offline. The phone reports Undo when it reconnects, even before its first rules sync. Undo notices are sent only to current household members. See
+[docs/light-mode.md](docs/light-mode.md).
 
 ### Myself keys and QR codes
 
@@ -137,7 +139,13 @@ keyPassword=...
 PLAINPHONE_SIGNING=/path/to/signing.properties ./gradlew assembleRelease
 ```
 
-Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. The pre-release APKs on GitHub are signed with a **test key** (certificate CN "Plainphone TEST key (not for production)"). Do not trust that key for anything except testing.
+Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug key. Official APKs from **v0.1.10** use the production signing certificate (CN=Plainphone, O=Mahope, C=DK, RSA 4096). Verify the APK with `apksigner verify --print-certs plainphone-VERSION.apk` and compare the signer certificate SHA-256 digest with:
+
+```text
+8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215
+```
+
+Android cannot update in place from the test key used through v0.1.9. In light mode, [switch Plainphone off](docs/android-updates.md#one-time-signing-key-change-in-v0110), then uninstall it, install the current release and pair it again. In strong mode (Device Owner), follow the same guide to back up, release and reset the phone before setting it up with a fresh QR code.
 
 ### Setup QR code
 
@@ -164,7 +172,12 @@ The script reads the signing certificate checksum from the APK (or takes `--chec
 - `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
 
-A phone configured with the script can show a pairing code, which the parent claims in the dashboard and the phone confirms after showing the account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+In strong mode the dashboard QR code confirms the profile and account. Plainphone applies
+policies during Android provisioning, pairs automatically, and shows the masked account and
+household when the connection is ready. Use the maintenance PIN or dashboard release if the
+account is wrong.
+
+A strong-mode phone configured with the script can show a pairing code. When the parent claims it in the dashboard, the phone pairs automatically and shows the masked account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 
 ## Updating the phone app
 

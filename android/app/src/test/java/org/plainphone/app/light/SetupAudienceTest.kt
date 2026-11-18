@@ -16,11 +16,13 @@ class SetupAudienceTest {
 
     @Test fun undoExpiresAtExactlyTenMinutesOfElapsedTime() {
         val completed = 120_000L
-        assertEquals(600_000L, setupUndoRemaining(completed, completed))
-        assertEquals(1L, setupUndoRemaining(completed, completed + 599_999L))
-        assertEquals(0L, setupUndoRemaining(completed, completed + 600_000L))
-        assertEquals(0L, setupUndoRemaining(completed, completed - 1))
-        assertEquals(0L, setupUndoRemaining(-1, completed))
+        assertEquals(600_000L, setupUndoRemaining(completed, completed, SETUP_UNDO_MS))
+        assertEquals(1L, setupUndoRemaining(completed, completed + 599_999L, SETUP_UNDO_MS))
+        assertEquals(0L, setupUndoRemaining(completed, completed + 600_000L, SETUP_UNDO_MS))
+        assertEquals(0L, setupUndoRemaining(completed, completed - 1, SETUP_UNDO_MS))
+        assertEquals(8L, setupUndoRemaining(completed, completed + 2, 10))
+        assertEquals(0L, setupUndoRemaining(completed, completed, 0))
+        assertEquals(0L, setupUndoRemaining(-1, completed, SETUP_UNDO_MS))
     }
 
     @Test fun configurableUndoCountsElapsedTimeAndCapsItAtOneHour() {

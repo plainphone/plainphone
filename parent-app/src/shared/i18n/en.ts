@@ -802,6 +802,7 @@ export const en = {
   "setup.alreadyBody": "It is connected to your dashboard, so it needs no new QR code.",
   "setup.pendingTitle": "Not set up yet",
   "setup.pendingBody": "Scan the setup QR code with the phone. Made a code before? It stops working when you make a new one.",
+  "setup.codePendingBody": "Continue setup on the phone. If the code has expired, remove this entry under “This phone” and pair again with a new code.",
   "setup.showQr": "Show the setup QR code",
   "phones.notSetUp": "Not set up",
   "nav.settings": "Settings",

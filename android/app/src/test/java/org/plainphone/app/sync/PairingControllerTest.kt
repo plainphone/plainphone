@@ -15,7 +15,7 @@ class PairingControllerTest {
     private val store = SyncStore(context, FakeSecretBox())
     private val api = FakeSyncApi()
     private var now = 1_800_000_000_000L
-    private val controller = PairingController(store, api, { now }, mapOf("model" to "Test"))
+    private val controller = PairingController(store, api, mapOf("model" to "Test"))
 
     @Test
     fun `start shows a code, polling stores the token once paired`() {
@@ -48,8 +48,8 @@ class PairingControllerTest {
     }
 
     @Test
-    fun `a confirmed pairing can be recovered after its code expires`() {
-        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+    fun `an automatic pairing can be recovered after its code expires`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000, requiresConfirmation = false)
         val pairing = controller.start()
         now += 16 * 60_000
         assertThat(controller.start()).isEqualTo(pairing)
@@ -87,11 +87,13 @@ class PairingControllerTest {
     @Test
     fun `the setup QR code's token pairs the phone without a code, once`() {
         store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
-        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        val account = PlainphoneApi.PollAccount("p***@example.org", "Household")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr", account)
         assertThat(controller.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.deviceToken()).isEqualTo("pp_d_from_qr")
         assertThat(store.phoneId).isEqualTo("phone-9")
+        assertThat(store.enrollmentAccount()).isEqualTo(account)
         assertThat(store.everPaired).isTrue()
         assertThat(store.enrollToken()).isNull()
         assertThat(api.enrollCalls.single().first).isEqualTo("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
@@ -136,7 +138,7 @@ class PairingControllerTest {
         api.enrollResult = EnrollResult.Paired("p", "pp_d_one")
         api.enrollDelayMs = 200
         // Two controllers, like PairingActivity and EnrollWorker each make their own.
-        val other = PairingController(store, api, { now }, mapOf("model" to "Test"))
+        val other = PairingController(store, api, mapOf("model" to "Test"))
         val threads = listOf(controller, other).map { c -> Thread { c.enroll() }.apply { start() } }
         threads.forEach { it.join() }
         assertThat(api.enrollCalls).hasSize(1)

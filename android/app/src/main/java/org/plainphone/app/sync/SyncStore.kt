@@ -63,19 +63,13 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
 
-    val setupUndoPending: Boolean get() = prefs.getBoolean("setup_undo", false)
+    internal val setupUndoPending: Boolean get() = !removed && prefs.getBoolean(KEY_SETUP_UNDO_PENDING, false)
 
-    val setupUndoAuthorized: Boolean get() = prefs.getBoolean("setup_undo_authorized", false)
-
-    @SuppressLint("ApplySharedPref") // Release must resume after process death.
-    fun markSetupUndoAuthorized(): Boolean = prefs.edit().putBoolean("setup_undo_authorized", true).commit()
-
-    fun clearSetupUndo() {
-        prefs.edit().remove("setup_undo").remove("setup_undo_authorized").apply()
+    @SuppressLint("ApplySharedPref") // A tap accepted offline must survive process death.
+    internal fun markSetupUndoPending(expectedPhoneId: String): Boolean = synchronized(tokenLock) {
+        if (phoneId != expectedPhoneId || !isPaired || released || setupUndoPending) return@synchronized false
+        prefs.edit().putBoolean(KEY_SETUP_UNDO_PENDING, true).commit()
     }
-
-    @SuppressLint("ApplySharedPref") // Release must resume after process death.
-    fun beginSetupUndo(): Boolean = prefs.edit().putBoolean("setup_undo", true).commit()
 
     /**
      * True once a parent's release has switched Plainphone off on this phone. From then on the
@@ -104,14 +98,16 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     // commit, not apply: the token is handed out exactly once, so it must be on disk before we go on.
     @SuppressLint("ApplySharedPref")
-    fun savePaired(phoneId: String, token: String) {
+    fun savePaired(phoneId: String, token: String, account: PlainphoneApi.PollAccount? = null) {
         synchronized(tokenLock) {
             val pairing = prefs.edit()
                 .putString(KEY_TOKEN, box.seal(token))
                 .putString(KEY_PHONE_ID, phoneId)
+                .putString(KEY_CONNECTED_EMAIL, account?.maskedEmail)
+                .putString(KEY_CONNECTED_HOUSEHOLD, account?.householdName)
                 .putBoolean(KEY_EVER_PAIRED, true)
                 .putBoolean(KEY_REMOVED, false)
-                .remove(KEY_RELEASED).remove("setup_undo").remove("setup_undo_authorized")
+                .remove(KEY_RELEASED).remove(KEY_SETUP_UNDO_PENDING)
                 // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
                 .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
                 .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
@@ -125,6 +121,22 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             tokenCache = null
         }
     }
+
+    internal fun enrollmentAccount(): PlainphoneApi.PollAccount? {
+        val email = prefs.getString(KEY_CONNECTED_EMAIL, null) ?: return null
+        if (!hasStoredPairing || released || releaseAsked) return null
+        return PlainphoneApi.PollAccount(email, prefs.getString(KEY_CONNECTED_HOUSEHOLD, null))
+    }
+
+    internal fun dismissEnrollmentAccount() {
+        prefs.edit().remove(KEY_CONNECTED_EMAIL).remove(KEY_CONNECTED_HOUSEHOLD).apply()
+    }
+
+    internal fun watchEnrollmentAccount(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+
+    internal fun unwatchEnrollmentAccount(listener: SharedPreferences.OnSharedPreferenceChangeListener) =
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
 
     /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
     fun enrollToken(): String? = prefs.getString(KEY_ENROLL, null)?.let(box::open)
@@ -367,9 +379,12 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_TOKEN = "device_token"
         private const val KEY_PHONE_ID = "phone_id"
         private const val KEY_REMOVED = "removed"
+        private const val KEY_SETUP_UNDO_PENDING = "local_setup_undo_pending"
         private const val KEY_RELEASED = "released"
         private const val KEY_EVER_PAIRED = "ever_paired"
         private const val KEY_PAIRING = "pairing"
+        private const val KEY_CONNECTED_EMAIL = "connected_email"
+        private const val KEY_CONNECTED_HOUSEHOLD = "connected_household"
         private const val KEY_ENROLL = "enroll_token"
         private const val KEY_INSTALL_ID = "install_id"
         private const val KEY_ETAG = "etag"

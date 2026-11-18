@@ -21,7 +21,7 @@ request and can return 409 if it already consumed the upload. Enrollment rotates
 token on redemption, pairing creation allocates a new pairing, and the legacy pairing poll
 consumes the token. Those operations never use the immediate retry.
 
-## Flow
+## Light-mode code pairing and sync
 
 ```
 phone                                      server                         parent (PWA)
@@ -52,15 +52,16 @@ phone                                      server                         parent
 
 1. **Pairing.** A dashboard setup token goes through [enrollment](#setup-from-the-dashboard).
    Otherwise the phone shows a 15-minute code and a QR code. The dashboard uses the code to
-   preselect the phone's profile and the adult submits the claim. With `confirmOnPhone: true`,
+   preselect the phone's profile and the adult submits the claim. In light mode, with `confirmOnPhone: true`,
    a claim creates a pending phone. Polling with the secret returns only the claimer's masked
    email and the household name. The phone sends `{action: "confirm"}` to the same URL to finish
    pairing. Until the first authenticated rules sync, the same secret can recover the token
    for 24 hours from confirmation, even after the 15-minute claim code expires. That first
    sync activates the phone and clears the recovery token. Before confirmation,
    `{action: "cancel"}` removes the pending phone and code. The sweeper removes expired
-   claims and confirmed connections that never synced. Older clients receive their device
-   token once from GET.
+   unconfirmed claims. Confirmed light phones can still sync or report Undo after their recovery
+   code expires. Strong-mode phones receive their device token once from GET, with the masked
+   account and household for an informational notice.
    Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
@@ -162,8 +163,9 @@ parent (PWA)                                server                          phon
   token in a package-scoped Android intent. The parent enters the PIN twice in the app, which
   salts and hashes it locally. The phone first calls `POST /device/enrollment-review` with the
   setup token and mode. The response identifies the profile, household and masked issuer. Sending
-  `cancel: true` instead removes the unused phone and token. Strong mode reviews the account
-  after Android provisioning and before redeeming the dashboard token.
+  `cancel: true` instead removes the unused phone and token. Strong mode redeems the dashboard
+  token automatically. Its enrollment response includes the masked issuer and household, when
+  available, for an informational notice on the phone.
 - `mode` defaults to `strong` for existing clients. Enrollment keeps the selected mode on
   the phone entry. The phone separately reports what Android granted in its protection status.
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
@@ -176,15 +178,12 @@ parent (PWA)                                server                          phon
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).
 
-**Undo light-mode setup.** The phone registers completion once with
-`POST /device/setup-completion`, sending the elapsed time since local completion. The server
-only accepts a first registration within one hour of the first authenticated rules sync or
-setup-link redemption. It returns the remaining time on a fixed deadline. Self phones may send an undo
-choice up to 60 minutes. A pre-pairing dashboard choice takes precedence.
-`GET /device/setup-completion` recovers the remaining time after a reboot. Before releasing,
-the phone calls `POST /device/undo-setup/authorize` within the window. After local release
-succeeds, `POST /device/undo-setup` removes the phone and sends the standard protection-loss
-notice. An authorized release and its acknowledgement can be retried after the deadline.
+**Undo light-mode setup.** The phone decides whether the window is open using elapsed time
+on the boot when setup completed. After switching off locally, it sends an authenticated
+`POST /device/undo-setup`. In one transaction the server removes the phone and queues the
+standard protection-removed notice, which says setup was undone on the phone. The sweeper
+retries failed deliveries. The phone retries the report until it gets `204` (removed) or
+`401` (pairing already gone). Repeated reports cannot enqueue a second notice.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up
@@ -239,6 +238,10 @@ stop, and Plainphone is an ordinary app that can be uninstalled. This is differe
 Until the phone has done this, the dashboard shows the phone as "Releasing" (`releaseRequestedAt`
 on the phone summary). A phone that is switched off or offline keeps its lock until it connects.
 To remove such a phone from the dashboard without releasing it, use `DELETE /api/phones/{pid}`.
+
+Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
+the phone and queues an undo notice when the authenticated report arrives, including after a
+long offline period or before the first rules sync.
 
 ### Requests (asking for an app or a contact)
 

@@ -17,8 +17,7 @@ function PairForm() {
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>("child");
-  const [hint, setHint] = useState<Profile | null>(null);
-  const [lookupPending, setLookupPending] = useState(false);
+  const [lookup, setLookup] = useState<{ code: string; profile?: Profile; done: boolean }>({ code, done: false });
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
@@ -31,30 +30,34 @@ function PairForm() {
     if (params.code) setCode(normaliseCode(params.code));
   }
 
+  const codeComplete = code.replace(/-/g, "").length === 8;
+  if (lookup.code !== code) setLookup({ code, done: false });
+  const hint = lookup.code === code ? lookup.profile : undefined;
+  const lookupPending = codeComplete && (lookup.code !== code || !lookup.done);
+
   useEffect(() => {
-    setHint(null);
-    if (code.replace(/-/g, "").length !== 8) {
-      setLookupPending(false);
-      return;
-    }
+    if (!codeComplete) return;
     let current = true;
-    setLookupPending(true);
-    client.POST("/phones/pairing-profile", { body: { code } }).then(({ data }) => {
-      if (!current || !data?.profile) return;
-      setHint(data.profile);
-      setProfile(data.profile);
-    }).catch(() => {
-      // The claim endpoint checks the profile again.
-    }).finally(() => {
-      if (current) setLookupPending(false);
-    });
+    async function lookupProfile() {
+      let found: Profile | undefined;
+      try {
+        const { data } = await client.POST("/phones/pairing-profile", { body: { code } });
+        found = data?.profile ?? undefined;
+      } catch {
+        // The claim endpoint checks the profile again.
+      }
+      if (!current) return;
+      if (found) setProfile(found);
+      setLookup({ code, profile: found, done: true });
+    }
+    void lookupProfile();
     return () => { current = false; };
-  }, [code]);
+  }, [code, codeComplete]);
 
   async function submit() {
     setNotice(null);
     const next: typeof errors = {};
-    if (code.replace(/-/g, "").length !== 8) next.code = t("pair.codeInvalid");
+    if (!codeComplete) next.code = t("pair.codeInvalid");
     if (!name.trim()) next.name = t("pair.nameRequired");
     setErrors(next);
     if (next.code || next.name) return;
@@ -137,7 +140,7 @@ function PairForm() {
         <Choice<Profile>
           label={t("pair.profile")}
           hint={hint ? t("pair.profileFromPhone") : undefined}
-          disabled={hint !== null}
+          disabled={hint !== undefined}
           value={profile}
           onChange={setProfile}
           options={[

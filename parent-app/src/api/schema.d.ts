@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Poll pairing (phone)
-         * @description Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
+         * @description Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token automatically and can display the account. After delivery, the same poll secret can recover the token for up to 24 hours or until the first rules sync.
          */
         get: operations["getDevicePairings"];
         put?: never;
@@ -82,23 +82,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/device/enrollment-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Copy a template into an unused light-mode Self setup link */
-        post: operations["postDeviceEnrollmentTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/device/enroll": {
         parameters: {
             query?: never;
@@ -111,8 +94,9 @@ export interface paths {
         /**
          * Pair with a dashboard setup token (phone)
          * @description A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
-         *     setup link carries a one-time enrollment token. After confirming the account, the phone sends it here and gets
-         *     its device token, with no code to type. The token is bound to the phone entry the parent made,
+         *     setup link carries a one-time enrollment token. Strong mode redeems it automatically and
+         *     shows the connected account for information. Light mode redeems it after account confirmation.
+         *     The phone gets its device token with no code to type. The token is bound to the phone entry the parent made,
          *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
          *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
          *     working. Rate limited to 20 per hour per IP. Phones set up with a script-made QR code (no
@@ -263,93 +247,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/device/approval-challenge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List pending trusted approvals for this Self phone */
-        get: operations["getDeviceApprovalRequests"];
-        put?: never;
-        /** Make a signed two-minute approval code */
-        post: operations["postDeviceApprovalChallenge"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/device/trusted-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create a 15-minute helper invite for a Self phone waiting for a QR invite */
-        post: operations["postDeviceTrustedInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/device/self-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Share a short-lived copy of this Self phone’s selected rules */
-        post: operations["postDeviceSelfTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/device/setup-completion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the remaining setup undo window (phone) */
-        get: operations["getDeviceSetupCompletion"];
-        put?: never;
-        /** Record completion once for a newly paired light-mode phone */
-        post: operations["postDeviceSetupCompletion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/device/undo-setup/authorize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Authorize local release within the setup undo window (phone) */
-        post: operations["postDeviceAuthorizeUndoSetup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/device/undo-setup": {
         parameters: {
             query?: never;
@@ -360,8 +257,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Acknowledge local undo of a new light-mode setup (phone)
-         * @description The phone sends this after an authorized local release. It retries the acknowledgement if offline.
+         * Report local undo of light-mode setup (phone)
+         * @description The phone decides its local undo window and switches off locally. The server accepts
+         *     authenticated report for light mode at any time and queues a notice when it removes the phone.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -1562,64 +1460,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/phones/{pid}/setup-undo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        /** Get the phone’s setup undo choice and whether it is still editable */
-        get: operations["getPhoneSetupUndo"];
-        /** Set the setup undo period on a light-mode phone before pairing */
-        put: operations["putPhoneSetupUndo"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/phones/{pid}/trusted-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create a QR invite for a Self phone waiting for a helper */
-        post: operations["postPhoneTrustedInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/phones/{pid}/self-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Share a short-lived copy of the phone’s selected rules */
-        post: operations["postPhoneSelfTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/phones/{pid}/key": {
         parameters: {
             query?: never;
@@ -1677,23 +1517,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/people-i-help": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Self phones for which I hold the key */
-        get: operations["getPeopleIHelp"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/approvals": {
         parameters: {
             query?: never;
@@ -1705,23 +1528,6 @@ export interface paths {
         get: operations["getApprovals"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/changes/{cid}/approve-qr": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve with a signed QR challenge as the current trusted person */
-        post: operations["postChangesApproveQr"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1786,9 +1592,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        SetupUndoWindow: {
-            undoRemainingMs: number;
-        };
         PhoneRequest: {
             /** Format: uuid */
             id: string;
@@ -2326,6 +2129,8 @@ export interface components {
             locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
+            /** @description Whether the dashboard can issue a new setup QR code for this phone. */
+            setupQrAvailable?: boolean;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -2451,20 +2256,6 @@ export interface components {
             endMinute: number;
             allowedPackages?: components["schemas"]["PackageName"][];
         };
-        InitialSelfKey: {
-            /** @enum {unknown} */
-            keyType: "delay";
-            /** @enum {integer} */
-            delayHours: 1 | 6 | 12 | 24 | 48 | 72;
-        } | {
-            /** @enum {unknown} */
-            keyType: "trusted";
-            /** Format: email */
-            trustedEmail: string;
-        } | {
-            /** @enum {unknown} */
-            keyType: "trustedQr";
-        };
         Key: {
             /** @enum {unknown} */
             keyType: "delay" | "trusted";
@@ -2472,8 +2263,6 @@ export interface components {
             delayHours: number;
             /** Format: email */
             trustedEmail: string | null;
-            /** @description Choose a trusted person by QR instead of email. */
-            qrInvite?: boolean;
             payUnlockEnabled: boolean;
             /** @description Minor units. */
             payUnlockAmount: number;
@@ -2627,6 +2416,11 @@ export interface operations {
                         phoneId?: string;
                         /** @example pp_d_… */
                         deviceToken?: string;
+                        /** @description Masked claimer and household for strong-mode pairing, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };
@@ -2651,7 +2445,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Expired, or the token was already delivered. Start again. */
+            /** @description Expired, or the phone already synced. Start again if the token was lost. */
             410: {
                 headers: {
                     [name: string]: unknown;
@@ -2676,7 +2470,6 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     action: "confirm" | "cancel";
-                    key?: components["schemas"]["InitialSelfKey"];
                 };
             };
         };
@@ -2693,6 +2486,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId: string;
                         deviceToken: string;
+                        /** @description Masked claimer and household for strong-mode pairing, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };
@@ -2768,39 +2566,6 @@ export interface operations {
             429: components["responses"]["Error"];
         };
     };
-    postDeviceEnrollmentTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    token: string;
-                    template: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Rules copied into the existing draft */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Setup link or template unavailable */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            429: components["responses"]["Error"];
-        };
-    };
     postDeviceEnroll: {
         parameters: {
             query?: never;
@@ -2812,7 +2577,6 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
-                    key?: components["schemas"]["InitialSelfKey"];
                     /** @description Random id the phone makes once and keeps; only its hash is stored. */
                     installId: string;
                     deviceInfo?: {
@@ -2834,6 +2598,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId?: string;
                         deviceToken?: string;
+                        /** @description Masked token issuer for a new strong-mode enrollment, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };
@@ -3072,172 +2841,6 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The phone is deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    getDeviceApprovalRequests: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pending changes and their affected rule targets. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        changes: {
-                            /** Format: uuid */
-                            id: string;
-                            type: string;
-                            /** @description App label, package fallback, or * for the total time limit. */
-                            appLabel: string | null;
-                        }[];
-                    };
-                };
-            };
-        };
-    };
-    postDeviceApprovalChallenge: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    changeId: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Challenge and QR URL */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["Error"];
-        };
-    };
-    postDeviceTrustedInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Invite URL and expiry */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            409: components["responses"]["Error"];
-        };
-    };
-    postDeviceSelfTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Template URL */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            409: components["responses"]["Error"];
-        };
-    };
-    getDeviceSetupCompletion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The time left, or zero when setup undo is unavailable. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupUndoWindow"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    postDeviceSetupCompletion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    elapsedMs: number;
-                    /**
-                     * @description Optional Self phone choice.
-                     * @enum {integer}
-                     */
-                    undoMinutes?: 0 | 5 | 10 | 30 | 60;
-                };
-            };
-        };
-        responses: {
-            /** @description The time left, or zero when setup undo is unavailable. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupUndoWindow"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-        };
-    };
-    postDeviceAuthorizeUndoSetup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Release authorized. Safe to retry. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -4161,8 +3764,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Optional rule template code for an unconnected Self phone. */
-                    template?: string;
                     name: string;
                     /**
                      * @default strong
@@ -5292,96 +4893,6 @@ export interface operations {
             };
         };
     };
-    getPhoneSetupUndo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Minutes and editable flag */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    putPhoneSetupUndo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {integer} */
-                    minutes: 0 | 5 | 10 | 30 | 60;
-                };
-            };
-        };
-        responses: {
-            /** @description Minutes and editable flag */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            409: components["responses"]["Error"];
-        };
-    };
-    postPhoneTrustedInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Invite URL and expiry */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            409: components["responses"]["Error"];
-        };
-    };
-    postPhoneSelfTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: components["parameters"]["phoneId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Template URL */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            409: components["responses"]["Error"];
-        };
-    };
     getPhonesKey: {
         parameters: {
             query?: never;
@@ -5485,24 +4996,6 @@ export interface operations {
             };
         };
     };
-    getPeopleIHelp: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Phones and owner emails */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     getApprovals: {
         parameters: {
             query?: never;
@@ -5512,48 +5005,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description approvals: id, phoneId, phoneName, requestedBy, op.type, appLabel (name of the app for app.set, or null), createdAt */
+            /** @description approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt */
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    postChangesApproveQr: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cid: components["parameters"]["changeId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    challenge: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Applied */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not my request to decide */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invalid */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

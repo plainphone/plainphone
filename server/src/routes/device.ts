@@ -22,7 +22,8 @@ import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
-import { notifyHousehold, notifyHouseholdMembers, phoneAlertRecipients, protectionLost } from "../services/notifications.js";
+import { notifyHousehold, protectionLost } from "../services/notifications.js";
+import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
@@ -34,7 +35,7 @@ export const PAIRING_MINUTES = 15;
 const SETUP_COMPLETION_LIMIT_MS = MAX_SETUP_UNDO_MS;
 
 function setupUndoRemaining(phone: Phone, now: Date): number {
-  if (phone.mode !== "light" || !phone.setupCompletedAt || phone.setupUndoAuthorizedAt) return 0;
+  if (phone.mode !== "light" || !phone.setupCompletedAt) return 0;
   const duration = undoMinutesInput.safeParse(phone.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES);
   if (!duration.success) return 0;
   return Math.min(duration.data * 60_000, Math.max(0, phone.setupCompletedAt.getTime() + duration.data * 60_000 - now.getTime()));
@@ -116,19 +117,20 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (action === "cancel") return { status: 410 as const };
       if (!p.claimedAt) return { status: p.expiresAt <= ctx.now() ? 410 as const : 202 as const };
       if (!p.pendingDeviceToken || !p.phoneId) return { status: 410 as const };
-      if (p.requiresConfirmation) {
-        const deadline = p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS : p.expiresAt.getTime();
-        if (deadline <= ctx.now().getTime()) return { status: 410 as const };
-      }
-      if (p.requiresConfirmation && !p.deliveredAt && action !== "confirm") {
+      const now = ctx.now();
+      if (p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS <= now.getTime()
+        : p.requiresConfirmation && p.expiresAt <= now) return { status: 410 as const };
+      const needsReview = p.requiresConfirmation && !p.deliveredAt && action !== "confirm";
+      let details = null;
+      if (needsReview || p.mode === "strong") {
         const [account] = p.claimedBy
           ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, p.claimedBy))
           : [];
         const [household] = await tx.select({ name: households.name }).from(phones)
           .innerJoin(households, eq(phones.householdId, households.id)).where(eq(phones.id, p.phoneId));
-        const details = pairingAccount(p.claimedBy, account, household?.name ?? null);
-        return details ? { status: 202 as const, details } : { status: 410 as const };
+        details = pairingAccount(p.claimedBy, account, household?.name ?? null);
       }
+      if (needsReview) return details ? { status: 202 as const, details } : { status: 410 as const };
       if (p.requiresConfirmation && !p.deliveredAt) {
         if (!p.claimedBy) return { status: 410 as const };
         if (key) {
@@ -138,12 +140,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
       }
-      // New clients may retry confirmation after losing the response. The secret is still required,
-      // including after the original code expires. The sweeper bounds retention.
-      await tx.update(pairings)
-        .set({ pendingDeviceToken: p.requiresConfirmation ? p.pendingDeviceToken : null, deliveredAt: p.deliveredAt ?? ctx.now() })
-        .where(eq(pairings.id, id));
-      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, ownerId: p.claimedBy };
+      // Keep the token recoverable if the response is lost before the phone saves it.
+      if (!p.deliveredAt) await tx.update(pairings).set({ deliveredAt: now }).where(eq(pairings.id, id));
+      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, ownerId: p.claimedBy, account: p.mode === "strong" ? details : null };
     });
   };
 
@@ -165,7 +164,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await syncDns(ctx, result.phoneId);
       await sendInitialKeyInvite(ctx, decision?.key, result.ownerId);
     }
-    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken }, 200);
+    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.account && { account: result.account }) }, 200);
   });
 
   app.post("/enrollment-review", async (c) => {
@@ -234,7 +233,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
     if (r.status !== 200) return c.json({ error: r.error }, r.status);
-    return c.json({ status: "paired", phoneId: r.phoneId, deviceToken: r.deviceToken }, 200);
+    const { phoneId, deviceToken, account } = r;
+    return c.json({ status: "paired", phoneId, deviceToken, ...(account && { account }) }, 200);
   });
 
   // --- Everything below needs the device token ------------------------------
@@ -270,8 +270,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         .returning();
       if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
       phone = activated;
+    }
+    if (!phone.lastSeenAt) {
       await ctx.db.update(pairings).set({ pendingDeviceToken: null })
-        .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
+        .where(and(eq(pairings.phoneId, phone.id), isNotNull(pairings.pendingDeviceToken)));
     }
     // Throttle last-seen writes to one a minute.
     await ctx.db
@@ -317,23 +319,30 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
   });
 
-  // The phone has switched Plainphone off after a release request. The phone is deleted, so
-  // its token is unknown from now on (401), which the phone reads as "removed".
-  app.post("/released", async (c) => {
-    const phone = c.get("phone");
-    const result = await ctx.db.transaction(async (tx) => {
-      // Locked, so two acknowledgements (a retry after a timeout) cannot both delete.
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh) return { status: 401 as const };
-      if (!fresh.releaseRequestedAt) return { status: 409 as const };
-      return { status: 204 as const, clientId: await deletePhone(tx, phone.id) };
+  for (const path of ["/released", "/undo-setup"] as const) {
+    app.post(path, async (c) => {
+      const phone = c.get("phone");
+      const undo = path === "/undo-setup";
+      const result = await ctx.db.transaction(async (tx) => {
+        // Only the request that deletes the authenticated pairing may queue the notice.
+        const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+        if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
+        if (undo) {
+          if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
+          await queueSetupUndoNotices(ctx, tx, fresh);
+        } else if (!fresh.releaseRequestedAt) {
+          return { status: 409 as const, error: "this phone has not been asked to release" };
+        }
+        return { status: 204 as const, clientId: await deletePhone(tx, phone.id) };
+      });
+      if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
+      if (result.status === 409) {
+        return c.json({ error: result.error }, 409);
+      }
+      if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+      return c.body(null, 204);
     });
-    if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
-    if (result.status === 409) return c.json({ error: "this phone has not been asked to release" }, 409);
-    // Failures stay queued in dns_deletions and the sweeper retries them.
-    if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
-    return c.body(null, 204);
-  });
+  }
 
   app.post("/self-template", async (c) => {
     const phone = c.get("phone");
@@ -416,37 +425,6 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ undoRemainingMs: remaining });
   });
 
-  app.post("/undo-setup/authorize", async (c) => {
-    const phone = c.get("phone");
-    const authorized = await ctx.db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return false;
-      if (fresh.setupUndoAuthorizedAt) return true;
-      const now = ctx.now();
-      if (setupUndoRemaining(fresh, now) === 0) return false;
-      await tx.update(phones).set({ setupUndoAuthorizedAt: now }).where(eq(phones.id, phone.id));
-      return true;
-    });
-    if (!authorized) return c.json({ error: "setup undo window closed" }, 409);
-    return c.body(null, 204);
-  });
-
-  app.post("/undo-setup", async (c) => {
-    const phone = c.get("phone");
-    const removed = await ctx.db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh) return { status: 204 as const };
-      if (fresh.mode !== "light" || !fresh.setupUndoAuthorizedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 409 as const };
-      const members = await phoneAlertRecipients(tx, phone.id, fresh.householdId);
-      return { status: 204 as const, clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
-    });
-    if (removed.status === 409) return c.json({ error: "setup undo not authorized" }, 409);
-    if (removed.members) {
-      await notifyHouseholdMembers(ctx, removed.members, { type: "protection", phoneId: phone.id, phoneName: removed.name, reason: "lock" });
-    }
-    if (removed.clientId) await retryDnsDeletions(ctx, [removed.clientId]);
-    return c.body(null, 204);
-  });
 
   app.put("/apps", async (c) => {
     const phone = c.get("phone");

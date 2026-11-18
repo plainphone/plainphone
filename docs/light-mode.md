@@ -105,22 +105,31 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
    **Allow from this source** in Android settings.
 
-**Undo setup** is available without a PIN on the finish and Today screens during the
-chosen window. Child phones default to ten minutes. See [Self keys](self-keys.md) for choices. Plainphone must reach the server to register
-completion and start undo. If you reboot during the window, Plainphone gets the time left from
-the server. Android's elapsed time counts down while the phone is asleep, and changing its
-clock cannot add time. Once authorized, undo uses the existing release path for the guard,
-VPN and device admin, and retries updating the dashboard if the connection drops. The server
-removes the phone and sends the household its normal protection-loss notice. Android keeps
-its default Phone and SMS apps selected until you change them in Settings or uninstall Plainphone.
+**Undo setup** is available without a PIN on the finish and Today screens for the chosen window (ten minutes by default) after
+light-mode setup completes. The phone saves the window length, the boot count and the elapsed
+time since boot at completion. Changing the clock has no effect. Rebooting closes the window.
+The maintenance PIN and dashboard release remain available.
 
-Device Owner mode starts through the Android welcome screen on a new or reset phone. Android
-grants Device Owner during provisioning. Plainphone waits for the Child or Myself confirmation
-and, for dashboard provisioning, confirmation of the masked account before applying its
-policies or asking for call roles. If you cancel, Plainphone removes the pending dashboard
-phone and stays unlocked. Device Owner remains installed. Use the existing maintenance PIN
-or dashboard release on a protected phone. A PIN-free undo would permit removing Device
-Owner and its reset protection, which cannot be reinstated by the app.
+Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
+The phone saves the accepted undo and retries the report after reconnecting. Once the server
+acknowledges it, Plainphone removes its device administrator so Android allows normal
+uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
+If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
+
+When the server receives the report, it removes the phone from the dashboard and queues the
+protection-removed notice in the same database transaction. Delivery runs in the background and is retried if a
+configured mail or push provider is unavailable. Before sending, the server checks that the
+recipient still belongs to the household. Android keeps its default Phone and SMS apps
+selected until you change them in Settings or uninstall Plainphone.
+
+In light mode, the phone already enforces protection locally. A time-boxed window measured by
+the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the
+report to remove the phone and tell the parent.
+
+Device Owner mode starts through the Android welcome screen on a new or reset phone.
+The dashboard QR scan confirms the chosen profile and account, and Plainphone applies policies
+during provisioning. It pairs automatically and shows the masked account and household when
+connected. Use the maintenance PIN or dashboard release if the account is wrong.
 
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 

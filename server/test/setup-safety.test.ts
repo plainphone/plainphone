@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { setupUndoNotices } from "../src/db/schema.js";
+import { deliverSetupUndoNotices } from "../src/services/setup-undo-notices.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
 describe("onboarding safety", () => {
   const h = useHarness();
 
-  async function start(account?: Client, profile = "self") {
+  async function start(account?: Client, mode: "light" | "strong" = "light", profile = "self") {
     const parent = account ?? await signIn(h, "claimer@example.org");
     const device = new Client(h);
-    const result = await device.post("/api/device/pairings", { mode: "light", profile, confirmOnPhone: true });
+    const result = await device.post("/api/device/pairings", { mode, profile, confirmOnPhone: true });
     expect(result.status).toBe(201);
     const { code, pairingId, pollSecret } = result.json;
     const path = `/api/device/pairings/${pairingId}`;
@@ -30,6 +32,7 @@ describe("onboarding safety", () => {
     const claimed = await claim();
     expect(claimed.status).toBe(201);
     expect(claimed.json.pairedAt).toBeNull();
+    expect(claimed.json.setupQrAvailable).toBe(false);
     expect((await poll()).json).toEqual({
       status: "confirm",
       maskedEmail: "c***@example.org",
@@ -41,14 +44,196 @@ describe("onboarding safety", () => {
     expect((await poll()).json.deviceToken).toBe(confirmed.json.deviceToken);
     device.token = confirmed.json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 600_000 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
-    h.clock.advance(600_000);
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
+  });
+
+  it("removes a light phone and sends one notice when a delayed or duplicate report arrives before the first rules sync", async () => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).json.pairedAt).toBeNull();
+    h.clock.advance(48 * 60 * 60_000 + 1);
+    await sweep(h.ctx);
+    const before = h.mail.outbox.length;
+    const path = "/api/device/undo-setup";
+    const reports = await Promise.all([device.post(path), device.post(path)]);
+    expect(reports.map(({ status }) => status)).toContain(204);
+    expect((await device.post(path)).status).toBe(401);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
+    await sweep(h.ctx);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.to).toBe("claimer@example.org");
+    expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+  });
+
+  it("accepts setup undo after 48 hours on a connected light phone and notifies once", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    h.clock.advance(48 * 60 * 60_000 + 1);
+    const before = h.mail.outbox.length;
+
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).map(({ text }) => text))
+      .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
+  });
+
+  it("recovers an unsent notice after the phone deletion is committed", async () => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/test", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
+    const before = h.mail.outbox.length;
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
-    expect(h.mail.outbox.at(-1)?.to).toBe("claimer@example.org");
+    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect(h.mail.outbox).toHaveLength(before);
+
+    const send = vi.spyOn(h.mail, "send").mockRejectedValue(new Error("mail unavailable"));
+    await sweep(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before);
+    expect(h.parentPush.sent).toHaveLength(1);
+
+    send.mockRestore();
+    h.clock.advance(60_000);
+    await Promise.all([sweep(h.ctx), sweep(h.ctx)]);
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).map((notice) => notice.text))
+      .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
+    expect(h.parentPush.sent.map(({ msg }) => msg.body)).toEqual(["Set-up was undone on the phone."]);
+  });
+
+  it("drops a queued notice when the recipient is removed from the household", async () => {
+    const { parent, device, decide, claim } = await start();
+    const household = (await parent.get("/api/me")).json.households[0];
+    await parent.post(`/api/households/${household.id}/invites`, { email: "member@example.org" });
+    const token = decodeURIComponent(/invite#token=(\S+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
+    const member = await signIn(h, "member@example.org");
+    expect((await member.post("/api/invites/accept", { token })).status).toBe(200);
+    expect((await member.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/member", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
+
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const memberId = (await member.get("/api/me")).json.user.id;
+    expect((await parent.call("DELETE", `/api/households/${household.id}/members/${memberId}`)).status).toBe(204);
+
+    const before = h.mail.outbox.length;
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).map(({ to }) => to)).toEqual(["claimer@example.org"]);
+    expect(h.parentPush.sent).toHaveLength(0);
+  });
+
+  it("delivers at most ten undo notices per sweep", async () => {
+    const { device, decide, claim } = await start();
+    const before = h.mail.outbox.length;
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const [notice] = await h.ctx.db.select().from(setupUndoNotices);
+    await h.ctx.db.insert(setupUndoNotices).values(Array.from({ length: 10 }, () => ({ ...notice!, id: undefined })));
+
+    await sweep(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before + 10);
+    await sweep(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before + 11);
+  });
+
+  it("releases a claim when its budget expires before sending", async () => {
+    const { device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+
+    const before = h.mail.outbox.length;
+    const elapsed = vi.spyOn(performance, "now").mockReturnValue(0);
+    const update = h.ctx.db.update.bind(h.ctx.db);
+    const claimUpdate = vi.spyOn(h.ctx.db, "update").mockImplementationOnce((table) => {
+      elapsed.mockReturnValue(10_000);
+      return update(table);
+    });
+    try {
+      await deliverSetupUndoNotices(h.ctx);
+      expect(claimUpdate).toHaveBeenCalledTimes(2);
+      expect(h.mail.outbox).toHaveLength(before);
+    } finally {
+      claimUpdate.mockRestore();
+      elapsed.mockRestore();
+    }
+    await deliverSetupUndoNotices(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before + 1);
+  });
+
+  it("ends the notice batch while a slow delivery is still in flight", async () => {
+    const { device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    const [notice] = await h.ctx.db.select().from(setupUndoNotices);
+    await h.ctx.db.insert(setupUndoNotices).values({ ...notice!, id: undefined });
+    let finish!: () => void;
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    const sending = new Promise<void>((resolve) => { started = resolve; });
+    const send = vi.spyOn(h.mail, "send").mockImplementation(() => {
+      started();
+      return pending;
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let returned = false;
+      const batch = deliverSetupUndoNotices(h.ctx).then(() => { returned = true; });
+      await sending;
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(returned).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(returned).toBe(true);
+      await batch;
+      expect(send).toHaveBeenCalledTimes(1);
+
+      const remove = vi.spyOn(h.ctx.db, "delete").mockImplementationOnce(() => {
+        throw new Error("database unavailable");
+      });
+      try {
+        finish();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(log).toHaveBeenCalledWith("setup undo notice batch failed after its deadline");
+        expect(send).toHaveBeenCalledTimes(1);
+      } finally {
+        remove.mockRestore();
+      }
+    } finally {
+      finish();
+      vi.useRealTimers();
+      log.mockRestore();
+      send.mockRestore();
+    }
+  });
+
+  it("keeps Device Owner paired when it reports a setup undo", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "strong");
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);
+    expect(h.mail.outbox).toHaveLength(before);
   });
 
   it.each([0, 5, 10, 30, 60])("persists a Self undo window of %i minutes", async (minutes) => {
@@ -60,13 +245,13 @@ describe("onboarding safety", () => {
     expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: minutes })).json.undoRemainingMs)
       .toBe(minutes * 60_000);
     h.clock.advance(minutes * 60_000);
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
+    expect((await device.get("/api/device/setup-completion")).json.undoRemainingMs).toBe(0);
     expect((await parent.put(`/api/phones/${claimed.json.id}/setup-undo`, { minutes: 60 })).status).toBe(409);
     expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: 60 })).json.undoRemainingMs).toBe(0);
   });
 
   it.each([undefined, 5])("uses the dashboard's child choice (%s), never the child's", async (minutes) => {
-    const { parent, device, decide, claim } = await start(undefined, "child");
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
     const { json } = await claim();
     if (minutes !== undefined) {
       expect((await parent.put(`/api/phones/${json.id}/setup-undo`, { minutes })).status).toBe(200);
@@ -127,33 +312,6 @@ describe("onboarding safety", () => {
     expect((await device.get("/api/device/rules")).status).toBe(200);
   });
 
-  it("does not reopen the undo window for an older or already completed Self phone", async () => {
-    const { parent, device, decide, claim } = await start();
-    const claimed = await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    h.clock.advance(120_000);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 120_000 })).json).toEqual({ undoRemainingMs: 480_000 });
-    h.clock.advance(480_000);
-    expect((await device.get("/api/device/setup-completion")).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    h.clock.advance(60 * 60_000);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);
-  });
-
-  it("refuses to start the undo window for an old phone that never registered completion", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    h.clock.advance(60 * 60_000);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
-  });
-
   it("removes the pending phone and code when the phone cancels", async () => {
     const { parent, poll, decide, claim } = await start();
     const claimed = await claim();
@@ -163,7 +321,7 @@ describe("onboarding safety", () => {
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
   });
 
-  it("sweeps an expired pending claim without removing a connected phone", async () => {
+  it("sweeps an expired pending claim and keeps confirmed light phones", async () => {
     const pending = await start();
     const connected = await start(pending.parent);
     const abandoned = await pending.claim();
@@ -183,7 +341,13 @@ describe("onboarding safety", () => {
     h.clock.advance(24 * 60 * 60_000);
     expect((await neverSynced.poll()).status).toBe(410);
     await sweep(h.ctx);
-    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(404);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).json)
+      .toMatchObject({ pairedAt: null, setupQrAvailable: false });
+    h.clock.advance(24 * 60 * 60_000);
+    await sweep(h.ctx);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).json)
+      .toMatchObject({ pairedAt: null, setupQrAvailable: false });
+    expect((await pending.parent.post(`/api/phones/${neverSyncedPhone.json.id}/enrollment`)).status).toBe(409);
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
   });
 
@@ -223,6 +387,7 @@ describe("onboarding safety", () => {
     const device = new Client(h);
     const made = await parent.post("/api/phones/enroll", { mode: "light", name: "My phone", profile: "self" });
     expect(made.status).toBe(201);
+    expect(made.json.phone.setupQrAvailable).toBe(true);
     const { token } = made.json.enrollment;
     const path = "/api/device/enrollment-review";
     expect((await device.post(path, { token, mode: "strong" })).status).toBe(404);

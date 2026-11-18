@@ -113,6 +113,8 @@ export function SetupPhonePage() {
                 {t("setup.open", { name: phone.name })}
               </Link>
             </>
+          ) : phone.setupQrAvailable === false ? (
+            <PageTitle sub={t("setup.codePendingBody")}>{t("setup.pendingTitle")}</PageTitle>
           ) : qr ? (
             <QrStep qr={qr} />
           ) : (

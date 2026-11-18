@@ -18,7 +18,8 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncStore
-import org.plainphone.app.sync.PlainphoneApi
+import org.plainphone.app.Lock
+import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.time.TimeGuard
 
 /**
@@ -139,18 +140,12 @@ object LightSetup {
         val sync = SyncStore(context)
         if (profile(context) != null && sync.isPaired && !sync.released && !sync.setupUndoPending) {
             edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
+                .putLong("undoWindowMs", if (profile(context) == "self") prefs(context).getInt("setupUndoMinutes", 10) * 60_000L else SETUP_UNDO_MS)
                 .putInt("completedBoot", bootCount(context))
                 .putString("completedPhoneId", sync.phoneId)
         }
         edit.commit()
         LightRelease.clear(context)
-    }
-
-    private fun canUndo(context: Context): Boolean {
-        val sync = SyncStore(context)
-        return Mode.isLight(context) && isComplete(context) && prefs(context).contains("completedElapsed") &&
-            sync.isPaired && sync.phoneId == prefs(context).getString("completedPhoneId", null) &&
-            !sync.released && !sync.setupUndoPending
     }
 
     fun saveSelfKey(context: Context, waitHours: Int?, email: String, inviteByQr: Boolean) {
@@ -175,27 +170,37 @@ object LightSetup {
         prefs(context).edit().putInt("setupUndoMinutes", minutes).apply()
     }
 
-    /** Completion is registered once. After a reboot only the server can establish the time left. */
-    fun undoDeadline(context: Context): Long {
-        if (!canUndo(context)) return 0
+    fun localUndoDeadline(context: Context): Long {
         val saved = prefs(context)
+        val sync = SyncStore(context)
+        if (!Mode.isLight(context) || !isComplete(context) || LightRelease.isReleased(context) ||
+            !sync.isPaired || sync.phoneId != saved.getString("completedPhoneId", null) ||
+            sync.released || sync.setupUndoPending
+        ) return 0
+
         val boot = bootCount(context)
+        if (boot < 0 || boot != saved.getInt("completedBoot", -1)) return 0
         val now = SystemClock.elapsedRealtime()
-        val sameBoot = boot >= 0 && boot == saved.getInt("completedBoot", -1)
-        val localRemaining = if (sameBoot) setupUndoRemaining(saved.getLong("completedElapsed", -1), now, MAX_SETUP_UNDO_MS) else null
-        if (localRemaining == 0L) return 0
-        val token = SyncStore(context).deviceToken() ?: return 0
-        val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
-        val minutes = saved.getInt("setupUndoMinutes", -1).takeIf { it in SETUP_UNDO_CHOICES }
-        val remaining = api.setupUndoRemaining(token, localRemaining?.let { MAX_SETUP_UNDO_MS - it }, minutes)
-            .coerceIn(0, localRemaining ?: MAX_SETUP_UNDO_MS)
+        val remaining = setupUndoRemaining(saved.getLong("completedElapsed", -1), now, saved.getLong("undoWindowMs", 0))
         return if (remaining > 0) now + remaining else 0
     }
 
     @Synchronized
-    fun requestUndo(context: Context, deadline: Long): Boolean {
-        if (!canUndo(context) || deadline <= SystemClock.elapsedRealtime()) return false
-        return SyncStore(context).beginSetupUndo()
+    internal fun undo(context: Context): Boolean {
+        val store = SyncStore(context)
+        val phoneId = store.phoneId ?: return false
+        if (localUndoDeadline(context) == 0L || !store.markSetupUndoPending(phoneId)) return false
+        // Persist the accepted tap before switching off, so sync can finish the release after a crash.
+        val app = context.applicationContext
+        Lock.releaseAsync(app) { results ->
+            if (results.all { it.ok }) {
+                store.markReleased()
+                SyncScheduler.finishSetupUndo(app)
+            } else {
+                SyncScheduler.recoverSetupUndoLocally(app)
+            }
+        }
+        return true
     }
 
     private fun bootCount(context: Context) = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
