@@ -8,8 +8,16 @@ describe("lock step labels", () => {
     const da = makeT("da");
     expect(lockStepLabel("restriction no_install_apps", da)).toBe("begrænsning af appinstallation");
     expect(lockStepLabel("DNS filter (VPN)", da)).toBe("webfilter i let tilstand");
-    expect(lockStepLabel("setting screenTimeout", da)).toBe("Skærmens slukketid");
+    expect(lockStepLabel("setting screenTimeout", da)).toBe("skærmens slukketid");
     expect(lockStepLabel("factory reset protection (2 account(s))", da)).toBe("beskyttelse mod fabriksnulstilling");
+  });
+
+  it("uses sentence case for setting steps while preserving names and acronyms", () => {
+    const en = makeT("en");
+    expect(lockStepLabel("setting screenTimeout", en)).toBe("screen timeout");
+    expect(lockStepLabel("setting bluetooth", en)).toBe("Bluetooth");
+    expect(lockStepLabel("setting wifi", en)).toBe("Wi-Fi");
+    expect(lockStepLabel("setting nfc", en)).toBe("NFC");
   });
 
   it("uses a generic label for unknown steps in both languages", () => {

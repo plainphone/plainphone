@@ -200,6 +200,17 @@ describe("contacts", () => {
 });
 
 describe("web filter", () => {
+  it("keeps the filter limits available when the DNS settings fail to load", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/dns`]: { status: 503, body: {} } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "filter") });
+    expect(await screen.findByText("Try again")).toBeTruthy();
+    const limits = "Useful sites can also be blocked. Helplines and selected health information sites are always available.";
+    expect(screen.queryByText(limits)).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "What the filter can and can’t do" }));
+    expect(screen.getByText(limits)).toBeTruthy();
+    expect(screen.queryByTestId("category-social")).toBeNull();
+  });
+
   it("switches a category and adds a website in its clean form", async () => {
     const dns = { host: "abc.dns.plainphone.org", synced: true, blockedCategories: ["social"], allowDomains: [], blockDomains: ["bad.example"] };
     const api = phoneApi(PHONE, {

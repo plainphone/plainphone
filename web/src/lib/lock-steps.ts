@@ -57,5 +57,9 @@ export function lockStepLabel(step: string, t: T): string {
   if (key) return t(key);
 
   const setting = SETTING_SPECS.find(({ key }) => step === `setting ${key}`);
-  return setting ? settingName(setting.key, t) : t("phone.lockUnknown");
+  if (!setting) return t("phone.lockUnknown");
+
+  const label = settingName(setting.key, t);
+  if (setting.key === "bluetooth" || setting.key === "wifi" || setting.key === "nfc") return label;
+  return label.charAt(0).toLowerCase() + label.slice(1);
 }
