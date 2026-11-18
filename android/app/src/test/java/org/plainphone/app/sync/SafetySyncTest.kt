@@ -90,12 +90,13 @@ class SafetySyncTest {
         api.rules = RulesResult.Unchanged
         runner = SyncRunner(SyncStore(context, FakeSecretBox()), api, device)
         runner.run("retry both uploads after restarting")
-        assertThat(device.freshLocationRequests).containsExactly(true)
-        assertThat(api.locations).containsExactly(fresh.copy(recordedAtMs = device.now), device.lastKnownFix).inOrder()
+        val freshFix = fresh.copy(recordedAtMs = device.now)
+        assertThat(device.freshLocationRequests).containsExactly(true, false).inOrder()
+        assertThat(api.locations).containsExactly(freshFix, device.lastKnownFix, freshFix).inOrder()
         assertThat(device.positionsShown).containsExactly("checkin", "find").inOrder()
-        assertThat(store.answeredLocateMs).isNotEqualTo(requested)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
         assertThat(store.locatedCheckInId).isEqualTo(id)
-        assertThat(api.locationPurposes).containsExactly("checkin:$id", "find:$requested").inOrder()
+        assertThat(api.locationPurposes).containsExactly("checkin:$id", "find:$requested", "find:$requested").inOrder()
     }
 
     @Test
@@ -308,7 +309,7 @@ class SafetySyncTest {
             assertThat(api.locationPurposes).containsExactly("find:$requested")
         }
         runner.run("both locations due")
-        assertThat(device.freshLocationRequests).containsExactly(true)
+        assertThat(device.freshLocationRequests).containsExactly(false, true).inOrder()
         assertThat(api.locationPurposes).containsExactly("find:$requested")
         assertThat(api.locations).containsExactly(oldFix)
         assertThat(store.lastCheckInAttempt(id)).isEqualTo(deadline)
@@ -339,6 +340,49 @@ class SafetySyncTest {
         runner.run("cached position arrives")
         assertThat(api.locations).containsExactly(cached)
         assertThat(device.freshLocationRequests).containsExactly(false, true).inOrder()
+    }
+
+    @Test
+    fun `an older cached Find upload leaves the final GPS slot available`() {
+        val requested = device.now
+        device.now += 15 * 60_000L
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested - 1)
+        device.lastKnownFix = cached
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find", requestedAt = iso(requested),
+        ))
+        device.beforeLocation = {
+            assertThat(api.locations).containsExactly(cached)
+            assertThat(store.lastFindAttempt(requested)).isNull()
+        }
+
+        runner.run("cached position at the final GPS slot")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(cached, requireNotNull(device.fix).copy(recordedAtMs = device.now)).inOrder()
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
+    fun `a slow Find preserves a due check-in lookup when the phone clock is ahead`() {
+        val deadline = device.now - SyncRunner.FIND_RETRY_MS + 5_000L
+        val requested = deadline - 1_000L
+        api.beforeLocationUpload = { purpose ->
+            val serverNow = device.now - 90_000L
+            if (purpose == "checkin:$id" && serverNow >= deadline + SyncRunner.FIND_RETRY_MS) {
+                throw HttpError(409, "check-in location is no longer due")
+            }
+        }
+        device.locationDelayMs = 30_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "checkin", requestedAt = iso(requested),
+            checkIn = checkIn(deadline, locationDue = true),
+        ))
+
+        runner.run("local check-in window expires during Find")
+
+        assertThat(device.freshLocationRequests).containsExactly(false, true).inOrder()
+        assertThat(api.locationPurposes).containsExactly("find:$requested", "checkin:$id").inOrder()
     }
 
     @Test

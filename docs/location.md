@@ -79,7 +79,9 @@ cached Find position. It runs any remaining lookups in order of server expiry,
 and uploads each result before starting the next lookup. The server allows
 30 minutes from the check-in reply deadline or the time Find was requested.
 A cached Find position can also go out between GPS attempts, including after the
-last scheduled attempt.
+last scheduled attempt. An upload recorded before the Find request leaves any
+due GPS attempt available. Check-in eligibility uses the clock at the start
+of location reporting, so an earlier lookup cannot consume its local window.
 
 The phone keeps a saved check-in position through temporary upload failures and
 retries while server rules still show the request is due, even if the phone

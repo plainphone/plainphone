@@ -243,15 +243,17 @@ class SyncRunner(
             }?.let { PendingLocation(it, find.purpose, now) }
         } else null
         val readyFind = savedFind ?: cachedFind
+        var findNeedsLookup = readyFind == null
         var attemptedFind = readyFind != null
         if (find != null && readyFind != null) guarded("upload saved or cached Find location") {
             if (savedFind == null) savePendingLocation(readyFind)
-            uploadRequestedLocation(token, find, readyFind)
+            val uploaded = uploadRequestedLocation(token, find, readyFind)
+            findNeedsLookup = uploaded && readyFind.fix.recordedAtMs < find.start
         }
 
         val lookups = listOfNotNull(
             openCheckIn.takeIf { savedCheckIn == null },
-            find.takeIf { readyFind == null },
+            find.takeIf { findNeedsLookup },
         ).sortedBy { it.expiresAt }
         for (request in lookups) guarded("look up ${request.purpose.substringBefore(':')} location") {
             val attemptAt = device.nowMs()
@@ -259,12 +261,15 @@ class SyncRunner(
             if (checkInId != null && device.checkInAnswered(checkInId)) return@guarded
             val lastAttempt = if (checkInId == null) store.lastFindAttempt(request.start)
                 else store.lastCheckInAttempt(checkInId)
-            val retryAt = if (checkInId == null) maxOf(attemptAt, request.start) else attemptAt
+            // A previous lookup must not make a check-in that was due at the start ineligible.
+            val retryAt = if (checkInId == null) maxOf(attemptAt, request.start) else now
             if (!locationAttemptDue(request.start, retryAt, lastAttempt)) return@guarded
             if (checkInId == null) attemptedFind = true
             val fix = if (checkInId == null) {
                 device.location(precise = true, notBeforeMs = request.start)?.takeUnless(store::isLocationRejected)
-                    ?: device.lastKnownLocation()?.takeUnless(store::isLocationRejected)
+                    ?: device.lastKnownLocation()?.takeUnless {
+                        store.isLocationRejected(it) || it.recordedAtMs == readyFind?.fix?.recordedAtMs
+                    }
             } else {
                 device.location(precise = true, fresh = true)?.takeIf {
                     val createdAt = checkIn?.createdAt?.toEpochMilli()
@@ -276,6 +281,8 @@ class SyncRunner(
                 recordAttempt(request, attemptAt)
                 Log.w(TAG, "no position available")
             } else {
+                // An older Find fix does not consume a slot on upload, but this lookup does.
+                if (checkInId == null && fix.recordedAtMs < request.start) recordAttempt(request, attemptAt)
                 val pending = PendingLocation(fix, request.purpose, attemptAt)
                 savePendingLocation(pending)
                 uploadRequestedLocation(token, request, pending)
@@ -335,13 +342,13 @@ class SyncRunner(
         }
     }
 
-    private fun uploadRequestedLocation(token: String, request: LocationRequest, pending: PendingLocation) {
+    private fun uploadRequestedLocation(token: String, request: LocationRequest, pending: PendingLocation): Boolean {
         val checkInId = request.checkInId
         // A local answer suppresses upload until the server confirms the check-in is closed.
-        if (checkInId != null && device.checkInAnswered(checkInId)) return
+        if (checkInId != null && device.checkInAnswered(checkInId)) return false
         if (store.isLocationRejected(pending.fix)) {
             recordAttempt(request, device.nowMs(), pending.fix.recordedAtMs)
-            return
+            return false
         }
         val now = device.nowMs()
         val stored = try {
@@ -353,10 +360,14 @@ class SyncRunner(
         // A 409 leaves the fix pending until the next rules show the request is inactive.
         if (!stored) {
             if (checkInId != null && !pending.conflict) savePendingLocation(pending.copy(conflict = true))
-            return
+            return false
         }
         store.locationAtMs = now
-        recordAttempt(request, pending.attemptedAtMs)
+        if (checkInId == null && pending.fix.recordedAtMs < request.start) {
+            store.clearPendingLocation(checkIn = false)
+        } else {
+            recordAttempt(request, pending.attemptedAtMs)
+        }
         if (checkInId != null) {
             store.locatedCheckInId = checkInId
             device.positionSent("checkin")
@@ -368,6 +379,7 @@ class SyncRunner(
                 device.positionSent("find")
             }
         }
+        return true
     }
 
     private fun reportStatus(token: String) {
