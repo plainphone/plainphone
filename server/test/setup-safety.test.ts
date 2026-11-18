@@ -45,12 +45,13 @@ describe("onboarding safety", () => {
     expect((await device.get("/api/device/rules")).status).toBe(200);
   });
 
-  it("removes a light phone and sends one notice even after a delayed or duplicate report", async () => {
+  it("removes a light phone and sends one notice when a delayed or duplicate report arrives before the first rules sync", async () => {
     const { parent, device, decide, claim } = await start();
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).json.pairedAt).toBeNull();
     h.clock.advance(48 * 60 * 60_000);
+    await sweep(h.ctx);
     const before = h.mail.outbox.length;
     const path = "/api/device/undo-setup";
     const reports = await Promise.all([device.post(path), device.post(path)]);
@@ -78,6 +79,18 @@ describe("onboarding safety", () => {
     expect((await device.post("/api/device/released")).status).toBe(409);
     expect((await parent.post(`${phone}/release`)).status).toBe(200);
     expect((await device.post("/api/device/released")).status).toBe(204);
+  });
+
+  it("rejects late undo before the first rules sync even if cleanup has not run", async () => {
+    const { device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    const confirmed = await decide("confirm");
+    expect(confirmed.status).toBe(200);
+    device.token = confirmed.json.deviceToken;
+    h.clock.advance(48 * 60 * 60_000 + 1);
+
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
   });
 
   it("recovers an unsent notice after the phone deletion is committed", async () => {
@@ -274,6 +287,9 @@ describe("onboarding safety", () => {
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
     h.clock.advance(24 * 60 * 60_000);
     expect((await neverSynced.poll()).status).toBe(410);
+    await sweep(h.ctx);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(200);
+    h.clock.advance(24 * 60 * 60_000);
     await sweep(h.ctx);
     expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(404);
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);

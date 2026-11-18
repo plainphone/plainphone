@@ -56,8 +56,9 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
-even offline. The phone can report Undo for up to 48 hours after pairing. Undo notices are sent
-only to current household members. See [docs/light-mode.md](docs/light-mode.md).
+even offline. The phone can report Undo for up to 48 hours after pairing, even before its first
+rules sync. Undo notices are sent only to current household members. See
+[docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 

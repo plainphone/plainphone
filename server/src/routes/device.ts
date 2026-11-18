@@ -11,7 +11,7 @@ import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { applyDueChanges, deletePhone } from "../services/changes.js";
-import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
+import { pairingAccount, PAIRING_RECOVERY_MS, SETUP_UNDO_WINDOW_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
@@ -272,7 +272,6 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
   });
 
-  const setupUndoWindowMs = 48 * 60 * 60_000;
   for (const path of ["/released", "/undo-setup"] as const) {
     app.post(path, async (c) => {
       const phone = c.get("phone");
@@ -283,7 +282,14 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
-          if (!fresh.pairedAt || ctx.now().getTime() - fresh.pairedAt.getTime() > setupUndoWindowMs) {
+          let pairedAt = fresh.pairedAt;
+          if (!pairedAt) {
+            // Code confirmation delivers the credential before the first rules sync marks the phone connected.
+            const [pairing] = await tx.select({ deliveredAt: pairings.deliveredAt }).from(pairings)
+              .where(and(eq(pairings.phoneId, fresh.id), eq(pairings.requiresConfirmation, true)));
+            pairedAt = pairing?.deliveredAt ?? null;
+          }
+          if (!pairedAt || ctx.now().getTime() - pairedAt.getTime() > SETUP_UNDO_WINDOW_MS) {
             return { status: 409 as const, error: "the setup undo reporting window has closed" };
           }
           await queueSetupUndoNotices(ctx, tx, fresh);

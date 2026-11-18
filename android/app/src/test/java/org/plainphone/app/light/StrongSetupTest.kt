@@ -5,9 +5,16 @@ import android.app.Activity
 import android.content.DialogInterface
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.Intent
 import android.os.Looper
+import android.os.PersistableBundle
 import android.os.UserManager
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.NetworkType
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -17,14 +24,19 @@ import org.junit.runner.RunWith
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
 import org.plainphone.app.PlainphoneAdminReceiver
+import org.plainphone.app.PolicyConfig
 import org.plainphone.app.provisioning.PolicyComplianceActivity
+import org.plainphone.app.sync.EnrollWorker
 import org.plainphone.app.sync.FakeSecretBox
+import org.plainphone.app.sync.KeystoreSecretBox
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.SyncStore
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowAlertDialog
 
 @RunWith(RobolectricTestRunner::class)
@@ -40,8 +52,16 @@ class StrongSetupTest {
         assertTrue(shadowOf(manager).setDeviceOwner(admin))
     }
 
-    @Test fun provisioningAppliesRestrictionsBeforeReturningSuccess() {
-        Robolectric.buildActivity(PolicyComplianceActivity::class.java).setup().use { controller ->
+    @Test
+    @Config(shadows = [EnrollmentSecretBox::class], instrumentedPackages = ["org.plainphone.app.sync"])
+    fun provisioningAppliesRestrictionsAndSchedulesQrEnrollmentBeforeReturningSuccess() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        val token = "pp_e_test-enrollment"
+        val intent = Intent(context, PolicyComplianceActivity::class.java).putExtra(
+            DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
+            PersistableBundle().apply { putString(PolicyConfig.KEY_ENROLL, token) },
+        )
+        Robolectric.buildActivity(PolicyComplianceActivity::class.java, intent).setup().use { controller ->
             val activity = controller.get()
             val deadline = System.nanoTime() + 5_000_000_000L
             while (!activity.isFinishing && System.nanoTime() < deadline) {
@@ -51,7 +71,20 @@ class StrongSetupTest {
             assertTrue(activity.isFinishing)
             assertEquals(Activity.RESULT_OK, shadowOf(activity).resultCode)
             assertTrue(users.hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS))
+            assertEquals(token, SyncStore(context).enrollToken())
+            val work = WorkManager.getInstance(context)
+                .getWorkInfosByTag(EnrollWorker::class.java.name).get(5, TimeUnit.SECONDS).single()
+            assertEquals(WorkInfo.State.ENQUEUED, work.state)
+            assertEquals(NetworkType.CONNECTED, work.constraints.requiredNetworkType)
         }
+    }
+
+    @Implements(KeystoreSecretBox::class)
+    class EnrollmentSecretBox {
+        private val box = FakeSecretBox()
+
+        @Implementation fun seal(plain: String): String = box.seal(plain)
+        @Implementation fun open(sealed: String): String? = box.open(sealed)
     }
 
     @Test fun existingDeviceOwnerOpensNormallyWithoutAnOnboardingProfile() {

@@ -239,7 +239,10 @@ on the phone summary). A phone that is switched off or offline keeps its lock un
 To remove such a phone from the dashboard without releasing it, use `DELETE /api/phones/{pid}`.
 
 Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
-the phone and queues an undo notice up to 48 hours after pairing. After that it returns `409`.
+the phone and queues an undo notice up to 48 hours after pairing. For a confirmed light-mode code
+that has yet to sync rules, the server measures from token delivery and keeps the phone eligible
+after the 24-hour confirmation recovery window closes. Late reports return `409` while the
+device token is still valid.
 The phone then tries the ordinary release acknowledgement and stays released. If the server
 has no dashboard release on record, the old entry can be removed from the dashboard.
 

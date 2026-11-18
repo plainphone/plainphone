@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneRequests, sessions } from "../db/schema.js";
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges, deletePhone } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { wakePhone } from "./phones.js";
 import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation } from "./safety.js";
-import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
+import { PAIRING_RECOVERY_MS, SETUP_UNDO_WINDOW_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
@@ -43,10 +43,15 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<{ count: number }>) => (await q).count;
   const recoveryCutoff = new Date(now.getTime() - PAIRING_RECOVERY_MS);
+  const undoCutoff = new Date(now.getTime() - SETUP_UNDO_WINDOW_MS);
+  const expiredDelivery = or(
+    lt(pairings.deliveredAt, undoCutoff),
+    and(lt(pairings.deliveredAt, recoveryCutoff), or(eq(pairings.requiresConfirmation, false), ne(pairings.mode, "light"))),
+  );
   await ctx.db.transaction(async (tx) => {
     const expired = await tx.select({ phoneId: pairings.phoneId }).from(pairings)
       .where(and(eq(pairings.requiresConfirmation, true), isNotNull(pairings.phoneId),
-        or(and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, now)), lt(pairings.deliveredAt, recoveryCutoff))))
+        or(and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, now)), expiredDelivery)))
       .for("update");
     for (const { phoneId } of expired) {
       if (!phoneId) continue;
@@ -54,6 +59,10 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
         .where(and(eq(phones.id, phoneId), isNull(phones.pairedAt))).for("update");
       if (unconnected) await deletePhone(tx, unconnected.id);
     }
+    // Keep light-mode delivery timestamps for Undo after token recovery expires.
+    await tx.update(pairings).set({ pendingDeviceToken: null })
+      .where(and(eq(pairings.requiresConfirmation, true), eq(pairings.mode, "light"),
+        lt(pairings.deliveredAt, recoveryCutoff), isNotNull(pairings.pendingDeviceToken)));
   });
   const deleted = {
     magicLinks: await count(expiredMagicLinksDelete(ctx.db, now)),
@@ -62,7 +71,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
     pairings: await count(
       ctx.db
         .delete(pairings)
-        .where(or(lt(pairings.deliveredAt, recoveryCutoff), and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, dayAgo)))),
+        .where(or(expiredDelivery, and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, dayAgo)))),
     ),
     // Invitations hold the invited email address. Accepted ones are deleted on acceptance;
     // this also catches any left from before that.
