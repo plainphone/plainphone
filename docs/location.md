@@ -74,17 +74,19 @@ Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unansw
 "Are you okay?" uses the same schedule, starting at the reply deadline on the phone's
 clock, and only if the child has yet to answer. Both stop scheduling lookups after
 success or after 30 minutes. A delayed sync runs only the latest due attempt.
-If an upload fails temporarily, the phone keeps the position and retries the upload
-on the next sync while the request is still open. If the server rejects the payload as
-invalid, the phone discards it and waits for the next retry slot. Find and check-in
-each have their own lookup, purpose tag and pending upload. When both are due,
-the phone sends a saved or last known Find position before starting the check-in
-lookup. The phone can send a cached Find position between GPS attempts,
-including after the last scheduled attempt. In the final 30 seconds of the
-check-in upload window, a saved check-in position goes first. Otherwise, in the
-last 30 seconds of Find, the phone tries Find first even when it must start a
-lookup. The check-in retry window is measured from its deadline at the start of
-the location sync.
+The phone sends saved uploads first, starting with check-in, then a saved or
+cached Find position. It runs any remaining lookups in order of server expiry,
+and uploads each result before starting the next lookup. The server allows
+30 minutes from the check-in reply deadline or the time Find was requested.
+A cached Find position can also go out between GPS attempts, including after the
+last scheduled attempt.
+
+The phone keeps a saved check-in position through temporary upload failures and
+retries while server rules still show the request is due, even if the phone
+clock says the window has expired. After a 409 response, the next rules decide
+whether to keep it. A local answer suppresses the upload. If the server rejects
+a position as invalid, the phone remembers its recorded time, skips it on future
+attempts and counts the rejection toward the retry schedule.
 
 The server holds a check-in fix privately for at least one second after both receipt
 and the server deadline. The next sweeper pass publishes it if the check-in still

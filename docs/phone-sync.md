@@ -95,8 +95,9 @@ services it is backed by Google's fused location. If fused is unavailable or giv
 the app uses GPS and the network provider via `LocationManager`. The app does not include
 the Play services library.
 
-Lookups share a 30-second budget and can reuse cached fixes that meet the age and accuracy
-limits. Find and missed check-ins use the retry schedule in [Location time and
+Each lookup has a 30-second budget across providers and can reuse cached fixes that meet the
+age and accuracy limits. Saved check-in and saved or cached Find positions upload before new
+lookups, which run in order of server expiry. Find and missed check-ins use the retry schedule in [Location time and
 accuracy](location.md#location-time-and-accuracy). A position answers Find if it was
 recorded at or after the request. If a precise or scheduled coarse lookup gives no fix, the phone
 sends its newest known position with the original recorded time. The phone keeps pending safety

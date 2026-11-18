@@ -214,6 +214,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
                     ),
                     purpose = purpose,
                     attemptedAtMs = json.getLong("attemptedAtMs"),
+                    conflict = json.optBoolean("conflict"),
                 )
             }.getOrNull()
         }
@@ -227,6 +228,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             .put("recordedAtMs", pending.fix.recordedAtMs)
             .put("purpose", pending.purpose)
             .put("attemptedAtMs", pending.attemptedAtMs)
+            .put("conflict", pending.conflict)
         return prefs.edit().putString(pendingLocationKey(pending.purpose.startsWith("checkin:")), box.seal(json.toString())).commit()
     }
 
@@ -235,9 +237,22 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         if (prefs.contains(key)) prefs.edit().remove(key).apply()
     }
 
+    internal fun isLocationRejected(fix: LocationFix): Boolean =
+        fix.recordedAtMs.toString() in prefs.getStringSet(KEY_REJECTED_LOCATION_TIMES, emptySet()).orEmpty()
+
     @SuppressLint("ApplySharedPref") // Advance the retry schedule together with clearing the uploaded fix.
-    fun recordLocationAttempts(requestedAtMs: Long?, checkInId: String?, nowMs: Long): Boolean =
+    fun recordLocationAttempts(
+        requestedAtMs: Long?,
+        checkInId: String?,
+        nowMs: Long,
+        rejectedAtMs: Long? = null,
+    ): Boolean =
         prefs.edit().apply {
+            if (rejectedAtMs != null) {
+                val rejected = prefs.getStringSet(KEY_REJECTED_LOCATION_TIMES, emptySet()).orEmpty()
+                putStringSet(KEY_REJECTED_LOCATION_TIMES, rejected + rejectedAtMs.toString())
+                if (requestedAtMs == null && checkInId == null) putLong(KEY_LOCATION_AT, nowMs)
+            }
             if (requestedAtMs != null) {
                 putLong(KEY_FIND_ATTEMPT_REQUEST, requestedAtMs).putLong(KEY_FIND_ATTEMPT_AT, nowMs)
             }
@@ -271,6 +286,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_LOCATE_SHOWN = "locate_shown"
         private const val KEY_LOCATION_AT = "location_at"
         private const val KEY_CHECKIN_LOCATED = "checkin_located"
+        private const val KEY_REJECTED_LOCATION_TIMES = "rejected_location_times"
         private const val KEY_PENDING_LOCATION = "pending_location"
         private const val KEY_PENDING_CHECKIN_LOCATION = "pending_checkin_location"
         private const val KEY_FIND_ATTEMPT_REQUEST = "find_attempt_request"
@@ -284,4 +300,5 @@ internal data class PendingLocation(
     val fix: LocationFix,
     val purpose: String,
     val attemptedAtMs: Long,
+    val conflict: Boolean = false,
 )
