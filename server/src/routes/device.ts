@@ -11,7 +11,7 @@ import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { applyDueChanges, deletePhone } from "../services/changes.js";
-import { pairingAccount, PAIRING_RECOVERY_MS, SETUP_UNDO_WINDOW_MS } from "../services/pairing-account.js";
+import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
@@ -106,15 +106,17 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         const deadline = p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS : p.expiresAt.getTime();
         if (deadline <= ctx.now().getTime()) return { status: 410 as const };
       }
-      if (p.requiresConfirmation && !p.deliveredAt && action !== "confirm") {
+      const needsReview = p.requiresConfirmation && !p.deliveredAt && action !== "confirm";
+      let details = null;
+      if (needsReview || p.mode === "strong") {
         const [account] = p.claimedBy
           ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, p.claimedBy))
           : [];
         const [household] = await tx.select({ name: households.name }).from(phones)
           .innerJoin(households, eq(phones.householdId, households.id)).where(eq(phones.id, p.phoneId));
-        const details = pairingAccount(p.claimedBy, account, household?.name ?? null);
-        return details ? { status: 202 as const, details } : { status: 410 as const };
+        details = pairingAccount(p.claimedBy, account, household?.name ?? null);
       }
+      if (needsReview) return details ? { status: 202 as const, details } : { status: 410 as const };
       if (p.requiresConfirmation && !p.deliveredAt) {
         if (!p.claimedBy) return { status: 410 as const };
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
@@ -125,7 +127,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await tx.update(pairings)
         .set({ pendingDeviceToken: p.requiresConfirmation ? p.pendingDeviceToken : null, deliveredAt: p.deliveredAt ?? ctx.now() })
         .where(eq(pairings.id, id));
-      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt };
+      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, account: p.mode === "strong" ? details : null };
     });
   };
 
@@ -143,7 +145,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
     if (result.status === 202) return c.json(result.details ? { status: "confirm", ...result.details } : { status: "waiting" }, 202);
     if (result.sync) await syncDns(ctx, result.phoneId);
-    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken }, 200);
+    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.account && { account: result.account }) }, 200);
   });
 
   app.post("/enrollment-review", async (c) => {
@@ -282,16 +284,6 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
-          let pairedAt = fresh.pairedAt;
-          if (!pairedAt) {
-            // Code confirmation delivers the credential before the first rules sync marks the phone connected.
-            const [pairing] = await tx.select({ deliveredAt: pairings.deliveredAt }).from(pairings)
-              .where(and(eq(pairings.phoneId, fresh.id), eq(pairings.requiresConfirmation, true)));
-            pairedAt = pairing?.deliveredAt ?? null;
-          }
-          if (!pairedAt || ctx.now().getTime() - pairedAt.getTime() > SETUP_UNDO_WINDOW_MS) {
-            return { status: 409 as const, error: "the setup undo reporting window has closed" };
-          }
           await queueSetupUndoNotices(ctx, tx, fresh);
         } else if (!fresh.releaseRequestedAt) {
           return { status: 409 as const, error: "this phone has not been asked to release" };

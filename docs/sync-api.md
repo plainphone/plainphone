@@ -21,7 +21,7 @@ request and can return 409 if it already consumed the upload. Enrollment rotates
 token on redemption, pairing creation allocates a new pairing, and the legacy pairing poll
 consumes the token. Those operations never use the immediate retry.
 
-## Flow
+## Light-mode code pairing and sync
 
 ```
 phone                                      server                         parent (PWA)
@@ -52,15 +52,16 @@ phone                                      server                         parent
 
 1. **Pairing.** A dashboard setup token goes through [enrollment](#setup-from-the-dashboard).
    Otherwise the phone shows a 15-minute code and a QR code. The dashboard uses the code to
-   preselect the phone's profile and the adult submits the claim. With `confirmOnPhone: true`,
+   preselect the phone's profile and the adult submits the claim. In light mode, with `confirmOnPhone: true`,
    a claim creates a pending phone. Polling with the secret returns only the claimer's masked
    email and the household name. The phone sends `{action: "confirm"}` to the same URL to finish
    pairing. Until the first authenticated rules sync, the same secret can recover the token
    for 24 hours from confirmation, even after the 15-minute claim code expires. That first
    sync activates the phone and clears the recovery token. Before confirmation,
    `{action: "cancel"}` removes the pending phone and code. The sweeper removes expired
-   claims and confirmed connections that never synced. Older clients receive their device
-   token once from GET.
+   unconfirmed claims. Confirmed light phones can still sync or report Undo after their recovery
+   code expires. Strong-mode phones receive their device token once from GET, with the masked
+   account and household for an informational notice.
    Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
@@ -239,12 +240,8 @@ on the phone summary). A phone that is switched off or offline keeps its lock un
 To remove such a phone from the dashboard without releasing it, use `DELETE /api/phones/{pid}`.
 
 Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
-the phone and queues an undo notice up to 48 hours after pairing. For a confirmed light-mode code
-that has yet to sync rules, the server measures from token delivery and keeps the phone eligible
-after the 24-hour confirmation recovery window closes. Late reports return `409` while the
-device token is still valid.
-The phone then tries the ordinary release acknowledgement and stays released. If the server
-has no dashboard release on record, the old entry can be removed from the dashboard.
+the phone and queues an undo notice when the authenticated report arrives, including after a
+long offline period or before the first rules sync.
 
 ### Requests (asking for an app or a contact)
 

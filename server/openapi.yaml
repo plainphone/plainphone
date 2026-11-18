@@ -870,7 +870,7 @@ paths:
       security: []
       tags: [device]
       summary: Poll pairing (phone)
-      description: Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
+      description: Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token once and can display the account.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
@@ -885,6 +885,13 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string, examples: [pp_d_…] }
+                  account:
+                    type: object
+                    description: Masked claimer and household for strong-mode pairing, when available.
+                    required: [maskedEmail, householdName]
+                    properties:
+                      maskedEmail: { type: string }
+                      householdName: { type: [string, "null"] }
         "202":
           description: Waiting for a claim or for the phone to review the masked account.
           content:
@@ -927,6 +934,13 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  account:
+                    type: object
+                    description: Masked claimer and household for strong-mode pairing, when available.
+                    required: [maskedEmail, householdName]
+                    properties:
+                      maskedEmail: { type: string }
+                      householdName: { type: [string, "null"] }
         "204": { description: "Cancelled. Any pending phone entry was removed." }
         "404": { description: "Unknown pairing or wrong secret" }
         "410": { description: "Expired or already confirmed" }
@@ -1188,8 +1202,7 @@ paths:
       summary: Report local undo of light-mode setup (phone)
       description: |
         The phone decides its local undo window and switches off locally. The server accepts
-        this report only for light mode within 48 hours of pairing. On 409, the phone uses
-        the ordinary release acknowledgement path and stays switched off.
+        authenticated report for light mode at any time and queues a notice when it removes the phone.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }

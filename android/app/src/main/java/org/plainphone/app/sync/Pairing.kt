@@ -19,7 +19,9 @@ class PairingController(
     private val canRedeemEnrollment: () -> Boolean = { true },
 ) {
     /** The server decides when a confirmed pairing can no longer be recovered. */
-    fun current(): Pairing? = store.pairing()?.takeIf { it.requiresConfirmation }
+    fun current(): Pairing? = store.pairing()?.takeIf {
+        it.requiresConfirmation || (mode == "strong" && it.expiresAtMs > nowMs())
+    }
 
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing {
@@ -58,9 +60,11 @@ class PairingController(
             store.savePairing(null)
             return PairPoll.Expired
         }
-        val result = api.pollPairing(p.id, p.pollSecret)
+        val polled = api.pollPairing(p.id, p.pollSecret)
+        // A strong-mode code issued by an earlier app build may still require confirmation.
+        val result = if (polled is PairPoll.Confirm && mode == "strong") api.decidePairing(p, true) else polled
         when (result) {
-            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken)
+            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
             PairPoll.Expired -> store.savePairing(null)
             is PairPoll.Confirm, PairPoll.Waiting -> Unit
         }

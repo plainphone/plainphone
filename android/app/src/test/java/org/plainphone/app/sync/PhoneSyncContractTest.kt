@@ -82,7 +82,9 @@ class PhoneSyncContractTest {
 
         // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token once.
         val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
-        val code = pairing.start().code
+        val started = pairing.start()
+        assertThat(started.requiresConfirmation).isFalse()
+        val code = started.code
         assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
         val (claimStatus, claimed) = parent(
             "POST", "/phones/claim",
@@ -93,6 +95,7 @@ class PhoneSyncContractTest {
         assertThat(pairing.poll()).isInstanceOf(PairPoll.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
+        assertThat(store.enrollmentAccount()?.maskedEmail).isNotEmpty()
 
         // 2. First sync: apps reported, rules fetched and applied, status reported.
         val runner = SyncRunner(store, api, device)
@@ -155,6 +158,30 @@ class PhoneSyncContractTest {
         assertThat(store.rules()!!.contacts).containsExactly(ApprovedContact("Mum", "+4512345678"))
         assertThat(store.everPaired).isTrue()
         assertThat(Instant.ofEpochMilli(store.lastSyncAtMs!!)).isLessThan(Instant.now().plusSeconds(1))
+    }
+
+    @Test
+    fun `light mode shows the account and waits for confirmation before pairing`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val pairing = PairingController(
+            store, PlainphoneApi(url), System::currentTimeMillis, emptyMap(), mode = "light", profile = "child",
+        )
+        val started = pairing.start()
+        assertThat(started.requiresConfirmation).isTrue()
+        assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
+        val (status, claimed) = parent(
+            "POST", "/phones/claim",
+            JSONObject().put("code", started.code).put("name", "Light phone").put("profile", "child"),
+        )
+        assertThat(status).isEqualTo(201)
+        assertThat(claimed!!.isNull("pairedAt")).isTrue()
+        val review = pairing.poll() as PairPoll.Confirm
+        assertThat(review.maskedEmail).isNotEmpty()
+        assertThat(store.isPaired).isFalse()
+        assertThat(pairing.decide(confirm = true)).isInstanceOf(PairPoll.Paired::class.java)
+        assertThat(store.phoneId).isEqualTo(claimed.getString("id"))
+        assertThat(store.enrollmentAccount()).isNull()
     }
 
     @Test

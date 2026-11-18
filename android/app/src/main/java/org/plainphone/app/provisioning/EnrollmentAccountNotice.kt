@@ -8,7 +8,7 @@ import org.plainphone.app.R
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
 
-/** Shows the QR account once, including when background enrollment finishes after launch. */
+/** Shows the connected account once, including when background enrollment finishes after launch. */
 internal class EnrollmentAccountNotice(private val activity: Activity) {
     private val store = SyncStore(activity)
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> showIfReady() }

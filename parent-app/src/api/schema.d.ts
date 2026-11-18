@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Poll pairing (phone)
-         * @description Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
+         * @description Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token once and can display the account.
          */
         get: operations["getDevicePairings"];
         put?: never;
@@ -259,8 +259,7 @@ export interface paths {
         /**
          * Report local undo of light-mode setup (phone)
          * @description The phone decides its local undo window and switches off locally. The server accepts
-         *     this report only for light mode within 48 hours of pairing. On 409, the phone uses
-         *     the ordinary release acknowledgement path and stays switched off.
+         *     authenticated report for light mode at any time and queues a notice when it removes the phone.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -2415,6 +2414,11 @@ export interface operations {
                         phoneId?: string;
                         /** @example pp_d_… */
                         deviceToken?: string;
+                        /** @description Masked claimer and household for strong-mode pairing, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };
@@ -2480,6 +2484,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId: string;
                         deviceToken: string;
+                        /** @description Masked claimer and household for strong-mode pairing, when available. */
+                        account?: {
+                            maskedEmail: string;
+                            householdName: string | null;
+                        };
                     };
                 };
             };

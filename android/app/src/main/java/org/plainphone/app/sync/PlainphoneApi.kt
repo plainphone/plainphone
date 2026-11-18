@@ -61,7 +61,7 @@ sealed interface PairPoll {
     data class Confirm(val maskedEmail: String, val householdName: String?) : PairPoll
     data object Waiting : PairPoll
     data object Expired : PairPoll
-    data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
+    data class Paired(val phoneId: String, val deviceToken: String, val account: PlainphoneApi.PollAccount? = null) : PairPoll
 }
 
 sealed interface EnrollResult {
@@ -272,17 +272,20 @@ class PlainphoneApi private constructor(
         startConfirmedPairing(mode, deviceInfo, null)
 
     override fun startConfirmedPairing(mode: String, deviceInfo: Map<String, String>, profile: String?): Pairing {
-        val r = call("POST", "/device/pairings", body = JSONObject().put("mode", mode)
-            .put("deviceInfo", JSONObject(deviceInfo)).put("confirmOnPhone", true).put("profile", profile))
+        val body = JSONObject().put("mode", mode).put("deviceInfo", JSONObject(deviceInfo)).put("profile", profile)
+        if (mode == "light") body.put("confirmOnPhone", true)
+        val r = call("POST", "/device/pairings", body = body)
         if (r.status != 201) throw HttpError(r.status, r.body)
         val j = JSONObject(r.body)
-        if (!j.optBoolean("confirmOnPhone")) throw IOException("Server does not support pairing confirmation")
+        val requiresConfirmation = j.optBoolean("confirmOnPhone")
+        if (mode == "light" && !requiresConfirmation) throw IOException("Server does not support pairing confirmation")
         return Pairing(
             id = j.getString("pairingId"),
             code = j.getString("code"),
             pollSecret = j.getString("pollSecret"),
             qrUrl = j.getString("qrUrl"),
             expiresAtMs = java.time.Instant.parse(j.getString("expiresAt")).toEpochMilli(),
+            requiresConfirmation = requiresConfirmation,
         )
     }
 
@@ -303,7 +306,9 @@ class PlainphoneApi private constructor(
 
     private fun pairingResult(r: Response): PairPoll =
         when (r.status) {
-            200 -> JSONObject(r.body).let { PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
+            200 -> JSONObject(r.body).let {
+                PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it))
+            }
             202 -> JSONObject(r.body).let {
                 if (it.optString("status") == "confirm") {
                     PairPoll.Confirm(it.getString("maskedEmail"), it.optString("householdName").takeUnless { _ -> it.isNull("householdName") })
@@ -341,17 +346,19 @@ class PlainphoneApi private constructor(
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
-            200 -> JSONObject(r.body).let { info ->
-                val account = info.optJSONObject("account")?.let {
-                    val email = it.optString("maskedEmail")
-                    val household = if (it.isNull("householdName")) null else it.optString("householdName")
-                    email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
-                }
-                EnrollResult.Paired(info.getString("phoneId"), info.getString("deviceToken"), account)
+            200 -> JSONObject(r.body).let {
+                EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it))
             }
             400, 404, 410 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
+    }
+
+    private fun readPairingAccount(body: JSONObject): PollAccount? {
+        val account = body.optJSONObject("account") ?: return null
+        val email = account.optString("maskedEmail")
+        val household = if (account.isNull("householdName")) null else account.optString("householdName")
+        return email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
     }
 
     override fun fetchRules(token: String, etag: String?): RulesResult {

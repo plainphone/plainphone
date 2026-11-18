@@ -56,8 +56,7 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
-even offline. The phone can report Undo for up to 48 hours after pairing, even before its first
-rules sync. Undo notices are sent only to current household members. See
+even offline. The phone reports Undo when it reconnects, even before its first rules sync. Undo notices are sent only to current household members. See
 [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
@@ -164,7 +163,7 @@ policies during Android provisioning, pairs automatically, and shows the masked 
 household when the connection is ready. Use the maintenance PIN or dashboard release if the
 account is wrong.
 
-A phone configured with the script can show a pairing code, which the parent claims in the dashboard and the phone confirms after showing the account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+A strong-mode phone configured with the script can show a pairing code. When the parent claims it in the dashboard, the phone pairs automatically and shows the masked account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 
 ## Updating the phone app
 

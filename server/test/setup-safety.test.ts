@@ -50,7 +50,7 @@ describe("onboarding safety", () => {
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).json.pairedAt).toBeNull();
-    h.clock.advance(48 * 60 * 60_000);
+    h.clock.advance(48 * 60 * 60_000 + 1);
     await sweep(h.ctx);
     const before = h.mail.outbox.length;
     const path = "/api/device/undo-setup";
@@ -65,32 +65,20 @@ describe("onboarding safety", () => {
     expect(notices[0]?.text).toContain("Set-up was undone on the phone");
   });
 
-  it("rejects setup undo after 48 hours and still allows dashboard release", async () => {
+  it("accepts setup undo after 48 hours on a connected light phone and notifies once", async () => {
     const { parent, device, decide, claim } = await start(undefined, "light", "child");
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
     h.clock.advance(48 * 60 * 60_000 + 1);
-    const phone = `/api/phones/${claimed.json.id}`;
+    const before = h.mail.outbox.length;
 
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect((await parent.get(phone)).status).toBe(200);
-    expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
-    expect((await device.post("/api/device/released")).status).toBe(409);
-    expect((await parent.post(`${phone}/release`)).status).toBe(200);
-    expect((await device.post("/api/device/released")).status).toBe(204);
-  });
-
-  it("rejects late undo before the first rules sync even if cleanup has not run", async () => {
-    const { device, decide, claim } = await start();
-    expect((await claim()).status).toBe(201);
-    const confirmed = await decide("confirm");
-    expect(confirmed.status).toBe(200);
-    device.token = confirmed.json.deviceToken;
-    h.clock.advance(48 * 60 * 60_000 + 1);
-
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(0);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).map(({ text }) => text))
+      .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
   });
 
   it("recovers an unsent notice after the phone deletion is committed", async () => {
@@ -268,7 +256,7 @@ describe("onboarding safety", () => {
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
   });
 
-  it("sweeps an expired pending claim without removing a connected phone", async () => {
+  it("sweeps an expired pending claim and keeps confirmed light phones", async () => {
     const pending = await start();
     const connected = await start(pending.parent);
     const abandoned = await pending.claim();
@@ -291,7 +279,8 @@ describe("onboarding safety", () => {
     expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(200);
     h.clock.advance(24 * 60 * 60_000);
     await sweep(h.ctx);
-    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(404);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(200);
+    expect((await pending.parent.post(`/api/phones/${neverSyncedPhone.json.id}/enrollment`)).status).toBe(409);
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
   });
 

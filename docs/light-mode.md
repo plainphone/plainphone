@@ -116,8 +116,8 @@ acknowledges it, Plainphone removes its device administrator so Android allows n
 uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
 If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
 
-For reports received within 48 hours of pairing, the server removes the phone from the
-dashboard and queues the protection-removed notice in the same database transaction. Delivery runs in the background and is retried if a
+When the server receives the report, it removes the phone from the dashboard and queues the
+protection-removed notice in the same database transaction. Delivery runs in the background and is retried if a
 configured mail or push provider is unavailable. Before sending, the server checks that the
 recipient still belongs to the household. Android keeps its default Phone and SMS apps
 selected until you change them in Settings or uninstall Plainphone.
@@ -125,9 +125,6 @@ selected until you change them in Settings or uninstall Plainphone.
 In light mode, the phone already enforces protection locally. A time-boxed window measured by
 the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the
 report to remove the phone and tell the parent.
-
-If an offline report arrives more than 48 hours after pairing, the phone stays released and
-can acknowledge a dashboard release. If the entry remains in the dashboard, remove it there.
 
 Device Owner mode starts through the Android welcome screen on a new or reset phone.
 The dashboard QR scan confirms the chosen profile and account, and Plainphone applies policies
