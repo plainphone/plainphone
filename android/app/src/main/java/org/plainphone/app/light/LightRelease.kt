@@ -6,6 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.Context
 import org.plainphone.app.StepResult
 import org.plainphone.app.light.vpn.PlainphoneVpnService
+import org.plainphone.app.sync.SyncStore
 
 /**
  * Switching light mode off with the maintenance PIN, so Plainphone can be uninstalled normally:
@@ -13,19 +14,26 @@ import org.plainphone.app.light.vpn.PlainphoneVpnService
  */
 object LightRelease {
     fun release(context: Context): List<StepResult> = buildList {
-        add(step("device admin off") {
-            context.getSystemService(DevicePolicyManager::class.java).removeActiveAdmin(LightAdminReceiver.component(context))
-        })
+        val undoPending = SyncStore(context).setupUndoPending
+        // Keep Android's uninstall barrier until the server has durably accepted the report.
+        if (!undoPending) add(step("device admin off") { removeAdmin(context) })
         prefs(context).edit().putBoolean(KEY_RELEASED, true).apply()
         add(step("DNS filter (VPN) stopped") {
             PlainphoneVpnService.stop(context)
         })
         add(step("guard off") {
-            // Already off in Settings: nothing to switch off. Enabled but not running yet (the process
-            // has just started): fails, and the next try finds it running.
-            if (Protections.isGuardEnabled(context)) check(GuardService.disable()) { "switch it off in Settings > Accessibility" }
+            // During undo, a disconnected guard will switch itself off before handling any events.
+            if (Protections.isGuardEnabled(context) && !GuardService.disable() && !undoPending) {
+                error("switch it off in Settings > Accessibility")
+            }
         })
         context.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
+    internal fun removeAdmin(context: Context) {
+        val policy = context.getSystemService(DevicePolicyManager::class.java)
+        val admin = LightAdminReceiver.component(context)
+        if (policy.isAdminActive(admin)) policy.removeActiveAdmin(admin)
     }
 
     /** After a release no apply starts the VPN or the plan again, until setup is completed anew. */

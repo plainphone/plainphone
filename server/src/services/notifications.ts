@@ -15,7 +15,7 @@ import type { Ctx } from "./context.js";
 const MAX_FAILURES = 20;
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
@@ -60,9 +60,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
         return {
           title: `Protection removed on ${e.phoneName}`,
           body:
-            e.reason === "owner"
-              ? "Plainphone no longer controls this phone. Open the app to see what happened."
-              : "The lock on this phone is not intact. Open the app to see what happened.",
+            e.reason === "setup-undo"
+              ? "Set-up was undone on the phone."
+              : e.reason === "owner"
+                ? "Plainphone no longer controls this phone. Open the app to see what happened."
+                : "The lock on this phone is not intact. Open the app to see what happened.",
         };
       case "offline":
         return {
@@ -95,9 +97,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
         return {
           title: `Beskyttelsen er fjernet på ${e.phoneName}`,
           body:
-            e.reason === "owner"
-              ? "Plainphone styrer ikke længere telefonen. Åbn appen for at se, hvad der er sket."
-              : "Låsen på telefonen er ikke intakt. Åbn appen for at se, hvad der er sket.",
+            e.reason === "setup-undo"
+              ? "Opsætningen blev fortrudt på telefonen."
+              : e.reason === "owner"
+                ? "Plainphone styrer ikke længere telefonen. Åbn appen for at se, hvad der er sket."
+                : "Låsen på telefonen er ikke intakt. Åbn appen for at se, hvad der er sket.",
         };
       case "offline":
         return {
@@ -130,7 +134,7 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   const t = text[locale](e);
   switch (e.type) {
     case "protection":
-      return { ...t, url: `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
+      return { ...t, url: e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
     case "offline":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
     case "approval":
@@ -202,15 +206,28 @@ export async function notifyUsers(
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  const muted = ctx.db
+  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
+}
+
+type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
+
+export async function phoneAlertRecipients(db: RecipientDb, phoneId: string, householdId: string) {
+  const muted = db
     .select({ id: notificationMutes.userId })
     .from(notificationMutes)
     .where(eq(notificationMutes.phoneId, phoneId));
-  const members = await ctx.db
+  return db
     .select({ id: householdMembers.userId, email: users.email, locale: users.locale })
     .from(householdMembers)
     .innerJoin(users, eq(users.id, householdMembers.userId))
-    .where(and(eq(householdMembers.householdId, phone.householdId), notInArray(householdMembers.userId, muted)));
+    .where(and(eq(householdMembers.householdId, householdId), notInArray(householdMembers.userId, muted)));
+}
+
+export async function notifyHouseholdMembers(
+  ctx: Ctx,
+  members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
+  e: NotifyEvent,
+): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
   if ((e.type === "protection" || e.type === "offline") && ctx.mail.canSend) {

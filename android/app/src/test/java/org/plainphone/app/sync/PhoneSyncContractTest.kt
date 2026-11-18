@@ -80,9 +80,11 @@ class PhoneSyncContractTest {
             lock = lock.copy(appliedAtMs = now)
         }
 
-        // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token once.
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
-        val code = pairing.start().code
+        // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token.
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
+        val started = pairing.start()
+        assertThat(started.requiresConfirmation).isFalse()
+        val code = started.code
         assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
         val (claimStatus, claimed) = parent(
             "POST", "/phones/claim",
@@ -93,6 +95,8 @@ class PhoneSyncContractTest {
         assertThat(pairing.poll()).isInstanceOf(PairPoll.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
+        assertThat(store.enrollmentAccount()?.maskedEmail).isEqualTo("p***@example.test")
+        assertThat(store.enrollmentAccount()?.householdName).isEqualTo("Home")
 
         // 2. First sync: apps reported, rules fetched and applied, status reported.
         val runner = SyncRunner(store, api, device)
@@ -158,6 +162,30 @@ class PhoneSyncContractTest {
     }
 
     @Test
+    fun `light mode shows the account and waits for confirmation before pairing`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val pairing = PairingController(
+            store, PlainphoneApi(url), emptyMap(), mode = "light", profile = "child",
+        )
+        val started = pairing.start()
+        assertThat(started.requiresConfirmation).isTrue()
+        assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
+        val (status, claimed) = parent(
+            "POST", "/phones/claim",
+            JSONObject().put("code", started.code).put("name", "Light phone").put("profile", "child"),
+        )
+        assertThat(status).isEqualTo(201)
+        assertThat(claimed!!.isNull("pairedAt")).isTrue()
+        val review = pairing.poll() as PairPoll.Confirm
+        assertThat(review.maskedEmail).isNotEmpty()
+        assertThat(store.isPaired).isFalse()
+        assertThat(pairing.decide(confirm = true)).isInstanceOf(PairPoll.Paired::class.java)
+        assertThat(store.phoneId).isEqualTo(claimed.getString("id"))
+        assertThat(store.enrollmentAccount()).isNull()
+    }
+
+    @Test
     fun `a phone set up with a dashboard QR code pairs itself with the enrollment token`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val store = SyncStore(context, FakeSecretBox())
@@ -177,7 +205,7 @@ class PhoneSyncContractTest {
         // Provisioning stores the token from the QR extras; the phone enrolls with its own code.
         val config = PolicyConfig.fromExtras(android.os.PersistableBundle().apply { putString(PolicyConfig.KEY_ENROLL, token) })
         store.saveEnrollToken(config.enrollToken)
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
         assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
@@ -209,7 +237,7 @@ class PhoneSyncContractTest {
         // Never paired: there is nothing to release yet.
         assertThat(parent("POST", "/phones/$phoneId/release").first).isEqualTo(400)
         store.saveEnrollToken(out.getJSONObject("enrollment").getString("token"))
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
         assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         val device = FakeSyncDevice().apply {
             now = System.currentTimeMillis()

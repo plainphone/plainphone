@@ -251,7 +251,10 @@ export const pairings = pgTable("pairings", {
   mode: text("mode", { enum: ["strong", "light"] }).notNull(),
   deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
   phoneId: uuid("phone_id").references(() => phones.id, { onDelete: "cascade" }),
-  /** Device token handed to the phone on its next poll; cleared after delivery. */
+  profileHint: text("profile_hint", { enum: ["child", "self"] }),
+  requiresConfirmation: boolean("requires_confirmation").notNull().default(false),
+  claimedBy: uuid("claimed_by").references(() => users.id, { onDelete: "set null" }),
+  /** Device token available for delivery or recovery until the first sync. */
   pendingDeviceToken: text("pending_device_token"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),
@@ -525,6 +528,17 @@ export const pushSubscriptions = pgTable(
   },
   (t) => [index("push_subscriptions_user_idx").on(t.userId)],
 );
+
+// A deleted phone must no longer be needed to deliver its final notice.
+export const setupUndoNotices = pgTable("setup_undo_notices", {
+  id: id(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
+  phoneId: uuid("phone_id").notNull(),
+  phoneName: text("phone_name").notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
+}, (t) => [index("setup_undo_notices_due_idx").on(t.nextAttemptAt)]);
 
 /** Phones a parent does not want notifications about. Absent means on. */
 export const notificationMutes = pgTable(

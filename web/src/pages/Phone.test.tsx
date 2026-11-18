@@ -163,3 +163,13 @@ it("shows the account warning on its own with an intact lock and closed technica
     `<p class="notice notice-warn" role="status">${t("phone.lateGoogleAccount")}</p>`,
   );
 });
+
+it("shows code-pairing recovery instructions instead of the setup QR action", () => {
+  const t = makeT("en");
+  const codeClaim = renderPhone({ ...phone, mode: "light", setupQrAvailable: false });
+  const qrSetup = renderPhone({ ...phone, mode: "light", setupQrAvailable: true });
+
+  expect(codeClaim).toContain(t("setup.codePendingBody"));
+  expect(codeClaim).not.toContain(t("setup.showQr"));
+  expect(qrSetup).toContain(t("setup.showQr"));
+});

@@ -5,8 +5,10 @@ package org.plainphone.app.light.vpn
 import android.app.Application
 import android.app.Service
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import org.plainphone.app.light.LightRelease
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -115,6 +117,20 @@ class PlainphoneVpnServiceTest {
         val controller = Robolectric.buildService(PlainphoneVpnService::class.java).create()
         val result = controller.get().onStartCommand(null, 0, 1) // a restart with nothing remembered
         assertThat(result).isEqualTo(Service.START_NOT_STICKY)
+        controller.destroy()
+        assertThat(PlainphoneVpnService.lastRevokedAt(context)).isEqualTo(0L)
+    }
+
+    @Test
+    fun `Android cannot restart the filter after light mode is released`() {
+        val prefs = context.getSharedPreferences(PlainphoneVpnService.PREFS, Context.MODE_PRIVATE)
+        PlainphoneVpnService.chooseHost("old.dns.plainphone.org", prefs)
+        LightRelease.release(context)
+        val controller = Robolectric.buildService(PlainphoneVpnService::class.java).create()
+        val restart = Intent().putExtra(PlainphoneVpnService.EXTRA_HOST, "new.dns.plainphone.org")
+        assertThat(controller.get().onStartCommand(restart, 0, 1)).isEqualTo(Service.START_NOT_STICKY)
+        assertThat(PlainphoneVpnService.lastHost(context)).isEqualTo("old.dns.plainphone.org")
+        assertThat(PlainphoneVpnService.isRunning()).isFalse()
         controller.destroy()
         assertThat(PlainphoneVpnService.lastRevokedAt(context)).isEqualTo(0L)
     }

@@ -52,7 +52,12 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. See [docs/light-mode.md](docs/light-mode.md).
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
+requesting permissions. Child and Myself confirm the phone and check the dashboard account
+before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
+minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
+even offline. The phone reports Undo when it reconnects, even before its first rules sync. Undo notices are sent only to current household members. See
+[docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 
@@ -136,7 +141,13 @@ Android cannot update in place from the test key used through v0.1.9. In light m
 
 ### Setup QR code
 
-In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one already in use (light mode). Choose a parent PIN and scan the private code with the phone being set up. Strong mode uses Android's welcome screen and can include Wi-Fi in the code. Light mode keeps the phone's existing data and uses Chrome to install the app and open it with the setup link; on the phone, confirm the dashboard address and parent PIN after opening the link. Both modes pair automatically using a one-time token tied to that phone. The browser hashes the PIN before handing it to the phone. The server receives neither the PIN nor its hash.
+In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one
+already in use (light mode). Strong mode uses Android's welcome screen and can include Wi-Fi in
+the provisioning code. The browser hashes the maintenance PIN before adding it to the
+code. Light mode keeps the phone's existing data. Chrome installs the app and opens the setup
+link, then the phone asks who will use it and hashes the PIN locally. In both modes, check the
+masked dashboard account on the phone before it redeems the one-time token. The server receives
+neither the PIN nor its hash.
 
 For self-hosting, tests and phones without an account there is a script with the same format:
 
@@ -153,7 +164,12 @@ The script reads the signing certificate checksum from the APK (or takes `--chec
 - `--dns-host '{id}.dns.plainphone.org'` gives the phone its own ClientID on the Plainphone resolver (`{id}` is replaced by `--dns-id`, or a new random ID). The ClientID must be registered on the DNS server first (`ppdns create child`, then pass the printed ID as `--dns-id`), otherwise the phone gets no DNS at all. The default is still `family.adguard-dns.com` until the resolver is live.
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
 
-A phone configured with the script can show a pairing code, which the parent claims in the dashboard. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+In strong mode the dashboard QR code confirms the profile and account. Plainphone applies
+policies during Android provisioning, pairs automatically, and shows the masked account and
+household when the connection is ready. Use the maintenance PIN or dashboard release if the
+account is wrong.
+
+A strong-mode phone configured with the script can show a pairing code. When the parent claims it in the dashboard, the phone pairs automatically and shows the masked account. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 
 ## Updating the phone app
 

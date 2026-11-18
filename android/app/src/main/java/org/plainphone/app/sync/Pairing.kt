@@ -5,25 +5,24 @@ package org.plainphone.app.sync
 /**
  * Pairs the phone with a parent account. With a provisioning QR code made in the dashboard the
  * phone pairs itself with the code's one-time token ([enroll]). Otherwise the phone shows a code and
- * a QR code; the parent claims it in the dashboard; the phone polls and receives its device token once.
+ * a QR code; the parent claims it in the dashboard; the phone polls and receives its device token.
  * Pure logic around [SyncApi] and [SyncStore], unit-tested with a fake API.
  */
 class PairingController(
     private val store: SyncStore,
     private val api: SyncApi,
-    private val nowMs: () -> Long,
     private val deviceInfo: Map<String, String>,
     /** "strong" (Device Owner) or "light" (an ordinary app), sent with the pairing. */
     private val mode: String = "strong",
+    private val profile: String? = null,
+    private val canRedeemEnrollment: () -> Boolean = { true },
 ) {
-    /** The pairing on screen, if it is still good for at least a little while. */
-    fun current(): Pairing? = store.pairing()?.takeIf { it.expiresAtMs - nowMs() > MIN_REMAINING_MS }
-
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing {
         check(!store.isPaired) { "already paired" }
-        current()?.let { return it }
-        return api.startPairing(mode, deviceInfo).also(store::savePairing)
+        // The server can still recover a claimed pairing after the displayed code expires.
+        store.pairing()?.let { return it }
+        return api.startConfirmedPairing(mode, deviceInfo, profile).also(store::savePairing)
     }
 
     /**
@@ -39,10 +38,11 @@ class PairingController(
             store.saveEnrollToken(null)
             return null
         }
+        if (!canRedeemEnrollment()) return null
         val token = store.enrollToken() ?: return null
         val result = api.enroll(token, store.installId(), deviceInfo)
         when (result) {
-            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken)
+            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
             EnrollResult.Rejected -> store.saveEnrollToken(null)
         }
         return result
@@ -51,22 +51,27 @@ class PairingController(
     /** One poll. On [PairPoll.Paired] the token is stored and the pairing cleared. */
     fun poll(): PairPoll {
         val p = store.pairing() ?: return PairPoll.Expired
-        if (p.expiresAtMs <= nowMs()) {
-            store.savePairing(null)
-            return PairPoll.Expired
-        }
-        val result = api.pollPairing(p.id, p.pollSecret)
+        val polled = api.pollPairing(p.id, p.pollSecret)
+        // A strong-mode code issued by an earlier app build may still require confirmation.
+        val result = if (polled is PairPoll.Confirm && mode == "strong") api.decidePairing(p, true) else polled
         when (result) {
-            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken)
+            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
             PairPoll.Expired -> store.savePairing(null)
-            PairPoll.Waiting -> Unit
+            is PairPoll.Confirm, PairPoll.Waiting -> Unit
         }
         return result
     }
 
+    fun decide(confirm: Boolean): PairPoll {
+        val pairing = store.pairing() ?: return PairPoll.Expired
+        return api.decidePairing(pairing, confirm).also {
+            if (it is PairPoll.Paired) store.savePaired(it.phoneId, it.deviceToken)
+            if (it == PairPoll.Expired) store.savePairing(null)
+        }
+    }
+
     companion object {
         internal val enrollmentLock = Any()
-        private const val MIN_REMAINING_MS = 60_000L
         /** A phone that has never been paired can be paired without the PIN this long after setup. */
         const val FREE_PAIRING_MS = 60 * 60_000L
 
