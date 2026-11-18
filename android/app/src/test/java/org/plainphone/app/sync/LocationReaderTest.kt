@@ -6,10 +6,13 @@ import android.app.Application
 import android.location.Location
 import android.location.LocationManager
 import android.location.LocationRequest
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -350,15 +353,16 @@ class LocationReaderTest {
     }
 
     @Test
-    @Config(sdk = [31])
     fun `a precise lookup keeps a 150 m fix when GPS times out`() {
         var now = 0L
         val reader = LocationReader(context, nanoTime = { now }, poll = { results, remaining ->
             if (now == 0L) {
+                assertThat(manager.getLegacyLocationRequests(gps)).hasSize(1)
+                assertThat(manager.getLegacyLocationRequests(network)).hasSize(1)
                 now = TimeUnit.MILLISECONDS.toNanos(100)
                 manager.simulateLocation(fix(network, 150f))
-            }
-            results.poll() ?: run {
+                checkNotNull(results.poll(1, TimeUnit.SECONDS)) { "Network callback was not delivered" }
+            } else {
                 now += remaining
                 null
             }
@@ -366,8 +370,41 @@ class LocationReaderTest {
 
         assertThat(reader.current(precise = true, timeoutMs = 1_000)?.accuracyM).isEqualTo(150f)
         assertThat(now).isEqualTo(TimeUnit.SECONDS.toNanos(1))
-        assertThat(manager.getLocationRequests(gps)).isEmpty()
-        assertThat(manager.getLocationRequests(network)).isEmpty()
+        assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+    }
+
+    @Test
+    fun `lookup returns at expiry even when its callback thread is still busy`() {
+        manager.setProviderEnabled(gps, false)
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        var callbackThread: HandlerThread? = null
+        var now = 0L
+        val reader = LocationReader(context, nanoTime = { now }, poll = { _, remaining ->
+            val thread = Thread.getAllStackTraces().keys.filterIsInstance<HandlerThread>()
+                .single { it.name == "plainphone-location" }
+            callbackThread = thread
+            check(Handler(thread.looper).post {
+                callbackEntered.countDown()
+                releaseCallback.await()
+            })
+            check(callbackEntered.await(1, TimeUnit.SECONDS))
+            now += remaining
+            null
+        })
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> { reader.current(precise = true) }
+            assertThat(result.get(2, TimeUnit.SECONDS)).isNull()
+            assertThat(now).isEqualTo(TimeUnit.SECONDS.toNanos(30))
+            assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+        } finally {
+            releaseCallback.countDown()
+            stopExecutor(executor)
+            callbackThread?.join(1_000)
+            check(callbackThread?.isAlive != true) { "Location callback thread did not stop" }
+        }
     }
 
     private fun stopExecutor(executor: ExecutorService) {

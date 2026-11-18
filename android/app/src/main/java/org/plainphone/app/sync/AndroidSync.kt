@@ -268,6 +268,9 @@ class LocationReader internal constructor(
                 }
             }
             return awaitFix(deadline) ?: best
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw e
         } finally {
             cancellations.forEach { cancel ->
                 runCatching { cancel.cancel() }
@@ -278,19 +281,17 @@ class LocationReader internal constructor(
     }
 
     private fun joinCallbackThreads(threads: List<HandlerThread>) {
-        var interrupted = false
+        if (Thread.currentThread().isInterrupted) return
+        // Cancellation has already asked every looper to quit. Bound the wait for in-flight callbacks.
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CALLBACK_CLEANUP_TIMEOUT_MS)
         try {
             for (thread in threads) {
-                while (thread.isAlive) {
-                    try {
-                        thread.join()
-                    } catch (_: InterruptedException) {
-                        interrupted = true
-                    }
-                }
+                val remaining = deadline - System.nanoTime()
+                if (remaining <= 0) return
+                TimeUnit.NANOSECONDS.timedJoin(thread, remaining)
             }
-        } finally {
-            if (interrupted) Thread.currentThread().interrupt()
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 
@@ -351,6 +352,7 @@ class LocationReader internal constructor(
 
     private companion object {
         const val FUSED = "fused"
+        const val CALLBACK_CLEANUP_TIMEOUT_MS = 100L
         val DIRECT_EXECUTOR = Executor { it.run() }
     }
 }
