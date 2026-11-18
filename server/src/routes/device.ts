@@ -27,7 +27,7 @@ import type { UpdateWake } from "../services/update-wake.js";
 export const PAIRING_MINUTES = 15;
 const SETUP_UNDO_MS = 10 * 60_000;
 const SETUP_UNDO_RETRY_MS = 2 * 60_000;
-const SETUP_UNDO_TRANSIT_MS = 5_000;
+const SETUP_COMPLETION_CLOCK_SKEW_MS = 5 * 60_000;
 const SETUP_COMPLETION_LIMIT_MS = 24 * 60 * 60_000;
 
 function setupUndoRemaining(phone: Phone, now: Date): number {
@@ -299,7 +299,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/setup-completion", (c) => {
     c.header("Cache-Control", "no-store");
-    return c.json({ undoRemainingMs: setupUndoRemaining(c.get("phone"), ctx.now()) });
+    const phone = c.get("phone");
+    if (phone.mode === "light" && phone.setupUndoAuthorizedAt) {
+      return c.json({ undoRemainingMs: 0, undoAuthorized: true });
+    }
+    return c.json({ undoRemainingMs: setupUndoRemaining(phone, ctx.now()) });
   });
 
   app.post("/setup-completion", async (c) => {
@@ -315,10 +319,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
       const pairedAtMs = fresh.pairedAt.getTime();
       const nowMs = now.getTime();
-      if (nowMs - pairedAtMs >= SETUP_COMPLETION_LIMIT_MS) return 0;
+      if ("completedAtMs" in completion && completion.completedAtMs > nowMs + SETUP_COMPLETION_CLOCK_SKEW_MS) return 0;
       const completedAtMs = "completedAtMs" in completion
-        ? completion.completedAtMs : Math.max(pairedAtMs, nowMs - completion.elapsedMs);
-      if (completedAtMs < pairedAtMs || completedAtMs > nowMs ||
+        ? Math.min(nowMs, completion.completedAtMs) : Math.max(pairedAtMs, nowMs - completion.elapsedMs);
+      if (completedAtMs < pairedAtMs || completedAtMs - pairedAtMs >= SETUP_COMPLETION_LIMIT_MS ||
         nowMs - completedAtMs > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0;
       const completedAt = new Date(completedAtMs);
       await tx.update(phones).set({ setupCompletedAt: completedAt }).where(eq(phones.id, phone.id));
@@ -343,10 +347,14 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (completedAtMs === undefined) return false;
       const tappedAtMs = receivedAtMs - tapAgeMs;
       const deadlineMs = completedAtMs + SETUP_UNDO_MS;
-      if (tappedAtMs < completedAtMs || receivedAtMs >= deadlineMs + SETUP_UNDO_RETRY_MS) return false;
-      if (tappedAtMs >= deadlineMs) {
-        // The age is measured at send time. Check the recorded time left against a bounded transit delay.
-        if (tapRemainingMs === undefined || tappedAtMs - deadlineMs + tapRemainingMs > SETUP_UNDO_TRANSIT_MS) return false;
+      if (receivedAtMs >= deadlineMs + SETUP_UNDO_RETRY_MS) return false;
+      if (tapRemainingMs === undefined) {
+        if (tappedAtMs < completedAtMs || tappedAtMs >= deadlineMs) return false;
+      } else {
+        // Registration and authorization have separate network delays. Compare the phone's
+        // position in the window with the server's estimate, bounded in both directions.
+        const expectedTapMs = deadlineMs - tapRemainingMs;
+        if (Math.abs(tappedAtMs - expectedTapMs) > SETUP_UNDO_RETRY_MS) return false;
       }
       await tx.update(phones).set({ setupUndoAuthorizedAt: ctx.now() }).where(eq(phones.id, phone.id));
       return true;

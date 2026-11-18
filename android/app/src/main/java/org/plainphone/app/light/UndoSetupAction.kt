@@ -55,14 +55,6 @@ internal fun UndoSetupAction(activity: ComponentActivity, revision: Int) {
             deadline = 0
         }
     }
-    LaunchedEffect(tap) {
-        tap?.let {
-            delay((it.elapsed + SETUP_UNDO_RETRY_MS - SystemClock.elapsedRealtime()).coerceAtLeast(0))
-            tap = null
-            closed = deadline == 0L
-        }
-    }
-
     val store = SyncStore(activity)
     val status = when {
         accepted || (store.setupUndoAuthorized && !store.removed) -> R.string.setup_undo_requested

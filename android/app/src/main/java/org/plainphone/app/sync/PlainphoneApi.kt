@@ -348,6 +348,13 @@ class PlainphoneApi private constructor(
         }
     }
 
+    fun recoverSetupUndo(token: String): Boolean {
+        val r = call("GET", "/device/setup-completion", token)
+        if (r.status == 401) return false
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).optBoolean("undoAuthorized")
+    }
+
     override fun ackSetupUndo(token: String): Boolean {
         val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
         if (r.status !in setOf(204, 401)) throw HttpError(r.status, r.body)

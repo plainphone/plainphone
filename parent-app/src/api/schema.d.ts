@@ -256,7 +256,7 @@ export interface paths {
         /** Read the remaining setup undo window (phone) */
         get: operations["getDeviceSetupCompletion"];
         put?: never;
-        /** Record completion once for a light-mode phone paired within the past 24 hours */
+        /** Record completion once for a light-mode phone that finished setup within 24 hours of pairing */
         post: operations["postDeviceSetupCompletion"];
         delete?: never;
         options?: never;
@@ -1627,6 +1627,8 @@ export interface components {
     schemas: {
         SetupUndoWindow: {
             undoRemainingMs: number;
+            /** @description Present and true on GET once the server has accepted undo. */
+            undoAuthorized?: boolean;
         };
         PhoneRequest: {
             /** Format: uuid */
@@ -2879,7 +2881,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The time left, or zero when setup undo is unavailable. */
+            /** @description The time left and any existing authorization. The remaining time is zero when setup undo is unavailable. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2901,10 +2903,10 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Monotonic age of completion on the current boot. */
+                    /** @description Age of completion, monotonic on the original boot and calculated from the phone clock after reboot. */
                     elapsedMs: number;
                 } | {
-                    /** @description Original Unix timestamp of completion when the phone has rebooted. */
+                    /** @description Original Unix timestamp of completion. Up to five minutes of positive clock skew is accepted and clamped to server receipt. */
                     completedAtMs: number;
                 };
             };
@@ -2938,7 +2940,7 @@ export interface operations {
                      * @default 0
                      */
                     tapAgeMs?: number;
-                    /** @description Window remaining at the tap. Used to account for up to five seconds of transit. */
+                    /** @description Window remaining at the tap. Used to accommodate separate network delays within the bounded two-minute grace period. */
                     tapRemainingMs?: number;
                 };
             };

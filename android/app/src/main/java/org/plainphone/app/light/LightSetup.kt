@@ -187,25 +187,24 @@ object LightSetup {
     private fun registerCompletion(context: Context, api: PlainphoneApi, token: String, now: Long): Long {
         val saved = prefs(context)
         if (saved.getBoolean("completionRegistered", false)) return api.setupUndoRemaining(token, null)
-        val elapsed = completionElapsed(context, now)
-        if (elapsed != null && elapsed > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0
         val completedAt = saved.getLong("completedAtMs", -1).takeIf { it > 0 }
+        val elapsed = completionElapsed(context, now)
+            ?: completedAt?.let { (System.currentTimeMillis() - it).takeIf { age -> age >= 0 } }
+        if (elapsed != null && elapsed > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0
         val remaining = api.setupUndoRemaining(token, elapsed, completedAt)
         if (remaining > 0) saved.edit().putBoolean("completionRegistered", true).apply()
         return remaining
     }
 
-    data class UndoTap(val elapsed: Long, val remaining: Long)
+    data class UndoTap(val elapsed: Long, val remaining: Long, val boot: Int)
 
     fun undoTap(context: Context): UndoTap? {
         if (!canUndo(context)) return null
-        val boot = bootCount(context)
         val saved = prefs(context)
-        if (boot < 0 || boot != saved.getInt("undoTapBoot", -1)) return null
         val tappedAt = saved.getLong("undoTapElapsed", -1)
         val remaining = saved.getLong("undoTapRemaining", 0)
-        if (setupUndoTapAge(tappedAt, SystemClock.elapsedRealtime()) == null || remaining !in 1..SETUP_UNDO_MS) return null
-        return UndoTap(tappedAt, remaining)
+        if (tappedAt < 0 || remaining !in 1..SETUP_UNDO_MS) return null
+        return UndoTap(tappedAt, remaining, saved.getInt("undoTapBoot", -1))
     }
 
     @SuppressLint("ApplySharedPref") // Keep the original tap if the response is lost or the screen is recreated.
@@ -214,12 +213,13 @@ object LightSetup {
         val tappedAt = SystemClock.elapsedRealtime()
         val remaining = deadline - tappedAt
         if (!canUndo(context) || remaining !in 1..SETUP_UNDO_MS) return null
+        val boot = bootCount(context)
         prefs(context).edit()
             .putLong("undoTapElapsed", tappedAt)
             .putLong("undoTapRemaining", remaining)
-            .putInt("undoTapBoot", bootCount(context))
+            .putInt("undoTapBoot", boot)
             .commit()
-        return UndoTap(tappedAt, remaining)
+        return UndoTap(tappedAt, remaining, boot)
     }
 
     fun clearUndoTap(context: Context) {
@@ -231,14 +231,20 @@ object LightSetup {
         val store = SyncStore(context)
         val token = store.deviceToken() ?: return false
         val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
-        if (!prefs(context).getBoolean("completionRegistered", false)) {
+        if (tapAge(context, tap) != null && !prefs(context).getBoolean("completionRegistered", false)) {
             registerCompletion(context, api, token, SystemClock.elapsedRealtime())
         }
-        val age = setupUndoTapAge(tap.elapsed, SystemClock.elapsedRealtime()) ?: return false
-        if (!api.authorizeSetupUndo(token, age, tap.remaining)) return false
+        val age = tapAge(context, tap)
+        val authorized = if (age == null) api.recoverSetupUndo(token)
+            else api.authorizeSetupUndo(token, age, tap.remaining)
+        if (!authorized) return false
         if (!store.saveSetupUndoAccepted(token)) throw java.io.IOException("could not save setup undo authorization")
         return true
     }
+
+    private fun tapAge(context: Context, tap: UndoTap): Long? =
+        if (tap.boot >= 0 && tap.boot == bootCount(context)) setupUndoTapAge(tap.elapsed, SystemClock.elapsedRealtime())
+        else null
 
     private fun bootCount(context: Context) = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
