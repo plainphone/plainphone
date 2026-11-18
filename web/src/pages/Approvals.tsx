@@ -28,12 +28,12 @@ export function ApprovalsPage() {
     setNotice(null);
     try {
       if (code && action === "approve") {
-        await api.post(`/changes/${a.id}/approve-qr`, { challenge: code });
+        await api.post(`/changes/${a.id}/approve-qr`, { challenge: code, revision: a.revision });
         setCode(null);
-      } else await api.post(`/changes/${a.id}/${action}`);
+      } else await api.post(`/changes/${a.id}/${action}`, action === "approve" ? { revision: a.revision } : undefined);
       setNotice({ tone: "success", text: t(action === "approve" ? "appr.approved" : "appr.rejected") });
     } catch (err) {
-      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t("pending.gone") : errorMessage(err, t) });
+      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
     } finally {
       setBusy(null);
       await Promise.all([res.reload(), people.reload()]);

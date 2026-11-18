@@ -203,6 +203,7 @@ export interface Approval {
   phoneName: string;
   requestedBy: string | null;
   summary: ApprovalSummary;
+  revision: string;
   createdAt: string;
 }
 export interface Members {

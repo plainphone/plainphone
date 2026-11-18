@@ -32,7 +32,7 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
-import { approvalSummary } from "../services/approval-summary.js";
+import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, undoMinutesInput } from "../lib/setup-undo.js";
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -1005,7 +1005,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/approvals", async (c) => {
     const rows = await ctx.db
-      .select({ change: pendingChanges, phoneName: phones.name, requester: users.email, appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')` })
+      .select({ change: pendingChanges, phoneName: phones.name, timezone: phones.timezone, requester: users.email, appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')` })
       .from(pendingChanges)
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .innerJoin(phones, eq(phones.id, pendingChanges.phoneId))
@@ -1033,32 +1033,44 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         ),
       )
       .orderBy(desc(pendingChanges.createdAt));
+    const targets = rows.map((row) => ({ ...row, phoneId: row.change.phoneId, op: row.change.op as Op }));
+    const state = await loadApprovalSummaries(ctx.db, targets);
+    const now = ctx.now();
+    c.header("Cache-Control", "no-store");
     return c.json({
-      approvals: await Promise.all(rows.map(async (r) => ({
-        id: r.change.id,
-        phoneId: r.change.phoneId,
-        phoneName: r.phoneName,
-        requestedBy: r.requester,
-        op: { type: (r.change.op as Op).type },
-        appLabel: r.appLabel,
-        summary: await approvalSummary(ctx.db, r.change.phoneId, r.change.op as Op, r.appLabel),
-        createdAt: r.change.createdAt.toISOString(),
-      }))),
+      approvals: targets.map((r) => {
+        const id = r.change.id;
+        const bonusDate = r.op.type === "timeLimit.bonus" ? approvalBonusDate(r, now) : undefined;
+        const summary = formatApprovalSummary(state, r.phoneId, r.op, r.appLabel, { id, bonusDate });
+        return {
+          id,
+          phoneId: r.phoneId,
+          phoneName: r.phoneName,
+          requestedBy: r.requester,
+          op: { type: r.op.type },
+          appLabel: r.appLabel,
+          summary,
+          revision: approvalRevision(id, summary),
+          createdAt: r.change.createdAt.toISOString(),
+        };
+      }),
     });
   });
 
+  const revision = z.string().regex(/^[0-9a-f]{64}$/);
   app.post("/changes/:cid/approve-qr", async (c) => {
     const change = await requireTrusted(c);
-    const { challenge } = await body(c, z.object({ challenge: z.string().max(240) }));
-    const r = await applyPending(ctx, change.id, c.get("user").id, challenge);
-    if (r === "gone") return c.json({ error: "the approval code is invalid or has expired" }, 409);
+    const approval = await body(c, z.object({ challenge: z.string().max(240), revision }));
+    const r = await applyPending(ctx, change.id, c.get("user").id, approval);
+    if (r === "gone") return c.json({ error: "the approval code or preview is no longer valid" }, 409);
     return c.body(null, 204);
   });
 
   app.post("/changes/:cid/approve", async (c) => {
     const change = await requireTrusted(c);
-    const r = await applyPending(ctx, change.id, c.get("user").id);
-    if (r === "gone") return c.json({ error: "this change is no longer pending" }, 409);
+    const approval = await body(c, z.object({ revision }));
+    const r = await applyPending(ctx, change.id, c.get("user").id, approval);
+    if (r === "gone") return c.json({ error: "the approval preview is no longer valid" }, 409);
     return c.body(null, 204);
   });
 
@@ -1113,11 +1125,16 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ? await ctx.db.select({ label: phoneApps.label }).from(phoneApps)
         .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName)))
       : [];
+    const state = await loadApprovalSummaries(ctx.db, [{ phoneId: phone.id, op }]);
+    const now = ctx.now();
+    const appliesAt = r.effectiveAt && r.effectiveAt > now ? r.effectiveAt : now;
     return {
       id: r.id,
       op,
       // The owner already receives contact details and can see them in the pending list.
-      summary: op.type === "contact.add" ? undefined : await approvalSummary(ctx.db, phone.id, op, app?.label ?? null),
+      summary: op.type === "contact.add" ? undefined : formatApprovalSummary(state, phone.id, op, app?.label ?? null, {
+        id: r.id, owner: true, bonusDate: approvalBonusDate(phone, appliesAt),
+      }),
       keyType: r.keyType,
       effectiveAt: r.effectiveAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

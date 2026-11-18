@@ -13,6 +13,7 @@ vi.mock("../components/ui", async (importOriginal) => {
     phoneName: "Phone",
     requestedBy: null,
     summary: { en: `Instagram: 15 → ${minutes} min a day`, da: `Instagram: 15 → ${minutes} min om dagen` },
+    revision: String(minutes).padStart(64, "0"),
     createdAt: "2026-11-18T10:00:00Z",
   }));
   const reload = vi.fn();

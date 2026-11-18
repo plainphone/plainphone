@@ -62,12 +62,12 @@ function ApprovalsList() {
     try {
       const path = { params: { path: { cid: a.id } } };
       if (code && action === "approve") {
-        await unwrap(client.POST("/changes/{cid}/approve-qr", { ...path, body: { challenge: code } }));
+        await unwrap(client.POST("/changes/{cid}/approve-qr", { ...path, body: { challenge: code, revision: a.revision } }));
         setCode(null);
-      } else await unwrap(action === "approve" ? client.POST("/changes/{cid}/approve", path) : client.POST("/changes/{cid}/reject", path));
+      } else await unwrap(action === "approve" ? client.POST("/changes/{cid}/approve", { ...path, body: { revision: a.revision } }) : client.POST("/changes/{cid}/reject", path));
       setNotice({ tone: "success", text: t(action === "approve" ? "appr.approved" : "appr.rejected") });
     } catch (err) {
-      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t("pending.gone") : errorMessage(err, t) });
+      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
     } finally {
       setBusy(null);
       await res.reload();

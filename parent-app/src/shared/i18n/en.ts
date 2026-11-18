@@ -521,6 +521,7 @@ export const en = {
   "appr.scan": "Scan a Plainphone code",
   "appr.closeCamera": "Close camera",
   "appr.showAll": "Show all requests",
+  "appr.previewChanged": "Review the updated request before approving.",
   "appr.codeUnavailable": "This request is unavailable. Ask for a new code.",
   "appr.intro": "You are a trusted person. These changes wait for your answer.",
   "appr.empty": "Nothing waits for you right now.",

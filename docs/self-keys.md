@@ -42,7 +42,16 @@ On the phone's Today screen, **Ask for approval** lists the requested changes,
 including the current and requested limit when it changes. Choose a request
 to show its details and QR code. The helper can scan it from the dashboard,
 the Plainphone parent app, or the phone camera. The helper reads the same
-change details before choosing Approve.
+rule details before choosing Approve. If the rule changes in the meantime,
+the helper must review the updated request. For a QR approval, the owner
+shows a new code. Extra time applies on the day of approval in the phone's
+time zone. If midnight passes between preview and approval, review the new
+date before approving.
+
+For contact requests, the owner sees the contact on their own phone. The
+helper sees the action and a short request reference that also appears on the
+owner's phone. The reference lets them confirm which request they mean while
+keeping the contact's name and number private.
 
 The code works for the person you chose, wherever they are, for 2 minutes.
 It is meant for when you are together, but it cannot prove that. The helper

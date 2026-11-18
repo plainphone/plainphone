@@ -2050,6 +2050,8 @@ export interface components {
             /** @constant */
             status: "applied";
         };
+        /** @description Revision from the helper approval list for the preview being approved. */
+        ApprovalRevision: string;
         ApprovalSummary: {
             en: string;
             da: string;
@@ -5537,6 +5539,7 @@ export interface operations {
                             phoneName: string;
                             requestedBy: string | null;
                             summary: components["schemas"]["ApprovalSummary"];
+                            revision: components["schemas"]["ApprovalRevision"];
                             /** Format: date-time */
                             createdAt: string;
                         }[];
@@ -5558,6 +5561,7 @@ export interface operations {
             content: {
                 "application/json": {
                     challenge: string;
+                    revision: components["schemas"]["ApprovalRevision"];
                 };
             };
         };
@@ -5576,7 +5580,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid */
+            /** @description Invalid code or stale preview */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5594,7 +5598,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: components["schemas"]["ApprovalRevision"];
+                };
+            };
+        };
         responses: {
             /** @description Applied */
             204: {
@@ -5605,6 +5615,13 @@ export interface operations {
             };
             /** @description Not my request to decide */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Stale preview or request no longer pending */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

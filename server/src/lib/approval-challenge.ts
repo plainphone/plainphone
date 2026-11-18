@@ -8,12 +8,12 @@ export function issueApprovalChallenge(phoneId: string, changeId: string, now: D
   return [phoneId, changeId, now.getTime() + lifetimeMs, randomBytes(32).toString("base64url")].join(".");
 }
 
-export function approvalChallengeHash(token: string, helperId: string) {
-  return sha256(`${token}:${helperId}`);
+export function approvalChallengeHash(token: string, helperId: string, revision: string) {
+  return sha256(`${token}:${helperId}:${revision}`);
 }
 
-export function matchesApprovalChallenge(token: string, helperId: string, hash: string | null, now: Date) {
-  if (!hash || !safeEqualHex(approvalChallengeHash(token, helperId), hash)) return false;
+export function matchesApprovalChallenge(token: string, helperId: string, revision: string, hash: string | null, now: Date) {
+  if (!hash || !safeEqualHex(approvalChallengeHash(token, helperId, revision), hash)) return false;
   const expiry = Number(token.split(".")[2]);
   return expiry > now.getTime() && expiry <= now.getTime() + lifetimeMs;
 }

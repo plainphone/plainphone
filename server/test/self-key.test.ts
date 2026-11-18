@@ -213,7 +213,7 @@ describe("Self profile with a trusted person", () => {
       requestedBy: "adult@example.org",
       appLabel: "Instagram",
     });
-    expect((await friend.post(`/api/changes/${show.json.change.id}/approve`)).status).toBe(204);
+    expect((await friend.post(`/api/changes/${show.json.change.id}/approve`, { revision: list.json.approvals[0].revision })).status).toBe(204);
     expect(await allowed(device)).toContain("com.instagram.android");
     // The friend cannot see the phone itself.
     expect((await friend.get(`/api/phones/${phoneId}`)).status).toBe(404);
@@ -285,7 +285,10 @@ describe("Self profile with a trusted person", () => {
     const first = await request();
     const second = await request();
     const challenge = async () => (await device.post("/api/device/approval-challenge", { changeId: first })).json.challenge;
-    const approve = (client: Client, id: string, token: string) => client.post(`/api/changes/${id}/approve-qr`, { challenge: token });
+    const approvals = (await helper.get("/api/approvals")).json.approvals as { id: string; revision: string }[];
+    const approve = (client: Client, id: string, token: string) => client.post(`/api/changes/${id}/approve-qr`, {
+      challenge: token, revision: approvals.find((a) => a.id === id)?.revision,
+    });
     const expired = await challenge();
     expect(typeof expired).toBe("string");
     h.clock.advance(120_000);
@@ -302,8 +305,68 @@ describe("Self profile with a trusted person", () => {
     expect((await helper.get("/api/approvals")).json.approvals.map((a: { id: string }) => a.id)).toEqual([second]);
   });
 
+  it("requires a fresh preview when a limit changes before trusted approval", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    await me.put(`${phone}/time-limits/total`, { minutes: 30 });
+    const request = await me.put(`${phone}/time-limits/total`, { minutes: 60 });
+    const changeId = request.json.change.id;
+    const preview = async () => (await helper.get("/api/approvals")).json.approvals[0];
+    const scan = async () => (await device.post("/api/device/approval-challenge", { changeId })).json;
+    const old = await preview();
+    const qr = await scan();
+    expect(old.summary.en).toBe("All apps: 30 → 60 min a day");
+    await me.put(`${phone}/time-limits/total`, { minutes: 5 });
+    const updated = await preview();
+    expect(updated.summary.en).toBe("All apps: 5 → 60 min a day");
+    const route = `/api/changes/${changeId}/approve`;
+    expect((await helper.post(route, { revision: old.revision })).status).toBe(409);
+    expect((await helper.post(`${route}-qr`, { challenge: qr.challenge, revision: updated.revision })).status).toBe(409);
+    const fresh = await scan();
+    expect((await helper.post(`${route}-qr`, { challenge: fresh.challenge, revision: old.revision })).status).toBe(409);
+    expect((await helper.post(`${route}-qr`, { challenge: fresh.challenge, revision: updated.revision })).status).toBe(204);
+  });
+
+  it("refreshes a trusted bonus date after the phone's local midnight", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    await me.put(`${phone}/time-limits/total`, { minutes: 30 });
+    const request = await me.post(`${phone}/time-limits/bonus`, { packageName: "*", minutes: 15 });
+    const changeId = request.json.change.id;
+    h.clock.advance((10 * 3600 + 59 * 60 + 30) * 1000); // 23:59:30 in Copenhagen.
+    const before = (await helper.get("/api/approvals")).json.approvals[0];
+    const oldQr = (await device.post("/api/device/approval-challenge", { changeId })).json;
+    expect(oldQr.summary).toEqual(before.summary);
+    h.clock.advance(60_000);
+    const after = (await helper.get("/api/approvals")).json.approvals[0];
+    expect(after.summary.en).not.toBe(before.summary.en);
+    const route = `/api/changes/${changeId}/approve`;
+    expect((await helper.post(route, { revision: before.revision })).status).toBe(409);
+    expect((await helper.post(`${route}-qr`, { challenge: oldQr.challenge, revision: after.revision })).status).toBe(409);
+    const phoneChoice = (await device.get("/api/device/approval-challenge")).json.changes[0];
+    expect(phoneChoice.summary).toEqual(after.summary);
+    expect((await helper.post(route, { revision: after.revision })).status).toBe(204);
+    const bonuses = (await device.get("/api/device/rules")).json.timeLimits.bonuses;
+    expect(bonuses).toHaveLength(1);
+    expect(after.summary.en).toBe(`All apps: add 15 min on ${bonuses[0].date}`);
+  });
+
   it("shares the rule name but none of the contact details with a helper", async () => {
-    const { me, phoneId } = await selfPhone();
+    const { me, phoneId, device } = await selfPhone();
     const friend = await signIn(h, "private-helper@example.org");
     const base = `/api/phones/${phoneId}`;
     await me.put(`${base}/key`, {
@@ -314,9 +377,23 @@ describe("Self profile with a trusted person", () => {
     await sweep(h.ctx);
     const request = await me.post(`${base}/contacts`, { name: "Private contact", number: "+12025550123" });
     expect(request.json.change.op).toMatchObject({ type: "contact.add", number: "+12025550123" });
+    const second = await me.post(`${base}/contacts`, { name: "Other contact", number: "+12025550124" });
     const { json } = await friend.get("/api/approvals");
+    const choices = (await device.get("/api/device/approval-challenge")).json.changes;
+    for (const [change, name] of [[request, "Private contact"], [second, "Other contact"]] as const) {
+      const changeId = change.json.change.id as string;
+      const choice = choices.find((row: { id: string }) => row.id === changeId);
+      const qr = await device.post("/api/device/approval-challenge", { changeId });
+      expect(choice.summary.en).toContain(name);
+      expect(qr.json.summary).toEqual(choice.summary);
+      expect(json.approvals.find((row: { id: string }) => row.id === changeId).summary.en)
+        .toContain(changeId.slice(0, 8).toUpperCase());
+    }
+    expect(JSON.stringify(json)).not.toContain("Private contact");
+    expect(JSON.stringify(json)).not.toContain("Other contact");
     expect(json.approvals[0].op).toEqual({ type: "contact.add" });
     expect(JSON.stringify(json)).not.toContain("+12025550123");
+    expect(JSON.stringify(json)).not.toContain("+12025550124");
     expect((await friend.get(`${base}/contacts`)).status).toBe(404);
   });
 
@@ -336,7 +413,8 @@ describe("Self profile with a trusted person", () => {
     expect((await friend.get("/api/people-i-help")).json.people).toHaveLength(1);
     const route = `/api/changes/${stop.json.change.id}/approve`;
     expect((await me.post(route)).status).toBe(404);
-    expect((await friend.post(route)).status).toBe(204);
+    const { revision } = (await friend.get("/api/approvals")).json.approvals[0];
+    expect((await friend.post(route, { revision })).status).toBe(204);
     expect((await friend.get("/api/people-i-help")).json.people).toEqual([]);
     expect((await me.get("/api/people-i-help")).json.people).toHaveLength(1);
   });

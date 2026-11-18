@@ -388,6 +388,10 @@ components:
       properties:
         status: { const: applied }
 
+    ApprovalRevision:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: Revision from the helper approval list for the preview being approved.
     ApprovalSummary:
       type: object
       required: [en, da]
@@ -2864,13 +2868,14 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, phoneId, phoneName, requestedBy, summary, createdAt]
+                      required: [id, phoneId, phoneName, requestedBy, summary, revision, createdAt]
                       properties:
                         id: { type: string, format: uuid }
                         phoneId: { type: string, format: uuid }
                         phoneName: { type: string }
                         requestedBy: { type: [string, "null"] }
                         summary: { $ref: "#/components/schemas/ApprovalSummary" }
+                        revision: { $ref: "#/components/schemas/ApprovalRevision" }
                         createdAt: { type: string, format: date-time }
   /changes/{cid}/approve-qr:
     post:
@@ -2885,13 +2890,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [challenge]
+              required: [challenge, revision]
               properties:
                 challenge: { type: string, maxLength: 240 }
+                revision: { $ref: "#/components/schemas/ApprovalRevision" }
       responses:
         "204": { description: Applied }
         "404": { description: Not my request to decide }
-        "409": { description: Invalid, replaced, used, or expired code }
+        "409": { description: Invalid code or stale preview }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove
@@ -2899,8 +2905,18 @@ paths:
       tags: [self]
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/changeId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { $ref: "#/components/schemas/ApprovalRevision" }
       responses:
         "204": { description: "Applied" }
+        "409": { description: "Stale preview or request no longer pending" }
         "404": { description: "Not my request to decide" }
   /changes/{cid}/reject:
     post:

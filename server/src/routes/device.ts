@@ -12,7 +12,7 @@ import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_UNDO_MS, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
-import { approvalSummary } from "../services/approval-summary.js";
+import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { applyDueChanges, deletePhone, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
@@ -380,9 +380,13 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         eq(pendingChanges.keyType, "trusted"), eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
       )).orderBy(pendingChanges.createdAt);
     c.header("Cache-Control", "no-store");
-    return c.json({ changes: await Promise.all(rows.map(async ({ id, op, appLabel }) => ({
-      id, type: (op as Op).type, appLabel, summary: await approvalSummary(ctx.db, phone.id, op as Op, appLabel),
-    }))) });
+    const targets = rows.map((row) => ({ ...row, phoneId: phone.id, op: row.op as Op }));
+    const state = await loadApprovalSummaries(ctx.db, targets);
+    const bonusDate = approvalBonusDate(phone, ctx.now());
+    return c.json({ changes: targets.map(({ id, op, appLabel }) => ({
+      id, type: op.type, appLabel,
+      summary: formatApprovalSummary(state, phone.id, op, appLabel, { id, owner: true, bonusDate }),
+    })) });
   });
 
   app.post("/approval-challenge", async (c) => {
@@ -404,9 +408,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
         ));
       if (!change?.helperId) return null;
-      const summary = await approvalSummary(tx, phone.id, change.op as Op, change.appLabel);
-      const challenge = issueApprovalChallenge(phone.id, changeId, ctx.now());
-      await tx.update(pendingChanges).set({ approvalChallengeHash: approvalChallengeHash(challenge, change.helperId) }).where(eq(pendingChanges.id, changeId));
+      const op = change.op as Op;
+      const state = await loadApprovalSummaries(tx, [{ phoneId: phone.id, op }]);
+      const now = ctx.now();
+      const options = { id: changeId, bonusDate: approvalBonusDate(fresh, now) };
+      const helperSummary = formatApprovalSummary(state, phone.id, op, change.appLabel, options);
+      const summary = formatApprovalSummary(state, phone.id, op, change.appLabel, { ...options, owner: true });
+      const revision = approvalRevision(changeId, helperSummary);
+      const challenge = issueApprovalChallenge(phone.id, changeId, now);
+      await tx.update(pendingChanges).set({ approvalChallengeHash: approvalChallengeHash(challenge, change.helperId, revision) })
+        .where(eq(pendingChanges.id, changeId));
       return { challenge, summary, url: `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/approvals#code=${challenge}` };
     });
     if (!result) throw new HTTPException(404, { message: "not found" });

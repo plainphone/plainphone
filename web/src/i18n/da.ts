@@ -535,6 +535,7 @@ export const da: Messages = {
   "appr.scan": "Scan en Plainphone-kode",
   "appr.closeCamera": "Luk kamera",
   "appr.showAll": "Vis alle anmodninger",
+  "appr.previewChanged": "Se den opdaterede anmodning, før du godkender.",
   "appr.codeUnavailable": "Anmodningen er ikke tilgængelig. Bed om en ny kode.",
   "appr.intro": "Du er valgt som en person, der kan godkende. Disse ændringer venter på dit svar.",
   "appr.empty": "Intet venter på dig lige nu.",

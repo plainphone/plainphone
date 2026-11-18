@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq } from "drizzle-orm";
-import { phoneApps, phoneSettings, schedules, selfKeys, timeLimits } from "../db/schema.js";
+import { and, inArray } from "drizzle-orm";
+import { contacts, phoneApps, phoneSettings, schedules, selfKeys, timeLimits } from "../db/schema.js";
+import { sha256 } from "../lib/crypto.js";
 import type { SettingState } from "../lib/phone-settings.js";
 import type { ScheduleInput } from "../lib/validation.js";
 import type { Op } from "./changes.js";
 import type { Ctx } from "./context.js";
-import type { Limit } from "./limits.js";
+import { type Limit, localDate } from "./limits.js";
 
 type Locale = "en" | "da";
 type Db = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -59,15 +60,60 @@ function settingText(key: keyof typeof settingNames, setting: SettingState | und
   return text ? `${mode} (${text})` : mode;
 }
 
-/** Describes the current rule and the requested change, without returning the stored op. */
-export async function approvalSummary(db: Db, phoneId: string, op: Op, appLabel: string | null) {
+type SummaryTarget = { phoneId: string; op: Op };
+type SummaryOptions = { id?: string; owner?: boolean; bonusDate?: string };
+
+export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
+  const phonesFor = (...types: Op["type"][]) =>
+    [...new Set(targets.filter(({ op }) => types.includes(op.type)).map(({ phoneId }) => phoneId))];
+  const limitsFor = phonesFor("timeLimit.set");
+  const schedulesFor = phonesFor("schedule.update", "schedule.delete");
+  const settingsFor = phonesFor("setting.set");
+  const keysFor = phonesFor("key.set");
+  const removals = targets.flatMap(({ phoneId, op }) =>
+    op.type === "contact.remove" ? [{ phoneId, id: op.contactId }] : []);
+  const [limits, previousSchedules, settings, keys, contactRows] = await Promise.all([
+    limitsFor.length ? db.select().from(timeLimits).where(inArray(timeLimits.phoneId, limitsFor)) : [],
+    schedulesFor.length ? db.select().from(schedules).where(inArray(schedules.phoneId, schedulesFor)) : [],
+    settingsFor.length ? db.select().from(phoneSettings).where(inArray(phoneSettings.phoneId, settingsFor)) : [],
+    keysFor.length ? db.select().from(selfKeys).where(inArray(selfKeys.phoneId, keysFor)) : [],
+    removals.length ? db.select().from(contacts).where(and(
+      inArray(contacts.phoneId, removals.map(({ phoneId }) => phoneId)),
+      inArray(contacts.id, removals.map(({ id }) => id)),
+    )) : [],
+  ]);
+  const scheduleLabelsFor = [...new Set([
+    ...previousSchedules.filter((row) => row.allowedPackages.length).map((row) => row.phoneId),
+    ...targets.flatMap(({ phoneId, op }) =>
+      "schedule" in op && op.schedule.allowedPackages.length ? [phoneId] : []),
+  ])];
+  const labels = scheduleLabelsFor.length
+    ? await db.select().from(phoneApps).where(inArray(phoneApps.phoneId, scheduleLabelsFor)) : [];
+  return { limits, previousSchedules, settings, keys, labels, contactRows };
+}
+
+export function approvalRevision(id: string, summary: ReturnType<typeof copy>) {
+  return sha256(JSON.stringify([id, summary.en, summary.da]));
+}
+
+export function approvalBonusDate(phone: { timezone: string }, now: Date) {
+  return localDate(phone.timezone, now);
+}
+
+/** Describes the current rule and the requested change without returning the stored op. */
+export function formatApprovalSummary(
+  state: Awaited<ReturnType<typeof loadApprovalSummaries>>,
+  phoneId: string,
+  op: Op,
+  appLabel: string | null,
+  options: SummaryOptions = {},
+) {
   const app = safe(appLabel ?? ("packageName" in op ? op.packageName : "")) || ("packageName" in op ? op.packageName : "");
   switch (op.type) {
     case "app.set":
       return op.allowed ? copy(`Allow ${app}`, `Tillad ${app}`) : copy(`Hide ${app}`, `Skjul ${app}`);
     case "timeLimit.set": {
-      const [current] = await db.select().from(timeLimits)
-        .where(and(eq(timeLimits.phoneId, phoneId), eq(timeLimits.packageName, op.packageName)));
+      const current = state.limits.find((row) => row.phoneId === phoneId && row.packageName === op.packageName);
       const target = op.packageName === "*" ? copy("All apps", "Alle apps") : copy(app, app);
       const before = current && Object.keys(current.days).length === 0 && op.limit && Object.keys(op.limit.days).length === 0
         ? String(current.minutes) : null;
@@ -75,18 +121,17 @@ export async function approvalSummary(db: Db, phoneId: string, op: Op, appLabel:
     }
     case "timeLimit.bonus": {
       const target = op.packageName === "*" ? copy("All apps", "Alle apps") : copy(app, app);
-      return copy(`${target.en}: add ${op.minutes} min on ${op.date}`, `${target.da}: tilføj ${op.minutes} min den ${op.date}`);
+      const date = options.bonusDate ?? op.date;
+      return copy(`${target.en}: add ${op.minutes} min on ${date}`, `${target.da}: tilføj ${op.minutes} min den ${date}`);
     }
     case "schedule.create":
     case "schedule.update":
     case "schedule.delete": {
-      const [previous] = "scheduleId" in op ? await db.select().from(schedules)
-        .where(and(eq(schedules.phoneId, phoneId), eq(schedules.id, op.scheduleId))) : [];
+      const previous = "scheduleId" in op
+        ? state.previousSchedules.find((row) => row.phoneId === phoneId && row.id === op.scheduleId)
+        : undefined;
       const next = "schedule" in op ? op.schedule : undefined;
-      const labels = previous?.allowedPackages.length || next?.allowedPackages.length
-        ? await db.select({ pkg: phoneApps.packageName, label: phoneApps.label })
-          .from(phoneApps).where(eq(phoneApps.phoneId, phoneId)) : [];
-      const label = (pkg: string) => safe(labels.find((entry) => entry.pkg === pkg)?.label ?? pkg);
+      const label = (pkg: string) => safe(state.labels.find((row) => row.phoneId === phoneId && row.packageName === pkg)?.label ?? pkg);
       const titles = { bedtime: copy("Bedtime", "Sengetid"), school: copy("School time", "Skoletid") };
       const kind = (next ?? previous)?.kind;
       const title = kind ? titles[kind] : copy("Schedule", "Tidsplan");
@@ -115,15 +160,24 @@ export async function approvalSummary(db: Db, phoneId: string, op: Op, appLabel:
       const category = categories[op.category] ?? copy(op.category, op.category);
       return op.blocked ? copy(`Block ${category.en}`, `Blokér ${category.da}`) : copy(`Allow ${category.en}`, `Tillad ${category.da}`);
     }
-    // Contact values stay private to the phone owner.
-    case "contact.add": return copy("Add a trusted contact", "Tilføj en betroet kontakt");
-    case "contact.remove": return copy("Remove a trusted contact", "Fjern en betroet kontakt");
+    case "contact.add":
+    case "contact.remove": {
+      const action = op.type === "contact.add"
+        ? copy("Add a trusted contact", "Tilføj en betroet kontakt")
+        : copy("Remove a trusted contact", "Fjern en betroet kontakt");
+      const contact = op.type === "contact.add" ? op
+        : state.contactRows.find((row) => row.phoneId === phoneId && row.id === op.contactId);
+      const reference = options.id?.slice(0, 8).toUpperCase();
+      const details = options.owner && contact ? `${safe(contact.name)} (${safe(contact.number)})` : "";
+      const suffix = [details, reference].filter(Boolean).join(" · ");
+      return suffix ? localized((locale) => `${action[locale]}: ${suffix}`) : action;
+    }
     case "setting.set": {
-      const [current] = await db.select({ settings: phoneSettings.settings }).from(phoneSettings).where(eq(phoneSettings.phoneId, phoneId));
+      const current = state.settings.find((row) => row.phoneId === phoneId);
       return localized((locale) => `${settingNames[op.key][locale]}: ${settingText(op.key, current?.settings[op.key], locale)} → ${settingText(op.key, op.setting, locale)}`);
     }
     case "key.set": {
-      const [current] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phoneId));
+      const current = state.keys.find((row) => row.phoneId === phoneId);
       const next = op.key;
       return localized((locale) => {
         const hours = (value: number) => `${value} ${locale === "da" ? "timer" : "h"}`;

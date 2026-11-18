@@ -33,6 +33,7 @@ import {
   settingLoosens,
 } from "../lib/phone-settings.js";
 import type { KeyInput, ScheduleInput } from "../lib/validation.js";
+import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "./approval-summary.js";
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
@@ -278,7 +279,7 @@ export async function deletePhone(db: DbLike, phoneId: string): Promise<string |
 }
 
 /** Applies an op. Idempotent where it can be, since a delayed op may meet a changed state. */
-export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promise<{ dns: boolean }> {
+export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusDate?: string): Promise<{ dns: boolean }> {
   switch (op.type) {
     case "app.set":
       await db
@@ -434,7 +435,7 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
       await db.insert(timeBonuses).values({
         phoneId: phone.id,
         packageName: op.packageName,
-        day: localDate(phone.timezone, ctx.now()),
+        day: bonusDate ?? localDate(phone.timezone, ctx.now()),
         minutes: op.minutes,
       });
       return { dns: false };
@@ -591,7 +592,7 @@ export async function applyPending(
   ctx: Ctx,
   changeId: string,
   decidedBy: string | null,
-  challenge?: string,
+  approval?: { revision: string; challenge?: string },
 ): Promise<"applied" | "gone"> {
   const out = await ctx.db.transaction(async (tx) => {
     const [target] = await tx.select({ phoneId: pendingChanges.phoneId }).from(pendingChanges)
@@ -606,16 +607,26 @@ export async function applyPending(
       .for("update");
     if (!change) return null;
     const now = ctx.now();
+    const op = change.op as Op;
+    const bonusDate = op.type === "timeLimit.bonus" ? approvalBonusDate(phone, now) : undefined;
     if (decidedBy) {
       if (!(await canDecideTrusted(tx, phone, change, decidedBy))) return null;
-      if (challenge !== undefined && !matchesApprovalChallenge(challenge, decidedBy, change.approvalChallengeHash, now)) return null;
+      if (!approval) return null;
+      const [app] = "packageName" in op ? await tx.select({ label: phoneApps.label }).from(phoneApps)
+        .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, op.packageName))) : [];
+      const state = await loadApprovalSummaries(tx, [{ phoneId: phone.id, op }]);
+      const summary = formatApprovalSummary(state, phone.id, op, app?.label ?? null, { id: change.id, bonusDate });
+      const revision = approvalRevision(change.id, summary);
+      if (approval.revision !== revision) return null;
+      if (approval.challenge !== undefined &&
+          !matchesApprovalChallenge(approval.challenge, decidedBy, revision, change.approvalChallengeHash, now)) return null;
     } else if (change.keyType !== "delay" || !change.effectiveAt || change.effectiveAt > now) return null;
     let dns = false;
     let status: "applied" | "failed" = "applied";
     try {
       // A savepoint, so a failed op (e.g. its target was deleted meanwhile) does not
       // abort the outer transaction that marks the change as handled.
-      dns = (await tx.transaction((sp) => applyOp(ctx, sp, phone, change.op as Op))).dns;
+      dns = (await tx.transaction((sp) => applyOp(ctx, sp, phone, op, bonusDate))).dns;
     } catch (err) {
       console.error(`pending change ${change.id} could not be applied`, err);
       status = "failed";

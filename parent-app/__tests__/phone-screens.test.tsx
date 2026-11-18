@@ -358,6 +358,7 @@ describe("approvals", () => {
               phoneName: "Mine",
               requestedBy: "friend@example.org",
               summary: { en: `Instagram: 15 → ${minutes} min a day`, da: `Instagram: 15 → ${minutes} min om dagen` },
+              revision: String(minutes).padStart(64, "0"),
               createdAt: new Date().toISOString(),
             })),
           ],
@@ -370,7 +371,8 @@ describe("approvals", () => {
     expect(screen.getByText("Instagram: 15 → 60 min a day")).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Approve: Instagram: 15 → 30 min a day"));
     expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
-    expect(api.calls.some((c) => c.path === "/changes/a1/approve")).toBe(true);
+    expect(api.calls.find((c) => c.path === "/changes/a1/approve")?.body)
+      .toEqual({ revision: "30".padStart(64, "0") });
   });
 });
 

@@ -60,8 +60,10 @@ phone                                      server                         parent
    sync activates the phone and clears the recovery token. Before confirmation,
    `{action: "cancel"}` removes the pending phone and code. The sweeper removes expired
    unconfirmed claims. Confirmed light phones can still sync or report Undo after their recovery
-   code expires. Strong-mode phones receive their device token once from GET, with the masked
-   account and household for an informational notice.
+   code expires. Strong-mode phones receive their device token from GET with the masked
+   account and household. If that response is lost, the same poll secret
+   recovers the token within 24 hours of the first delivery and before the
+   first authenticated rules sync.
    Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
