@@ -35,15 +35,43 @@ class GuardServiceTest {
         }
     }
 
+    @Test fun resumesSettingsChecksAfterMaintenanceWithoutAWindowChange() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val prefs = service.getSharedPreferences("plainphone_state", Context.MODE_PRIVATE)
+        prefs.edit().putLong("relock_at_wall", Long.MAX_VALUE).apply()
+
+        service.event(STATE, SETTINGS)
+        service.event(CONTENT, SETTINGS)
+        val looper = shadowOf(Looper.getMainLooper())
+        looper.idleFor(Duration.ofMillis(250))
+        assertEquals(0, shadow.rootReads)
+        assertEquals(STATE or CONTENT, service.serviceInfo.eventTypes)
+
+        prefs.edit().remove("relock_at_wall").apply()
+        service.event(CONTENT, SETTINGS)
+        looper.idleFor(Duration.ofMillis(250))
+        assertEquals(1, shadow.rootReads)
+    }
+
+    @Test fun closesVpnDialogImmediatelyWithoutReadingTheTree() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+
+        service.event(STATE, SettingsGuard.VPN_DIALOGS)
+
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+        assertEquals(0, shadow.rootReads)
+
+        // A queued content event can arrive after the dialog has already closed.
+        service.event(CONTENT, SettingsGuard.VPN_DIALOGS)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+    }
+
     @Test fun contentBurstWalksTheTreeOnceAfterTheLastEvent() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
-        service.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE)
-            .edit().putBoolean("complete", true).apply()
-        org.robolectric.util.ReflectionHelpers.setField(service, "keywords", SettingsGuard.Keywords(
-            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = emptyList(), uninstall = emptyList(),
-        ))
-        val shadow = org.robolectric.shadow.api.Shadow.extract<ServiceShadow>(service)
-        shadow.root = AccessibilityNodeInfo().apply { packageName = SETTINGS }
+        val shadow = prepareGuard(service)
         service.event(STATE, SETTINGS)
         val looper = shadowOf(Looper.getMainLooper())
         repeat(20) {
@@ -54,11 +82,23 @@ class GuardServiceTest {
         assertEquals(0, shadow.rootReads)
         looper.idleFor(Duration.ofMillis(1))
         assertEquals(1, shadow.rootReads)
+        assertEquals(listOf(false), shadow.cacheSettings)
 
         service.event(CONTENT, SETTINGS)
         service.event(STATE, service.packageName)
         looper.idleFor(Duration.ofMillis(250))
         assertEquals(1, shadow.rootReads)
+    }
+
+    private fun prepareGuard(service: GuardService): ServiceShadow {
+        service.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE)
+            .edit().putBoolean("complete", true).apply()
+        org.robolectric.util.ReflectionHelpers.setField(service, "keywords", SettingsGuard.Keywords(
+            ownDescriptions = emptyList(), appName = "Plainphone", dangerous = emptyList(), uninstall = emptyList(),
+        ))
+        val shadow = org.robolectric.shadow.api.Shadow.extract<ServiceShadow>(service)
+        shadow.root = AccessibilityNodeInfo().apply { packageName = SETTINGS }
+        return shadow
     }
 
     private fun GuardService.event(type: Int, pkg: String) {
@@ -67,12 +107,30 @@ class GuardServiceTest {
 
     @Implements(AccessibilityService::class)
     class ServiceShadow {
-        private var info = AccessibilityServiceInfo().apply { eventTypes = STATE }
+        private var submittedEventTypes = STATE
         var root: AccessibilityNodeInfo? = null
         var rootReads = 0
 
-        @Implementation fun getServiceInfo(): AccessibilityServiceInfo = info
-        @Implementation fun setServiceInfo(info: AccessibilityServiceInfo) { this.info = info }
+        val globalActions = mutableListOf<Int>()
+        val cacheSettings = mutableListOf<Boolean>()
+
+        @Implementation fun getServiceInfo(): AccessibilityServiceInfo =
+            AccessibilityServiceInfo().apply { eventTypes = submittedEventTypes }
+
+        @Implementation fun setServiceInfo(info: AccessibilityServiceInfo) {
+            submittedEventTypes = info.eventTypes
+        }
+
+        @Implementation fun performGlobalAction(action: Int): Boolean {
+            globalActions += action
+            return true
+        }
+
+        @Implementation fun setCacheEnabled(enabled: Boolean): Boolean {
+            cacheSettings += enabled
+            return true
+        }
+
         @Implementation fun getRootInActiveWindow(): AccessibilityNodeInfo? {
             rootReads++
             return root

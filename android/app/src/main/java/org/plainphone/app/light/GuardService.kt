@@ -72,28 +72,34 @@ class GuardService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
         val pkg = e.packageName?.toString() ?: return
-        if (Mode.isStrong(this) || Lock.isInMaintenanceWindow(this)) {
+        if (Mode.isStrong(this)) {
             main.removeCallbacks(settingsCheck)
             updateEventTypes(watchContent = false)
             return
         }
-        when (e.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                if (!isOverlay(pkg)) {
-                    if (pkg != foreground) main.removeCallbacks(settingsCheck)
-                    foreground = pkg
-                    updateEventTypes(watchContent = guardsSettings(pkg))
-                }
-                if (guardsSettings(pkg)) {
-                    scheduleSettingsCheck()
-                } else {
-                    guard(pkg)
-                }
+
+        val windowChanged = e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        if (windowChanged && !isOverlay(pkg)) {
+            if (pkg != foreground) main.removeCallbacks(settingsCheck)
+            foreground = pkg
+            // Keep tracking the window during maintenance so checks can resume in place.
+            updateEventTypes(watchContent = guardsSettings(pkg))
+        }
+        if (Lock.isInMaintenanceWindow(this)) {
+            main.removeCallbacks(settingsCheck)
+            return
+        }
+
+        // Settings can swap fragments without changing windows.
+        val contentChanged = e.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && pkg == foreground
+        if (guardsSettings(pkg) && (windowChanged || contentChanged)) {
+            if (windowChanged && pkg == SettingsGuard.VPN_DIALOGS) {
+                guardSettings(pkg, vpnDialogOpened = true)
+            } else {
+                scheduleSettingsCheck()
             }
-            // Settings can swap fragments without changing windows.
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                if (pkg == foreground && guardsSettings(pkg)) scheduleSettingsCheck()
-            else -> Unit
+        } else if (windowChanged) {
+            guard(pkg)
         }
     }
 
@@ -128,20 +134,30 @@ class GuardService : AccessibilityService() {
         }
     }
 
-    private fun guardSettings(pkg: String) {
+    private fun guardSettings(pkg: String, vpnDialogOpened: Boolean = false) {
         // While setting up, the user has to visit exactly these screens.
         if (!LightSetup.isComplete(this)) return
-        val k = keywords ?: return
-        val root = rootInActiveWindow ?: return
-        val texts = ArrayList<String>()
-        if (root.packageName?.toString() != pkg) {
-            recycle(root)
-            return
+        if (!vpnDialogOpened) {
+            val k = keywords ?: return
+            if (!isProtectedWindow(pkg, k)) return
         }
-        collect(root, texts, depth = 0)
-        if (SettingsGuard.isProtectedScreen(pkg, texts, k)) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            block(pkg, BlockedActivity.Reason.PROTECTION)
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        block(pkg, BlockedActivity.Reason.PROTECTION)
+    }
+
+    private fun isProtectedWindow(pkg: String, keywords: SettingsGuard.Keywords): Boolean {
+        try {
+            val root = rootInActiveWindow ?: return false
+            if (root.packageName?.toString() != pkg) {
+                recycle(root)
+                return false
+            }
+            val texts = ArrayList<String>()
+            collect(root, texts, depth = 0)
+            return SettingsGuard.isProtectedScreen(pkg, texts, keywords)
+        } finally {
+            // Node queries can re-enable server-side cache event delivery, bypassing eventTypes.
+            if (Build.VERSION.SDK_INT >= 33) setCacheEnabled(false)
         }
     }
 
