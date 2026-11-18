@@ -6,6 +6,7 @@ import android.accounts.Account
 import android.accounts.AccountManager
 import android.app.Application
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
@@ -19,6 +20,7 @@ import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
@@ -29,12 +31,17 @@ import org.junit.runner.RunWith
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
+import org.plainphone.app.update.InstallLease
 import org.plainphone.app.update.InstallWatchdogService
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowAlarmManager
+import org.robolectric.shadows.ShadowDevicePolicyManager
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30])
@@ -79,6 +86,40 @@ class MaintenanceInstallTest {
         assertThat(activity.isFinishing).isTrue()
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
         assertThat(accountsBlocked()).isFalse()
+    }
+
+    @Test
+    fun `deadline recovery restores account changes synchronously`() {
+        submit(installPrompt(), pin)
+        assertThat(accountsBlocked()).isFalse()
+        ShadowSystemClock.advanceBy(Duration.ofMillis(InstallWindow.WINDOW_MS))
+
+        InstallLease.android(context).recover()
+
+        assertThat(accountsBlocked()).isTrue()
+    }
+
+    @Test
+    @Config(shadows = [RefuseAccountClear::class])
+    fun `refused account clear keeps the PIN screen open and does not launch Play`() {
+        val activity = installPrompt()
+
+        submit(activity, pin)
+
+        assertThat(activity.isFinishing).isFalse()
+        assertThat(message(activity).text.toString())
+            .isEqualTo(activity.getString(R.string.maintenance_install_unavailable))
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(shadowOf(context as Application).nextStartedActivity).isNull()
+    }
+
+    @Implements(DevicePolicyManager::class)
+    class RefuseAccountClear : ShadowDevicePolicyManager() {
+        @Implementation
+        override fun clearUserRestriction(admin: ComponentName, key: String) {
+            if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) throw SecurityException("Account clear refused")
+            super.clearUserRestriction(admin, key)
+        }
     }
 
     @Test

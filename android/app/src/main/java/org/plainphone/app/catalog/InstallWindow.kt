@@ -60,19 +60,25 @@ object InstallWindow {
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
     fun open(context: Context, packageName: String) {
-        open(context, packageName, false, applyCatalogPolicy(context, packageName))
+        open(context, packageName, false, applyCatalogPolicy(context, packageName, requiresAccounts = false))
     }
 
     /** Only called after the parent PIN has been verified. */
     internal fun openForParent(context: Context, packageName: String): OpenResult =
-        open(context, packageName, true, applyCatalogPolicy(context, packageName))
+        open(context, packageName, true, applyCatalogPolicy(context, packageName, requiresAccounts = true))
 
     internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT }
 
-    private fun applyCatalogPolicy(context: Context, packageName: String): (() -> Unit) -> Unit =
-        { onInstallsAllowed ->
-            Lock.applyForInstall(context.applicationContext, "install window for $packageName", true, onInstallsAllowed)
-        }
+    private fun applyCatalogPolicy(
+        context: Context,
+        packageName: String,
+        requiresAccounts: Boolean,
+    ): (() -> Unit) -> Unit = { onInstallsAllowed ->
+        Lock.applyForInstall(
+            context.applicationContext, "install window for $packageName",
+            catalogChanged = true, onInstallsAllowed = onInstallsAllowed, requiresAccounts = requiresAccounts,
+        )
+    }
 
     internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) =
         open(context, packageName, false, applyPolicy)
@@ -126,7 +132,8 @@ object InstallWindow {
                 } catch (e: Exception) {
                     Log.w("Plainphone", "catalog install window failed", e)
                     try {
-                        if (started) close(app, "catalog install window failed", packageName)
+                        if (started) runCatching { close(app, "catalog install window failed", packageName) }
+                            .onFailure { Log.w("Plainphone", "could not close failed catalog window", it) }
                     } finally {
                         if (!usedWindow && !p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
                             Log.e("Plainphone", "could not restore the catalog quota")
@@ -134,14 +141,17 @@ object InstallWindow {
                     }
                     return OpenResult.UNAVAILABLE
                 }
-            } else if (allowAccounts && !window.accountsAllowed) {
+            } else if (allowAccounts) {
                 val p = prefs(app)
-                synchronized(accountLock) {
-                    p.edit().putBoolean("accountsAllowed", true)
-                        .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
+                if (!window.accountsAllowed) {
+                    synchronized(accountLock) {
+                        p.edit().putBoolean("accountsAllowed", true)
+                            .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
+                    }
                 }
                 try {
                     applyPolicy {}
+                    check(current(app) == packageName) { "Catalog target is no longer eligible" }
                 } catch (e: Exception) {
                     synchronized(accountLock) {
                         p.edit().remove("accountsAllowed").remove(ACCOUNT_BASELINE).apply()

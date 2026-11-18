@@ -42,9 +42,10 @@ class InstallLeaseTest {
             persist()
         }
 
-        fun lease() = InstallLease(this, this, { relock() }, { !restricted }, { true }) { _, _ ->
-            error("Unexpected full policy apply")
-        }
+        fun lease(relockCatalogAccounts: () -> Unit = {}) = InstallLease(
+            this, this, { relock() }, { !restricted }, { true },
+            relockCatalogAccounts = relockCatalogAccounts,
+        ) { _, _ -> error("Unexpected full policy apply") }
     }
 
     @Test fun watchdogRelocksWhenStorageFailsAndRetryReportsTheObservedOverrun() {
@@ -66,6 +67,34 @@ class InstallLeaseTest {
         f.lease().recover()
         assertEquals(listOf(45L), f.reports)
         assertFalse(lease.hasMarkers())
+    }
+
+    @Test fun expiredCatalogRelocksAccountsDuringAndAfterALateClearEvenIfStorageFails() {
+        val f = Fixture()
+        var accountsRestricted = true
+        val lease = f.lease { accountsRestricted = true }
+        lease.begin(CATALOG, 10_000)
+        lease.begin(SELF_UPDATE, 60_000)
+        f.restricted = false
+
+        assertFalse(lease.clearCatalogAccountsIfAllowed {
+            accountsRestricted = false
+            f.now += 10_000
+            f.failWrites = true
+            assertThrows(IllegalStateException::class.java) { lease.recover() }
+            assertTrue(accountsRestricted)
+            assertFalse(f.restricted)
+            // Android can finish a clear that began before recovery.
+            accountsRestricted = false
+            f.failWrites = false
+        })
+
+        assertTrue(accountsRestricted)
+        assertFalse(lease.clearCatalogAccountsIfAllowed { error("Expired catalog lease admitted a clear") })
+        assertFalse(f.restricted)
+        assertEquals(setOf(SELF_UPDATE), f.saved.keys)
+        lease.release(SELF_UPDATE)
+        assertTrue(f.restricted)
     }
 
     @Test fun changingCatalogTargetKeepsTheOriginalWatchdogAndDeadline() {

@@ -52,6 +52,11 @@ object Lock {
                 installLease.clearIfAllowed(config.installing != null, clear)
             },
             installsAllowed = { config -> installLease.allowsInstall(config.installing != null) },
+            clearCatalogAccountsIfAllowed = { clear ->
+                InstallWindow.active(app)?.accountsAllowed == true &&
+                    installLease.clearCatalogAccountsIfAllowed(clear) &&
+                    InstallWindow.active(app)?.accountsAllowed == true
+            },
         )
     }
 
@@ -70,6 +75,7 @@ object Lock {
         reason: String,
         catalogChanged: Boolean,
         onInstallsAllowed: () -> Unit = {},
+        requiresAccounts: Boolean = false,
     ) = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
         val sync = SyncStore(context)
@@ -77,6 +83,10 @@ object Lock {
         val result = if (catalogChanged) {
             check(effectiveConfig(context).installing != null) { "Catalog target is no longer eligible" }
             val results = applyNow(context, reason, onInstallsAllowed)
+            if (requiresAccounts && Mode.isStrong(context)) {
+                val accounts = results.firstOrNull { it.name == PolicyApplier.CATALOG_ACCOUNTS_STEP }
+                check(accounts?.ok == true) { accounts?.detail ?: "Catalog account window did not open" }
+            }
             results.firstOrNull { it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner" }
         } else {
             applier(context, onInstallsAllowed).applyInstallRestriction(effectiveConfig(context))

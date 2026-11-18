@@ -371,6 +371,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         lockIntact: z.boolean(),
         maintenance: z.boolean(),
         failedPolicies: z.array(z.string().min(1).max(200)).max(50),
+        installOverrunSequence: z.number().int().positive().optional(),
         rulesEtag: z.string().max(100).nullable(),
         rulesAppliedAt: z.iso.datetime({ offset: true }).nullable(),
         dnsHost: z.string().max(253).nullable(),
@@ -400,7 +401,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           LIGHT_LOCK.every((k) => p[k] === true) &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
-    const status = { ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
+    const { installOverrunSequence: sequence, ...reportedStatus } = input;
+    const status = { ...reportedStatus, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
     const policy = input.failedPolicies.find(isInstallOverrun);
     const lost = await ctx.db.transaction(async (tx) => {
       // Serialize reports so retries keep the original expiry and only one report sees protection lost.
@@ -412,9 +414,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (!prev) return null;
       const now = ctx.now();
       const previousOverrun = installOverrunFromStatus(prev.status, prev.reportedAt);
-      const installOverrun = policy && (policy !== previousOverrun?.policy ||
-        !prev.status?.failedPolicies.includes(policy))
-        ? { policy, receivedAt: now.toISOString() }
+      const repeatedOverrun = policy && (sequence === undefined
+        ? policy === previousOverrun?.policy && prev.status?.failedPolicies.includes(policy)
+        : sequence === previousOverrun?.sequence);
+      const installOverrun = policy && !repeatedOverrun
+        ? { policy, sequence, receivedAt: now.toISOString() }
         : previousOverrun;
       await tx.update(phones).set({
         deviceStatus: { ...status, installOverrun },

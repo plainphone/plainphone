@@ -86,6 +86,24 @@ it("keeps the acknowledged install overrun through later reports until its origi
   expect((await parent.get(path)).json.status.failedPolicies).toEqual(["another policy failed"]);
 });
 
+it("gives equal-duration overruns separate expiries without extending retries", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent);
+  const path = `/api/phones/${phoneId}`;
+  const failedPolicies = ["install window overran: 45s"];
+  const day = 24 * 60 * 60_000;
+  const firstReport = h.clock.now.getTime();
+  expect((await device.put("/api/device/status", report({ failedPolicies, installOverrunSequence: 1 }))).status).toBe(204);
+  h.clock.now = new Date(firstReport + 6 * day);
+  expect((await device.put("/api/device/status", report({ failedPolicies, installOverrunSequence: 2 }))).status).toBe(204);
+  h.clock.now = new Date(firstReport + 7 * day);
+  expect((await parent.get(path)).json.status.failedPolicies).toEqual(failedPolicies);
+  expect((await device.put("/api/device/status", report())).status).toBe(204);
+  expect((await device.put("/api/device/status", report({ failedPolicies, installOverrunSequence: 2 }))).status).toBe(204);
+  h.clock.now = new Date(firstReport + 13 * day);
+  expect((await parent.get(path)).json.status.failedPolicies).toEqual([]);
+});
+
 describe("DNS readiness", () => {
   it("is false until the DNS service accepted the ClientID, and never goes back", async () => {
     const parent = await signIn(h, "parent@example.org");

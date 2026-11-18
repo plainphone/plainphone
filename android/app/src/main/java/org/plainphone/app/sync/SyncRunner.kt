@@ -278,11 +278,12 @@ class SyncRunner(
             mode = lock.mode,
             protections = lock.protections,
             timeUsed = device.timeUsed(),
+            installOverrunSequence = overrun?.sequence,
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
         val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
-        val hash = sha256(comparable.toString() + (overrun?.sequence?.let { ":$it" } ?: ""))
+        val hash = sha256(comparable.toString())
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }

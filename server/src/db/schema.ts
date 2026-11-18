@@ -218,7 +218,7 @@ export const phones = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
-      installOverrun?: { policy: string; receivedAt: string };
+      installOverrun?: { policy: string; sequence?: number; receivedAt: string };
     }>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),

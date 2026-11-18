@@ -724,6 +724,10 @@ components:
           maxItems: 50
           description: Names of the lock steps that failed.
           items: { type: string, minLength: 1, maxLength: 200 }
+        installOverrunSequence:
+          type: integer
+          minimum: 1
+          description: Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry.
         rulesEtag:
           type: [string, "null"]
           maxLength: 100

@@ -22,6 +22,7 @@ class InstallLease(
     private val restrictionLifted: () -> Boolean = { false },
     private val tracksOverruns: () -> Boolean = { false },
     private val onRecovered: (Boolean) -> Unit = {},
+    private val relockCatalogAccounts: () -> Unit = {},
     /** Opens the restriction through the normal policy path. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
@@ -66,9 +67,15 @@ class InstallLease(
     }
 
     /** Keeps the durable marker until Android has finished the restriction clear. */
-    fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean {
+    fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean =
+        clearWhileAllowed({ allowsInstallLocked(catalogApproved) }, clear)
+
+    fun clearCatalogAccountsIfAllowed(clear: () -> Unit): Boolean =
+        clearWhileAllowed({ CATALOG in valid(loadLocked()) }, clear) && isOpen(CATALOG)
+
+    private fun clearWhileAllowed(allowed: () -> Boolean, clear: () -> Unit): Boolean {
         synchronized(LOCK) {
-            if (!allowsInstallLocked(catalogApproved)) return false
+            if (!allowed()) return false
             clearsInFlight++
         }
         try {
@@ -76,7 +83,7 @@ class InstallLease(
         } finally {
             val catalogChanged = synchronized(LOCK) {
                 try {
-                    recoverLocked("install restriction clear finished", finishingClear = true)
+                    recoverLocked("restriction clear finished", finishingClear = true)
                 } finally {
                     clearsInFlight--
                 }
@@ -204,9 +211,13 @@ class InstallLease(
             e
         }
 
-        if (open.isEmpty()) {
-            if (relockNow == null) applyLock(reason, CATALOG in closing)
-            else relockNow.invoke()
+        try {
+            if (open.isEmpty()) {
+                if (relockNow == null) applyLock(reason, CATALOG in closing)
+                else relockNow.invoke()
+            }
+        } finally {
+            if (CATALOG in closing) relockCatalogAccounts()
         }
 
         if (closing.isEmpty()) return false
@@ -335,6 +346,14 @@ class InstallLease(
                 relockNow = {
                     if (!lock.isInMaintenanceWindow(app) && device.isDeviceOwner()) {
                         device.addRestriction(restriction)
+                    }
+                },
+                relockCatalogAccounts = {
+                    val sync = org.plainphone.app.sync.SyncStore(app)
+                    if (!lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
+                        device.isDeviceOwner()
+                    ) {
+                        device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
                     }
                 },
                 restrictionLifted = {

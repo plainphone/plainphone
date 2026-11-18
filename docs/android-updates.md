@@ -76,7 +76,9 @@ lease. The latest incident survives restarts. The phone includes it in status re
 until the server acknowledges storage with HTTP 204, or for up to seven days after
 recording it. Older records have no timestamp, so their seven days start when the
 upgraded app first reads them. The dashboard and parent app show the received notice
-for seven days, including after newer status reports omit it. Across a reboot, the delay is
+for seven days, including after newer status reports omit it. Each incident has its own
+sequence, so equal-duration catalog and self-update overruns get separate expiry times
+and retrying the same report keeps its original expiry. Across a reboot, the delay is
 estimated from the phone's wall clock. For older lease records without a wall-clock
 deadline, recovery reports the incident with a zero-second lower bound because the
 previous boot's elapsed clock cannot be compared with the new one.

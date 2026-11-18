@@ -2137,6 +2137,8 @@ export interface components {
             maintenance: boolean;
             /** @description Names of the lock steps that failed. */
             failedPolicies: string[];
+            /** @description Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry. */
+            installOverrunSequence?: number;
             /** @description ETag of the rules the phone last applied. */
             rulesEtag: string | null;
             /**

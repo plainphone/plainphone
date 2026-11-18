@@ -292,7 +292,10 @@ export function isInstallOverrun(policy: string): boolean {
   return /^install window overran: \d+s$/.test(policy);
 }
 
-export function installOverrunFromStatus(status: Phone["deviceStatus"], reportedAt: Date | null) {
+export function installOverrunFromStatus(
+  status: Phone["deviceStatus"],
+  reportedAt: Date | null,
+): NonNullable<Phone["deviceStatus"]>["installOverrun"] {
   if (status?.installOverrun) return status.installOverrun;
   // Older snapshots kept the notice in failedPolicies with only the status timestamp.
   const policy = status?.failedPolicies.find(isInstallOverrun);
