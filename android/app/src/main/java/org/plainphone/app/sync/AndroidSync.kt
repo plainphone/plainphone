@@ -139,14 +139,14 @@ class LocationReader(private val context: Context) {
         if (!lm.isLocationEnabled) return null
         val enabled = lm.allProviders.filter(lm::isProviderEnabled)
         val providers = when {
+            FUSED in enabled -> listOf(FUSED)
             precise -> listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
         }.filter { it in enabled }
         val maxAge = TimeUnit.MINUTES.toNanos(if (precise) 2 else 10)
         val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
-        val fused = listOf(FUSED).filter { it in enabled }
         if (!fresh) {
-            val cachedLocations = knownLocations(lm, fused + providers)
+            val cachedLocations = knownLocations(lm, providers)
             val now = SystemClock.elapsedRealtimeNanos()
             val cached = cachedLocations
                 .filter {
@@ -165,11 +165,6 @@ class LocationReader(private val context: Context) {
             notBeforeMs != null -> { fix -> fix.time >= notBeforeMs || fix.elapsedRealtimeNanos > lookupStarted }
             else -> null
         }
-        if (fused.isNotEmpty()) {
-            val fallbackBudget = if (providers.isEmpty()) 0L else
-                minOf(TimeUnit.SECONDS.toNanos(10), (deadline - System.nanoTime()).coerceAtLeast(0L) / 2)
-            await(lm, fused, precise, deadline - fallbackBudget, acceptUpdate)?.let { return it.toFix() }
-        }
         return await(lm, providers, precise, deadline, acceptUpdate)?.toFix()
     }
 
@@ -183,7 +178,7 @@ class LocationReader(private val context: Context) {
     private fun knownLocations(lm: LocationManager, providers: List<String>): List<Location> =
         providers.mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
 
-    private class Result(val location: Location?)
+    private class Result(val location: Location?, val complete: Boolean = true)
 
     @SuppressLint("MissingPermission")
     private fun await(
@@ -215,6 +210,9 @@ class LocationReader(private val context: Context) {
                 cancellations += cancel
                 pending++
                 val done: (Location?) -> Unit = { results.add(Result(it)) }
+                val partial: ((Location) -> Unit)? = if (precise) {
+                    { results.add(Result(it, complete = false)) }
+                } else null
                 try {
                     when {
                         Build.VERSION.SDK_INT >= 31 -> {
@@ -222,25 +220,27 @@ class LocationReader(private val context: Context) {
                                 .setQuality(if (precise) LocationRequest.QUALITY_HIGH_ACCURACY else LocationRequest.QUALITY_LOW_POWER)
                                 .setDurationMillis(TimeUnit.NANOSECONDS.toMillis(remaining).coerceAtLeast(1L))
                                 .build()
-                            if (acceptUpdate == null) {
+                            if (acceptUpdate == null && partial == null) {
                                 lm.getCurrentLocation(provider, request, cancel, DIRECT_EXECUTOR) { done(it) }
                             } else {
-                                requestUpdate(lm, provider, cancel, done, acceptUpdate, request)
+                                requestUpdate(lm, provider, cancel, done, acceptUpdate, partial, request)
                             }
                         }
-                        Build.VERSION.SDK_INT >= 30 && acceptUpdate == null ->
+                        Build.VERSION.SDK_INT >= 30 && acceptUpdate == null && partial == null ->
                             lm.getCurrentLocation(provider, cancel, DIRECT_EXECUTOR) { done(it) }
-                        else -> requestUpdate(lm, provider, cancel, done, acceptUpdate)
+                        else -> requestUpdate(lm, provider, cancel, done, acceptUpdate, partial)
                     }
                 } catch (e: RuntimeException) {
                     Log.w("Plainphone", "location from $provider failed: ${e.message}")
                     done(null)
                 }
             }
-            repeat(pending) {
-                val remaining = (deadline - System.nanoTime()).coerceAtLeast(0L)
+            while (pending > 0) {
+                val remaining = deadline - System.nanoTime()
+                if (remaining <= 0) return best
                 val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return best
-                val fix = result.location ?: return@repeat
+                if (result.complete) pending--
+                val fix = result.location ?: continue
                 if (fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
                 val previous = best
                 if (previous == null || fix.accuracyOrUnknown() < previous.accuracyOrUnknown()) best = fix
@@ -261,12 +261,18 @@ class LocationReader(private val context: Context) {
         cancel: CancellationSignal,
         done: (Location?) -> Unit,
         acceptUpdate: ((Location) -> Boolean)?,
+        partial: ((Location) -> Unit)?,
         request: LocationRequest? = null,
     ) {
         val delivered = AtomicBoolean()
         val listener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                if (acceptUpdate?.invoke(location) != false && delivered.compareAndSet(false, true)) done(location)
+                if (delivered.get() || acceptUpdate?.invoke(location) == false) return
+                if (partial != null && location.accuracyOrUnknown() > PRECISE_ACCURACY_METERS) {
+                    partial(location)
+                } else if (delivered.compareAndSet(false, true)) {
+                    done(location)
+                }
             }
             @Deprecated("Called on Android 10 only; nothing to do.")
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
@@ -290,7 +296,7 @@ class LocationReader(private val context: Context) {
             }
         }
         try {
-            if (acceptUpdate != null) {
+            if (acceptUpdate != null || partial != null) {
                 lm.requestLocationUpdates(provider, 0L, 0f, listener, thread.looper)
             } else {
                 @Suppress("DEPRECATION") // The single-shot API before getCurrentLocation (Android 11).

@@ -38,10 +38,10 @@ in this table against the production source, including both branches of platform
 | `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<SyncWorker>()` | On demand | Either | Build the coalesced immediate sync. |
 | `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<SyncWorker>()` | At the next poll | Normally on; either during active safety requests | Build the follow-up sync. |
 | `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<EnrollWorker>()` | On provisioning or boot | Either | Build the pending enrollment work. |
-| `sync/AndroidSync.kt` `lm.getCurrentLocation(provider, request, cancel, DIRECT_EXECUTOR) { done(it) }` | On a location lookup that requires a fresh fix | Either | Request a one-shot fix on Android 12+. |
+| `sync/AndroidSync.kt` `lm.getCurrentLocation(provider, request, cancel, DIRECT_EXECUTOR) { done(it) }` | On a regular location lookup | Either | Request a one-shot fix on Android 12+. |
 | `sync/AndroidSync.kt` `lm.getCurrentLocation(provider, cancel, DIRECT_EXECUTOR) { done(it) }` | On a location lookup | Either | Request a one-shot fix on Android 11+. |
-| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, request, DIRECT_EXECUTOR, listener)` | On an active location lookup fallback | Either | Listen for a fresh fix with a bounded request. |
-| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, 0L, 0f, listener, thread.looper)` | On a fresh location lookup on older Android | Either | Listen until a fresh fix arrives or the lookup ends. |
+| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, request, DIRECT_EXECUTOR, listener)` | On a precise location lookup | Either | Listen for a fresh fix with a bounded request. |
+| `sync/AndroidSync.kt` `lm.requestLocationUpdates(provider, 0L, 0f, listener, thread.looper)` | On a precise location lookup on older Android | Either | Listen until a fresh fix arrives or the lookup ends. |
 | `sync/AndroidSync.kt` `lm.requestSingleUpdate(provider, listener, thread.looper)` | On a single location lookup on older Android | Either | Request a one-shot fix. |
 | `time/TimeTicker.kt` `main.postDelayed(this, EVERY_MS)` | 60 s | On | Recheck time limits in strong mode. |
 | `time/TimeTicker.kt` `context.registerReceiver(` | On screen-on or screen-off | Either | Start or stop the time-limit ticker. |

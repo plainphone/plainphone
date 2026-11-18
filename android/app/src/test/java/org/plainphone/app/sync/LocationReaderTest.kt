@@ -116,7 +116,7 @@ class LocationReaderTest {
 
     @Test
     @Config(sdk = [31])
-    fun `an unresponsive fused provider leaves time for GPS and network`() {
+    fun `an unresponsive fused provider never starts GPS or network`() {
         val fused = LocationManager.FUSED_PROVIDER
         manager.setProviderEnabled(fused, true)
         val executor = Executors.newSingleThreadExecutor()
@@ -125,9 +125,15 @@ class LocationReaderTest {
                 LocationReader(context).current(precise = true, timeoutMs = 3_000)
             }
             awaitRequests(fused)
-            awaitRequests(gps, network)
-            manager.simulateLocation(fix(gps, 75f))
-            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(75f)
+            // Watch for registrations throughout the fused budget, before cancellation.
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4)
+            while (!result.isDone && System.nanoTime() < deadline) {
+                assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+                assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+                Thread.sleep(10)
+            }
+            assertThat(result.get(1, TimeUnit.SECONDS)).isNull()
+            assertThat(manager.getLegacyLocationRequests(fused)).isEmpty()
         } finally {
             executor.shutdownNow()
         }
@@ -258,6 +264,25 @@ class LocationReaderTest {
             manager.simulateLocation(fix(network, 100f))
             assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(100f)
             assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `precise lookup accepts a better update from the same provider`() {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit<LocationFix?> {
+                LocationReader(context).current(precise = true, timeoutMs = 3_000)
+            }
+            awaitRequests(gps, network)
+            manager.simulateLocation(fix(network, 150f))
+            manager.simulateLocation(fix(gps, 200f))
+            manager.simulateLocation(fix(gps, 60f))
+            assertThat(result.get(1, TimeUnit.SECONDS)?.accuracyM).isEqualTo(60f)
+            assertThat(manager.getLocationRequests(network)).isEmpty()
         } finally {
             executor.shutdownNow()
         }

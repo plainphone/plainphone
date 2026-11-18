@@ -56,9 +56,9 @@ page. The parent app shows the same, on OpenStreetMap raster tiles after "Show m
 ### Location time and accuracy
 
 Each location lookup has one 30-second budget. The phone uses the fused provider when it is
-enabled. If fused is unavailable or gives no fix, it asks GPS and the network provider
-within the same budget. It takes the first fix accurate to 100 m or better, or the most
-accurate available fix if neither reaches 100 m.
+enabled. If fused is unavailable, it asks GPS and the network provider in parallel
+within the same budget. A precise lookup takes the first fix accurate to 100 m or
+better, or keeps the most accurate fix received by the deadline.
 Regular `always` reports use Android 12's low-power setting. On older Android versions without
 fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
 100 m or better before starting GPS. Both providers share the same deadline.
