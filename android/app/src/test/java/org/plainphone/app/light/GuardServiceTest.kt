@@ -323,6 +323,54 @@ class GuardServiceTest {
         assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
     }
 
+    @Test fun keepsQueuedSplitScreenCheckAfterImmediateBackForAnotherWindow() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        shadow.root = null
+        shadow.windowList = listOf(window(null, focused = true, id = 7), window(SETTINGS, id = 3))
+        service.event(WINDOWS, null, AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = protectedSettingsRoot().also { ReflectionHelpers.setField(it, "mWindowId", 3) }
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = "com.google.android.packageinstaller"
+            text = "Uninstall Plainphone"
+            ReflectionHelpers.setField(this, "mWindowId", 7)
+        }
+        looper.idleFor(Duration.ofMillis(150))
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
+    @Test fun suppressesLaterEventsForTheHandledPageButChecksANewProtectedPage() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        shadow.root = protectedSettingsRoot()
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        // The active root still shows the page that was just closed.
+        looper.idleFor(Duration.ofMillis(10))
+        service.event(STATE, SETTINGS)
+        looper.idleFor(Duration.ofMillis(10))
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        looper.idleFor(Duration.ofMillis(10))
+        shadow.root = AccessibilityNodeInfo().apply {
+            packageName = SETTINGS
+            text = "Uninstall Plainphone"
+        }
+        service.event(STATE, SETTINGS)
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+        looper.idleFor(Duration.ofMillis(300))
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
     @Test fun maintenanceCancelsBothPendingChecks() = assertCancelsBothPendingChecks { service ->
         service.getSharedPreferences("plainphone_state", Context.MODE_PRIVATE)
             .edit().putLong("relock_at_wall", Long.MAX_VALUE).apply()

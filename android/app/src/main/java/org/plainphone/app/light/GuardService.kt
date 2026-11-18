@@ -37,6 +37,8 @@ class GuardService : AccessibilityService() {
     private var keywords: SettingsGuard.Keywords? = null
     private var screenReceiver: BroadcastReceiver? = null
 
+    private var handledPage: HandledPage? = null
+
     private val pendingSettingsPackages = mutableSetOf<String>()
     private val pendingSettingsWindowIds = mutableSetOf<Int>()
     private val settingsCheck = Runnable {
@@ -211,8 +213,10 @@ class GuardService : AccessibilityService() {
             activeRootWithoutPrefetch()
         } else {
             rootInActiveWindow
-        } ?: return
-        val pkg = root.packageName?.toString()
+        }
+        val pkg = root?.packageName?.toString()
+        handledPage?.let { if (root == null || root.windowId != it.windowId || pkg != it.pkg) handledPage = null }
+        if (root == null) return
         if (pkg == null || (pkg !in packages && (root.windowId !in windowIds || !guardsSettings(pkg)))) {
             recycle(root)
             return
@@ -227,11 +231,30 @@ class GuardService : AccessibilityService() {
             recycle(root)
             return
         }
+        val windowId = root.windowId
         val texts = ArrayList<String>()
         collect(root, texts, depth = 0)
-        if (!SettingsGuard.isProtectedScreen(pkg, texts, k)) return
-        if (performGlobalAction(GLOBAL_ACTION_BACK)) clearSettingsCheck()
+        if (!SettingsGuard.isProtectedScreen(pkg, texts, k)) {
+            handledPage = null
+            return
+        }
+        // The active root can keep showing a page Back already closed; a second Back would hit the next one.
+        val now = SystemClock.elapsedRealtime()
+        val page = HandledPage(windowId, pkg, SettingsGuard.marks(texts, k), now + HANDLED_PAGE_MS)
+        handledPage?.let { if (now < it.until && it.sameAs(page)) return }
+        if (performGlobalAction(GLOBAL_ACTION_BACK)) {
+            handledPage = page
+            // Only this window is done: a check queued for another window (split screen) stays.
+            pendingSettingsPackages.remove(pkg)
+            pendingSettingsWindowIds.remove(windowId)
+            if (pendingSettingsPackages.isEmpty() && pendingSettingsWindowIds.isEmpty()) main.removeCallbacks(settingsCheck)
+        }
         block(pkg, BlockedActivity.Reason.PROTECTION)
+    }
+
+    /** A protected page the guard has sent Back for, until [until]. */
+    private data class HandledPage(val windowId: Int, val pkg: String, val marks: Set<String>, val until: Long) {
+        fun sameAs(other: HandledPage) = windowId == other.windowId && pkg == other.pkg && marks == other.marks
     }
 
     private fun activeRootWithoutPrefetch() =
@@ -350,6 +373,7 @@ class GuardService : AccessibilityService() {
     companion object {
         private const val TAG = "Plainphone"
         private const val SETTINGS_MAX_WAIT_MS = 150L
+        private const val HANDLED_PAGE_MS = 250L
         private val VPN_RETRY_DELAYS_MS = listOf(50L, 150L, 300L, 600L, 1_000L)
         private const val WINDOW_EVENTS =
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED

@@ -66,4 +66,13 @@ object SettingsGuard {
         if (packageName !in SETTINGS_PACKAGES) return false
         return k.dangerous.any { w -> lower.any { it.contains(w) } }
     }
+
+    /** The keywords a screen shows: tells a page apart from the next one in the same window. */
+    fun marks(texts: List<String>, k: Keywords): Set<String> {
+        val lower = texts.map { it.lowercase() }
+        return (k.ownDescriptions + k.dangerous + k.uninstall)
+            .map { it.lowercase() }
+            .filter { w -> w.isNotBlank() && lower.any { it.contains(w) } }
+            .toSet()
+    }
 }
