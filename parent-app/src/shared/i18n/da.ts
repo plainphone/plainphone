@@ -124,6 +124,7 @@ export const da: Messages = {
   "phone.lockIntact": "Lås intakt",
   "phone.lockBroken": "Låsen er ikke intakt",
   "phone.lockFailed": "Disse trin i låsen mislykkedes: {steps}",
+  "phone.installWindowOverrun": "Appinstallation var åben {seconds} sek. længere end planlagt under en opdatering.",
   "phone.maintenance": "Vedligeholdelsesoplåsning kører",
   "phone.battery": "Batteri {pct}\u00a0%",
   "phone.charging": "oplader",

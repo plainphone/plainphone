@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Restore the strong-mode install restriction if the process dies mid-install. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Needed to see every launchable app so the allowlist can hide the rest. -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -25,6 +27,8 @@
     <!-- "Ring the phone" (docs/location.md): alarm sound in a foreground service, and vibration. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Phase 4: sync with the parent's dashboard, and the last position for "Find". -->
@@ -71,7 +75,15 @@
             </intent-filter>
         </receiver>
 
+        <service
+            android:name=".update.InstallWatchdogService"
+            android:exported="false"
+            android:foregroundServiceType="systemExempted" />
+
+        <receiver android:name=".update.UpdateReceiver" android:exported="false" />
+
         <!-- Re-applies the lock after a reboot and after a temporary maintenance unlock. -->
+
         <receiver
             android:name=".RelockReceiver"
             android:exported="false">

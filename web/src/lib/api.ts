@@ -21,6 +21,14 @@ export interface Me {
 /** What the phone last reported about itself (`PUT /device/status`). */
 export interface PhoneStatus {
   appVersion: string;
+  appVersionCode?: number;
+  update?: {
+    state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    errorCode?: string;
+    detail: string | null;
+    checkedAt: string | null;
+    latestVersion: string | null;
+  };
   batteryPct: number | null;
   charging: boolean | null;
   deviceOwner: boolean;

@@ -20,6 +20,8 @@
         <item quantity="one">Løft låsen i %1$d minut</item>
         <item quantity="other">Løft låsen i %1$d minutter</item>
     </plurals>
+    <string name="maintenance_install_alarm_access">Lad Plainphone lukke for appinstallation til tiden</string>
+    <string name="maintenance_install_alarm_settings">Åbn Indstillinger, derefter Særlig appadgang og Alarmer og påmindelser. Giv Plainphone adgang.</string>
     <string name="maintenance_reapply">Lås telefonen nu</string>
     <string name="maintenance_release">Frigiv Device Owner (testtelefoner)</string>
     <string name="maintenance_release_confirm">Det fjerner alle begrænsninger og opgiver Device Owner. Bagefter kan Plainphone afinstalleres, og telefonen kan nulstilles normalt. Fortsæt?</string>
@@ -215,4 +217,10 @@
     <string name="time_h_min">%1$d t %2$d min</string>
     <string name="maintenance_release_light">Slå Plainphone fra</string>
     <string name="maintenance_release_light_confirm">Det slår vagten, webfilteret og enhedsadministrator fra, så Plainphone kan afinstalleres. Forælderen får besked. Fortsæt?</string>
+    <string name="channel_updates">Appopdateringer</string>
+    <string name="update_prompt_title">Plainphone kan opdateres</string>
+    <string name="update_prompt_text">Version %1$s er klar. Tryk for at åbne download.</string>
+    <string name="update_prompt_action">Åbn download</string>
+    <string name="install_watchdog_update">Opdaterer Plainphone…</string>
+    <string name="install_watchdog_catalog">Der er åbent for at installere en app</string>
 </resources>

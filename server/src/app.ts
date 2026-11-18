@@ -15,6 +15,7 @@ import { downloadRoutes } from "./routes/download.js";
 import { parentRoutes } from "./routes/parent.js";
 import type { Config } from "./config.js";
 import type { Ctx } from "./services/context.js";
+import { UpdateWake } from "./services/update-wake.js";
 
 /** Where the PWA's map loads its tiles (web/src/lib/maps.ts). */
 export const MAP_TILE_ORIGIN = "https://tiles.openfreemap.org";
@@ -116,10 +117,11 @@ export function createApp(ctx: Ctx) {
     return c.json(assetLinks(ctx.cfg));
   });
 
-  app.route("/api/device", deviceRoutes(ctx));
+  const updateWake = new UpdateWake();
+  app.route("/api/device", deviceRoutes(ctx, updateWake));
   // Public, so it is mounted before the parent API and its session check.
   app.route("/api/catalog", publicCatalogRoutes());
-  app.route("/api", parentRoutes(ctx));
+  app.route("/api", parentRoutes(ctx, updateWake));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   // Stable APK address for provisioning QR codes (redirects to the newest release).
   app.route("/download", downloadRoutes(ctx));

@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "update_requested_at" timestamp with time zone;

@@ -500,6 +500,10 @@ components:
               type: array
               description: Informational; filtering happens in the DNS service.
               items: { $ref: "#/components/schemas/DnsCategory" }
+        update:
+          type: object
+          properties:
+            requestedAt: { type: [string, "null"], format: date-time }
         location:
           type: object
           properties:
@@ -663,6 +667,16 @@ components:
       required: [appVersion, batteryPct, charging, deviceOwner, lockIntact, maintenance, failedPolicies, rulesEtag, rulesAppliedAt, dnsHost]
       properties:
         appVersion: { type: string, minLength: 1, maxLength: 40, examples: ["0.4.0"] }
+        appVersionCode: { type: integer, minimum: 1 }
+        update:
+          type: object
+          required: [state, detail, checkedAt, latestVersion]
+          properties:
+            state: { enum: [upToDate, available, installing, prompted, refused, failed] }
+            errorCode: { enum: [battery_exemption_missing, network, signature_mismatch, version_not_newer, metadata_mismatch, install_failed, unknown] }
+            detail: { type: [string, "null"], maxLength: 200 }
+            checkedAt: { type: [string, "null"], format: date-time }
+            latestVersion: { type: [string, "null"], maxLength: 40 }
         batteryPct: { type: [integer, "null"], minimum: 0, maximum: 100 }
         charging: { type: [boolean, "null"] }
         deviceOwner: { type: boolean, description: Plainphone is the device owner of this phone. }
@@ -943,6 +957,32 @@ paths:
         "400": { description: "The event does not fit the request's kind" }
         "404": { description: "No such request for this phone" }
 
+  /device/update-request:
+    get:
+      operationId: waitForPhoneUpdateRequest
+      tags: [device]
+      summary: Wait briefly for a parent update request
+      security: [{ device: [] }]
+      parameters:
+        - in: query
+          name: after
+          required: true
+          schema: { type: integer, minimum: 0 }
+          description: Last handled request in epoch milliseconds.
+      responses:
+        "200":
+          description: A newer request
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requestedAtMs]
+                properties:
+                  requestedAtMs: { type: integer }
+        "204": { description: "No newer request before the wait expired" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { description: "The phone already has a waiter" }
+
   /device/status:
     put:
       operationId: putDeviceStatus
@@ -956,7 +996,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/DeviceStatusInput" }
       responses:
-        "204": { description: "Stored" }
+        "204": { description: "Stored, including any install-window overrun in failedPolicies" }
         "400": { $ref: "#/components/responses/Error" }
 
   /device/released:
@@ -2084,6 +2124,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LocationState" }
+  /phones/{pid}/update:
+    post:
+      operationId: requestPhoneUpdate
+      tags: [rules]
+      summary: Ask the phone to check for a Plainphone update now
+      description: Sets `update.requestedAt` in the rules and wakes the phone.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "202": { description: "Requested" }
+        "404": { description: "Phone not found" }
+
   /phones/{pid}/locate:
     post:
       operationId: postPhonesLocate

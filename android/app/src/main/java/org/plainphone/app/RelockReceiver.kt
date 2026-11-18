@@ -17,8 +17,18 @@ class RelockReceiver : BroadcastReceiver() {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED, ACTION_RELOCK -> {
                 val pending = goAsync()
-                Lock.applyAsync(context, intent.action ?: "relock") { pending.finish() }
-                if (intent.action != ACTION_RELOCK) SyncScheduler.onBoot(context)
+                val reason = intent.action ?: "relock"
+                if (intent.action == ACTION_RELOCK) {
+                    Lock.applyAsync(context, reason) { pending.finish() }
+                } else {
+                    Lock.recoverInstallAsync(context, reason, force = true) {
+                        try {
+                            SyncScheduler.onBoot(context)
+                        } finally {
+                            Lock.applyAsync(context, reason) { pending.finish() }
+                        }
+                    }
+                }
             }
             ACTION_INSTALL_DONE -> InstallWindow.close(context, "install window ended")
             ACTION_WINDOW -> {

@@ -36,6 +36,7 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-false}
       # Setup QR codes (docs/self-hosting.md): leave empty for the project's own app releases.
       APK_DOWNLOAD_URL: ${APK_DOWNLOAD_URL:-}
+      APK_METADATA_URL: ${APK_METADATA_URL:-}
       APK_SIGNATURE_CHECKSUM: ${APK_SIGNATURE_CHECKSUM:-}
       PROVISIONING_DNS_HOST: ${PROVISIONING_DNS_HOST:-}
     ports:

@@ -127,6 +127,19 @@ class HomeActivity : ComponentActivity() {
             if (snapshot != null) TimeLeft(snapshot)
             val install = rules?.toInstall.orEmpty().filterNot { isInstalled(context, it.packageName) }
             if (install.isNotEmpty()) InstallList(install)
+            if (light) {
+                val update = org.plainphone.app.update.SelfUpdate.report(context)
+                if (update?.state == org.plainphone.app.update.SelfUpdater.STATE_PROMPTED) {
+                    Spacer(Modifier.height(16.dp))
+                    Text(stringResource(R.string.update_prompt_text, update.latestVersionName.orEmpty()))
+                    FilledTonalButton(onClick = {
+                        val url = ConfigStore(context).load().serverUrl.trimEnd('/') + "/download/android"
+                        runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+                    }) {
+                        Text(stringResource(R.string.update_prompt_action))
+                    }
+                }
+            }
             Spacer(Modifier.height(24.dp))
             Text(
                 stringResource(R.string.version_line, versionName()),

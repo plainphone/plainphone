@@ -44,6 +44,7 @@ import {
   submitChange,
 } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
+import type { UpdateWake } from "../services/update-wake.js";
 import { syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
@@ -73,7 +74,7 @@ function changeJson(r: ChangeResult) {
       };
 }
 
-export function parentRoutes(ctx: Ctx) {
+export function parentRoutes(ctx: Ctx, updateWake: UpdateWake) {
   const app = new Hono<Env>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
@@ -828,6 +829,15 @@ export function parentRoutes(ctx: Ctx) {
   app.delete("/phones/:pid/schedules/:sid", async (c) => {
     const phone = await requirePhone(c);
     return change(c, phone, { type: "schedule.delete", scheduleId: param(c, "sid") });
+  });
+
+  app.post("/phones/:pid/update", async (c) => {
+    const phone = await requirePhone(c);
+    const requestedAt = ctx.now();
+    await ctx.db.update(phones).set({ updateRequestedAt: requestedAt }).where(eq(phones.id, phone.id));
+    updateWake.notify(phone.id, requestedAt.getTime());
+    await wakePhone(ctx, phone.id, "rules");
+    return c.body(null, 202);
   });
 
   // Self key (D12, D13)

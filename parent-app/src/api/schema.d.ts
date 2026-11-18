@@ -167,6 +167,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/update-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wait briefly for a parent update request */
+        get: operations["waitForPhoneUpdateRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/status": {
         parameters: {
             query?: never;
@@ -1183,6 +1200,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the phone to check for a Plainphone update now
+         * @description Sets `update.requestedAt` in the rules and wakes the phone.
+         */
+        post: operations["requestPhoneUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/locate": {
         parameters: {
             query?: never;
@@ -1746,6 +1783,10 @@ export interface components {
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
+            update?: {
+                /** Format: date-time */
+                requestedAt?: string | null;
+            };
             location: {
                 /** @description `mode` is not off. Kept for phones from before `mode`. */
                 enabled?: boolean;
@@ -1929,6 +1970,17 @@ export interface components {
         DeviceStatusInput: {
             /** @example 0.4.0 */
             appVersion: string;
+            appVersionCode?: number;
+            update?: {
+                /** @enum {unknown} */
+                state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+                /** @enum {unknown} */
+                errorCode?: "battery_exemption_missing" | "network" | "signature_mismatch" | "version_not_newer" | "metadata_mismatch" | "install_failed" | "unknown";
+                detail: string | null;
+                /** Format: date-time */
+                checkedAt: string | null;
+                latestVersion: string | null;
+            };
             batteryPct: number | null;
             charging: boolean | null;
             /** @description Plainphone is the device owner of this phone. */
@@ -2345,6 +2397,46 @@ export interface operations {
             };
         };
     };
+    waitForPhoneUpdateRequest: {
+        parameters: {
+            query: {
+                /** @description Last handled request in epoch milliseconds. */
+                after: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A newer request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requestedAtMs: number;
+                    };
+                };
+            };
+            /** @description No newer request before the wait expired */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description The phone already has a waiter */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     putDeviceStatus: {
         parameters: {
             query?: never;
@@ -2358,7 +2450,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Stored */
+            /** @description Stored, including any install-window overrun in failedPolicies */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -3996,6 +4088,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LocationState"];
                 };
+            };
+        };
+    };
+    requestPhoneUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requested */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

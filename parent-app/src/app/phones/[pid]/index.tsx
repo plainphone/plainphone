@@ -9,7 +9,7 @@ import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneConte
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatRelative } from "../../../shared/lib/format";
+import { formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -172,6 +172,7 @@ function Overview() {
   ];
   if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
+  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
@@ -182,6 +183,7 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun", { seconds: overrun })} /> : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>
