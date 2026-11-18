@@ -209,6 +209,20 @@ class LocationReaderTest {
     }
 
     @Test
+    fun `cache-only Find rejects a fix at the two minute limit`() {
+        val device = AndroidSyncDevice(context)
+        val cached = fix(gps, 50f)
+        manager.simulateLocation(cached)
+        ShadowSystemClock.advanceBy(Duration.ofMillis(119_999))
+        assertThat(device.cachedPreciseLocation(cached.time)?.recordedAtMs).isEqualTo(cached.time)
+
+        ShadowSystemClock.advanceBy(Duration.ofMillis(1))
+        assertThat(device.cachedPreciseLocation(cached.time)).isNull()
+        assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
+    }
+
+    @Test
     fun `cache-only always reads a coarse fix and never starts a lookup`() {
         val device = AndroidSyncDevice(context)
         assertThat(device.cachedCoarseLocation()).isNull()
