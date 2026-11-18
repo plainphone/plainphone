@@ -118,7 +118,8 @@ If you remove it yourself and uninstall before the phone reconnects, the report 
 
 The server removes the phone from the dashboard and queues the standard protection-removed
 notice in the same database transaction. Delivery runs in the background and is retried if a
-configured mail or push provider is unavailable. Android keeps its default Phone and SMS apps
+configured mail or push provider is unavailable. Before sending, the server checks that the
+recipient still belongs to the household. Android keeps its default Phone and SMS apps
 selected until you change them in Settings or uninstall Plainphone.
 
 In light mode, the phone already enforces protection locally. A time-boxed window measured by

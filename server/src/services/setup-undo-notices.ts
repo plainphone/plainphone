@@ -34,7 +34,10 @@ export async function deliverSetupUndoNotices(ctx: Ctx) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
-      deliverBatch(ctx, () => performance.now() >= deadline),
+      deliverBatch(ctx, () => performance.now() >= deadline).catch((error: unknown) => {
+        if (deadline !== 0) throw error;
+        console.error("setup undo notice batch failed after its deadline");
+      }),
       new Promise<void>((resolve) => {
         timer = setTimeout(() => {
           deadline = 0;
@@ -61,24 +64,32 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
     if (!notice) continue;
 
     const claim = and(eq(setupUndoNotices.id, id), eq(setupUndoNotices.nextAttemptAt, claimedUntil));
-    const [user] = await ctx.db.select({ id: users.id, email: users.email, locale: users.locale })
-      .from(householdMembers).innerJoin(users, eq(users.id, householdMembers.userId))
-      .where(and(eq(householdMembers.userId, notice.userId), eq(householdMembers.householdId, notice.householdId)));
+    const membership = and(eq(householdMembers.userId, notice.userId), eq(householdMembers.householdId, notice.householdId));
+    const [recipient] = notice.subscriptionId
+      ? await ctx.db.select({ sub: pushSubscriptions, locale: users.locale })
+        .from(householdMembers).innerJoin(users, eq(users.id, householdMembers.userId))
+        .innerJoin(pushSubscriptions, eq(pushSubscriptions.userId, householdMembers.userId))
+        .where(and(membership, eq(pushSubscriptions.id, notice.subscriptionId)))
+      : await ctx.db.select({ email: users.email, locale: users.locale })
+        .from(householdMembers).innerJoin(users, eq(users.id, householdMembers.userId))
+        .where(membership);
+
+    if (budgetExpired()) {
+      await ctx.db.update(setupUndoNotices).set({ nextAttemptAt: ctx.now() }).where(claim);
+      break;
+    }
 
     try {
-      if (user) {
+      if (recipient) {
         const event = { phoneId: notice.phoneId, phoneName: notice.phoneName, reason: "setup-undo" } as const;
-        const locale = toLocale(user.locale);
-        if (notice.subscriptionId) {
-          const [sub] = await ctx.db.select().from(pushSubscriptions).where(and(eq(pushSubscriptions.id, notice.subscriptionId), eq(pushSubscriptions.userId, user.id)));
-          if (sub) {
-            if (!ctx.parentPush.webPublicKey) throw new Error("push unavailable");
-            const result = await ctx.parentPush.send(sub, pushMessage({ type: "protection", ...event }, locale), { urgent: true });
-            if (result === "failed") throw new Error("push delivery failed");
-          }
+        const locale = toLocale(recipient.locale);
+        if ("sub" in recipient) {
+          if (!ctx.parentPush.webPublicKey) throw new Error("push unavailable");
+          const result = await ctx.parentPush.send(recipient.sub, pushMessage({ type: "protection", ...event }, locale), { urgent: true });
+          if (result === "failed") throw new Error("push delivery failed");
         } else {
           if (!ctx.mail.canSend) throw new Error("mail unavailable");
-          await ctx.mail.send(phoneAlertMail(user.email, locale, ctx.cfg.PUBLIC_URL, { kind: "protection", ...event }));
+          await ctx.mail.send(phoneAlertMail(recipient.email, locale, ctx.cfg.PUBLIC_URL, { kind: "protection", ...event }));
         }
       }
     } catch {

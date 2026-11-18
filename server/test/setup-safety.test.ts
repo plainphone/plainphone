@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it, vi } from "vitest";
 import { setupUndoNotices } from "../src/db/schema.js";
+import { deliverSetupUndoNotices } from "../src/services/setup-undo-notices.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
@@ -96,6 +97,9 @@ describe("onboarding safety", () => {
     const token = decodeURIComponent(/invite#token=(\S+)/.exec(h.mail.outbox.at(-1)!.text)![1]!);
     const member = await signIn(h, "member@example.org");
     expect((await member.post("/api/invites/accept", { token })).status).toBe(200);
+    expect((await member.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/member", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
 
     expect((await claim()).status).toBe(201);
     device.token = (await decide("confirm")).json.deviceToken;
@@ -106,6 +110,7 @@ describe("onboarding safety", () => {
     const before = h.mail.outbox.length;
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map(({ to }) => to)).toEqual(["claimer@example.org"]);
+    expect(h.parentPush.sent).toHaveLength(0);
   });
 
   it("delivers at most ten undo notices per sweep", async () => {
@@ -123,6 +128,31 @@ describe("onboarding safety", () => {
     expect(h.mail.outbox).toHaveLength(before + 11);
   });
 
+  it("releases a claim when its budget expires before sending", async () => {
+    const { device, decide, claim } = await start();
+    expect((await claim()).status).toBe(201);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+
+    const before = h.mail.outbox.length;
+    const elapsed = vi.spyOn(performance, "now").mockReturnValue(0);
+    const update = h.ctx.db.update.bind(h.ctx.db);
+    const claimUpdate = vi.spyOn(h.ctx.db, "update").mockImplementationOnce((table) => {
+      elapsed.mockReturnValue(10_000);
+      return update(table);
+    });
+    try {
+      await deliverSetupUndoNotices(h.ctx);
+      expect(claimUpdate).toHaveBeenCalledTimes(2);
+      expect(h.mail.outbox).toHaveLength(before);
+    } finally {
+      claimUpdate.mockRestore();
+      elapsed.mockRestore();
+    }
+    await deliverSetupUndoNotices(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before + 1);
+  });
+
   it("ends the notice batch while a slow delivery is still in flight", async () => {
     const { device, decide, claim } = await start();
     expect((await claim()).status).toBe(201);
@@ -131,18 +161,44 @@ describe("onboarding safety", () => {
     const [notice] = await h.ctx.db.select().from(setupUndoNotices);
     await h.ctx.db.insert(setupUndoNotices).values({ ...notice!, id: undefined });
     let finish!: () => void;
+    let started!: () => void;
     const pending = new Promise<void>((resolve) => { finish = resolve; });
-    const send = vi.spyOn(h.mail, "send").mockReturnValue(pending);
+    const sending = new Promise<void>((resolve) => { started = resolve; });
+    const send = vi.spyOn(h.mail, "send").mockImplementation(() => {
+      started();
+      return pending;
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      await sweep(h.ctx);
+      let returned = false;
+      const batch = deliverSetupUndoNotices(h.ctx).then(() => { returned = true; });
+      await sending;
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(returned).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(returned).toBe(true);
+      await batch;
       expect(send).toHaveBeenCalledTimes(1);
+
+      const remove = vi.spyOn(h.ctx.db, "delete").mockImplementationOnce(() => {
+        throw new Error("database unavailable");
+      });
+      try {
+        finish();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(log).toHaveBeenCalledWith("setup undo notice batch failed after its deadline");
+        expect(send).toHaveBeenCalledTimes(1);
+      } finally {
+        remove.mockRestore();
+      }
     } finally {
       finish();
+      vi.useRealTimers();
+      log.mockRestore();
       send.mockRestore();
     }
-    await vi.waitFor(async () => {
-      expect(await h.ctx.db.select().from(setupUndoNotices)).toHaveLength(1);
-    });
   });
 
   it("keeps Device Owner paired when it reports a setup undo", async () => {
