@@ -1,0 +1,27 @@
+{
+  "name": "@plainphone/crypto",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node --test vectors.test.ts"
+  },
+  "dependencies": {
+    "@hpke/core": "1.10.1",
+    "@hpke/dhkem-x25519": "1.8.1",
+    "@noble/curves": "2.4.0",
+    "canonicalize": "5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

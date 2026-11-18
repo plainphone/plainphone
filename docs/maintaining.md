@@ -132,7 +132,9 @@ jq -n --arg number 123 --rawfile body reply.md \
   gh workflow run bot-reply.yml -R plainphone/plainphone --json
 ```
 
-The workflow adds "— the Plainphone bot" if the signature is missing.
+Enter the issue, pull request, or discussion number as a positive decimal
+integer, optionally prefixed with `#`. The workflow adds "— the Plainphone bot"
+if the signature is missing.
 
 **Triage.** `.github/workflows/triage.yml` adds `needs-triage` to new issues
 from outside the maintainer team and `external` to new pull requests from

@@ -37,13 +37,18 @@ class TelephonyLog(context: Context) {
     private val app = context.applicationContext
     private val prefs = app.getSharedPreferences("plainphone_telephony", Context.MODE_PRIVATE)
 
-    fun blocked(): List<BlockedEvent> =
+    fun blocked(): List<BlockedEvent> = blocked(ContactPolicySources.get(app).rules())
+
+    private fun blocked(rules: ContactRules): List<BlockedEvent> =
         prefs.getString(KEY_BLOCKED, null).orEmpty().lines().mapNotNull(BlockedEvent::decode)
+            .filterNot { rules.isHelpNumber(it.number) }
 
     @Synchronized
     fun recordBlocked(channel: Channel, direction: Direction, number: String?) {
+        val rules = ContactPolicySources.get(app).rules()
+        if (rules.isHelpNumber(number)) return
         val event = BlockedEvent(System.currentTimeMillis(), channel, direction, number?.takeIf { it.isNotBlank() } ?: HIDDEN)
-        val list = BlockedEvent.append(blocked(), event, MAX_EVENTS)
+        val list = BlockedEvent.append(blocked(rules), event, MAX_EVENTS)
         prefs.edit().putString(KEY_BLOCKED, list.joinToString("\n") { it.encode() }).apply()
     }
 
@@ -55,7 +60,7 @@ class TelephonyLog(context: Context) {
     fun recordEmergencyCall() {
         prefs.edit()
             .putLong(KEY_EMERGENCY_ELAPSED, SystemClock.elapsedRealtime())
-            .putLong(KEY_EMERGENCY_BOOT, bootId())
+            .putLong(KEY_EMERGENCY_BOOT, app.telephonyBootId())
             .apply()
     }
 
@@ -63,13 +68,9 @@ class TelephonyLog(context: Context) {
     fun sinceLastEmergencyMs(): Long? {
         if (!prefs.contains(KEY_EMERGENCY_ELAPSED)) return null
         // elapsedRealtime restarts at boot: an older value belongs to a previous boot.
-        if (prefs.getLong(KEY_EMERGENCY_BOOT, -1) != bootId()) return null
+        if (prefs.getLong(KEY_EMERGENCY_BOOT, -1) != app.telephonyBootId()) return null
         return SystemClock.elapsedRealtime() - prefs.getLong(KEY_EMERGENCY_ELAPSED, 0)
     }
-
-    /** Android's boot counter: changes on every reboot, unlike the wall clock it cannot be set. */
-    private fun bootId(): Long =
-        Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, 0).toLong()
 
     companion object {
         const val HIDDEN = "hidden number"
@@ -79,6 +80,10 @@ class TelephonyLog(context: Context) {
         private const val KEY_EMERGENCY_BOOT = "emergency_boot"
     }
 }
+
+/** Android's boot counter changes on every reboot. */
+internal fun Context.telephonyBootId(): Long =
+    Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT, 0).toLong()
 
 /** Wires the policy to this phone's emergency list and call-back window. */
 fun Context.contactPolicy(): ContactPolicy {

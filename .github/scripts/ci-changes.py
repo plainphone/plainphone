@@ -9,17 +9,19 @@ from fnmatch import fnmatchcase
 
 WORKFLOWS = (".github/workflows/*", ".github/scripts/*")
 WORKSPACE = ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc", "patches/*", "packages/*")
+CRYPTO_VECTORS = ("docs/encryption-test-vectors/*",)
 ANDROID = (
     "android/*",
+    "server/catalog/helplines/*",
     "scripts/provisioning-qr.py",
     "scripts/test_provisioning_qr.py",
     "scripts/smoke-release-apk.sh",
 )
 FILTERS = {
-    "android": ANDROID,
+    "android": ANDROID + CRYPTO_VECTORS + ("packages/crypto*", "web/test-fixtures/*"),
     "e2e": ANDROID + WORKSPACE + ("server/*", "scripts/e2e-phone-sync.sh"),
-    "server": WORKSPACE + (
-        "server/*", "web/*", "Dockerfile", ".dockerignore", "docs/encryption-test-vectors/*",
+    "server": WORKSPACE + CRYPTO_VECTORS + (
+        "server/*", "web/*", "Dockerfile", ".dockerignore",
     ),
     "parent": (
         "parent-app/*",
@@ -29,7 +31,7 @@ FILTERS = {
         "web/src/lib/ops.ts",
         "web/src/lib/settings.ts",
     ),
-    "dns": ("dns/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
+    "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*",),
 }
 

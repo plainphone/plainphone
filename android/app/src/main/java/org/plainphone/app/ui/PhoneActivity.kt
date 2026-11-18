@@ -68,6 +68,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,7 +81,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,17 +100,27 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
+import org.plainphone.app.contacts.HelpReplies
+import org.plainphone.app.contacts.HelpLinks
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
 import org.plainphone.app.telephony.CallNotifications
 import org.plainphone.app.telephony.SmsMessage
 import org.plainphone.app.telephony.SmsSender
 import org.plainphone.app.telephony.SmsStore
+import org.plainphone.app.telephony.SmsThread
+import org.plainphone.app.telephony.SmsThreadKind
 
 enum class Tab { CONTACTS, RECENTS, MESSAGES, KEYPAD }
 
 /** What an incoming intent asks the screen to show. */
-data class Route(val tab: Tab, val number: String? = null, val body: String? = null, val nonce: Long = System.nanoTime())
+data class Route(
+    val tab: Tab,
+    val number: String? = null,
+    val body: String? = null,
+    val nonce: Long = System.nanoTime(),
+    val threadKind: SmsThreadKind? = null,
+)
 
 /**
  * The phone and messages app: approved contacts, recent calls, conversations
@@ -140,7 +156,11 @@ class PhoneActivity : ComponentActivity() {
         val body = intent?.getStringExtra("sms_body") ?: intent?.getStringExtra(Intent.EXTRA_TEXT)
         return when {
             intent?.getStringExtra(EXTRA_CONVERSATION) != null ->
-                Route(Tab.MESSAGES, intent.getStringExtra(EXTRA_CONVERSATION))
+                Route(
+                    Tab.MESSAGES, intent.getStringExtra(EXTRA_CONVERSATION),
+                    threadKind = SmsThreadKind.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_THREAD_KIND) }
+                        ?: SmsThreadKind.CONTACT,
+                )
             intent?.action == Intent.ACTION_SENDTO || intent?.action == Intent.ACTION_SEND -> Route(Tab.MESSAGES, number, body)
             intent?.action == Intent.ACTION_DIAL || (intent?.action == Intent.ACTION_VIEW && data?.scheme == "tel") ->
                 Route(Tab.KEYPAD, number)
@@ -151,20 +171,21 @@ class PhoneActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_CONVERSATION = "org.plainphone.app.CONVERSATION"
+        private const val EXTRA_THREAD_KIND = "org.plainphone.app.THREAD_KIND"
         private const val MESSAGES_ALIAS = ".MessagesLauncher"
 
-        fun conversationIntent(context: Context, number: String): Intent =
+        fun conversationIntent(context: Context, thread: SmsThread): Intent =
             Intent(context, PhoneActivity::class.java)
-                .putExtra(EXTRA_CONVERSATION, number)
+                .putExtra(EXTRA_CONVERSATION, thread.number)
+                .putExtra(EXTRA_THREAD_KIND, thread.kind.name)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 }
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
 fun placeCall(context: Context, number: String): String? {
-    val decision = context.contactPolicy().decide(
-        ContactPolicySources.get(context).rules(), Channel.CALL, Direction.OUTGOING, number,
-    )
+    val rules = ContactPolicySources.get(context).rules()
+    val decision = context.contactPolicy().decide(rules, Channel.CALL, Direction.OUTGOING, number)
     if (!decision.allowed) {
         TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
         return context.getString(R.string.call_not_allowed)
@@ -174,6 +195,7 @@ fun placeCall(context: Context, number: String): String? {
     }
     return runCatching {
         context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", number, null), Bundle())
+        rules.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }
 }
@@ -183,7 +205,12 @@ fun placeCall(context: Context, number: String): String? {
 private fun PhoneApp(route: Route, resumed: Int) {
     val context = LocalContext.current
     var tab by remember(route) { mutableStateOf(route.tab) }
-    var conversationWith by remember(route) { mutableStateOf<String?>(if (route.tab == Tab.MESSAGES) route.number else null) }
+    var conversationWith by remember(route) {
+        mutableStateOf(
+            route.number?.takeIf { route.tab == Tab.MESSAGES }
+                ?.let { SmsThread(it, route.threadKind ?: SmsThreadKind.CONTACT) },
+        )
+    }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val rules by produceState(initialValue = ContactRules(false, emptyList(), null), resumed) {
@@ -196,14 +223,23 @@ private fun PhoneApp(route: Route, resumed: Int) {
     val open = conversationWith
     if (open != null) {
         BackHandler { conversationWith = null }
-        val contact = rules.contactFor(open)
-        ConversationScreen(
-            contact = contact,
-            rawNumber = open,
-            initialDraft = route.body.takeIf { route.number == open }.orEmpty(),
-            onBack = { conversationWith = null },
-            onCall = call,
-        )
+        val destination = if (route.tab == Tab.MESSAGES && route.number == open.number && route.threadKind == null &&
+            open.kind == SmsThreadKind.CONTACT && open.contact(rules) == null &&
+            rules.helpContact(open.number, Channel.SMS) != null
+        ) {
+            open.copy(kind = SmsThreadKind.HELP)
+        } else open
+        val contact = destination.contact(rules)
+        val thread = contact?.let { destination.copy(number = it.number) } ?: destination
+        key(thread) {
+            ConversationScreen(
+                contact = contact,
+                thread = thread,
+                initialDraft = route.body.takeIf { route.number == open.number }.orEmpty(),
+                onBack = { conversationWith = null },
+                onCall = call,
+            )
+        }
         return
     }
 
@@ -225,8 +261,11 @@ private fun PhoneApp(route: Route, resumed: Int) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             RoleBanner(resumed)
+            androidx.compose.material3.TextButton(onClick = {
+                context.startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
+            }) { Text(stringResource(R.string.help_lines_title)) }
             when (tab) {
-                Tab.CONTACTS -> ContactsScreen(rules, onCall = call, onMessage = { conversationWith = it.number })
+                Tab.CONTACTS -> ContactsScreen(rules, onCall = call, onMessage = { conversationWith = SmsThread(it.number) })
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)
                 Tab.MESSAGES -> ConversationsScreen(resumed, onOpen = { conversationWith = it })
                 Tab.KEYPAD -> KeypadScreen(initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(), onCall = call)
@@ -364,7 +403,7 @@ private fun readRecentCalls(context: Context): List<RecentCall> {
 }
 
 @Composable
-private fun ConversationsScreen(resumed: Int, onOpen: (String) -> Unit) {
+private fun ConversationsScreen(resumed: Int, onOpen: (SmsThread) -> Unit) {
     val context = LocalContext.current
     val changes by SmsStore.changes.collectAsState()
     val conversations by produceState<List<org.plainphone.app.telephony.Conversation>?>(null, resumed, changes) {
@@ -376,9 +415,9 @@ private fun ConversationsScreen(resumed: Int, onOpen: (String) -> Unit) {
         return
     }
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(list, key = { it.contact.number }) { conv ->
+        items(list, key = { "${it.thread.kind}:${it.thread.number}" }) { conv ->
             Row(
-                Modifier.fillMaxWidth().clickable { onOpen(conv.contact.number) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().clickable { onOpen(conv.thread) }.padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Initial(conv.contact.name)
@@ -411,7 +450,7 @@ private fun ConversationsScreen(resumed: Int, onOpen: (String) -> Unit) {
 @Composable
 private fun ConversationScreen(
     contact: ApprovedContact?,
-    rawNumber: String,
+    thread: SmsThread,
     initialDraft: String,
     onBack: () -> Unit,
     onCall: (String) -> Unit,
@@ -419,14 +458,14 @@ private fun ConversationScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val changes by SmsStore.changes.collectAsState()
-    var draft by remember(rawNumber) { mutableStateOf(initialDraft) }
+    var draft by remember(thread) { mutableStateOf(initialDraft) }
     var error by remember { mutableStateOf<String?>(null) }
     val sendFailed = stringResource(R.string.message_send_failed)
-    val messages by produceState<List<SmsMessage>>(emptyList(), contact, changes) {
+    val messages by produceState<List<SmsMessage>>(emptyList(), contact, thread, changes) {
         value = if (contact == null) emptyList() else withContext(Dispatchers.IO) {
-            SmsStore.thread(context, contact).also {
+            SmsStore.thread(context, thread).also {
                 SmsStore.markRead(context, it)
-                CallNotifications.cancelMessage(context, contact.number)
+                if (thread.kind != SmsThreadKind.LEGACY) CallNotifications.cancelMessage(context, thread)
             }
         }
     }
@@ -436,14 +475,14 @@ private fun ConversationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(contact?.name ?: rawNumber, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(contact?.name ?: thread.number, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
-                    if (contact != null) {
+                    if (contact != null && thread.kind != SmsThreadKind.LEGACY) {
                         IconButton(onClick = { onCall(contact.number) }) {
                             Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.action_call, contact.name))
                         }
@@ -454,7 +493,7 @@ private fun ConversationScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().imePadding()) {
             if (contact == null) {
-                Box(Modifier.weight(1f)) { EmptyState(stringResource(R.string.message_not_approved, rawNumber)) }
+                Box(Modifier.weight(1f)) { EmptyState(stringResource(R.string.message_not_approved, thread.number)) }
                 return@Column
             }
             LazyColumn(
@@ -465,6 +504,7 @@ private fun ConversationScreen(
             ) {
                 items(messages, key = { it.id }) { Bubble(it) }
             }
+            if (thread.kind == SmsThreadKind.LEGACY) return@Column
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
             }
@@ -482,7 +522,7 @@ private fun ConversationScreen(
                     onClick = {
                         val text = draft
                         scope.launch {
-                            val decision = withContext(Dispatchers.IO) { SmsSender.send(context, contact.number, text) }
+                            val decision = withContext(Dispatchers.IO) { SmsSender.send(context, contact.number, text, thread.kind) }
                             if (decision.allowed) {
                                 draft = ""
                                 error = null
@@ -509,7 +549,7 @@ private fun Bubble(m: SmsMessage) {
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text(m.body, style = MaterialTheme.typography.bodyLarge)
+                MessageBody(m.body)
                 Text(
                     if (m.failed) stringResource(R.string.message_failed) else DateUtils.getRelativeTimeSpanString(m.atMs).toString(),
                     style = MaterialTheme.typography.labelSmall,
@@ -518,6 +558,32 @@ private fun Bubble(m: SmsMessage) {
             }
         }
     }
+}
+
+@Composable
+internal fun MessageBody(body: String) {
+    val context = LocalContext.current
+    val color = MaterialTheme.colorScheme.primary
+    val links = remember(context) { HelpLinks(context) }
+    val text = remember(body, links, color) {
+        buildAnnotatedString {
+            append(body)
+            val matches = android.util.Patterns.WEB_URL.matcher(body)
+            while (matches.find()) {
+                val intent = links.intent(context, matches.group()) ?: continue
+                addLink(
+                    LinkAnnotation.Clickable(
+                        tag = "help",
+                        styles = TextLinkStyles(style = SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
+                        linkInteractionListener = { context.startActivity(intent) },
+                    ),
+                    matches.start(),
+                    matches.end(),
+                )
+            }
+        }
+    }
+    Text(text, style = MaterialTheme.typography.bodyLarge)
 }
 
 @Composable

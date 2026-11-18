@@ -125,6 +125,7 @@ export const en = {
   "phone.lockIntact": "Lock intact",
   "phone.lockBroken": "Lock not intact",
   "phone.lockFailed": "These lock steps failed: {steps}",
+  "phone.installWindowOverrun": "App installation stayed open {seconds} seconds longer than planned during an update.",
   "phone.maintenance": "Maintenance unlock running",
   "phone.battery": "Battery {pct}\u00a0%",
   "phone.charging": "charging",
@@ -192,7 +193,7 @@ export const en = {
   "contacts.removed": "The contact was removed.",
 
   "filter.title": "Web filter",
-  "filter.intro": "The filter can reduce exposure by blocking web addresses in the categories you choose. Some content still gets through, and useful sites can be blocked.",
+  "filter.intro": "The filter works in every app on the phone, also in browsers inside apps. The filter can reduce exposure by blocking web addresses in the categories you choose. Some content still gets through, and useful sites can be blocked. Help lines and selected health information sites stay open, even when a filter rule would block them.",
   "filter.categories": "Blocked categories",
   "filter.categoriesHelp": "Switch on a category to block matching web addresses.",
   "filter.cat.social": "Social media",

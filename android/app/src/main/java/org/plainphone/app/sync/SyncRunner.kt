@@ -32,6 +32,12 @@ interface SyncDevice {
     fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
     fun lastKnownLocation(): LocationFix?
     fun cachedCoarseLocation(): LocationFix?
+    /** The installed versionCode, for the dashboard's "update available". */
+    fun appVersionCode(): Long? = null
+    /** The self-update's last outcome (update/SelfUpdater.kt). */
+    fun updateReport(): org.plainphone.app.update.UpdateReport? = null
+    /** The parent pressed "Update now" at [requestedAtMs]; starts a check once per press. */
+    fun requestUpdate(requestedAtMs: Long) = Unit
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
     fun timeUsed(): Map<String, Int>? = null
 
@@ -144,6 +150,7 @@ class SyncRunner(
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
+        rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
         guarded("report status") { reportStatus(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
@@ -342,6 +349,8 @@ class SyncRunner(
 
     private fun reportStatus(token: String) {
         val lock = device.lockState()
+        val now = device.nowMs()
+        val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
@@ -350,20 +359,24 @@ class SyncRunner(
             deviceOwner = lock.deviceOwner,
             lockIntact = lock.intact,
             maintenance = lock.maintenance,
-            failedPolicies = lock.failedPolicies,
+            failedPolicies = if (overrun == null) lock.failedPolicies
+                else listOf("install window overran: ${overrun.seconds}s") + lock.failedPolicies,
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,
+            appVersionCode = device.appVersionCode(),
+            update = device.updateReport(),
             mode = lock.mode,
             protections = lock.protections,
             timeUsed = device.timeUsed(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
-        val hash = sha256(status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null).toString())
-        val now = device.nowMs()
+        val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
+        val hash = sha256(comparable.toString() + (overrun?.sequence?.let { ":$it" } ?: ""))
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         api.reportStatus(token, status)
+        overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
         store.statusHash = hash
         store.statusAtMs = now
     }

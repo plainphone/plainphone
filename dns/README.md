@@ -163,7 +163,7 @@ docker compose exec api python -m ppdns backup
 | Blocklists | every 12 h | download the lists that belong to a profile or category, add the tags, tell AdGuard to reload, and give phones from an older ppdns the tags they now need |
 | New lists | at start | adds lists that a newer ppdns knows to an existing install |
 | Certificate | every 5 min | when lego has renewed the certificate, AdGuard re-reads it without a restart |
-| Self-test | every 5 min | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate AdGuard actually serves must have 10+ days left (if it is older than the file lego wrote, ppdns forces a reload), and the last backup (and, with S3, the last upload) must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
+| Self-test | every 5 min by default, or disabled with `PPDNS_SELFTEST_MINUTES=0` | real DoT queries via a hidden `monitor-…` child ClientID: `example.com` must resolve, `googlesyndication.com` must be blocked, the certificate AdGuard actually serves must have 10+ days left (if it is older than the file lego wrote, ppdns forces a reload), and the last backup (and, with S3, the last upload) must be younger than 36 h. The result goes to `PPDNS_KUMA_PUSH_URL` (Uptime Kuma push monitor) if set |
 | Backup | at start and every 24 h | `AdGuardHome.yaml` (all ClientIDs and rules) as `.tar.gz` in the data volume, last 14, and to S3 if `PPDNS_BACKUP_S3_*` is set |
 
 ## Tests
@@ -205,6 +205,8 @@ each tagged list's download deadline across startup and fetches only lists
 that are due. A failed download retries after one
 refresh interval, while the other lists keep their own deadlines. Startup
 still asks AdGuard to reload its filters.
+Periodic list refreshes continue if restoring helpline rules or their statistics
+exclusions fails. ppdns logs the error and retries the restore on the next refresh.
 If a download fails, retagging a legacy copy streams it to an atomic replacement
 while retaining the age of the last upstream download.
 

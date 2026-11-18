@@ -105,6 +105,10 @@ class FakeAdGuard:
     def user_rules(self):
         return list(self.rules)
 
+    def exclude_from_stats(self, rules, *, obsolete):
+        self.stats_exclusions = [rule for rule in getattr(self, "stats_exclusions", []) if rule not in obsolete]
+        self.stats_exclusions = list(dict.fromkeys(self.stats_exclusions + rules))
+
     def set_user_rules(self, rules):
         self.rules = list(rules)
 
@@ -423,6 +427,53 @@ class ServiceTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_fixed_help_rules_are_private_and_survive_parent_edits(self):
+        self.svc.install_helpline_rules()
+        self.svc.install_helpline_rules()
+        out = self.svc.create("child", block_domains=["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["block_domains"], ["bornetelefonen.dk", "sundhed.dk"])
+        self.assertEqual(out["allow_domains"], [])
+        for domain in ("bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk"):
+            self.assertEqual(self.ag.user_rules().count(f"@@||{domain}^$important"), 1)
+            self.assertIn(f"||{domain}^", self.ag.stats_exclusions)
+
+        for host in ("phs.basechat.com", "c.basechat.com"):
+            self.assertEqual(self.ag.user_rules().count(f"@@|{host}^$important"), 1)
+            self.assertNotIn(f"@@||{host}^$important", self.ag.user_rules())
+            self.assertIn(f"|{host}^", self.ag.stats_exclusions)
+
+    def test_old_basechat_wildcard_is_replaced_with_exact_host(self):
+        self.ag.rules.extend((
+            "! Plainphone protected help sites",
+            "@@||phs.basechat.com^$important",
+            "@@||c.basechat.com^$important",
+            "! End Plainphone protected help sites",
+        ))
+        self.ag.stats_exclusions = ["||phs.basechat.com^", "||c.basechat.com^"]
+        self.svc.install_helpline_rules()
+        self.assertNotIn("@@||phs.basechat.com^$important", self.ag.rules)
+        self.assertNotIn("||phs.basechat.com^", self.ag.stats_exclusions)
+        self.assertIn("@@|phs.basechat.com^$important", self.ag.rules)
+        self.assertIn("|phs.basechat.com^", self.ag.stats_exclusions)
+
+    def test_removed_help_domain_loses_its_exception_after_restart(self):
+        self.ag.rules.extend(("@@||manual.example^$important", "@@||backop.dk^$important"))
+        self.ag.stats_exclusions = ["||backop.dk^", "||manual.example^"]
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||old.example^", "||keep.example^"]):
+            self.svc.install_helpline_rules()
+        self.svc.create("child", client_id="child-phone-123456", block_domains=["old.example"])
+        restarted = Service(self.ag, "dns.example.org", self.tmp.name)
+        with patch.object(service_mod.helplines, "host_patterns", return_value=["||keep.example^"]):
+            restarted.install_helpline_rules()
+        self.assertNotIn("@@||old.example^$important", self.ag.rules)
+        self.assertIn("@@||keep.example^$important", self.ag.rules)
+        self.assertIn("@@||manual.example^$important", self.ag.rules)
+        self.assertTrue(any(rule.startswith("||old.example^$client=") for rule in self.ag.rules))
+        self.assertNotIn("||old.example^", self.ag.stats_exclusions)
+        self.assertNotIn("@@||backop.dk^$important", self.ag.rules)
+        self.assertNotIn("||backop.dk^", self.ag.stats_exclusions)
+        self.assertIn("||manual.example^", self.ag.stats_exclusions)
+
     def test_create_registers_client_and_access_list(self):
         out = self.svc.create("child")
         self.assertEqual(out["profile"], "child")
@@ -669,6 +720,7 @@ class UpgradeFromFirstReleaseTest(unittest.TestCase):
         with mock.patch.object(lists, "build", return_value={}):
             jobs.refresh_lists()
         self.assertEqual(self.ag.refreshed, 1)
+        self.assertIn("@@||bornetelefonen.dk^$important", self.ag.user_rules())
         self.assertIn("os_other", self.ag._clients["pp-childchild"]["tags"])
 
 
@@ -703,6 +755,23 @@ class SigV4Test(unittest.TestCase):
 
 
 class JobsTest(unittest.TestCase):
+    def test_stats_timeout_does_not_skip_list_refresh(self):
+        from unittest.mock import patch
+        from ppdns.server import Jobs
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = ConfigTest().settings(tmp, PPDNS_LISTS_DIR=tmp)
+            ag = FakeAdGuard()
+            jobs = Jobs(settings, Service(ag, settings.domain, tmp))
+            with (
+                patch.object(ag, "exclude_from_stats", side_effect=TimeoutError),
+                patch.object(lists, "build", return_value={}) as build,
+                self.assertLogs("ppdns.server", level="ERROR"),
+            ):
+                jobs.refresh_lists()
+            build.assert_called_once()
+            self.assertEqual(ag.refreshed, 1)
+
     def test_reused_lists_refresh_at_their_original_deadline(self):
         from unittest.mock import patch
         from ppdns.server import Jobs

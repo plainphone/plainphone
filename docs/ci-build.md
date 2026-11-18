@@ -16,11 +16,14 @@ Before path filtering, the same change started four runners that ran the full
 Android and server workflows. These counts include the short success jobs.
 Elapsed and billed time also depend on queue and runner startup time.
 
-Android APK builds also watch the provisioning QR and release smoke scripts.
+Android checks also watch the provisioning QR and release smoke scripts,
+`web/test-fixtures/*` for shared enrollment fixtures, and
+`docs/encryption-test-vectors/*` and `packages/crypto*` for Kotlin vector tests.
 Phone sync additionally watches the server, root workspace inputs and its
 test driver. Parent app checks watch the OpenAPI spec and the PWA files copied
 by `pnpm sync:shared`. Server checks also watch the root workspace packages
-and encryption test vectors. DNS checks watch the server schema and validation
+and encryption test vectors, which run in the TypeScript workspace suite.
+DNS checks watch the server schema and validation
 files mirrored by `dns/ppdns/profiles.py`. Independent jobs run in parallel.
 Debug and release APK checks share one Gradle invocation. The Docker smoke job
 runs concurrently with server, web and phone sync checks, with `pnpm -r build`

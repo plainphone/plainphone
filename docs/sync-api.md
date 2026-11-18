@@ -244,3 +244,15 @@ one sync, `PairingController` in `Pairing.kt` the pairing, and `AndroidSync.kt` 
 scheduling, location and status. How it behaves is described in [phone-sync.md](phone-sync.md).
 [`scripts/e2e-phone-sync.sh`](../scripts/e2e-phone-sync.sh) runs that code against the real
 server and PostgreSQL, also in CI.
+
+
+### Phone app updates
+
+`POST /api/phones/{pid}/update` stores `update.requestedAt` in the phone's rules and
+wakes it through `GET /api/device/update-request?after=<epoch-ms>` while the phone
+process is connected. The same request is also delivered by rules sync if Android
+suspends the process or either end loses its connection. The phone saves the most recently queued request to avoid doing
+the same work on every poll. `PUT /api/device/status` reports `appVersion`,
+`appVersionCode` and the optional latest outcome in `update`.
+`GET /download/android/latest.json` describes the release before the phone downloads
+the binary. See [Android updates](android-updates.md).

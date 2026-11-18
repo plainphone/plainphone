@@ -215,11 +215,6 @@ for (const [index, body] of ([
 }
 
 const releaseCommandId = commandIdPrefix + "8";
-const releaseAck = await encrypted({
-  ...common, table: "phone_reports", scope: "R", recordId: releaseCommandId,
-  signerDeviceId: recipientDeviceId,
-}, { kind: "release-ack", commandId: releaseCommandId }, rKey, 0x46, receiverSignSeed);
-
 const trustedDeviceId = "00000000-0000-4000-8000-000000000011";
 const trustedUserId = "00000000-0000-4000-8000-000000000012";
 const trustedSeed = Buffer.alloc(32, 0x61);
@@ -259,6 +254,15 @@ const removed = await log(4, admin.head, "device.remove", { deviceId: adminDevic
   await keyEpoch("L", phoneId, lKey2, 2),
   await keyEpoch("R", phoneId, rKey2, 2),
 ]);
+commands[3] = await encrypted({
+  ...common, epoch: 2, rosterHead: removed.head, table: "commands",
+  scope: "R", recordId: releaseCommandId, issuedAt: now, expiresAt: now + 120000,
+}, { kind: "release" }, rKey2, 0x45);
+const releaseAck = await encrypted({
+  ...common, epoch: 2, rosterHead: removed.head, table: "phone_reports", scope: "R", recordId: releaseCommandId,
+  signerDeviceId: recipientDeviceId,
+}, { kind: "release-ack", commandId: releaseCommandId }, rKey2, 0x46, receiverSignSeed);
+
 const ruleHeader2 = { ...common, epoch: 2, version: 2, rosterHead: removed.head,
   table: "phone_state", scope: "R", recordId: phoneId };
 const basePolicyBody = {
@@ -329,6 +333,10 @@ const emergency = await log(6, rotated.head, "device.add", {
   role: "emergency", scope: [], relationship: "other", selfPhoneIds: [phoneId],
 }, []);
 
+const emergencyRules = await encrypted({
+  ...ruleHeader2, epoch: 3, version: 4, rosterHead: emergency.head,
+}, { ...basePolicyBody, rules: { ...basePolicyBody.rules, locationMode: "onRequest" } },
+Buffer.alloc(32, 0x6b), 0x43);
 const findCommandId = "00000000-0000-4000-8000-000000000018";
 const emergencyFind = await encrypted({
   ...common, epoch: 2, rosterHead: emergency.head, signerDeviceId: emergencyDeviceId,
@@ -425,13 +433,16 @@ for (const size of [252, 253]) {
 const dedupeInfo = domain("dedupe-key", { householdId, phoneId, epoch: 1 });
 const dedupeKey = await hkdf(rKey, dedupeInfo, 32);
 const dedupeInput = domain("dedupe", { kind: "app", value: "org.example.fixture" });
+const dnsIkm = Buffer.alloc(32, 0x73);
+const dnsKeys = await suite.kem.deriveKeyPair(dnsIkm);
+const dnsPublic = await suite.kem.serializePublicKey(dnsKeys.publicKey);
 const dnsHeader = { v: 1, clientId: "fixture", revision: 1,
-  ppdnsKeyId: b64(await hash(new Uint8Array(receiverPub))) };
+  ppdnsKeyId: b64(await hash(new Uint8Array(dnsPublic))) };
 const dnsPolicy = { allowDomains: ["example.test"], blockDomains: [], blockedCategories: [] };
 const dnsDigest = b64(await hash(domain("dns-policy", dnsPolicy)));
 const dns = await hpke(domain("dns-config", dnsHeader), Buffer.alloc(0),
   encode(dnsPolicy),
-  receiverIkm, Buffer.alloc(32, 0x35));
+  dnsIkm, Buffer.alloc(32, 0x35));
 
 const canonicalInput = { "€": "e\u0301", "\uE000": 7, "😀": "\n", z: [3, null, true], a: "é" };
 assert.equal(encode(canonicalInput).toString(), '{"a":"é","z":[3,null,true],"€":"é","😀":"\\n","\uE000":7}');
@@ -491,6 +502,23 @@ const alteredS = (nonceScalar + alteredChallenge * scalarLE(secretScalar)) % gro
 const alteredSig = Buffer.concat([alteredR, hex(alteredS.toString(16).padStart(64, "0")).reverse()]);
 assert(ed25519.verify(alteredSig, Buffer.alloc(0), signPub, { zip215: false }));
 ed25519Reject.push({ reason: "cofactored-equation-only", pub: signPub, sig: alteredSig });
+const scalarBytes = (value: bigint) => hex(value.toString(16).padStart(64, "0")).reverse();
+const zeroNonceSignature = async (r: Buffer<ArrayBuffer>) => {
+  const challenge = scalarLE(new Uint8Array(
+    await subtle.digest("SHA-512", Buffer.concat([r, signPub])),
+  )) % groupOrder;
+  return Buffer.concat([r, scalarBytes(challenge * scalarLE(secretScalar) % groupOrder)]);
+};
+const signedIdentity = Buffer.from(identity);
+signedIdentity[31] = 128;
+ed25519Reject.push(
+  { reason: "S-plus-L", pub: signPub, sig: Buffer.concat([
+    emptySigBytes.subarray(0, 32), scalarBytes(scalarLE(emptySigBytes.subarray(32)) + groupOrder),
+  ]) },
+  { reason: "identity-A-and-R", pub: identity, sig: Buffer.concat([identity, Buffer.alloc(32)]) },
+  { reason: "x-zero-sign-bit", pub: signPub, sig: await zeroNonceSignature(signedIdentity) },
+  { reason: "valid-equation-small-order-R", pub: signPub, sig: await zeroNonceSignature(identity) },
+);
 const invalidEd25519 = [];
 for (const { reason, pub, sig } of ed25519Reject) {
   assert.equal(sig.length, 64);
@@ -576,7 +604,7 @@ const fixtures = {
     signing: { seed: b64(signSeed), publicKey: b64(signPub) },
     log: [genesis, enrolled, trusted, admin, removed, rotated, emergency, recovery, phoneRemoved], envelope: { ...envelope, hpke: envelopeCrypto },
     rules, commands, report, householdLabel, padding, join,
-    emergencyFind: { command: emergencyFind, result: { ...findResult, body: resultBody, hpke: resultHPKE } },
+    emergencyFind: { rules: emergencyRules, command: emergencyFind, result: { ...findResult, body: resultBody, hpke: resultHPKE } },
     negative: {
       lowOrderEnc: { envelope: lowOrderEnvelope, reason: "low-order-enc" },
       fork: { entry: fork, acceptedHead: trusted.head, reason: "fork-head" },

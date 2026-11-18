@@ -41,6 +41,7 @@ import org.plainphone.app.Lock
 import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
+import org.plainphone.app.update.SelfUpdate
 
 /** Entry points for the rest of the app. */
 object Sync {
@@ -101,6 +102,13 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
         LocationReader(context).current(precise, notBeforeMs = notBeforeMs, fresh = fresh)
     override fun lastKnownLocation(): LocationFix? = LocationReader(context).lastKnown()
     override fun cachedCoarseLocation(): LocationFix? = LocationReader(context).current(precise = false, timeoutMs = 0)
+
+    override fun appVersionCode(): Long =
+        Compat.packageInfo(context.packageManager, context.packageName, 0).longVersionCode
+
+    override fun updateReport() = SelfUpdate.report(context)
+
+    override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
 
     override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
     override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()
@@ -311,6 +319,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
     override fun doWork(): Result {
         val reason = inputData.getString(KEY_REASON) ?: "scheduled"
         val outcome = try {
+            Lock.recoverInstall(applicationContext, reason)
             Sync.runner(applicationContext).run(reason)
         } catch (e: Exception) {
             Log.e("Plainphone", "sync crashed", e)
@@ -344,6 +353,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 class EnrollWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         val result = try {
+            Lock.recoverInstall(applicationContext, "enrollment")
             org.plainphone.app.ui.PairingActivity.controller(applicationContext).enroll()
         } catch (e: Exception) {
             Log.w("Plainphone", "enrollment failed, will retry: ${e.javaClass.simpleName}")
@@ -377,6 +387,7 @@ object SyncScheduler {
 
     fun ensurePeriodic(context: Context) {
         if (!SyncStore(context).isPaired) return
+        org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(network)
             .setInputData(workDataOf(SyncWorker.KEY_REASON to "every 15 minutes"))
@@ -386,6 +397,7 @@ object SyncScheduler {
 
     fun now(context: Context, reason: String) {
         if (!SyncStore(context).isPaired) return
+        org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

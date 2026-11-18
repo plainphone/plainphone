@@ -119,7 +119,7 @@ jobs:
         if: needs.changes.outputs.android == 'true'
 
       # Share compilation and SDK setup across debug and release checks.
-      - name: Debug and release APKs, lint and debug unit tests
+      - name: Debug and release APKs, lint and unit tests (including encryption vectors)
         if: needs.changes.outputs.android == 'true'
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug assembleRelease lintRelease
 

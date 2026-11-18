@@ -51,6 +51,19 @@ describe("rules delivery", () => {
     expect(after.json.apps.allowed).toContain("com.zhiliaoapp.musically");
   });
 
+  it("invalidates the rules ETag when the dashboard requests an update", async () => {
+    const { parent, phoneId, device } = await setup();
+    const first = await device.get("/api/device/rules");
+    const etag = first.headers.get("etag")!;
+    expect((await device.get("/api/device/rules", { "if-none-match": etag })).status).toBe(304);
+
+    expect((await parent.post(`/api/phones/${phoneId}/update`, {})).status).toBe(202);
+    const after = await device.get("/api/device/rules", { "if-none-match": etag });
+    expect(after.status).toBe(200);
+    expect(after.json.update.requestedAt).toBe(h.ctx.now().toISOString());
+    expect(after.headers.get("etag")).not.toBe(etag);
+  });
+
   it("wakes the phone by push when it has a token", async () => {
     const { parent, phoneId, device } = await setup();
     await device.put("/api/device/push-token", { fcmToken: "fcm-123" });

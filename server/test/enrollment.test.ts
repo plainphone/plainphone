@@ -215,6 +215,40 @@ describe("stable APK address", () => {
     expect((await downloadRoutes(h.ctx, fake).request("/android")).status).toBe(503);
   });
 
+  it("reads and caches metadata from the same release as the chosen APK", async () => {
+    const sha256 = "a".repeat(64);
+    const url = "https://github.com/x/new.apk";
+    const metadata = { versionCode: 7, versionName: "0.1.6", sha256 };
+    const candidates = structuredClone(releases);
+    candidates[2]!.assets!.push({
+      name: "plainphone-0.1.3-android10.apk.json",
+      browser_download_url: "https://github.com/x/latest.json",
+    });
+    const calls: string[] = [];
+    const fake = (async (input: string) => {
+      calls.push(input);
+      return Response.json(input.startsWith("https://api.github.com/") ? candidates : metadata);
+    }) as typeof fetch;
+    const app = downloadRoutes(h.ctx, fake);
+    for (let i = 0; i < 2; i++) {
+      expect(await (await app.request("/android/latest.json")).json()).toEqual({ ...metadata, url });
+    }
+    expect(calls).toHaveLength(2);
+    expect((await app.request("/android")).headers.get("location")).toBe(url);
+  });
+
+  it("binds self-hosted metadata to APK_DOWNLOAD_URL", async () => {
+    const url = "https://pp.example.org/app.apk";
+    const ctx = { ...h.ctx, cfg: { ...h.ctx.cfg, APK_DOWNLOAD_URL: url, APK_METADATA_URL: url + ".json" } };
+    const sha256 = "b".repeat(64);
+    const fake = (async (input: string) => {
+      expect(input).toBe(ctx.cfg.APK_METADATA_URL);
+      return Response.json({ versionCode: 8, versionName: "0.1.7", sha256, url: "https://example.org/other.apk" });
+    }) as typeof fetch;
+    expect(await (await downloadRoutes(ctx, fake).request("/android/latest.json")).json())
+      .toEqual({ url, versionCode: 8, versionName: "0.1.7", sha256 });
+  });
+
   it("uses a self-hoster's fixed URL without asking GitHub", async () => {
     const ctx = { ...h.ctx, cfg: { ...h.ctx.cfg, APK_DOWNLOAD_URL: "https://pp.example.org/app.apk" } };
     const fake = (async () => {

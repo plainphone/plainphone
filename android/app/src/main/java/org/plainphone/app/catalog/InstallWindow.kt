@@ -2,15 +2,15 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.catalog
 
-import android.app.AlarmManager
-import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
-import org.plainphone.app.RelockReceiver
+import org.plainphone.app.update.InstallLease
 
 /**
  * Installing an app the parent picked from the catalog (R2, docs/app-catalog.md).
@@ -31,48 +31,84 @@ object InstallWindow {
     fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? {
         val p = prefs(context)
         val pkg = p.getString("pkg", null) ?: return null
+        if (!InstallLease.android(context).isOpen(InstallLease.CATALOG)) return null
         return pkg.takeIf { p.getLong("until", 0L) > nowMs && !isInstalled(context, pkg) }
     }
 
     /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
-    fun open(context: Context, packageName: String) {
+    fun open(context: Context, packageName: String) = open(context, packageName) { onInstallsAllowed ->
+        Lock.applyForInstall(context.applicationContext, "install window for $packageName", true, onInstallsAllowed)
+    }
+
+    @SuppressLint("ApplySharedPref")
+    internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) {
         val app = context.applicationContext
         // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
         // lets Play through for the window instead of closing it.
         // Tapping again does not extend an open window, or Play could be kept open for good.
         // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
-        if (current(app) != packageName && takeWindow(app)) {
-            prefs(app).edit().putString("pkg", packageName).putLong("until", System.currentTimeMillis() + WINDOW_MS).apply()
-            scheduleClose(app)
-            runCatching { Lock.applyNow(app, "install window for $packageName") }
+        synchronized(this) {
+            if (isInstalled(app, packageName)) return
+            if (current(app) != packageName) {
+                val day = java.time.LocalDate.now().toString()
+                val p = prefs(app)
+                val previousDay = p.getString("day", null)
+                val previousCount = p.getInt("windows", 0)
+                val used = if (previousDay == day) previousCount else 0
+                if (used >= MAX_PER_DAY) return
+
+                val lease = InstallLease.android(app)
+                var started = false
+                var usedWindow = false
+                try {
+                    // A restart may relock the phone, but it must retain this reservation.
+                    check(p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
+                        "Could not reserve the catalog quota"
+                    }
+                    lease.begin(InstallLease.CATALOG, WINDOW_MS)
+                    started = true
+                    check(p.edit().putString("pkg", packageName)
+                        .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                        .commit()) { "Could not save the catalog target" }
+                    applyPolicy { usedWindow = true }
+                    check(current(app) == packageName) { "Catalog target is no longer eligible" }
+                } catch (e: Exception) {
+                    Log.w("Plainphone", "catalog install window failed", e)
+                    try {
+                        if (started) close(app, "catalog install window failed", packageName)
+                    } finally {
+                        if (!usedWindow && !p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
+                            Log.e("Plainphone", "could not restore the catalog quota")
+                        }
+                    }
+                    return
+                }
+            }
         }
         launchPlay(app, packageName)
     }
 
     const val MAX_PER_DAY = 5
 
-    private fun takeWindow(context: Context): Boolean {
-        val day = java.time.LocalDate.now().toString()
-        val p = prefs(context)
-        val used = if (p.getString("day", null) == day) p.getInt("windows", 0) else 0
-        if (used >= MAX_PER_DAY) return false
-        p.edit().putString("day", day).putInt("windows", used + 1).apply()
-        return true
-    }
-
     /** Ends the window (app installed or time up) and puts the lock back. */
-    fun close(context: Context, reason: String) {
+    @Synchronized
+    fun close(context: Context, reason: String, expectedPackage: String? = null) {
         val app = context.applicationContext
-        if (prefs(app).getString("pkg", null) == null) return
+        val openPackage = prefs(app).getString("pkg", null) ?: return
+        if (expectedPackage != null && openPackage != expectedPackage) return
         prefs(app).edit().remove("pkg").remove("until").apply()
-        Lock.applyAsync(app, reason)
+        try {
+            InstallLease.android(app).invalidate(InstallLease.CATALOG)
+        } finally {
+            Lock.recoverInstallAsync(app, reason)
+        }
     }
 
     /** Called for every package added while the app runs. */
     fun onPackageAdded(context: Context, packageName: String) {
         val open = prefs(context).getString("pkg", null)
         when {
-            packageName == open -> close(context, "installed $packageName")
+            packageName == open -> close(context, "installed $packageName", packageName)
             open != null -> Lock.applyAsync(context, "app installed during install window")
             // Light mode cannot stop installs: put the new app on the guard's list straight away.
             org.plainphone.app.light.Mode.isLight(context) && !Lock.isInMaintenanceWindow(context) ->
@@ -95,17 +131,6 @@ object InstallWindow {
             // No Play Store (a phone without Google): the web page at least says what the app is.
             runCatching { context.startActivity(webIntent(packageName)) }
         }
-    }
-
-    private fun scheduleClose(context: Context) {
-        val intent = PendingIntent.getBroadcast(
-            context,
-            2,
-            Intent(context, RelockReceiver::class.java).setAction(RelockReceiver.ACTION_INSTALL_DONE),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        context.getSystemService(AlarmManager::class.java)
-            .setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + WINDOW_MS + 1_000L, intent)
     }
 
     private fun isInstalled(context: Context, pkg: String) =

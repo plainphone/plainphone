@@ -1,0 +1,9 @@
+<resources>
+    <string name="help_lines_title">Har du brug for at tale med nogen?</string>
+    <string name="help_lines_intro">Her kan du få hjælp. Du behøver ikke at spørge om lov til at kontakte dem.</string>
+    <string name="help_lines_call">Ring</string>
+    <string name="help_lines_sms">Skriv sms</string>
+    <string name="help_lines_web">Åbn hjemmeside</string>
+    <string name="help_lines_back">Tilbage</string>
+    <string name="help_lines_empty">Der er endnu ingen hjælpelinjer på listen for dette land.</string>
+</resources>

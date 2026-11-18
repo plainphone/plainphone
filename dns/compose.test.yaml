@@ -14,11 +14,16 @@ services:
     volumes: !override
       - ./tests/.certs:/certs:ro
   adguard:
+    ports: !override
+      - "127.0.0.1::853"
+      - "127.0.0.1::3000"
     volumes: !override
       - conf:/opt/adguardhome/conf
       - work:/opt/adguardhome/work
       - ./tests/.certs:/certs:ro
   api:
+    ports: !override
+      - "127.0.0.1::8053"
     volumes: !override
       - conf:/opt/adguardhome/conf:ro
       - work:/opt/adguardhome/work

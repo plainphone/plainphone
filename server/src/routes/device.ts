@@ -6,7 +6,7 @@ import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests } from "../db/schema.js";
+import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
@@ -17,9 +17,11 @@ import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
-import { respondWithRules } from "../services/phones.js";
+import { installOverrunFromStatus, isInstallOverrun, respondWithRules } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
+
+import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
 export const DEVICE_PREFIX = "pp_d_";
@@ -42,7 +44,7 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
   Partial<Record<(typeof PROTECTIONS)[number], boolean>>
 >;
 
-export function deviceRoutes(ctx: Ctx) {
+export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
@@ -166,6 +168,25 @@ export function deviceRoutes(ctx: Ctx) {
     if (rules === null) return c.body(null, 304);
     c.header("Content-Type", "application/json");
     return c.body(rules);
+  });
+
+  app.get("/update-request", async (c) => {
+    const after = z.coerce.number().int().nonnegative().safeParse(c.req.query("after"));
+    if (!after.success) return c.json({ error: "invalid update timestamp" }, 400);
+    const { id } = c.get("phone");
+    c.header("Cache-Control", "no-store");
+    const listener = updateWake.listen(id, c.req.raw.signal);
+    if (!listener) return c.json({ error: "phone is already waiting" }, 409);
+    try {
+      // Read after subscribing so the parent cannot update the row between the read and the wait.
+      const [p] = await ctx.db.select({ at: phones.updateRequestedAt }).from(phones).where(eq(phones.id, id));
+      const stored = p?.at?.getTime() ?? 0;
+      const requested = stored > after.data ? stored : await listener.result;
+      if (requested && requested > after.data) return c.json({ requestedAtMs: requested });
+      return c.body(null, 204);
+    } finally {
+      listener.cancel();
+    }
   });
 
   // The phone has switched Plainphone off after a release request. The phone is deleted, so
@@ -352,6 +373,14 @@ export function deviceRoutes(ctx: Ctx) {
       c,
       z.object({
         appVersion: z.string().min(1).max(40),
+        appVersionCode: z.number().int().positive().optional(),
+        update: z.object({
+          state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),
+          errorCode: z.enum(UPDATE_ERROR_CODES).optional(),
+          detail: z.string().max(200).nullable(),
+          checkedAt: z.iso.datetime({ offset: true }).nullable(),
+          latestVersion: z.string().max(40).nullable(),
+        }).optional(),
         batteryPct: z.number().int().min(0).max(100).nullable(),
         charging: z.boolean().nullable(),
         deviceOwner: z.boolean(),
@@ -385,17 +414,27 @@ export function deviceRoutes(ctx: Ctx) {
           LIGHT_LOCK.every((k) => p[k] === true) &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
-    // The newest report replaces the one before; no history is kept. Times are stored in UTC.
-    // The previous report is read in the same statement, so two reports racing each other
-    // cannot both see "was protected" and alert twice.
-    const [prev] = await ctx.db.execute<{ status: typeof phone.deviceStatus }>(sql`
-      with old as (select device_status from phones where id = ${phone.id} for update)
-      update phones set
-        device_status = ${JSON.stringify({ ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null })}::jsonb,
-        status_reported_at = ${ctx.now().toISOString()}::timestamptz
-      from old where phones.id = ${phone.id}
-      returning old.device_status as status`);
-    const lost = protectionLost(prev?.status ?? null, { ...input, lockIntact });
+    const status = { ...input, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
+    const policy = input.failedPolicies.find(isInstallOverrun);
+    const lost = await ctx.db.transaction(async (tx) => {
+      // Serialize reports so retries keep the original expiry and only one report sees protection lost.
+      const [prev] = await tx.select({
+        status: phones.deviceStatus,
+        reportedAt: phones.statusReportedAt,
+      }).from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!prev) return null;
+      const now = ctx.now();
+      const previousOverrun = installOverrunFromStatus(prev.status, prev.reportedAt);
+      const installOverrun = policy && (policy !== previousOverrun?.policy ||
+        !prev.status?.failedPolicies.includes(policy))
+        ? { policy, receivedAt: now.toISOString() }
+        : previousOverrun;
+      await tx.update(phones).set({
+        deviceStatus: { ...status, installOverrun },
+        statusReportedAt: now,
+      }).where(eq(phones.id, phone.id));
+      return protectionLost(prev.status, status);
+    });
     if (lost) {
       await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
     }

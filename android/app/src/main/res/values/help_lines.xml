@@ -1,0 +1,9 @@
+<resources>
+    <string name="help_lines_title">Do you need someone to talk to?</string>
+    <string name="help_lines_intro">These services are here to help. You can contact them without asking for permission.</string>
+    <string name="help_lines_call">Call</string>
+    <string name="help_lines_sms">Text</string>
+    <string name="help_lines_web">Open website</string>
+    <string name="help_lines_back">Back</string>
+    <string name="help_lines_empty">There are no help lines listed for this country yet.</string>
+</resources>

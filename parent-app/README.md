@@ -33,7 +33,7 @@ The app talks to `https://app.plainphone.org`. For your own server, build with `
 | `pnpm lint` | ESLint (eslint-config-expo) |
 | `pnpm test` | Jest + React Native Testing Library: login, the login link, phones, settings, links, push routing, copy |
 | `pnpm check:api` | `src/api/schema.d.ts` matches `server/openapi.yaml` (regenerate with `pnpm gen:api`) |
-| `pnpm check:shared` | `src/shared/` is an exact copy of the PWA's copy and formatting (update with `pnpm sync:shared`) |
+| `pnpm check:shared` | `src/shared/` matches the PWA's shared copy and formatting (update with `pnpm sync:shared`) |
 | `pnpm export` | bundles iOS, Android and web |
 
 CI runs all of them in [`.github/workflows/parent-app.yml`](../.github/workflows/parent-app.yml).

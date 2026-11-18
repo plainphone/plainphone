@@ -244,6 +244,7 @@ export default {
               "Filterets indstillinger for hver telefon (ClientID, profil, tilladte og blokerede domæner) gemmes, til telefonen fjernes.",
             ],
           },
+          "Plainphone holder opkald og sms til hjælpelinjer samt brug af hjælpeskærmen ude af forældrenes rapporter. Android kan stadig gemme seneste opkald og sms-samtaler på telefonen. Opslag på beskyttede hjælpe- og sundhedsdomæner tæller ikke med i filterets statistik.",
           `Tilladte opslag sendes videre over krypterede forbindelser til Quad9 (Schweiz) og Mullvad, med Cloudflare som reserve. De ser domænet og vores servers adresse, aldrig telefonens, og ingen del af telefonens IP-adresse bliver sendt med. De tekniske detaljer står i <a href="https://github.com/plainphone/plainphone/blob/main/docs/privacy.md">docs/privacy.md</a>.`,
         ],
       },

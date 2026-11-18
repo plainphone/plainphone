@@ -53,6 +53,7 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 ### In both modes
 
 - **Approved contacts.** Plainphone becomes the default phone and SMS app. Calls and SMS to and from numbers that are not on the list are blocked; hidden callers are rejected. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. See [docs/contacts.md](docs/contacts.md).
+- **Helplines.** Children can reach listed support services from Help. See [the helpline policy](docs/policies.md#help-lines).
 - **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
 - **Rules from the server.** App list, approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. See [docs/phone-sync.md](docs/phone-sync.md).
 - **Location on request.** By default the phone shares its position when a parent presses Find or when a check-in reaches its reply deadline without an answer. The server waits briefly before showing a check-in position so a reply arriving at the same time can still win. Find and check-in look up positions independently, and the phone can send a cached Find position first. Older Android apps can answer both requests with one position. If a Find or scheduled lookup fails, the map can show the last known position with its original time. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
@@ -139,6 +140,18 @@ The script reads the signing certificate checksum from the APK (or takes `--chec
 - `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45` set the first approved contacts.
 
 A phone configured with the script can show a pairing code, which the parent claims in the dashboard. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
+
+## Updating the phone app
+
+In strong mode Plainphone checks daily on an unmetered connection or while charging and
+installs a newer release signed with the same certificate when Android allows Plainphone
+to run without battery optimization. **Update now** on the phone's
+dashboard page uses a direct connection while the screen is on, and push and rules sync
+deliver the request with the screen off. In light mode the
+phone shows a quiet update notification for manual installation. See
+[Android updates](docs/android-updates.md) for the first manual update, the foreground
+watchdog, deadline recovery even when lease storage fails, release metadata, and the
+real-phone release check.
 
 ## Roadmap
 

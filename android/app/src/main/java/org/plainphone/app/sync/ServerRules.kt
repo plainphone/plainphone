@@ -36,6 +36,8 @@ data class ServerRules(
     val settings: PhoneSettings = PhoneSettings.NONE,
     /** How the home screen looks. Defaults from older servers. */
     val home: HomePrefs = HomePrefs.DEFAULT,
+    /** Set when a parent pressed "Update now"; the phone checks for a new app version at once. */
+    val updateRequestedAt: Instant? = null,
     /** Apps the parent picked from the catalog that are not installed yet. Treated as allowed. */
     val toInstall: List<CatalogInstall> = emptyList(),
     /** Daily minutes per app and in total (docs/time-limits.md). */
@@ -95,6 +97,10 @@ data class ServerRules(
                 pollSeconds = j.optInt("pollSeconds", DEFAULT_POLL_SECONDS).coerceIn(MIN_POLL_SECONDS, 24 * 60 * 60),
                 settings = PhoneSettings.parse(j.optJSONObject("settings")),
                 home = HomePrefs.parse(j.optJSONObject("home")),
+                // Older servers do not send "update".
+                updateRequestedAt = j.optJSONObject("update")?.optString("requestedAt", "")
+                    ?.takeIf { it.isNotEmpty() && it != "null" }
+                    ?.let { Instant.parse(it) },
                 // Both are newer than the first servers: missing means none.
                 toInstall = apps.optJSONArray("toInstall")?.let(::objects).orEmpty().map {
                     CatalogInstall(it.getString("packageName"), if (it.isNull("label")) it.getString("packageName") else it.getString("label"))

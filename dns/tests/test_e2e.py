@@ -4,11 +4,14 @@
 
 Needs these environment variables (tests are skipped without them):
 
-  PPDNS_TEST_SERVER   host or IP that serves DoT on port 853
+  PPDNS_TEST_SERVER   host or IP that serves DoT
+  PPDNS_TEST_PORT     DoT port (default 853)
   PPDNS_TEST_DOMAIN   the DoT base domain (ClientIDs go in front of it)
   PPDNS_TEST_API      ppdns API base URL, e.g. http://127.0.0.1:8053
   PPDNS_API_TOKEN     bearer token for the API
   PPDNS_TEST_VERIFY   "1" to verify the certificate (production), default off
+  PPDNS_TEST_ADGUARD  disposable AdGuard admin URL for the help-site stats test
+  PPDNS_ADGUARD_PASSWORD  admin password for that disposable instance
 
 Run: python3 -m unittest discover -s dns/tests -p 'test_e2e.py' -v
 """
@@ -25,12 +28,15 @@ import urllib.request
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from ppdns import dot  # noqa: E402
+from ppdns import dot, lists
+from ppdns.adguard import AdGuard  # noqa: E402
 
 SERVER = os.environ.get("PPDNS_TEST_SERVER", "")
 DOMAIN = os.environ.get("PPDNS_TEST_DOMAIN", "")
 API = os.environ.get("PPDNS_TEST_API", "").rstrip("/")
 TOKEN = os.environ.get("PPDNS_API_TOKEN", "")
+PORT = int(os.environ.get("PPDNS_TEST_PORT", "853"))
+ADGUARD = os.environ.get("PPDNS_TEST_ADGUARD", "")
 VERIFY = os.environ.get("PPDNS_TEST_VERIFY") == "1"
 
 # Google and YouTube answer these addresses for their SafeSearch / Restricted hosts.
@@ -81,7 +87,7 @@ def ask(client_id: str, name: str, qtype: int = dot.TYPE_A) -> dot.Answer:
     last = None
     for _ in range(3):  # tolerate a slow upstream on a cold cache
         try:
-            return dot.query(name, server=SERVER, tls_name=f"{client_id}.{DOMAIN}", qtype=qtype, verify=VERIFY)
+            return dot.query(name, server=SERVER, port=PORT, tls_name=f"{client_id}.{DOMAIN}", qtype=qtype, verify=VERIFY)
         except (TimeoutError, ConnectionError, OSError) as exc:
             last = exc
             time.sleep(2)
@@ -211,6 +217,35 @@ class EndToEnd(unittest.TestCase):
         # other phones are not affected
         self.assertTrue(resolves(ask(self.selfp, "example.org")))
         self.assertTrue(ask(self.selfp, "googlesyndication.com").blocked)
+
+    @unittest.skipUnless(ADGUARD, "requires admin access to the disposable test stack")
+    def test_help_sites_override_category_and_parent_blocks_without_stats(self):
+        admin = AdGuard(ADGUARD, "admin", os.environ["PPDNS_ADGUARD_PASSWORD"])
+        domains = ["bornetelefonen.dk", "sexlinien.dk", "sundhed.dk", "lgbt.dk",
+                   "phs.basechat.com", "c.basechat.com"]
+        client = self._create({"profile": "child", "block_domains": [domain for domain in domains if domain != "sexlinien.dk"] + ["example.org"]})
+        self.assertTrue(eventually(lambda: ask(client, "example.org").blocked))
+        original = admin.user_rules()
+        try:
+            # The same modifier ppdns adds to actual adult-category filter rules.
+            category_rules = list(lists.tag_rules(["||sexlinien.dk^", "||example.net^"], lists.TAG_ADULT))
+            admin.set_user_rules(original + [rule.strip() for rule in category_rules])
+            self.assertTrue(eventually(lambda: ask(client, "example.net").blocked))
+            self.assertTrue(opens(self.selfp, "example.net"))
+
+            # The fresh stack has no unrelated traffic during this check. A
+            # normal query must increment the counter so disabled stats fail too.
+            def query_count():
+                return admin._call("GET", "/control/stats")["num_dns_queries"]
+
+            before = query_count()
+            self.assertTrue(resolves(ask(client, "example.com")))
+            self.assertEqual(query_count(), before + 1)
+            for domain in domains:
+                self.assertTrue(resolves(ask(client, domain)), domain)
+            self.assertEqual(query_count(), before + 1)
+        finally:
+            admin.set_user_rules(original)
 
     def test_allowed_domain_beats_blocked_service_for_child(self):
         client = self._create({"profile": "child", "allow_domains": ["instagram.com"]})
