@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+export const PAIRING_RECOVERY_MS = 24 * 60 * 60_000;
+
 export function maskPairingEmail(email: string): string | null {
   const at = email.lastIndexOf("@");
   if (at <= 0 || at === email.length - 1) return null;

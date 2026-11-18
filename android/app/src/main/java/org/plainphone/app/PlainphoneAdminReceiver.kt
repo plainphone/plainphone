@@ -7,24 +7,20 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.PersistableBundle
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.provisioning.StrongSetup
 
 /** The Device Policy Controller entry point that makes Plainphone Device Owner. */
 class PlainphoneAdminReceiver : DeviceAdminReceiver() {
 
-    /** Fires when the app becomes admin, also via `adb shell dpm set-device-owner` on a test phone. */
-    override fun onEnabled(context: Context, intent: Intent) {
-        if (context.getSystemService(DevicePolicyManager::class.java).isDeviceOwnerApp(context.packageName)) {
-            Lock.applyAsync(context, "admin enabled")
-        }
-    }
-
-    /** Older provisioning path; on Android 12+ PolicyComplianceActivity runs first. Applying twice is harmless. */
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         saveConfigFrom(context, intent)
-        Lock.applyAsync(context, "provisioning complete")
+        if (Build.VERSION.SDK_INT < 31 && StrongSetup.needsConfirmation(context)) {
+            context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     companion object {
@@ -43,6 +39,7 @@ class PlainphoneAdminReceiver : DeviceAdminReceiver() {
             LocalContactPolicySource(context).seedIfEmpty(config.seedContacts)
             val sync = SyncStore(context)
             if (config.enrollToken != null && !sync.everPaired) {
+                StrongSetup.requireAccount(context)
                 sync.saveEnrollToken(config.enrollToken)
             }
         }

@@ -18,8 +18,8 @@ class PairingController(
     private val profile: String? = null,
     private val canRedeemEnrollment: () -> Boolean = { true },
 ) {
-    /** The pairing on screen, if it is still good for at least a little while. */
-    fun current(): Pairing? = store.pairing()?.takeIf { it.requiresConfirmation && it.expiresAtMs > nowMs() }
+    /** The server decides when a confirmed pairing can no longer be recovered. */
+    fun current(): Pairing? = store.pairing()?.takeIf { it.requiresConfirmation }
 
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing {
@@ -54,7 +54,7 @@ class PairingController(
     /** One poll. On [PairPoll.Paired] the token is stored and the pairing cleared. */
     fun poll(): PairPoll {
         val p = store.pairing() ?: return PairPoll.Expired
-        if (p.expiresAtMs <= nowMs()) {
+        if (!p.requiresConfirmation && p.expiresAtMs <= nowMs()) {
             store.savePairing(null)
             return PairPoll.Expired
         }

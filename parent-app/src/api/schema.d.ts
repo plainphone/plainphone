@@ -246,6 +246,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/setup-completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the remaining setup undo window (phone) */
+        get: operations["getDeviceSetupCompletion"];
+        put?: never;
+        /** Record completion once for a newly paired light-mode phone */
+        post: operations["postDeviceSetupCompletion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/undo-setup/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authorize local release within the setup undo window (phone) */
+        post: operations["postDeviceAuthorizeUndoSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/undo-setup": {
         parameters: {
             query?: never;
@@ -257,7 +292,7 @@ export interface paths {
         put?: never;
         /**
          * Acknowledge local undo of a new light-mode setup (phone)
-         * @description The phone checks the ten-minute window locally and retries this acknowledgement if offline.
+         * @description The phone sends this after an authorized local release. It retries the acknowledgement if offline.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -1590,6 +1625,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SetupUndoWindow: {
+            undoRemainingMs: number;
+        };
         PhoneRequest: {
             /** Format: uuid */
             id: string;
@@ -2465,7 +2503,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Confirmed. A retry before expiry can recover a lost response. */
+            /** @description Confirmed. The token can be recovered for up to 24 hours or until the first rules sync. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2822,6 +2860,75 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The phone is deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    getDeviceSetupCompletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The time left, or zero when setup undo is unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupUndoWindow"];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    postDeviceSetupCompletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    elapsedMs: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The time left, or zero when setup undo is unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupUndoWindow"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+        };
+    };
+    postDeviceAuthorizeUndoSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Release authorized. Safe to retry. */
             204: {
                 headers: {
                     [name: string]: unknown;

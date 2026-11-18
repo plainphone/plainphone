@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
-import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, sessions } from "../db/schema.js";
+import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneRequests, sessions } from "../db/schema.js";
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges, deletePhone } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { wakePhone } from "./phones.js";
 import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation } from "./safety.js";
+import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 
@@ -40,23 +41,27 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   for (const id of ended) await wakePhone(ctx, id, "rules");
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<{ count: number }>) => (await q).count;
+  const recoveryCutoff = new Date(now.getTime() - PAIRING_RECOVERY_MS);
   await ctx.db.transaction(async (tx) => {
     const expired = await tx.select({ phoneId: pairings.phoneId }).from(pairings)
-      .where(and(eq(pairings.requiresConfirmation, true), isNull(pairings.deliveredAt),
-        isNotNull(pairings.phoneId), lt(pairings.expiresAt, now))).for("update");
-    for (const { phoneId } of expired) if (phoneId) await deletePhone(tx, phoneId);
+      .where(and(eq(pairings.requiresConfirmation, true), isNotNull(pairings.phoneId),
+        or(and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, now)), lt(pairings.deliveredAt, recoveryCutoff))))
+      .for("update");
+    for (const { phoneId } of expired) {
+      if (!phoneId) continue;
+      const [unconnected] = await tx.select({ id: phones.id }).from(phones)
+        .where(and(eq(phones.id, phoneId), isNull(phones.pairedAt))).for("update");
+      if (unconnected) await deletePhone(tx, unconnected.id);
+    }
   });
-  await ctx.db.update(pairings).set({ pendingDeviceToken: null })
-    .where(and(eq(pairings.requiresConfirmation, true), isNotNull(pairings.deliveredAt),
-      isNotNull(pairings.pendingDeviceToken), lt(pairings.expiresAt, now)));
   const deleted = {
     magicLinks: await count(expiredMagicLinksDelete(ctx.db, now)),
     sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now))),
-    // Pairings hold an undelivered device token in clear text; never keep them long.
+    // Pairings may retain a device token until the phone first syncs or recovery expires.
     pairings: await count(
       ctx.db
         .delete(pairings)
-        .where(or(lt(pairings.expiresAt, dayAgo), lt(pairings.createdAt, dayAgo))),
+        .where(or(lt(pairings.deliveredAt, recoveryCutoff), and(isNull(pairings.deliveredAt), lt(pairings.expiresAt, dayAgo)))),
     ),
     // Invitations hold the invited email address. Accepted ones are deleted on acceptance;
     // this also catches any left from before that.

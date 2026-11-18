@@ -41,9 +41,53 @@ describe("onboarding safety", () => {
     expect((await poll()).json.deviceToken).toBe(confirmed.json.deviceToken);
     device.token = confirmed.json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 600_000 });
+    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
+    h.clock.advance(600_000);
+    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
     expect(h.mail.outbox.at(-1)?.to).toBe("claimer@example.org");
+  });
+
+  it("recovers a lost confirmation response across the original code expiry", async () => {
+    const { device, poll, decide, claim } = await start();
+    await claim();
+    h.clock.advance(14 * 60_000);
+    const confirmed = await decide("confirm");
+    h.clock.advance(2 * 60_000);
+    await sweep(h.ctx);
+    expect((await poll()).json.deviceToken).toBe(confirmed.json.deviceToken);
+    device.token = confirmed.json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+  });
+
+  it("does not reopen the undo window for an older or already completed Self phone", async () => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    h.clock.advance(120_000);
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 120_000 })).json).toEqual({ undoRemainingMs: 480_000 });
+    h.clock.advance(480_000);
+    expect((await device.get("/api/device/setup-completion")).json).toEqual({ undoRemainingMs: 0 });
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
+    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    h.clock.advance(60 * 60_000);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);
+  });
+
+  it("refuses to start the undo window for an old phone that never registered completion", async () => {
+    const { device, decide, claim } = await start();
+    await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.get("/api/device/rules")).status).toBe(200);
+    h.clock.advance(60 * 60_000);
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
+    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
   });
 
   it("removes the pending phone and code when the phone cancels", async () => {
@@ -60,11 +104,22 @@ describe("onboarding safety", () => {
     const connected = await start(pending.parent);
     const abandoned = await pending.claim();
     const kept = await connected.claim();
-    expect((await connected.decide("confirm")).status).toBe(200);
+    const confirmed = await connected.decide("confirm");
+    expect(confirmed.status).toBe(200);
+    connected.device.token = confirmed.json.deviceToken;
+    expect((await connected.device.get("/api/device/rules")).status).toBe(200);
+    const neverSynced = await start(pending.parent);
+    const neverSyncedPhone = await neverSynced.claim();
+    expect((await neverSynced.decide("confirm")).status).toBe(200);
     h.clock.advance(16 * 60_000);
     expect((await pending.poll()).status).toBe(410);
     await sweep(h.ctx);
     expect((await pending.parent.get(`/api/phones/${abandoned.json.id}`)).status).toBe(404);
+    expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
+    h.clock.advance(24 * 60 * 60_000);
+    expect((await neverSynced.poll()).status).toBe(410);
+    await sweep(h.ctx);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(404);
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
   });
 

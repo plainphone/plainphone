@@ -423,7 +423,7 @@ export default {
       {
         title: "Scan QR-koden",
         body: [
-          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone og slår låsen til, før du tager telefonen i brug.",
+          "Scan koden fra dashboardet, og vælg derefter et Wi-Fi-netværk. Telefonen henter Plainphone. Når Plainphone åbner, skal du bekræfte, hvis telefon det er, og tjekke den dashboardkonto, telefonen viser.",
           "Siger telefonen, at den bliver styret af en organisation, er det Plainphone. Accepter det: det er sådan, låsen virker.",
         ],
         fig: "scan",
@@ -431,7 +431,7 @@ export default {
       {
         title: "Kun Android 10 til 13: vælg standardapp til telefon",
         body: [
-          "Under opsætningen eller lige efter spørger telefonen, om du vil angive Plainphone som standardapp til telefon. Tryk <strong>Angiv som standard</strong>. Nåede du det ikke, så åbn Plainphone-appen, så spørger den igen.",
+          "Når du har bekræftet dashboardkontoen, spørger telefonen, om du vil angive Plainphone som standardapp til telefon. Tryk <strong>Angiv som standard</strong>. Nåede du det ikke, så åbn Plainphone-appen, så spørger den igen.",
           "På Android 14 og nyere sker det af sig selv.",
         ],
         fig: "dialog",

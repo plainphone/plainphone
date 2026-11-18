@@ -55,9 +55,12 @@ phone                                      server                         parent
    preselect the phone's profile and the adult submits the claim. With `confirmOnPhone: true`,
    a claim creates a pending phone. Polling with the secret returns only the claimer's masked
    email and the household name. The phone sends `{action: "confirm"}` to the same URL to finish
-   pairing. The token can be recovered with the same secret until the code expires. With
-   `{action: "cancel"}`, the server removes the pending phone and code. The sweeper removes
-   expired pending claims. Older clients still receive their device token once from GET.
+   pairing. Until the first authenticated rules sync, the same secret can recover the token
+   for 24 hours from confirmation, even after the 15-minute claim code expires. That first
+   sync activates the phone and clears the recovery token. Before confirmation,
+   `{action: "cancel"}` removes the pending phone and code. The sweeper removes expired
+   claims and confirmed connections that never synced. Older clients receive their device
+   token once from GET.
    Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
@@ -173,10 +176,14 @@ parent (PWA)                                server                          phon
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).
 
-**Undo light-mode setup.** The phone checks the monotonic ten-minute window locally before
-starting release. After local release succeeds, it calls `POST /device/undo-setup` with its
-device token. The server removes the phone and sends the standard protection-loss notice.
-The acknowledgement can be retried offline and accepted when connectivity returns.
+**Undo light-mode setup.** The phone registers completion once with
+`POST /device/setup-completion`, sending the elapsed time since local completion. The server
+only accepts a first registration within one hour of the first authenticated rules sync or
+setup-link redemption. It returns the remaining time on a fixed ten-minute deadline.
+`GET /device/setup-completion` recovers the remaining time after a reboot. Before releasing,
+the phone calls `POST /device/undo-setup/authorize` within the window. After local release
+succeeds, `POST /device/undo-setup` removes the phone and sends the standard protection-loss
+notice. An authorized release and its acknowledgement can be retried after the deadline.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up

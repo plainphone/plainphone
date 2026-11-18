@@ -213,6 +213,8 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
+    setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
+    setupUndoAuthorizedAt: timestamp("setup_undo_authorized_at", { withTimezone: true }),
     /**
      * Set when the parents asked to release the phone: it switches Plainphone off on its own
      * and then calls `POST /device/released`, which deletes this row. Until then the rules
@@ -254,7 +256,7 @@ export const pairings = pgTable("pairings", {
   profileHint: text("profile_hint", { enum: ["child", "self"] }),
   requiresConfirmation: boolean("requires_confirmation").notNull().default(false),
   claimedBy: uuid("claimed_by").references(() => users.id, { onDelete: "set null" }),
-  /** Device token handed to the phone on its next poll; cleared after delivery. */
+  /** Device token available for delivery or recovery until the first sync. */
   pendingDeviceToken: text("pending_device_token"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),

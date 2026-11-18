@@ -26,6 +26,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.plainphone.app.light.LightSetup
 import org.json.JSONArray
 import org.junit.After
 import org.junit.Before
@@ -66,6 +67,7 @@ class MaintenanceInstallTest {
     fun preparePhone() {
         shadowOf(dpm).setActiveAdmin(admin)
         assertThat(shadowOf(dpm).setDeviceOwner(admin)).isTrue()
+        LightSetup.saveProfile(context, "child")
         shadowOf(context.getSystemService(PowerManager::class.java))
             .setIgnoringBatteryOptimizations(context.packageName, true)
         ShadowAlarmManager.setCanScheduleExactAlarms(true)

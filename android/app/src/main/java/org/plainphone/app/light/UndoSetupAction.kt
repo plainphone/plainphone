@@ -11,30 +11,42 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import android.os.SystemClock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import org.plainphone.app.Lock
+import kotlinx.coroutines.withContext
+import org.plainphone.app.sync.HttpError
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 
 @Composable
 internal fun UndoSetupAction(activity: ComponentActivity, revision: Int, onUndo: () -> Unit) {
-    var remaining by remember(revision) { mutableLongStateOf(LightSetup.undoRemaining(activity)) }
+    var deadline by remember(revision) { mutableLongStateOf(0) }
     LaunchedEffect(revision) {
-        if (remaining > 0) delay(remaining)
-        remaining = LightSetup.undoRemaining(activity)
+        while (true) {
+            try {
+                deadline = withContext(Dispatchers.IO) { LightSetup.undoDeadline(activity) }
+                break
+            } catch (e: java.io.IOException) {
+                if (e is HttpError && e.status in 400..499 && e.status != 429) break
+                delay(5_000)
+            }
+        }
+        if (deadline > 0) delay((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0))
+        deadline = 0
     }
-    if (remaining > 0) {
+    if (deadline > 0) {
         TextButton(onClick = {
-            val accepted = LightSetup.requestUndo(activity)
-            remaining = 0L
+            val accepted = LightSetup.requestUndo(activity, deadline)
+            deadline = 0L
             if (accepted) {
                 SyncScheduler.ensurePeriodic(activity)
                 SyncScheduler.now(activity, "undo setup")
-                Lock.releaseAsync(activity) { activity.runOnUiThread(onUndo) }
+                onUndo()
             }
         }) { Text(stringResource(R.string.setup_undo)) }
-    } else if (SyncStore(activity).setupUndoPending) {
+    } else if (SyncStore(activity).setupUndoPending && !SyncStore(activity).removed) {
         Text(stringResource(R.string.setup_undo_requested))
     }
 }

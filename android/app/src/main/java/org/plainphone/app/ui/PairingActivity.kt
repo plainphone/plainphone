@@ -129,7 +129,7 @@ private sealed interface PairingUi {
     data object Connecting : PairingUi
     data object Loading : PairingUi
     data class Showing(val pairing: Pairing) : PairingUi
-    data class Confirm(val details: PairPoll.Confirm, val enrollmentToken: String? = null) : PairingUi
+    data class Confirm(val details: PairPoll.Confirm, val enrollmentToken: String? = null, val matchesProfile: Boolean = true) : PairingUi
     data object Paired : PairingUi
     data class Failed(val message: String) : PairingUi
 }
@@ -195,7 +195,10 @@ private fun PairingScreen(onDone: () -> Unit) {
         }
     }
     BackHandler(ui is PairingUi.Confirm) {
-        if (!confirmationStarted) decide(false)
+        if (!confirmationStarted) {
+            if ((ui as? PairingUi.Confirm)?.matchesProfile == false && Mode.isStrong(context)) onDone()
+            else decide(false)
+        }
     }
 
     LaunchedEffect(attempt) {
@@ -214,8 +217,13 @@ private fun PairingScreen(onDone: () -> Unit) {
                         return@LaunchedEffect
                     }
                 } else {
-                    val (account, _) = withContext(Dispatchers.IO) { api.reviewEnrollment(enrollmentToken, Mode.name(context)) }
-                    ui = PairingUi.Confirm(PairPoll.Confirm(account.maskedEmail, account.householdName), enrollmentToken)
+                    val (account, profile) = withContext(Dispatchers.IO) { api.reviewEnrollment(enrollmentToken, Mode.name(context)) }
+                    val selectedProfile = LightSetup.profile(context)
+                    ui = PairingUi.Confirm(
+                        PairPoll.Confirm(account.maskedEmail, account.householdName),
+                        enrollmentToken,
+                        selectedProfile == null || selectedProfile == profile,
+                    )
                     return@LaunchedEffect
                 }
             } catch (e: HttpError) {
@@ -297,8 +305,17 @@ private fun PairingScreen(onDone: () -> Unit) {
                     Text(stringResource(R.string.setup_pair_account, state.details.maskedEmail))
                     state.details.householdName?.let { Text(stringResource(R.string.setup_pair_household, it)) }
                     if (decisionFailed) Text(stringResource(R.string.pairing_failed), color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { decide(true) }, enabled = !deciding, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.setup_connect))
+                    if (state.matchesProfile) {
+                        Button(onClick = { decide(true) }, enabled = !deciding, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.setup_connect))
+                        }
+                    } else {
+                        Text(stringResource(R.string.setup_profile_mismatch))
+                        if (Mode.isStrong(context)) {
+                            androidx.compose.material3.OutlinedButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.setup_back))
+                            }
+                        }
                     }
                     if (!confirmationStarted) {
                         androidx.compose.material3.OutlinedButton(

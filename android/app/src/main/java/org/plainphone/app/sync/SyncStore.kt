@@ -65,6 +65,15 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     val setupUndoPending: Boolean get() = prefs.getBoolean("setup_undo", false)
 
+    val setupUndoAuthorized: Boolean get() = prefs.getBoolean("setup_undo_authorized", false)
+
+    @SuppressLint("ApplySharedPref") // Release must resume after process death.
+    fun markSetupUndoAuthorized(): Boolean = prefs.edit().putBoolean("setup_undo_authorized", true).commit()
+
+    fun clearSetupUndo() {
+        prefs.edit().remove("setup_undo").remove("setup_undo_authorized").apply()
+    }
+
     @SuppressLint("ApplySharedPref") // Release must resume after process death.
     fun beginSetupUndo(): Boolean = prefs.edit().putBoolean("setup_undo", true).commit()
 
@@ -102,7 +111,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 .putString(KEY_PHONE_ID, phoneId)
                 .putBoolean(KEY_EVER_PAIRED, true)
                 .putBoolean(KEY_REMOVED, false)
-                .remove(KEY_RELEASED).remove("setup_undo")
+                .remove(KEY_RELEASED).remove("setup_undo").remove("setup_undo_authorized")
                 // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
                 .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
                 .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)

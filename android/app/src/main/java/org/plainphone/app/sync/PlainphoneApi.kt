@@ -39,6 +39,7 @@ interface SyncApi {
      * the server deleted the phone (204) or no longer knows it (401); false when nobody asked for a
      * release (409). Other answers and network errors throw.
      */
+    fun authorizeSetupUndo(token: String): Boolean = false
     fun ackSetupUndo(token: String): Boolean = false
     fun ackReleased(token: String): Boolean
     /**
@@ -323,6 +324,22 @@ class PlainphoneApi private constructor(
     }
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
+
+    fun setupUndoRemaining(token: String, elapsedMs: Long?): Long {
+        val body = elapsedMs?.let { JSONObject().put("elapsedMs", it) }
+        val r = call(if (body == null) "GET" else "POST", "/device/setup-completion", token, body)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getLong("undoRemainingMs")
+    }
+
+    override fun authorizeSetupUndo(token: String): Boolean {
+        val r = call("POST", "/device/undo-setup/authorize", token, JSONObject(), replayable = true)
+        return when (r.status) {
+            204 -> true
+            401, 409 -> false
+            else -> throw HttpError(r.status, r.body)
+        }
+    }
 
     override fun ackSetupUndo(token: String): Boolean {
         val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)

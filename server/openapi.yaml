@@ -82,6 +82,11 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    SetupUndoWindow:
+      type: object
+      required: [undoRemainingMs]
+      properties:
+        undoRemainingMs: { type: integer, minimum: 0, maximum: 600000 }
     PhoneRequest:
       type: object
       required: [id, kind, status, createdAt]
@@ -917,7 +922,7 @@ paths:
                 action: { enum: [confirm, cancel] }
       responses:
         "200":
-          description: Confirmed. A retry before expiry can recover a lost response.
+          description: Confirmed. The token can be recovered for up to 24 hours or until the first rules sync.
           content:
             application/json:
               schema:
@@ -1173,12 +1178,59 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /device/setup-completion:
+    get:
+      operationId: getDeviceSetupCompletion
+      tags: [device]
+      summary: Read the remaining setup undo window (phone)
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: The time left, or zero when setup undo is unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postDeviceSetupCompletion
+      tags: [device]
+      summary: Record completion once for a newly paired light-mode phone
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [elapsedMs]
+              properties:
+                elapsedMs: { type: integer, minimum: 0, maximum: 600000 }
+      responses:
+        "200":
+          description: The time left, or zero when setup undo is unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /device/undo-setup/authorize:
+    post:
+      operationId: postDeviceAuthorizeUndoSetup
+      tags: [device]
+      summary: Authorize local release within the setup undo window (phone)
+      security: [{ device: [] }]
+      responses:
+        "204": { description: "Release authorized. Safe to retry." }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /device/undo-setup:
     post:
       operationId: postDeviceUndoSetup
       tags: [device]
       summary: Acknowledge local undo of a new light-mode setup (phone)
-      description: The phone checks the ten-minute window locally and retries this acknowledgement if offline.
+      description: The phone sends this after an authorized local release. It retries the acknowledgement if offline.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }

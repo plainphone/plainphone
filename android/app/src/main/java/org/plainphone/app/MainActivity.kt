@@ -24,6 +24,7 @@ import org.plainphone.app.light.HomeActivity
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.provisioning.BootloaderWarning
+import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.ui.PairingActivity
 
 /**
@@ -51,7 +52,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
-        if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
+        if (!isDeviceOwner()) {
             val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
                 LightSetupActivity.intent(this).apply {
                     if (intent?.action == Intent.ACTION_VIEW) {
@@ -60,6 +61,11 @@ class MainActivity : Activity() {
                     }
                 }
             startActivity(destination)
+            finish()
+            return
+        }
+        if (StrongSetup.needsConfirmation(this)) {
+            startActivity(LightSetupActivity.intent(this))
             finish()
             return
         }
@@ -118,6 +124,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (!::status.isInitialized) return
         taps = 0
         refresh()
         if (isDeviceOwner() && BootloaderWarning.needsAcknowledgement(this)) {

@@ -64,13 +64,14 @@ physical-device testing.
 
 Strong mode starts inside Android's provisioning screens. Plainphone cannot report download or
 installation progress before it runs. The dashboard waits for an actual enrollment and then shows
-the connection. On Android 10–13, also confirm the default phone-app dialog and check the phone's
+the connection. Confirm the phone and masked dashboard account on Android before Plainphone
+applies policies. On Android 10–13, also confirm the default phone-app dialog and check the phone's
 reported lock status. Both parent apps show the app installation warning even when the lock is
 intact. Open **Show technical details** to see how long the installation window overran.
 On the web filter screen, **What the filter can and can’t do** explains false positives and
 exceptions even when the DNS settings fail to load.
 
-The dashboard setup changes require no additional migration, environment variable or dependency. Release an APK containing the
+The server applies migration `0014_setup_undo_window` at startup for the timed light-mode undo. It requires no new environment variables. Release an APK containing the
 browser-to-app handoff before publishing the light-mode guide and dashboard flow. Test Chrome to
 APK to Chrome to Plainphone on Android 10 and Android 13 or newer, including OnePlus, Xiaomi and
 Samsung battery settings where available. Use the scripts and manual steps in

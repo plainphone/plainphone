@@ -11,7 +11,7 @@ import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { applyDueChanges, deletePhone } from "../services/changes.js";
-import { pairingAccount } from "../services/pairing-account.js";
+import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
@@ -25,6 +25,13 @@ import { createRequest, phoneRequestList, RequestError, requestJson } from "../s
 import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
+const SETUP_UNDO_MS = 10 * 60_000;
+const SETUP_COMPLETION_LIMIT_MS = 60 * 60_000;
+
+function setupUndoRemaining(phone: Phone, now: Date): number {
+  if (phone.mode !== "light" || !phone.setupCompletedAt || phone.setupUndoAuthorizedAt) return 0;
+  return Math.max(0, phone.setupCompletedAt.getTime() + SETUP_UNDO_MS - now.getTime());
+}
 export const DEVICE_PREFIX = "pp_d_";
 
 type Phone = typeof phones.$inferSelect;
@@ -101,7 +108,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (action === "cancel") return { status: 410 as const };
       if (!p.claimedAt) return { status: p.expiresAt <= ctx.now() ? 410 as const : 202 as const };
       if (!p.pendingDeviceToken || !p.phoneId) return { status: 410 as const };
-      if (p.requiresConfirmation && p.expiresAt <= ctx.now()) return { status: 410 as const };
+      if (p.requiresConfirmation) {
+        const deadline = p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS : p.expiresAt.getTime();
+        if (deadline <= ctx.now().getTime()) return { status: 410 as const };
+      }
       if (p.requiresConfirmation && !p.deliveredAt && action !== "confirm") {
         const [account] = p.claimedBy
           ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, p.claimedBy))
@@ -113,11 +123,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }
       if (p.requiresConfirmation && !p.deliveredAt) {
         if (!p.claimedBy) return { status: 410 as const };
-        await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken), pairedAt: ctx.now() })
+        await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
       }
       // New clients may retry confirmation after losing the response. The secret is still required,
-      // and the retry window is bounded by the original code expiry.
+      // including after the original code expires. The sweeper bounds retention.
       await tx.update(pairings)
         .set({ pendingDeviceToken: p.requiresConfirmation ? p.pendingDeviceToken : null, deliveredAt: p.deliveredAt ?? ctx.now() })
         .where(eq(pairings.id, id));
@@ -210,6 +220,19 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (!fresh) throw new HTTPException(401, { message: "unknown device; pair again" });
       phone = fresh;
     }
+    // The first authenticated sync proves the phone received and saved its token.
+    if (!phone.pairedAt) {
+      const deviceTokenHash = phone.deviceTokenHash;
+      if (!deviceTokenHash) throw new HTTPException(401, { message: "unknown device; pair again" });
+      const [activated] = await ctx.db.update(phones)
+        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)` })
+        .where(and(eq(phones.id, phone.id), eq(phones.deviceTokenHash, deviceTokenHash)))
+        .returning();
+      if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
+      phone = activated;
+      await ctx.db.update(pairings).set({ pendingDeviceToken: null })
+        .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
+    }
     // Throttle last-seen writes to one a minute.
     await ctx.db
       .update(phones)
@@ -272,19 +295,57 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.body(null, 204);
   });
 
+  app.get("/setup-completion", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json({ undoRemainingMs: setupUndoRemaining(c.get("phone"), ctx.now()) });
+  });
+
+  app.post("/setup-completion", async (c) => {
+    const { elapsedMs } = await body(c, z.object({ elapsedMs: z.number().int().min(0).max(SETUP_UNDO_MS) }));
+    const phone = c.get("phone");
+    const remaining = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh || fresh.mode !== "light" || !fresh.pairedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
+      const now = ctx.now();
+      if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
+      if (now.getTime() - fresh.pairedAt.getTime() >= SETUP_COMPLETION_LIMIT_MS) return 0;
+      const completedAt = new Date(Math.max(fresh.pairedAt.getTime(), now.getTime() - elapsedMs));
+      await tx.update(phones).set({ setupCompletedAt: completedAt }).where(eq(phones.id, phone.id));
+      return setupUndoRemaining({ ...fresh, setupCompletedAt: completedAt }, now);
+    });
+    c.header("Cache-Control", "no-store");
+    return c.json({ undoRemainingMs: remaining });
+  });
+
+  app.post("/undo-setup/authorize", async (c) => {
+    const phone = c.get("phone");
+    const authorized = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return false;
+      if (fresh.setupUndoAuthorizedAt) return true;
+      const now = ctx.now();
+      if (setupUndoRemaining(fresh, now) === 0) return false;
+      await tx.update(phones).set({ setupUndoAuthorizedAt: now }).where(eq(phones.id, phone.id));
+      return true;
+    });
+    if (!authorized) return c.json({ error: "setup undo window closed" }, 409);
+    return c.body(null, 204);
+  });
+
   app.post("/undo-setup", async (c) => {
     const phone = c.get("phone");
-    if (phone.mode !== "light") return c.json({ error: "undo is only available in light mode" }, 409);
     const removed = await ctx.db.transaction(async (tx) => {
       const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh) return null;
+      if (!fresh) return { status: 204 as const };
+      if (fresh.mode !== "light" || !fresh.setupUndoAuthorizedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 409 as const };
       const members = await phoneAlertRecipients(tx, phone.id, fresh.householdId);
-      return { clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
+      return { status: 204 as const, clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
     });
-    if (removed?.clientId) {
+    if (removed.status === 409) return c.json({ error: "setup undo not authorized" }, 409);
+    if (removed.members) {
       await notifyHouseholdMembers(ctx, removed.members, { type: "protection", phoneId: phone.id, phoneName: removed.name, reason: "lock" });
-      await retryDnsDeletions(ctx, [removed.clientId]);
     }
+    if (removed.clientId) await retryDnsDeletions(ctx, [removed.clientId]);
     return c.body(null, 204);
   });
 

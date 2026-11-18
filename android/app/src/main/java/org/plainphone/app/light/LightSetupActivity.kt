@@ -38,7 +38,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
+import org.plainphone.app.MainActivity
+import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.R
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
@@ -60,6 +63,10 @@ class LightSetupActivity : ComponentActivity() {
     private var requestedStep: LightSetup.Step? = null
     private var restrictedStep by mutableStateOf<LightSetup.Step?>(null)
     private val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        permissionStepReturned()
+    }
+
+    private fun permissionStepReturned() {
         val step = requestedStep
         requestedStep = null
         if (step != null && needsRestrictedSettingsHelp(Build.VERSION.SDK_INT, step, LightSetup.isDone(this, step))) {
@@ -85,6 +92,10 @@ class LightSetupActivity : ComponentActivity() {
         requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
         restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
         receiveLink(intent)
+        val store = SyncStore(this)
+        if (Mode.isLight(this) && pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {
+            pendingLink = store.enrollToken()?.let { LightEnrollment.Link(it, ConfigStore(this).load().serverUrl) }
+        }
         enableEdgeToEdge()
         setContent {
             PlainphoneTheme {
@@ -93,9 +104,17 @@ class LightSetupActivity : ComponentActivity() {
                 val step = LightSetup.next(this)
                 if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) {
                     AudienceScreen()
+                } else if (Mode.isStrong(this)) {
+                    StrongSetupScreen()
                 } else if (link != null) {
                     key(link) { ConfirmLink(link) }
                 } else if (step == null) {
+                    LaunchedEffect(Unit) {
+                        if (!LightRelease.isReleased(this@LightSetupActivity) && !LightSetup.isComplete(this@LightSetupActivity)) {
+                            LightSetup.markComplete(this@LightSetupActivity)
+                            refresh++
+                        }
+                    }
                     Done(onFinish = ::finishSetup)
                 } else {
                     key(step) { StepScreen(step) }
@@ -149,13 +168,64 @@ class LightSetupActivity : ComponentActivity() {
                     primary = stringResource(R.string.setup_continue),
                     onPrimary = {
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
-                        refresh++
+                        if (Mode.isStrong(this) && !StrongSetup.needsAccount(this)) finishStrongSetup()
+                        else refresh++
                     },
                     secondary = stringResource(R.string.setup_back),
                     onSecondary = back,
                 )
             }
         }
+    }
+
+    @Composable
+    private fun StrongSetupScreen() {
+        val paired = SyncStore(this).isPaired
+        var attempt by remember { mutableIntStateOf(0) }
+        var failed by remember { mutableStateOf(false) }
+        LaunchedEffect(paired, attempt) {
+            if (!paired) return@LaunchedEffect
+            withContext(Dispatchers.IO) { Sync.runner(applicationContext).run("initial Device Owner setup") }
+            if (!StrongSetup.needsConfirmation(this@LightSetupActivity)) finishStrongSetup()
+            else {
+                failed = true
+                refresh++
+            }
+        }
+        CalmScreen(
+            eyebrow = null,
+            title = stringResource(if (LightSetup.profile(this) == "self") R.string.setup_pair_self_title else R.string.light_step_pair_title),
+            body = stringResource(when {
+                failed -> R.string.pairing_failed
+                paired -> R.string.light_link_rules
+                else -> R.string.setup_strong_pair_body
+            }),
+            primary = when {
+                failed && paired -> stringResource(R.string.pairing_retry)
+                !paired -> stringResource(R.string.pair_button)
+                else -> null
+            },
+            onPrimary = {
+                failed = false
+                if (paired) attempt++
+                else {
+                    StrongSetup.requireAccount(this)
+                    startActivity(PairingActivity.intent(this, authorized = true))
+                }
+            },
+            secondary = if (paired) null else stringResource(R.string.setup_back),
+            onSecondary = ::changeAudience,
+        )
+    }
+
+    private fun changeAudience() {
+        LightSetup.clearProfile(this)
+        refresh++
+    }
+
+    private fun finishStrongSetup() {
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -193,12 +263,15 @@ class LightSetupActivity : ComponentActivity() {
         }
         val account = review?.first
         val matches = review?.second == LightSetup.profile(this)
+        val keepsSavedPin = LightSetup.hasDashboardPin(this) && !LightSetup.linkReviewed(this) &&
+            SyncStore(this).enrollToken() == link.token && ConfigStore(this).load().serverUrl == link.server
         CalmScreen(
             eyebrow = null,
             title = stringResource(R.string.light_confirm_link_title),
             body = when {
                 account == null -> stringResource(R.string.pairing_loading)
                 !matches -> stringResource(R.string.setup_profile_mismatch)
+                keepsSavedPin -> stringResource(R.string.setup_saved_link_body)
                 else -> stringResource(if (LightSetup.profile(this) == "self") R.string.setup_link_self else R.string.light_confirm_link_body, link.server)
             },
             primary = when {
@@ -214,6 +287,11 @@ class LightSetupActivity : ComponentActivity() {
                     return@primary
                 }
                 if (!matches) return@primary
+                if (keepsSavedPin) {
+                    LightSetup.markLinkReviewed(this)
+                    dismissLink()
+                    return@primary
+                }
                 error = when {
                     pin.length < 6 -> R.string.light_pin_too_short
                     pin != repeatedPin -> R.string.light_pin_mismatch
@@ -239,7 +317,11 @@ class LightSetupActivity : ComponentActivity() {
                 saving = true
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO) { api.cancelEnrollment(link.token, "light") }
+                        withContext(Dispatchers.IO) {
+                            api.cancelEnrollment(link.token, "light")
+                            val store = SyncStore(applicationContext)
+                            if (store.enrollToken() == link.token) store.saveEnrollToken(null)
+                        }
                         dismissLink()
                     } catch (_: java.io.IOException) {
                         error = R.string.pairing_failed
@@ -253,7 +335,12 @@ class LightSetupActivity : ComponentActivity() {
                 Text(stringResource(R.string.setup_pair_account, it.maskedEmail))
                 it.householdName?.let { name -> Text(stringResource(R.string.setup_pair_household, name)) }
             }
-            if (matches && account != null) {
+            if (account != null && !matches && !saving) {
+                OutlinedButton(onClick = ::changeAudience, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.setup_back))
+                }
+            }
+            if (matches && account != null && !keepsSavedPin) {
                 PinField(pin, {
                     pin = it.filter { digit -> digit in '0'..'9' }.take(12)
                     error = null
@@ -270,6 +357,10 @@ class LightSetupActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refresh++
+        if (Mode.isStrong(this)) {
+            if (!StrongSetup.needsConfirmation(this)) finishStrongSetup()
+            return
+        }
         if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) return
         if (LightSetup.next(this) == null && !LightRelease.isReleased(this)) LightSetup.markComplete(this)
         if (SyncStore(this).isPaired && !Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
@@ -300,7 +391,7 @@ class LightSetupActivity : ComponentActivity() {
         val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
         val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
         if (step == LightSetup.Step.PAIR && dashboard && !LightSetup.isComplete(this)) {
-            DashboardPairStep()
+            DashboardPairStep(index, total)
             return
         }
         if (step == LightSetup.Step.PIN) {
@@ -349,12 +440,17 @@ class LightSetupActivity : ComponentActivity() {
             },
             progress = (index + 1f) / total,
         ) {
+            if (step == LightSetup.Step.PAIR && !SyncStore(this@LightSetupActivity).everPaired) {
+                OutlinedButton(onClick = ::changeAudience, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.setup_back))
+                }
+            }
             PermissionIllustration(step)
         }
     }
 
     @Composable
-    private fun DashboardPairStep() {
+    private fun DashboardPairStep(index: Int, total: Int) {
         val store = SyncStore(this)
         val linkAvailable = LightSetup.linkReviewed(this) && store.enrollToken() != null
         val paired = store.isPaired
@@ -400,7 +496,7 @@ class LightSetupActivity : ComponentActivity() {
             }),
             primary = if (failed) stringResource(R.string.light_link_retry) else null,
             onPrimary = { failed = false; attempt++ },
-            progress = 1f,
+            progress = (index + 1f) / total,
         ) {
             PermissionIllustration(LightSetup.Step.PAIR)
         }
@@ -446,7 +542,7 @@ class LightSetupActivity : ComponentActivity() {
 
     private fun open(intent: Intent?, fallback: Intent = Intent(android.provider.Settings.ACTION_SETTINGS)) {
         if (intent == null) {
-            refresh++
+            permissionStepReturned()
             return
         }
         try {
@@ -454,7 +550,8 @@ class LightSetupActivity : ComponentActivity() {
         } catch (_: ActivityNotFoundException) {
             runCatching { launcher.launch(fallback) }
         } catch (_: SecurityException) {
-            runCatching { launcher.launch(fallback) }
+            if (requestedStep != null) permissionStepReturned()
+            else runCatching { launcher.launch(fallback) }
         }
     }
 
@@ -479,6 +576,8 @@ class LightSetupActivity : ComponentActivity() {
                     refresh++
                 }
             },
+            secondary = if (!SyncStore(this).everPaired) stringResource(R.string.setup_back) else null,
+            onSecondary = ::changeAudience,
             progress = (index + 1f) / total,
         ) {
             PinField(first, { first = it.filter(Char::isDigit).take(12) }, stringResource(R.string.light_pin_label))

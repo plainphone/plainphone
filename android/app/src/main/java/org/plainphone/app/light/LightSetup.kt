@@ -18,6 +18,7 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.time.TimeGuard
 
 /**
@@ -66,6 +67,11 @@ object LightSetup {
 
     fun saveProfile(context: Context, profile: String) {
         prefs(context).edit().putString("profile", profile).apply()
+    }
+
+    fun clearProfile(context: Context) {
+        prefs(context).edit().remove("profile").apply()
+        SyncStore(context).savePairing(null)
     }
 
     fun linkReviewed(context: Context) = prefs(context).getBoolean("linkReviewed", false)
@@ -126,27 +132,46 @@ object LightSetup {
     fun isComplete(context: Context): Boolean = prefs(context).getBoolean("complete", false)
 
     @Synchronized
+    @SuppressLint("ApplySharedPref") // A reboot must retain the completion marker.
     fun markComplete(context: Context) {
         if (isComplete(context)) return
         val edit = prefs(context).edit().putBoolean("complete", true)
-        if (profile(context) != null && !SyncStore(context).released && !SyncStore(context).setupUndoPending) {
-            edit.putLong("completedElapsed", SystemClock.elapsedRealtime()).putInt("completedBoot", bootCount(context))
+        val sync = SyncStore(context)
+        if (profile(context) != null && sync.isPaired && !sync.released && !sync.setupUndoPending) {
+            edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
+                .putInt("completedBoot", bootCount(context))
+                .putString("completedPhoneId", sync.phoneId)
         }
-        edit.apply()
+        edit.commit()
         LightRelease.clear(context)
     }
 
-    fun undoRemaining(context: Context): Long {
-        if (!Mode.isLight(context) || !isComplete(context) || SyncStore(context).setupUndoPending) return 0
-        val boot = bootCount(context)
+    private fun canUndo(context: Context): Boolean {
+        val sync = SyncStore(context)
+        return Mode.isLight(context) && isComplete(context) && prefs(context).contains("completedElapsed") &&
+            sync.isPaired && sync.phoneId == prefs(context).getString("completedPhoneId", null) &&
+            !sync.released && !sync.setupUndoPending
+    }
+
+    /** Completion is registered once. After a reboot only the server can establish the time left. */
+    fun undoDeadline(context: Context): Long {
+        if (!canUndo(context)) return 0
         val saved = prefs(context)
-        if (boot < 0 || boot != saved.getInt("completedBoot", -1)) return 0
-        return setupUndoRemaining(saved.getLong("completedElapsed", -1), SystemClock.elapsedRealtime())
+        val boot = bootCount(context)
+        val now = SystemClock.elapsedRealtime()
+        val sameBoot = boot >= 0 && boot == saved.getInt("completedBoot", -1)
+        val localRemaining = if (sameBoot) setupUndoRemaining(saved.getLong("completedElapsed", -1), now) else null
+        if (localRemaining == 0L) return 0
+        val token = SyncStore(context).deviceToken() ?: return 0
+        val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
+        val remaining = api.setupUndoRemaining(token, localRemaining?.let { SETUP_UNDO_MS - it })
+            .coerceIn(0, localRemaining ?: SETUP_UNDO_MS)
+        return if (remaining > 0) now + remaining else 0
     }
 
     @Synchronized
-    fun requestUndo(context: Context): Boolean {
-        if (undoRemaining(context) <= 0) return false
+    fun requestUndo(context: Context, deadline: Long): Boolean {
+        if (!canUndo(context) || deadline <= SystemClock.elapsedRealtime()) return false
         return SyncStore(context).beginSetupUndo()
     }
 

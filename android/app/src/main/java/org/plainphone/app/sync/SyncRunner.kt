@@ -112,7 +112,16 @@ class SyncRunner(
         // Released already: Plainphone is off, so the lock is never applied again. Only the
         // server still has to be told (it may have been unreachable the last time).
         if (store.released) acknowledgeRelease(token)?.let { return it }
-        if (store.setupUndoPending) {
+        if (store.setupUndoPending && !store.setupUndoAuthorized) {
+            val authorized = try {
+                api.authorizeSetupUndo(token)
+            } catch (e: IOException) {
+                return Outcome.Failed("setup undo authorization pending: ${e.message}")
+            }
+            if (!authorized) store.clearSetupUndo()
+            else if (!store.markSetupUndoAuthorized()) return Outcome.Failed("could not save setup undo authorization")
+        }
+        if (store.setupUndoAuthorized) {
             return releaseIfAsked(token) ?: Outcome.Failed("setup undo pending")
         }
 
@@ -173,7 +182,7 @@ class SyncRunner(
      * nothing is reported to the parent meanwhile, since they asked for the protection to go.
      */
     private fun releaseIfAsked(token: String): Outcome? {
-        if (!store.releaseAsked && !store.setupUndoPending) return null
+        if (!store.releaseAsked && !store.setupUndoAuthorized) return null
         val results = try {
             device.release()
         } catch (e: Exception) {

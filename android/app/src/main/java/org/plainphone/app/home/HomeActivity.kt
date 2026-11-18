@@ -37,6 +37,7 @@ import org.plainphone.app.AndroidHardeningControls
 import org.plainphone.app.Compat
 import org.plainphone.app.Hardening
 import org.plainphone.app.Lock
+import org.plainphone.app.provisioning.StrongSetup
 import org.plainphone.app.contacts.HelpActivity
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
@@ -129,7 +130,7 @@ class HomeActivity : ComponentActivity() {
     }
 
     private fun askForCallRole() {
-        if (roleDialogOpen || isFinishing || !onScreen || Lock.isInMaintenanceWindow(this) ||
+        if (roleDialogOpen || isFinishing || !onScreen || Lock.isInMaintenanceWindow(this) || StrongSetup.needsConfirmation(this) ||
             android.os.Build.VERSION.SDK_INT >= 34 ||
             getSystemService(DevicePolicyManager::class.java)?.isDeviceOwnerApp(packageName) != true
         ) return

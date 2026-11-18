@@ -106,18 +106,21 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    **Allow from this source** in Android settings.
 
 **Undo setup** is available without a PIN on the finish and Today screens for the first ten
-minutes after completing light-mode setup. It uses Android's elapsed time, including time spent
-asleep. A reboot closes the window. Undo uses the existing release path for the guard, VPN and
-device admin. An Android always-on restart leaves the filter off after release. Android keeps
+minutes after completing light-mode setup. Plainphone must reach the server to register
+completion and start undo. If you reboot during the window, Plainphone gets the time left from
+the server. Android's elapsed time counts down while the phone is asleep, and changing its
+clock cannot add time. Once authorized, undo uses the existing release path for the guard,
+VPN and device admin, and retries updating the dashboard if the connection drops. The server
+removes the phone and sends the household its normal protection-loss notice. Android keeps
 its default Phone and SMS apps selected until you change them in Settings or uninstall Plainphone.
-The phone retries notifying the server when it is offline. The server removes the
-phone and sends the household its normal protection-loss notice.
 
-Device Owner mode is set up through the Android welcome screen on a new or reset phone. The
-profile is chosen in the dashboard before scanning the provisioning code. The phone reviews
-the dashboard account before completing pairing. Device Owner applies policies during Android
-provisioning and uses the existing PIN or dashboard release afterward. A PIN-free undo would
-permit removing Device Owner and its reset protection, which cannot be reinstated by the app.
+Device Owner mode starts through the Android welcome screen on a new or reset phone. Android
+grants Device Owner during provisioning. Plainphone waits for the Child or Myself confirmation
+and, for dashboard provisioning, confirmation of the masked account before applying its
+policies or asking for call roles. If you cancel, Plainphone removes the pending dashboard
+phone and stays unlocked. Device Owner remains installed. Use the existing maintenance PIN
+or dashboard release on a protected phone. A PIN-free undo would permit removing Device
+Owner and its reset protection, which cannot be reinstated by the app.
 
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 

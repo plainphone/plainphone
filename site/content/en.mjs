@@ -425,7 +425,7 @@ export default {
       {
         title: "Scan the QR code",
         body: [
-          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone, applies the lock before you start using the phone.",
+          "Scan the code from the dashboard, then choose a Wi-Fi network. The phone downloads Plainphone. When Plainphone opens, confirm whose phone it is and check the dashboard account shown on the phone.",
           "If the phone says it will be managed by an organisation, that is Plainphone. Accept: it is how the lock works.",
         ],
         fig: "scan",
@@ -433,7 +433,7 @@ export default {
       {
         title: "Android 10 to 13 only: set the default phone app",
         body: [
-          "During setup or just after, the phone asks <em>Set Plainphone as your default phone app?</em> Tap <strong>Set as default</strong>. Missed it? Open the Plainphone app and it asks again.",
+          "After you confirm the dashboard account, the phone asks <em>Set Plainphone as your default phone app?</em> Tap <strong>Set as default</strong>. Missed it? Open the Plainphone app and it asks again.",
           "On Android 14 and newer this happens by itself.",
         ],
         fig: "dialog",

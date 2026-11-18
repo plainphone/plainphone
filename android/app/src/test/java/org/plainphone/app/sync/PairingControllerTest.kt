@@ -40,10 +40,22 @@ class PairingControllerTest {
         api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
         controller.start()
         now += 15 * 60_000
+        api.pollResult = PairPoll.Expired
         assertThat(controller.poll()).isEqualTo(PairPoll.Expired)
         assertThat(store.pairing()).isNull()
         api.pairing = api.pairing.copy(id = "p2", expiresAtMs = now + 15 * 60_000)
         assertThat(controller.start().id).isEqualTo("p2")
+    }
+
+    @Test
+    fun `a confirmed pairing can be recovered after its code expires`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+        val pairing = controller.start()
+        now += 16 * 60_000
+        assertThat(controller.start()).isEqualTo(pairing)
+        api.pollResult = PairPoll.Paired("phone-1", "pp_d_secret")
+        assertThat(controller.poll()).isInstanceOf(PairPoll.Paired::class.java)
+        assertThat(store.isPaired).isTrue()
     }
 
     @Test

@@ -81,7 +81,7 @@ adb install plainphone.apk
 adb shell dpm set-device-owner org.plainphone.app/.PlainphoneAdminReceiver
 ```
 
-The lock is applied at once, including the adb block. This path does not get the QR settings (PIN, DNS host), so the test PIN `000000` applies.
+Open Plainphone and confirm whose phone it is to apply the lock, including the adb block. This path does not get the QR settings (PIN, DNS host), so the test PIN `000000` applies.
 
 ## Troubleshooting
 

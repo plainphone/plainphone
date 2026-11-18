@@ -250,11 +250,13 @@
     <string name="setup_connect">Forbind telefon</string>
     <string name="setup_not_you">Er det ikke dig? Annullér</string>
     <string name="setup_pair_self">Åbn app.plainphone.org for at forbinde din telefon. Vælg Mig selv i dashboardet, og tjek derefter kontoen på din telefon.</string>
-    <string name="setup_profile_mismatch">Linket bruger en anden profil. Annullér det, og vælg den tilsvarende profil i dit dashboard.</string>
+    <string name="setup_profile_mismatch">Linket bruger en anden profil. Gå tilbage og skift dit valg, eller annullér for at bruge et andet link.</string>
+    <string name="setup_strong_pair_body">Tjek dashboardkontoen på denne telefon, før du slår beskyttelsen til.</string>
+    <string name="setup_saved_link_body">Tjek kontoen, før du forbinder telefonen. Din gemte pinkode virker stadig.</string>
     <string name="setup_link_self">Tjek, at %1$s er dit dashboard. Vælg en PIN på 6 til 12 cifre, og indtast den to gange.</string>
     <string name="setup_admin_self">Det gør det sværere at fjerne Plainphone. Du får besked, hvis beskyttelsen slås fra.</string>
     <string name="setup_done_self">Plainphone følger nu dine regler. Du kan ændre dem i dit dashboard.</string>
     <string name="setup_undo">Fortryd opsætning</string>
-    <string name="setup_undo_requested">Opsætningen fortrydes. Plainphone opdaterer dashboardet, når der er forbindelse.</string>
+    <string name="setup_undo_requested">Du har bedt om at fortryde. Plainphone skal have forbindelse, inden fristen udløber.</string>
     <string name="setup_pair_self_title">Forbind telefon</string>
 </resources>
