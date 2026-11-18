@@ -75,7 +75,10 @@ describe("onboarding safety", () => {
     const before = h.mail.outbox.length;
 
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect(await device.post("/api/device/undo-setup")).toMatchObject({
+      status: 401,
+      json: { error: "unknown device; pair again" },
+    });
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map(({ text }) => text))

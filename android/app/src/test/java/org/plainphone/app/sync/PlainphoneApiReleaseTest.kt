@@ -191,7 +191,7 @@ class PlainphoneApiReleaseTest {
 
     @Test
     @Config(shadows = [PairedStore::class], instrumentedPackages = ["org.plainphone.app.sync"])
-    fun `undo removes admin when the server already deleted the phone`() {
+    fun `undo keeps admin until the server confirms the pairing is gone`() {
         val context = completeSetup()
         val store = SyncStore(context, FakeSecretBox())
         store.savePaired("test-phone", "test-token")
@@ -201,8 +201,15 @@ class PlainphoneApiReleaseTest {
         val admin = LightAdminReceiver.component(context)
         shadowOf(policy).setActiveAdmin(admin)
 
-        answer = 404
         val worker = TestWorkerBuilder<SyncWorker>(context, Executor { it.run() }).build()
+        answer = 404
+        responseBody = "404 Not Found"
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
+        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(store.removed).isFalse()
+
+        answer = 401
+        responseBody = """{"error":"unknown device; pair again"}"""
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
         assertThat(policy.isAdminActive(admin)).isFalse()
         assertThat(store.removed).isTrue()
@@ -273,13 +280,17 @@ class PlainphoneApiReleaseTest {
         answer = 204
         assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 401
+        responseBody = """{"error":"device token required"}"""
+        assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
+        responseBody = """{"error":"unknown device; pair again"}"""
         assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 404
-        assertThat(api().reportSetupUndo("test-token")).isTrue()
+        responseBody = "404 Not Found"
+        assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
         answer = 409
         assertThat(api().reportSetupUndo("test-token")).isFalse()
         assertThat(seen).containsExactlyElementsIn(
-            List(5) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
+            List(6) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
         )
     }
 

@@ -56,7 +56,9 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes by default after finishing permissions. The dashboard shows the reported deadline. Rebooting closes the window. Undo switches off protection
-even offline. The phone reports Undo when it reconnects, even before its first rules sync. The server removes the phone and notifies current household members whenever the report arrives. See
+even offline. The phone reports Undo when it reconnects, even before its first rules sync.
+The server removes the phone and notifies current household members whenever the report arrives.
+If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
 [docs/light-mode.md](docs/light-mode.md).
 
 ### Myself keys and QR codes
