@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
@@ -24,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +43,7 @@ import org.plainphone.app.MaintenanceActivity
 import org.plainphone.app.R
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.home.HomeGuard
+import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.sync.CatalogInstall
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
@@ -54,6 +55,7 @@ import org.plainphone.app.time.TimeGuard
  * status screen when there is something to show.
  */
 class HomeActivity : ComponentActivity() {
+    private val setupFollowUp by lazy { EnrollmentAccountNotice(this) }
     private var refresh by mutableIntStateOf(0)
     private var taps = 0
 
@@ -70,6 +72,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (Mode.isLight(this)) setupFollowUp.start()
         taps = 0
         // A parent who entered the PIN keeps the window: applying here would end it (and relock).
         if (Lock.isInMaintenanceWindow(this)) {
@@ -77,6 +80,11 @@ class HomeActivity : ComponentActivity() {
         } else {
             Lock.applyAsync(this, "today opened") { runOnUiThread { refresh++ } }
         }
+    }
+
+    override fun onPause() {
+        if (Mode.isLight(this)) setupFollowUp.stop()
+        super.onPause()
     }
 
     @Composable
@@ -121,6 +129,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
+            if (light) UndoSetupAction(this@HomeActivity, refresh)
             androidx.compose.material3.TextButton(onClick = {
                 startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
             }) { Text(stringResource(R.string.help_lines_title)) }

@@ -38,6 +38,7 @@ import org.plainphone.app.Compat
 import org.plainphone.app.Hardening
 import org.plainphone.app.Lock
 import org.plainphone.app.contacts.HelpActivity
+import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
@@ -48,6 +49,7 @@ import org.plainphone.app.time.TimeGuard
  * home screen Android always opens; light mode offers to pick it.
  */
 class HomeActivity : ComponentActivity() {
+    private val enrollmentNotice by lazy { EnrollmentAccountNotice(this) { !roleDialogOpen } }
     private var resumed by mutableIntStateOf(0)
     /** Only refresh while the home screen can be seen: it lives as long as the phone is on. */
     private var onScreen by mutableStateOf(false)
@@ -60,6 +62,7 @@ class HomeActivity : ComponentActivity() {
             SyncScheduler.now(this, "call role dialog")
         }
         askForCallRole()
+        if (lifecycle.currentState == androidx.lifecycle.Lifecycle.State.RESUMED) enrollmentNotice.start()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,6 +129,12 @@ class HomeActivity : ComponentActivity() {
         super.onResume()
         resumed++
         askForCallRole()
+        enrollmentNotice.start()
+    }
+
+    override fun onPause() {
+        enrollmentNotice.stop()
+        super.onPause()
     }
 
     private fun askForCallRole() {

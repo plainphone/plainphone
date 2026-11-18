@@ -31,6 +31,21 @@ class UpdateTest {
         assertTrue(UpdatePolicy.isUpToDate(installed, ReleaseInfo(9, "0.9", "https://example.org/app.apk", null)))
     }
 
+    @Test fun productionKeyChangeRefusesInPlaceUpdateWithSetupInstructions() {
+        val production = installed.copy(
+            versionCode = installed.versionCode + 1,
+            certSha256 = setOf("8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215"),
+        )
+        assertEquals(
+            UpdatePolicy.Verdict.Refuse(
+                UpdateErrorCode.SIGNATURE_MISMATCH,
+                "This update is signed with the new Plainphone key. Set up the phone again to install it.",
+            ),
+            UpdatePolicy.check(installed, production),
+        )
+        assertEquals(UpdatePolicy.Verdict.Install, UpdatePolicy.check(production, production.copy(versionCode = 12)))
+    }
+
     @get:Rule val files = TemporaryFolder()
 
     @Test fun interruptedDownloadNeverReachesTheInstallerAndLeavesNoFile() {

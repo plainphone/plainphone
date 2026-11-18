@@ -51,6 +51,8 @@ class FakeSyncDevice(
     }
     override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) { applies += reason }
     override fun lockState() = lock
+    override fun removeSetupUndoAdmin() = Unit
+
     override fun release(): List<StepResult> {
         releases++
         return releaseResults

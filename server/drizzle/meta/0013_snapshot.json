@@ -1,110 +1,9 @@
 {
-  "id": "ea9114af-7bbc-4320-b2b6-a5c90073f12a",
+  "id": "59e6fdb4-2c66-447d-a6d9-e574c807c687",
   "prevId": "abc9308a-e3c3-4d8f-9e5d-abc88767ee8e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.contact_suggestions": {
-      "name": "contact_suggestions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "number": {
-          "name": "number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "contact_suggestions_phone_number_uq": {
-          "name": "contact_suggestions_phone_number_uq",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "contact_suggestions_phone_group_idx": {
-          "name": "contact_suggestions_phone_group_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "group_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "contact_suggestions_phone_id_phones_id_fk": {
-          "name": "contact_suggestions_phone_id_phones_id_fk",
-          "tableFrom": "contact_suggestions",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.contacts": {
       "name": "contacts",
       "schema": "",
@@ -916,6 +815,25 @@
           "primaryKey": false,
           "notNull": false
         },
+        "profile_hint": {
+          "name": "profile_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requires_confirmation": {
+          "name": "requires_confirmation",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "claimed_by": {
+          "name": "claimed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "pending_device_token": {
           "name": "pending_device_token",
           "type": "text",
@@ -961,6 +879,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pairings_claimed_by_users_id_fk": {
+          "name": "pairings_claimed_by_users_id_fk",
+          "tableFrom": "pairings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "claimed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1449,13 +1380,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "self_schedule_contacts": {
-          "name": "self_schedule_contacts",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
         },
         "mode": {
           "name": "mode",

@@ -494,12 +494,14 @@ export function PhoneOverview() {
       {!phone.pairedAt && (
         <section className="section panel" aria-labelledby="setup-h">
           <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
-          <p className="muted">{t("setup.pendingBody")}</p>
-          <p>
-            <Link to={`${base}/setup`} className="btn btn-primary">
-              {t("setup.showQr")}
-            </Link>
-          </p>
+          <p className="muted">{t(phone.setupQrAvailable === false ? "setup.codePendingBody" : "setup.pendingBody")}</p>
+          {phone.setupQrAvailable !== false && (
+            <p>
+              <Link to={`${base}/setup`} className="btn btn-primary">
+                {t("setup.showQr")}
+              </Link>
+            </p>
+          )}
         </section>
       )}
 

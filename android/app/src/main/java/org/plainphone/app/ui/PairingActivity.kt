@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
@@ -32,6 +33,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +59,9 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.R
 import org.plainphone.app.sync.EnrollResult
+import org.plainphone.app.sync.HttpError
+import org.plainphone.app.light.Mode
+import org.plainphone.app.light.LightSetup
 import org.plainphone.app.sync.PairPoll
 import org.plainphone.app.sync.Pairing
 import org.plainphone.app.sync.PairingController
@@ -97,9 +103,7 @@ class PairingActivity : ComponentActivity() {
                 if (store.rules()?.phoneId != store.phoneId) {
                     Sync.runner(this@PairingActivity).run("setup finished")
                 }
-                store.isPaired && store.rules()?.let {
-                    it.phoneId == store.phoneId && it.profile == "self"
-                } == true
+                store.enrollmentAccount() == null && store.favouriteSetupPhoneId() != null
             }
             if (self) startActivity(PhoneActivity.favouritesIntent(this@PairingActivity))
             finish()
@@ -135,14 +139,17 @@ class PairingActivity : ComponentActivity() {
             return PairingController(
                 SyncStore(app),
                 PlainphoneApi(ConfigStore(app).load().serverUrl, app),
-                System::currentTimeMillis,
                 mapOf(
                     "manufacturer" to Build.MANUFACTURER.take(200),
                     "model" to Build.MODEL.take(200),
                     "android" to Build.VERSION.RELEASE.take(200),
                     "appVersion" to version.take(200),
                 ),
-                mode = org.plainphone.app.light.Mode.name(app),
+                mode = Mode.name(app),
+                profile = LightSetup.profile(app).takeIf { Mode.isLight(app) },
+                canRedeemEnrollment = {
+                    Mode.isStrong(app) || LightSetup.linkReviewed(app)
+                },
             )
         }
 
@@ -156,6 +163,7 @@ private sealed interface PairingUi {
     data object Connecting : PairingUi
     data object Loading : PairingUi
     data class Showing(val pairing: Pairing) : PairingUi
+    data class Confirm(val details: PairPoll.Confirm, val enrollmentToken: String? = null, val matchesProfile: Boolean = true) : PairingUi
     data object Paired : PairingUi
     data class Failed(val message: String) : PairingUi
 }
@@ -164,42 +172,105 @@ private sealed interface PairingUi {
 private fun PairingScreen(onDone: () -> Unit) {
     val context = LocalContext.current
     val controller = remember { PairingActivity.controller(context) }
+    val store = remember { SyncStore(context) }
+    val api = remember { PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext) }
     var ui by remember { mutableStateOf<PairingUi>(PairingUi.Loading) }
     var attempt by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(attempt) {
-        if (withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
-            ui = PairingUi.Paired
-            onDone()
-            return@LaunchedEffect
-        }
-        // A QR code made in the dashboard carries a one-time token: pair without a code.
-        if (attempt == 0 && withContext(Dispatchers.IO) { SyncStore(context).enrollToken() } != null) {
-            ui = PairingUi.Connecting
-            var tries = 0
-            var keepTrying = true
-            while (keepTrying && tries++ < ENROLL_TRIES) {
-                when (withContext(Dispatchers.IO) { runCatching { controller.enroll() } }.getOrElse { EnrollRetry }) {
-                    is EnrollResult.Paired -> {
+    val scope = rememberCoroutineScope()
+    var deciding by remember { mutableStateOf(false) }
+    var decisionFailed by remember { mutableStateOf(false) }
+    var confirmationStarted by rememberSaveable { mutableStateOf(false) }
+    fun decide(confirm: Boolean) {
+        if (deciding) return
+        val enrollmentToken = (ui as? PairingUi.Confirm)?.enrollmentToken
+        deciding = true
+        decisionFailed = false
+        if (confirm) confirmationStarted = true
+        scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    if (enrollmentToken == null) controller.decide(confirm)
+                    else if (confirm) {
+                        synchronized(PairingController.enrollmentLock) {
+                            if (store.enrollToken() != enrollmentToken || !store.confirmEnrollment()) {
+                                PairPoll.Expired
+                            } else when (val enrolled = controller.enroll()) {
+                                is EnrollResult.Paired -> PairPoll.Paired(enrolled.phoneId, enrolled.deviceToken)
+                                EnrollResult.Rejected -> PairPoll.Expired
+                                null -> if (store.isPaired) PairPoll.Paired(checkNotNull(store.phoneId), checkNotNull(store.deviceToken()))
+                                    else PairPoll.Expired
+                            }
+                        }
+                    } else {
+                        api.cancelEnrollment(enrollmentToken, Mode.name(context))
+                        store.saveEnrollToken(null)
+                        PairPoll.Expired
+                    }
+                }
+                when (result) {
+                    is PairPoll.Paired -> {
                         SyncScheduler.ensurePeriodic(context)
                         SyncScheduler.now(context, "paired")
                         ui = PairingUi.Paired
-                        delay(2_000)
+                        onDone()
+                    }
+                    PairPoll.Expired -> if (confirm) {
+                        confirmationStarted = false
+                        attempt++
+                    } else onDone()
+                    else -> decisionFailed = true
+                }
+            } catch (_: java.io.IOException) {
+                if (confirm && enrollmentToken != null) SyncScheduler.enrollIfNeeded(context)
+                decisionFailed = true
+            } finally {
+                deciding = false
+            }
+        }
+    }
+    BackHandler(ui is PairingUi.Confirm) {
+        if (!confirmationStarted) decide(false)
+    }
+
+    LaunchedEffect(attempt) {
+        val enrollmentToken = withContext(Dispatchers.IO) {
+            store.enrollToken()?.takeIf { !Mode.isLight(context) || LightSetup.linkReviewed(context) }
+        }
+        if (enrollmentToken != null && !store.isPaired) {
+            ui = PairingUi.Connecting
+            try {
+                if (Mode.isStrong(context) || store.enrollmentConfirmed) {
+                    withContext(Dispatchers.IO) { controller.enroll() }
+                    if (store.isPaired) {
+                        SyncScheduler.ensurePeriodic(context)
+                        SyncScheduler.now(context, "paired")
                         onDone()
                         return@LaunchedEffect
                     }
-                    EnrollRetry -> delay(POLL_MS) // no network yet: try again
-                    else -> keepTrying = false // refused, or EnrollWorker already paired the phone
+                } else {
+                    val (account, profile) = withContext(Dispatchers.IO) { api.reviewEnrollment(enrollmentToken, Mode.name(context)) }
+                    val selectedProfile = LightSetup.profile(context)
+                    ui = PairingUi.Confirm(
+                        PairPoll.Confirm(account.maskedEmail, account.householdName),
+                        enrollmentToken,
+                        selectedProfile == null || selectedProfile == profile,
+                    )
+                    return@LaunchedEffect
                 }
-            }
-            if (withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
-                ui = PairingUi.Paired
-                delay(2_000)
-                onDone()
+            } catch (e: HttpError) {
+                if (e.status != 404 && e.status != 410) {
+                    ui = PairingUi.Failed(e.message.orEmpty())
+                    return@LaunchedEffect
+                }
+                withContext(Dispatchers.IO) { store.saveEnrollToken(null) }
+            } catch (e: java.io.IOException) {
+                ui = PairingUi.Failed(e.message.orEmpty())
                 return@LaunchedEffect
             }
-            // Still offline after a while: show a code too; the background worker keeps trying the token.
-            SyncScheduler.enrollIfNeeded(context)
+        }
+        if (store.isPaired) {
+            onDone()
+            return@LaunchedEffect
         }
         ui = PairingUi.Loading
         val started = withContext(Dispatchers.IO) { runCatching { controller.start() } }
@@ -229,6 +300,7 @@ private fun PairingScreen(onDone: () -> Unit) {
                     val again = withContext(Dispatchers.IO) { runCatching { controller.start() } }
                     ui = again.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: "") })
                 }
+                is PairPoll.Confirm -> ui = PairingUi.Confirm(r)
                 PairPoll.Waiting, null -> Unit // a network hiccup: keep showing the code and try again
             }
         }
@@ -248,12 +320,12 @@ private fun PairingScreen(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.pairing_title), style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.setup_pair_self_title), style = MaterialTheme.typography.headlineMedium)
             when (val state = ui) {
                 PairingUi.Connecting -> Text(stringResource(R.string.pairing_connecting), textAlign = TextAlign.Center)
                 PairingUi.Loading -> Text(stringResource(R.string.pairing_loading))
                 is PairingUi.Showing -> {
-                    Text(stringResource(R.string.pairing_instructions), textAlign = TextAlign.Center)
+                    Text(stringResource(if (Mode.isLight(context) && LightSetup.profile(context) == "self") R.string.setup_pair_self else R.string.pairing_instructions), textAlign = TextAlign.Center)
                     QrCode(state.pairing.qrUrl, Modifier.size(240.dp))
                     Text(
                         text = state.pairing.code,
@@ -264,6 +336,23 @@ private fun PairingScreen(onDone: () -> Unit) {
                         modifier = Modifier.semantics { contentDescription = state.pairing.code.toCharArray().joinToString(" ") },
                     )
                     Text(stringResource(R.string.pairing_waiting), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                is PairingUi.Confirm -> {
+                    Text(stringResource(R.string.setup_pair_account, state.details.maskedEmail))
+                    state.details.householdName?.let { Text(stringResource(R.string.setup_pair_household, it)) }
+                    if (decisionFailed) Text(stringResource(R.string.pairing_failed), color = MaterialTheme.colorScheme.error)
+                    if (state.matchesProfile) {
+                        Button(onClick = { decide(true) }, enabled = !deciding, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.setup_connect))
+                        }
+                    } else {
+                        Text(stringResource(R.string.setup_profile_mismatch))
+                    }
+                    if (!confirmationStarted) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { decide(false) }, enabled = !deciding, modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.setup_not_you)) }
+                    }
                 }
                 PairingUi.Paired -> Text(stringResource(R.string.pairing_done), style = MaterialTheme.typography.titleLarge)
                 is PairingUi.Failed -> {
@@ -298,8 +387,3 @@ internal fun encodePairingQr(text: String): QrCode =
     QrCode.encodeSegments(QrSegment.makeSegments(text), QrCode.Ecc.LOW, 1, 40, -1, false)
 
 private const val POLL_MS = 3_000L
-/** About a minute of trying the QR code's token before a code is shown as well. */
-private const val ENROLL_TRIES = 20
-
-/** Marker for "the network failed, try the token again". */
-private data object EnrollRetry

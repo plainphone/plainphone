@@ -89,27 +89,56 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 
 ## Installing it (no reset)
 
-1. In the dashboard, choose **Add phone → It is already in use**, give it a name and create a
-   setup link. Scan the resulting QR code with the phone you are setting up or open the private
-   link in Chrome on that phone.
-2. Download the APK and open it. If Android blocks it, tap **Settings**, switch on **Allow from
-   this source**, go back and tap **Install**. After installing, return to the Chrome page and
-   tap **Open Plainphone** there. The page clears the link fragment from Chrome’s address bar and
-   passes the one-time token to the app. Check the dashboard address, then choose and enter a
-   parent PIN twice. Plainphone hashes the PIN on the phone.
-3. Plainphone walks through the default phone app and messages app, web filter, time limits,
-   uninstall protection and guard. On Android 13+ use the help under the guard if Android reports
-   a restricted setting. Android settings vary by manufacturer.
-4. The optional steps cover background operation, location and always-on VPN. You can continue without extras in one tap. For always-on
-   VPN, leave **Block connections without VPN** off. The filter carries only web lookups
-   ([light-mode-vpn.md](light-mode-vpn.md)).
-5. The phone connects to the dashboard automatically and waits for the first rules before
-   showing that setup is complete. Switch off Chrome's **Allow from this source** in Android
-   settings after installing.
+1. In the dashboard, choose **Add phone → It is already in use**. Choose the profile, give the
+   phone a name and create a setup link. Open it in Chrome on the phone being set up.
+2. Download and open the APK. If Android blocks installation, open **Settings**, enable **Allow
+   from this source**, go back and tap **Install**. Return to the same Chrome tab and tap
+   **Open Plainphone**.
+3. On **Whose phone is this?**, choose **Child** or **Myself**, then review what will be managed
+   before agreeing to continue. **Parent** opens the dashboard with no Android permissions. It
+   also offers setup for your own phone. **Myself** uses the existing Self profile: stricter
+   rules take effect when the phone next connects, and looser rules wait for the key.
+4. Check the masked account and household on the phone before confirming. **Not you? Cancel**
+   removes the unfinished phone entry. For a setup link, enter the maintenance PIN twice on the
+   phone to confirm. If you opened Plainphone directly from the installer, choose your local PIN
+   and show a pairing code. Open the dashboard, confirm the preselected profile, and then confirm
+   the masked account on the phone.
+5. Follow the default phone and SMS app, web filter, usage access, uninstall protection and guard
+   steps. On Android 13 or later, if Android blocks the phone app, SMS app or guard as a restricted
+   setting, open **App info** from Plainphone, tap **⋮ (top right) → Allow restricted settings**,
+   return to Plainphone and retry the step. The menu depends on the Android version and manufacturer.
+   See [Android's restricted settings help](https://support.google.com/android/answer/12623953).
+6. Background operation, location and always-on VPN are optional. For always-on VPN, leave
+   **Block connections without VPN** off. The filter only carries DNS lookups
+   ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
+   **Allow from this source** in Android settings.
 
-Opening Plainphone from the APK installer without the setup link still gives you the local PIN
-and pairing-code flow. For dashboard setup return to Chrome. If the link expires or you need to replace it before pairing, create a new one in the dashboard.
-Open it on the phone and set the parent PIN again to replace the previous setup link.
+**Undo setup** is available without a PIN on the finish and Today screens for ten minutes after
+light-mode setup completes. The phone saves the window length, the boot count and the elapsed
+time since boot at completion. Changing the clock has no effect. Rebooting closes the window.
+The maintenance PIN and dashboard release remain available.
+
+Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
+The phone saves the accepted undo and retries the report after reconnecting. Once the server
+acknowledges it, Plainphone removes its device administrator so Android allows normal
+uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
+If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
+
+When the server receives the report, it removes the phone from the dashboard and queues the
+protection-removed notice in the same database transaction. Delivery runs in the background and is retried if a
+configured mail or push provider is unavailable. Before sending, the server checks that the
+recipient still belongs to the household. Android keeps its default Phone and SMS apps
+selected until you change them in Settings or uninstall Plainphone.
+
+In light mode, the phone already enforces protection locally. A time-boxed window measured by
+the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the
+report to remove the phone and tell the parent.
+
+Device Owner mode starts through the Android welcome screen on a new or reset phone.
+The dashboard QR scan confirms the chosen profile and account, and Plainphone applies policies
+during provisioning. It pairs automatically and shows the masked account and household when
+connected. Use the maintenance PIN or dashboard release if the account is wrong.
+
 See [dashboard setup](dashboard-setup.md) for the handoff and hardware checks.
 
 ## Google Play policies per part

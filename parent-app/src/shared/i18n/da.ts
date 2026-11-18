@@ -88,6 +88,9 @@ export const da: Messages = {
   "profile.child": "Barn",
   "profile.self": "Mig selv",
   "profile.childHelp": `Du og de andre forældre i husstanden bestemmer reglerne. ${changeTiming}`,
+  "pair.confirmOnPhone": "Bekræft kontoen på telefonen for at forbinde den.",
+  "pair.profileFromPhone": "Profilen blev valgt på telefonen. Tjek den, før du tilføjer telefonen.",
+  "pair.profileMismatch": "Vælg den samme profil som på telefonen.",
   "profile.selfHelp": `Strammere regler gælder, ${nextOnline} Løsere regler venter på din nøgle.`,
 
   "mode.strong": "Stærk tilstand",
@@ -781,6 +784,7 @@ export const da: Messages = {
   "setup.alreadyBody": "Den er forbundet med dit dashboard, så den skal ikke have en ny QR-kode.",
   "setup.pendingTitle": "Ikke sat op endnu",
   "setup.pendingBody": "Scan opsætnings-QR-koden med telefonen. Har du lavet en kode før, holder den op med at virke, når du laver en ny.",
+  "setup.codePendingBody": "Fortsæt opsætningen på telefonen. Hvis koden er udløbet, skal du fjerne telefonen under »Denne telefon« og parre igen med en ny kode.",
   "setup.showQr": "Vis QR-koden til opsætning",
   "phones.notSetUp": "Ikke sat op",
   "nav.settings": "Indstillinger",

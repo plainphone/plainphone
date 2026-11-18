@@ -69,6 +69,8 @@ class PlainphoneApplication : Application() {
         runCatching { Safety.createChannels(this) }
             .onFailure { Log.e("Plainphone", "could not set up safety notifications", it) }
         Thread({
+            runCatching { SyncScheduler.enrollIfNeeded(this) }
+                .onFailure { Log.e("Plainphone", "could not schedule QR enrollment", it) }
             runCatching { SyncScheduler.ensurePeriodic(this) }
                 .onFailure { Log.e("Plainphone", "could not set up periodic sync", it) }
             runCatching { SelfUpdate.onStart(this) }

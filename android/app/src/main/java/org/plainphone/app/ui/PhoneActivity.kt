@@ -123,6 +123,8 @@ import org.plainphone.app.telephony.CallNotifications
 import org.plainphone.app.telephony.SmsMessage
 import org.plainphone.app.telephony.SmsSender
 import org.plainphone.app.telephony.SmsStore
+import org.plainphone.app.telephony.mergeSmsHistory
+import org.plainphone.app.telephony.smsHistoryOrder
 import org.plainphone.app.telephony.SmsThread
 import org.plainphone.app.telephony.SmsThreadKind
 import org.plainphone.app.telephony.ThreadCursor
@@ -137,7 +139,6 @@ data class Route(
     val body: String? = null,
     val nonce: Long = System.nanoTime(),
     val threadKind: SmsThreadKind? = null,
-    val chooseFavourites: Boolean = false,
 )
 
 /**
@@ -183,18 +184,16 @@ class PhoneActivity : ComponentActivity() {
             intent?.action == Intent.ACTION_DIAL || (intent?.action == Intent.ACTION_VIEW && data?.scheme == "tel") ->
                 Route(Tab.KEYPAD, number)
             intent?.component?.className?.endsWith(MESSAGES_ALIAS) == true -> Route(Tab.MESSAGES)
-            else -> Route(Tab.CONTACTS, chooseFavourites = intent?.getBooleanExtra(EXTRA_CHOOSE_FAVOURITES, false) == true)
+            else -> Route(Tab.CONTACTS)
         }
     }
 
     companion object {
-        private const val EXTRA_CHOOSE_FAVOURITES = "org.plainphone.app.CHOOSE_FAVOURITES"
         const val EXTRA_CONVERSATION = "org.plainphone.app.CONVERSATION"
         private const val EXTRA_THREAD_KIND = "org.plainphone.app.THREAD_KIND"
         private const val MESSAGES_ALIAS = ".MessagesLauncher"
 
         fun favouritesIntent(context: Context): Intent = Intent(context, PhoneActivity::class.java)
-            .putExtra(EXTRA_CHOOSE_FAVOURITES, true)
 
         fun conversationIntent(context: Context, thread: SmsThread): Intent =
             Intent(context, PhoneActivity::class.java)
@@ -330,7 +329,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
             }) { Text(stringResource(R.string.help_lines_title)) }
             when (tab) {
                 Tab.CONTACTS -> ContactsScreen(
-                    rules, resumed, route.chooseFavourites, onRulesChanged = { refreshRules++ },
+                    rules, resumed, onRulesChanged = { refreshRules++ },
                     onCall = call, onMessage = { conversationWith = SmsThread(it.number) },
                 )
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)
@@ -428,7 +427,7 @@ private fun RoleBanner(resumed: Int) {
 
 @Composable
 private fun ContactsScreen(
-    rules: ContactRules, resumed: Int, chooseFavourites: Boolean, onRulesChanged: () -> Unit,
+    rules: ContactRules, resumed: Int, onRulesChanged: () -> Unit,
     onCall: (String) -> Unit, onMessage: (ApprovedContact) -> Unit,
 ) {
     val context = LocalContext.current
@@ -438,8 +437,17 @@ private fun ContactsScreen(
         if (granted && rules.childProfile) SyncScheduler.now(context, "contact permission granted")
     }
     val canRead = remember(resumed, permissionRefresh) { DeviceContacts.canRead(context) }
-    var choosing by remember(chooseFavourites, rules.selfProfile) {
-        mutableStateOf(chooseFavourites && rules.selfProfile)
+    val setupStore = remember { SyncStore(context) }
+    var setupPhoneId by remember(rules.selfProfile) {
+        mutableStateOf(if (rules.selfProfile) setupStore.favouriteSetupPhoneId() else null)
+    }
+    var choosing by remember(rules.selfProfile) {
+        mutableStateOf(setupPhoneId != null)
+    }
+    fun finishChoosing() {
+        setupPhoneId?.let(setupStore::completeFavouriteSetup)
+        setupPhoneId = null
+        choosing = false
     }
     val deviceContacts by produceState(emptyList<ApprovedContact>(), rules.selfProfile, rules.country, resumed, canRead) {
         value = if (rules.selfProfile && canRead) withContext(Dispatchers.IO) {
@@ -464,10 +472,15 @@ private fun ContactsScreen(
                     }
                 }
                 if (rules.selfProfile) {
-                    TextButton(onClick = { choosing = !choosing }) {
+                    TextButton(onClick = { if (choosing) finishChoosing() else choosing = true }) {
                         Text(stringResource(if (choosing) R.string.contacts_favourites_done else R.string.contacts_favourites_choose))
                     }
                     if (choosing) Text(stringResource(R.string.contacts_favourites_hint))
+                    if (choosing && setupPhoneId != null) {
+                        TextButton(onClick = ::finishChoosing) {
+                            Text(stringResource(R.string.contacts_favourites_skip))
+                        }
+                    }
                     notice?.let { Text(stringResource(it), modifier = Modifier.padding(top = 8.dp)) }
                 }
             }
@@ -692,24 +705,46 @@ private fun ConversationScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val sendFailed = stringResource(R.string.message_send_failed)
     var messages by remember(thread) { mutableStateOf(emptyList<SmsMessage>()) }
-    var after by remember(thread, refresh, resumed) { mutableStateOf<SmsMessage?>(null) }
+    var after by remember(thread) { mutableStateOf<SmsMessage?>(null) }
+    var loadedFor by remember(thread) { mutableStateOf<Pair<Int, Int>?>(null) }
     var request by remember(thread) { mutableIntStateOf(0) }
     var hasMore by remember(thread) { mutableStateOf(false) }
     var failed by remember(thread) { mutableStateOf(false) }
     var loading by remember(thread) { mutableStateOf(false) }
     LaunchedEffect(refresh, resumed, request) {
-        val start = after
+        val refreshKey = refresh to resumed
         loading = true
         failed = false
+        suspend fun readPage(cursor: SmsMessage?) = withContext(Dispatchers.IO) {
+            SmsStore.messagePage(context, thread, cursor, HISTORY_PAGE_SIZE + 1)
+        }
         try {
-            val next = withContext(Dispatchers.IO) {
-                SmsStore.messagePage(context, thread, start, HISTORY_PAGE_SIZE + 1)
+            val read = mutableListOf<SmsMessage>()
+            if (loadedFor != refreshKey) {
+                val newestLoaded = messages.firstOrNull()
+                var cursor: SmsMessage? = null
+                var more: Boolean
+                do {
+                    val page = readPage(cursor)
+                    read += page.take(HISTORY_PAGE_SIZE)
+                    more = page.size > HISTORY_PAGE_SIZE
+                    cursor = read.lastOrNull()
+                } while (more && cursor != null && newestLoaded != null &&
+                    smsHistoryOrder.compare(cursor, newestLoaded) < 0)
+                if (newestLoaded == null) hasMore = more
+                messages = mergeSmsHistory(messages, read)
+                loadedFor = refreshKey
             }
-            val shown = next.take(HISTORY_PAGE_SIZE)
-            messages = if (start == null) shown else messages + shown
-            hasMore = next.size > HISTORY_PAGE_SIZE
-            if (shown.isNotEmpty()) withContext(Dispatchers.IO) {
-                SmsStore.markRead(context, shown)
+            after?.let { start ->
+                val page = readPage(start)
+                val shown = page.take(HISTORY_PAGE_SIZE)
+                read += shown
+                messages = mergeSmsHistory(messages, shown)
+                hasMore = page.size > HISTORY_PAGE_SIZE
+                after = null
+            }
+            if (read.isNotEmpty()) withContext(Dispatchers.IO) {
+                SmsStore.markRead(context, read)
                 if (thread.kind != SmsThreadKind.LEGACY && thread.kind != SmsThreadKind.MMS) {
                     CallNotifications.cancelMessage(context, thread)
                 }

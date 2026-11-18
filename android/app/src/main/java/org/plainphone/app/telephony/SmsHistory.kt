@@ -10,6 +10,11 @@ import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.PhoneNumbers
 
+internal val smsHistoryOrder = compareByDescending<SmsMessage> { it.atMs }.thenByDescending { it.id }
+
+internal fun mergeSmsHistory(loaded: List<SmsMessage>, incoming: List<SmsMessage>): List<SmsMessage> =
+    (incoming + loaded).distinctBy { it.id }.sortedWith(smsHistoryOrder)
+
 internal data class ThreadCursor(val date: Long, val seenAtDate: Set<Long>)
 internal data class ThreadPage(
     val threads: Map<SmsThread, List<SmsMessage>>,
@@ -22,24 +27,22 @@ internal class SmsHistory(
 ) {
     private val resolver = context.contentResolver
 
-    // The combined provider supplies one row per system conversation. AOSP sorts
-    // simple queries by date regardless of sortOrder, so retain IDs at the boundary
-    // timestamp to prevent skipping conversations with the same date.
     fun threads(after: ThreadCursor?, size: Int): ThreadPage {
-        val rows = query(
-            conversations, arrayOf("_id", "date", "recipient_ids", "read"),
-            "(message_count > 0 OR snippet IS NOT NULL OR has_attachment = 1)" +
-                after?.let { " AND date <= ${it.date}" }.orEmpty(), "date DESC",
-        ) {
-            buildList {
-                while (this.size <= size && it.moveToNext()) {
-                    val id = it.getLong(0)
-                    val date = it.getLong(1)
-                    if (after != null && date == after.date && id in after.seenAtDate) continue
-                    add(ConversationRow(id, date, it.getString(2).orEmpty(), it.getInt(3) != 0))
-                }
-            }
-        }
+        val selection = "(message_count > 0 OR snippet IS NOT NULL OR has_attachment = 1)" +
+            after?.let {
+                " AND (date < ${it.date} OR (date = ${it.date} AND _id NOT IN (${it.seenAtDate.joinToString()})))"
+            }.orEmpty()
+        val columns = arrayOf("_id", "date", "recipient_ids", "read")
+        val order = "date DESC, _id ASC"
+        // AOSP's simple conversation endpoint ignores sortOrder, including LIMIT.
+        val bounded = "_id IN (SELECT _id FROM threads WHERE $selection ORDER BY $order LIMIT ${size + 1})"
+        fun read(cursor: Cursor) = page(cursor, size + 1) {
+            ConversationRow(cursor.getLong(0), cursor.getLong(1), cursor.getString(2).orEmpty(), cursor.getInt(3) != 0)
+        }.sortedWith(compareByDescending<ConversationRow> { it.date }.thenBy { it.id })
+        val rows = resolver.query(conversations, columns, bounded, null, "$order LIMIT ${size + 1}")
+            ?.use(::read)
+            // The restricted AOSP provider rejects subqueries when Plainphone lacks the SMS role.
+            ?: query(conversations, columns, selection, "$order LIMIT ${size + 1}", ::read)
         val visible = rows.take(size)
         val next = if (rows.size > size) {
             val date = visible.last().date
@@ -48,10 +51,11 @@ internal class SmsHistory(
         } else null
         val recipients = addresses(visible.flatMap { row -> row.recipientIds.split(' ').mapNotNull(String::toLongOrNull) }.toSet())
         val previews = visible.flatMap { row ->
-            val numbers = row.recipientIds.split(' ').mapNotNull { recipients[it.toLongOrNull()] }
+            val ids = row.recipientIds.split(' ').mapNotNull(String::toLongOrNull)
+            val numbers = ids.mapNotNull(recipients::get)
                 .map { PhoneNumbers.normalize(it, rules.country) ?: it }
-            if (numbers.size == 1 && row.recipientIds.trim().split(' ').size == 1) {
-                val number = numbers.single()
+            val number = if (ids.size == 1) numbers.singleOrNull() ?: smsAddress(row.id) else null
+            if (number != null) {
                 val partitions = SmsStore.partitions(context, row.id, number, rules)
                 if (partitions.size > 1) {
                     partitions.keys.mapNotNull { kind ->
@@ -77,7 +81,7 @@ internal class SmsHistory(
             Telephony.Sms.CONTENT_URI, if (includeBodies) smsColumns + "body" else smsColumns,
             "thread_id = $id AND ($partition)" + (after?.let {
                 " AND (date < ${it.atMs} OR (date = ${it.atMs} AND _id < ${it.id}))"
-            } ?: ""), "date DESC, _id DESC",
+            } ?: ""), "date DESC, _id DESC LIMIT $size",
         ) { cursor ->
             page(cursor, size) {
                 val type = cursor.getInt(3)
@@ -92,7 +96,7 @@ internal class SmsHistory(
         val mms = if (thread.kind == SmsThreadKind.CONTACT || thread.kind == SmsThreadKind.MMS) {
             mms(id, thread.number, after, size)
         } else emptyList()
-        return (sms + mms).sortedWith(compareByDescending<SmsMessage> { it.atMs }.thenByDescending { it.id }).take(size)
+        return (sms + mms).sortedWith(smsHistoryOrder).take(size)
     }
 
     private fun mms(id: Long, number: String, after: SmsMessage?, size: Int): List<SmsMessage> {
@@ -103,7 +107,7 @@ internal class SmsHistory(
         }.orEmpty()
         return query(
             Telephony.Mms.CONTENT_URI, arrayOf("_id", "date", "msg_box"),
-            "thread_id = $id$before", "date DESC, _id ASC",
+            "thread_id = $id$before", "date DESC, _id ASC LIMIT $size",
         ) { cursor ->
             page(cursor, size) {
                 val box = cursor.getInt(2)
@@ -113,6 +117,14 @@ internal class SmsHistory(
                 )
             }
         }
+    }
+
+    private fun smsAddress(id: Long): String? = query(
+        Telephony.Sms.CONTENT_URI, arrayOf("address"),
+        "thread_id = $id AND trim(address) <> ''", "date DESC, _id DESC LIMIT 1",
+    ) { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(0)?.let { PhoneNumbers.normalize(it, rules.country) ?: it }
+        else null
     }
 
     private fun addresses(ids: Set<Long>): Map<Long, String> {

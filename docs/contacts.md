@@ -12,7 +12,8 @@ This page describes how that is built, where Android sets the limits, and what i
 The Calls and Messages tabs read the Android system providers on the phone. Calls
 and SMS can be browsed in pages, including entries from previous default apps
 that still exist in the providers. Opening an SMS conversation loads its newest
-messages first. An MMS in a one-to-one conversation appears as a placeholder
+messages first. Refreshing an open conversation keeps the pages already loaded
+and preserves the scroll position. An MMS in a one-to-one conversation appears as a placeholder
 alongside the SMS messages from that conversation. Group MMS conversations are
 read-only, with placeholders for the attachments.
 Conversations and call entries for numbers the child cannot contact are read-only.
@@ -33,9 +34,10 @@ same address book again. The child can see what is shared on the Contacts tab. S
 
 ## Self favourites
 
-The Contacts tab shows local contacts and favourites. After pairing in setup and
-later from **Choose favourites** in Contacts, pick contacts that should always
-be reachable. On the dashboard, **Favourites** lets you turn on the optional
+The Contacts tab shows local contacts and favourites. On a new Self phone, the setup step appears after setup is complete and the phone has
+downloaded its first rules. Choose **Done** or **Skip**
+to close the setup step. You can use **Choose favourites** in Contacts any time
+to pick contacts that should always be reachable. On the dashboard, **Favourites** lets you turn on the optional
 restriction for active schedules. When it is on, favourites can still call and
 text in both directions, alongside emergency and helpline exceptions. Adding a
 favourite after enabling the restriction, or turning the restriction off, waits

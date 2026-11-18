@@ -85,7 +85,7 @@ object SmsStore {
         if (prefs.contains(LEGACY_THROUGH)) return prefs.getLong(LEGACY_THROUGH, 0)
         val lastId = runCatching {
             context.contentResolver.query(
-                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID), null, null, "${Telephony.Sms._ID} DESC",
+                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID), null, null, "${Telephony.Sms._ID} DESC LIMIT 1",
             )?.use { if (it.moveToFirst()) it.getLong(0) else 0L }
         }.getOrNull() ?: return 0L
         // Persist the boundary before this version inserts any new messages.
@@ -116,7 +116,7 @@ object SmsStore {
             context.contentResolver.query(
                 Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID),
                 "thread_id = ? AND type = ? AND _id <= ?",
-                arrayOf(id.toString(), Telephony.Sms.MESSAGE_TYPE_SENT.toString(), boundary.toString()), "_id ASC",
+                arrayOf(id.toString(), Telephony.Sms.MESSAGE_TYPE_SENT.toString(), boundary.toString()), "_id ASC LIMIT 1",
             )?.use { if (it.moveToFirst()) it.getLong(0) else null }
         } else null
         val legacy = first?.let { "(_id > $it AND _id <= $boundary AND NOT $help)" }

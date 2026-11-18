@@ -89,6 +89,9 @@ export const en = {
   "profile.child": "Child",
   "profile.self": "Self",
   "profile.childHelp": `You and the other caregivers in the household set the rules. ${changeTiming}`,
+  "pair.confirmOnPhone": "Confirm the account on the phone to finish connecting.",
+  "pair.profileFromPhone": "This profile was selected on the phone. Review it before adding the phone.",
+  "pair.profileMismatch": "Choose the same profile as on the phone.",
   "profile.selfHelp": `Stricter rules take effect ${nextOnline} Looser rules wait for your key.`,
 
   "mode.strong": "Strong mode",
@@ -782,6 +785,7 @@ export const en = {
   "setup.alreadyBody": "It is connected to your dashboard, so it needs no new QR code.",
   "setup.pendingTitle": "Not set up yet",
   "setup.pendingBody": "Scan the setup QR code with the phone. Made a code before? It stops working when you make a new one.",
+  "setup.codePendingBody": "Continue setup on the phone. If the code has expired, remove this entry under “This phone” and pair again with a new code.",
   "setup.showQr": "Show the setup QR code",
   "phones.notSetUp": "Not set up",
   "nav.settings": "Settings",

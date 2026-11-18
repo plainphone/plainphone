@@ -509,6 +509,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ phones: await phoneSummaries(ctx, hids) });
   });
 
+  app.post("/phones/pairing-profile", async (c) => {
+    if (!claimLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${c.get("user").id}`)) {
+      throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
+    }
+    const { code } = await body(c, z.object({ code: z.string().max(20).transform(normalizePairingCode) }));
+    const [p] = await ctx.db.select({ profile: pairings.profileHint }).from(pairings)
+      .where(and(eq(pairings.codeHash, sha256(code)), isNull(pairings.claimedAt), gt(pairings.expiresAt, ctx.now())));
+    if (!p) return c.json({ error: "code not found" }, 404);
+    return c.json(p);
+  });
+
   app.post("/phones/claim", async (c) => {
     if (!claimLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${c.get("user").id}`)) {
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
@@ -541,23 +552,25 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         )
         .for("update");
       if (!p) return null;
+      if (p.profileHint && input.profile !== p.profileHint) return "profileMismatch" as const;
       const created = await createPhone(ctx, tx, {
         householdId,
         name: input.name,
         profile: input.profile,
         mode: p.mode,
-        deviceTokenHash: sha256(deviceToken),
+        deviceTokenHash: p.requiresConfirmation ? null : sha256(deviceToken),
         deviceInfo: p.deviceInfo ?? null,
         timezone: input.timezone,
       });
       await tx
         .update(pairings)
-        .set({ claimedAt: ctx.now(), phoneId: created.id, pendingDeviceToken: deviceToken })
+        .set({ claimedAt: ctx.now(), claimedBy: c.get("user").id, phoneId: created.id, pendingDeviceToken: deviceToken })
         .where(eq(pairings.id, p.id));
       return created;
     });
     if (!phone) return c.json({ error: "code not found or expired; check the code on the phone" }, 404);
-    await syncDns(ctx, phone.id);
+    if (phone === "profileMismatch") return c.json({ error: "profile mismatch" }, 409);
+    if (phone.deviceTokenHash) await syncDns(ctx, phone.id);
     return c.json(await phoneSummary(ctx, phone), 201);
   });
 
@@ -602,6 +615,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.post("/phones/:pid/enrollment", async (c) => {
     const phone = await requirePhone(c);
     if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
+    const [pending] = await ctx.db.select({ id: pairings.id }).from(pairings)
+      .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
+    if (pending || phone.deviceTokenHash !== null) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
     const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
     return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);

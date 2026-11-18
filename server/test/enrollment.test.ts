@@ -34,7 +34,7 @@ describe("setup from the dashboard (enrollment)", () => {
     expect(out.provisioning).toEqual({
       adminComponent: "org.plainphone.app/.PlainphoneAdminReceiver",
       downloadUrl: `${PUBLIC_URL}/download/android`,
-      signatureChecksum: "mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM",
+      signatureChecksum: "iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU",
       serverUrl: PUBLIC_URL,
       dnsHost: "family.adguard-dns.com",
     });
@@ -52,6 +52,10 @@ describe("setup from the dashboard (enrollment)", () => {
     const parent = await signIn(h, "p@example.org");
     const { phone, enrollment } = await addPhone(parent);
     const r = await enroll(enrollment.token);
+    expect(r.json.account).toEqual({
+      maskedEmail: "p***@example.org",
+      householdName: (await parent.get("/api/me")).json.households[0].name,
+    });
     expect(r.status).toBe(200);
     expect(r.json.phoneId).toBe(phone.id);
     expect(r.json.deviceToken).toMatch(/^pp_d_/);
@@ -269,7 +273,7 @@ describe("setup configuration", () => {
       APK_RELEASES_REPO: "",
     });
     expect(cfg.APK_DOWNLOAD_URL).toBeUndefined();
-    expect(cfg.APK_SIGNATURE_CHECKSUM).toBe("mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM");
+    expect(cfg.APK_SIGNATURE_CHECKSUM).toBe("iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU");
     expect(cfg.PROVISIONING_DNS_HOST).toBe("family.adguard-dns.com");
     expect(cfg.APK_RELEASES_REPO).toBe("plainphone/plainphone");
     expect(() => loadConfig({ DATABASE_URL: "x", APK_SIGNATURE_CHECKSUM: "too-short" })).toThrow();

@@ -73,6 +73,25 @@ class SmsHistoryTest {
     }
 
     @Test
+    fun limitsRowsInsideTheProvider() {
+        val thread = SmsStore.threadPage(context, null, 1).threads.keys.single()
+        // Both populated threads tie on date. More matching threads must stay outside the cursor.
+        provider.db.execSQL("INSERT INTO threads VALUES (10, 4000, '1', 1, 1, NULL, 0)")
+        SmsStore.threadPage(context, null, 1)
+        assertEquals(2, provider.threadCount)
+        SmsStore.messagePage(context, thread, null, 50)
+        assertEquals(50, provider.smsCount)
+    }
+
+    @Test
+    fun missingCanonicalAddressKeepsSingleRecipientSmsThread() {
+        provider.db.execSQL("DELETE FROM addresses WHERE _id = 1")
+        val thread = SmsStore.threadPage(context, null, 1).threads.keys.single()
+        assertEquals(SmsThread("12345678", systemId = 7), thread)
+        assertEquals(5001L, SmsStore.messagePage(context, thread, null, 1).single().id)
+    }
+
+    @Test
     fun mergesSmsAndMmsFromTheSameSystemConversationAcrossTimestampTies() {
         provider.db.execSQL("UPDATE threads SET date = 5000 WHERE _id = 7")
         provider.db.execSQL("INSERT INTO mms VALUES (1, 7, 5, 1), (2, 7, 5, 1)")
@@ -84,6 +103,18 @@ class SmsHistoryTest {
         assertEquals("12345678", second.single().number)
         val third = SmsStore.messagePage(context, thread, second.last(), 2)
         assertEquals(listOf(-2L, 4999L), third.map { it.id })
+    }
+
+    @Test
+    fun mergingARefreshRetainsOlderPagesAndUpdatesExistingMessages() {
+        val thread = SmsStore.threadPage(context, null, 1).threads.keys.single()
+        val first = SmsStore.messagePage(context, thread, null, 2)
+        val older = SmsStore.messagePage(context, thread, first.last(), 2)
+        val updated = first.first().copy(read = true)
+        val incoming = updated.copy(id = 5002, atMs = 5002)
+        val merged = mergeSmsHistory(first + older, listOf(incoming, updated))
+        assertEquals(listOf(5002L, 5001L, 5000L, 4999L, 4998L), merged.map { it.id })
+        assertEquals(updated, merged[1])
     }
 
     @Test
@@ -145,6 +176,8 @@ class SmsHistoryTest {
     }
 
     private class HistoryProvider : ContentProvider() {
+        var threadCount = 0
+        var smsCount = 0
         var threadRows = 0
         var smsRows = 0
         var updates = 0
@@ -189,7 +222,12 @@ class SmsHistoryTest {
                 else -> if (uri.lastPathSegment == "conversations") "threads" else "addresses"
             }
             val order = if (table == "threads") "date DESC" else sortOrder
-            return object : CursorWrapper(db.query(table, projection, selection, selectionArgs, null, null, order)) {
+            val cursor = db.query(table, projection, selection, selectionArgs, null, null, order)
+            when (table) {
+                "threads" -> threadCount = cursor.count
+                "sms" -> smsCount = cursor.count
+            }
+            return object : CursorWrapper(cursor) {
                 override fun moveToNext(): Boolean = super.moveToNext().also { moved ->
                     if (moved) when (table) {
                         "threads" -> threadRows++
