@@ -92,6 +92,22 @@ class SmsHistoryTest {
     }
 
     @Test
+    fun restrictedProviderKeepsSmsAndMmsReadableWithoutCanonicalAddress() {
+        provider.restricted = true
+        provider.db.execSQL("DELETE FROM addresses WHERE _id = 1")
+        provider.db.execSQL("INSERT INTO mms VALUES (1, 7, 6, 1)")
+        val first = SmsStore.threadPage(context, null, 1)
+        val thread = first.threads.keys.single()
+        assertEquals(SmsThread("12345678", systemId = 7), thread)
+        val messages = SmsStore.messagePage(context, thread, null, 2)
+        assertEquals(listOf(-1L, 5001L), messages.map { it.id })
+        assertEquals(5000L, SmsStore.messagePage(context, thread, messages.last(), 1).single().id)
+        val second = SmsStore.threadPage(context, first.next, 1)
+        assertEquals("87654321", second.threads.keys.single().number)
+        assertNull(second.next)
+    }
+
+    @Test
     fun mergesSmsAndMmsFromTheSameSystemConversationAcrossTimestampTies() {
         provider.db.execSQL("UPDATE threads SET date = 5000 WHERE _id = 7")
         provider.db.execSQL("INSERT INTO mms VALUES (1, 7, 5, 1), (2, 7, 5, 1)")
@@ -175,13 +191,14 @@ class SmsHistoryTest {
         assertEquals(listOf(7103L, 7101L), approved.messages(approvedThreads.getValue(SmsThreadKind.CONTACT), null, 10).map { it.id })
     }
 
-    private class HistoryProvider : ContentProvider() {
+    internal class HistoryProvider : ContentProvider() {
         var threadCount = 0
         var smsCount = 0
         var threadRows = 0
         var smsRows = 0
         var updates = 0
         var failBody = false
+        var restricted = false
 
         val db = SQLiteDatabase.create(null).apply {
             execSQL("CREATE TABLE threads (_id INTEGER PRIMARY KEY, date INTEGER, recipient_ids TEXT, read INTEGER, message_count INTEGER, snippet TEXT, has_attachment INTEGER)")
@@ -209,7 +226,12 @@ class SmsHistoryTest {
         override fun query(
             uri: Uri, projection: Array<out String>?, selection: String?,
             selectionArgs: Array<out String>?, sortOrder: String?,
-        ): Cursor {
+        ): Cursor? {
+            if (restricted && selection?.contains("SELECT") == true) return null
+            if (restricted && sortOrder?.contains("LIMIT") == true) {
+                if (uri.authority == "mms") return null
+                if (uri.authority == "sms") throw IllegalArgumentException("Invalid token LIMIT")
+            }
             if (uri.authority == "sms" && failBody && projection?.contains(Telephony.Sms.BODY) == true) {
                 error("Could not read message body")
             }

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.telephony
 
+import android.content.ContentResolver
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
@@ -14,6 +15,15 @@ internal val smsHistoryOrder = compareByDescending<SmsMessage> { it.atMs }.thenB
 
 internal fun mergeSmsHistory(loaded: List<SmsMessage>, incoming: List<SmsMessage>): List<SmsMessage> =
     (incoming + loaded).distinctBy { it.id }.sortedWith(smsHistoryOrder)
+
+internal fun ContentResolver.queryHistoryPage(
+    uri: Uri, columns: Array<String>, where: String, args: Array<String>?, order: String, size: Int,
+): Cursor? = try {
+    query(uri, columns, where, args, "$order LIMIT $size")
+} catch (_: IllegalArgumentException) {
+    // Restricted telephony providers can reject LIMIT in the sort order outright.
+    null
+} ?: query(uri, columns, where, args, order)
 
 internal data class ThreadCursor(val date: Long, val seenAtDate: Set<Long>)
 internal data class ThreadPage(
@@ -39,10 +49,10 @@ internal class SmsHistory(
         fun read(cursor: Cursor) = page(cursor, size + 1) {
             ConversationRow(cursor.getLong(0), cursor.getLong(1), cursor.getString(2).orEmpty(), cursor.getInt(3) != 0)
         }.sortedWith(compareByDescending<ConversationRow> { it.date }.thenBy { it.id })
-        val rows = resolver.query(conversations, columns, bounded, null, "$order LIMIT ${size + 1}")
+        val rows = resolver.query(conversations, columns, bounded, null, null)
             ?.use(::read)
-            // The restricted AOSP provider rejects subqueries when Plainphone lacks the SMS role.
-            ?: query(conversations, columns, selection, "$order LIMIT ${size + 1}", ::read)
+            // AOSP rejects subqueries in the restricted view and simple=true has no limit argument.
+            ?: query(conversations, columns, selection, ::read)
         val visible = rows.take(size)
         val next = if (rows.size > size) {
             val date = visible.last().date
@@ -77,11 +87,11 @@ internal class SmsHistory(
         val partition = if (thread.kind == SmsThreadKind.MMS) "1" else
             SmsStore.partitions(context, id, thread.number, rules)[thread.kind] ?: return emptyList()
         val smsColumns = arrayOf("_id", "address", "date", "type", "read")
-        val sms = query(
+        val sms = queryPage(
             Telephony.Sms.CONTENT_URI, if (includeBodies) smsColumns + "body" else smsColumns,
             "thread_id = $id AND ($partition)" + (after?.let {
                 " AND (date < ${it.atMs} OR (date = ${it.atMs} AND _id < ${it.id}))"
-            } ?: ""), "date DESC, _id DESC LIMIT $size",
+            } ?: ""), "date DESC, _id DESC", size,
         ) { cursor ->
             page(cursor, size) {
                 val type = cursor.getInt(3)
@@ -105,9 +115,9 @@ internal class SmsHistory(
             if (it.atMs % 1000 != 0L || it.id > 0) " AND date <= $seconds"
             else " AND (date < $seconds OR (date = $seconds AND _id > ${-it.id}))"
         }.orEmpty()
-        return query(
+        return queryPage(
             Telephony.Mms.CONTENT_URI, arrayOf("_id", "date", "msg_box"),
-            "thread_id = $id$before", "date DESC, _id ASC LIMIT $size",
+            "thread_id = $id$before", "date DESC, _id ASC", size,
         ) { cursor ->
             page(cursor, size) {
                 val box = cursor.getInt(2)
@@ -119,9 +129,9 @@ internal class SmsHistory(
         }
     }
 
-    private fun smsAddress(id: Long): String? = query(
+    private fun smsAddress(id: Long): String? = queryPage(
         Telephony.Sms.CONTENT_URI, arrayOf("address"),
-        "thread_id = $id AND trim(address) <> ''", "date DESC, _id DESC LIMIT 1",
+        "thread_id = $id AND trim(address) <> ''", "date DESC, _id DESC", 1,
     ) { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0)?.let { PhoneNumbers.normalize(it, rules.country) ?: it }
         else null
@@ -129,7 +139,7 @@ internal class SmsHistory(
 
     private fun addresses(ids: Set<Long>): Map<Long, String> {
         if (ids.isEmpty()) return emptyMap()
-        return query(canonicalAddresses, arrayOf("_id", "address"), "_id IN (${ids.joinToString()})", null) {
+        return query(canonicalAddresses, arrayOf("_id", "address"), "_id IN (${ids.joinToString()})") {
             buildMap {
                 while (it.moveToNext()) it.getString(1)?.let { address -> put(it.getLong(0), address) }
             }
@@ -137,8 +147,14 @@ internal class SmsHistory(
     }
 
     private fun <T> query(
-        uri: Uri, columns: Array<String>, where: String?, order: String?, read: (Cursor) -> T,
-    ): T = checkNotNull(resolver.query(uri, columns, where, null, order)) { "No history cursor" }.use(read)
+        uri: Uri, columns: Array<String>, where: String, read: (Cursor) -> T,
+    ): T = checkNotNull(resolver.query(uri, columns, where, null, null)) { "No history cursor" }.use(read)
+
+    private fun <T> queryPage(
+        uri: Uri, columns: Array<String>, where: String, order: String, size: Int, read: (Cursor) -> T,
+    ): T = checkNotNull(resolver.queryHistoryPage(uri, columns, where, null, order, size)) {
+        "No history cursor"
+    }.use(read)
 
     private fun <T> page(cursor: Cursor, size: Int, row: () -> T): List<T> = buildList {
         while (this.size < size && cursor.moveToNext()) add(row())

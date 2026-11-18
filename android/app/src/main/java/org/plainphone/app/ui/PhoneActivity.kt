@@ -690,7 +690,7 @@ internal fun ConversationsScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConversationScreen(
+internal fun ConversationScreen(
     contact: ApprovedContact?,
     refresh: Int,
     resumed: Int,
@@ -698,6 +698,7 @@ private fun ConversationScreen(
     initialDraft: String,
     onBack: () -> Unit,
     onCall: (String) -> Unit,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -715,8 +716,8 @@ private fun ConversationScreen(
         val refreshKey = refresh to resumed
         loading = true
         failed = false
-        suspend fun readPage(cursor: SmsMessage?) = withContext(Dispatchers.IO) {
-            SmsStore.messagePage(context, thread, cursor, HISTORY_PAGE_SIZE + 1)
+        suspend fun readPage(cursor: SmsMessage?, size: Int = HISTORY_PAGE_SIZE + 1) = withContext(Dispatchers.IO) {
+            SmsStore.messagePage(context, thread, cursor, size)
         }
         try {
             val read = mutableListOf<SmsMessage>()
@@ -731,8 +732,10 @@ private fun ConversationScreen(
                     cursor = read.lastOrNull()
                 } while (more && cursor != null && newestLoaded != null &&
                     smsHistoryOrder.compare(cursor, newestLoaded) < 0)
-                if (newestLoaded == null) hasMore = more
-                messages = mergeSmsHistory(messages, read)
+                val merged = mergeSmsHistory(messages, read)
+                val oldest = merged.lastOrNull()
+                hasMore = more && (oldest == cursor || readPage(oldest, 1).isNotEmpty())
+                messages = merged
                 loadedFor = refreshKey
             }
             after?.let { start ->
@@ -778,6 +781,7 @@ private fun ConversationScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().imePadding()) {
             LazyColumn(
+                state = listState,
                 reverseLayout = true,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(16.dp),

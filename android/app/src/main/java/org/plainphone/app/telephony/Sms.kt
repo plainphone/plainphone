@@ -113,10 +113,10 @@ object SmsStore {
         val help = "((type != ${Telephony.Sms.MESSAGE_TYPE_INBOX} AND NOT ($ordinary)) OR ($replies))"
         val boundary = legacyThrough(context)
         val first = if (rules.contactFor(number) == null && rules.replyHelpContact(number, Channel.SMS) != null) {
-            context.contentResolver.query(
+            context.contentResolver.queryHistoryPage(
                 Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID),
                 "thread_id = ? AND type = ? AND _id <= ?",
-                arrayOf(id.toString(), Telephony.Sms.MESSAGE_TYPE_SENT.toString(), boundary.toString()), "_id ASC LIMIT 1",
+                arrayOf(id.toString(), Telephony.Sms.MESSAGE_TYPE_SENT.toString(), boundary.toString()), "_id ASC", 1,
             )?.use { if (it.moveToFirst()) it.getLong(0) else null }
         } else null
         val legacy = first?.let { "(_id > $it AND _id <= $boundary AND NOT $help)" }

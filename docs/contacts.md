@@ -13,7 +13,11 @@ The Calls and Messages tabs read the Android system providers on the phone. Call
 and SMS can be browsed in pages, including entries from previous default apps
 that still exist in the providers. Opening an SMS conversation loads its newest
 messages first. Refreshing an open conversation keeps the pages already loaded
-and preserves the scroll position. An MMS in a one-to-one conversation appears as a placeholder
+and preserves the scroll position. If another app adds older messages while the
+conversation is open, returning to Plainphone makes more history available.
+Android may provide read access after a change of default SMS app. A restricted
+provider can evaluate more rows than fit on the requested page.
+An MMS in a one-to-one conversation appears as a placeholder
 alongside the SMS messages from that conversation. Group MMS conversations are
 read-only, with placeholders for the attachments.
 Conversations and call entries for numbers the child cannot contact are read-only.
