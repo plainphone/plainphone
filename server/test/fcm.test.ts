@@ -170,6 +170,32 @@ it("stops native delivery when the session expires and removes the subscription 
   expect((await next.get("/api/notifications")).json.subscriptions).toEqual([]);
 });
 
+it("keeps a swept account's approval off the device after signing into another account", async () => {
+  const fetchMock = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ access_token: "mock-access", expires_in: 3600 }))
+    .mockResolvedValue(Response.json({ name: "projects/plainphone/messages/example" }));
+  h.ctx.nativeParentPush = createFcmProvider(credentials, fetchMock);
+  const previous = await signIn(h, "parent@example.test");
+  const { json: me } = await previous.get("/api/me");
+  const approval = { type: "approval", phoneName: "Private phone name" } as const;
+  expect((await previous.post("/api/notifications/subscriptions", { platform: "fcm", token })).status).toBe(201);
+  expect(await notifyUsers(h.ctx, [me.user.id], approval)).toBe(1);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  fetchMock.mockClear();
+
+  h.clock.advance(61 * 86_400_000);
+  await sweep(h.ctx);
+  expect((await previous.get("/api/me")).status).toBe(401);
+
+  // The app clears its stored bearer after a 401, then handles the next login link.
+  const next = await signIn(h, "other@example.test");
+  expect((await next.get("/api/me")).json.user.id).not.toBe(me.user.id);
+
+  // No successful token registration has happened on the new account yet.
+  expect(await notifyUsers(h.ctx, [me.user.id], approval)).toBe(0);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 it.each(["logout", "switch accounts", "expire", "rotate token"] as const)(
   "skips the FCM POST if the registration loses eligibility during OAuth: %s",
   async (change) => {
