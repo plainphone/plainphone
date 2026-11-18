@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { coverage, scheduleLoosens } from "../src/services/changes.js";
 import { sweep } from "../src/services/sweeper.js";
-import { pairPhone, signIn, useHarness } from "./harness.js";
+import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
@@ -198,6 +198,101 @@ describe("Self profile with a trusted person", () => {
     expect(tried).toBe(1);
     expect((await friend.post(`/api/changes/${again.json.change.id}/reject`)).status).toBe(204);
     expect(await allowed(device)).not.toContain("com.instagram.android");
+  });
+
+  it("binds QR approval to the current helper, change and expiry and consumes it on approval", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const other = await signIn(h, "other@example.org");
+    await me.put(`/api/phones/${phoneId}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    const request = async () => (await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true })).json.change.id;
+    const first = await request();
+    const second = await request();
+    const challenge = async () => (await device.post("/api/device/approval-challenge", { changeId: first })).json.challenge;
+    const approve = (client: Client, id: string, token: string) => client.post(`/api/changes/${id}/approve-qr`, { challenge: token });
+    const expired = await challenge();
+    expect(typeof expired).toBe("string");
+    h.clock.advance(120_000);
+    expect((await approve(helper, first, expired)).status).toBe(409);
+    const fresh = await challenge();
+    expect((await approve(other, first, fresh)).status).toBe(404);
+    expect((await approve(me, first, fresh)).status).toBe(404);
+    expect((await approve(helper, second, fresh)).status).toBe(409);
+    expect((await approve(helper, first, fresh)).status).toBe(204);
+    expect((await approve(helper, first, fresh)).status).toBe(409);
+    expect((await helper.get("/api/approvals")).json.approvals.map((a: { id: string }) => a.id)).toEqual([second]);
+  });
+
+  it("shares the rule name but none of the contact details with a helper", async () => {
+    const { me, phoneId } = await selfPhone();
+    const friend = await signIn(h, "private-helper@example.org");
+    const base = `/api/phones/${phoneId}`;
+    await me.put(`${base}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "private-helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    const request = await me.post(`${base}/contacts`, { name: "Private contact", number: "+12025550123" });
+    expect(request.json.change.op).toMatchObject({ type: "contact.add", number: "+12025550123" });
+    const { json } = await friend.get("/api/approvals");
+    expect(json.approvals[0].op).toEqual({ type: "contact.add" });
+    expect(JSON.stringify(json)).not.toContain("+12025550123");
+    expect((await friend.get(`${base}/contacts`)).status).toBe(404);
+  });
+
+  it("supports reciprocal keys and ends an outgoing key only with its current helper", async () => {
+    const { me, phoneId } = await selfPhone();
+    const friend = await signIn(h, "buddy@example.org");
+    const other = await pairPhone(h, friend, { profile: "self", name: "Buddy phone" });
+    const key = { keyType: "trusted", delayHours: 24, payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
+    await me.put(`/api/phones/${phoneId}/key`, { ...key, trustedEmail: "buddy@example.org" });
+    await friend.put(`/api/phones/${other.phoneId}/key`, { ...key, trustedEmail: "adult@example.org" });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    expect((await me.get("/api/people-i-help")).json.people).toMatchObject([{ id: other.phoneId }]);
+    expect((await friend.get("/api/people-i-help")).json.people).toMatchObject([{ id: phoneId }]);
+    const stop = await me.put(`/api/phones/${phoneId}/key`, { ...key, keyType: "delay", trustedEmail: null });
+    expect(stop.status).toBe(202);
+    expect((await friend.get("/api/people-i-help")).json.people).toHaveLength(1);
+    const route = `/api/changes/${stop.json.change.id}/approve`;
+    expect((await me.post(route)).status).toBe(404);
+    expect((await friend.post(route)).status).toBe(204);
+    expect((await friend.get("/api/people-i-help")).json.people).toEqual([]);
+    expect((await me.get("/api/people-i-help")).json.people).toHaveLength(1);
+  });
+
+  it("copies editable rule choices without contacts, private domains or a helper relationship", async () => {
+    const { me, phoneId } = await selfPhone();
+    const stranger = await signIn(h, "template-recipient@example.org");
+    const source = `/api/phones/${phoneId}`;
+    await me.put(`${source}/time-limits/total`, { minutes: 50, days: { "1": 40 } });
+    await me.post(`${source}/schedules`, { kind: "bedtime", days: [1], startMinute: 1260, endMinute: 420, allowedPackages: [] });
+    await me.post(`${source}/contacts`, { name: "Private contact", number: "+12025550123" });
+    await me.post(`${source}/dns/block`, { domain: "private.example.org" });
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    expect((await stranger.post(`${source}/self-template`)).status).toBe(404);
+    const shared = await me.post(`${source}/self-template`);
+    const template = new URLSearchParams(new URL(shared.json.url).hash.slice(1)).get("template");
+    expect((await stranger.post("/api/phones/enroll", { name: "Child", profile: "child", mode: "light", template })).status).toBe(400);
+    const imported = await stranger.post("/api/phones/enroll", { name: "Copy", profile: "self", mode: "light", template });
+    expect(imported.status).toBe(201);
+    const copy = `/api/phones/${imported.json.phone.id}`;
+    expect((await stranger.get(`${copy}/time-limits`)).json.total).toEqual({ minutes: 50, days: { "1": 40 } });
+    expect((await stranger.get(`${copy}/schedules`)).json.schedules).toMatchObject([{ kind: "bedtime", days: [1] }]);
+    expect((await stranger.get(`${copy}/apps`)).json.apps).toEqual(expect.arrayContaining([expect.objectContaining({ packageName: "com.instagram.android", allowed: false })]));
+    expect((await stranger.get(`${copy}/contacts`)).json.contacts).toEqual([]);
+    expect((await stranger.get(`${copy}/dns`)).json.blockDomains).toEqual([]);
+    expect((await stranger.get("/api/people-i-help")).json.people).toEqual([]);
+    expect((await stranger.put(`${copy}/time-limits/total`, { minutes: 70 })).status).toBe(200);
+    h.clock.advance(15 * 60_000);
+    expect((await stranger.post("/api/phones/enroll", { name: "Expired", profile: "self", template })).status).toBe(404);
   });
 
   it("refuses yourself as trusted person", async () => {

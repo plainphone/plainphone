@@ -4,6 +4,7 @@ import { LoadGate, PageTitle, PickGroup, type PickOption, useLoad } from "../com
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
 import {
+  api,
   ApiError,
   getPhoneSettings,
   type PhoneSetting,
@@ -57,6 +58,7 @@ export function PhoneSettingsPage() {
           {t("phoneSettings.lightNote")}
         </p>
       )}
+      {light && <SetupUndoSetting />}
       {phone.profile === "self" && <p className="help">{t("phoneSettings.selfNote")}</p>}
       <details className="details details-lead">
         <summary>{t("phoneSettings.explainTitle")}</summary>
@@ -189,4 +191,37 @@ function SettingRow({
       {spec.key === "location" && phone.locationEnabled && <p className="help setting-note">{t("phoneSettings.findNote")}</p>}
     </li>
   );
+}
+
+
+function SetupUndoSetting() {
+  const { t } = useI18n();
+  const { phone, run } = usePhone();
+  const id = useId();
+  const path = `/phones/${phone.id}/setup-undo`;
+  const res = useLoad(() => api.get<{ minutes: number; editable: boolean }>(path), [path]);
+  const [saving, setSaving] = useState(false);
+
+  return <LoadGate res={res}>{({ minutes, editable }) => (
+    <div className="stack">
+      <label htmlFor={id}>{t("setupUndo.label")}</label>
+      <select id={id} value={minutes} disabled={!editable || saving} onChange={async (e) => {
+        const selected = Number(e.target.value);
+        setSaving(true);
+        try {
+          await run(() => api.put(path, { minutes: selected }), t("app.saved"));
+        } catch (err) {
+          if (!(err instanceof ApiError)) throw err;
+        } finally {
+          await res.reload();
+          setSaving(false);
+        }
+      }}>
+        {[0, 5, 10, 30, 60].map((value) => <option key={value} value={value}>
+          {value === 0 ? t("setupUndo.off") : t("setupUndo.minutes", { minutes: value })}
+        </option>)}
+      </select>
+      <p className="help">{t(editable ? "setupUndo.help" : "setupUndo.closed")}</p>
+    </div>
+  )}</LoadGate>;
 }

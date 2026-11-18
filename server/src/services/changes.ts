@@ -9,6 +9,8 @@ import {
   contacts,
   dnsSettings,
   type DnsCategory,
+  householdInvites,
+  householdMembers,
   pendingChanges,
   phoneApps,
   phoneSettings,
@@ -19,6 +21,7 @@ import {
   timeLimits,
   users,
 } from "../db/schema.js";
+import { matchesApprovalChallenge } from "../lib/approval-challenge.js";
 import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
 import {
   checkSetting,
@@ -211,6 +214,12 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
     }
     case "key.set":
       if (phone.profile !== "self") throw new ChangeError(400, "only Self phones have a key");
+      if (op.key.trustedEmail) {
+        const [member] = await db.select({ id: users.id }).from(users)
+          .innerJoin(householdMembers, and(eq(householdMembers.userId, users.id), eq(householdMembers.householdId, phone.householdId)))
+          .where(eq(users.email, op.key.trustedEmail));
+        if (member) throw new ChangeError(400, "the trusted person must use a separate household");
+      }
       return;
     case "phone.release":
       // Nothing is installed on a phone that never paired, so there is nothing to release.
@@ -350,6 +359,13 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .insert(selfKeys)
         .values({ phoneId: phone.id, ...values })
         .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
+      await db.delete(householdInvites).where(eq(householdInvites.trustedPhoneId, phone.id));
+      if (!values.trustedUserId) {
+        await db.update(pendingChanges).set({
+          keyType: "delay",
+          effectiveAt: new Date(ctx.now().getTime() + k.delayHours * 3_600_000),
+        }).where(and(eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "trusted")));
+      }
       return { dns: false };
     }
     case "setting.set": {
@@ -477,13 +493,17 @@ async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
 export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: Op): Promise<ChangeResult> {
   const result = await ctx.db.transaction(async (tx) => {
     // Serialise changes per phone, so loosening checks see a stable state.
-    await tx.execute(sql`select id from phones where id = ${phone.id} for update`);
-    await validateOp(tx, phone, op);
-    if (phone.profile === "self" && (await isLoosening(tx, phone, op))) {
+    const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+    if (!fresh) throw new ChangeError(404, "phone not found");
+    await validateOp(tx, fresh, op);
+    const connected = fresh.pairedAt !== null || fresh.deviceTokenHash !== null;
+    const draftRule = /^(app|timeLimit|schedule|dns)\./.test(op.type);
+    if (fresh.profile === "self" && (connected || !draftRule) && (await isLoosening(tx, fresh, op))) {
       const [key] = await tx.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
-      // A trusted person who has never signed in cannot approve anything. Fall back to
-      // the delay, so a mistyped address never locks the owner in for good.
-      const keyType = key?.keyType === "trusted" && key.trustedUserId ? "trusted" : "delay";
+      // An unavailable helper leaves the delay as a way to change the key.
+      const helperId = key?.keyType === "trusted" ? key.trustedUserId : null;
+      const helperIsSeparate = helperId && helperId !== userId && !(await isPhoneHouseholdMember(tx, fresh, helperId));
+      const keyType = helperIsSeparate ? "trusted" : "delay";
       const delayHours = key?.delayHours ?? 24;
       const [change] = await tx
         .insert(pendingChanges)
@@ -495,10 +515,10 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
           effectiveAt: keyType === "delay" ? new Date(ctx.now().getTime() + delayHours * 3_600_000) : null,
         })
         .returning();
-      const notify = keyType === "trusted" ? key!.trustedUserId : null;
+      const notify = keyType === "trusted" ? helperId : null;
       return { status: "pending" as const, op, change: change!, notify };
     }
-    const applied = await applyOp(ctx, tx, phone, op);
+    const applied = await applyOp(ctx, tx, fresh, op);
     return { status: "applied" as const, op, dns: applied.dns };
   });
   if (result.status === "applied") {
@@ -532,21 +552,60 @@ async function mailTrustedPerson(ctx: Ctx, trustedUserId: string, phoneName: str
   }
 }
 
+/** A helper cannot manage the same phone or decide a request they submitted. */
+export async function canDecideTrusted(db: DbLike, phone: Phone, change: typeof pendingChanges.$inferSelect, userId: string) {
+  if (phone.profile !== "self" || change.keyType !== "trusted" || change.requestedBy === userId) return false;
+  const [key] = await db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
+  if (key?.keyType !== "trusted" || key.trustedUserId !== userId) return false;
+  return !(await isPhoneHouseholdMember(db, phone, userId));
+}
+
+async function isPhoneHouseholdMember(db: DbLike, phone: Phone, userId: string) {
+  const [member] = await db.select({ userId: householdMembers.userId }).from(householdMembers)
+    .where(and(eq(householdMembers.householdId, phone.householdId), eq(householdMembers.userId, userId)));
+  return Boolean(member);
+}
+
+export async function rejectTrustedChange(ctx: Ctx, changeId: string, phoneId: string, helper: string) {
+  const rejected = await ctx.db.transaction(async (tx) => {
+    const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
+    if (!phone) return false;
+    const [change] = await tx.select().from(pendingChanges).where(and(
+      eq(pendingChanges.id, changeId), eq(pendingChanges.phoneId, phoneId), eq(pendingChanges.status, "pending"),
+    )).for("update");
+    if (!change || !(await canDecideTrusted(tx, phone, change, helper))) return false;
+    await tx.update(pendingChanges).set({ status: "rejected", decidedBy: helper, decidedAt: ctx.now() })
+      .where(eq(pendingChanges.id, change.id));
+    return true;
+  });
+  if (rejected) await wakePhone(ctx, phoneId, "rules");
+  return rejected;
+}
+
 /** Applies a pending change now (delay passed, trusted person approved, or paid). */
 export async function applyPending(
   ctx: Ctx,
   changeId: string,
   decidedBy: string | null,
+  challenge?: string,
 ): Promise<"applied" | "gone"> {
   const out = await ctx.db.transaction(async (tx) => {
+    const [target] = await tx.select({ phoneId: pendingChanges.phoneId }).from(pendingChanges)
+      .where(eq(pendingChanges.id, changeId));
+    if (!target) return null;
+    const [phone] = await tx.select().from(phones).where(eq(phones.id, target.phoneId)).for("update");
+    if (!phone) return null;
     const [change] = await tx
       .select()
       .from(pendingChanges)
       .where(and(eq(pendingChanges.id, changeId), eq(pendingChanges.status, "pending")))
       .for("update");
     if (!change) return null;
-    const [phone] = await tx.select().from(phones).where(eq(phones.id, change.phoneId));
-    if (!phone) return null;
+    const now = ctx.now();
+    if (decidedBy) {
+      if (!(await canDecideTrusted(tx, phone, change, decidedBy))) return null;
+      if (challenge !== undefined && !matchesApprovalChallenge(challenge, phone.id, change.id, now)) return null;
+    } else if (change.keyType !== "delay" || !change.effectiveAt || change.effectiveAt > now) return null;
     let dns = false;
     let status: "applied" | "failed" = "applied";
     try {
@@ -561,11 +620,11 @@ export async function applyPending(
       .update(pendingChanges)
       .set({ status, decidedBy, decidedAt: ctx.now() })
       .where(eq(pendingChanges.id, change.id));
-    return { phoneId: phone.id, dns, op: change.op as Op, requestedBy: change.requestedBy };
+    return { phoneId: phone.id, dns, op: change.op as Op, requestedBy: change.requestedBy, status };
   });
   if (!out) return "gone";
   if (out.dns) await syncDns(ctx, out.phoneId);
-  await afterApply(ctx, out.op, out.requestedBy);
+  if (out.status === "applied") await afterApply(ctx, out.op, out.requestedBy);
   await wakePhone(ctx, out.phoneId, "rules");
   return "applied";
 }

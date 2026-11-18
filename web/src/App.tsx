@@ -32,7 +32,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const loc = useLocation();
   if (state.status === "loading") return <Loading />;
   if (state.status === "anon") {
-    rememberNext(loc.pathname + loc.search);
+    const approvalFragment = loc.pathname === "/approvals" || loc.pathname === "/add" ? loc.hash : "";
+    rememberNext(loc.pathname + loc.search + approvalFragment);
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/auth/app" element={<AuthCallbackPage />} />
         <Route path="/install-phone" element={<InstallPhonePage />} />
         <Route path="/invite" element={<InvitePage />} />
+        <Route path="/invite/trusted" element={<InvitePage />} />
         <Route path="/" element={<RequireAuth><PhonesPage /></RequireAuth>} />
         <Route path="/pair" element={<RequireAuth><PairPage /></RequireAuth>} />
         <Route path="/add" element={<RequireAuth><AddPhonePage /></RequireAuth>} />

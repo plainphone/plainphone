@@ -149,6 +149,7 @@ class PlainphoneApi private constructor(
     baseUrl: String,
     private val openConnection: (URL) -> HttpURLConnection,
     private val openFreshConnection: (URL) -> HttpURLConnection,
+    private val setupKey: () -> JSONObject? = { null },
 ) : SyncApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
@@ -166,6 +167,7 @@ class PlainphoneApi private constructor(
             // A new Network instance has its own, initially empty connection pool.
             Network.fromNetworkHandle(network.networkHandle).openConnection(url) as HttpURLConnection
         },
+        { org.plainphone.app.light.LightSetup.selfKey(context) },
     )
 
     private companion object {
@@ -294,7 +296,8 @@ class PlainphoneApi private constructor(
     override fun decidePairing(pairing: Pairing, confirm: Boolean): PairPoll {
         val r = call("POST", "/device/pairings/${pairing.id}",
             headers = mapOf("X-Poll-Secret" to pairing.pollSecret),
-            body = JSONObject().put("action", if (confirm) "confirm" else "cancel"))
+            body = JSONObject().put("action", if (confirm) "confirm" else "cancel")
+                .put("key", if (confirm) setupKey() else null))
         return pairingResult(r)
     }
 
@@ -325,8 +328,37 @@ class PlainphoneApi private constructor(
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
 
-    fun setupUndoRemaining(token: String, elapsedMs: Long?): Long {
-        val body = elapsedMs?.let { JSONObject().put("elapsedMs", it) }
+    fun selfTemplateUrl(token: String): String {
+        val r = call("POST", "/device/self-template", token, JSONObject())
+        if (r.status != 201) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getString("url")
+    }
+
+    fun trustedInviteUrl(token: String): String? {
+        val r = call("POST", "/device/trusted-invite", token, JSONObject())
+        if (r.status == 409) return null
+        if (r.status != 201) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getString("url")
+    }
+
+    fun approvalRequests(token: String): List<Pair<String, String>> {
+        val r = call("GET", "/device/approval-challenge", token)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        val requests = JSONObject(r.body).getJSONArray("changes")
+        return List(requests.length()) { index ->
+            val request = requests.getJSONObject(index)
+            request.getString("id") to request.getString("type")
+        }
+    }
+
+    fun approvalQrUrl(token: String, changeId: String): String {
+        val r = call("POST", "/device/approval-challenge", token, JSONObject().put("changeId", changeId))
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getString("url")
+    }
+
+    fun setupUndoRemaining(token: String, elapsedMs: Long?, undoMinutes: Int? = null): Long {
+        val body = elapsedMs?.let { JSONObject().put("elapsedMs", it).put("undoMinutes", undoMinutes) }
         val r = call(if (body == null) "GET" else "POST", "/device/setup-completion", token, body)
         if (r.status != 200) throw HttpError(r.status, r.body)
         return JSONObject(r.body).getLong("undoRemainingMs")
@@ -349,6 +381,7 @@ class PlainphoneApi private constructor(
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
+            .put("key", setupKey())
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
             200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }

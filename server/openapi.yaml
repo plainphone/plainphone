@@ -86,7 +86,7 @@ components:
       type: object
       required: [undoRemainingMs]
       properties:
-        undoRemainingMs: { type: integer, minimum: 0, maximum: 600000 }
+        undoRemainingMs: { type: integer, minimum: 0, maximum: 3600000 }
     PhoneRequest:
       type: object
       required: [id, kind, status, createdAt]
@@ -808,6 +808,22 @@ components:
           maxItems: 50
           items: { $ref: "#/components/schemas/PackageName" }
 
+    InitialSelfKey:
+      oneOf:
+        - type: object
+          required: [keyType, delayHours]
+          properties:
+            keyType: { enum: [delay] }
+            delayHours: { type: integer, enum: [1, 6, 12, 24, 48, 72] }
+        - type: object
+          required: [keyType, trustedEmail]
+          properties:
+            keyType: { enum: [trusted] }
+            trustedEmail: { type: string, format: email }
+        - type: object
+          required: [keyType]
+          properties:
+            keyType: { enum: [trustedQr] }
     Key:
       type: object
       required: [keyType, delayHours, trustedEmail, payUnlockEnabled, payUnlockAmount, payUnlockRecipient]
@@ -815,6 +831,7 @@ components:
         keyType: { enum: [delay, trusted] }
         delayHours: { type: integer, minimum: 1, maximum: 72, default: 24 }
         trustedEmail: { type: [string, "null"], format: email }
+        qrInvite: { type: boolean, description: Choose a trusted person by QR instead of email. }
         payUnlockEnabled: { type: boolean }
         payUnlockAmount: { type: integer, minimum: 100, description: Minor units. }
         payUnlockRecipient: { enum: [plainphone] }
@@ -920,6 +937,7 @@ paths:
               required: [action]
               properties:
                 action: { enum: [confirm, cancel] }
+                key: { $ref: "#/components/schemas/InitialSelfKey" }
       responses:
         "200":
           description: Confirmed. The token can be recovered for up to 24 hours or until the first rules sync.
@@ -951,6 +969,7 @@ paths:
               required: [token, mode]
               properties:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                key: { $ref: "#/components/schemas/InitialSelfKey" }
                 mode: { enum: [strong, light] }
                 cancel: { type: boolean }
       responses:
@@ -1178,6 +1197,50 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /device/approval-challenge:
+    get:
+      operationId: getDeviceApprovalRequests
+      security: [{ device: [] }]
+      tags: [device]
+      summary: List pending trusted approvals for this Self phone
+      responses:
+        "200": { description: Pending changes with id and type }
+    post:
+      operationId: postDeviceApprovalChallenge
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Make a signed two-minute approval code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [changeId]
+              properties:
+                changeId: { type: string, format: uuid }
+      responses:
+        "200": { description: Challenge and QR URL }
+        "404": { $ref: "#/components/responses/Error" }
+  /device/trusted-invite:
+    post:
+      operationId: postDeviceTrustedInvite
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Create a 15-minute helper invite for a Self phone waiting for a QR invite
+      responses:
+        "201": { description: Invite URL and expiry }
+        "409": { $ref: "#/components/responses/Error" }
+  /device/self-template:
+    post:
+      operationId: postDeviceSelfTemplate
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Share a short-lived copy of this Self phone’s selected rules
+      responses:
+        "201": { description: Template URL }
+        "409": { $ref: "#/components/responses/Error" }
+
   /device/setup-completion:
     get:
       operationId: getDeviceSetupCompletion
@@ -1204,7 +1267,8 @@ paths:
               type: object
               required: [elapsedMs]
               properties:
-                elapsedMs: { type: integer, minimum: 0, maximum: 600000 }
+                elapsedMs: { type: integer, minimum: 0, maximum: 3600000 }
+                undoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional Self phone choice. }
       responses:
         "200":
           description: The time left, or zero when setup undo is unavailable.
@@ -1858,6 +1922,7 @@ paths:
               type: object
               required: [name, profile]
               properties:
+                template: { type: string, description: Optional rule template code for an unconnected Self phone. }
                 name: { type: string, maxLength: 40 }
                 mode: { type: string, enum: [strong, light], default: strong }
                 profile: { enum: [child, self] }
@@ -2591,6 +2656,52 @@ paths:
         "200": { description: "The check-in, now cancelled (or as it was if already answered or located)" }
 
   # ---------------------------------------------------------------- self
+  /phones/{pid}/setup-undo:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhoneSetupUndo
+      summary: Get the phone’s setup undo choice and whether it is still editable
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: Minutes and editable flag }
+    put:
+      operationId: putPhoneSetupUndo
+      summary: Set the setup undo period on a light-mode phone before pairing
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes: { type: integer, enum: [0, 5, 10, 30, 60] }
+      responses:
+        "200": { description: Minutes and editable flag }
+        "409": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/trusted-invite:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneTrustedInvite
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Create a QR invite for a Self phone waiting for a helper
+      responses:
+        "201": { description: Invite URL and expiry }
+        "409": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/self-template:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneSelfTemplate
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Share a short-lived copy of the phone’s selected rules
+      responses:
+        "201": { description: Template URL }
+        "409": { $ref: "#/components/responses/Error" }
   /phones/{pid}/key:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -2651,6 +2762,14 @@ paths:
       responses:
         "204": { description: "Cancelled" }
         "409": { description: "No longer pending" }
+  /people-i-help:
+    get:
+      operationId: getPeopleIHelp
+      tags: [self]
+      summary: List Self phones for which I hold the key
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: Phones and owner emails }
   /approvals:
     get:
       operationId: getApprovals
@@ -2658,7 +2777,27 @@ paths:
       summary: Requests waiting for me as a trusted person
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt" }
+        "200": { description: "approvals: id, phoneId, phoneName, requestedBy, op.type, appLabel (name of the app for app.set, or null), createdAt" }
+  /changes/{cid}/approve-qr:
+    post:
+      operationId: postChangesApproveQr
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Approve with a signed QR challenge as the current trusted person
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge]
+              properties:
+                challenge: { type: string, maxLength: 240 }
+      responses:
+        "204": { description: Applied }
+        "404": { description: Not my request to decide }
+        "409": { description: Invalid, used, or expired code }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove

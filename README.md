@@ -54,8 +54,15 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 
 The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
-before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
-minutes with a server connection. Device Owner setup also waits for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
+before Android asks for permissions. In light mode, **Myself** chooses up to one hour to
+undo setup with a server connection. Child phones default to ten minutes. Device Owner setup also waits for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
+
+### Myself keys and QR codes
+
+Choose a wait time or invite a trusted person by email or QR. Each person manages
+their own account and can hold the other's key. A helper can approve a request in
+the dashboard or scan a two-minute QR. **Set up like me** copies selected rules
+into a friend's editable draft. See [Self keys](docs/self-keys.md).
 
 ### In both modes
 

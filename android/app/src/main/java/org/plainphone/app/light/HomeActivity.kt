@@ -121,6 +121,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
+            SelfApprovalAction()
             if (light) UndoSetupAction(this@HomeActivity, refresh) { refresh++ }
             androidx.compose.material3.TextButton(onClick = {
                 startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))

@@ -14,8 +14,12 @@ import { Button, type NoticeValue, Stack, Text } from "./ui";
 export function ScanCode({
   onCode,
   onStatus,
+  parse = codeFromScan,
+  label,
 }: {
-  /** Called once with the 8-character code from a valid Plainphone QR code. */
+  parse?: (raw: string) => string | null;
+  label?: string;
+  /** Called once with the value from a valid Plainphone QR code. */
   onCode: (code: string) => void;
   /** Reports what went wrong (denied camera, wrong QR code); null clears it. */
   onStatus: (n: NoticeValue | null) => void;
@@ -26,6 +30,7 @@ export function ScanCode({
   const [active, setActive] = useState(false);
   // The camera reports the same QR code many times a second; say "wrong code" once.
   const lastWrong = useRef<string | null>(null);
+  const handled = useRef(false);
 
   async function start() {
     onStatus(null);
@@ -35,11 +40,13 @@ export function ScanCode({
       return;
     }
     lastWrong.current = null;
+    handled.current = false;
     setActive(true);
   }
 
   function handle({ data }: BarcodeScanningResult) {
-    const code = codeFromScan(data);
+    if (handled.current) return;
+    const code = parse(data);
     if (!code) {
       if (lastWrong.current !== data) {
         lastWrong.current = data;
@@ -47,14 +54,15 @@ export function ScanCode({
       }
       return;
     }
+    handled.current = true;
     setActive(false);
     onCode(code);
   }
 
-  if (!active) return <Button kind="secondary" title={t("native.scan")} onPress={() => void start()} testID="scan-start" />;
+  if (!active) return <Button kind="secondary" title={label ?? t("native.scan")} onPress={() => void start()} testID="scan-start" />;
   return (
     <Stack>
-      <Text variant="muted">{t("native.scanHelp")}</Text>
+      <Text variant="muted">{label ?? t("native.scanHelp")}</Text>
       <View style={[styles.camera, { backgroundColor: c.surface }]} testID="scan-camera">
         <CameraView
           style={StyleSheet.absoluteFill}

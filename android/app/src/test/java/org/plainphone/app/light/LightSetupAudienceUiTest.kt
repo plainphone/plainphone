@@ -48,7 +48,9 @@ class LightSetupAudienceUiTest {
             assertNull(shadowOf(activity).nextStartedActivityForResult)
         }
         compose.onNodeWithText("Want to use your own phone less? Set up Plainphone for yourself.").performClick()
-        compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
+        compose.onNodeWithText("How long can you undo setup?").assertIsDisplayed()
+        compose.onNodeWithText("10 minutes (default)").performClick()
+        compose.onNodeWithText("Choose your key").assertIsDisplayed()
         compose.onNodeWithText("Back").performClick()
         compose.onNodeWithText("Child").performClick()
         compose.onNodeWithText("Is this your child’s phone?").assertIsDisplayed()
@@ -65,7 +67,9 @@ class LightSetupAudienceUiTest {
         compose.onNodeWithText("Continue").performClick()
         compose.onNodeWithText("Back").performClick()
         compose.onNodeWithText("Myself").performClick()
-        compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
+        compose.onNodeWithText("How long can you undo setup?").assertIsDisplayed()
+        compose.onNodeWithText("10 minutes (default)").performClick()
+        compose.onNodeWithText("Choose your key").assertIsDisplayed()
     }
 
     @Test

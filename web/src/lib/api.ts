@@ -239,6 +239,7 @@ export interface LocationState {
   checkin: Checkin | null;
 }
 export interface KeyInput {
+  qrInvite?: boolean;
   keyType: "delay" | "trusted";
   delayHours: number;
   trustedEmail: string | null;
@@ -316,9 +317,10 @@ export type ChangeResult = { status: "applied" } | { status: "pending"; change: 
 
 export interface Approval {
   id: string;
+  phoneId: string;
   phoneName: string;
   requestedBy: string | null;
-  op: Op;
+  op: Pick<Op, "type">;
   /** The app's name for app.set ops, when the phone has reported it. */
   appLabel: string | null;
   createdAt: string;

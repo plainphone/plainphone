@@ -199,7 +199,7 @@ export interface Approval {
   id: string;
   phoneName: string;
   requestedBy: string | null;
-  op: Op;
+  op: Pick<Op, "type">;
   /** The app's name for app.set ops, when the phone has reported it. */
   appLabel: string | null;
   createdAt: string;

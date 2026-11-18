@@ -105,8 +105,8 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
    **Allow from this source** in Android settings.
 
-**Undo setup** is available without a PIN on the finish and Today screens for the first ten
-minutes after completing light-mode setup. Plainphone must reach the server to register
+**Undo setup** is available without a PIN on the finish and Today screens during the
+chosen window. Child phones default to ten minutes. See [Self keys](self-keys.md) for choices. Plainphone must reach the server to register
 completion and start undo. If you reboot during the window, Plainphone gets the time left from
 the server. Android's elapsed time counts down while the phone is asleep, and changing its
 clock cannot add time. Once authorized, undo uses the existing release path for the guard,

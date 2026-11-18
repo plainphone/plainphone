@@ -1,0 +1,2 @@
+ALTER TABLE "household_invites" ADD COLUMN "trusted_phone_id" uuid;--> statement-breakpoint
+ALTER TABLE "household_invites" ADD CONSTRAINT "household_invites_trusted_phone_id_phones_id_fk" FOREIGN KEY ("trusted_phone_id") REFERENCES "public"."phones"("id") ON DELETE cascade ON UPDATE no action;

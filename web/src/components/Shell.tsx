@@ -32,8 +32,8 @@ export function Shell() {
   }, [signedIn, loc.pathname]);
 
   useEffect(() => {
-    if (signedIn) clearNextIf(loc.pathname + loc.search);
-  }, [signedIn, loc.pathname, loc.search]);
+    if (signedIn) clearNextIf(loc.pathname + loc.search + loc.hash);
+  }, [signedIn, loc.pathname, loc.search, loc.hash]);
 
   const other = locale === "en" ? "da" : "en";
   const phonesActive = loc.pathname === "/" || loc.pathname.startsWith("/phones") || loc.pathname === "/pair";

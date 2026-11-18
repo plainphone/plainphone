@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "setup_undo_minutes" integer;

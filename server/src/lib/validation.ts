@@ -65,12 +65,13 @@ export const keyInput = z
     keyType: z.enum(["delay", "trusted"]),
     delayHours: z.number().int().min(1).max(72),
     trustedEmail: email.nullable().default(null),
+    qrInvite: z.boolean().optional(),
     payUnlockEnabled: z.boolean(),
     payUnlockAmount: z.number().int().min(100).max(10_000_000),
     payUnlockRecipient: z.enum(PAY_UNLOCK_RECIPIENTS),
   })
-  .refine((k) => k.keyType !== "trusted" || k.trustedEmail, {
-    message: "a trusted person needs an email address",
+  .refine((k) => k.keyType !== "trusted" || k.trustedEmail || k.qrInvite, {
+    message: "a trusted person needs an email address or a QR invitation",
     path: ["trustedEmail"],
   });
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
-import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneRequests, sessions } from "../db/schema.js";
+import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneRequests, selfRuleTemplates, sessions } from "../db/schema.js";
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges, deletePhone } from "./changes.js";
 import type { Ctx } from "./context.js";
@@ -33,6 +33,7 @@ export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
+  await ctx.db.delete(selfRuleTemplates).where(lt(selfRuleTemplates.expiresAt, now));
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
   const dnsDeleted = await retryDnsDeletions(ctx);

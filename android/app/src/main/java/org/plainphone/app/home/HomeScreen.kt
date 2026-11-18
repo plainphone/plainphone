@@ -68,6 +68,7 @@ class HomeActions(
     val emergency: () -> Unit = {},
     val makeDefault: () -> Unit = {},
     val help: () -> Unit = {},
+    val selfTools: (() -> Unit)? = null,
 )
 
 @Composable
@@ -131,6 +132,7 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                 Text(stringResource(R.string.home_all_apps), color = c.accent, fontSize = 18.sp, fontWeight = FontWeight.Medium)
                 Text("  →", color = c.accent, fontSize = 18.sp, modifier = Modifier.clearAndSetSemantics {})
             }
+            actions.selfTools?.let { DockTextButton(stringResource(R.string.self_tools), it) }
             Spacer(Modifier.height(24.dp))
         }
         Dock(actions)

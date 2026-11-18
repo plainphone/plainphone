@@ -153,6 +153,28 @@ object LightSetup {
             !sync.released && !sync.setupUndoPending
     }
 
+    fun saveSelfKey(context: Context, waitHours: Int?, email: String, inviteByQr: Boolean) {
+        prefs(context).edit().putInt("selfKeyHours", waitHours ?: 0)
+            .putString("selfKeyEmail", email).putBoolean("selfKeyQr", inviteByQr).apply()
+    }
+
+    fun selfKey(context: Context): org.json.JSONObject? {
+        if (profile(context) != "self") return null
+        val saved = prefs(context)
+        if (saved.getBoolean("selfKeyQr", false)) return org.json.JSONObject().put("keyType", "trustedQr")
+        val hours = saved.getInt("selfKeyHours", 0)
+        if (hours in listOf(1, 6, 12, 24, 48, 72)) {
+            return org.json.JSONObject().put("keyType", "delay").put("delayHours", hours)
+        }
+        val email = saved.getString("selfKeyEmail", null)?.takeIf { it.isNotBlank() } ?: return null
+        return org.json.JSONObject().put("keyType", "trusted").put("trustedEmail", email)
+    }
+
+    fun saveUndoMinutes(context: Context, minutes: Int) {
+        require(minutes in SETUP_UNDO_CHOICES)
+        prefs(context).edit().putInt("setupUndoMinutes", minutes).apply()
+    }
+
     /** Completion is registered once. After a reboot only the server can establish the time left. */
     fun undoDeadline(context: Context): Long {
         if (!canUndo(context)) return 0
@@ -160,12 +182,13 @@ object LightSetup {
         val boot = bootCount(context)
         val now = SystemClock.elapsedRealtime()
         val sameBoot = boot >= 0 && boot == saved.getInt("completedBoot", -1)
-        val localRemaining = if (sameBoot) setupUndoRemaining(saved.getLong("completedElapsed", -1), now) else null
+        val localRemaining = if (sameBoot) setupUndoRemaining(saved.getLong("completedElapsed", -1), now, MAX_SETUP_UNDO_MS) else null
         if (localRemaining == 0L) return 0
         val token = SyncStore(context).deviceToken() ?: return 0
         val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
-        val remaining = api.setupUndoRemaining(token, localRemaining?.let { SETUP_UNDO_MS - it })
-            .coerceIn(0, localRemaining ?: SETUP_UNDO_MS)
+        val minutes = saved.getInt("setupUndoMinutes", -1).takeIf { it in SETUP_UNDO_CHOICES }
+        val remaining = api.setupUndoRemaining(token, localRemaining?.let { MAX_SETUP_UNDO_MS - it }, minutes)
+            .coerceIn(0, localRemaining ?: MAX_SETUP_UNDO_MS)
         return if (remaining > 0) now + remaining else 0
     }
 

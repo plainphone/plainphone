@@ -2,7 +2,7 @@
 //
 // The API the parent app (PWA, later native apps) talks to. Contract: server/openapi.yaml.
 
-import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
@@ -32,11 +32,15 @@ import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
 import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, undoMinutesInput } from "../lib/setup-undo.js";
+import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
+import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
 import {
   applyPending,
+  rejectTrustedChange,
   ChangeError,
   type ChangeResult,
   listPending,
@@ -82,6 +86,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
+  const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
   const inviteUserLimit = new RateLimiter(20, 24 * 60 * 60_000);
   const inviteRecipientLimit = new RateLimiter(3, 24 * 60 * 60_000);
@@ -349,6 +354,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .where(
         and(
           eq(householdInvites.householdId, hid),
+          isNull(householdInvites.trustedPhoneId),
           isNull(householdInvites.acceptedAt),
           gt(householdInvites.expiresAt, ctx.now()),
         ),
@@ -399,6 +405,12 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.post("/invites/accept", async (c) => {
     const input = await body(c, z.object({ token: z.string().min(10).max(200) }));
     const user = c.get("user");
+    if (input.token.startsWith(TRUSTED_INVITE_PREFIX)) {
+      if (!(await acceptTrustedInvite(ctx, input.token, user))) {
+        return c.json({ error: "this invitation is expired, already used, or is for someone else" }, 400);
+      }
+      return c.json({ trusted: true });
+    }
     const hid = await ctx.db
       .transaction(async (tx) => {
         // Deleted on acceptance (#8): the invited address is not needed once they are a member.
@@ -407,6 +419,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           .where(
             and(
               eq(householdInvites.tokenHash, sha256(input.token)),
+              isNull(householdInvites.trustedPhoneId),
               isNull(householdInvites.acceptedAt),
               gt(householdInvites.expiresAt, ctx.now()),
             ),
@@ -582,6 +595,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: z.string().trim().min(1).max(40),
         profile: z.enum(["child", "self"]),
         mode: z.enum(["strong", "light"]).default("strong"),
+        template: templateCode.optional(),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
       }),
@@ -592,8 +606,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
-    const phone = await ctx.db.transaction((tx) =>
-      createPhone(ctx, tx, {
+    if (input.template && input.profile !== "self") return c.json({ error: "only Self phones can copy rules" }, 400);
+    const phone = await ctx.db.transaction(async (tx) => {
+      const template = input.template ? await readSelfTemplate(tx, input.template, ctx.now()) : null;
+      if (input.template && !template) return null;
+      const created = await createPhone(ctx, tx, {
         householdId,
         name: input.name,
         profile: input.profile,
@@ -601,8 +618,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
-      }),
-    );
+      });
+      if (template) await applySelfTemplate(tx, created.id, template, ctx.now());
+      return created;
+    });
+    if (!phone) return c.json({ error: "the setup template has expired" }, 404);
     const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
     // Register the DNS ClientID now, so the filter host is ready by the time the phone is set up.
     await syncDns(ctx, phone.id);
@@ -712,7 +732,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const rows = await ctx.db
       .select()
       .from(phoneApps)
-      .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true)))
+      .where(and(eq(phoneApps.phoneId, phone.id), (phone.pairedAt ? eq(phoneApps.installed, true) : undefined)))
       .orderBy(phoneApps.label);
     return c.json({
       apps: rows.map((a) => ({ packageName: a.packageName, label: a.label, allowed: a.allowed, core: a.core })),
@@ -859,6 +879,24 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.body(null, 202);
   });
 
+  app.get("/phones/:pid/setup-undo", async (c) => {
+    const phone = await requirePhone(c);
+    return c.json({
+      minutes: phone.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES,
+      editable: phone.mode === "light" && !phone.pairedAt && !phone.setupCompletedAt,
+    });
+  });
+
+  app.put("/phones/:pid/setup-undo", async (c) => {
+    const phone = await requirePhone(c);
+    const { minutes } = await body(c, z.object({ minutes: undoMinutesInput }));
+    const [updated] = await ctx.db.update(phones).set({ setupUndoMinutes: minutes }).where(and(
+      eq(phones.id, phone.id), eq(phones.mode, "light"), isNull(phones.pairedAt), isNull(phones.setupCompletedAt),
+    )).returning({ id: phones.id });
+    if (!updated) return c.json({ error: "setup undo can only be changed before pairing" }, 409);
+    return c.json({ minutes, editable: true });
+  });
+
   // Self key (D12, D13)
   app.get("/phones/:pid/key", async (c) => {
     const phone = await requirePhone(c);
@@ -875,6 +913,23 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return c.json({ error: "the trusted person must be someone else" }, 400);
     }
     return change(c, phone, { type: "key.set", key });
+  });
+
+  app.post("/phones/:pid/self-template", async (c) => {
+    const phone = await requirePhone(c);
+    if (!selfTemplateLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup templates" });
+    const template = await shareSelfTemplate(ctx, phone);
+    if (!template) return c.json({ error: "this phone cannot share a template right now" }, 409);
+    c.header("Cache-Control", "no-store");
+    return c.json(template, 201);
+  });
+
+  app.post("/phones/:pid/trusted-invite", async (c) => {
+    const phone = await requirePhone(c);
+    const invite = await issueTrustedInvite(ctx, phone.id, { userId: c.get("user").id });
+    if (!invite) return c.json({ error: "this phone cannot invite a helper right now" }, 409);
+    c.header("Cache-Control", "no-store");
+    return c.json(invite, 201);
   });
 
   // Pending changes
@@ -913,17 +968,39 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const [row] = await ctx.db
       .select({ change: pendingChanges })
       .from(pendingChanges)
+      .innerJoin(phones, eq(phones.id, pendingChanges.phoneId))
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .where(
         and(
           eq(pendingChanges.id, cid),
           eq(pendingChanges.keyType, "trusted"),
           eq(selfKeys.trustedUserId, c.get("user").id),
+          eq(selfKeys.keyType, "trusted"),
+          eq(phones.profile, "self"),
+          sql`${pendingChanges.requestedBy} is distinct from ${c.get("user").id}`,
+          notExists(ctx.db.select().from(householdMembers).where(and(
+            eq(householdMembers.householdId, phones.householdId),
+            eq(householdMembers.userId, c.get("user").id),
+          ))),
         ),
       );
     if (!row) throw new HTTPException(404, { message: "not found" });
     return row.change;
   }
+
+  app.get("/people-i-help", async (c) => {
+    const helper = c.get("user").id;
+    const people = await ctx.db.select({ id: phones.id, name: phones.name, owner: users.email })
+      .from(selfKeys)
+      .innerJoin(phones, eq(phones.id, selfKeys.phoneId))
+      .innerJoin(householdMembers, and(eq(householdMembers.householdId, phones.householdId), eq(householdMembers.role, "owner")))
+      .innerJoin(users, eq(users.id, householdMembers.userId))
+      .where(and(eq(selfKeys.keyType, "trusted"), eq(selfKeys.trustedUserId, helper), eq(phones.profile, "self"),
+        sql`not exists (select 1 from household_members as helper_membership
+          where helper_membership.household_id = ${phones.householdId} and helper_membership.user_id = ${helper})`,
+      )).orderBy(phones.name);
+    return c.json({ people });
+  });
 
   app.get("/approvals", async (c) => {
     const rows = await ctx.db
@@ -943,6 +1020,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .where(
         and(
           eq(selfKeys.trustedUserId, c.get("user").id),
+          eq(selfKeys.keyType, "trusted"),
+          eq(phones.profile, "self"),
+          sql`${pendingChanges.requestedBy} is distinct from ${c.get("user").id}`,
+          notExists(ctx.db.select().from(householdMembers).where(and(
+            eq(householdMembers.householdId, phones.householdId),
+            eq(householdMembers.userId, c.get("user").id),
+          ))),
           eq(pendingChanges.keyType, "trusted"),
           eq(pendingChanges.status, "pending"),
         ),
@@ -951,13 +1035,22 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({
       approvals: rows.map((r) => ({
         id: r.change.id,
+        phoneId: r.change.phoneId,
         phoneName: r.phoneName,
         requestedBy: r.requester,
-        op: r.change.op,
+        op: { type: (r.change.op as Op).type },
         appLabel: r.appLabel,
         createdAt: r.change.createdAt.toISOString(),
       })),
     });
+  });
+
+  app.post("/changes/:cid/approve-qr", async (c) => {
+    const change = await requireTrusted(c);
+    const { challenge } = await body(c, z.object({ challenge: z.string().max(240) }));
+    const r = await applyPending(ctx, change.id, c.get("user").id, challenge);
+    if (r === "gone") return c.json({ error: "the approval code is invalid or has expired" }, 409);
+    return c.body(null, 204);
   });
 
   app.post("/changes/:cid/approve", async (c) => {
@@ -969,13 +1062,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/changes/:cid/reject", async (c) => {
     const change = await requireTrusted(c);
-    const [updated] = await ctx.db
-      .update(pendingChanges)
-      .set({ status: "rejected", decidedBy: c.get("user").id, decidedAt: ctx.now() })
-      .where(and(eq(pendingChanges.id, change.id), eq(pendingChanges.status, "pending")))
-      .returning();
-    if (!updated) return c.json({ error: "this change is no longer pending" }, 409);
-    await wakePhone(ctx, change.phoneId, "rules");
+    if (!(await rejectTrustedChange(ctx, change.id, change.phoneId, c.get("user").id))) {
+      return c.json({ error: "this change is no longer pending" }, 409);
+    }
     return c.body(null, 204);
   });
 

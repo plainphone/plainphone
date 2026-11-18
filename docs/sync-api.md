@@ -179,7 +179,8 @@ parent (PWA)                                server                          phon
 **Undo light-mode setup.** The phone registers completion once with
 `POST /device/setup-completion`, sending the elapsed time since local completion. The server
 only accepts a first registration within one hour of the first authenticated rules sync or
-setup-link redemption. It returns the remaining time on a fixed ten-minute deadline.
+setup-link redemption. It returns the remaining time on a fixed deadline. Self phones may send an undo
+choice up to 60 minutes. A pre-pairing dashboard choice takes precedence.
 `GET /device/setup-completion` recovers the remaining time after a reboot. Before releasing,
 the phone calls `POST /device/undo-setup/authorize` within the window. After local release
 succeeds, `POST /device/undo-setup` removes the phone and sends the standard protection-loss

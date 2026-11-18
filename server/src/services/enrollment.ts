@@ -9,6 +9,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq, isNull, lt, ne } from "drizzle-orm";
 import { enrollments, phones } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
+import { sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "./initial-self-key.js";
 import type { Ctx } from "./context.js";
 
 export const ENROLLMENT_HOURS = 24;
@@ -48,7 +49,7 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
 
 export type EnrollResult =
   | { status: 200; phoneId: string; deviceToken: string }
-  | { status: 404 | 410; error: string };
+  | { status: 400 | 404 | 410; error: string };
 
 /**
  * Redeems a token. One-time: the first phone wins. The same phone (same install id) may ask again
@@ -57,13 +58,13 @@ export type EnrollResult =
  */
 export async function redeemEnrollment(
   ctx: Ctx,
-  input: { token: string; installId: string; deviceInfo: Record<string, string> | null },
+  input: { key?: InitialSelfKey; token: string; installId: string; deviceInfo: Record<string, string> | null },
   devicePrefix: string,
 ): Promise<EnrollResult> {
   const deviceToken = randomToken(devicePrefix);
   const installHash = sha256(input.installId);
   const now = ctx.now();
-  return ctx.db.transaction(async (tx): Promise<EnrollResult> => {
+  const result = await ctx.db.transaction(async (tx): Promise<EnrollResult & { ownerId?: string | null }> => {
     const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
     if (!e) return { status: 404, error: "unknown setup code" };
     const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
@@ -82,12 +83,16 @@ export async function redeemEnrollment(
     // Paired some other way meanwhile (a pairing code): the entry is taken.
     if (phone.deviceTokenHash !== null) return { status: 410, error: "this phone is already paired" };
 
+    if (input.key && !(await setInitialSelfKey(tx, phone, input.key))) return { status: 400, error: "invalid setup key" };
+
     await tx
       .update(phones)
       .set({ deviceTokenHash: sha256(deviceToken), pairedAt: now, deviceInfo: input.deviceInfo })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
     await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phone.id), ne(enrollments.id, e.id)));
-    return { status: 200, phoneId: phone.id, deviceToken };
+    return { status: 200, phoneId: phone.id, deviceToken, ownerId: e.createdBy };
   });
+  if ("ownerId" in result && result.ownerId) await sendInitialKeyInvite(ctx, input.key, result.ownerId);
+  return result;
 }

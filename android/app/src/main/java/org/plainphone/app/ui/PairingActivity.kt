@@ -337,7 +337,7 @@ private fun PairingScreen(onDone: () -> Unit) {
 
 /** Dark modules on white with a quiet zone, also in dark mode, so every camera can read it. */
 @Composable
-private fun QrCode(text: String, modifier: Modifier) {
+internal fun QrCode(text: String, modifier: Modifier) {
     val matrix = remember(text) { encodePairingQr(text) }
     val label = stringResource(R.string.pairing_qr_description)
     Box(modifier.background(Color.White).padding(12.dp).semantics { contentDescription = label }) {

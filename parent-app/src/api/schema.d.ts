@@ -246,6 +246,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/approval-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List pending trusted approvals for this Self phone */
+        get: operations["getDeviceApprovalRequests"];
+        put?: never;
+        /** Make a signed two-minute approval code */
+        post: operations["postDeviceApprovalChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/trusted-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a 15-minute helper invite for a Self phone waiting for a QR invite */
+        post: operations["postDeviceTrustedInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/self-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share a short-lived copy of this Self phone’s selected rules */
+        post: operations["postDeviceSelfTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/setup-completion": {
         parameters: {
             query?: never;
@@ -1493,6 +1545,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/setup-undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** Get the phone’s setup undo choice and whether it is still editable */
+        get: operations["getPhoneSetupUndo"];
+        /** Set the setup undo period on a light-mode phone before pairing */
+        put: operations["putPhoneSetupUndo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/trusted-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a QR invite for a Self phone waiting for a helper */
+        post: operations["postPhoneTrustedInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/self-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share a short-lived copy of the phone’s selected rules */
+        post: operations["postPhoneSelfTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/key": {
         parameters: {
             query?: never;
@@ -1550,6 +1660,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/people-i-help": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Self phones for which I hold the key */
+        get: operations["getPeopleIHelp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals": {
         parameters: {
             query?: never;
@@ -1561,6 +1688,23 @@ export interface paths {
         get: operations["getApprovals"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changes/{cid}/approve-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve with a signed QR challenge as the current trusted person */
+        post: operations["postChangesApproveQr"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2290,6 +2434,20 @@ export interface components {
             endMinute: number;
             allowedPackages?: components["schemas"]["PackageName"][];
         };
+        InitialSelfKey: {
+            /** @enum {unknown} */
+            keyType: "delay";
+            /** @enum {integer} */
+            delayHours: 1 | 6 | 12 | 24 | 48 | 72;
+        } | {
+            /** @enum {unknown} */
+            keyType: "trusted";
+            /** Format: email */
+            trustedEmail: string;
+        } | {
+            /** @enum {unknown} */
+            keyType: "trustedQr";
+        };
         Key: {
             /** @enum {unknown} */
             keyType: "delay" | "trusted";
@@ -2297,6 +2455,8 @@ export interface components {
             delayHours: number;
             /** Format: email */
             trustedEmail: string | null;
+            /** @description Choose a trusted person by QR instead of email. */
+            qrInvite?: boolean;
             payUnlockEnabled: boolean;
             /** @description Minor units. */
             payUnlockAmount: number;
@@ -2499,6 +2659,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     action: "confirm" | "cancel";
+                    key?: components["schemas"]["InitialSelfKey"];
                 };
             };
         };
@@ -2552,6 +2713,7 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
+                    key?: components["schemas"]["InitialSelfKey"];
                     /** @enum {unknown} */
                     mode: "strong" | "light";
                     cancel?: boolean;
@@ -2870,6 +3032,88 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    getDeviceApprovalRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending changes with id and type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceApprovalChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    changeId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Challenge and QR URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postDeviceTrustedInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite URL and expiry */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postDeviceSelfTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template URL */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
     getDeviceSetupCompletion: {
         parameters: {
             query?: never;
@@ -2902,6 +3146,11 @@ export interface operations {
             content: {
                 "application/json": {
                     elapsedMs: number;
+                    /**
+                     * @description Optional Self phone choice.
+                     * @enum {integer}
+                     */
+                    undoMinutes?: 0 | 5 | 10 | 30 | 60;
                 };
             };
         };
@@ -3852,6 +4101,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Optional rule template code for an unconnected Self phone. */
+                    template?: string;
                     name: string;
                     /**
                      * @default strong
@@ -4981,6 +5232,96 @@ export interface operations {
             };
         };
     };
+    getPhoneSetupUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Minutes and editable flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putPhoneSetupUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {integer} */
+                    minutes: 0 | 5 | 10 | 30 | 60;
+                };
+            };
+        };
+        responses: {
+            /** @description Minutes and editable flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postPhoneTrustedInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite URL and expiry */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postPhoneSelfTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template URL */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
     getPhonesKey: {
         parameters: {
             query?: never;
@@ -5084,6 +5425,24 @@ export interface operations {
             };
         };
     };
+    getPeopleIHelp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phones and owner emails */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getApprovals: {
         parameters: {
             query?: never;
@@ -5093,8 +5452,48 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt */
+            /** @description approvals: id, phoneId, phoneName, requestedBy, op.type, appLabel (name of the app for app.set, or null), createdAt */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postChangesApproveQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: components["parameters"]["changeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not my request to decide */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

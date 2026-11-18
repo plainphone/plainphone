@@ -112,6 +112,9 @@ class HomeActivity : ComponentActivity() {
                         emergency = ::openEmergency,
                         help = { startActivity(Intent(this@HomeActivity, HelpActivity::class.java)) },
                         makeDefault = ::askToBeHome,
+                        selfTools = if (org.plainphone.app.light.LightSetup.profile(this@HomeActivity) == "self") {
+                            { startActivity(Intent(this@HomeActivity, org.plainphone.app.light.HomeActivity::class.java)) }
+                        } else null,
                     ),
                 )
             }
