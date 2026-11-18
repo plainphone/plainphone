@@ -220,6 +220,35 @@ describe("DNS readiness", () => {
     expect((await parent.get(path)).json.host).toMatch(/\.dns\.plainphone\.org$/);
   });
 
+  it("preserves legacy HTTP DNS readiness during an opted-in upgrade and API outage", async () => {
+    const request = useHttpDns();
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}/dns`;
+    const before = (await device.get("/api/device/rules")).json.dns;
+    const confirmation = await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) });
+    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: null, dnsDirty: true }).where(eq(phones.id, phoneId));
+
+    h.ctx.cfg.DNS_ADOPT_LEGACY_CONFIRMATIONS = true;
+    request.mockClear();
+    request.mockResolvedValue(new Response(null, { status: 503 }));
+    await markUnconfirmedDnsDirty(h.ctx);
+    expect(request).not.toHaveBeenCalled();
+    expect(before.ready).toBe(true);
+    expect((await device.get("/api/device/rules")).json.dns).toEqual(before);
+    expect((await parent.get(path)).json).toMatchObject({ host: before.host, synced: false });
+    expect(await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) }))
+      .toMatchObject({ dnsConfirmedAt: confirmation!.dnsConfirmedAt });
+
+    await sweep(h.ctx);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((await device.get("/api/device/rules")).json.dns).toEqual(before);
+
+    h.ctx.cfg.DNS_API_URL = "https://different-resolver.example.test";
+    await markUnconfirmedDnsDirty(h.ctx);
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+  });
+
   it("returns the configured DoT host only to household members after provisioning", async () => {
     const request = useHttpDns();
     const parent = await signIn(h, "parent@example.org");

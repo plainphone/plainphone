@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsDeletions, dnsSettings, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
@@ -25,10 +25,17 @@ function needsDnsConfirmation(tag: string) {
 }
 
 export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
+  const tag = dnsConfirmationTag(ctx.cfg);
+  if (ctx.cfg.DNS_PROVIDER === "http" && ctx.cfg.DNS_ADOPT_LEGACY_CONFIRMATIONS) {
+    await ctx.db
+      .update(phones)
+      .set({ dnsConfirmedProvider: tag })
+      .where(and(isNull(phones.dnsConfirmedProvider), isNotNull(phones.dnsConfirmedAt)));
+  }
   await ctx.db
     .update(phones)
     .set({ dnsDirty: true })
-    .where(and(eq(phones.dnsDirty, false), needsDnsConfirmation(dnsConfirmationTag(ctx.cfg))));
+    .where(and(eq(phones.dnsDirty, false), needsDnsConfirmation(tag)));
 }
 
 /**

@@ -59,7 +59,7 @@ function PhoneFilter() {
       <LoadGate res={res}>
         {(dns) => (
           <>
-            {!phone.dnsReady ? (
+            {dns.host === null ? (
               <p className="notice notice-info">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "filter.waitingDns")}</p>
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>

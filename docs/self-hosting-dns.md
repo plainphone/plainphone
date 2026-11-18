@@ -155,8 +155,20 @@ household members after the DNS service confirms provisioning with
 `DNS_API_URL` or `DNS_HOST_SUFFIX`, or upgrading from an older confirmation
 format, the background sync provisions existing phones with the configured
 resolver before the dashboard shows their addresses or Android starts using the
-new configuration. Treat the hostname as private: sharing it gives other devices
-and apps access to the same filter rules.
+new configuration.
+
+When upgrading across migration `0015_dns_confirmation_provider`, set
+`DNS_ADOPT_LEGACY_CONFIRMATIONS=true` for the first start only if the database's
+existing confirmations all came from the same HTTP resolver and the API URL and
+hostname suffix are unchanged. This keeps phones on their existing filter even
+if the administration API is temporarily unavailable. Remove the setting after
+startup has persisted the confirmations. Leave it off if the database ever used
+mock DNS, used a different resolver, or its DNS history is uncertain. Older
+confirmations record only a timestamp, so the server otherwise waits for a new
+confirmation from the configured resolver.
+
+Treat the hostname as private: sharing it gives other devices and apps access
+to the same filter rules.
 
 Android Private DNS takes the hostname alone. A compatible router or VPN takes
 the hostname and TCP port 853 in its DNS-over-TLS upstream settings, using the
