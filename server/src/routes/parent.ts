@@ -5,6 +5,7 @@
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -43,6 +44,7 @@ import {
   type Op,
   submitChange,
 } from "../services/changes.js";
+import { childContactSettingsInput, pendingContactSuggestions, reviewContactSuggestions, reviewContactSuggestionsInput, updateChildContactSettings } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
@@ -758,10 +760,45 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
+  app.get("/phones/:pid/contact-suggestions", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    return c.json({ suggestions: await pendingContactSuggestions(ctx, phone.id) });
+  });
+
+  app.post("/phones/:pid/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    await reviewContactSuggestions(ctx, phone.id, await body(c, reviewContactSuggestionsInput));
+    return c.body(null, 204);
+  });
+
+  app.put("/phones/:pid/contact-schedule", async (c) => {
+    const phone = await requirePhone(c);
+    const { restricted } = await body(c, z.strictObject({ restricted: z.boolean() }));
+    return change(c, phone, { type: "contact.schedule", restricted });
+  });
+
   app.get("/phones/:pid/contacts", async (c) => {
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
-    return c.json({ contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })) });
+    return c.json({
+      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })),
+      selfScheduleContacts: phone.selfScheduleContacts,
+      suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
+      lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
+    });
+  });
+
+  app.patch("/phones/:pid/contacts", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    const input = await body(c, childContactSettingsInput);
+    if (input.lightContactRestriction !== undefined && phone.mode !== "light") {
+      throw new HTTPException(400, { message: "contact restriction is always on in strong mode" });
+    }
+    await updateChildContactSettings(ctx, phone.id, input);
+    return c.body(null, 204);
   });
 
   app.post("/phones/:pid/contacts", async (c) => {

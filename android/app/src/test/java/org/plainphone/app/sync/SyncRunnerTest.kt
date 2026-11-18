@@ -9,7 +9,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.StepResult
+import org.plainphone.app.light.LightSetup
 import org.plainphone.app.contacts.SyncedContactPolicySource
 import org.robolectric.RobolectricTestRunner
 
@@ -98,6 +100,110 @@ class SyncRunnerTest {
         val calls = api.tokensUsed.size
         assertThat(runner.run("later")).isEqualTo(SyncRunner.Outcome.Removed)
         assertThat(api.tokensUsed).hasSize(calls)
+    }
+
+    @Test
+    fun `suggestions require consent and are capped and throttled`() {
+        pair()
+        val first = DeviceContact("Alex", List(101) { "+451234${1000 + it}" })
+        var addressBook = listOf(first) + List(2000) { DeviceContact("Contact $it", listOf("+453456${1000 + it}")) }
+        var reads = 0
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions(): List<DeviceContact> {
+                reads++
+                return addressBook
+            }
+        }
+        val sync = SyncRunner(store, api, source)
+        fun rules(enabled: Boolean) = org.json.JSONObject(rulesJson()).put("suggestDeviceContacts", enabled).toString()
+        api.rules = RulesResult.Changed("legacy", rulesJson())
+        sync.run("legacy server")
+        api.rules = RulesResult.Changed("off", rules(false))
+        sync.run("off")
+        assertThat(reads).isEqualTo(0)
+        assertThat(api.contactSnapshots).isEmpty()
+
+        api.rules = RulesResult.Changed("on", rules(true))
+        sync.run("on")
+        assertThat(api.contactSnapshots.single()).containsExactlyElementsIn(addressBook.take(2_000))
+        api.rules = RulesResult.Unchanged
+        addressBook = emptyList()
+        device.now += 6 * 60 * 60_000L - 1
+        SyncRunner(store, api, source).run("before refresh")
+        assertThat(reads).isEqualTo(1)
+        device.now++
+        sync.run("refresh")
+        assertThat(reads).isEqualTo(2)
+        assertThat(api.contactSnapshots.last()).isEmpty()
+
+        api.rules = RulesResult.Changed("off-again", rules(false))
+        device.now += 6 * 60 * 60_000L
+        sync.run("disabled again")
+        assertThat(reads).isEqualTo(2)
+        assertThat(api.contactSnapshots).hasSize(2)
+    }
+
+    @Test
+    fun `a failed suggestion upload retries without reading contacts again`() {
+        pair()
+        val snapshot = listOf(DeviceContact("Alex", listOf("+4512345678")))
+        var reads = 0
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions(): List<DeviceContact> {
+                reads++
+                return snapshot
+            }
+        }
+        api.rules = RulesResult.Changed("on", org.json.JSONObject(rulesJson())
+            .put("suggestDeviceContacts", true).toString())
+        api.contactSuggestionsFailure = IOException("offline")
+        SyncRunner(store, api, source).run("upload interrupted")
+        assertThat(reads).isEqualTo(1)
+        assertThat(api.contactSnapshots).isEmpty()
+
+        api.rules = RulesResult.Unchanged
+        api.contactSuggestionsFailure = null
+        SyncRunner(store, api, source).run("retry upload with a new runner")
+        SyncRunner(store, api, source).run("after upload")
+        assertThat(reads).isEqualTo(1)
+        assertThat(api.contactSnapshots).containsExactly(snapshot)
+    }
+
+    @Test
+    fun `turning off suggestions discards a failed upload`() {
+        pair()
+        var addressBook = listOf(DeviceContact("Alex", listOf("+4512345678")))
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions() = addressBook
+        }
+        fun rules(enabled: Boolean) = org.json.JSONObject(rulesJson()).put("suggestDeviceContacts", enabled).toString()
+        api.rules = RulesResult.Changed("on", rules(true))
+        api.contactSuggestionsFailure = IOException("offline")
+        SyncRunner(store, api, source).run("upload interrupted")
+
+        api.contactSuggestionsFailure = null
+        api.rules = RulesResult.Changed("off", rules(false))
+        SyncRunner(store, api, source).run("consent withdrawn")
+        assertThat(api.contactSnapshots).isEmpty()
+
+        addressBook = emptyList()
+        api.rules = RulesResult.Changed("on-again", rules(true))
+        SyncRunner(store, api, source).run("consent restored")
+        assertThat(api.contactSnapshots.single()).isEmpty()
+    }
+
+    @Test
+    fun `a light child phone enforces contacts only with an explicit flag`() {
+        pair()
+        LightSetup.markComplete(context)
+        val source = SyncedContactPolicySource(context)
+        val rules = org.json.JSONObject(rulesJson(contacts = "[]")).put("mode", "light")
+        store.saveRules("legacy", rules.toString(), device.now)
+        assertThat(source.rules().enforced).isFalse()
+        store.saveRules("off", rules.put("lightContactRestriction", false).toString(), device.now)
+        assertThat(source.rules().enforced).isFalse()
+        store.saveRules("on", rules.put("lightContactRestriction", true).toString(), device.now)
+        assertThat(source.rules().enforced).isTrue()
     }
 
     @Test

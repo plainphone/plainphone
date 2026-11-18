@@ -126,6 +126,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/self/favourites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add or remove a Self phone favourite */
+        post: operations["setDeviceFavourite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/contact-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace pending suggestions with the current address book of a child phone
+         * @description Send up to 2,000 of the most recently updated contacts when the parent has opted in, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
+         */
+        put: operations["putDeviceContactSuggestions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/apps": {
         parameters: {
             query?: never;
@@ -1113,6 +1150,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/contact-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** List the child's contacts awaiting review */
+        get: operations["getContactSuggestions"];
+        put?: never;
+        /**
+         * Approve or dismiss a contact suggestion, or approve the suggestions shown together
+         * @description Each ID represents the displayed name and numbers. IDs that are no longer pending are ignored.
+         */
+        post: operations["reviewContactSuggestions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/contact-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Restrict a Self phone to favourites during active schedules */
+        put: operations["setContactSchedule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/contacts": {
         parameters: {
             query?: never;
@@ -1130,7 +1209,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update a child phone's contact settings */
+        patch: operations["patchChildContactSettings"];
         trace?: never;
     };
     "/phones/{pid}/contacts/{cid}": {
@@ -1592,6 +1672,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SuggestedContactInput: {
+            name: string;
+            numbers: components["schemas"]["E164"][];
+        };
         PhoneRequest: {
             /** Format: uuid */
             id: string;
@@ -1676,6 +1760,10 @@ export interface components {
             type?: "contact.remove";
             /** Format: uuid */
             contactId?: string;
+        } | {
+            /** @constant */
+            type?: "contact.schedule";
+            restricted?: boolean;
         } | {
             /** @constant */
             type?: "dns.category";
@@ -1927,7 +2015,13 @@ export interface components {
                 /** @description Only today's and tomorrow's (phone time zone, server clock). */
                 bonuses?: components["schemas"]["Bonus"][];
             };
-            /** @description Calls and SMS to or from other numbers are blocked. Emergency numbers always work. */
+            /** @description Parent opt-in to send names and numbers from a Child phone. */
+            suggestDeviceContacts?: boolean;
+            /** @description Enforce the approved list on a light Child phone. Missing means off in light mode. */
+            lightContactRestriction?: boolean;
+            /** @description True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone. */
+            selfScheduleContacts?: boolean | null;
+            /** @description Approved numbers on Child phones or favourites on Self phones. Emergency numbers always work. */
             contacts: {
                 name?: string;
                 number?: components["schemas"]["E164"];
@@ -2656,6 +2750,100 @@ export interface operations {
             };
             /** @description Token unknown (phone removed by a parent). Keep the last rules and show "pair again". */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setDeviceFavourite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    number: components["schemas"]["E164"];
+                    favourite: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Waiting for the Self key */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description Self phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    putDeviceContactSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    contacts: components["schemas"]["SuggestedContactInput"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Received */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description Contact suggestions are off */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Available only for child phones */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot exceeds 4 MiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many suggestion uploads */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4335,6 +4523,112 @@ export interface operations {
             400: components["responses"]["Error"];
         };
     };
+    getContactSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending suggestions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        suggestions: {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            numbers: components["schemas"]["E164"][];
+                        }[];
+                    };
+                };
+            };
+            /** @description Child phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reviewContactSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "approve" | "reject";
+                    /** Format: uuid */
+                    id: string;
+                } | {
+                    /** @enum {string} */
+                    action: "approveAll";
+                    suggestionIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Reviewed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description Child phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Review exceeds 4 MiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setContactSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    restricted: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            400: components["responses"]["Error"];
+        };
+    };
     getPhonesContacts: {
         parameters: {
             query?: never;
@@ -4346,12 +4640,24 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Approved contacts */
+            /** @description Approved contacts or favourites and contact settings */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        contacts: {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            number: components["schemas"]["E164"];
+                        }[];
+                        selfScheduleContacts?: boolean | null;
+                        suggestDeviceContacts?: boolean;
+                        lightContactRestriction?: boolean;
+                    };
+                };
             };
         };
     };
@@ -4376,6 +4682,43 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    patchChildContactSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Turning this off also deletes all undecided suggestions. */
+                    suggestDeviceContacts?: boolean;
+                    /** @description Available on light phones only. */
+                    lightContactRestriction?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            /** @description Child phone not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     deletePhonesContacts: {

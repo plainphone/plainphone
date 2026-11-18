@@ -18,6 +18,21 @@ class PairingControllerTest {
     private val controller = PairingController(store, api, mapOf("model" to "Test"))
 
     @Test
+    fun favouriteSetupSurvivesPairingWithoutRulesUntilExplicitlyCompleted() {
+        val id = "7f1c2b9e-0000-4000-8000-000000000001"
+        store.savePaired(id, "test-token")
+        val reopened = SyncStore(context, FakeSecretBox())
+        assertThat(reopened.favouriteSetupPhoneId()).isNull()
+        reopened.saveRules("child", rulesJson(), 1)
+        assertThat(reopened.favouriteSetupPhoneId()).isNull()
+        reopened.saveRules("self", rulesJson().replace("\"child\"", "\"self\""), 2)
+        assertThat(reopened.favouriteSetupPhoneId()).isEqualTo(id)
+
+        reopened.completeFavouriteSetup(id)
+        assertThat(SyncStore(context, FakeSecretBox()).favouriteSetupPhoneId()).isNull()
+    }
+
+    @Test
     fun `start shows a code, polling stores the token once paired`() {
         api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
         val p = controller.start()
@@ -66,6 +81,20 @@ class PairingControllerTest {
         assertThat(PairingController.allowedWithoutPin(true, setup, setup + 60_000)).isFalse()
         // Never locked (not Device Owner): no free pairing.
         assertThat(PairingController.allowedWithoutPin(false, null, setup)).isFalse()
+    }
+
+    @Test
+    fun `setup can finish after background enrollment without reopening pairing`() {
+        val setup = now - 60_000
+        store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        controller.enroll()
+
+        assertThat(PairingController.allowedWithoutPin(store.everPaired, setup, now)).isFalse()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now)).isTrue()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now + PairingController.FREE_PAIRING_MS)).isFalse()
+        store.markRemoved()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now)).isFalse()
     }
 
     @Test

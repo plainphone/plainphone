@@ -46,6 +46,8 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
       return t(op.allowed ? "op.appShow" : "op.appHide", { app: appLabel(op.packageName) });
     case "contact.add":
       return t("op.contactAdd", { name: op.name, number: op.number });
+    case "contact.schedule":
+      return t(op.restricted ? "contacts.restrictOn" : "contacts.restrictOff");
     case "contact.remove":
       return t("op.contactRemove");
     case "dns.category":

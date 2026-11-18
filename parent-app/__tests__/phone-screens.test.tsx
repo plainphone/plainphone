@@ -199,6 +199,46 @@ describe("apps", () => {
 });
 
 describe("contacts", () => {
+  it("shows favourites for a Self phone", async () => {
+    phoneApi(SELF, { [`GET /phones/${SELF.id}/contacts`]: { body: { contacts: [], selfScheduleContacts: false } } });
+    await renderRouter(routes, { initialUrl: at(SELF, "contacts") });
+    expect(await screen.findByText("Favourites")).toBeTruthy();
+    expect(await screen.findByText(/No favourites yet/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add favourite" })).toBeTruthy();
+  });
+
+  it("reviews suggestions using the IDs from the displayed list", async () => {
+    const path = `/phones/${PHONE.id}/contact-suggestions`;
+    const alex = { id: "alex", name: "Alex", numbers: ["+4512345678", "+4512345679"] };
+    const sam = { id: "sam", name: "Sam", numbers: ["+4512345680"] };
+    let suggestions = [alex, sam];
+    let contacts: { id: string; name: string; number: string }[] = [];
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/contacts`]: () => ({ body: { contacts, suggestDeviceContacts: true } }),
+      [`GET ${path}`]: () => ({ body: { suggestions } }),
+      [`POST ${path}`]: ({ body }) => {
+        if ((body as { action: string }).action === "reject") {
+          suggestions = [alex];
+        } else {
+          suggestions = [];
+          contacts = [{ id: "contact", name: "Alex", number: alex.numbers[0] }];
+        }
+        return { status: 204 };
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "contacts") });
+    expect(await screen.findByText(alex.numbers[1])).toBeTruthy();
+    await fireEvent.press(await screen.findByRole("button", { name: "Dismiss Sam" }));
+    await waitFor(() => expect(screen.queryByText("Sam")).toBeNull());
+    await fireEvent.press(screen.getByRole("button", { name: "Approve all" }));
+    expect(await screen.findByText("No contacts to review.")).toBeTruthy();
+    expect(await screen.findByTestId("contact-contact")).toBeTruthy();
+    expect(api.calls.filter((call) => call.method === "POST").map((call) => call.body)).toEqual([
+      { action: "reject", id: "sam" },
+      { action: "approveAll", suggestionIds: ["alex"] },
+    ]);
+  });
+
   it("checks the number, then adds the contact", async () => {
     const api = phoneApi(PHONE, {
       [`GET /phones/${PHONE.id}/contacts`]: { body: { contacts: [{ id: "k1", name: "Mum", number: "+4512345678" }] } },

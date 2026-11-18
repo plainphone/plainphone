@@ -1,10 +1,77 @@
 # Approved contacts (phase 2)
 
-Plainphone is the phone's default **phone app** and **SMS app**. Calls and text messages only go to and come from the numbers on the approved list. Emergency numbers always work.
+Plainphone is the phone's default **phone app** and **SMS app**. Strong Child
+phones enforce the approved contact list. For light Child phones, the dashboard
+has an **Only approved contacts can call and text** setting in **Contacts**.
+It starts on for new pairings and off for phones already paired at the time of
+the upgrade, even if they have yet to download their first rules. An older
+server that does not send the setting leaves calls and
+texts unrestricted in light mode. With the setting on and an empty approved
+list, the dashboard warns that nobody can call or text the phone except
+emergency numbers. New Self phones allow
+everyone by default and can limit calls and texts to favourites during schedules.
+Emergency numbers always work.
 
 This page describes how that is built, where Android sets the limits, and what is not covered yet.
 
+## Existing history
+
+The Calls and Messages tabs read the Android system providers on the phone. Calls
+and SMS can be browsed in pages, including entries from previous default apps
+that still exist in the providers. Opening an SMS conversation loads its newest
+messages first. Refreshing an open conversation keeps the pages already loaded
+and preserves the scroll position. If another app adds older messages while the
+conversation is open, returning to Plainphone makes more history available.
+Android may provide read access after a change of default SMS app. A restricted
+provider can evaluate more rows than fit on the requested page.
+An MMS in a one-to-one conversation appears as a placeholder
+alongside the SMS messages from that conversation. Group MMS conversations are
+read-only, with placeholders for the attachments.
+Conversations and call entries for numbers the child cannot contact are read-only.
+The history is limited to the Android providers. Chats stored only in an app,
+including private RCS conversations, cannot be imported.
+
+## Child contact suggestions
+
+In the web dashboard, open the Child phone's **Contacts** and turn on **Suggest
+contacts from the phone**. It starts off for all phones, including new light
+phones. When turned on and Android grants contacts access, the phone sends only
+names and international phone numbers to the parents in the household. The child
+can see whether suggestions are on in the phone's Contacts tab.
+
+The phone reads the address book at most once every six hours while enabled and
+sends up to 2,000 of the most recently updated contacts. If the upload fails,
+the app can retry from memory on the next sync. The dashboard and
+parent app offer **Approve**, **Dismiss** and **Approve all**. If a suggestion
+changes before review, its replacement stays pending. Reviewed numbers stay
+excluded from later suggestions. Turning suggestions off stops uploads and
+deletes undecided suggestions. Approved contacts remain on the approved list.
+See [Privacy](privacy.md).
+
+## Self favourites
+
+The Contacts tab shows local contacts and favourites. On a new Self phone, the setup step appears after setup is complete and the phone has
+downloaded its first rules. Choose **Done** or **Skip**
+to close the setup step. You can use **Choose favourites** in Contacts any time
+to pick contacts that should always be reachable. On the dashboard, **Favourites** lets you turn on the optional
+restriction for active schedules. When it is on, favourites can still call and
+text in both directions, alongside emergency and helpline exceptions. Adding a
+favourite after enabling the restriction, or turning the restriction off, waits
+for the Self key. Removing a favourite applies at once. Strong Self phones
+already paired before this update keep their always-on list restriction.
+Switching to scheduled restrictions or allowing everyone requires the Self key.
+
+On an unrestricted Self phone, choose **New message** in Messages to text a
+number you have not saved.
+
+App time limits keep telephony available as a core function. A scheduled
+favourites restriction applies during the active schedule, including while
+app time limits are in effect.
+
 ## How it works
+
+The call and SMS checks below apply while the approved-contact restriction is
+active. It is optional on light-mode child phones.
 
 | Piece | Android API | What it does |
 |---|---|---|
@@ -19,7 +86,10 @@ This page describes how that is built, where Android sets the limits, and what i
 
 When the phone is set up by QR code, Plainphone takes both roles itself before setup ends, and grants its own runtime permissions (`setPermissionGrantState`). If Android refuses a role, the status screen says so (`FAIL default phone app`), nothing telephony-related is hidden, and the rest of the lock still holds. When Device Owner is released on the maintenance screen, the roles go back to the system dialer and the maker's SMS app.
 
-The rule is only enforced while the phone is locked: Plainphone is Device Owner and no maintenance unlock is running. During a maintenance unlock, or on a phone where Plainphone is installed by hand, it works as an ordinary phone and SMS app.
+The rule is enforced while the phone is locked in strong mode. On a light-mode
+child phone it also requires completed setup, active protection and the
+parent's approved-contact setting. During a maintenance unlock or before light
+mode has finished setup, Plainphone works as an ordinary phone and SMS app.
 
 ## Emergency calls
 
@@ -55,7 +125,9 @@ Phase 2 has one implementation, `LocalContactPolicySource`, which keeps the list
 - **QR code:** `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45`. The script refuses a number without `+` unless `--country-code` is given. The list in the QR code is only used the first time; scanning again never wipes changes made on the phone. If a number cannot be expanded during setup (no country yet), it waits and is added as soon as the phone knows its country.
 - **Maintenance screen:** tap "Version" seven times, enter the PIN, then "Approved contacts and blocked log". Add or remove contacts and see what was blocked. The screen closes as soon as it is left, so the PIN is needed again.
 
-Phase 3 adds a source that syncs the list from the parent's dashboard and swaps it in at `ContactPolicySources.get`. Nothing else in the app needs to change.
+Once paired, the synced source uses the approved list from the parent's
+dashboard or the Self phone's favourites. The last rules keep applying
+offline. The emergency and helpline checks are shared by both sources.
 
 ## The blocked log
 
@@ -63,7 +135,7 @@ Blocked calls and messages are logged on the phone (newest 100): time, call or m
 
 ## Not covered yet
 
-- **MMS and group messages** are dropped, also from approved contacts. Downloading MMS needs the carrier's MMSC settings and a PDU parser; that comes later. The messages screen says so.
+- **New MMS and group messages** are dropped, also from approved contacts. Downloading MMS needs the carrier's MMSC settings and a PDU parser; that comes later. The messages screen says so.
 - **RCS (chat features).** RCS needs Google Messages as the default SMS app. With Plainphone as the SMS app, RCS is off and messages fall back to SMS. Senders using RCS see that the phone "only supports SMS".
 - **Messenger apps.** WhatsApp, Signal, Messenger, Snapchat and similar apps have their own calls and chats. No Android API lets a third party filter them. They are not on the allowlist by default, and allowing one of them is a separate choice. The contacts screen says this plainly.
 - **Voicemail.** The carrier's voicemail number is a normal number and must be added as a contact to be callable. Visual voicemail is not handled.

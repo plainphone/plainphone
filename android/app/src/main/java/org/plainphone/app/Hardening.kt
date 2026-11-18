@@ -93,7 +93,7 @@ class Hardening(private val controls: HardeningControls, private val sdkInt: Int
             add(role(CALL_SCREENING_ROLE, ROLE_CALL_SCREENING))
             add(role(CALL_REDIRECTION_ROLE, ROLE_CALL_REDIRECTION))
             // Telecom only passes calls from numbers in the phone's contacts to a screening app that is not
-            // the phone app when it can read contacts. Plainphone never reads them itself.
+            // the phone app when it can read contacts. Sharing suggestions requires a separate dashboard opt-in.
             add(step(CONTACTS_PERMISSION) { check(controls.grantOwnPermission(READ_CONTACTS)) { "refused" } })
         }
         add(step(LOCK_SCREEN_WIDGETS) { controls.setKeyguardDisabledFeatures(KEYGUARD_DISABLE_WIDGETS_ALL) })

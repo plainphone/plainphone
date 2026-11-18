@@ -61,7 +61,28 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     /** True once the phone has ever been paired. After that a new pairing needs the maintenance PIN. */
     val everPaired: Boolean get() = prefs.getBoolean(KEY_EVER_PAIRED, false)
 
+    internal var contactSuggestionsReadAt: Long?
+        get() = prefs.getLong("contact_suggestions_read_${phoneId}", -1L).takeIf { it >= 0 }
+        set(value) {
+            val key = "contact_suggestions_read_${phoneId}"
+            prefs.edit().apply {
+                if (value == null) remove(key) else putLong(key, value)
+            }.apply()
+        }
+
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
+
+    internal fun favouriteSetupPhoneId(): String? {
+        val id = phoneId ?: return null
+        if (!hasStoredPairing || released || setupUndoPending || prefs.getString(KEY_FAVOURITE_SETUP, null) != id) return null
+        return id.takeIf { rules()?.let { it.phoneId == id && it.profile == "self" && !it.release } == true }
+    }
+
+    internal fun completeFavouriteSetup(expectedPhoneId: String) = synchronized(tokenLock) {
+        if (prefs.getString(KEY_FAVOURITE_SETUP, null) == expectedPhoneId) {
+            prefs.edit().remove(KEY_FAVOURITE_SETUP).apply()
+        }
+    }
 
     internal val setupUndoPending: Boolean get() = !removed && prefs.getBoolean(KEY_SETUP_UNDO_PENDING, false)
 
@@ -115,6 +136,8 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
                 .remove(KEY_PAIRING)
                 .remove(KEY_ENROLL).remove("enroll_confirmed")
+            if (!everPaired) pairing.putString(KEY_FAVOURITE_SETUP, phoneId)
+            else if (this.phoneId != phoneId) pairing.remove(KEY_FAVOURITE_SETUP)
             synchronized(appReportLock) {
                 pairing.putLong(KEY_APPS_GENERATION, nextAppGeneration()).commit()
             }
@@ -386,6 +409,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_INSTALL_ID = "install_id"
         private const val KEY_ETAG = "etag"
         private const val KEY_RULES = "rules"
+        private const val KEY_FAVOURITE_SETUP = "favourite_setup_phone_id"
         private const val KEY_SYNC_AT = "sync_at"
         private const val KEY_APPS_HASH = "apps_hash"
         private const val KEY_APPS_GENERATION = "apps_generation"

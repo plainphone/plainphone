@@ -291,6 +291,7 @@ export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
+  | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }

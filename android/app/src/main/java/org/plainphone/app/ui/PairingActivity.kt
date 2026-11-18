@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.ui
 
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -9,9 +10,6 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import kotlinx.coroutines.launch
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
@@ -35,6 +33,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.withContext
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
@@ -64,6 +66,7 @@ import org.plainphone.app.sync.PairPoll
 import org.plainphone.app.sync.Pairing
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
+import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.qr.QrCode
@@ -79,17 +82,49 @@ class PairingActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val authorized = intent.getBooleanExtra(EXTRA_AUTHORIZED, false)
         if (!authorized && !canPairWithoutPin(this)) {
-            finish()
+            if (intent.getBooleanExtra(EXTRA_SETUP, false) && canFinishSetup(this)) finishSetup()
+            else finish()
             return
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
-        setContent { PlainphoneTheme { PairingScreen(onDone = ::finish) } }
+        setContent {
+            PlainphoneTheme {
+                PairingScreen(onDone = { if (authorized) finish() else finishSetup() })
+            }
+        }
+    }
+
+    private fun finishSetup() {
+        lifecycleScope.launch {
+            val self = withContext(Dispatchers.IO) {
+                val store = SyncStore(this@PairingActivity)
+                if (!store.isPaired) return@withContext false
+                if (store.rules()?.phoneId != store.phoneId) {
+                    Sync.runner(this@PairingActivity).run("setup finished")
+                }
+                store.enrollmentAccount() == null && store.favouriteSetupPhoneId() != null
+            }
+            if (self) startActivity(PhoneActivity.favouritesIntent(this@PairingActivity))
+            finish()
+        }
     }
 
     companion object {
         /** Set only by the PIN-checked maintenance screen. */
         const val EXTRA_AUTHORIZED = "org.plainphone.app.PAIRING_AUTHORIZED"
+
+        private const val EXTRA_SETUP = "org.plainphone.app.PAIRING_SETUP"
+
+        fun canFinishSetup(context: Context): Boolean {
+            val owner = context.getSystemService(DevicePolicyManager::class.java)
+            if (owner?.isDeviceOwnerApp(context.packageName) != true) return false
+            return PairingController.canFinishSetup(
+                SyncStore(context).isPaired, Lock.firstAppliedAtMs(context), System.currentTimeMillis(),
+            )
+        }
+
+        fun setupIntent(context: Context): Intent = intent(context, authorized = false).putExtra(EXTRA_SETUP, true)
 
         fun canPairWithoutPin(context: Context): Boolean {
             val store = SyncStore(context)
@@ -239,6 +274,11 @@ private fun PairingScreen(onDone: () -> Unit) {
         }
         ui = PairingUi.Loading
         val started = withContext(Dispatchers.IO) { runCatching { controller.start() } }
+        if (started.isFailure && withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
+            ui = PairingUi.Paired
+            onDone()
+            return@LaunchedEffect
+        }
         ui = started.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: it.javaClass.simpleName) })
         while (ui is PairingUi.Showing) {
             delay(POLL_MS)
