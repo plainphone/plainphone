@@ -132,7 +132,7 @@ Without `PLAINPHONE_SIGNING`, the release build is signed with your local debug 
 8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215
 ```
 
-Android cannot update in place from the test key used through v0.1.9. In light mode, uninstall Plainphone, install the current release and pair it again. In strong mode (Device Owner), factory reset the phone and set it up again with a fresh setup QR code. A factory reset erases the phone's data.
+Android cannot update in place from the test key used through v0.1.9. In light mode, uninstall Plainphone, install the current release and pair it again. In strong mode (Device Owner), follow the [signing key change guide](docs/android-updates.md#one-time-signing-key-change-in-v0110) to back up, release and reset the phone before setting it up with a fresh QR code.
 
 ### Setup QR code
 

@@ -29,6 +29,13 @@ const errorMessages: Readonly<Record<string, MessageKey>> = {
   unknown: "phone.updateFailed",
 };
 
+function usesProductionKey(version: string | null | undefined): boolean | undefined {
+  const match = version?.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return undefined;
+  const [, major, minor, patch] = match;
+  return Number(major) > 0 || Number(minor) > 1 || (Number(minor) === 1 && Number(patch) >= 10);
+}
+
 function updateMessage(status: PhoneStatus, latest: LatestVersion | undefined, t: T) {
   const update = status.update;
   if (update?.state === "failed" || update?.state === "refused") {
@@ -52,6 +59,11 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
   const [busy, setBusy] = useState(false);
   const [request, setRequest] = useState<{ message: string; previousCheck?: string | null }>();
   const update = status.update;
+  const reportedOffer = update?.state === "prompted" || update?.state === "available"
+    || update?.errorCode === "signature_mismatch" ? update.latestVersion : undefined;
+  const signingKeyChange = usesProductionKey(status.appVersion) === false
+    && usesProductionKey(latest?.versionName ?? reportedOffer) === true;
+  const signingKeyMessage = status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight";
   const checkedAt = update?.checkedAt;
   const requestPending = request && request.previousCheck === checkedAt;
   const failureDetail = update?.state === "failed" || update?.state === "refused" ? update.detail : null;
@@ -73,14 +85,14 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
     <li>
       <div className="phone-version">
         <span>{t("phone.appVersion", { version: status.appVersion })}</span>
-        {supported && (
+        {supported && !signingKeyChange && (
           <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void requestUpdate()}>
             {t("phone.updateNow")}
           </button>
         )}
       </div>
       <div role="status">
-        {requestPending ? request.message : updateMessage(status, latest, t)}
+        {signingKeyChange ? t(signingKeyMessage) : requestPending ? request.message : updateMessage(status, latest, t)}
       </div>
       {!requestPending && failureDetail && (
         <details className="phone-update-details" key={checkedAt}>

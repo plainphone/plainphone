@@ -195,6 +195,8 @@ export const da: Messages = {
   "phone.appVersion": "App-version {version}",
   "phone.updateNow": "Opdatér nu",
   "phone.updateRequested": "Telefonen tjekker, næste gang den er online.",
+  "phone.updateSigningKeyLight": "Opdateringen bruger en ny signeringsnøgle. Afinstaller Plainphone, installer den nyeste version, og par telefonen igen.",
+  "phone.updateSigningKeyStrong": "Opdateringen bruger en ny signeringsnøgle. Tag en sikkerhedskopi. Vælg Frigiv Device Owner (testtelefoner) på skærmen med forældre-PIN. Nulstil så telefonen, og sæt den op igen med en ny QR-kode.",
   "phone.updateFailed": "Opdatering fejlede",
   "phone.updateDetails": "Vis tekniske detaljer",
   "phone.updateBatteryExemptionMissing": "Tillad, at Plainphone kører i baggrunden, og prøv igen.",

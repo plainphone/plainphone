@@ -196,6 +196,8 @@ export const en = {
   "phone.appVersion": "App version {version}",
   "phone.updateNow": "Update now",
   "phone.updateRequested": "The phone will check the next time it is online.",
+  "phone.updateSigningKeyLight": "This update uses a new signing key. Uninstall Plainphone, install the current release and pair it again.",
+  "phone.updateSigningKeyStrong": "This update uses a new signing key. Back up your data, release Device Owner from the parent PIN screen, then factory reset the phone and set it up with a new QR code.",
   "phone.updateFailed": "Update failed",
   "phone.updateDetails": "Show technical details",
   "phone.updateBatteryExemptionMissing": "Allow Plainphone to run in the background, then try again.",

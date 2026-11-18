@@ -7,8 +7,10 @@ use the [production signing certificate](../README.md#signing). Android cannot
 update the app in place across these keys.
 
 - **Light mode:** Uninstall Plainphone, install the current release and pair it again.
-- **Strong mode (Device Owner):** Back up any data you want to keep, factory reset
-  the phone and set it up again with a fresh QR code from the dashboard.
+- **Strong mode (Device Owner):** Back up any data you want to keep and
+  [release Device Owner](setup-test-phone.md#5-getting-out-again) so that Settings
+  allows a factory reset. Then reset the phone and set it up again with a fresh
+  QR code from the dashboard.
 
 An update check on a test-key phone can show a signature mismatch in the
 dashboard, or Android can reject a manual install. Follow the steps above for

@@ -42,6 +42,7 @@ const phone: Phone & { status: NonNullable<Phone["status"]> } = {
 };
 
 let currentPhone: Phone;
+let latestAndroid: { versionCode: number; versionName: string } | undefined;
 
 vi.mock("../components/ui", async (importOriginal) => {
   const ui = await importOriginal<typeof import("../components/ui")>();
@@ -49,7 +50,8 @@ vi.mock("../components/ui", async (importOriginal) => {
     ...ui,
     useLoad: (fn: () => Promise<unknown>, deps: readonly unknown[]) => {
       const result = ui.useLoad(fn, deps);
-      return deps[0] === phoneId ? { ...result, data: currentPhone } : result;
+      if (deps[0] === phoneId) return { ...result, data: currentPhone };
+      return deps[0] === true ? { ...result, data: latestAndroid } : result;
     },
   };
 });
@@ -74,6 +76,54 @@ function renderPhone(data: Phone) {
     vi.unstubAllGlobals();
   }
 }
+
+it.each([
+  { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again", latest: undefined },
+  { mode: "strong", state: "refused", errorCode: "signature_mismatch", guidance: "release Device Owner", latest: undefined },
+  { mode: "light", state: "upToDate", errorCode: undefined, guidance: "pair it again",
+    latest: { versionCode: 11, versionName: "0.1.10" } },
+] as const)("shows setup guidance for a test-key phone in $mode mode reporting $state", ({
+  mode, state, errorCode, guidance, latest,
+}) => {
+  latestAndroid = latest;
+  try {
+    const html = renderPhone({
+      ...phone,
+      mode,
+      status: {
+        ...phone.status,
+        mode,
+        deviceOwner: mode === "strong",
+        appVersion: "0.1.9",
+        appVersionCode: 10,
+        update: { state, errorCode, detail: null, checkedAt: null, latestVersion: state === "upToDate" ? "0.1.9" : "0.1.10" },
+      },
+    });
+    expect(html).toContain(guidance);
+    expect(html).not.toContain(makeT("en")("phone.updateNow"));
+  } finally {
+    latestAndroid = undefined;
+  }
+});
+
+it.each([
+  { installed: "0.1.8", offered: "0.1.9" },
+  { installed: "0.1.10", offered: "0.1.11" },
+])("keeps the normal update prompt from $installed to $offered", ({ installed, offered }) => {
+  const html = renderPhone({
+    ...phone,
+    mode: "light",
+    status: {
+      ...phone.status,
+      mode: "light",
+      deviceOwner: false,
+      appVersion: installed,
+      appVersionCode: 10,
+      update: { state: "prompted", detail: null, checkedAt: null, latestVersion: offered },
+    },
+  });
+  expect(html).toContain(makeT("en")("phone.updateAvailable", { version: offered }));
+});
 
 it("shows the install-window warning with an intact lock and keeps the duration in closed details", () => {
   const html = renderPhone(phone);
