@@ -2,11 +2,11 @@
 //
 // The API the phone talks to. Contract: server/openapi.yaml, tag "device".
 
-import { and, eq, isNotNull, isNull, lt, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { locations, pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
@@ -18,7 +18,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { installOverrunFromStatus, isInstallOverrun, respondWithRules } from "../services/phones.js";
-import { checkinLocationDue, FIND_WINDOW_MS, loadSafety, notifySafety } from "../services/safety.js";
+import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
@@ -255,7 +255,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
   });
 
   app.put("/location", async (c) => {
-    const phone = c.get("phone");
+    const phoneId = c.get("phone").id;
     const input = await body(
       c,
       z.object({
@@ -263,48 +263,72 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
         lon: z.number().min(-180).max(180),
         accuracyM: z.number().min(0).max(100_000).optional(),
         recordedAt: z.iso.datetime({ offset: true }),
+        purpose: z.string().regex(/^(always|find:\d+|checkin:[0-9a-f-]{36})$/i).optional(),
       }),
     );
-    if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    // Outside "always" the phone sends a position only when asked: a Find, or an unanswered
-    // "Are you okay?". The server holds it to that.
-    const { checkin } = await loadSafety(ctx, phone.id);
-    const forCheckin = checkinLocationDue(checkin, phone.locationMode, ctx.now());
-    const findOpen =
-      phone.locateRequestedAt !== null && ctx.now().getTime() - phone.locateRequestedAt.getTime() < FIND_WINDOW_MS;
-    const always =
-      phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > ctx.now();
-    if (!always && !findOpen && !forCheckin) {
-      return c.json({ error: "no position was asked for" }, 409);
-    }
+    const now = ctx.now();
+    const { purpose } = input;
     const recordedAt = new Date(input.recordedAt);
-    if (recordedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
-      return c.json({ error: "recordedAt is in the future" }, 400);
-    }
-    const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: ctx.now() };
-    // One row per phone (D7). An older fix never overwrites a newer one.
-    await ctx.db
-      .insert(locations)
-      .values({ phoneId: phone.id, ...values })
-      .onConflictDoUpdate({
-        target: locations.phoneId,
-        set: values,
-        setWhere: lte(locations.recordedAt, recordedAt),
-      });
-    if (phone.locateRequestedAt) {
-      await ctx.db
-        .update(phones)
-        .set({ locateRequestedAt: null })
-        .where(and(eq(phones.id, phone.id), lte(phones.locateRequestedAt, recordedAt)));
-    }
-    if (forCheckin) {
-      const first = await ctx.db
-        .update(safetyRequests)
-        .set({ locatedAt: ctx.now() })
-        .where(and(eq(safetyRequests.id, checkin!.id), isNull(safetyRequests.locatedAt)))
-        .returning({ id: safetyRequests.id });
-      if (first.length) await notifySafety(ctx, phone, "located");
-    }
+    const values = { lat: input.lat, lon: input.lon, accuracyM: input.accuracyM ?? null, recordedAt, receivedAt: now };
+    const result = await ctx.db.transaction(async (tx) => {
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("no key update");
+      if (!phone || phone.locationMode === "off") {
+        return { status: 409, error: "location is off for this phone" } as const;
+      }
+      const requestedAt = phone.locateRequestedAt;
+      const [checkin] = purpose === undefined || purpose.startsWith("checkin:")
+        ? await tx.select().from(safetyRequests).where(and(
+            eq(safetyRequests.phoneId, phone.id),
+            eq(safetyRequests.kind, "checkin"),
+          ))
+        : [];
+      const taggedFind = requestedAt !== null && purpose === `find:${requestedAt.getTime()}` &&
+        now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS;
+      const { forFind, forCheckin, always, clearFind } = purpose === undefined
+        ? legacyUntaggedTargets(phone, checkin, now, recordedAt)
+        : {
+            forFind: taggedFind,
+            forCheckin: checkin !== undefined && purpose === `checkin:${checkin.id}` &&
+              checkinLocationDue(checkin, phone.locationMode, now),
+            always: purpose === "always" && phone.locationMode === "always" &&
+              phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now,
+            clearFind: taggedFind && recordedAt >= requestedAt,
+          };
+      if (!always && !forFind && !forCheckin) return { status: 409 } as const;
+      if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
+        return { status: 400, error: "recordedAt is in the future" } as const;
+      }
+      if (purpose !== undefined && forCheckin && checkin && recordedAt <= checkin.createdAt) {
+        return { status: 400, error: "recordedAt must be after check-in creation" } as const;
+      }
+      let staged = false;
+      if (forCheckin && checkin && (purpose === undefined || recordedAt >= checkin.endsAt)) {
+        // An answer or cancellation can still discard this fix before it becomes visible.
+        const claimed = await tx
+          .update(safetyRequests)
+          .set({ pendingLocation: { ...values, recordedAt: recordedAt.toISOString(), receivedAt: now.toISOString() } })
+          .where(and(
+            eq(safetyRequests.id, checkin.id),
+            isNull(safetyRequests.locatedAt),
+            isNull(safetyRequests.pendingLocation),
+            isNull(safetyRequests.answeredAt),
+            isNull(safetyRequests.stoppedAt),
+          ))
+          .returning({ id: safetyRequests.id });
+        staged = claimed.length > 0;
+      }
+      if (!always && !forFind && !staged) return { status: 409 } as const;
+      if (clearFind && requestedAt !== null) {
+        await tx
+          .update(phones)
+          .set({ locateRequestedAt: null })
+          .where(and(eq(phones.id, phone.id), eq(phones.locateRequestedAt, requestedAt)));
+      }
+      if (always || forFind) await storeLatestLocation(tx, phone.id, values);
+      return { status: 204 } as const;
+    });
+    if (result.status === 409) return c.json({ error: result.error ?? "no position was asked for" }, 409);
+    if (result.status === 400) return c.json({ error: result.error }, 400);
     return c.body(null, 204);
   });
 
@@ -314,28 +338,31 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake) {
     const { event } = await body(c, z.object({ event: z.enum(["shown", "here", "ok", "call"]) }));
     const rid = z.uuid().safeParse(c.req.param("rid"));
     if (!rid.success) return c.json({ error: "not found" }, 404);
-    const [req] = await ctx.db
-      .select()
-      .from(safetyRequests)
-      .where(and(eq(safetyRequests.id, rid.data), eq(safetyRequests.phoneId, phone.id)));
+    const request = and(eq(safetyRequests.id, rid.data), eq(safetyRequests.phoneId, phone.id));
+    const now = ctx.now();
+    if (event === "shown") {
+      const shown = await ctx.db
+        .update(safetyRequests)
+        .set({ shownAt: now })
+        .where(and(request, isNull(safetyRequests.shownAt)))
+        .returning({ id: safetyRequests.id });
+      if (shown.length) return c.body(null, 204);
+    } else {
+      // Clear any unpublished fix in the same update that records the answer.
+      const first = await ctx.db
+        .update(safetyRequests)
+        .set({ answeredAt: now, answer: event, pendingLocation: null, shownAt: sql`coalesce(${safetyRequests.shownAt}, ${now.toISOString()}::timestamptz)` })
+        .where(and(request, eq(safetyRequests.kind, event === "here" ? "ring" : "checkin"), isNull(safetyRequests.answeredAt)))
+        .returning({ stoppedAt: safetyRequests.stoppedAt });
+      if (first.length) {
+        if (!first[0]!.stoppedAt) await notifySafety(ctx, phone, event);
+        return c.body(null, 204);
+      }
+    }
+    const [req] = await ctx.db.select({ kind: safetyRequests.kind }).from(safetyRequests).where(request);
     if (!req) return c.json({ error: "not found" }, 404);
     if (event !== "shown" && (event === "here") !== (req.kind === "ring")) {
       return c.json({ error: `${event} does not answer a ${req.kind}` }, 400);
-    }
-    const now = ctx.now();
-    if (event === "shown") {
-      await ctx.db
-        .update(safetyRequests)
-        .set({ shownAt: now })
-        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.shownAt)));
-    } else {
-      // The first answer counts. A late answer is still recorded: the parent wants to know.
-      const first = await ctx.db
-        .update(safetyRequests)
-        .set({ answeredAt: now, answer: event, shownAt: req.shownAt ?? now })
-        .where(and(eq(safetyRequests.id, req.id), isNull(safetyRequests.answeredAt)))
-        .returning({ id: safetyRequests.id });
-      if (first.length && !req.stoppedAt) await notifySafety(ctx, phone, event);
     }
     return c.body(null, 204);
   });

@@ -137,7 +137,7 @@ export interface paths {
         get?: never;
         /**
          * Report the current position (phone)
-         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when an unanswered `checkIn` with `sendLocation` passes its deadline. Only the newest position is kept.
+         * @description In mode `always` every `location.intervalMinutes`; in every mode but `off` at once when `location.requestedAt` is set, and once when `checkIn.locationDue` is true. A check-in requires a position recorded after its creation. Only the newest position is kept.
          */
         put: operations["putDeviceLocation"];
         post?: never;
@@ -1816,12 +1816,16 @@ export interface components {
                 stopOnAnswer: boolean;
                 answered: boolean;
             };
-            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. If nobody answered by then and `sendLocation`, send one position with PUT /device/location. Null means close it. */
+            /** @description An open "Are you okay?". Show it until the child answers or `deadline` passes. When `locationDue` is true and the phone clock has reached `deadline`, look up a position for this check-in and send it with PUT /device/location. Null means close it. */
             checkIn?: null | {
                 /** Format: uuid */
                 id: string;
                 /** Format: date-time */
                 deadline: string;
+                /** Format: date-time */
+                createdAt?: string;
+                /** @description True from the reply deadline while the unanswered check-in is waiting for a position. */
+                locationDue?: boolean;
                 /** @description An approved contact for the "Call me" button. */
                 callNumber: string | null;
                 sendLocation: boolean;
@@ -2336,11 +2340,13 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Each tag serves only its matching request. Without a purpose, one fix can serve Find, always and check-in together. Untagged check-in uploads are accepted up to two minutes before the reply deadline, based on server time. A fix clears Find only if recorded at or after the Find request. */
+                    purpose?: string;
                 };
             };
         };
         responses: {
-            /** @description Stored (or ignored if older than the stored one) */
+            /** @description Accepted. A check-in fix is held for publication after the reply grace period. */
             204: {
                 headers: {
                     [name: string]: unknown;

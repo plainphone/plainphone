@@ -78,6 +78,13 @@
       "when": 1794954837605,
       "tag": "0010_phone_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794960411502,
+      "tag": "0011_checkin_pending_location",
+      "breakpoints": true
     }
   ]
 }
