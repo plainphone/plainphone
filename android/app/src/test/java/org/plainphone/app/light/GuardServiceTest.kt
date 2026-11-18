@@ -145,7 +145,7 @@ class GuardServiceTest {
         }
     }
 
-    @Test fun evaluatesSettingsTextsWhenTheRootHasADifferentPackage() {
+    @Test fun waitsForMatchingSettingsRootBeforeEvaluatingTexts() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
         val shadow = prepareGuard(service)
         shadow.root = AccessibilityNodeInfo().apply {
@@ -153,6 +153,10 @@ class GuardServiceTest {
             text = "Force stop Plainphone"
         }
         service.event(STATE, SETTINGS)
+        assertEquals(emptyList<Int>(), shadow.globalActions)
+
+        shadow.root = protectedSettingsRoot()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
         assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
     }
 
@@ -244,6 +248,48 @@ class GuardServiceTest {
         assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
     }
 
+    @Test fun checksNewProtectedWindowAfterSuccessfulBack() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        val looper = shadowOf(Looper.getMainLooper())
+        shadow.root = protectedSettingsRoot()
+        service.event(STATE, SETTINGS)
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+
+        looper.idleFor(Duration.ofMillis(30))
+        shadow.root = null
+        service.event(STATE, SETTINGS)
+        shadow.root = protectedSettingsRoot()
+        looper.idleFor(Duration.ofMillis(150))
+
+        assertEquals(List(2) { AccessibilityService.GLOBAL_ACTION_BACK }, shadow.globalActions)
+    }
+
+    @Test fun checksFocusedWindowWhenItsRootBecomesReadable() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        shadow.windowList = listOf(window(null, focused = true, id = 42), window(service.packageName))
+        shadow.root = null
+        service.event(WINDOWS, null, AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+        assertEquals(WINDOW_EVENTS or CONTENT, service.serviceInfo.eventTypes)
+
+        shadow.root = protectedSettingsRoot().also { ReflectionHelpers.setField(it, "mWindowId", 42) }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+
+        assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
+    }
+
+    @Test fun ignoresSettingsFocusCheckAfterAnotherAppBecomesActive() {
+        val service = Robolectric.buildService(GuardService::class.java).create().get()
+        val shadow = prepareGuard(service)
+        shadow.windowList = listOf(window(SETTINGS, focused = true), window(service.packageName))
+        service.event(WINDOWS, null, AccessibilityEvent.WINDOWS_CHANGE_FOCUSED)
+        shadow.root = protectedSettingsRoot().apply { packageName = service.packageName }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(150))
+
+        assertEquals(emptyList<Int>(), shadow.globalActions)
+    }
+
     @Test fun closesVpnAtOneSecondWithoutResettingTheRetrySchedule() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
         val shadow = prepareGuard(service)
@@ -312,21 +358,24 @@ class GuardServiceTest {
         text = "Force stop Plainphone"
     }
 
-    private fun window(pkg: String?, focused: Boolean = false) =
+    private fun window(pkg: String?, focused: Boolean = false, id: Int = 1) =
         AccessibilityWindowInfo().also {
             val shadow = Shadow.extract<WindowShadow>(it)
             shadow.rootNode = pkg?.let { AccessibilityNodeInfo().apply { packageName = pkg } }
             shadow.focused = focused
+            shadow.windowId = id
         }
 
     @Implements(AccessibilityWindowInfo::class)
     class WindowShadow {
         var rootNode: AccessibilityNodeInfo? = null
         var focused = false
+        var windowId = 1
 
         @Implementation fun getRoot(): AccessibilityNodeInfo? = rootNode
         @Implementation(minSdk = 33) fun getRoot(prefetchingStrategy: Int): AccessibilityNodeInfo? = rootNode
         @Implementation fun isFocused(): Boolean = focused
+        @Implementation fun getId(): Int = windowId
     }
 
     private fun prepareGuard(service: GuardService): ServiceShadow {

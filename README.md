@@ -48,7 +48,7 @@ A hidden maintenance screen protected by a parent PIN can lift the lock for a wh
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows as soon as they open and confirms that the VPN disconnect dialog is active before sending Back. It retries if Android rejects that action. See [docs/light-mode.md](docs/light-mode.md).
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes
 
