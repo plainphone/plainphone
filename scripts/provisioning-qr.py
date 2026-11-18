@@ -13,7 +13,7 @@ The script is for self-hosters, tests and phones without an account.
 
 Examples:
   # The stable download address always serves the newest release (signed with the same key)
-  scripts/provisioning-qr.py --checksum mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM --ask-pin --out dist/qr
+  scripts/provisioning-qr.py --checksum iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU --ask-pin --out dist/qr
 
   # Your own build
   scripts/provisioning-qr.py --apk app-release.apk --apk-url https://example.org/plainphone.apk --ask-pin

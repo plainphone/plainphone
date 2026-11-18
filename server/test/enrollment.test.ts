@@ -34,7 +34,7 @@ describe("setup from the dashboard (enrollment)", () => {
     expect(out.provisioning).toEqual({
       adminComponent: "org.plainphone.app/.PlainphoneAdminReceiver",
       downloadUrl: `${PUBLIC_URL}/download/android`,
-      signatureChecksum: "mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM",
+      signatureChecksum: "iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU",
       serverUrl: PUBLIC_URL,
       dnsHost: "family.adguard-dns.com",
     });
@@ -269,7 +269,7 @@ describe("setup configuration", () => {
       APK_RELEASES_REPO: "",
     });
     expect(cfg.APK_DOWNLOAD_URL).toBeUndefined();
-    expect(cfg.APK_SIGNATURE_CHECKSUM).toBe("mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM");
+    expect(cfg.APK_SIGNATURE_CHECKSUM).toBe("iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU");
     expect(cfg.PROVISIONING_DNS_HOST).toBe("family.adguard-dns.com");
     expect(cfg.APK_RELEASES_REPO).toBe("plainphone/plainphone");
     expect(() => loadConfig({ DATABASE_URL: "x", APK_SIGNATURE_CHECKSUM: "too-short" })).toThrow();

@@ -1,5 +1,30 @@
 # Android updates
 
+## One-time signing key change in v0.1.10
+
+Official releases through v0.1.9 used the test key. Starting with v0.1.10, they
+use the [production signing certificate](../README.md#signing). Android cannot
+update the app in place across these keys.
+
+- **Light mode:** Enter the parent PIN in the phone's maintenance menu and
+  choose **Switch off Plainphone**. This leaves the old phone entry in the
+  dashboard so you can refer to its rules when setting up the new installation.
+  If you use **Release the phone** in the dashboard instead, write down the
+  rules first. Dashboard release deletes the phone entry and its saved rules,
+  including approved contacts and web filter settings. For a Self phone,
+  release waits for the configured delay (24 hours by default without a key)
+  or approval from the trusted person. After that, the phone switches off
+  Plainphone at its next sync. Once Plainphone is off, uninstall it, install
+  the current release, pair it again and set up the rules you want to keep.
+- **Strong mode (Device Owner):** Back up any data you want to keep and
+  [release Device Owner](setup-test-phone.md#5-getting-out-again) so that Settings
+  allows a factory reset. Then reset the phone and set it up again with a fresh
+  QR code from the dashboard.
+
+An update check on a test-key phone can show a signature mismatch in the
+dashboard, or Android can reject a manual install. Follow the steps above for
+your mode. Future in-place updates require the same production key.
+
 ## First update on an already locked phone
 
 On the phone, tap **Version** seven times. Enter the parent PIN and choose
@@ -23,8 +48,8 @@ scripts/android-release-metadata.sh /path/to/build-tools/aapt2 plainphone-VERSIO
 The script reads the manifest's version code and name and hashes the signed bytes.
 The server serves this information at `/download/android/latest.json`, together
 with the selected APK's URL. It caches the release and metadata for up to 10 minutes.
-Publishing a release still requires increasing `versionCode` and using the same signing
-key. Provisioning continues to use the stable `/download/android` redirect.
+Publishing a release still requires increasing `versionCode`. From v0.1.10 onward,
+official releases use the production key. Provisioning continues to use the stable `/download/android` redirect.
 
 For a custom `APK_DOWNLOAD_URL`, host its JSON at an HTTPS URL and set
 `APK_METADATA_URL` to that URL. The JSON contains `versionCode`, `versionName`, and

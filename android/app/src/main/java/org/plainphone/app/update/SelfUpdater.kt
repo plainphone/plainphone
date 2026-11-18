@@ -34,6 +34,8 @@ data class ApkInfo(val packageName: String, val versionCode: Long, val versionNa
 
 /** The pure checks. An update must be ours, strictly newer and signed with exactly the same certificate(s). */
 object UpdatePolicy {
+    private val productionSigner = setOf("8868fc1677af4a3a6f6d3e858ce26df9b6ec1107359dbb3c23831b0ce0541215")
+
     sealed interface Verdict {
         data object Install : Verdict
         data class Refuse(val code: UpdateErrorCode, val why: String) : Verdict
@@ -47,6 +49,11 @@ object UpdatePolicy {
             Verdict.Refuse(UpdateErrorCode.VERSION_NOT_NEWER, "APK is version ${candidate.versionCode}, installed is ${installed.versionCode}")
         installed.certSha256.isEmpty() || candidate.certSha256.isEmpty() ->
             Verdict.Refuse(UpdateErrorCode.SIGNATURE_MISMATCH, "signing certificate could not be read")
+        candidate.certSha256 == productionSigner && installed.certSha256 != productionSigner ->
+            Verdict.Refuse(
+                UpdateErrorCode.SIGNATURE_MISMATCH,
+                "This update is signed with the new Plainphone key. Set up the phone again to install it.",
+            )
         candidate.certSha256 != installed.certSha256 ->
             Verdict.Refuse(UpdateErrorCode.SIGNATURE_MISMATCH, "APK is signed with another certificate")
         else -> Verdict.Install
