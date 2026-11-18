@@ -20,9 +20,16 @@ class FakeSyncDevice(
     var now = 1_800_000_000_000L
     var applies = mutableListOf<String>()
     var lock = LockState(deviceOwner = true, maintenance = false, failedPolicies = emptyList(), appliedAtMs = now, dnsHost = "family.adguard-dns.com")
+    var cachedLocation: LocationFix? = null
+    var lastKnownFix: LocationFix? = null
+    override fun lastKnownLocation() = lastKnownFix
+    override fun cachedCoarseLocation() = cachedLocation
     val locationRequests = mutableListOf<Boolean>()
+    val freshLocationRequests = mutableListOf<Boolean>()
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L
+    var locationDelayMs = 0L
+    var beforeLocation: (() -> Unit)? = null
     /** What the next [release] reports; make a step fail to play a release that did not hold. */
     var releaseResults: List<StepResult> = listOf(StepResult("give up Device Owner", true))
     var releases = 0
@@ -37,8 +44,11 @@ class FakeSyncDevice(
         return releaseResults
     }
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
-    override fun location(precise: Boolean): LocationFix? {
+    override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? {
+        beforeLocation?.invoke()
         locationRequests += precise
+        freshLocationRequests += fresh
+        now += locationDelayMs
         return fix?.copy(recordedAtMs = now - fixAgeMs)
     }
 
@@ -64,6 +74,8 @@ class FakeSyncApi : SyncApi {
     val safetyEvents = mutableListOf<SafetyEvent>()
     /** What PUT /device/location answers: false = 409. */
     var locationAccepted = true
+    var locationFailure: IOException? = null
+    var beforeLocationUpload: ((String) -> Unit)? = null
     var pairing = Pairing("p1", "K7MP4QXR", "secret", "https://app.example.test/pair?code=K7MP4QXR", Long.MAX_VALUE)
     var pollResult: PairPoll = PairPoll.Waiting
     val tokensUsed = mutableListOf<String>()
@@ -94,7 +106,15 @@ class FakeSyncApi : SyncApi {
         return rules
     }
     override fun reportApps(token: String, apps: List<InstalledApp>) { appsReported += apps }
-    override fun reportLocation(token: String, fix: LocationFix): Boolean { locations += fix; return locationAccepted }
+    val locationPurposes = mutableListOf<String>()
+
+    override fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean {
+        beforeLocationUpload?.invoke(purpose)
+        locationFailure?.let { throw it }
+        locationPurposes += purpose
+        locations += fix
+        return locationAccepted
+    }
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {
         safetyEvents += SafetyEvent(requestId, event)
         return true

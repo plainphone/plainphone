@@ -47,14 +47,28 @@ phone                                      server                         parent
    (`ACTION_PACKAGE_ADDED/REMOVED`). Mark dialer, messages, settings, launcher, keyboard, clock,
    camera and contacts as `core`; they are never hidden. Apps the server has not seen yet are
    hidden by default (unless in the country starter pack).
-4. **Location.** `location.mode` says when (see [location.md](location.md)): in `always`,
-   report every `intervalMinutes`; in every mode but `off`, at once when `location.requestedAt`
-   is set (a parent pressed Find); and in `checkin` and `always`, once when an open `checkIn`
-   with `sendLocation` passes its deadline unanswered. Any other position gets `409` ("no
-   position was asked for"), as does every position when location is off. Phones from before
-   `mode` only know `enabled`; the server sends them `intervalMinutes: 1440` outside `always`.
-   `location.alwaysUntil` is the end of `always` (the phone shows it); after it the server
-   refuses 5-minute positions and the mode becomes `checkin`.
+4. **Location.** Report with `PUT /device/location` (see [location.md](location.md)). Tag each
+   upload with `purpose`: `always` for scheduled reports every `location.intervalMinutes`,
+   `find:<requestedAt in epoch milliseconds>` for a Find request, or `checkin:<id>` when
+   `checkIn.locationDue` is true and the phone's clock has reached the unanswered check-in's
+   reply deadline. The server sets that flag from the deadline. Start a separate lookup
+   for the check-in and send a fix recorded after `checkIn.createdAt`.
+   Retry a saved upload only for its original request. Any unrequested position gets `409`,
+   as does every position when location is off. Each tag answers only its matching request.
+
+   An upload without a purpose uses the older routing rules. One fix can serve an
+   active Find, an active always session, and an unanswered check-in. The check-in
+   accepts uploads from two minutes before its deadline, based on server time.
+   A fix clears Find only if recorded at or after the Find request.
+
+   The server holds check-in fixes privately until at least one second after both the reply
+   deadline and receipt of the fix. The next sweeper pass publishes the fix if the check-in
+   still has no answer and has not been cancelled. A separately authorized Find or always
+   position is available immediately.
+
+   Phones from before `mode` only know `enabled`; the server sends them
+   `intervalMinutes: 1440` outside `always`. After `location.alwaysUntil`, the server refuses
+   scheduled reports and the mode becomes `checkin`.
 5. **Ring and "Are you okay?".** `ring` and `checkIn` in the rules are the open requests (null:
    none, or stop). Report what happened with `POST /device/safety/{id}`: `shown`, `here` (ring),
    `ok` or `call` (check-in). While a ring is open or a check-in waits for an answer,

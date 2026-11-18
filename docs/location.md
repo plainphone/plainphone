@@ -53,6 +53,53 @@ Apple first on iPhone and iPad) and "Copy position". The map's code and tiles lo
 page. The parent app shows the same, on OpenStreetMap raster tiles after "Show map" (see
 [parent-app.md](parent-app.md)).
 
+### Location time and accuracy
+
+Each location lookup has one 30-second budget. The phone uses the fused provider when it is
+enabled. If fused is unavailable or gives no fix, it asks GPS and the network provider
+within the same budget. It takes the first fix accurate to 100 m or better, or the most
+accurate available fix if neither reaches 100 m.
+Regular `always` reports use Android 12's low-power setting. On older Android versions without
+fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
+100 m or better before starting GPS. Both providers share the same deadline.
+
+Find can reuse a cached position recorded at or after the request if it is younger than
+2 minutes and accurate to 100 m or better. Regular `always` reports can reuse a cached
+position younger than 10 minutes and accurate to 1,000 m or better. If either lookup
+gives no fix, the phone can send its newest known position with the original recorded time.
+A position older than the request leaves Find open. Check-in lookups only accept a fix
+taken during the lookup and after the check-in was created.
+
+Find attempts are due at 0, 2, 5, 10 and 15 minutes after the request. An unanswered
+"Are you okay?" uses the same schedule, starting at the reply deadline on the phone's
+clock, and only if the child has yet to answer. Both stop scheduling lookups after
+success or after 30 minutes. A delayed sync runs only the latest due attempt.
+The phone sends saved uploads first, starting with check-in, then a saved or
+cached Find position. It runs any remaining lookups in order of server expiry,
+and uploads each result before starting the next lookup. The server allows
+30 minutes from the check-in reply deadline or the time Find was requested.
+A cached Find position can also go out between GPS attempts, including after the
+last scheduled attempt. An upload recorded before the Find request leaves any
+due GPS attempt available. Check-in eligibility uses the clock at the start
+of location reporting, so an earlier lookup cannot consume its local window.
+
+The phone keeps a saved check-in position through temporary upload failures and
+retries while server rules still show the request is due, even if the phone
+clock says the window has expired. After a 409 response, the next rules decide
+whether to keep it. A local answer suppresses the upload. If the server rejects
+a position as invalid, the phone remembers its recorded time, skips it on future
+attempts and counts the rejection toward the retry schedule.
+
+The server holds a check-in fix privately for at least one second after both receipt
+and the server deadline. The next sweeper pass publishes it if the check-in still
+has no answer and has not been cancelled. Find and regular positions remain available
+as soon as the server accepts them.
+
+Find can start when the phone clock is up to 2 minutes behind, and the phone keeps a pending
+upload for up to 2 extra minutes in case its clock is ahead. Between Find attempts, a due
+`always` report can reuse a cached position that meets the regular age and accuracy limits
+without starting a new lookup. Regular reports wait while a check-in location is due.
+
 ## Ring the phone
 
 `POST /api/phones/{pid}/ring` with `stopOnAnswer` (default `true`).
@@ -75,9 +122,12 @@ optionally `callNumber`, one of the phone's approved contacts.
 
 - The phone shows a calm full screen: "Are you okay?", "Yes, I'm okay" and, with a number,
   "Call me" (which answers and calls that contact).
-- An answer is sent to the parent, and no position is sent.
-- No answer by the deadline: in modes `checkin` and `always` the phone takes one precise position
-  and sends it; in `find` and `off` nothing is sent. Either way the parent is told.
+- The phone sends the child’s answer to the parent and cancels any remaining check-in uploads.
+- The parent can cancel while the question is waiting for an answer, even if its position
+  arrived before the reply deadline.
+- While a check-in is unanswered and the upload window is open, modes `checkin` and `always`
+  follow the lookup schedule above until one position is sent or the window expires. Modes
+  `find` and `off` send no check-in position.
 
 ## Parent notifications
 

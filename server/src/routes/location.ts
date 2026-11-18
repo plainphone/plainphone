@@ -3,7 +3,7 @@
 // Parent API for location, "Ring the phone" and "Are you okay?" (docs/location.md). Mounted by
 // parentRoutes, behind its session and household checks.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 import type { Context, Env, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -18,7 +18,7 @@ import {
   CHECKIN_MAX_MINUTES,
   CHECKIN_MIN_MINUTES,
   checkinJson,
-  checkinStatus,
+  checkinSendsLocation,
   loadSafety,
   ringActive,
   ringJson,
@@ -78,9 +78,10 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
   app.post("/phones/:pid/locate", async (c) => {
     const phone = await requirePhone(c);
     if (phone.locationMode === "off") return c.json({ error: "location is off for this phone" }, 409);
-    await ctx.db.update(phonesTable).set({ locateRequestedAt: ctx.now() }).where(eq(phonesTable.id, phone.id));
+    const requestedAt = ctx.now();
+    await ctx.db.update(phonesTable).set({ locateRequestedAt: requestedAt }).where(eq(phonesTable.id, phone.id));
     await wakePhone(ctx, phone.id, "locate");
-    return c.json({ requestedAt: ctx.now().toISOString() }, 202);
+    return c.json({ requestedAt: requestedAt.toISOString() }, 202);
   });
 
   // Ring the phone: alarm sound and vibration for at most 5 minutes.
@@ -132,9 +133,15 @@ export function locationRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requireP
   app.delete("/phones/:pid/checkin", async (c) => {
     const phone = await requirePhone(c);
     const { checkin } = await loadSafety(ctx, phone.id);
-    if (checkin && !checkin.stoppedAt && !checkin.locatedAt && checkinStatus(checkin, ctx.now()) !== "answered") {
-      await ctx.db.update(safetyRequests).set({ stoppedAt: ctx.now() }).where(eq(safetyRequests.id, checkin.id));
-      await wakePhone(ctx, phone.id, "rules");
+    if (checkin) {
+      const now = ctx.now();
+      const stopped = await ctx.db.update(safetyRequests).set({ stoppedAt: now, pendingLocation: null }).where(and(
+        eq(safetyRequests.id, checkin.id),
+        isNull(safetyRequests.stoppedAt),
+        isNull(safetyRequests.answeredAt),
+        or(gt(safetyRequests.endsAt, now), isNull(safetyRequests.locatedAt)),
+      )).returning({ id: safetyRequests.id });
+      if (stopped.length) await wakePhone(ctx, phone.id, "rules");
     }
     return c.json({ checkin: checkinJson((await loadSafety(ctx, phone.id)).checkin, phone.locationMode, ctx.now()) });
   });
@@ -149,15 +156,18 @@ export async function setLocationMode(
 ) {
   const until = mode === "always" ? alwaysUntil(alwaysFor ?? "hour", phone.timezone, ctx.now()) : null;
   await ctx.db.transaction(async (tx) => {
-    await tx
-      .update(phonesTable)
-      .set({
-        locationMode: mode,
-        locationEnabled: mode !== "off",
-        locationAlwaysUntil: until,
-        ...(mode === "off" ? { locateRequestedAt: null } : {}),
-      })
-      .where(eq(phonesTable.id, phone.id));
+    await tx.update(phonesTable).set({
+      locationMode: mode,
+      locationEnabled: mode !== "off",
+      locationAlwaysUntil: until,
+      ...(mode === "off" ? { locateRequestedAt: null } : {}),
+    }).where(eq(phonesTable.id, phone.id));
+    if (!checkinSendsLocation(mode)) {
+      await tx.update(safetyRequests).set({ pendingLocation: null }).where(and(
+        eq(safetyRequests.phoneId, phone.id),
+        eq(safetyRequests.kind, "checkin"),
+      ));
+    }
     if (mode === "off") await tx.delete(locations).where(eq(locations.phoneId, phone.id));
   });
   if (mode !== phone.locationMode || until) await wakePhone(ctx, phone.id, "rules");

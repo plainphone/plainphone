@@ -82,8 +82,15 @@
     {
       "idx": 11,
       "version": "7",
-      "when": 1794961883729,
-      "tag": "0011_security_hardening",
+      "when": 1794960411502,
+      "tag": "0011_checkin_pending_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794964044239,
+      "tag": "0012_security_hardening",
       "breakpoints": true
     }
   ]

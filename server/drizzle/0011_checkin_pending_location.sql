@@ -1,0 +1,1 @@
+ALTER TABLE "safety_requests" ADD COLUMN "pending_location" jsonb;

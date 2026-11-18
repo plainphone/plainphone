@@ -178,6 +178,12 @@ describe("location (D7)", () => {
     ]));
 
     const t0 = h.clock.now;
+    const lastKnown = new Date(t0.getTime() - 40 * 60_000);
+    expect((await loc(55.5, lastKnown)).status).toBe(204);
+    const pending = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(pending.location.recordedAt).toBe(lastKnown.toISOString());
+    expect(pending.requestedAt).toBe(t0.toISOString());
+
     expect((await loc(55.6, t0)).status).toBe(204);
     expect(await listedPhones()).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: phoneId, hasLocation: true }),

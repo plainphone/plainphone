@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import org.json.JSONObject
 
 /**
  * Everything the sync remembers between runs: the device token (sealed with the keystore),
@@ -61,7 +62,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     // commit, not apply: a crash must not make the next sync lock a released phone again.
     @SuppressLint("ApplySharedPref")
     fun markReleased() {
-        prefs.edit().putBoolean(KEY_RELEASED, true).commit()
+        prefs.edit().putBoolean(KEY_RELEASED, true).remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION).commit()
     }
 
     /** The server said nobody asked for a release, so the phone goes on as an ordinary synced phone. */
@@ -80,6 +81,9 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
             .remove(KEY_RELEASED)
             // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
             .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
+            .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
+            .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
+            .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
             .remove(KEY_PAIRING)
             .remove(KEY_ENROLL)
             .commit()
@@ -103,7 +107,7 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     }
 
     fun markRemoved() {
-        prefs.edit().putBoolean(KEY_REMOVED, true).apply()
+        prefs.edit().putBoolean(KEY_REMOVED, true).remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION).apply()
     }
 
     fun pairing(): Pairing? = prefs.getString(KEY_PAIRING, null)?.let { raw ->
@@ -177,6 +181,88 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         get() = prefs.getString(KEY_CHECKIN_LOCATED, null)
         set(v) { prefs.edit().putString(KEY_CHECKIN_LOCATED, v).apply() }
 
+    fun lastFindAttempt(requestedAtMs: Long): Long? =
+        if (prefs.getLong(KEY_FIND_ATTEMPT_REQUEST, Long.MIN_VALUE) == requestedAtMs) {
+            prefs.getLong(KEY_FIND_ATTEMPT_AT, Long.MIN_VALUE)
+        } else null
+
+    fun lastCheckInAttempt(id: String): Long? =
+        if (prefs.getString(KEY_CHECKIN_ATTEMPT_ID, null) == id) {
+            prefs.getLong(KEY_CHECKIN_ATTEMPT_AT, Long.MIN_VALUE)
+        } else null
+
+    private fun pendingLocationKey(checkIn: Boolean) =
+        if (checkIn) KEY_PENDING_CHECKIN_LOCATION else KEY_PENDING_LOCATION
+
+    internal fun pendingLocation(checkIn: Boolean = false): PendingLocation? =
+        prefs.getString(pendingLocationKey(checkIn), null)?.let(box::open)?.let { raw ->
+            runCatching {
+                val json = JSONObject(raw)
+                val purpose = when {
+                    json.has("purpose") -> json.getString("purpose")
+                    json.has("find") && !json.has("checkIn") -> "find:${json.getLong("find")}"
+                    else -> return@let null
+                }
+                // Only the dedicated slot guarantees that a saved check-in came from a fresh lookup.
+                if (!purpose.startsWith(if (checkIn) "checkin:" else "find:")) return@let null
+                PendingLocation(
+                    fix = LocationFix(
+                        json.getDouble("lat"),
+                        json.getDouble("lon"),
+                        if (json.has("accuracyM")) json.getDouble("accuracyM").toFloat() else null,
+                        json.getLong("recordedAtMs"),
+                    ),
+                    purpose = purpose,
+                    attemptedAtMs = json.getLong("attemptedAtMs"),
+                    conflict = json.optBoolean("conflict"),
+                )
+            }.getOrNull()
+        }
+
+    @SuppressLint("ApplySharedPref") // The fix must survive a process death during upload.
+    internal fun savePendingLocation(pending: PendingLocation): Boolean {
+        val json = JSONObject()
+            .put("lat", pending.fix.lat)
+            .put("lon", pending.fix.lon)
+            .put("accuracyM", pending.fix.accuracyM?.toDouble())
+            .put("recordedAtMs", pending.fix.recordedAtMs)
+            .put("purpose", pending.purpose)
+            .put("attemptedAtMs", pending.attemptedAtMs)
+            .put("conflict", pending.conflict)
+        return prefs.edit().putString(pendingLocationKey(pending.purpose.startsWith("checkin:")), box.seal(json.toString())).commit()
+    }
+
+    fun clearPendingLocation(checkIn: Boolean) {
+        val key = pendingLocationKey(checkIn)
+        if (prefs.contains(key)) prefs.edit().remove(key).apply()
+    }
+
+    internal fun isLocationRejected(fix: LocationFix): Boolean =
+        fix.recordedAtMs.toString() in prefs.getStringSet(KEY_REJECTED_LOCATION_TIMES, emptySet()).orEmpty()
+
+    @SuppressLint("ApplySharedPref") // Advance the retry schedule together with clearing the uploaded fix.
+    fun recordLocationAttempts(
+        requestedAtMs: Long?,
+        checkInId: String?,
+        nowMs: Long,
+        rejectedAtMs: Long? = null,
+    ): Boolean =
+        prefs.edit().apply {
+            if (rejectedAtMs != null) {
+                val rejected = prefs.getStringSet(KEY_REJECTED_LOCATION_TIMES, emptySet()).orEmpty()
+                putStringSet(KEY_REJECTED_LOCATION_TIMES, rejected + rejectedAtMs.toString())
+                if (requestedAtMs == null && checkInId == null) putLong(KEY_LOCATION_AT, nowMs)
+            }
+            if (requestedAtMs != null) {
+                putLong(KEY_FIND_ATTEMPT_REQUEST, requestedAtMs).putLong(KEY_FIND_ATTEMPT_AT, nowMs)
+            }
+            if (checkInId != null) {
+                putString(KEY_CHECKIN_ATTEMPT_ID, checkInId).putLong(KEY_CHECKIN_ATTEMPT_AT, nowMs)
+            }
+            if (requestedAtMs != null) remove(KEY_PENDING_LOCATION)
+            if (checkInId != null) remove(KEY_PENDING_CHECKIN_LOCATION)
+        }.commit()
+
     companion object {
         private const val TAG = "Plainphone"
         private const val KEY_ACKED_INSTALL_OVERRUN = "acked_install_overrun"
@@ -200,5 +286,19 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
         private const val KEY_LOCATE_SHOWN = "locate_shown"
         private const val KEY_LOCATION_AT = "location_at"
         private const val KEY_CHECKIN_LOCATED = "checkin_located"
+        private const val KEY_REJECTED_LOCATION_TIMES = "rejected_location_times"
+        private const val KEY_PENDING_LOCATION = "pending_location"
+        private const val KEY_PENDING_CHECKIN_LOCATION = "pending_checkin_location"
+        private const val KEY_FIND_ATTEMPT_REQUEST = "find_attempt_request"
+        private const val KEY_FIND_ATTEMPT_AT = "find_attempt_at"
+        private const val KEY_CHECKIN_ATTEMPT_ID = "checkin_attempt_id"
+        private const val KEY_CHECKIN_ATTEMPT_AT = "checkin_attempt_at"
     }
 }
+
+internal data class PendingLocation(
+    val fix: LocationFix,
+    val purpose: String,
+    val attemptedAtMs: Long,
+    val conflict: Boolean = false,
+)

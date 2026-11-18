@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
+import { eq, sql } from "drizzle-orm";
 import { locations, phones, safetyRequests } from "../src/db/schema.js";
 import { alwaysUntil } from "../src/services/safety.js";
 import { sweep } from "../src/services/sweeper.js";
@@ -12,6 +12,11 @@ async function setup(profile: "child" | "self" = "child") {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile });
   return { parent, phoneId, device };
+}
+
+async function publishCheckin() {
+  h.clock.advance(1_000);
+  await sweep(h.ctx);
 }
 
 const fix = (at: Date) => ({ lat: 55.6, lon: 12.5, accuracyM: 15, recordedAt: at.toISOString() });
@@ -215,6 +220,7 @@ describe("are you okay?", () => {
     expect((await parent.get(`/api/phones/${phoneId}/location`)).json.checkin.status).toBe("noReply");
 
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(204);
+    await publishCheckin();
     const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
     expect(seen.checkin.locatedAt).not.toBeNull();
     expect(seen.location.lat).toBe(55.6);
@@ -222,6 +228,274 @@ describe("are you okay?", () => {
     expect((await device.get("/api/device/rules")).json.checkIn).toBeNull();
     h.clock.advance(60_000);
     expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(409);
+  });
+
+  it("only locates a check-in with a fresh fix for that request", async () => {
+    const { parent, phoneId, device } = await setup();
+    const stale = fix(h.clock.now);
+    h.clock.advance(60_000);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    const before = await device.get("/api/device/rules");
+    expect(before.json.checkIn.locationDue).toBe(false);
+    h.clock.advance(5 * 60_000);
+
+    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
+    expect((await status()).locatedAt).toBeNull();
+    expect((await device.put("/api/device/location", {
+      ...stale, purpose: `checkin:${checkin.id}`,
+    })).status).toBe(400);
+
+    const due = await device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
+    expect(due.status).toBe(200);
+    expect(due.json.checkIn.locationDue).toBe(true);
+
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const requestedAt = h.clock.now.getTime();
+    h.clock.advance(60_001);
+    const overlap = (await device.get("/api/device/rules")).json;
+    expect(overlap.location.requestedAt).toBe(new Date(requestedAt).toISOString());
+    expect(overlap.checkIn).toMatchObject({ id: checkin.id, locationDue: true });
+    expect(Date.parse(overlap.checkIn.deadline)).toBeLessThan(h.clock.now.getTime());
+
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `find:${requestedAt}`,
+    })).status).toBe(204);
+    expect((await status()).locatedAt).toBeNull();
+    const afterFind = (await device.get("/api/device/rules")).json;
+    expect(afterFind.location.requestedAt).toBeNull();
+    expect(afterFind.checkIn).toMatchObject({ id: checkin.id, locationDue: true });
+
+    h.clock.advance(1);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
+    expect((await device.get("/api/device/rules")).json.location.requestedAt).toBe(h.clock.now.toISOString());
+    await publishCheckin();
+    expect((await status()).locatedAt).not.toBeNull();
+  });
+
+  it("completes Find and check-in from the legacy client's single precise upload", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 })).json;
+    h.clock.advance(4 * 60_000);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    h.clock.advance(2 * 60_000);
+
+    // The legacy SyncRunner sees both requests and sends one untagged fix.
+    const { json: rules } = await device.get("/api/device/rules");
+    expect(rules.location.requestedAt).not.toBeNull();
+    expect(rules.checkIn).toMatchObject({ id: checkin.id, sendLocation: true });
+    expect(Date.parse(rules.checkIn.deadline)).toBeLessThan(h.clock.now.getTime());
+    expect((await device.put("/api/device/location", fix(h.clock.now))).status).toBe(204);
+
+    const receivedAt = h.clock.now.toISOString();
+    await publishCheckin();
+    // The client marks both as handled locally after that attempt.
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBe(receivedAt);
+    const after = (await device.get("/api/device/rules")).json;
+    expect(after.location.requestedAt).toBeNull();
+    expect(after.checkIn).toBeNull();
+  });
+
+  it("accepts an untagged fix recorded before check-in creation", async () => {
+    const { parent, phoneId, device } = await setup();
+    const oldFix = fix(h.clock.now);
+    h.clock.advance(60_000);
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
+    h.clock.advance(3 * 60_000 - 1);
+    expect((await device.put("/api/device/location", oldFix)).status).toBe(409);
+    h.clock.advance(1);
+    expect((await device.put("/api/device/location", oldFix)).status).toBe(204);
+    await publishCheckin();
+    expect((await parent.get(`/api/phones/${phoneId}/location`)).json.location).toBeNull();
+
+    h.clock.advance(2 * 60_000);
+    await sweep(h.ctx);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).not.toBeNull();
+    expect(seen.location.recordedAt).toBe(oldFix.recordedAt);
+  });
+
+  it.each(["find", "always"])("accepts an early untagged fix for %s and check-in", async (mode) => {
+    const { parent, phoneId, device } = await setup();
+    if (mode === "always") {
+      await parent.put(`/api/phones/${phoneId}/location/mode`, { mode, alwaysFor: "hour" });
+    }
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    if (mode === "find") await parent.post(`/api/phones/${phoneId}/locate`);
+    h.clock.advance(5_000);
+    const earlyFix = fix(h.clock.now);
+    expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
+    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect((await status()).location.recordedAt).toBe(earlyFix.recordedAt);
+    expect((await status()).checkin.locatedAt).toBeNull();
+    h.clock.advance(56_000);
+    await sweep(h.ctx);
+    expect((await status()).checkin.locatedAt).toBe(earlyFix.recordedAt);
+  });
+
+  it("lets the answer win when a location upload commits first in the same second", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
+    expect(await h.ctx.db.select().from(locations)).toHaveLength(0);
+    await sweep(h.ctx);
+    h.clock.advance(500);
+    expect((await device.post(`/api/device/safety/${checkin.id}`, { event: "ok" })).status).toBe(204);
+    h.clock.advance(500);
+    await sweep(h.ctx);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "answered", locatedAt: null });
+    expect(seen.location).toBeNull();
+  });
+
+  it("accepts an untagged check-in fix from a legacy clock five seconds ahead", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    h.clock.advance(55_000);
+    const deadlineFix = fix(new Date(h.clock.now.getTime() + 5_000));
+
+    expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(false);
+    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
+    const receivedAt = h.clock.now.toISOString();
+    const beforeDeadline = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(beforeDeadline.location).toBeNull();
+    expect(beforeDeadline.checkin.locatedAt).toBeNull();
+    h.clock.advance(5_000);
+    await publishCheckin();
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBe(receivedAt);
+    expect(seen.location.recordedAt).toBe(deadlineFix.recordedAt);
+  });
+
+  it("rejects a tagged fix five seconds into a one-minute check-in", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(5_000);
+    expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(false);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(409);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin.locatedAt).toBeNull();
+    expect(seen.location).toBeNull();
+  });
+
+  it.each([true, false])("rejects a check-in fix after an answer (tagged: %s)", async (tagged) => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    expect((await device.post(`/api/device/safety/${checkin.id}`, { event: "ok" })).status).toBe(204);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), ...(tagged ? { purpose: `checkin:${checkin.id}` } : {}),
+    })).status).toBe(409);
+    await publishCheckin();
+    expect((await parent.get(`/api/phones/${phoneId}/location`)).json.location).toBeNull();
+  });
+
+  it("lets an answer at the deadline win over a concurrent location upload", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    const [answer, upload] = await Promise.all([
+      device.post(`/api/device/safety/${checkin.id}`, { event: "ok" }),
+      device.put("/api/device/location", { ...fix(h.clock.now), purpose: `checkin:${checkin.id}` }),
+    ]);
+    expect(answer.status).toBe(204);
+    expect([204, 409]).toContain(upload.status);
+    await publishCheckin();
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "answered", locatedAt: null });
+    expect(seen.location).toBeNull();
+  });
+
+  it.each([true, false])("lets a reply waiting on the upload's row lock discard its pending fix (tagged: %s)", async (tagged) => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    const staged = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const transaction = h.ctx.db.transaction.bind(h.ctx.db);
+    const hold = vi.spyOn(h.ctx.db, "transaction").mockImplementationOnce((run, config) =>
+      transaction(async (tx) => {
+        const result = await run(tx);
+        staged.resolve();
+        await release.promise;
+        return result;
+      }, config),
+    );
+    const upload = device.put("/api/device/location", {
+      ...fix(h.clock.now), ...(tagged ? { purpose: `checkin:${checkin.id}` } : {}),
+    });
+    let answer: ReturnType<typeof device.post> | undefined;
+    try {
+      await Promise.race([staged.promise, upload]);
+      answer = device.post(`/api/device/safety/${checkin.id}`, { event: "ok" });
+      await vi.waitFor(async () => {
+        const [row] = await h.ctx.db.execute<{ waiting: boolean }>(sql`
+          select exists (
+            select from pg_stat_activity where wait_event_type = 'Lock'
+            and query like 'update "safety_requests"%' and query like '%"answered_at"%'
+          ) as waiting
+        `);
+        expect(row?.waiting).toBe(true);
+      });
+    } finally {
+      release.resolve();
+      hold.mockRestore();
+      await Promise.all([answer, upload]);
+    }
+    expect((await upload).status).toBe(204);
+    expect((await answer)?.status).toBe(204);
+    await publishCheckin();
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "answered", locatedAt: null });
+    expect(seen.location).toBeNull();
+  });
+
+  it("discards a staged fix on cancellation and keeps the earlier Find fix", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const find = fix(h.clock.now);
+    expect((await device.put("/api/device/location", {
+      ...find, purpose: `find:${h.clock.now.getTime()}`,
+    })).status).toBe(204);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(204);
+    await parent.del(`/api/phones/${phoneId}/checkin`);
+    await publishCheckin();
+
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "cancelled", locatedAt: null });
+    expect(seen.location.recordedAt).toBe(find.recordedAt);
+    expect((await h.ctx.db.select().from(safetyRequests))[0]?.pendingLocation).toBeNull();
+  });
+
+  it("rejects a check-in fix after cancellation even when Find is open", async () => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    await parent.del(`/api/phones/${phoneId}/checkin`);
+    await parent.post(`/api/phones/${phoneId}/locate`);
+    const requestedAt = h.clock.now.getTime();
+    h.clock.advance(60_000);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `checkin:${checkin.id}`,
+    })).status).toBe(409);
+    expect(await h.ctx.db.select().from(locations)).toHaveLength(0);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), purpose: `find:${requestedAt}`,
+    })).status).toBe(204);
+    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect(seen.checkin).toMatchObject({ status: "cancelled", locatedAt: null });
+    expect(seen.location.recordedAt).toBe(h.clock.now.toISOString());
   });
 
   it("sends no position in Find-only mode, and the phone gives up after 30 minutes", async () => {
@@ -295,14 +569,44 @@ describe("notifications to the parents", () => {
     await sweep(h.ctx);
     expect(titles()).toHaveLength(1); // not due yet
     h.clock.advance(5 * 60_000);
-    await sweep(h.ctx);
+    await publishCheckin();
     await sweep(h.ctx);
     expect(titles().slice(1)).toEqual(["No answer from Alma"]);
     expect(h.parentPush.sent.at(-1)!.msg.body).toBe("The phone is sending its position.");
     await device.put("/api/device/location", fix(h.clock.now));
     await device.put("/api/device/location", fix(h.clock.now));
+    await publishCheckin();
     expect(titles().slice(2)).toEqual(["Position of Alma"]);
     expect(h.parentPush.sent.at(-1)!.msg.url).toBe(`/phones/${phoneId}/location`);
+  });
+
+  it("waits for the server deadline before notifying about an early legacy fix", async () => {
+    const { parent, phoneId, device } = await setup();
+    await sub(parent);
+    await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 });
+    h.clock.advance(55_000);
+    const deadlineFix = fix(new Date(h.clock.now.getTime() + 5_000));
+    expect((await device.put("/api/device/location", deadlineFix)).status).toBe(204);
+    await sweep(h.ctx);
+    expect(titles()).toEqual([]);
+
+    h.clock.advance(5_000);
+    await publishCheckin();
+    await sweep(h.ctx);
+    expect(titles()).toEqual(["Position of Alma"]);
+  });
+
+  it("does not report no answer when the child answers after an early legacy fix", async () => {
+    const { parent, phoneId, device } = await setup();
+    await sub(parent);
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(55_000);
+    expect((await device.put("/api/device/location", fix(new Date(h.clock.now.getTime() + 5_000)))).status).toBe(204);
+    expect((await device.post(`/api/device/safety/${checkin.id}`, { event: "ok" })).status).toBe(204);
+    h.clock.advance(5_000);
+    await publishCheckin();
+    expect(titles()).toEqual([`Alma: "Yes, I'm okay"`]);
+    expect(await h.ctx.db.select().from(locations)).toHaveLength(0);
   });
 
   it("says no position is coming in Find-only mode, and stays quiet after an answer", async () => {
