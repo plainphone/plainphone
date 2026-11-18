@@ -42,6 +42,7 @@ Record each result in the table at the bottom of a copy of this file, with the p
 4. In separate fallback runs, press Home and use **Settings → Accounts** to remove an account visible to Plainphone or add a non-Google account visible to Plainphone. Verify immediate relock and the unexpected account change warning in the dashboard after sync.
 5. During fallback, run `adb shell am kill org.plainphone.app` and verify the process exited. Android may keep the foreground watchdog alive. Once Plainphone restarts, confirm that `no_modify_accounts` is set again. See R3 for force stop on Android 10.
 6. After relock, verify that **Settings → Accounts → Add**, Play's **Add account**, and Chrome and YouTube sign-in block adding a new account.
+7. After a fallback times out with sign-in still open, verify that an account added before the next approved sign-in produces a dashboard warning. In a separate run, start a new approved sign-in after the timeout and verify that its successful addition does not produce a warning. The new request takes over account monitoring from the completed fallback.
 
 ### Residual risks
 

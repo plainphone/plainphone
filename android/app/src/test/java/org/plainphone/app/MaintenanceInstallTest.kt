@@ -263,6 +263,36 @@ class MaintenanceInstallTest {
         assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
     }
 
+    @Test
+    fun `a new approved sign-in supersedes an expired fallback`() {
+        val expired = expireFallback()
+        val retry = checkNotNull(CatalogAccounts.start(context, pkg))
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("retry", "com.google"), null, null)).isTrue()
+        assertThat(CatalogAccounts.complete(context, expired)).isFalse()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(CatalogAccounts.complete(context, retry)).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+    }
+
+    @Test
+    fun `a new approved sign-in reports a late addition already in its baseline`() {
+        expireFallback()
+        val manager = AccountManager.get(context)
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear()
+        try {
+            assertThat(manager.addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+            checkNotNull(CatalogAccounts.start(context, pkg))
+        } finally {
+            listeners.putAll(registered)
+        }
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
     private fun expireFallback(): CatalogAccounts.Request {
         startFallback()
         val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)

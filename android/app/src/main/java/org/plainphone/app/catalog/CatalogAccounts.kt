@@ -58,12 +58,14 @@ internal object CatalogAccounts {
         val id = checkNotNull(lease.catalogId())
         check(expectedLease == null || id == expectedLease)
         check(InstallWindow.current(context) == pkg && eligible(context))
-        if (recentMarkers(context).values.any { it.getString(2) == id && !it.hasOutcome() }) return null
+        val markers = recentMarkers(context)
+        if (markers.values.any { it.getString(2) == id && !it.hasOutcome() }) return null
         val remainingMs = lease.catalogRemainingMs(id)
         check(remainingMs > 0)
         check(context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
         watchAccounts(context)
-        val baseline = fingerprints(context, allTypes = fallbackId != null).keys
+        val current = fingerprints(context, allTypes = fallbackId != null)
+        val baseline = current.keys
         val request = Request(fallbackId ?: UUID.randomUUID().toString(), id, pkg, baseline, fallbackId != null)
         val ttlMs = remainingMs + LATE_ACCOUNT_GRACE_MS
         val marker = JSONArray().put(pkg).put(JSONArray(baseline)).put(id)
@@ -79,6 +81,15 @@ internal object CatalogAccounts {
                     AndroidDeviceControls(context).clearRestriction(RESTRICTION)
                 })
                 check(!context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
+            }
+            // A new approved request takes over from settled fallbacks. Check for additions
+            // already present in its baseline in case the account listener has not run yet.
+            val settledFallbacks = markers.filterValues { it.optBoolean(5) && it.hasOutcome() }
+            if (settledFallbacks.isNotEmpty()) {
+                if (settledFallbacks.values.any { hasLateGoogleAddition(it, current) }) reportUnexpectedChange(context)
+                val edit = prefs(context).edit()
+                settledFallbacks.keys.forEach { edit.remove(it) }
+                check(edit.commit())
             }
             return request
         } catch (e: Exception) {
