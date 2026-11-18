@@ -38,6 +38,7 @@ class InstallLease(
         val invalidated: Boolean = false,
         val pendingOverrunMs: Long? = null,
         val id: String? = null,
+        val allowAccountSuccess: Boolean = false,
     )
 
     interface Store {
@@ -238,7 +239,13 @@ class InstallLease(
             runCatching(restrictionLifted).getOrDefault(false)
         val track = open.isEmpty() && closing.keys.any { it != CATALOG_ACCOUNTS } && tracksOverruns()
         val pending = closing.mapValues { (holder, lease) ->
-            val marker = if (holder == closingHolder) lease.copy(invalidated = true) else lease
+            val marker = if (holder == closingHolder) {
+                lease.copy(
+                    invalidated = true,
+                    allowAccountSuccess = lease.allowAccountSuccess ||
+                        (holder == CATALOG_ACCOUNTS && holder in validLeases),
+                )
+            } else lease
             closingLease(marker, track && holder != CATALOG_ACCOUNTS, wasLifted)
         }
         val marked = open + pending
@@ -271,9 +278,8 @@ class InstallLease(
         if (completed != pending) saveClosingLocked(open + completed)
         val otherClears = clearsInFlight - if (finishingClear) 1 else 0
         if (otherClears != 0) return false
-        closing[CATALOG_ACCOUNTS]?.id?.let { id ->
-            val allowSuccess = closingHolder == CATALOG_ACCOUNTS && CATALOG_ACCOUNTS in validLeases
-            onCatalogAccountsClosed(id, allowSuccess)
+        completed[CATALOG_ACCOUNTS]?.let { lease ->
+            lease.id?.let { onCatalogAccountsClosed(it, lease.allowAccountSuccess) }
         }
         val overrun = completed.values.mapNotNull { it.pendingOverrunMs }.maxOrNull()
         store.retire(open, overrun?.let { (it + 999) / 1_000 })
@@ -296,7 +302,7 @@ class InstallLease(
         leases.mapValues { (holder, lease) -> pendingClosures[closureKey(holder, lease)] ?: lease }
 
     private fun closureKey(holder: String, lease: Lease) =
-        holder to lease.copy(invalidated = false, pendingOverrunMs = null)
+        holder to lease.copy(invalidated = false, pendingOverrunMs = null, allowAccountSuccess = false)
 
     private fun rememberClosures(leases: Map<String, Lease>) {
         leases.forEach { (holder, lease) ->
@@ -442,6 +448,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
                 parts.getOrNull(6) == "true",
                 parts.getOrNull(7)?.toLongOrNull(),
                 parts.getOrNull(8)?.takeIf(String::isNotEmpty),
+                allowAccountSuccess = parts.getOrNull(9) == "true",
             )
         }.getOrNull()
         lease?.let { holder to it }
@@ -473,7 +480,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
         leases.forEach { (holder, l) ->
             edit.putString(holder, listOf(l.untilMs, l.bootCount, l.versionCode, l.process,
                 l.sessionId ?: "", l.wallDeadlineMs ?: "", l.invalidated, l.pendingOverrunMs ?: "",
-                l.id ?: "").joinToString(","))
+                l.id ?: "", l.allowAccountSuccess).joinToString(","))
         }
         if (overrunSeconds != null) {
             val priorSequence = previous[OVERRUN]?.split(',')?.getOrNull(1)?.toLongOrNull() ?: 0

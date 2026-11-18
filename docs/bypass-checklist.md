@@ -43,6 +43,12 @@ Record each result in the table at the bottom of a copy of this file, with the p
 5. During fallback, run `adb shell am kill org.plainphone.app` and verify the process exited. Android may keep the foreground watchdog alive. Once Plainphone restarts, confirm that `no_modify_accounts` is set again. See R3 for force stop on Android 10.
 6. After relock, verify that **Settings → Accounts → Add**, Play's **Add account**, and Chrome and YouTube sign-in block adding a new account.
 
+### Residual risks
+
+Accounts that an authenticator hides from the device owner are invisible to every public API. The same authenticator can already add and remove its own accounts programmatically despite DISALLOW_MODIFY_ACCOUNTS, and it can only reach the phone through a parent-approved catalog window. The fallback window (at most 3 minutes, started by the parent) therefore adds no new attack surface compared with main, where the account restriction does not exist.
+
+For future hardening, consider `AccountManager.getAuthenticatorTypes()`, which is independent of account visibility.
+
 ## Safe mode, users and profiles
 
 | # | Attempt | Expected | How to test |

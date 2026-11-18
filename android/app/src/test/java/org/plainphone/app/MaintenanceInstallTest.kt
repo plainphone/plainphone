@@ -235,6 +235,50 @@ class MaintenanceInstallTest {
         assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
     }
 
+    @Test
+    fun `account listener warns about a new Google account after fallback expiry`() {
+        expireFallback()
+
+        assertThat(AccountManager.get(context).addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `completion warns about a new Google account before the account listener runs`() {
+        val request = expireFallback()
+        val manager = AccountManager.get(context)
+        // Model delivery of the callback before Android dispatches the account update.
+        val listeners = shadowOf(manager).listeners
+        val registered = listeners.toMap()
+        listeners.clear()
+        try {
+            assertThat(manager.addAccountExplicitly(Account("late", "com.google"), null, null)).isTrue()
+            assertThat(CatalogAccounts.complete(context, request)).isFalse()
+        } finally {
+            listeners.putAll(registered)
+        }
+
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    private fun expireFallback(): CatalogAccounts.Request {
+        startFallback()
+        val markers = context.getSharedPreferences("plainphone_catalog_accounts", Context.MODE_PRIVATE)
+        val (id, encoded) = markers.all.entries.single()
+        val marker = JSONArray(encoded as String)
+        val baseline = marker.getJSONArray(1)
+        val request = CatalogAccounts.Request(
+            id, marker.getString(2), pkg, (0 until baseline.length()).map(baseline::getString).toSet(), true,
+        )
+        ShadowSystemClock.advanceBy(Duration.ofMinutes(3))
+        InstallLease.android(context).recover()
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
+        return request
+    }
+
     @Implements(DevicePolicyManager::class)
     class AccountRelockShadow : ShadowDevicePolicyManager() {
         var beforeAccountRelock: (() -> Unit)? = null

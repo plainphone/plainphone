@@ -92,8 +92,11 @@ internal object CatalogAccounts {
         if (request.fallback) {
             InstallLease.android(context).finishCatalogAccounts(request.id)
             val outcome = recentMarkers(context)[request.id]?.takeIf { it.hasOutcome() } ?: return false
+            val current = fingerprints(context, allTypes = true)
+            val lateAddition = hasLateGoogleAddition(outcome, current)
+            if (lateAddition) reportUnexpectedChange(context)
             prefs(context).edit().remove(request.id).apply()
-            return outcome.optBoolean(6) && expectedGoogleAddition(request.baseline, fingerprints(context, allTypes = true))
+            return !lateAddition && outcome.optBoolean(6) && expectedGoogleAddition(request.baseline, current)
         }
         reconcile(context)
         val added = fingerprints(context, allTypes = false).keys.any { it !in request.baseline }
@@ -113,6 +116,7 @@ internal object CatalogAccounts {
         val expected = allowSuccess && expectedGoogleAddition(baseline, current)
         if (baseline != current.keys && !expected) reportUnexpectedChange(context)
         marker.put(6, expected)
+        marker.put(7, JSONArray(current.keys))
         check(p.edit().putString(id, marker.toString()).commit())
     }
 
@@ -120,7 +124,7 @@ internal object CatalogAccounts {
     private fun accountsUpdated(context: Context) = reconcile(context)
 
     private fun reconcile(context: Context) {
-        val markers = recentMarkers(context).filterValues { !it.hasOutcome() }
+        val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
         if (markers.isEmpty()) return
         val current = fingerprints(context, allTypes = markers.values.any { it.optBoolean(5) })
         val google = current.filterValues { it == GOOGLE }
@@ -128,7 +132,12 @@ internal object CatalogAccounts {
         markers.forEach { (id, marker) ->
             val baseline = baseline(marker)
             if (marker.optBoolean(5)) {
-                if (baseline != current.keys) lease.finishCatalogAccounts(id)
+                if (!marker.hasOutcome()) {
+                    if (baseline != current.keys) lease.finishCatalogAccounts(id)
+                } else if (hasLateGoogleAddition(marker, current)) {
+                    reportUnexpectedChange(context)
+                    prefs(context).edit().remove(id).apply()
+                }
             } else if (google.keys.any { it !in baseline }) {
                 // A matching open request must not suppress the warning for a matching closed one.
                 if (!isOpen(context, marker.getString(2), marker.getString(0))) reportUnexpectedChange(context)
@@ -138,8 +147,15 @@ internal object CatalogAccounts {
     }
 
     private fun baseline(marker: JSONArray): Set<String> {
-        val accounts = marker.getJSONArray(1)
-        return (0 until accounts.length()).map(accounts::getString).toSet()
+        return marker.getJSONArray(1).accountKeys()
+    }
+
+    private fun JSONArray.accountKeys() = (0 until length()).map(::getString).toSet()
+
+    private fun hasLateGoogleAddition(marker: JSONArray, current: Map<String, String>): Boolean {
+        // Older outcomes did not record the account set at relock.
+        val relocked = marker.optJSONArray(7)?.accountKeys() ?: return false
+        return current.any { (key, type) -> type == GOOGLE && key !in relocked }
     }
 
     private fun JSONArray.hasOutcome() = length() > 6

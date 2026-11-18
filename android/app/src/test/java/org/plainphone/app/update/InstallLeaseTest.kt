@@ -85,6 +85,23 @@ class InstallLeaseTest {
         assertEquals(setOf(SELF_UPDATE), f.saved.keys)
     }
 
+    @Test fun catalogAccountClosePreservesSuccessWhileAnotherClearFinishes() {
+        val f = Fixture()
+        val outcomes = mutableListOf<Pair<String, Boolean>>()
+        val lease = InstallLease(f, f, onCatalogAccountsClosed = { id, success ->
+            outcomes.add(id to success)
+        }) { _, _ -> error("Unexpected full policy apply") }
+        lease.begin(CATALOG, 60_000)
+        val request = lease.armCatalogAccounts(checkNotNull(lease.catalogId()), f.now + 30_000)
+
+        assertTrue(lease.clearIfAllowed(true) {
+            lease.finishCatalogAccounts(request)
+            assertTrue(outcomes.isEmpty())
+        })
+
+        assertEquals(listOf(request to true), outcomes)
+    }
+
     @Test fun changingCatalogTargetKeepsTheOriginalWatchdogAndDeadline() {
         val f = Fixture()
         val lease = f.lease()
