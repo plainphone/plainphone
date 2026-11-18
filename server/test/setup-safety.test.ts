@@ -88,9 +88,9 @@ describe("onboarding safety", () => {
     const path = `/api/phones/${claimed.json.id}`;
     expect((await parent.put(`${path}/setup-undo`, { minutes: 5 })).status).toBe(200);
     device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
     const completed = h.clock.now.getTime();
     h.clock.advance(2 * 60 * 60_000);
+    await device.get("/api/device/rules");
     await device.post("/api/device/setup-completion", { elapsedMs: 2 * 60 * 60_000, undoMinutes: 5 });
     expect((await parent.get(`${path}/setup-undo`)).json.undoUntil)
       .toBe(new Date(completed + 5 * 60_000).toISOString());
@@ -269,6 +269,28 @@ describe("onboarding safety", () => {
     expect((await device.get("/api/device/setup-completion")).json.undoRemainingMs).toBe(0);
     expect((await parent.put(`/api/phones/${claimed.json.id}/setup-undo`, { minutes: 60 })).status).toBe(409);
     expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: 60 })).json.undoRemainingMs).toBe(0);
+  });
+
+  it("rejects dashboard edits once the phone has received its setup choice, before first sync", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "light", "child");
+    const { json } = await claim();
+    const path = `/api/phones/${json.id}/setup-undo`;
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await parent.get(path)).json.editable).toBe(false);
+    expect((await parent.put(path, { minutes: 60 })).status).toBe(409);
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: 10 })).json.undoRemainingMs)
+      .toBe(600_000);
+  });
+
+  it("uses the Self phone's actual undo window when it differs from the dashboard setting", async () => {
+    const { parent, device, decide, claim } = await start();
+    const { json } = await claim();
+    const path = `/api/phones/${json.id}/setup-undo`;
+    expect((await parent.put(path, { minutes: 60 })).status).toBe(200);
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0, undoMinutes: 10 })).json.undoRemainingMs)
+      .toBe(600_000);
+    expect((await parent.get(path)).json.minutes).toBe(10);
   });
 
   it.each([undefined, 5])("uses the dashboard's child choice (%s), never the child's", async (minutes) => {

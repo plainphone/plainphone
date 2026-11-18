@@ -471,9 +471,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
       const now = ctx.now();
       if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
-      const completedAt = new Date(Math.max(fresh.pairedAt?.getTime() ?? 0, now.getTime() - elapsedMs));
-      const setupUndoMinutes = fresh.setupUndoMinutes ??
-        (fresh.profile === "self" ? undoMinutes : undefined) ?? DEFAULT_SETUP_UNDO_MINUTES;
+      // First sync may be much later than local completion.
+      const completedAt = new Date(Math.max(0, now.getTime() - elapsedMs));
+      const setupUndoMinutes = (fresh.profile === "self" ? undoMinutes : undefined) ??
+        fresh.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES;
       const completion = { setupCompletedAt: completedAt, setupUndoMinutes };
       await tx.update(phones).set(completion).where(eq(phones.id, phone.id));
       return setupUndoRemaining({ ...fresh, ...completion }, now);

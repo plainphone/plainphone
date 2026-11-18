@@ -17,11 +17,12 @@ For a light-mode Myself phone, choose off, 5, 10, 30 or 60 minutes. A Child phon
 defaults to 10 minutes, so a child cannot extend the time from their own phone.
 An adult can set the same choices in the dashboard's phone settings before
 pairing. This lets a family shorten the window or allow extra time to test the
-setup. A dashboard choice takes precedence over the phone's choice. Completion
-seals the original window. Edits cannot re-open it. Android measures elapsed
-time across sleep. Rebooting closes the window. Undo works offline, and the
-phone retries its completion and undo reports when it reconnects. The dashboard
-shows the end time reported by the phone. The server accepts undo reports up to
+setup. The phone uses the dashboard choice if one was set when it connected.
+The dashboard choice locks when the phone receives its connection token. For
+Myself setups, the completion report records the window used on the phone.
+Android measures elapsed time across sleep. Rebooting closes the window. Undo
+works offline, and the phone retries its completion and undo reports when it
+reconnects. The dashboard shows the end time reported by the phone. The server accepts undo reports up to
 48 hours after that window closes. Older phones that have never reported
 completion can still report undo without that cutoff. Both paths notify the
 current household. Device Owner mode uses its existing release flow.
@@ -74,10 +75,12 @@ Show **Set up like me** from Today or the owner's dashboard. The invitee scans
 the code to begin a Myself setup in their own dashboard. If they already opened
 a light-mode setup link on Android, **Copy rules from a friend** replaces
 the rule choices in that same draft after confirmation. The setup link remains
-usable. The template copies explicitly blocked app package names, total and
-per-app time limits with weekday overrides, schedules with their allowed app
-package names, and the web filter's blocked categories. Only explicit blocks
-recorded after this update can be shared.
+usable. Legacy blocks on Danish starter-pack apps are preserved. Other older
+blocks must be set again before sharing because the stored app list does not
+identify which denials were explicit. The template copies explicitly blocked
+app package names, total and per-app time limits with weekday overrides,
+schedules with their allowed app package names, and the web filter's blocked
+categories.
 The recipient can edit the rules before pairing. The allowed and installed app
 inventory, app labels, contacts, locations, domain exceptions, usage history and
 helper relationships stay with the original account. Each code works once and

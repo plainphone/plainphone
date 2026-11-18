@@ -1,5 +1,24 @@
 ALTER TABLE "phone_apps" ADD COLUMN "explicitly_blocked" boolean DEFAULT false NOT NULL;
 --> statement-breakpoint
+-- These Danish starter-pack apps have always been allowed by default.
+-- Other legacy denials are indistinguishable from default inventory rows.
+UPDATE "phone_apps" AS app
+SET "explicitly_blocked" = true
+FROM "phones" AS phone
+WHERE app."phone_id" = phone."id"
+  AND phone."profile" = 'self'
+  AND phone."timezone" = 'Europe/Copenhagen'
+  AND NOT app."core"
+  AND NOT app."allowed"
+  AND app."package_name" IN (
+    'dk.danskebank.mobilepay',
+    'dk.mitid.app.android',
+    'de.hafas.android.rejseplanen',
+    'com.netcompany.aulanativeprivate',
+    'dk.dr.radio',
+    'com.spotify.music'
+  );
+--> statement-breakpoint
 CREATE TABLE "self_rule_templates" (
 	"token_hash" text PRIMARY KEY NOT NULL,
 	"rules" jsonb NOT NULL,

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { eq, sql } from "drizzle-orm";
-import { householdMembers, phones, schedules, selfKeys } from "../src/db/schema.js";
+import { householdMembers, phoneApps, phones, schedules, selfKeys } from "../src/db/schema.js";
 import { describe, expect, it } from "vitest";
 import { coverage, scheduleLoosens } from "../src/services/changes.js";
 import { sweep } from "../src/services/sweeper.js";
@@ -519,8 +519,17 @@ describe("Self profile with a trusted person", () => {
       { packageName: "com.example.health", label: "Private health app" },
       { packageName: "com.example.bank", label: "Private bank app" },
       { packageName: "com.example.reader", label: "Private reader label" },
+      { packageName: "com.spotify.music", label: "Spotify" },
     ] });
     await me.put(`${source}/apps/com.instagram.android`, { allowed: false });
+    expect((await me.put(`${source}/apps/com.spotify.music`, { allowed: false })).status).toBe(200);
+    // Recreate pre-0017 app rows, then apply the migration's data backfill.
+    await h.ctx.db.update(phoneApps).set({ explicitlyBlocked: false })
+      .where(eq(phoneApps.packageName, "com.spotify.music"));
+    const migration = await readFile(new URL("../drizzle/0017_self_buddies.sql", import.meta.url), "utf8");
+    const backfill = migration.split("--> statement-breakpoint").find((statement) => statement.includes('UPDATE "phone_apps"'));
+    if (backfill) await h.ctx.db.execute(sql.raw(backfill));
+
     await me.put(`${source}/apps/com.example.bank`, { allowed: true });
     expect((await me.put(`${source}/time-limits/apps/com.example.reader`, { minutes: 15 })).status).toBe(200);
     await me.put(`${source}/time-limits/total`, { minutes: 50, days: { "1": 40 } });
@@ -548,9 +557,12 @@ describe("Self profile with a trusted person", () => {
     expect((await stranger.get(`${copy}/time-limits`)).json.total).toEqual({ minutes: 50, days: { "1": 40 } });
     expect((await stranger.get(`${copy}/schedules`)).json.schedules).toMatchObject([{ kind: "bedtime", days: [1], allowedPackages: ["com.example.reader"] }]);
     expect((await stranger.get(`${copy}/time-limits`)).json.apps).toMatchObject([{ packageName: "com.example.reader", label: "com.example.reader", limit: { minutes: 15 } }]);
-    expect((await stranger.get(`${copy}/apps`)).json.apps).toEqual([
+    const copiedApps = (await stranger.get(`${copy}/apps`)).json.apps;
+    expect(copiedApps).toHaveLength(2);
+    expect(copiedApps).toEqual(expect.arrayContaining([
       expect.objectContaining({ packageName: "com.instagram.android", allowed: false }),
-    ]);
+      expect.objectContaining({ packageName: "com.spotify.music", allowed: false }),
+    ]));
     expect((await stranger.get(`${copy}/contacts`)).json.contacts).toEqual([]);
     expect((await stranger.get(`${copy}/dns`)).json.blockDomains).toEqual([]);
     expect((await stranger.get("/api/people-i-help")).json.people).toEqual([]);

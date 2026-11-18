@@ -58,7 +58,7 @@ export function PhoneSettingsPage() {
           {t("phoneSettings.lightNote")}
         </p>
       )}
-      {light && <SetupUndoSetting />}
+      {light && <SetupUndoSetting key={phone.id} />}
       {phone.profile === "self" && <p className="help">{t("phoneSettings.selfNote")}</p>}
       <details className="details details-lead">
         <summary>{t("phoneSettings.explainTitle")}</summary>
@@ -201,6 +201,26 @@ function SetupUndoSetting() {
   const path = `/phones/${phone.id}/setup-undo`;
   const res = useLoad(() => api.get<{ minutes: number; editable: boolean; undoUntil: string | null }>(path), [path]);
   const [saving, setSaving] = useState(false);
+  const { data, loading, reload } = res;
+  const undoUntil = data?.undoUntil;
+
+  useEffect(() => {
+    if (undoUntil || loading || saving) return;
+    const timer = window.setTimeout(() => {
+      if (!document.hidden) void reload();
+    }, 10_000);
+    function refreshOnReturn() {
+      if (!document.hidden) {
+        window.clearTimeout(timer);
+        void reload();
+      }
+    }
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [undoUntil, loading, saving, reload]);
 
   return <LoadGate res={res}>{({ minutes, editable, undoUntil }) => (
     <div className="stack">

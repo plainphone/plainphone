@@ -927,7 +927,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({
       minutes: phone.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES,
       undoUntil: deadline === null ? null : new Date(deadline).toISOString(),
-      editable: phone.mode === "light" && !phone.pairedAt && !phone.setupCompletedAt,
+      editable: phone.mode === "light" && !phone.deviceTokenHash && !phone.pairedAt && !phone.setupCompletedAt,
     });
   });
 
@@ -935,7 +935,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     const { minutes } = await body(c, z.object({ minutes: undoMinutesInput }));
     const [updated] = await ctx.db.update(phones).set({ setupUndoMinutes: minutes }).where(and(
-      eq(phones.id, phone.id), eq(phones.mode, "light"), isNull(phones.pairedAt), isNull(phones.setupCompletedAt),
+      eq(phones.id, phone.id), eq(phones.mode, "light"),
+      isNull(phones.deviceTokenHash), isNull(phones.pairedAt), isNull(phones.setupCompletedAt),
     )).returning({ id: phones.id });
     if (!updated) return c.json({ error: "setup undo can only be changed before pairing" }, 409);
     return c.json({ minutes, editable: true });
