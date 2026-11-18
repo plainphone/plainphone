@@ -150,7 +150,8 @@ API (`PPDNS_API_TOKEN` and the private address from `PPDNS_API_BIND`).
 ## Use a phone's filter on a router or VPN
 
 In the web dashboard, open the phone's **Web filter**. The address appears for
-household members after the DNS service confirms provisioning. The hostname uses
+household members after the DNS service confirms provisioning with
+`DNS_PROVIDER=http`. The hostname uses
 your configured DNS suffix. Treat it as private: sharing it gives other devices
 and apps access to the same filter rules.
 
@@ -163,7 +164,9 @@ profile, and the public resolver currently offers DoT.
 For Tailscale, use Android Private DNS and disable **Use Tailscale DNS settings**
 on that phone if you can give up MagicDNS names on it. If you need MagicDNS, an
 admin can configure a private tailnet DNS forwarder with the phone's DoT upstream.
-Tailscale's custom nameserver field takes the forwarder's IP. A global DNS
+Tailscale's custom nameserver field takes the forwarder's IP. On the phone,
+turn on **Use Tailscale DNS settings** and set Android Private DNS to
+**Automatic** so Tailscale can handle DNS. A global DNS
 override can apply the same phone's rules to all tailnet devices that accept and
 use those settings. For a company VPN, ask IT about an approved forwarder for
 public DNS queries that keeps internal domains on company DNS. The Tailscale and

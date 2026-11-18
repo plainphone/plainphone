@@ -306,7 +306,7 @@ export const en = {
   "filter.addressAndroid": "In Android’s Private DNS settings, paste only the hostname, without tls:// or the port.",
   "filter.addressUnverified": "Not yet verified on a phone.",
   "filter.addressTailscale": "If you can do without MagicDNS, set Android Private DNS to the hostname above and turn off “Use Tailscale DNS settings” on that phone. MagicDNS names will stop working on the phone.",
-  "filter.addressTailscaleAdmin": "If you need MagicDNS, ask your tailnet admin to set up a private DNS forwarder on the tailnet that sends public queries here over DNS-over-TLS. The admin enters the forwarder’s IP in Tailscale. If it is set as the global DNS override, all tailnet devices that accept and use that DNS setting share this phone’s filter rules for those queries.",
+  "filter.addressTailscaleAdmin": "If you need MagicDNS, ask your tailnet admin to set up a private DNS forwarder on the tailnet that sends public queries here over DNS-over-TLS. The admin enters the forwarder’s IP in Tailscale. If it is set as the global DNS override, all tailnet devices that accept and use that DNS setting share this phone’s filter rules for those queries. On the phone, turn on “Use Tailscale DNS settings” and set Android Private DNS to Automatic so Tailscale can handle DNS.",
   "filter.addressRouterTitle": "Router or company VPN",
   "filter.addressRouter": "Look for a DNS-over-TLS upstream field. Use the hostname and port above, including the same hostname for TLS verification.",
   "filter.addressCompany": "For a company VPN, ask IT if they can set up an approved forwarder for public DNS queries and keep internal domains on company DNS.",

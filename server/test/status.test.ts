@@ -124,7 +124,18 @@ it("gives equal-duration overruns separate expiries without extending retries", 
 });
 
 describe("DNS readiness", () => {
+  it("hides the dashboard host when the mock provider accepts the profile", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+
+    expect(h.dns.clients.size).toBe(1);
+    const response = await parent.get(`/api/phones/${phoneId}/dns`);
+    expect(response.status).toBe(200);
+    expect(response.json.host).toBeNull();
+  });
+
   it("returns the configured DoT host only to household members after provisioning", async () => {
+    h.ctx.cfg.DNS_PROVIDER = "http";
     const parent = await signIn(h, "parent@example.org");
     h.dns.failNext = 1;
     const { phoneId, device } = await pairPhone(h, parent);

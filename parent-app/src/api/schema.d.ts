@@ -4146,7 +4146,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description host (null until provisioned), synced, blockedCategories, allowDomains, blockDomains */
+            /** @description host (null in mock mode or before provisioning), synced, blockedCategories, allowDomains, blockDomains */
             200: {
                 headers: {
                     [name: string]: unknown;
