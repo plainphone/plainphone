@@ -33,6 +33,7 @@ import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
 import org.plainphone.app.update.InstallLease
 import org.plainphone.app.update.InstallWatchdogService
+import org.plainphone.app.update.UpdateReceiver
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -126,6 +127,8 @@ class MaintenanceInstallTest {
         assertThat(accountsBlocked()).isTrue()
 
         fallback(activity).performClick()
+        pumpUntil { !accountsBlocked() }
+        shadowOf(Looper.getMainLooper()).idle()
         assertThat(accountsBlocked()).isFalse()
         accounts.setAuthenticationErrorOnNextResponse(true)
         completeWithoutGoogleAccount()
@@ -144,6 +147,61 @@ class MaintenanceInstallTest {
         pumpUntil { accountsBlocked() }
         assertThat(accountsBlocked()).isTrue()
         assertThat(InstallWindow.current(context)).isEqualTo(pkg)
+    }
+
+    @Test
+    fun `removing an account during fallback relocks and warns`() {
+        val manager = AccountManager.get(context)
+        val existing = Account("parent", "com.google")
+        shadowOf(manager).addAccount(existing)
+        startFallback()
+
+        assertThat(manager.removeAccountExplicitly(existing)).isTrue()
+        pumpUntil { accountsBlocked() }
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `adding a non Google account during fallback relocks and warns`() {
+        startFallback()
+        val manager = AccountManager.get(context)
+        assertThat(manager.addAccountExplicitly(Account("other", "org.example"), null, null)).isTrue()
+        pumpUntil { accountsBlocked() }
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNotNull()
+    }
+
+    @Test
+    fun `fallback deadline relocks accounts while catalog stays open`() {
+        startFallback()
+        UpdateReceiver.cancelLeaseExpiry(context, InstallLease.CATALOG_ACCOUNTS)
+        val prefs = context.getSharedPreferences("plainphone_install_lease", Context.MODE_PRIVATE)
+        val marker = checkNotNull(prefs.getString(InstallLease.CATALOG_ACCOUNTS, null))
+        val deadline = marker.substringBefore(',').toLong()
+        val remaining = deadline - android.os.SystemClock.elapsedRealtime()
+        assertThat(remaining).isIn(1..180_000L)
+        val watchdog = shadowOf(service.get().timerLooper)
+        watchdog.idleFor(Duration.ofMillis(remaining - 1))
+        assertThat(accountsBlocked()).isFalse()
+        watchdog.idleFor(Duration.ofMillis(1))
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(InstallWindow.current(context)).isEqualTo(pkg)
+    }
+
+    @Test
+    fun `one Google account during fallback relocks and opens Play without warning`() {
+        val activity = startFallback()
+        shadowOf(AccountManager.get(context)).addAccount(Account("parent", "com.google"))
+        pumpUntil { activity.isFinishing }
+
+        assertThat(accountsBlocked()).isTrue()
+        assertThat(activity.isFinishing).isTrue()
+        assertThat(shadowOf(activity).nextStartedActivity.data).isEqualTo(InstallWindow.playIntent(pkg).data)
+        assertThat(StatusNotices(context).pending(StatusNotices.LATE_GOOGLE_ACCOUNT)).isNull()
     }
 
     @Test
@@ -234,14 +292,17 @@ class MaintenanceInstallTest {
         assertThat(message(activity).text.toString()).doesNotContain(fallback(activity).text.toString())
     }
 
-    private fun startFallback() {
+    private fun startFallback(): MaintenanceActivity {
         val activity = installPrompt()
         submit(activity, pin, expectAccountRequest = true)
         completeWithoutGoogleAccount()
         pumpUntil { fallback(activity).visibility == View.VISIBLE }
         assertThat(fallback(activity).visibility).isEqualTo(View.VISIBLE)
         fallback(activity).performClick()
+        pumpUntil { !accountsBlocked() }
+        shadowOf(Looper.getMainLooper()).idle()
         assertThat(accountsBlocked()).isFalse()
+        return activity
     }
 
     private fun completeWithoutGoogleAccount() {

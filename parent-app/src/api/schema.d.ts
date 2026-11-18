@@ -2171,7 +2171,7 @@ export interface components {
             parallelAppsRemovedId?: string;
             /**
              * Format: uuid
-             * @description Stable identifier for an account added after the catalog window closed. Account identities are never sent.
+             * @description Stable identifier for an unexpected catalog account change. Account identities are never sent.
              */
             lateGoogleAccountId?: string;
             /**
@@ -2186,7 +2186,7 @@ export interface components {
         PhoneStatus: components["schemas"]["DeviceStatusInput"] & {
             /** Format: date-time */
             reportedAt: string;
-            /** @description A Google account was added after the catalog install window closed. */
+            /** @description The phone detected an unexpected account change during catalog fallback or a late Google sign-in. */
             lateGoogleAccount?: boolean;
         };
         ScheduleInput: {

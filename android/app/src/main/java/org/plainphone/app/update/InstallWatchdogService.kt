@@ -51,8 +51,10 @@ class InstallWatchdogService : Service() {
         try {
             val channel = NotificationChannel(CHANNEL, getString(R.string.channel_updates), NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-            val title = if (ticket?.holder == InstallLease.CATALOG) R.string.install_watchdog_catalog
-                else R.string.install_watchdog_update
+            val title = when (ticket?.holder) {
+                InstallLease.CATALOG, InstallLease.CATALOG_ACCOUNTS -> R.string.install_watchdog_catalog
+                else -> R.string.install_watchdog_update
+            }
             val notification = Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_lock_lock)
                 .setContentTitle(getString(title))

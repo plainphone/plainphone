@@ -25,7 +25,7 @@ Record each result in the table at the bottom of a copy of this file, with the p
 |---|---|---|---|
 | R1 | Factory reset from Settings | Option is greyed out or refused | Settings → System → Reset options. If a reset confirmation appears, cancel it |
 | R2 | Uninstall Plainphone | Not possible | Long-press the icon; Settings → Apps → Plainphone |
-| R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed, but the lock stays, because restrictions live in the system | Settings → Apps → Plainphone; then retry A1 and R1 |
+| R3 | Disable or force-stop Plainphone | Disable is not offered. Android 11+: Force stop and Clear data are greyed out (`setUserControlDisabledPackages`). Android 10: Force stop is allowed. Restrictions already set stay in place. Force stop during an open window leaves its lifted restriction off until Plainphone starts again (known residual risk) | Settings → Apps → Plainphone. On Android 10, repeat during an open fallback window and verify relock after restarting Plainphone. Then retry A1 and R1 |
 | R4 | Remove Plainphone as device admin | Not offered | Settings → Security → Device admin apps |
 | R5 | Reset from recovery with a parent's FRP account set | **Destructive.** Does setup accept the child's previous screen-lock PIN? Record whether the PIN alone completes setup. Then check that the parent's linked Google account can complete setup | Last, on the test phone only. Use an established Google account, OEM unlocking off, and wait until the phone reports reset protection set |
 | R6 | Add or remove an account in strong mode | Settings, Play, Chrome and YouTube block adding an account. Verify the parent-PIN catalog flow and its fallback on a physical phone (recipe below) | Settings → Accounts |
@@ -36,9 +36,12 @@ Record each result in the table at the bottom of a copy of this file, with the p
 
 ### R6 on a physical phone
 
-1. Run `adb shell dumpsys user | grep no_modify_accounts` and watch `adb logcat -s AccountManagerService Plainphone`. Try the catalog sign-in with a wrong PIN and verify that accounts stay blocked.
-2. Use the correct PIN and complete Google sign-in. If Play services rejects sign-in while restricted, choose **Allow accounts briefly** and complete it in the same window. Run the restriction check again and confirm that `no_modify_accounts` is set afterward. Repeat with cancellation and expiry. If an in-flight sign-in completes after expiry, check that the dashboard warns and that the account is still present.
-3. Confirm that **Settings → Accounts → Add**, Play's **Add account**, and Chrome and YouTube sign-in all block adding a new account once the restriction is back.
+1. Run `adb shell dumpsys user | grep no_modify_accounts`. Verify that ordinary approved app installation and a wrong parent PIN both keep account changes blocked.
+2. Add the parent's Google account during a maintenance unlock, then end maintenance. On a debug build, inspect the Google sign-in baseline in `CatalogAccounts.start`. The Google fingerprint set must be non-empty with the known account present. Record only whether the count is positive.
+3. Try catalog Google sign-in with the correct PIN. If Play services rejects restricted sign-in, select **Allow accounts briefly**. Exactly one new Google account must restore `no_modify_accounts` before Play opens, with no dashboard warning. Repeat with cancellation and with sign-in left open for three minutes. Both must restore the restriction. A Google sign-in that completes late must produce a dashboard warning and leave the account on the phone.
+4. In separate fallback runs, press Home and use **Settings → Accounts** to remove an account or add a non-Google account. Verify immediate relock and the unexpected account change warning in the dashboard after sync.
+5. During fallback, run `adb shell am kill org.plainphone.app` and verify the process exited. Android may keep the foreground watchdog alive. Once Plainphone restarts, confirm that `no_modify_accounts` is set again. See R3 for force stop on Android 10.
+6. After relock, verify that **Settings → Accounts → Add**, Play's **Add account**, and Chrome and YouTube sign-in block adding a new account.
 
 ## Safe mode, users and profiles
 

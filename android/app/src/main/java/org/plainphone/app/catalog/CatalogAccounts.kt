@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.catalog
 
+import android.accounts.Account
 import android.accounts.AccountManager
 import android.annotation.SuppressLint
 import android.content.Context
@@ -22,6 +23,7 @@ import org.plainphone.app.update.InstallLease
 /** Keeps account identities on the phone and tracks sign-in even after its activity goes away. */
 internal object CatalogAccounts {
     const val GOOGLE = "com.google"
+    const val FALLBACK_MS = 3 * 60_000L
     private const val PREFS = "plainphone_catalog_accounts"
     private const val LATE_ACCOUNT_GRACE_MS = 15 * 60_000L
     private const val RESTRICTION = UserManager.DISALLOW_MODIFY_ACCOUNTS
@@ -41,29 +43,32 @@ internal object CatalogAccounts {
         val manager = AccountManager.get(app)
         if (watchedManager === manager) return
         manager.addOnAccountsUpdatedListener(
-            { runCatching { accountsUpdated(app) }.onFailure { Log.w("Plainphone", "Could not reconcile Google accounts", it) } },
-            null, true, arrayOf(GOOGLE),
+            { runCatching { accountsUpdated(app) }.onFailure { Log.w("Plainphone", "Could not reconcile catalog accounts", it) } },
+            null, true, null,
         )
         watchedManager = manager
     }
 
     @SuppressLint("ApplySharedPref")
     @Synchronized
-    fun start(context: Context, pkg: String, expectedLease: String? = null): Request? {
+    fun start(
+        context: Context, pkg: String, expectedLease: String? = null, fallbackId: String? = null,
+    ): Request? {
         val lease = InstallLease.android(context)
         val id = checkNotNull(lease.catalogId())
         check(expectedLease == null || id == expectedLease)
         check(InstallWindow.current(context) == pkg && eligible(context))
-        if (recentMarkers(context).values.any { it.getString(2) == id }) return null
+        if (recentMarkers(context).values.any { it.getString(2) == id && !it.hasOutcome() }) return null
         val remainingMs = lease.catalogRemainingMs(id)
         check(remainingMs > 0)
         check(context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
         watchAccounts(context)
-        val baseline = fingerprints(context)
-        val request = Request(UUID.randomUUID().toString(), id, pkg, baseline, expectedLease != null)
+        val baseline = fingerprints(context, allTypes = fallbackId != null).keys
+        val request = Request(fallbackId ?: UUID.randomUUID().toString(), id, pkg, baseline, fallbackId != null)
         val ttlMs = remainingMs + LATE_ACCOUNT_GRACE_MS
         val marker = JSONArray().put(pkg).put(JSONArray(baseline)).put(id)
             .put(System.currentTimeMillis() + ttlMs).put(SystemClock.elapsedRealtime() + ttlMs)
+            .put(request.fallback)
         // The authenticator can outlive Plainphone. Record the baseline before starting it.
         check(prefs(context).edit().putString(request.id, marker.toString()).commit())
         try {
@@ -84,31 +89,54 @@ internal object CatalogAccounts {
 
     @Synchronized
     fun complete(context: Context, request: Request): Boolean {
-        val lease = InstallLease.android(context)
-        if (request.fallback) lease.finishCatalogAccounts(request.id)
-        val current = fingerprints(context)
-        reconcile(context, current)
+        try {
+            reconcile(context)
+        } finally {
+            if (request.fallback) InstallLease.android(context).finishCatalogAccounts(request.id)
+        }
+        val current = fingerprints(context, allTypes = request.fallback)
+        val added = if (request.fallback) {
+            recentMarkers(context)[request.id]?.optBoolean(6) == true &&
+                expectedGoogleAddition(request.baseline, current)
+        } else {
+            current.keys.any { it !in request.baseline }
+        }
         prefs(context).edit().remove(request.id).apply()
-        return current.any { it !in request.baseline }
+        return added
     }
 
     @Synchronized
-    private fun accountsUpdated(context: Context) = reconcile(context, fingerprints(context))
+    private fun accountsUpdated(context: Context) = reconcile(context)
 
-    private fun reconcile(context: Context, current: Set<String>) {
-        val additions = recentMarkers(context).filterValues { marker ->
-            val baseline = marker.getJSONArray(1)
-            val seen = (0 until baseline.length()).map(baseline::getString).toSet()
-            current.any { it !in seen }
-        }
-        if (additions.isEmpty()) return
+    private fun reconcile(context: Context) {
+        val markers = recentMarkers(context).filterValues { !it.hasOutcome() }
+        if (markers.isEmpty()) return
+        val current = fingerprints(context, allTypes = markers.values.any { it.optBoolean(5) })
+        val google = current.filterValues { it == GOOGLE }
         val lease = InstallLease.android(context)
-        additions.keys.forEach(lease::finishCatalogAccounts)
-        // Android does not identify the originating sign-in. A matching open request
-        // must not suppress the warning for a matching closed one.
-        if (additions.values.any { !isOpen(context, it.getString(2), it.getString(0)) }) reportLate(context)
-        prefs(context).edit().apply { additions.keys.forEach { remove(it) } }.apply()
+        markers.forEach { (id, marker) ->
+            val baselineJson = marker.getJSONArray(1)
+            val baseline = (0 until baselineJson.length()).map(baselineJson::getString).toSet()
+            if (marker.optBoolean(5)) {
+                if (baseline == current.keys) return@forEach
+                val expected = lease.allowsCatalogAccountChanges(id) && expectedGoogleAddition(baseline, current)
+                lease.finishCatalogAccounts(id)
+                if (!expected) reportUnexpectedChange(context)
+                // Keep the first observed outcome for the authenticator callback.
+                marker.put(6, expected)
+                prefs(context).edit().putString(id, marker.toString()).apply()
+            } else if (google.keys.any { it !in baseline }) {
+                // A matching open request must not suppress the warning for a matching closed one.
+                if (!isOpen(context, marker.getString(2), marker.getString(0))) reportUnexpectedChange(context)
+                prefs(context).edit().remove(id).apply()
+            }
+        }
     }
+
+    private fun JSONArray.hasOutcome() = length() > 6
+
+    private fun expectedGoogleAddition(baseline: Set<String>, current: Map<String, String>): Boolean =
+        current.keys.containsAll(baseline) && (current.keys - baseline).singleOrNull()?.let(current::get) == GOOGLE
 
     private fun recentMarkers(context: Context): Map<String, JSONArray> {
         val p = prefs(context)
@@ -140,13 +168,19 @@ internal object CatalogAccounts {
             !sync.released && !sync.releaseAsked
     }
 
-    private fun reportLate(context: Context) {
+    private fun reportUnexpectedChange(context: Context) {
         StatusNotices(context).record(StatusNotices.LATE_GOOGLE_ACCOUNT)
-        SyncScheduler.now(context, "Google account added after install window")
+        SyncScheduler.now(context, "Unexpected catalog account change")
     }
 
-    private fun fingerprints(context: Context) =
-        AccountManager.get(context).getAccountsByType(GOOGLE).mapTo(mutableSetOf()) { fingerprint(it.name) }
+    private fun fingerprints(context: Context, allTypes: Boolean): Map<String, String> {
+        val manager = AccountManager.get(context)
+        val accounts = if (allTypes) manager.accounts else manager.getAccountsByType(GOOGLE)
+        return accounts.associate { account -> accountFingerprint(account) to account.type }
+    }
+
+    private fun accountFingerprint(account: Account): String =
+        if (account.type == GOOGLE) fingerprint(account.name) else ":" + fingerprint(account.type + "\u0000" + account.name)
 
     private fun fingerprint(name: String): String =
         Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(name.toByteArray()))

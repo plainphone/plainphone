@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.text.InputType
 import android.view.View
@@ -155,7 +156,10 @@ class MaintenanceActivity : Activity() {
         if (installPackage != null) column.addView(fallback)
     }
 
-    private fun addPlayAccount(pkg: String, message: TextView, button: Button, fallback: Button, leaseId: String? = null) {
+    private fun addPlayAccount(
+        pkg: String, message: TextView, button: Button, fallback: Button,
+        leaseId: String? = null, fallbackId: String? = null,
+    ) {
         val app = applicationContext
         fun unavailable() {
             fallback.visibility = View.GONE
@@ -181,24 +185,40 @@ class MaintenanceActivity : Activity() {
             cancelFallbackExpiry()
             checkFallbackExpiry = expiry
             fallback.setOnClickListener {
+                val deadline = SystemClock.elapsedRealtime() + CatalogAccounts.FALLBACK_MS
                 expiry.run()
                 if (fallback.visibility != View.VISIBLE) return@setOnClickListener
                 cancelFallbackExpiry()
                 fallback.visibility = View.GONE
                 button.isEnabled = false
                 message.text = ""
-                addPlayAccount(pkg, message, button, fallback, request.leaseId)
+                Thread {
+                    val lease = InstallLease.android(app)
+                    val armed = runCatching { lease.armCatalogAccounts(request.leaseId, deadline) }
+                    runOnUiThread {
+                        val id = armed.getOrNull()
+                        if (id == null) {
+                            if (!isFinishing && !isDestroyed) unavailable()
+                        } else if (isFinishing || isDestroyed) {
+                            lease.finishCatalogAccounts(id)
+                        } else {
+                            addPlayAccount(pkg, message, button, fallback, request.leaseId, id)
+                        }
+                    }
+                }.start()
             }
             message.setText(R.string.maintenance_install_account_failed)
             fallback.visibility = View.VISIBLE
             expiry.run()
         }
         // The device owner can ask Android to add an account while user account changes stay blocked.
-        val request = runCatching { CatalogAccounts.start(app, pkg, leaseId) }.getOrElse {
+        val request = runCatching { CatalogAccounts.start(app, pkg, leaseId, fallbackId) }.getOrElse {
+            fallbackId?.let { InstallLease.android(app).finishCatalogAccounts(it) }
             unavailable()
             return
         }
         if (request == null) {
+            fallbackId?.let { InstallLease.android(app).finishCatalogAccounts(it) }
             message.setText(R.string.maintenance_install_account_pending)
             button.isEnabled = true
             return

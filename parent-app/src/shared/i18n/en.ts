@@ -413,7 +413,7 @@ export const en = {
   "phone.attPending": "The phone has not provided a system check yet.",
   "phone.callRoleActionNeeded": "Open Plainphone on the phone and tap Allow",
   "phone.parallelAppsRemoved": "Parallel apps have been removed.",
-  "phone.lateGoogleAccount": "A Google account was added after the time window",
+  "phone.lateGoogleAccount": "An unexpected account change was detected during or after app installation",
   "phone.accountTypes": "Accounts on the phone: {types}",
   "phone.attVerified": "System unchanged (checked by the phone's security chip)",
   "phone.attUnlocked": "Another operating system can be installed on this phone. Plainphone cannot guarantee the lock or protect the phone after a reset.",
