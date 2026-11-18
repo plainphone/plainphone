@@ -4,7 +4,8 @@ import type { Messages } from "./en";
 // Typed as Messages: a missing or extra key is a type error.
 const filterSummary = "Blokerer hjemmesider i de kategorier, du vælger, i alle apps.";
 const filterLimits = "Noget indhold slipper igennem, og nyttige sider kan blive blokeret. Hjælpelinjer og udvalgte sider med sundhedsinfo er altid åbne.";
-const changeTiming = "Gælder, næste gang telefonen er online (normalt inden for et minut).";
+const nextOnline = "næste gang telefonen er online (normalt inden for et minut).";
+const changeTiming = `Gælder, ${nextOnline}`;
 
 export const da: Messages = {
   "app.name": "Plainphone",
@@ -87,7 +88,7 @@ export const da: Messages = {
   "profile.child": "Barn",
   "profile.self": "Mig selv",
   "profile.childHelp": `Du og de andre forældre i husstanden bestemmer reglerne. ${changeTiming}`,
-  "profile.selfHelp": `Strammere regler kræver ingen ventetid. Løsere regler venter på din nøgle. ${changeTiming}`,
+  "profile.selfHelp": `Strammere regler gælder, ${nextOnline} Løsere regler venter på din nøgle.`,
 
   "mode.strong": "Stærk tilstand",
   "mode.light": "Let tilstand",
@@ -273,7 +274,7 @@ export const da: Messages = {
   "filter.noneAllowed": "Der er ingen hjemmesider på listen.",
   "filter.noneBlocked": "Der er ingen hjemmesider på listen.",
   "filter.removeLabel": "Fjern {domain}",
-  "filter.notSynced": changeTiming,
+  "filter.notSynced": "De nye regler for webfilteret gælder ikke endnu. Plainphone prøver igen automatisk.",
   "filter.waitingDns": "Webfilteret er ved at blive sat op. Det virker ikke endnu.",
   "filter.technical": "Tekniske detaljer",
   "filter.host": "Telefonens private DNS-adresse",
@@ -731,8 +732,8 @@ export const da: Messages = {
   "phone.rename": "Omdøb",
   "phone.remove": "Fjern telefonen",
   "phone.removeQuestion": "Fjern telefonen?",
-  "phone.removeConfirm": "Alt, hvad der er gemt om telefonen, slettes. Den beholder sin lås og sine sidste regler. Nye regler og webfilteret kræver en ny opsætning.",
-  "phone.removeSelfConfirm": "Fjernelsen venter på din nøgle. Derefter slettes alt, hvad der er gemt om telefonen.",
+  "phone.removeConfirm": "Alt, hvad der er gemt om telefonen, slettes. Dit tilpassede webfilter stopper. Telefonen beholder sin lås og sine øvrige regler. Nye regler kræver en ny opsætning.",
+  "phone.removeSelfConfirm": "Fjernelsen venter på din nøgle. Derefter slettes alt, hvad der er gemt om telefonen, og dit tilpassede webfilter stopper. Telefonen beholder sin lås og sine øvrige regler. Nye regler kræver en ny opsætning.",
   "phone.removeYes": "Ja, fjern",
   "phone.removed": "Telefonen er fjernet.",
   "phone.release": "Frigiv telefonen",
@@ -750,7 +751,7 @@ export const da: Messages = {
   "settings.delete": "Slet min konto",
   "settings.deleteAccount": "Din konto slettes med det samme og kan ikke gendannes.",
   "settings.deleteShared": "Delte husstande og deres telefoner bliver hos de andre forældre.",
-  "settings.deletePhones": "Dine egne husstande og deres telefoner fjernes fra listen. Telefonerne beholder deres lås og sidste regler, men nye regler og webfilter kræver en ny opsætning.",
+  "settings.deletePhones": "Husstande, hvor du er den eneste forælder, og deres gemte telefondata slettes permanent. Dit tilpassede webfilter stopper på de telefoner. De beholder deres lås og øvrige regler. Nye regler kræver en ny opsætning.",
   "settings.deleteConfirmLabel": "Skriv din mailadresse for at bekræfte",
   "settings.deleteYes": "Slet for altid",
   "settings.deleteSelfFirst": "Fjern først disse telefoner. De har en nøgle, så fjernelsen venter på den. Bagefter kan du slette kontoen.",

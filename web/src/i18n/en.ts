@@ -5,7 +5,8 @@
 
 const filterSummary = "Blocks websites in the categories you choose, across all apps.";
 const filterLimits = "Some content can get through, and useful sites can be blocked. Helplines and selected health information sites are always available.";
-const changeTiming = "Takes effect the next time the phone is online (usually within a minute).";
+const nextOnline = "the next time the phone is online (usually within a minute).";
+const changeTiming = `Takes effect ${nextOnline}`;
 
 export const en = {
   "app.name": "Plainphone",
@@ -88,7 +89,7 @@ export const en = {
   "profile.child": "Child",
   "profile.self": "Self",
   "profile.childHelp": `You and the other caregivers in the household set the rules. ${changeTiming}`,
-  "profile.selfHelp": `Stricter rules need no waiting period. Looser rules wait for your key. ${changeTiming}`,
+  "profile.selfHelp": `Stricter rules take effect ${nextOnline} Looser rules wait for your key.`,
 
   "mode.strong": "Strong mode",
   "mode.light": "Light mode",
@@ -287,7 +288,7 @@ export const en = {
   "filter.noneAllowed": "No websites are on this list.",
   "filter.noneBlocked": "No websites are on this list.",
   "filter.removeLabel": "Remove {domain}",
-  "filter.notSynced": changeTiming,
+  "filter.notSynced": "The new web filter rules aren’t active yet. Plainphone will try again automatically.",
   "filter.waitingDns": "The web filter is being set up. It isn’t active yet.",
   "filter.technical": "Technical details",
   "filter.host": "Private DNS address of this phone",
@@ -745,8 +746,8 @@ export const en = {
   "phone.rename": "Rename",
   "phone.remove": "Remove this phone",
   "phone.removeQuestion": "Remove this phone?",
-  "phone.removeConfirm": "Everything saved about the phone is deleted. It keeps its lock and last rules. New rules and the web filter need a new setup.",
-  "phone.removeSelfConfirm": "Removal waits for your key. Then everything saved about the phone is deleted.",
+  "phone.removeConfirm": "Everything saved about the phone is deleted. Your custom web filter stops. The phone keeps its lock and other rules. New rules need a new setup.",
+  "phone.removeSelfConfirm": "Removal waits for your key. Then everything saved about the phone is deleted and your custom web filter stops. The phone keeps its lock and other rules. New rules need a new setup.",
   "phone.removeYes": "Yes, remove",
   "phone.removed": "The phone was removed.",
   "phone.release": "Release the phone",
@@ -764,7 +765,7 @@ export const en = {
   "settings.delete": "Delete my account",
   "settings.deleteAccount": "Your account is deleted immediately and can’t be recovered.",
   "settings.deleteShared": "Shared households and their phones stay with the other caregivers.",
-  "settings.deletePhones": "Households you manage alone and their phones are removed from the list. Those phones keep their locks and last rules. New rules and web filtering need a new setup.",
+  "settings.deletePhones": "Any households where you’re the only caregiver and their saved phone data are permanently deleted. Your custom web filter stops on those phones. They keep their locks and other rules. New rules need a new setup.",
   "settings.deleteConfirmLabel": "Type your email address to confirm",
   "settings.deleteYes": "Delete for good",
   "settings.deleteSelfFirst": "First remove these phones. They have a key, so removing them waits for it. Then you can delete the account.",

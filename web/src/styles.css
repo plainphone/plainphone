@@ -1024,36 +1024,6 @@ input[type="radio"] {
   box-shadow: none;
 }
 
-.pay:disabled,
-.pay {
-  padding: 1rem;
-}
-
-.pay legend {
-  float: left;
-  width: 100%;
-  margin-bottom: 0.75rem;
-}
-
-.pay > * + * {
-  margin-top: 0.75rem;
-}
-
-.pay-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
-  gap: 1rem;
-}
-
-.pay .check {
-  opacity: 0.75;
-}
-
-.pay input[readonly],
-.pay select:disabled {
-  background: var(--bg);
-}
-
 details.details {
   margin-top: 2rem;
   color: var(--muted);
