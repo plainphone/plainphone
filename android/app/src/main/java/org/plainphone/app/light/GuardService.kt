@@ -93,6 +93,7 @@ class GuardService : AccessibilityService() {
             // Settings can swap fragments without changing windows.
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
                 if (pkg == foreground && guardsSettings(pkg)) scheduleSettingsCheck()
+            else -> Unit
         }
     }
 

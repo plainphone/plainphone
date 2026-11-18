@@ -8,3 +8,5 @@ section 4(d) of the Apache License, Version 2.0.
 
 "Plainphone" and the Plainphone logo are trademarks of Mahope.
 See TRADEMARK.md for how the name may be used.
+
+Android includes Project Nayuki's QR Code generator v1.8.0 (MIT), https://www.nayuki.io/page/qr-code-generator-library.

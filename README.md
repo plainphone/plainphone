@@ -101,6 +101,8 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
+
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
 ### Signing

@@ -59,6 +59,15 @@ android {
 
     sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
 
+    androidResources {
+        localeFilters += listOf("en", "da")
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     buildFeatures {
         compose = true
     }
@@ -89,9 +98,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.13.0")
-    // Phase 4: rule sync in the background, and the pairing QR code (Apache-2.0, no network or Play services).
+    // Phase 4: rule sync in the background.
     implementation("androidx.work:work-runtime:2.12.0")
-    implementation("com.google.zxing:core:3.5.4")
 
     implementation("com.google.crypto.tink:tink-android:1.24.0")
     implementation("com.google.code.gson:gson:2.13.2")
