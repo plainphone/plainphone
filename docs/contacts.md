@@ -4,6 +4,14 @@ Plainphone is the phone's default **phone app** and **SMS app**. Calls and text 
 
 This page describes how that is built, where Android sets the limits, and what is not covered yet.
 
+## Existing history
+
+The Calls and Messages tabs read the Android system providers on the phone. Calls
+and SMS can be browsed in pages, including entries from previous default apps
+that still exist in the providers. Opening an SMS conversation loads its newest
+messages first. Existing MMS and group MMS are listed as read-only placeholders.
+Conversations and call entries for numbers the child cannot contact are read-only.
+
 ## How it works
 
 | Piece | Android API | What it does |
@@ -63,7 +71,7 @@ Blocked calls and messages are logged on the phone (newest 100): time, call or m
 
 ## Not covered yet
 
-- **MMS and group messages** are dropped, also from approved contacts. Downloading MMS needs the carrier's MMSC settings and a PDU parser; that comes later. The messages screen says so.
+- **New MMS and group messages** are dropped, also from approved contacts. Downloading MMS needs the carrier's MMSC settings and a PDU parser; that comes later. The messages screen says so.
 - **RCS (chat features).** RCS needs Google Messages as the default SMS app. With Plainphone as the SMS app, RCS is off and messages fall back to SMS. Senders using RCS see that the phone "only supports SMS".
 - **Messenger apps.** WhatsApp, Signal, Messenger, Snapchat and similar apps have their own calls and chats. No Android API lets a third party filter them. They are not on the allowlist by default, and allowing one of them is a separate choice. The contacts screen says this plainly.
 - **Voicemail.** The carrier's voicemail number is a normal number and must be added as a contact to be callable. Visual voicemail is not handled.

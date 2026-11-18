@@ -37,6 +37,8 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | ClientIDs the DNS filter must forget | until the DNS service confirms the delete | `dns_deletions`, sweeper |
 | Database backups | 30 nightly copies on the hosted service; the sample `compose.yaml` keeps 14 daily and 8 weekly | Dokploy backup (hosted), `backup` service in `compose.yaml` |
 
+The Android call log and SMS/MMS history stay on the phone.
+
 Notifications go to the browser's push service (Google FCM, Apple, Mozilla or
 Microsoft; only these hosts are accepted). The payload is encrypted for the
 device (RFC 8291) and signed with our VAPID key (RFC 8292), so the push service

@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -219,7 +218,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val rules by produceState(initialValue = ContactRules(false, emptyList(), null), resumed) {
+    val rules by produceState(initialValue = ContactRules(true, emptyList(), null), resumed) {
         value = withContext(Dispatchers.IO) { ContactPolicySources.get(context).rules() }
     }
     val call: (String) -> Unit = { number ->
@@ -227,6 +226,11 @@ private fun PhoneApp(route: Route, resumed: Int) {
     }
 
     val open = conversationWith
+    val showHistory = tab == Tab.MESSAGES || open != null
+    val changes by SmsStore.changes.collectAsState()
+    val history by produceState<Map<SmsThread, List<SmsMessage>>?>(null, showHistory, resumed, changes) {
+        if (showHistory) value = withContext(Dispatchers.IO) { SmsStore.history(context) }
+    }
     if (open != null) {
         BackHandler { conversationWith = null }
         val destination = if (route.tab == Tab.MESSAGES && route.number == open.number && route.threadKind == null &&
@@ -240,6 +244,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
         key(thread) {
             ConversationScreen(
                 contact = contact,
+                history = history?.get(thread).orEmpty(),
                 thread = thread,
                 initialDraft = route.body.takeIf { route.number == open.number }.orEmpty(),
                 onBack = { conversationWith = null },
@@ -273,7 +278,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
             when (tab) {
                 Tab.CONTACTS -> ContactsScreen(rules, onCall = call, onMessage = { conversationWith = SmsThread(it.number) })
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)
-                Tab.MESSAGES -> ConversationsScreen(resumed, onOpen = { conversationWith = it })
+                Tab.MESSAGES -> ConversationsScreen(rules, history, onOpen = { conversationWith = it })
                 Tab.KEYPAD -> KeypadScreen(initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(), onCall = call)
             }
         }
@@ -356,14 +361,17 @@ private fun RecentsScreen(rules: ContactRules, resumed: Int, onCall: (String) ->
     val calls by produceState<List<RecentCall>?>(null, resumed) {
         value = withContext(Dispatchers.IO) { readRecentCalls(context) }
     }
+    var visible by remember(resumed) { mutableIntStateOf(HISTORY_PAGE_SIZE) }
     val list = calls ?: return
     if (list.isEmpty()) {
         EmptyState(stringResource(R.string.recents_empty))
         return
     }
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(list) { r ->
-            val name = rules.contactFor(r.number)?.name ?: r.number
+        items(list.take(visible)) { r ->
+            val canCall = r.number.isNotBlank() && context.contactPolicy()
+                .decide(rules, Channel.CALL, Direction.OUTGOING, r.number).allowed
+            val name = rules.contactFor(r.number)?.name ?: r.number.ifBlank { stringResource(R.string.history_unknown) }
             val kind = when (r.type) {
                 CallLog.Calls.INCOMING_TYPE -> R.string.recent_incoming
                 CallLog.Calls.OUTGOING_TYPE -> R.string.recent_outgoing
@@ -371,7 +379,7 @@ private fun RecentsScreen(rules: ContactRules, resumed: Int, onCall: (String) ->
                 else -> R.string.recent_other
             }
             Row(
-                Modifier.fillMaxWidth().clickable { onCall(r.number) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().then(if (canCall) Modifier.clickable { onCall(r.number) } else Modifier).padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Initial(name, 40.dp)
@@ -387,9 +395,14 @@ private fun RecentsScreen(rules: ContactRules, resumed: Int, onCall: (String) ->
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.action_call, name), tint = MaterialTheme.colorScheme.primary)
+                if (canCall) {
+                    Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.action_call, name), tint = MaterialTheme.colorScheme.primary)
+                } else {
+                    Text(stringResource(R.string.history_read_only), style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
+        if (visible < list.size) item { MoreHistory { visible += HISTORY_PAGE_SIZE } }
     }
 }
 
@@ -400,7 +413,7 @@ private fun readRecentCalls(context: Context): List<RecentCall> {
         context.contentResolver.query(
             CallLog.Calls.CONTENT_URI,
             arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.TYPE, CallLog.Calls.DATE),
-            null, null, "${CallLog.Calls.DATE} DESC LIMIT 100",
+            null, null, "${CallLog.Calls.DATE} DESC",
         )?.use { c ->
             while (c.moveToNext()) out += RecentCall(c.getString(0).orEmpty(), c.getInt(1), c.getLong(2))
         }
@@ -408,46 +421,62 @@ private fun readRecentCalls(context: Context): List<RecentCall> {
     return out
 }
 
+private const val HISTORY_PAGE_SIZE = 50
+
 @Composable
-private fun ConversationsScreen(resumed: Int, onOpen: (SmsThread) -> Unit) {
-    val context = LocalContext.current
-    val changes by SmsStore.changes.collectAsState()
-    val conversations by produceState<List<org.plainphone.app.telephony.Conversation>?>(null, resumed, changes) {
-        value = withContext(Dispatchers.IO) { SmsStore.conversations(context) }
+private fun MoreHistory(onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.history_load_older))
     }
-    val list = conversations ?: return
-    if (list.isEmpty()) {
+}
+
+@Composable
+private fun historyTitle(thread: SmsThread, contact: ApprovedContact?): String = when {
+    thread.kind == SmsThreadKind.MMS -> stringResource(R.string.history_mms)
+    contact != null -> contact.name
+    else -> thread.number.ifBlank { stringResource(R.string.history_unknown) }
+}
+
+@Composable
+private fun ConversationsScreen(
+    rules: ContactRules,
+    history: Map<SmsThread, List<SmsMessage>>?,
+    onOpen: (SmsThread) -> Unit,
+) {
+    var visible by remember { mutableIntStateOf(HISTORY_PAGE_SIZE) }
+    val index = history ?: return
+    if (index.isEmpty()) {
         EmptyState(stringResource(R.string.messages_empty))
         return
     }
     LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(list, key = { "${it.thread.kind}:${it.thread.number}" }) { conv ->
+        items(index.entries.take(visible), key = { "${it.key.kind}:${it.key.number}" }) { (thread, messages) ->
+            val contact = thread.contact(rules)
+            val title = historyTitle(thread, contact)
+            val last = messages.first()
             Row(
-                Modifier.fillMaxWidth().clickable { onOpen(conv.thread) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().clickable { onOpen(thread) }.padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Initial(conv.contact.name)
+                Initial(title)
                 Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
                     Text(
-                        conv.contact.name,
+                        title,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = if (conv.unread > 0) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (messages.any { !it.outgoing && !it.read }) FontWeight.Bold else FontWeight.Normal,
                     )
-                    Text(
-                        conv.last.body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (contact == null || thread.kind == SmsThreadKind.LEGACY) {
+                        Text(stringResource(R.string.history_read_only), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
                 Text(
-                    DateUtils.getRelativeTimeSpanString(conv.last.atMs).toString(),
+                    DateUtils.getRelativeTimeSpanString(last.atMs).toString(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+        if (visible < index.size) item { MoreHistory { visible += HISTORY_PAGE_SIZE } }
         item { Footnote(stringResource(R.string.messages_footnote)) }
     }
 }
@@ -456,6 +485,7 @@ private fun ConversationsScreen(resumed: Int, onOpen: (SmsThread) -> Unit) {
 @Composable
 private fun ConversationScreen(
     contact: ApprovedContact?,
+    history: List<SmsMessage>,
     thread: SmsThread,
     initialDraft: String,
     onBack: () -> Unit,
@@ -463,25 +493,30 @@ private fun ConversationScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val changes by SmsStore.changes.collectAsState()
     var draft by remember(thread) { mutableStateOf(initialDraft) }
     var error by remember { mutableStateOf<String?>(null) }
     val sendFailed = stringResource(R.string.message_send_failed)
-    val messages by produceState<List<SmsMessage>>(emptyList(), contact, thread, changes) {
-        value = if (contact == null) emptyList() else withContext(Dispatchers.IO) {
-            SmsStore.thread(context, thread).also {
-                SmsStore.markRead(context, it)
-                if (thread.kind != SmsThreadKind.LEGACY) CallNotifications.cancelMessage(context, thread)
-            }
+    var visible by remember(thread) { mutableIntStateOf(HISTORY_PAGE_SIZE) }
+    var messages by remember(thread) { mutableStateOf(emptyList<SmsMessage>()) }
+    var loadedHistory by remember(thread) { mutableStateOf<List<SmsMessage>?>(null) }
+    LaunchedEffect(history, visible) {
+        val shown = history.take(visible)
+        val existing = if (loadedHistory == history) messages else emptyList()
+        val next = withContext(Dispatchers.IO) {
+            shown.drop(existing.size).chunked(HISTORY_PAGE_SIZE).flatMap { SmsStore.bodies(context, it) }
+        }
+        messages = existing + next
+        loadedHistory = history
+        if (thread.kind != SmsThreadKind.MMS && next.isNotEmpty()) withContext(Dispatchers.IO) {
+            SmsStore.markRead(context, next)
+            if (thread.kind != SmsThreadKind.LEGACY) CallNotifications.cancelMessage(context, thread)
         }
     }
-    val listState = rememberLazyListState()
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(contact?.name ?: thread.number, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(historyTitle(thread, contact), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -498,19 +533,19 @@ private fun ConversationScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().imePadding()) {
-            if (contact == null) {
-                Box(Modifier.weight(1f)) { EmptyState(stringResource(R.string.message_not_approved, thread.number)) }
-                return@Column
-            }
             LazyColumn(
-                state = listState,
+                reverseLayout = true,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(messages, key = { it.id }) { Bubble(it) }
+                if (visible < history.size) item { MoreHistory { visible += HISTORY_PAGE_SIZE } }
             }
-            if (thread.kind == SmsThreadKind.LEGACY) return@Column
+            if (contact == null || thread.kind == SmsThreadKind.LEGACY) {
+                Footnote(stringResource(R.string.history_read_only))
+                return@Column
+            }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
             }
@@ -555,7 +590,7 @@ private fun Bubble(m: SmsMessage) {
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                MessageBody(m.body)
+                if (m.id < 0) Text(stringResource(R.string.history_mms_placeholder)) else MessageBody(m.body)
                 Text(
                     if (m.failed) stringResource(R.string.message_failed) else DateUtils.getRelativeTimeSpanString(m.atMs).toString(),
                     style = MaterialTheme.typography.labelSmall,

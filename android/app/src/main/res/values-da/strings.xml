@@ -72,7 +72,12 @@
     <string name="recent_missed">Ubesvaret</string>
     <string name="recent_other">Opkald</string>
     <string name="messages_empty">Ingen beskeder endnu.</string>
-    <string name="messages_footnote">Beskeder fra personer, der ikke er godkendt, vises ikke. Billed- og gruppebeskeder (MMS) understøttes ikke endnu.</string>
+    <string name="messages_footnote">Nogle samtaler kan kun læses. Eksisterende billed- og gruppebeskeder vises uden indhold.</string>
+    <string name="history_read_only">Kan kun læses</string>
+    <string name="history_load_older">Vis ældre</string>
+    <string name="history_unknown">Ukendt nummer</string>
+    <string name="history_mms">Billed- eller gruppesamtale</string>
+    <string name="history_mms_placeholder">Billed- eller gruppebesked. Indholdet kan ikke vises.</string>
     <string name="message_hint">Besked</string>
     <string name="message_failed">Ikke sendt</string>
     <string name="message_send_failed">Beskeden kunne ikke sendes.</string>

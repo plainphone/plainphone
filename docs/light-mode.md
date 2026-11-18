@@ -12,7 +12,9 @@ normally it runs in light mode. The mode follows from what Android granted
 light mode by mistake.
 
 Why not a build flavor: a second APK doubles the releases, the signing and the testing, and the
-two modes share almost all code (rules, contacts, time limits, sync). A Play build later will
+two modes share almost all code (rules, contacts, time limits, sync). The Calls and
+Messages tabs show history from Android once the required roles and permissions
+are granted. A Play build later will
 be a flavor that leaves out what Play does not accept in a consumer app (see the table below);
 the code is already split so that is a build setting, not a rewrite.
 

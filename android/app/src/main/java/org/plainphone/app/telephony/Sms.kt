@@ -41,21 +41,21 @@ data class SmsMessage(
     val sent: Boolean = false,
 )
 
-enum class SmsThreadKind { CONTACT, HELP, LEGACY }
+enum class SmsThreadKind { CONTACT, HELP, LEGACY, MMS }
 
 data class SmsThread(val number: String, val kind: SmsThreadKind = SmsThreadKind.CONTACT) {
     fun contact(rules: ContactRules): ApprovedContact? = when (kind) {
         SmsThreadKind.CONTACT -> rules.contactFor(number)
         SmsThreadKind.HELP -> rules.helpContact(number, Channel.SMS)
         SmsThreadKind.LEGACY -> rules.replyHelpContact(number, Channel.SMS)?.let { ApprovedContact(it.number, it.number) }
+        SmsThreadKind.MMS -> null
     }
 }
-
-data class Conversation(val thread: SmsThread, val contact: ApprovedContact, val last: SmsMessage, val unread: Int)
 
 internal fun smsThreads(
     messages: List<SmsMessage>, rules: ContactRules, helpReplyIds: Set<String>, legacyThrough: Long,
     ordinaryOutgoingIds: Set<String> = emptySet(),
+    includeHistory: Boolean = false,
 ): List<Pair<SmsThread, SmsMessage>> {
     val firstLegacySend = messages.asSequence()
         .filter { it.sent && it.id <= legacyThrough }
@@ -74,6 +74,9 @@ internal fun smsThreads(
             help != null && message.id <= legacyThrough &&
                 message.id > (firstLegacySend[help.number] ?: Long.MAX_VALUE) ->
                 SmsThread(help.number, SmsThreadKind.LEGACY)
+            includeHistory -> SmsThread(
+                org.plainphone.app.contacts.PhoneNumbers.normalize(message.number, rules.country) ?: message.number,
+            )
             else -> null
         }
         thread?.let { it to message }
@@ -93,7 +96,7 @@ object SmsStore {
         _changes.value++
     }
 
-    private const val RECENT_LIMIT = 2000
+    private const val TRACKED_IDS_LIMIT = 2000
     private const val HELP_REPLY_IDS = "help_reply_ids"
 
     private const val ORDINARY_OUTGOING_IDS = "ordinary_outgoing_ids"
@@ -116,60 +119,81 @@ object SmsStore {
         return if (prefs.edit().putLong(LEGACY_THROUGH, lastId).commit()) lastId else 0L
     }
 
-    private fun classified(context: Context, rules: ContactRules): List<Pair<SmsThread, SmsMessage>> {
-        val cutoff = legacyThrough(context)
-        return smsThreads(
-            recent(context), rules, helpReplyIds(context), cutoff,
+    /** Index sender and date without reading bodies until a page is displayed. */
+    fun history(context: Context): Map<SmsThread, List<SmsMessage>> {
+        val rules = ContactPolicySources.get(context).rules()
+        val messages = readSms(context)
+        val threads = smsThreads(
+            messages, rules, helpReplyIds(context), legacyThrough(context),
             preferences(context).getStringSet(ORDINARY_OUTGOING_IDS, emptySet()).orEmpty(),
+            includeHistory = true,
         )
+        return (threads + readMms(context))
+            .sortedWith(compareByDescending<Pair<SmsThread, SmsMessage>> { it.second.atMs }.thenByDescending { it.second.id })
+            .groupBy({ it.first }, { it.second })
     }
 
-    /** The newest messages, newest first. Only approved contacts are shown in the UI, see [conversations]. */
-    fun recent(context: Context): List<SmsMessage> {
-        val out = mutableListOf<SmsMessage>()
-        val projection = arrayOf(
-            Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
-            Telephony.Sms.TYPE, Telephony.Sms.READ,
-        )
+    /** Load only the bodies wanted on screen. MMS rows carry no SMS provider IDs. */
+    fun bodies(context: Context, messages: List<SmsMessage>): List<SmsMessage> {
+        val ids = messages.filter { it.id > 0 }.map { it.id.toString() }
+        if (ids.isEmpty()) return messages
+        val bodies = mutableMapOf<Long, String>()
         runCatching {
             context.contentResolver.query(
-                Telephony.Sms.CONTENT_URI, projection, null, null, "${Telephony.Sms.DATE} DESC LIMIT $RECENT_LIMIT",
-            )?.use { c ->
-                while (c.moveToNext()) {
-                    val type = c.getInt(4)
+                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY),
+                "${Telephony.Sms._ID} IN (${ids.joinToString(",") { "?" }})", ids.toTypedArray(), null,
+            )?.use { cursor ->
+                while (cursor.moveToNext()) bodies[cursor.getLong(0)] = cursor.getString(1).orEmpty()
+            }
+        }.onFailure { Log.w(TAG, "cannot read SMS bodies") }
+        return messages.map { message -> message.copy(body = bodies[message.id] ?: message.body) }
+    }
+
+    private fun readSms(context: Context): List<SmsMessage> {
+        val out = mutableListOf<SmsMessage>()
+        val projection = arrayOf(
+            Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.TYPE, Telephony.Sms.READ,
+        )
+        runCatching {
+            context.contentResolver.query(Telephony.Sms.CONTENT_URI, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val type = cursor.getInt(3)
                     out += SmsMessage(
-                        id = c.getLong(0),
-                        number = c.getString(1).orEmpty(),
-                        body = c.getString(2).orEmpty(),
-                        atMs = c.getLong(3),
+                        id = cursor.getLong(0),
+                        number = cursor.getString(1).orEmpty(),
+                        body = "",
+                        atMs = cursor.getLong(2),
                         outgoing = type != Telephony.Sms.MESSAGE_TYPE_INBOX,
                         failed = type == Telephony.Sms.MESSAGE_TYPE_FAILED,
-                        read = c.getInt(5) != 0,
+                        read = cursor.getInt(4) != 0,
                         sent = type == Telephony.Sms.MESSAGE_TYPE_SENT,
                     )
                 }
             }
-        }.onFailure { Log.w(TAG, "cannot read SMS", it) }
+        }.onFailure { Log.w(TAG, "cannot read SMS history") }
         return out
     }
 
-    /** One conversation per approved contact that has messages, newest first. Other senders stay hidden. */
-    fun conversations(context: Context): List<Conversation> {
-        val rules = ContactPolicySources.get(context).rules()
-        return classified(context, rules)
-            .groupBy({ it.first }, { it.second })
-            .mapNotNull { (thread, messages) ->
-                thread.contact(rules)?.let { contact ->
-                    Conversation(thread, contact, messages.first(), messages.count { !it.outgoing && !it.read })
+    private fun readMms(context: Context): List<Pair<SmsThread, SmsMessage>> {
+        val projection = arrayOf(Telephony.Mms._ID, Telephony.Mms.THREAD_ID, Telephony.Mms.DATE, Telephony.Mms.MESSAGE_BOX)
+        val out = mutableListOf<Pair<SmsThread, SmsMessage>>()
+        runCatching {
+            context.contentResolver.query(Telephony.Mms.CONTENT_URI, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val thread = SmsThread(cursor.getLong(1).toString(), SmsThreadKind.MMS)
+                    out += thread to SmsMessage(
+                        id = -cursor.getLong(0),
+                        number = "",
+                        body = "",
+                        atMs = cursor.getLong(2) * 1000,
+                        outgoing = cursor.getInt(3) != Telephony.Mms.MESSAGE_BOX_INBOX,
+                        failed = cursor.getInt(3) == Telephony.Mms.MESSAGE_BOX_FAILED,
+                        read = true,
+                    )
                 }
             }
-            .sortedByDescending { it.last.atMs }
-    }
-
-    /** Messages belonging to the same sender identity, oldest first. */
-    fun thread(context: Context, thread: SmsThread): List<SmsMessage> {
-        val rules = ContactPolicySources.get(context).rules()
-        return classified(context, rules).mapNotNull { (key, message) -> message.takeIf { key == thread } }.reversed()
+        }.onFailure { Log.w(TAG, "cannot read MMS history") }
+        return out
     }
 
     fun markRead(context: Context, messages: List<SmsMessage>) {
@@ -211,7 +235,7 @@ object SmsStore {
     private fun rememberId(context: Context, key: String, id: Long) {
         val prefs = preferences(context)
         val ids = (prefs.getStringSet(key, emptySet()).orEmpty().mapNotNull(String::toLongOrNull) + id)
-            .sortedDescending().take(RECENT_LIMIT).map(Long::toString).toSet()
+            .sortedDescending().take(TRACKED_IDS_LIMIT).map(Long::toString).toSet()
         prefs.edit().putStringSet(key, ids).apply()
     }
 
