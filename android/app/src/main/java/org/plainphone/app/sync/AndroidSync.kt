@@ -123,9 +123,9 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 internal const val PRECISE_ACCURACY_METERS = 100f
 
 /**
- * One position via the platform's location service. The platform "fused" provider is used when
- * the phone has one (on phones with Google Play services it is backed by Google's fused location),
- * otherwise GPS or the network provider. No Play services library: the app stays free of it.
+ * One position via the platform's location service, without a Play services library.
+ * Precise lookups give fused a 15-second head start, then also listen to GPS and network
+ * if more time is available. Coarse lookups use fused alone when enabled.
  */
 class LocationReader(private val context: Context) {
 
@@ -140,12 +140,14 @@ class LocationReader(private val context: Context) {
         val deadline = startedAt + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, LOCATION_LOOKUP_BUDGET_MS))
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         if (!lm.isLocationEnabled) return null
-        val enabled = lm.allProviders.filter(lm::isProviderEnabled)
-        val providers = when {
-            precise -> listOf(FUSED, LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            FUSED in enabled -> listOf(FUSED)
-            else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
-        }.filter { it in enabled }
+        val providers by lazy(LazyThreadSafetyMode.NONE) {
+            val enabled = lm.allProviders.filter(lm::isProviderEnabled)
+            when {
+                precise -> listOf(FUSED, LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+                FUSED in enabled -> listOf(FUSED)
+                else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
+            }.filter { it in enabled }
+        }
         val maxAge = TimeUnit.MINUTES.toNanos(if (precise) 2 else 10)
         val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
         if (!fresh) {

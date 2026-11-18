@@ -12,6 +12,8 @@ import com.google.common.truth.Truth.assertThat
 import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -132,11 +134,20 @@ class LocationReaderTest {
             val beforeFallback = started + TimeUnit.SECONDS.toNanos(14)
             TimeUnit.NANOSECONDS.sleep(beforeFallback - System.nanoTime())
             awaitRequests(gps, network, timeoutSeconds = 3)
-            assertThat(manager.getLocationRequests(gps).single().durationMillis).isAtMost(15_000L)
-            assertThat(manager.getLocationRequests(network).single().durationMillis).isAtMost(15_000L)
+            for (provider in listOf(gps, network)) {
+                val remainingBudget = manager.getLocationRequests(provider).single().durationMillis
+                // The request duration is computed at registration. Leave 500 ms for scheduling.
+                assertThat(remainingBudget).isAtLeast(14_500L)
+                assertThat(remainingBudget).isAtMost(15_000L)
+            }
             assertThat(manager.getLocationRequests(fused)).hasSize(1)
             manager.simulateLocation(fix(gps, 150f))
             manager.simulateLocation(fix(network, 200f))
+            val beforeDeadline = started + TimeUnit.SECONDS.toNanos(29)
+            assertThrows(TimeoutException::class.java) {
+                result.get(beforeDeadline - System.nanoTime(), TimeUnit.NANOSECONDS)
+            }
+            assertThat(manager.getLocationRequests(fused)).hasSize(1)
             assertThat(result.get(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)?.accuracyM)
                 .isEqualTo(150f)
             assertThat(manager.getLocationRequests(fused)).isEmpty()
