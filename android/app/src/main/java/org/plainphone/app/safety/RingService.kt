@@ -57,7 +57,6 @@ class RingService : Service() {
         val stopOnAnswer = intent.getBooleanExtra(EXTRA_STOP_ON_ANSWER, true)
         val answered = SafetyStore(this).ringAnswered(id)
         val current = _state.value
-        Safety.createChannels(this)
         if (!startInForeground(id)) return START_NOT_STICKY
         if (current?.id != id) {
             _state.value = RingUi(id, endsAt, stopOnAnswer, answered)

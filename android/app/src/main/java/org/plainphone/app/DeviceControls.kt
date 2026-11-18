@@ -96,7 +96,9 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
      * The apps a calm phone needs, resolved per device so Samsung, Xiaomi and
      * Pixel all keep their own dialer, messages, camera and clock.
      */
-    override fun corePackages(): Set<String> {
+    override fun corePackages() = corePackages(dynamicCorePackages())
+
+    internal fun corePackages(dynamicCore: Set<String>): Set<String> {
         val intents = listOf(
             Intent(Intent.ACTION_DIAL),
             Intent(MediaStore.ACTION_IMAGE_CAPTURE),
@@ -114,11 +116,15 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
         // Messages: apps that can really be the SMS app (the default may not be set yet during setup).
         // Not every `smsto:` handler, which would keep WhatsApp and other messengers visible.
         found += smsDeliverReceivers()
-        Telephony.Sms.getDefaultSmsPackage(context)?.let(found::add)
+        found += dynamicCore
+        return found
+    }
+
+    internal fun dynamicCorePackages(): Set<String> = buildSet {
+        Telephony.Sms.getDefaultSmsPackage(context)?.let(::add)
         context.getSystemService(InputMethodManager::class.java)
             ?.enabledInputMethodList
-            ?.mapTo(found) { it.packageName }
-        return found
+            ?.mapTo(this) { it.packageName }
     }
 
     override fun isInstalled(pkg: String): Boolean = runCatching {

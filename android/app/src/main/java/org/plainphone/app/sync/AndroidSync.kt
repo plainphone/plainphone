@@ -47,7 +47,7 @@ import org.plainphone.app.update.SelfUpdate
 object Sync {
     fun runner(context: Context): SyncRunner {
         val app = context.applicationContext
-        return SyncRunner(SyncStore(app), PlainphoneApi(ConfigStore(app).load().serverUrl), AndroidSyncDevice(app))
+        return SyncRunner(SyncStore(app), PlainphoneApi(ConfigStore(app).load().serverUrl, app), AndroidSyncDevice(app))
     }
 }
 
@@ -58,10 +58,16 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun appVersion(): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 
-    override fun installedApps(): List<InstalledApp> {
+    override fun dynamicCorePackages() = AndroidDeviceControls(context).dynamicCorePackages()
+
+    override fun installedApps(dynamicCore: Set<String>): List<InstalledApp> {
         val pm = context.packageManager
         val controls = AndroidDeviceControls(context)
-        val core = controls.corePackages()
+        val core = controls.corePackages(dynamicCore)
+        val telephony = controls.telephonyApps()
+        // The maker's phone and SMS apps are never reported as core: Plainphone hides them
+        // regardless of dashboard rules so it can enforce approved contacts.
+        val makerTelephony = (telephony.dialers + telephony.smsApps).filterNot { it == telephony.systemDialer }.toSet()
         // Hidden apps do not show up in the launcher query; add the ones Plainphone hid.
         val packages = controls.launchablePackages() + PrefsHiddenAppsStore(context).load().filter(controls::isInstalled)
         return packages.filter { it != context.packageName }.map { pkg ->
@@ -69,17 +75,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
                 val info = Compat.applicationInfo(pm, pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES)
                 pm.getApplicationLabel(info).toString()
             }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: pkg
-            InstalledApp(pkg, label, core = pkg in core && !isMakerTelephonyApp(pkg))
+            InstalledApp(pkg, label, core = pkg in core && pkg !in makerTelephony)
         }
-    }
-
-    /**
-     * The maker's phone and SMS apps are never reported as core: Plainphone hides them whatever
-     * the dashboard says (approved contacts), and the parent should see them as hidden.
-     */
-    private fun isMakerTelephonyApp(pkg: String): Boolean {
-        val apps = AndroidDeviceControls(context).telephonyApps()
-        return pkg != apps.systemDialer && (pkg in apps.dialers || pkg in apps.smsApps)
     }
 
     override fun applyLockIfNeeded(reason: String, maxAgeMs: Long) {
@@ -389,7 +386,7 @@ object SyncScheduler {
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
     fun ensurePeriodic(context: Context) {
-        if (!SyncStore(context).isPaired) return
+        if (!SyncStore(context).hasStoredPairing) return
         org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(network)
@@ -399,7 +396,7 @@ object SyncScheduler {
     }
 
     fun now(context: Context, reason: String) {
-        if (!SyncStore(context).isPaired) return
+        if (!SyncStore(context).hasStoredPairing) return
         org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)

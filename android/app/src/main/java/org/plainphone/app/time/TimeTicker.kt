@@ -11,6 +11,7 @@ import android.os.Looper
 import org.plainphone.app.Lock
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.isInteractive
 
 /**
  * Strong mode: while the screen is on, look at the time limits every minute and suspend an app as
@@ -48,6 +49,8 @@ object TimeTicker {
                 addAction(Intent.ACTION_SCREEN_OFF)
             },
         )
-        main.postDelayed(tick, EVERY_MS)
+        if (isInteractive(context)) {
+            main.postDelayed(tick, EVERY_MS)
+        }
     }
 }

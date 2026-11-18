@@ -5,6 +5,22 @@ How the Plainphone app on the phone talks to the server. The full contract is
 gives a small Kotlin client to start from. A test checks that `openapi.yaml` lists exactly the
 routes the server has.
 
+## Connection recovery
+
+The Android sync client reuses HTTP connections. After an eligible I/O failure, it can retry
+once through a fresh Android network connection pool with `Connection: close`. Connection
+setup failures and timeouts surface immediately, using the usual request deadlines.
+`HttpURLConnection` does not expose whether the failed request used an idle pooled socket,
+so a new socket that drops mid-exchange can also trigger the recovery.
+
+Ordinary GETs, safety events, release acknowledgements, and Find or check-in location uploads
+can use this retry. Safety events only notify on the first recorded answer. Release is
+transactional and a repeated acknowledgement can return 401, which the phone already accepts.
+Find and check-in uploads replay the original fix and purpose; the server checks the matching
+request and can return 409 if it already consumed the upload. Enrollment rotates the device
+token on redemption, pairing creation allocates a new pairing, and a completed pairing poll
+returns the token only once. Those operations never use the immediate retry.
+
 ## Flow
 
 ```

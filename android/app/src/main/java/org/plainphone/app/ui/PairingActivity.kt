@@ -96,7 +96,7 @@ class PairingActivity : ComponentActivity() {
             val version = app.packageManager.getPackageInfo(app.packageName, 0).versionName ?: "?"
             return PairingController(
                 SyncStore(app),
-                PlainphoneApi(ConfigStore(app).load().serverUrl),
+                PlainphoneApi(ConfigStore(app).load().serverUrl, app),
                 System::currentTimeMillis,
                 mapOf(
                     "manufacturer" to Build.MANUFACTURER.take(200),

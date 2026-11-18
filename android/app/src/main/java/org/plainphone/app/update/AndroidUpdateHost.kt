@@ -48,28 +48,37 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         return !metered || charging
     }
 
-    override fun fetchLatest(): ReleaseInfo? {
-        val conn = open("$serverUrl/download/android/latest.json", followRedirects = false)
+    override fun fetchLatest(): ReleaseInfo? =
+        fetchLatest(open("$serverUrl/download/android/latest.json", followRedirects = false))
+
+    internal fun fetchLatest(conn: HttpURLConnection): ReleaseInfo? {
         try {
             conn.setRequestProperty("Accept", "application/json")
             return when (val status = conn.responseCode) {
-                200 -> ReleaseInfo.parse(conn.inputStream.use { stream ->
-                    val out = java.io.ByteArrayOutputStream()
-                    val buffer = ByteArray(1024)
-                    while (true) {
-                        val count = stream.read(buffer)
-                        if (count == -1) break
-                        if (out.size() + count > MAX_METADATA) throw UpdateMetadataException("release metadata is too large")
-                        out.write(buffer, 0, count)
-                    }
-                    out.toString(Charsets.UTF_8.name())
-                })
-                404 -> null // older server, or a self-hoster's own build without metadata
+                200 -> ReleaseInfo.parse(conn.inputStream.use(::readMetadata))
+                404 -> {
+                    // Start the older-server fallback without waiting for the error body.
+                    conn.disconnect()
+                    null
+                }
                 else -> throw IOException("release metadata: HTTP $status")
             }
-        } finally {
+        } catch (e: Exception) {
             conn.disconnect()
+            throw e
         }
+    }
+
+    private fun readMetadata(stream: InputStream): String {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(1024)
+        while (true) {
+            val count = stream.read(buffer)
+            if (count == -1) break
+            if (out.size() + count > MAX_METADATA) throw UpdateMetadataException("release metadata is too large")
+            out.write(buffer, 0, count)
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     override fun fallbackUrl() = "$serverUrl/download/android"
@@ -197,9 +206,11 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
                 }
                 if (sha256 != null && digest != sha256) throw UpdateMetadataException("APK checksum does not match the release")
                 return File(dir, "plainphone.apk").also { if (!part.renameTo(it)) throw IOException("could not store the APK") }
+            } catch (e: Exception) {
+                conn.disconnect()
+                throw e
             } finally {
                 part.delete()
-                conn.disconnect()
             }
         }
 

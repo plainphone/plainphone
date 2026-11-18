@@ -147,8 +147,9 @@ class AttestationHttp(baseUrl: String) : AttestationApi {
             val status = conn.responseCode
             val text = (if (status >= 400) conn.errorStream else conn.inputStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return status to text
-        } finally {
+        } catch (e: Exception) {
             conn.disconnect()
+            throw e
         }
     }
 

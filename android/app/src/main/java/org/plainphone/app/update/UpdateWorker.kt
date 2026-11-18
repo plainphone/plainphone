@@ -18,14 +18,13 @@ import java.util.concurrent.TimeUnit
 
 /** Runs [SelfUpdater]. Periodic (it skips until a day has passed) and on the parent's "Update now". */
 class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
-    override fun doWork(): Result {
-        val force = inputData.getBoolean(KEY_FORCE, false)
-        try {
-            org.plainphone.app.Lock.recoverInstall(applicationContext, "update check")
-        } catch (e: Exception) {
-            Log.e("Plainphone", "could not recover install restriction before the update check", e)
-            return Result.retry()
-        }
+    override fun doWork(): Result = runUpdateCheck(
+        recoverInstall = { org.plainphone.app.Lock.recoverInstall(applicationContext, "update check") },
+        reconcileOnStart = { SelfUpdate.reconcileOnStart(applicationContext) },
+        checkForUpdate = { checkForUpdate(inputData.getBoolean(KEY_FORCE, false)) },
+    )
+
+    private fun checkForUpdate(force: Boolean): Result {
         return try {
             val outcome = SelfUpdate.updater(applicationContext).run(force)
             Log.i("Plainphone", "self-update (${if (force) "requested" else "periodic"}): $outcome")
@@ -49,6 +48,24 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
     }
 }
 
+internal fun <T> runUpdateCheck(
+    recoverInstall: () -> Unit,
+    reconcileOnStart: () -> Unit,
+    checkForUpdate: () -> T,
+): T {
+    try {
+        recoverInstall()
+    } catch (e: Exception) {
+        Log.e("Plainphone", "could not recover the previous install before the update check", e)
+    }
+    try {
+        reconcileOnStart()
+    } catch (e: Exception) {
+        Log.e("Plainphone", "could not reconcile the previous install before the update check", e)
+    }
+    return checkForUpdate()
+}
+
 object SelfUpdate {
     private const val PERIODIC = "plainphone-update-periodic"
     private const val NOW = "plainphone-update-now"
@@ -59,6 +76,21 @@ object SelfUpdate {
     }
 
     fun onStart(context: Context) {
+        reconcileOnStart(context)
+
+        // WorkManager combines constraints with AND. Poll more often than the shared daily
+        // gate, so a check by one worker does not cost the other worker an entire day.
+        schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
+        schedule(context, "$PERIODIC-charging", Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
+    }
+
+    private val reconciliationLock = Any()
+    private var reconciledOnStart = false
+
+    // Persisted jobs can run before the Application startup thread reaches onStart.
+    internal fun reconcileOnStart(context: Context) = synchronized(reconciliationLock) {
+        if (reconciledOnStart) return@synchronized
         val store = PrefsUpdateStateStore(context)
         val target = store.installingVersionCode
         if (target > 0L) {
@@ -86,11 +118,7 @@ object SelfUpdate {
             }
         }
 
-        // WorkManager combines constraints with AND. Poll more often than the shared daily
-        // gate, so a check by one worker does not cost the other worker an entire day.
-        schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
-        schedule(context, "$PERIODIC-charging", Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
+        reconciledOnStart = true
     }
 
     private fun schedule(context: Context, name: String, constraints: Constraints) {

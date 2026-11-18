@@ -84,6 +84,7 @@ android {
     lint {
         abortOnError = true
         warningsAsErrors = false
+        error += listOf("WakelockTimeout", "ScheduleExactAlarm", "ExactAlarm", "BatteryLife")
         // The app calls the platform APIs directly and does not use core-ktx (only Compose pulls it in).
         disable += "UseKtx"
         // androidx.lifecycle ships lint checks built against an older lint API; nothing to fix on our side.

@@ -2,11 +2,21 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.CancellationSignal
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.BindException
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.NoRouteToHostException
 import java.net.URL
+import java.net.UnknownHostException
 import java.util.concurrent.Executors
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -122,11 +132,28 @@ class HttpError(val status: Int, message: String) : IOException("HTTP $status: $
  * Plain [HttpURLConnection] client, no dependencies. Blocking: call it from a worker thread.
  * Network failures surface as [IOException]; nothing here ever changes the lock.
  */
-class PlainphoneApi internal constructor(
+class PlainphoneApi private constructor(
     baseUrl: String,
     private val openConnection: (URL) -> HttpURLConnection,
+    private val openFreshConnection: (URL) -> HttpURLConnection,
 ) : SyncApi {
-    constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
+    internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
+
+    internal constructor(baseUrl: String, openConnection: (URL) -> HttpURLConnection) :
+        this(baseUrl, openConnection, openConnection)
+
+    constructor(baseUrl: String, context: Context) : this(
+        baseUrl,
+        { it.openConnection() as HttpURLConnection },
+        { url ->
+            val manager = context.getSystemService(ConnectivityManager::class.java)
+            val network = manager?.boundNetworkForProcess ?: manager?.activeNetwork
+                ?: throw IOException("no active network")
+            // Connection: close alone can still select another idle socket from Android's shared pool.
+            // A new Network instance has its own, initially empty connection pool.
+            Network.fromNetworkHandle(network.networkHandle).openConnection(url) as HttpURLConnection
+        },
+    )
 
     private companion object {
         // Disconnect can block on I/O. Keep it off the screen broadcast thread.
@@ -145,9 +172,40 @@ class PlainphoneApi internal constructor(
         headers: Map<String, String> = emptyMap(),
         readTimeoutMs: Int = 30_000,
         cancellation: CancellationSignal? = null,
+        replayable: Boolean = method == "GET",
     ): Response {
-        val conn = openConnection(URL(base + path))
+        val url = URL(base + path)
+        val payload = body?.toString()?.toByteArray(Charsets.UTF_8)
+        val closeOnFirstAttempt = !replayable && (method == "GET" || method == "POST")
+        cancellation?.throwIfCanceled()
+        val conn = if (closeOnFirstAttempt) openFreshConnection(url) else openConnection(url)
+        val streamBody = method == "POST" || (method == "PUT" && replayable)
+        return try {
+            exchange(conn, method, token, payload, headers, readTimeoutMs, cancellation, closeOnFirstAttempt, streamBody)
+        } catch (e: IOException) {
+            // HttpURLConnection does not expose socket reuse. Exclude failures that are
+            // identifiable as connection setup, TLS verification, or a read/write deadline.
+            if (!replayable || cancellation?.isCanceled == true || e is InterruptedIOException ||
+                e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
+                e is BindException || e is SSLHandshakeException || e is SSLPeerUnverifiedException
+            ) throw e
+            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody)
+        }
+    }
+
+    private fun exchange(
+        conn: HttpURLConnection,
+        method: String,
+        token: String?,
+        body: ByteArray?,
+        headers: Map<String, String>,
+        readTimeoutMs: Int,
+        cancellation: CancellationSignal?,
+        close: Boolean,
+        streamBody: Boolean,
+    ): Response {
         try {
+            cancellation?.throwIfCanceled()
             conn.requestMethod = method
             conn.connectTimeout = 15_000
             conn.readTimeout = readTimeoutMs
@@ -156,20 +214,28 @@ class PlainphoneApi internal constructor(
             conn.setRequestProperty("Accept", "application/json")
             token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
             headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
+            if (close) conn.setRequestProperty("Connection", "close")
             if (body != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                // Keep replays of these request bodies under the caller's control.
+                if (streamBody) conn.setFixedLengthStreamingMode(body.size)
+                conn.outputStream.use { it.write(body) }
             }
             cancellation?.setOnCancelListener { disconnects.execute { conn.disconnect() } }
             cancellation?.throwIfCanceled()
             val status = conn.responseCode
+            if (status < 0) throw IOException("invalid HTTP response")
             val stream = if (status >= 400) conn.errorStream else conn.inputStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return Response(status, text, conn.getHeaderField("ETag"))
+        } catch (e: Exception) {
+            if (!close && cancellation == null) conn.disconnect()
+            throw e
         } finally {
+            // Preserve the cancellable long poll's connection lifecycle.
             cancellation?.setOnCancelListener(null)
-            conn.disconnect()
+            if (close || cancellation != null) conn.disconnect()
         }
     }
 
@@ -200,7 +266,10 @@ class PlainphoneApi internal constructor(
     }
 
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
-        val r = call("GET", "/device/pairings/$pairingId", headers = mapOf("X-Poll-Secret" to pollSecret))
+        // The server hands out the pairing token only once.
+        val r = call(
+            "GET", "/device/pairings/$pairingId", headers = mapOf("X-Poll-Secret" to pollSecret), replayable = false,
+        )
         return when (r.status) {
             200 -> JSONObject(r.body).let { PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
             202 -> PairPoll.Waiting
@@ -242,7 +311,8 @@ class PlainphoneApi internal constructor(
         val body = JSONObject().put("lat", fix.lat).put("lon", fix.lon).put("recordedAt", iso(fix.recordedAtMs))
         body.put("purpose", purpose)
         fix.accuracyM?.let { body.put("accuracyM", it.toDouble()) }
-        val r = call("PUT", "/device/location", token, body)
+        val requested = purpose.startsWith("find:") || purpose.startsWith("checkin:")
+        val r = call("PUT", "/device/location", token, body, replayable = requested)
         return when (r.status) {
             204 -> true
             409 -> false
@@ -256,7 +326,7 @@ class PlainphoneApi internal constructor(
     }
 
     override fun ackReleased(token: String): Boolean {
-        val r = call("POST", "/device/released", token, JSONObject())
+        val r = call("POST", "/device/released", token, JSONObject(), replayable = true)
         return when (r.status) {
             204, 401 -> true
             409 -> false
@@ -266,7 +336,9 @@ class PlainphoneApi internal constructor(
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {
         require(requestId.matches(Regex("[0-9a-fA-F-]{36}"))) { "bad request id" }
-        val r = call("POST", "/device/safety/$requestId", token, JSONObject().put("event", event))
+        val r = call(
+            "POST", "/device/safety/$requestId", token, JSONObject().put("event", event), replayable = true,
+        )
         return when (r.status) {
             204 -> true
             400, 404 -> false

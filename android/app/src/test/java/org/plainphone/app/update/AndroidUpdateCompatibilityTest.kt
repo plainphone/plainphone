@@ -6,20 +6,27 @@ import android.content.pm.PackageInfo
 import android.content.pm.Signature
 import android.os.PowerManager
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ListenableWorker
+import androidx.work.testing.TestWorkerBuilder
 import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit.SECONDS
 import java.util.concurrent.atomic.AtomicBoolean
 import org.plainphone.app.sync.PlainphoneApi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29], application = android.app.Application::class)
@@ -38,6 +45,39 @@ class AndroidUpdateCompatibilityTest {
             AndroidUpdateHost.apkInfo(info).certSha256,
         )
         assertTrue(AndroidUpdateHost.apkInfo(info, sdk = 30).certSha256.isEmpty())
+    }
+
+    @Test fun persistedWorkerReconcilesInterruptedInstallBeforeCheckingForUpdates() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = PrefsUpdateStateStore(context)
+        store.installingVersionCode = Long.MAX_VALUE
+        store.lastCheckMs = System.currentTimeMillis() // The scheduled release check itself is not due.
+        val worker = TestWorkerBuilder<UpdateWorker>(context, Executor { it.run() }).build()
+
+        // Robolectric can reuse static state across tests. This worker represents a cold process.
+        val wasReconciled = ReflectionHelpers.getStaticField<Boolean>(SelfUpdate::class.java, "reconciledOnStart")
+        ReflectionHelpers.setStaticField(SelfUpdate::class.java, "reconciledOnStart", false)
+        try {
+            assertEquals(ListenableWorker.Result.success(), worker.doWork())
+            assertEquals(0L, store.installingVersionCode)
+            assertEquals(UpdateErrorCode.INSTALL_FAILED, store.report?.errorCode)
+        } finally {
+            ReflectionHelpers.setStaticField(SelfUpdate::class.java, "reconciledOnStart", wasReconciled)
+        }
+    }
+
+    @Test fun missingReleaseMetadataDoesNotReadTheErrorBody() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        var disconnected = false
+        val connection = object : HttpURLConnection(URL("https://example.org/download/android/latest.json")) {
+            override fun connect() = Unit
+            override fun usingProxy() = false
+            override fun disconnect() { disconnected = true }
+            override fun getResponseCode() = HttpURLConnection.HTTP_NOT_FOUND
+            override fun getErrorStream(): InputStream = error("fallback must not wait for the error body")
+        }
+        assertNull(AndroidUpdateHost(context).fetchLatest(connection))
+        assertTrue(disconnected)
     }
 
     @Suppress("DEPRECATION")
