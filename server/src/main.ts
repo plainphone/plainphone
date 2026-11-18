@@ -6,6 +6,7 @@ import { createDb, runMigrations } from "./db/client.js";
 import { HttpDnsProvider, MockDnsProvider } from "./providers/dns.js";
 import { LogMailProvider, NoMailProvider, SmtpMailProvider } from "./providers/mail.js";
 import { NoParentPushProvider, WebPushProvider } from "./providers/parent-push.js";
+import { createFcmProvider } from "./providers/fcm.js";
 import { NoPushProvider } from "./providers/push.js";
 import { validVapidKeys } from "./lib/webpush.js";
 import type { Ctx } from "./services/context.js";
@@ -13,6 +14,7 @@ import { markUnconfirmedDnsDirty } from "./services/dns.js";
 import { startSweeper } from "./services/sweeper.js";
 
 const cfg = loadConfig();
+const nativeParentPush = createFcmProvider(cfg.FCM_SERVICE_ACCOUNT_JSON);
 const { db, sql } = createDb(cfg.DATABASE_URL);
 if (cfg.MIGRATE_ON_START) await runMigrations(db);
 
@@ -34,6 +36,7 @@ const ctx: Ctx = {
   dns: cfg.DNS_PROVIDER === "http" ? new HttpDnsProvider(cfg.DNS_API_URL!, cfg.DNS_API_TOKEN!) : new MockDnsProvider(),
   push: new NoPushProvider(),
   parentPush: vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(),
+  nativeParentPush,
   now: () => new Date(),
 };
 

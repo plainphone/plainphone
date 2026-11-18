@@ -8,7 +8,7 @@
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, phoneAlertMail, toLocale } from "../lib/mail-templates.js";
-import type { PushMessage } from "../providers/parent-push.js";
+import type { NativePushMessage, PushMessage } from "../providers/parent-push.js";
 import type { Ctx } from "./context.js";
 
 /** After this many failed sends in a row (not 404/410), a subscription is dropped. */
@@ -148,6 +148,14 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   }
 }
 
+function nativePushMessage(event: NotifyEvent, locale: Locale): NativePushMessage | undefined {
+  if (event.type === "test") return { ...text[locale](event), type: "test" };
+  if (event.type !== "approval") return undefined;
+  return locale === "da"
+    ? { type: "approval", title: "En godkendelse venter", body: "Åbn Plainphone for at se den." }
+    : { type: "approval", title: "An approval is waiting", body: "Open Plainphone to review it." };
+}
+
 /** Sends one event to every subscription of the given users. Returns how many were sent. */
 export async function notifyUsers(
   ctx: Ctx,
@@ -155,7 +163,12 @@ export async function notifyUsers(
   e: NotifyEvent,
   opts: { subscriptionId?: string } = {},
 ): Promise<number> {
-  if (userIds.length === 0 || !ctx.parentPush.webPublicKey) return 0;
+  const native = e.type === "approval" || e.type === "test" ? ctx.nativeParentPush : undefined;
+  const platforms = [
+    ...(ctx.parentPush.webPublicKey ? ["web" as const] : []),
+    ...(native ? [native.platform] : []),
+  ];
+  if (userIds.length === 0 || platforms.length === 0) return 0;
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -164,6 +177,7 @@ export async function notifyUsers(
       .where(
         and(
           inArray(pushSubscriptions.userId, userIds),
+          inArray(pushSubscriptions.platform, platforms),
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
         ),
       );
@@ -172,25 +186,38 @@ export async function notifyUsers(
       subs.map(async ({ sub, locale }) => {
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
-          outcome = await ctx.parentPush.send(sub, pushMessage(e, toLocale(locale)), { urgent });
+          const language = toLocale(locale);
+          if (sub.platform === "web") {
+            outcome = await ctx.parentPush.send(sub, pushMessage(e, language), { urgent });
+          } else {
+            const message = nativePushMessage(e, language);
+            outcome = native?.platform === sub.platform && message
+              ? await native.send(sub.endpoint, message)
+              : "unsupported";
+          }
         } catch (err) {
           console.error(`push send failed: ${(err as Error).message}`);
           outcome = "failed";
         }
+        const sameSubscription = and(
+          eq(pushSubscriptions.id, sub.id),
+          eq(pushSubscriptions.userId, sub.userId),
+          eq(pushSubscriptions.platform, sub.platform),
+        );
         if (outcome === "sent") {
           await ctx.db
             .update(pushSubscriptions)
             .set({ lastSuccessAt: ctx.now(), failures: 0 })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameSubscription);
           return 1;
         }
-        if (outcome === "gone" || (outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
-          await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
-        } else if (outcome === "failed") {
+        if (outcome === "gone" || (sub.platform === "web" && outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
+          await ctx.db.delete(pushSubscriptions).where(sameSubscription);
+        } else if (sub.platform === "web" && outcome === "failed") {
           await ctx.db
             .update(pushSubscriptions)
             .set({ failures: sql`${pushSubscriptions.failures} + 1` })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameSubscription);
         }
         return 0;
       }),

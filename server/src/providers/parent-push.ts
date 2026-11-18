@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Notifications to parents. Web Push for the PWA is built in. Native apps (APNs/FCM) can
-// register tokens in the same table, but this provider does not send to them yet.
+// Notifications to parents through browser subscriptions and native device tokens.
 
 import { type PushOutcome, sendWebPush, type VapidKeys } from "../lib/webpush.js";
 
@@ -22,6 +21,17 @@ export interface PushTarget {
 }
 
 export type SendOutcome = PushOutcome | "unsupported";
+
+export interface NativePushMessage {
+  title: string;
+  body: string;
+  type: "approval" | "test";
+}
+
+export interface NativeParentPushProvider {
+  readonly platform: Exclude<PushTarget["platform"], "web">;
+  send(token: string, message: NativePushMessage): Promise<SendOutcome>;
+}
 
 export interface ParentPushProvider {
   readonly name: string;
