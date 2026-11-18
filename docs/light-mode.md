@@ -121,11 +121,11 @@ The maintenance PIN and dashboard release remain available.
 
 Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
 The phone saves completion and any accepted undo and retries the reports after reconnecting.
-The dashboard shows the reported end time. After a completion report, the server accepts undo
-reports for 48 hours after the window ends. Phones without a completion report use the legacy
-flow. Once the server
-acknowledges it, Plainphone removes its device administrator so Android allows normal
-uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
+The dashboard shows the reported end time when known. The server accepts light-mode undo
+reports whenever they arrive. If a report arrives more than 48 hours after the recorded
+window closed, the household notice says it arrived late. Plainphone keeps its device
+administrator until the server acknowledges the undo or confirms the phone is already gone.
+Android then allows normal uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
 If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
 
 When the server receives the report, it removes the phone from the dashboard and queues the

@@ -7,10 +7,10 @@ import { phoneAlertRecipients, pushMessage } from "./notifications.js";
 
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
-export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phones.$inferSelect) {
+export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phones.$inferSelect, reportedLate: boolean) {
   const recipients = await phoneAlertRecipients(tx, phone.id, phone.householdId);
   if (recipients.length === 0) return;
-  const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, nextAttemptAt: ctx.now() };
+  const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, reportedLate, nextAttemptAt: ctx.now() };
   const deliveries: (typeof setupUndoNotices.$inferInsert)[] = [];
   if (ctx.mail.canSend) {
     for (const { id } of recipients) deliveries.push({ ...notice, userId: id });
@@ -81,7 +81,9 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
 
     try {
       if (recipient) {
-        const event = { phoneId: notice.phoneId, phoneName: notice.phoneName, reason: "setup-undo" } as const;
+        const event = {
+          phoneId: notice.phoneId, phoneName: notice.phoneName, reason: "setup-undo", reportedLate: notice.reportedLate,
+        } as const;
         const locale = toLocale(recipient.locale);
         if ("sub" in recipient) {
           if (!ctx.parentPush.webPublicKey) throw new Error("push unavailable");

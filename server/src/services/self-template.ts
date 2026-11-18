@@ -56,16 +56,17 @@ export async function replaceDraftTemplate(tx: Tx, phoneId: string, rules: z.inf
   await tx.delete(phoneApps).where(and(eq(phoneApps.phoneId, phoneId), eq(phoneApps.core, false)));
   await tx.delete(schedules).where(eq(schedules.phoneId, phoneId));
   await tx.delete(timeLimits).where(eq(timeLimits.phoneId, phoneId));
-  await applySelfTemplate(tx, phoneId, rules, now);
+  return applySelfTemplate(tx, phoneId, rules, now);
 }
 
 export async function applySelfTemplate(tx: Tx, phoneId: string, rules: z.infer<typeof templateRules>, now: Date) {
-  if (rules.blockedPackages.length) {
-    await tx.insert(phoneApps).values(rules.blockedPackages.map((packageName) => ({
-      packageName, phoneId, label: packageName, allowed: false, explicitlyBlocked: true, installed: false, reportedAt: now,
-    }))).onConflictDoNothing();
-  }
+  const packages = [...new Set(rules.blockedPackages)];
+  const inserted = packages.length === 0 ? [] : await tx.insert(phoneApps).values(packages.map((packageName) => ({
+    packageName, phoneId, label: packageName, allowed: false, explicitlyBlocked: true, installed: false, reportedAt: now,
+  }))).onConflictDoNothing().returning({ packageName: phoneApps.packageName });
   if (rules.schedules.length) await tx.insert(schedules).values(rules.schedules.map((rule) => ({ ...rule, phoneId })));
   if (rules.limits.length) await tx.insert(timeLimits).values(rules.limits.map((rule) => ({ ...rule, phoneId })));
   await tx.update(dnsSettings).set({ blockedCategories: rules.blockedCategories }).where(eq(dnsSettings.phoneId, phoneId));
+  // The new draft is empty and replacement keeps only existing core app rows.
+  return packages.length - inserted.length;
 }

@@ -169,15 +169,43 @@ class PlainphoneApiReleaseTest {
             .setRunAttemptCount(8).build()
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
         assertThat(policy.isAdminActive(admin)).isTrue()
+        answer = 409
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
+        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(SyncStore(context, FakeSecretBox()).removed).isFalse()
+
+        Settings.Global.putInt(context.contentResolver, Settings.Global.BOOT_COUNT, 2)
+        android.os.SystemClock.setCurrentTimeMillis(System.currentTimeMillis() + 7 * 86_400_000L)
         answer = 204
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
         assertThat(policy.isAdminActive(admin)).isFalse()
-        assertThat(seen.map { it.second }).containsExactly(
-            "/api/device/setup-completion", "/api/device/setup-completion", "/api/device/undo-setup",
+        assertThat(seen.map { it.second }).containsExactlyElementsIn(
+            List(3) { listOf("/api/device/setup-completion", "/api/device/undo-setup") }.flatten(),
         ).inOrder()
-        assertThat(completionReports.map { it.getInt("undoMinutes") }).containsExactly(30, 30)
-        assertThat(completionReports.all { it.getLong("elapsedMs") >= 0 }).isTrue()
+        assertThat(completionReports.map { it.getInt("undoMinutes") }).containsExactly(30, 30, 30)
+        assertThat(completionReports.take(2).all { it.getLong("elapsedMs") >= 0 }).isTrue()
+        assertThat(completionReports.last().has("elapsedMs")).isTrue()
+        assertThat(completionReports.last().isNull("elapsedMs")).isTrue()
         assertThat(LightSetup.pendingCompletion(context, "test-phone")).isNull()
+    }
+
+    @Test
+    @Config(shadows = [PairedStore::class], instrumentedPackages = ["org.plainphone.app.sync"])
+    fun `undo removes admin when the server already deleted the phone`() {
+        val context = completeSetup()
+        val store = SyncStore(context, FakeSecretBox())
+        store.savePaired("test-phone", "test-token")
+        assertThat(store.markSetupUndoPending("test-phone")).isTrue()
+        store.markReleased()
+        val policy = context.getSystemService(DevicePolicyManager::class.java)
+        val admin = LightAdminReceiver.component(context)
+        shadowOf(policy).setActiveAdmin(admin)
+
+        answer = 404
+        val worker = TestWorkerBuilder<SyncWorker>(context, Executor { it.run() }).build()
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
+        assertThat(policy.isAdminActive(admin)).isFalse()
+        assertThat(store.removed).isTrue()
     }
 
     @Test
@@ -246,10 +274,12 @@ class PlainphoneApiReleaseTest {
         assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 401
         assertThat(api().reportSetupUndo("test-token")).isTrue()
+        answer = 404
+        assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 409
         assertThat(api().reportSetupUndo("test-token")).isFalse()
         assertThat(seen).containsExactlyElementsIn(
-            List(4) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
+            List(5) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
         )
     }
 

@@ -15,7 +15,7 @@ import type { Ctx } from "./context.js";
 const MAX_FAILURES = 20;
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
@@ -61,7 +61,7 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `Protection removed on ${e.phoneName}`,
           body:
             e.reason === "setup-undo"
-              ? "Set-up was undone on the phone."
+              ? (e.reportedLate ? "Set-up was undone on the phone. The report arrived late." : "Set-up was undone on the phone.")
               : e.reason === "owner"
                 ? "Plainphone no longer controls this phone. Open the app to see what happened."
                 : "The lock on this phone is not intact. Open the app to see what happened.",
@@ -98,7 +98,7 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `Beskyttelsen er fjernet på ${e.phoneName}`,
           body:
             e.reason === "setup-undo"
-              ? "Opsætningen blev fortrudt på telefonen."
+              ? (e.reportedLate ? "Opsætningen blev fortrudt på telefonen. Beskeden kom forsinket." : "Opsætningen blev fortrudt på telefonen.")
               : e.reason === "owner"
                 ? "Plainphone styrer ikke længere telefonen. Åbn appen for at se, hvad der er sket."
                 : "Låsen på telefonen er ikke intakt. Åbn appen for at se, hvad der er sket.",

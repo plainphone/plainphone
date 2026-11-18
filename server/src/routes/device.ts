@@ -11,7 +11,7 @@ import { contacts, householdMembers, enrollments, households, pairings, pendingC
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
-import { DEFAULT_SETUP_UNDO_MINUTES, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
@@ -207,18 +207,19 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       template: templateCode,
     }));
     const now = ctx.now();
-    const phoneId = await ctx.db.transaction(async (tx) => {
+    const result = await ctx.db.transaction(async (tx) => {
       const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
       if (!e || e.usedAt || e.expiresAt <= now) return null;
       const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
       if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
       const rules = await readSelfTemplate(tx, input.template, now);
       if (!rules) return null;
-      await replaceDraftTemplate(tx, phone.id, rules, now);
-      return phone.id;
+      const skippedCoreBlocks = await replaceDraftTemplate(tx, phone.id, rules, now);
+      return { phoneId: phone.id, skippedCoreBlocks };
     });
-    if (!phoneId) return c.json({ error: "setup link or template unavailable" }, 404);
-    await syncDns(ctx, phoneId);
+    if (!result) return c.json({ error: "setup link or template unavailable" }, 404);
+    await syncDns(ctx, result.phoneId);
+    if (result.skippedCoreBlocks > 0) return c.json({ skippedCoreBlocks: result.skippedCoreBlocks });
     return c.body(null, 204);
   });
 
@@ -361,10 +362,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
           const deadline = setupUndoDeadline(fresh);
-          if (fresh.setupCompletedAt && (deadline === null || receivedAt > deadline + SETUP_UNDO_REPORT_GRACE_MS)) {
-            return { status: 409 as const, error: "the setup undo reporting window has expired" };
-          }
-          await queueSetupUndoNotices(ctx, tx, fresh);
+          const reportedLate = fresh.setupCompletedAt !== null &&
+            (deadline === null || receivedAt > deadline + SETUP_UNDO_REPORT_GRACE_MS);
+          await queueSetupUndoNotices(ctx, tx, fresh, reportedLate);
         } else if (!fresh.releaseRequestedAt) {
           return { status: 409 as const, error: "this phone has not been asked to release" };
         }
@@ -462,7 +462,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/setup-completion", async (c) => {
     const { elapsedMs, undoMinutes } = await body(c, z.object({
-      elapsedMs: z.number().int().min(0),
+      elapsedMs: z.number().int().min(0).nullable(),
       undoMinutes: undoMinutesInput.optional(),
     }));
     const phone = c.get("phone");
@@ -471,8 +471,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
       const now = ctx.now();
       if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
+      if (elapsedMs === null) return 0;
       // First sync may be much later than local completion.
-      const completedAt = new Date(Math.max(0, now.getTime() - elapsedMs));
+      const age = Math.min(elapsedMs, MAX_SETUP_COMPLETION_AGE_MS);
+      const completedAt = new Date(Math.max(0, now.getTime() - age));
       const setupUndoMinutes = (fresh.profile === "self" ? undoMinutes : undefined) ??
         fresh.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES;
       const completion = { setupCompletedAt: completedAt, setupUndoMinutes };

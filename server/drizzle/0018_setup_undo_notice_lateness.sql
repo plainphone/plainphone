@@ -1,0 +1,1 @@
+ALTER TABLE "setup_undo_notices" ADD COLUMN "reported_late" boolean DEFAULT false NOT NULL;

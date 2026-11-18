@@ -561,6 +561,7 @@ export const da: Messages = {
   "template.open": "Åbn opsætningslink",
   "template.importTitle": "Kopiér regler",
   "template.replaceHelp": "Erstat appvalg, tidsgrænser, tidsrum og webfilterets kategorier i denne opsætning med dem, du scannede.",
+  "template.skippedCoreBlocks": "Blokeringer af nødvendige apps på denne telefon blev sprunget over.",
   "template.importFailed": "Reglerne kunne ikke kopieres. Tjek dit opsætningslink, og scan en ny kode.",
   "template.importHelp": "Start med en kopi af reglerne. Du kan redigere dem i dit eget betjeningspanel, før du forbinder telefonen.",
   "appr.title": "Personer, jeg hjælper",

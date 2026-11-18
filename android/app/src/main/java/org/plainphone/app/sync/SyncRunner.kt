@@ -68,7 +68,7 @@ interface SyncDevice {
 /** Something the child did with a ring or an "Are you okay?", waiting to be sent. */
 data class SafetyEvent(val requestId: String, val event: String)
 
-data class SetupCompletion(val elapsedMs: Long, val undoMinutes: Int)
+data class SetupCompletion(val elapsedMs: Long?, val undoMinutes: Int)
 
 data class LockState(
     /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
@@ -181,11 +181,7 @@ class SyncRunner(
             pendingContactSuggestions = null
             if (store.contactSuggestionsReadAt != null) store.contactSuggestionsReadAt = null
         }
-        try {
-            reportSetupCompletion(token)
-        } catch (e: IOException) {
-            return Outcome.Failed("setup completion not acknowledged yet: ${e.message}")
-        }
+        guarded("report setup completion") { reportSetupCompletion(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
 
@@ -255,10 +251,8 @@ class SyncRunner(
     private fun acknowledgeRelease(token: String): Outcome? {
         val done = try {
             if (store.setupUndoPending) {
-                reportSetupCompletion(token)
-                // The server can reject a late undo. Try acknowledging a dashboard
-                // release in that case and keep local protection switched off.
-                if (!api.reportSetupUndo(token)) api.ackReleased(token)
+                guarded("report setup completion") { reportSetupCompletion(token) }
+                if (!api.reportSetupUndo(token)) return Outcome.Failed("setup undo not acknowledged yet")
                 device.removeSetupUndoAdmin()
                 true
             } else api.ackReleased(token)

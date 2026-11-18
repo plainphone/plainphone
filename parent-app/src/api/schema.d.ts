@@ -382,9 +382,10 @@ export interface paths {
         put?: never;
         /**
          * Report local undo of light-mode setup (phone)
-         * @description The phone decides its local undo window and switches off locally. The server accepts
-         *     an authenticated report up to 48 hours after the recorded window ends, or at any time
-         *     for a legacy phone without a completion report. Removing the phone queues a notice.
+         * @description The phone decides its local undo window and switches off locally. The server records
+         *     authenticated light-mode reports at any time by removing the phone and queuing a notice.
+         *     Reports received more than 48 hours after a known window ended are marked as late.
+         *     A strong-mode phone receives a 409.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -2899,7 +2900,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Rules copied into the existing draft */
+            /** @description Rules copied into the draft with one or more core app blocks skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        skippedCoreBlocks: number;
+                    };
+                };
+            };
+            /** @description Rules copied into the existing draft with no blocks skipped */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -3432,8 +3444,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Time since local setup completed. */
-                    elapsedMs: number;
+                    /** @description Elapsed time since local setup completed, capped at seven days by the server. Null when unknown after a reboot. */
+                    elapsedMs: number | null;
                     /**
                      * @description Optional Self phone choice.
                      * @enum {integer}

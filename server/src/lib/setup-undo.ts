@@ -6,6 +6,7 @@ export const undoMinutesInput = z.union([
 ]);
 export const DEFAULT_SETUP_UNDO_MINUTES = 10;
 
+export const MAX_SETUP_COMPLETION_AGE_MS = 7 * 24 * 60 * 60_000;
 export const SETUP_UNDO_REPORT_GRACE_MS = 48 * 60 * 60_000;
 
 export function setupUndoDeadline(phone: {

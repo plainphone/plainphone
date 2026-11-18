@@ -738,21 +738,28 @@ class SyncRunnerTest {
                 return true
             }
         }
+        var adminRemovals = 0
+        val admin = object : SyncDevice by device {
+            override fun removeSetupUndoAdmin() { adminRemovals++ }
+        }
         repeat(4) {
             val reopened = SyncStore(context, FakeSecretBox())
-            assertThat(SyncRunner(reopened, reporting, device).run("undo setup"))
+            assertThat(SyncRunner(reopened, reporting, admin).run("undo setup"))
                 .isInstanceOf(SyncRunner.Outcome.Failed::class.java)
             assertThat(reopened.setupUndoPending).isTrue()
+            assertThat(reopened.removed).isFalse()
+            assertThat(adminRemovals).isEqualTo(0)
         }
-        assertThat(SyncRunner(store, reporting, device).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
-        assertThat(SyncRunner(store, reporting, device).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(SyncRunner(store, reporting, admin).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(SyncRunner(store, reporting, admin).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(adminRemovals).isEqualTo(1)
         assertThat(attempts).isEqualTo(5)
         assertThat(device.releases).isEqualTo(0)
         assertThat(api.tokensUsed).isEmpty()
     }
 
     @Test
-    fun `expired setup undo falls back to release acknowledgement and stays released`() {
+    fun `a rejected setup undo stays pending without acknowledging dashboard release`() {
         pair()
         assertThat(store.markSetupUndoPending(checkNotNull(store.phoneId))).isTrue()
         store.markReleased()
@@ -761,10 +768,12 @@ class SyncRunnerTest {
             override fun reportSetupUndo(token: String): Boolean = false
         }
 
-        assertThat(SyncRunner(store, reporting, device).run("expired undo")).isEqualTo(SyncRunner.Outcome.Removed)
-        assertThat(api.acks).containsExactly("pp_d_token")
+        assertThat(SyncRunner(store, reporting, device).run("rejected undo"))
+            .isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(api.acks).isEmpty()
         assertThat(store.released).isTrue()
-        assertThat(store.setupUndoPending).isFalse()
+        assertThat(store.setupUndoPending).isTrue()
+        assertThat(store.removed).isFalse()
         assertThat(device.applies).isEmpty()
     }
 

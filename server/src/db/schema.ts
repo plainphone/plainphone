@@ -565,6 +565,7 @@ export const setupUndoNotices = pgTable("setup_undo_notices", {
   householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
   phoneId: uuid("phone_id").notNull(),
   phoneName: text("phone_name").notNull(),
+  reportedLate: boolean("reported_late").notNull().default(false),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),

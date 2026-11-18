@@ -22,10 +22,10 @@ The dashboard choice locks when the phone receives its connection token. For
 Myself setups, the completion report records the window used on the phone.
 Android measures elapsed time across sleep. Rebooting closes the window. Undo
 works offline, and the phone retries its completion and undo reports when it
-reconnects. The dashboard shows the end time reported by the phone. The server accepts undo reports up to
-48 hours after that window closes. Older phones that have never reported
-completion can still report undo without that cutoff. Both paths notify the
-current household. Device Owner mode uses its existing release flow.
+reconnects. The dashboard shows the end time when the phone can report it.
+The server removes the phone and notifies the current household when it receives
+the undo, including after a long offline period. If the recorded window ended
+more than 48 hours earlier, the notice says the report arrived late. Device Owner mode uses its existing release flow.
 
 ## Help another person
 
@@ -74,8 +74,9 @@ the household. The system also cannot prevent helpers from coordinating approval
 Show **Set up like me** from Today or the owner's dashboard. The invitee scans
 the code to begin a Myself setup in their own dashboard. If they already opened
 a light-mode setup link on Android, **Copy rules from a friend** replaces
-the rule choices in that same draft after confirmation. The setup link remains
-usable. Legacy blocks on Danish starter-pack apps are preserved. Other older
+the rule choices in that same draft after confirmation. If a copied block
+targets an essential app on the recipient's phone, the import summary shows
+that the block was skipped. The setup link remains usable. Legacy blocks on Danish starter-pack apps are preserved. Other older
 blocks must be set again before sharing because the stored app list does not
 identify which denials were explicit. The template copies explicitly blocked
 app package names, total and per-app time limits with weekday overrides,

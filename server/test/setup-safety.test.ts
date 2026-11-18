@@ -82,7 +82,7 @@ describe("onboarding safety", () => {
       .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
   });
 
-  it.each([true, false])("checks the reported undo deadline with time left: %s", async (withinGrace) => {
+  it.each([true, false])("accepts undo and distinguishes reports within the grace period: %s", async (withinGrace) => {
     const { parent, device, decide, claim } = await start(undefined, "light", "child");
     const claimed = await claim();
     const path = `/api/phones/${claimed.json.id}`;
@@ -96,14 +96,31 @@ describe("onboarding safety", () => {
       .toBe(new Date(completed + 5 * 60_000).toISOString());
     h.clock.advance((46 * 60 + 5) * 60_000 + (withinGrace ? 0 : 1));
     const before = h.mail.outbox.length;
-    expect((await device.post("/api/device/undo-setup")).status).toBe(withinGrace ? 204 : 409);
-    expect((await parent.get(path)).status).toBe(withinGrace ? 404 : 200);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect((await parent.get(path)).status).toBe(404);
     await sweep(h.ctx);
-    expect(h.mail.outbox.slice(before).filter(({ text }) => text.includes("Set-up was undone on the phone")))
-      .toHaveLength(withinGrace ? 1 : 0);
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+    expect(notices[0]?.text.includes("reported late")).toBe(!withinGrace);
   });
 
-  it("recovers an unsent notice after the phone deletion is committed", async () => {
+  it.each([null, 365 * 24 * 60 * 60_000])("accepts undo with unknown or oversized completion age: %s", async (elapsedMs) => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    const path = `/api/phones/${claimed.json.id}/setup-undo`;
+    const reported = await device.post("/api/device/setup-completion", { elapsedMs });
+    expect(reported.status).toBe(200);
+    expect(reported.json.undoRemainingMs).toBe(0);
+    expect((await parent.get(path)).json.undoUntil).toBe(elapsedMs === null
+      ? null
+      : new Date(h.clock.now.getTime() - 7 * 24 * 60 * 60_000 + 10 * 60_000).toISOString());
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+  });
+
+  it("recovers an unsent late notice after the phone deletion is committed", async () => {
     const { parent, device, decide, claim } = await start();
     const claimed = await claim();
     device.token = (await decide("confirm")).json.deviceToken;
@@ -111,6 +128,8 @@ describe("onboarding safety", () => {
     expect((await parent.post("/api/notifications/subscriptions", {
       platform: "web", endpoint: "https://fcm.googleapis.com/test", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
     })).status).toBe(201);
+    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).status).toBe(200);
+    h.clock.advance((48 * 60 + 11) * 60_000);
     const before = h.mail.outbox.length;
     expect((await device.post("/api/device/undo-setup")).status).toBe(204);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
@@ -127,8 +146,8 @@ describe("onboarding safety", () => {
     await Promise.all([sweep(h.ctx), sweep(h.ctx)]);
     await sweep(h.ctx);
     expect(h.mail.outbox.slice(before).map((notice) => notice.text))
-      .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
-    expect(h.parentPush.sent.map(({ msg }) => msg.body)).toEqual(["Set-up was undone on the phone."]);
+      .toEqual([expect.stringContaining("The phone reported late.")]);
+    expect(h.parentPush.sent.map(({ msg }) => msg.body)).toEqual(["Set-up was undone on the phone. The report arrived late."]);
   });
 
   it("drops a queued notice when the recipient is removed from the household", async () => {

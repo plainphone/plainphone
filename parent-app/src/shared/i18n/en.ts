@@ -562,6 +562,7 @@ export const en = {
   "template.open": "Open setup link",
   "template.importTitle": "Copy rules",
   "template.replaceHelp": "Replace the app choices, time limits, schedules and web filter categories in this setup with the ones you scanned.",
+  "template.skippedCoreBlocks": "Blocks for essential apps on this phone were skipped.",
   "template.importFailed": "Could not copy the rules. Check your setup link and scan a fresh code.",
   "template.importHelp": "Start with these copied rules. You can edit them in your own dashboard before connecting your phone.",
   "appr.title": "People I help",

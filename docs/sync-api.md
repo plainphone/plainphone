@@ -243,7 +243,12 @@ To remove such a phone from the dashboard without releasing it, use `DELETE /api
 
 Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
 the phone and queues an undo notice when the authenticated report arrives, including after a
-long offline period or before the first rules sync.
+long offline period or before the first rules sync. A report received more than 48 hours after
+a recorded undo window ends is marked late in the notice. The phone retries until the server
+acknowledges the report or returns 401 or 404 for a phone that is already gone. The separate
+`POST /api/device/setup-completion` report provides the dashboard deadline and the timing for the
+notice. Its elapsed age comes from the current boot and is capped at seven days on the server.
+A phone that rebooted before reporting sends a null age.
 
 ### Requests (asking for an app or a contact)
 

@@ -1065,7 +1065,16 @@ paths:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
                 template: { type: string, pattern: "^pp_r_[A-Za-z0-9_-]{30,70}$" }
       responses:
-        "204": { description: Rules copied into the existing draft }
+        "200":
+          description: Rules copied into the draft with one or more core app blocks skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [skippedCoreBlocks]
+                properties:
+                  skippedCoreBlocks: { type: integer, minimum: 1 }
+        "204": { description: Rules copied into the existing draft with no blocks skipped }
         "404": { description: Setup link or template unavailable }
         "429": { $ref: "#/components/responses/Error" }
 
@@ -1436,7 +1445,10 @@ paths:
               type: object
               required: [elapsedMs]
               properties:
-                elapsedMs: { type: integer, minimum: 0, description: Time since local setup completed. }
+                elapsedMs:
+                  type: [integer, "null"]
+                  minimum: 0
+                  description: Elapsed time since local setup completed, capped at seven days by the server. Null when unknown after a reboot.
                 undoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional Self phone choice. }
       responses:
         "200":
@@ -1453,9 +1465,10 @@ paths:
       tags: [device]
       summary: Report local undo of light-mode setup (phone)
       description: |
-        The phone decides its local undo window and switches off locally. The server accepts
-        an authenticated report up to 48 hours after the recorded window ends, or at any time
-        for a legacy phone without a completion report. Removing the phone queues a notice.
+        The phone decides its local undo window and switches off locally. The server records
+        authenticated light-mode reports at any time by removing the phone and queuing a notice.
+        Reports received more than 48 hours after a known window ended are marked as late.
+        A strong-mode phone receives a 409.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }

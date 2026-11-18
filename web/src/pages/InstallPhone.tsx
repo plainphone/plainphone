@@ -65,11 +65,13 @@ function ImportSetupTemplate({ token, intent }: { token: string; intent: string 
   const { t } = useI18n();
   const [template, setTemplate] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "busy" | "done" | "failed">("ready");
+  const [skippedCoreBlocks, setSkippedCoreBlocks] = useState(false);
 
   async function copyRules(code: string) {
     setStatus("busy");
     try {
-      await api.post("/device/enrollment-template", { token, template: code });
+      const result = await api.post<{ skippedCoreBlocks: number } | undefined>("/device/enrollment-template", { token, template: code });
+      setSkippedCoreBlocks((result?.skippedCoreBlocks ?? 0) > 0);
       setStatus("done");
     } catch {
       setStatus("failed");
@@ -79,7 +81,10 @@ function ImportSetupTemplate({ token, intent }: { token: string; intent: string 
   return <div className="narrow stack">
     <PageTitle>{t("template.importTitle")}</PageTitle>
     {status === "done" ? (
-      <p role="status">{t("template.importHelp")}</p>
+      <div role="status">
+        <p>{t("template.importHelp")}</p>
+        {skippedCoreBlocks && <p>{t("template.skippedCoreBlocks")}</p>}
+      </div>
     ) : template ? (
       <>
         <p>{t("template.replaceHelp")}</p>

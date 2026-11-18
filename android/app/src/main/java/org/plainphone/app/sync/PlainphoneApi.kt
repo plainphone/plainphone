@@ -404,7 +404,7 @@ class PlainphoneApi private constructor(
     }
 
     override fun reportSetupCompletion(token: String, completion: SetupCompletion) {
-        val body = JSONObject().put("elapsedMs", completion.elapsedMs).put("undoMinutes", completion.undoMinutes)
+        val body = JSONObject().put("elapsedMs", completion.elapsedMs ?: JSONObject.NULL).put("undoMinutes", completion.undoMinutes)
         val r = call("POST", "/device/setup-completion", token, body, replayable = true)
         // A server from before setup completion can still receive the legacy undo report.
         if (r.status !in listOf(200, 401, 404)) throw HttpError(r.status, r.body)
@@ -413,7 +413,7 @@ class PlainphoneApi private constructor(
     override fun reportSetupUndo(token: String): Boolean {
         val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
         return when (r.status) {
-            204, 401 -> true
+            in 200..299, 401, 404 -> true
             409 -> false
             else -> throw HttpError(r.status, r.body)
         }

@@ -520,8 +520,10 @@ describe("Self profile with a trusted person", () => {
       { packageName: "com.example.bank", label: "Private bank app" },
       { packageName: "com.example.reader", label: "Private reader label" },
       { packageName: "com.spotify.music", label: "Spotify" },
+      { packageName: "com.example.dialer", label: "Alternative dialer" },
     ] });
     await me.put(`${source}/apps/com.instagram.android`, { allowed: false });
+    expect((await me.put(`${source}/apps/com.example.dialer`, { allowed: false })).status).toBe(200);
     expect((await me.put(`${source}/apps/com.spotify.music`, { allowed: false })).status).toBe(200);
     // Recreate pre-0017 app rows, then apply the migration's data backfill.
     await h.ctx.db.update(phoneApps).set({ explicitlyBlocked: false })
@@ -547,19 +549,25 @@ describe("Self profile with a trusted person", () => {
     expect((await device.post("/api/device/enrollment-template", { token: childDraft.json.enrollment.token, template })).status).toBe(404);
     const imported = await stranger.post("/api/phones/enroll", { name: "Copy", profile: "self", mode: "light" });
     const { token } = imported.json.enrollment;
+    await h.ctx.db.insert(phoneApps).values({
+      phoneId: imported.json.phone.id, packageName: "com.example.dialer", label: "Dialer",
+      core: true, allowed: true, reportedAt: h.clock.now,
+    });
     const imports = await Promise.all([
       device.post("/api/device/enrollment-template", { token, template }),
       device.post("/api/device/enrollment-template", { token, template }),
     ]);
-    expect(imports.map(({ status }) => status).sort()).toEqual([204, 404]);
+    expect(imports.map(({ status }) => status).sort()).toEqual([200, 404]);
+    expect(imports.find(({ status }) => status === 200)?.json).toEqual({ skippedCoreBlocks: 1 });
     expect(imported.status).toBe(201);
     const copy = `/api/phones/${imported.json.phone.id}`;
     expect((await stranger.get(`${copy}/time-limits`)).json.total).toEqual({ minutes: 50, days: { "1": 40 } });
     expect((await stranger.get(`${copy}/schedules`)).json.schedules).toMatchObject([{ kind: "bedtime", days: [1], allowedPackages: ["com.example.reader"] }]);
     expect((await stranger.get(`${copy}/time-limits`)).json.apps).toMatchObject([{ packageName: "com.example.reader", label: "com.example.reader", limit: { minutes: 15 } }]);
     const copiedApps = (await stranger.get(`${copy}/apps`)).json.apps;
-    expect(copiedApps).toHaveLength(2);
+    expect(copiedApps).toHaveLength(3);
     expect(copiedApps).toEqual(expect.arrayContaining([
+      expect.objectContaining({ packageName: "com.example.dialer", core: true, allowed: true }),
       expect.objectContaining({ packageName: "com.instagram.android", allowed: false }),
       expect.objectContaining({ packageName: "com.spotify.music", allowed: false }),
     ]));

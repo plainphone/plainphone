@@ -143,7 +143,6 @@ object LightSetup {
             val chosenMinutes = if (profile(context) == "self") prefs(context).getInt("setupUndoMinutes", 10) else 10
             val windowMs = (sync.setupUndoMinutes() ?: chosenMinutes) * 60_000L
             edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
-                .putLong("completedWall", System.currentTimeMillis())
                 .putBoolean("completionReported", false)
                 .putLong("undoWindowMs", windowMs)
                 .putInt("completedBoot", bootCount(context))
@@ -158,18 +157,18 @@ object LightSetup {
 
     internal fun pendingCompletion(context: Context, phoneId: String?): SetupCompletion? {
         val saved = prefs(context)
-        val completedWall = saved.getLong("completedWall", -1)
+        val completedElapsed = saved.getLong("completedElapsed", -1)
         if (phoneId == null || phoneId != saved.getString("completedPhoneId", null) ||
-            completedWall < 0 || saved.getBoolean("completionReported", false)
+            completedElapsed < 0 || saved.getBoolean("completionReported", false)
         ) return null
 
         val boot = bootCount(context)
         val elapsed = if (boot >= 0 && boot == saved.getInt("completedBoot", -1)) {
-            SystemClock.elapsedRealtime() - saved.getLong("completedElapsed", 0)
+            (SystemClock.elapsedRealtime() - completedElapsed).takeIf { it >= 0 }
         } else {
-            System.currentTimeMillis() - completedWall
+            null
         }
-        return SetupCompletion(elapsed.coerceAtLeast(0), (saved.getLong("undoWindowMs", 0) / 60_000).toInt())
+        return SetupCompletion(elapsed, (saved.getLong("undoWindowMs", 0) / 60_000).toInt())
     }
 
     @SuppressLint("ApplySharedPref") // Only clear the durable report after the server acknowledges it.
@@ -182,7 +181,7 @@ object LightSetup {
         val edit = saved.edit()
         if (undoPending) {
             // Undo clears setup locally before sync can deliver the completion and undo reports.
-            val completionKeys = setOf("completedPhoneId", "completedWall", "completedElapsed",
+            val completionKeys = setOf("completedPhoneId", "completedElapsed",
                 "completedBoot", "undoWindowMs", "completionReported")
             for (key in saved.all.keys - completionKeys) edit.remove(key)
         } else {
