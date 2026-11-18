@@ -94,14 +94,23 @@ describe("overview", () => {
     expect(screen.queryByText("Waiting changes")).toBeNull();
   });
 
-  it("shows installation and account warnings even when the lock is intact", async () => {
-    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"], lateGoogleAccount: true } });
+  it("shows the installation warning even when the lock is intact", async () => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"] } });
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByText("App installation stayed open longer than planned during an update.")).toBeTruthy();
-    expect(screen.getByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
     expect(screen.queryByText("42 seconds longer than planned.")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Show technical details" }));
     expect(screen.getByText("42 seconds longer than planned.")).toBeTruthy();
+  });
+
+  it("shows the account warning on its own with an intact lock and closed technical details", async () => {
+    const failedPolicy = "restriction no_modify_accounts";
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: [failedPolicy], lateGoogleAccount: true } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
+    expect(screen.queryByText("App installation stayed open longer than planned during an update.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show technical details" })).toBeTruthy();
+    expect(screen.queryByText(failedPolicy)).toBeNull();
   });
 
   it("lists waiting changes on a Self phone and cancels one", async () => {

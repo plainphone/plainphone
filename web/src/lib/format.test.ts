@@ -13,7 +13,6 @@ import {
   osmUrl,
   weekdayName,
 } from "./format";
-import { formatFailedPolicies } from "./failedPolicies";
 import { describeOp, formatDays } from "./ops";
 
 const words = { hm: "{h} h {m} min", h: "{h} h", m: "{m} min", lessThanMinute: "less than a minute" };
@@ -97,15 +96,5 @@ describe("describeOp", () => {
     expect(describeOp(op, da, "da")).toBe("Ændr sengetid til mandag til fredag, 21.00 til 07.00");
     expect(formatDays([6, 7], "en", en)).toBe("Saturday and Sunday");
     expect(formatDays([1, 3], "en", en)).toBe("Mon and Wed");
-  });
-});
-
-
-describe("failed policy labels", () => {
-  it("explains known steps and leaves unknown step names readable", () => {
-    expect(formatFailedPolicies(["restriction no_modify_accounts", "new step"], "en"))
-      .toBe("block account changes and new step");
-    expect(formatFailedPolicies(["bootloader warning"], "da"))
-      .toBe("bekræft advarslen om telefonens system");
   });
 });

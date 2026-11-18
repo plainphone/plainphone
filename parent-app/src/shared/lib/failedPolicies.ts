@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Locale } from "./api";
-import { formatList } from "./format";
 
 const labels = new Map<string, Record<Locale, string>>();
 function add(step: string, en: string, da: string) {
@@ -77,33 +76,8 @@ const restrictions: Record<string, [string, string]> = {
 };
 for (const [key, [en, da]] of Object.entries(restrictions)) add(`restriction ${key}`, en, da);
 
-const settings: Record<string, [string, string]> = {
-  bluetooth: ["Bluetooth", "Bluetooth"],
-  wifi: ["Wi-Fi", "wi-fi"],
-  mobileNetworks: ["mobile networks", "mobilnetværk"],
-  roaming: ["roaming", "roaming"],
-  location: ["location", "placering"],
-  camera: ["camera", "kamera"],
-  screenCapture: ["screenshots and screen recording", "skærmbilleder og skærmoptagelse"],
-  screenTimeout: ["screen timeout", "tid før skærmen slukker"],
-  brightness: ["screen brightness", "skærmens lysstyrke"],
-  volume: ["volume", "lydstyrke"],
-  wallpaper: ["wallpaper", "baggrundsbillede"],
-  language: ["language", "sprog"],
-  tethering: ["internet sharing", "internetdeling"],
-  nfc: ["contactless connections", "kontaktløse forbindelser"],
-  airplaneMode: ["airplane mode", "flytilstand"],
-};
-for (const [key, [en, da]] of Object.entries(settings)) {
-  add(`setting ${key}`, `apply the setting for ${en}`, `anvend indstillingen for ${da}`);
-}
-
 export function failedPolicyLabel(step: string, locale: Locale): string | undefined {
   const key = step.startsWith("extra users and profiles:") ? "extra users and profiles" : step;
   return labels.get(key)?.[locale] ??
     (key.startsWith("hardware attestation:") ? labels.get("hardware attestation")?.[locale] : undefined);
-}
-
-export function formatFailedPolicies(steps: string[], locale: Locale): string {
-  return formatList(steps.map((step) => failedPolicyLabel(step, locale) ?? step), locale);
 }

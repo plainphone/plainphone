@@ -21,6 +21,8 @@ describe("lock step labels", () => {
   });
 
   it("translates new hardening steps in both languages", () => {
+    expect(lockStepLabel("bootloader warning", makeT("da"), "da")).toBe("bekræft advarslen om telefonens system");
+    expect(lockStepLabel("restriction no_modify_accounts", makeT("en"), "en")).toBe("block account changes");
     expect(lockStepLabel("restriction no_modify_accounts", makeT("da"), "da")).toBe("blokér ændringer af konti");
     expect(lockStepLabel("extra users and profiles: unknown", makeT("en"), "en")).toBe("remove extra users or profiles");
   });

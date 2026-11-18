@@ -538,6 +538,7 @@ main {
 }
 
 .status-dns,
+.status-updated,
 .status-release {
   margin-top: 0.5rem;
 }
