@@ -4,6 +4,8 @@ package org.plainphone.app.sync
 
 import com.google.common.truth.Truth.assertThat
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -18,10 +20,15 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.annotation.RealObject
+import org.robolectric.shadows.ShadowNetwork
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class) // reportSafety uses Android’s org.json.
-@Config(sdk = [35], application = Application::class)
+@Config(sdk = [35], application = Application::class, shadows = [PlainphoneApiKeepAliveTest.FreshNetworkShadow::class])
 class PlainphoneApiKeepAliveTest {
     @Test
     fun `two rules responses reuse one connection`() {
@@ -88,18 +95,71 @@ class PlainphoneApiKeepAliveTest {
     }
 
     @Test
-    fun `a repeated transport failure stops after one rules retry and pairing creation is never replayed`() {
+    fun `a rules read timeout is not retried`() {
+        assertSingleAttempt(SocketTimeoutException("read timed out")) { it.fetchRules("test", null) }
+    }
+
+    @Test
+    fun `enrollment and pairing creation are not replayed after losing a response`() {
+        assertSingleAttempt(IOException("connection reset")) { it.enroll("token", "install", emptyMap()) }
+        assertSingleAttempt(IOException("connection reset")) { it.startPairing("strong", emptyMap()) }
+    }
+
+    @Test
+    fun `failure opening a rules connection is not retried`() {
         var opens = 0
         val api = PlainphoneApi("http://unused.test") {
             opens++
-            throw IOException("connection reset")
+            throw IOException("cannot open")
         }
 
         assertThrows(IOException::class.java) { api.fetchRules("test", null) }
-        assertThat(opens).isEqualTo(2)
-        opens = 0
-        assertThrows(IOException::class.java) { api.startPairing("strong", emptyMap()) }
         assertThat(opens).isEqualTo(1)
+    }
+
+    private fun assertSingleAttempt(failure: IOException, call: (PlainphoneApi) -> Unit) {
+        var opens = 0
+        val api = PlainphoneApi("http://unused.test") { url ->
+            opens++
+            object : HttpURLConnection(url) {
+                override fun connect() = Unit
+                override fun usingProxy() = false
+                override fun disconnect() = Unit
+                override fun getOutputStream() = java.io.ByteArrayOutputStream()
+                override fun getResponseCode(): Int = throw failure
+            }
+        }
+        assertThat(assertThrows(IOException::class.java) { call(api) }).isSameInstanceAs(failure)
+        assertThat(opens).isEqualTo(1)
+    }
+
+    @Test
+    fun `on demand location uploads replay the same fix after losing a response`() {
+        for (purpose in listOf("find:123", "checkin:00000000-0000-0000-0000-000000000001")) {
+            checkRetryOnFreshConnection("PUT /api/device/location", "") { api ->
+                assertThat(api.reportLocation("test", LocationFix(55.0, 12.0, 10f, 456), purpose)).isTrue()
+            }
+        }
+    }
+
+    companion object {
+        private var freshOpens = 0
+    }
+
+    @Implements(Network::class)
+    class FreshNetworkShadow {
+        @RealObject
+        private lateinit var network: Network
+
+        @Implementation
+        fun openConnection(url: java.net.URL): HttpURLConnection {
+            val manager = RuntimeEnvironment.getApplication().getSystemService(ConnectivityManager::class.java)
+            val bound = checkNotNull(manager.boundNetworkForProcess)
+            assertThat(network).isNotSameInstanceAs(bound)
+            assertThat(network.networkHandle).isEqualTo(bound.networkHandle)
+            freshOpens++
+            return url.openConnection(Proxy.NO_PROXY) as HttpURLConnection
+        }
     }
 
     private fun checkRetryOnFreshConnection(
@@ -128,16 +188,24 @@ class PlainphoneApiKeepAliveTest {
                         socket.soTimeout = 3_000
                         val retry = readRequest(socket.getInputStream().bufferedReader())
                         assertThat(retry).isEqualTo(failed.copy(headers = failed.headers + ("connection" to "close")))
-                        val status = if (failedRequest.startsWith("POST")) "204 No Content" else "304 Not Modified"
+                        val status = if (failedRequest.startsWith("GET")) "304 Not Modified" else "204 No Content"
                         socket.getOutputStream().write("HTTP/1.1 $status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
                     }
                 }
-                val api = PlainphoneApi("http://127.0.0.1:${server.localPort}") {
-                    it.openConnection(Proxy.NO_PROXY) as HttpURLConnection
+                val app = RuntimeEnvironment.getApplication()
+                val manager = app.getSystemService(ConnectivityManager::class.java)
+                check(manager.bindProcessToNetwork(ShadowNetwork.newInstance(100)))
+                try {
+                    val api = PlainphoneApi("http://127.0.0.1:${server.localPort}", app)
+                    freshOpens = 0
+                    assertThat(api.fetchRules("test", null)).isEqualTo(RulesResult.Changed("e1", "{}"))
+                    assertThat(freshOpens).isEqualTo(0)
+                    call(api)
+                    assertThat(freshOpens).isEqualTo(1)
+                    observed.get(5, TimeUnit.SECONDS)
+                } finally {
+                    manager.bindProcessToNetwork(null)
                 }
-                assertThat(api.fetchRules("test", null)).isEqualTo(RulesResult.Changed("e1", "{}"))
-                call(api)
-                observed.get(5, TimeUnit.SECONDS)
             } finally {
                 executor.shutdownNow()
             }

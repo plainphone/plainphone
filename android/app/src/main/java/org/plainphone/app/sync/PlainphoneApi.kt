@@ -7,9 +7,16 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.CancellationSignal
 import java.io.IOException
+import java.io.InterruptedIOException
+import java.net.BindException
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.NoRouteToHostException
 import java.net.URL
+import java.net.UnknownHostException
 import java.util.concurrent.Executors
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -170,16 +177,24 @@ class PlainphoneApi private constructor(
         val url = URL(base + path)
         val payload = body?.toString()?.toByteArray(Charsets.UTF_8)
         val closeOnFirstAttempt = !replayable && (method == "GET" || method == "POST")
+        cancellation?.throwIfCanceled()
+        val conn = if (closeOnFirstAttempt) openFreshConnection(url) else openConnection(url)
+        val streamBody = method == "POST" || (method == "PUT" && replayable)
         return try {
-            exchange(url, method, token, payload, headers, readTimeoutMs, cancellation, close = closeOnFirstAttempt)
+            exchange(conn, method, token, payload, headers, readTimeoutMs, cancellation, closeOnFirstAttempt, streamBody)
         } catch (e: IOException) {
-            if (!replayable || cancellation?.isCanceled == true) throw e
-            exchange(url, method, token, payload, headers, readTimeoutMs, cancellation, close = true)
+            // HttpURLConnection does not expose socket reuse. Exclude failures that are
+            // identifiable as connection setup, TLS verification, or a read/write deadline.
+            if (!replayable || cancellation?.isCanceled == true || e is InterruptedIOException ||
+                e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
+                e is BindException || e is SSLHandshakeException || e is SSLPeerUnverifiedException
+            ) throw e
+            exchange(openFreshConnection(url), method, token, payload, headers, readTimeoutMs, cancellation, true, streamBody)
         }
     }
 
     private fun exchange(
-        url: URL,
+        conn: HttpURLConnection,
         method: String,
         token: String?,
         body: ByteArray?,
@@ -187,10 +202,10 @@ class PlainphoneApi private constructor(
         readTimeoutMs: Int,
         cancellation: CancellationSignal?,
         close: Boolean,
+        streamBody: Boolean,
     ): Response {
-        cancellation?.throwIfCanceled()
-        val conn = if (close) openFreshConnection(url) else openConnection(url)
         try {
+            cancellation?.throwIfCanceled()
             conn.requestMethod = method
             conn.connectTimeout = 15_000
             conn.readTimeout = readTimeoutMs
@@ -203,8 +218,8 @@ class PlainphoneApi private constructor(
             if (body != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                // Let the caller decide whether to replay a POST instead of buffering it for the transport.
-                if (method == "POST") conn.setFixedLengthStreamingMode(body.size)
+                // Keep replays of these request bodies under the caller's control.
+                if (streamBody) conn.setFixedLengthStreamingMode(body.size)
                 conn.outputStream.use { it.write(body) }
             }
             cancellation?.setOnCancelListener { disconnects.execute { conn.disconnect() } }
@@ -265,7 +280,7 @@ class PlainphoneApi private constructor(
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
-        val r = call("POST", "/device/enroll", body = body, replayable = true)
+        val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
             200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
             400, 404, 410 -> EnrollResult.Rejected
@@ -296,7 +311,8 @@ class PlainphoneApi private constructor(
         val body = JSONObject().put("lat", fix.lat).put("lon", fix.lon).put("recordedAt", iso(fix.recordedAtMs))
         body.put("purpose", purpose)
         fix.accuracyM?.let { body.put("accuracyM", it.toDouble()) }
-        val r = call("PUT", "/device/location", token, body)
+        val requested = purpose.startsWith("find:") || purpose.startsWith("checkin:")
+        val r = call("PUT", "/device/location", token, body, replayable = requested)
         return when (r.status) {
             204 -> true
             409 -> false

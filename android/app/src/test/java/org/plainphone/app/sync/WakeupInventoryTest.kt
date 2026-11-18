@@ -11,9 +11,10 @@ class WakeupInventoryTest {
     private val calls = Regex(
         """(?:\b(?:set(?:Exact)?AndAllowWhileIdle|setExact|setRepeating|setInexactRepeating|setAlarmClock|setWindow|""" +
             """(?:OneTime|Periodic)WorkRequestBuilder|enqueueUnique\w*|registerReceiver|postDelayed|""" +
-            """newWakeLock|register(?:Default)?NetworkCallback|requestLocationUpdates|requestSingleUpdate|getCurrentLocation)|""" +
-            """\.\s*(?:set|acquire|enqueue))\s*[<(]"""
+            """newWakeLock|register(?:Default)?NetworkCallback|requestLocationUpdates|requestSingleUpdate|getCurrentLocation|set|acquire|enqueue))\s*[<(]"""
     )
+
+    private val setter = Regex("""^set\(\w+\)\s*[{=]""")
 
     @Test
     fun `all wakeup call sites are documented`() {
@@ -40,6 +41,7 @@ class WakeupInventoryTest {
             "power.newWakeLock(flags, tag)", "lock.acquire(timeout)",
             "manager.registerDefaultNetworkCallback(callback)", "manager.registerNetworkCallback(request, callback)",
             "location.requestLocationUpdates(provider, listener)", "location.getCurrentLocation(provider, listener)",
+            "with(alarms) { set(type, time, intent) }", "manager.run { enqueue(request) }",
             "alarm.set(type, time, intent)", "alarm.setExact(type, time, intent)",
             "alarm.setRepeating(type, time, interval, intent)", "alarm.setInexactRepeating(type, time, interval, intent)",
             "alarm.setAlarmClock(info, intent)", "alarm.setWindow(type, time, window, intent)",
@@ -62,6 +64,9 @@ class WakeupInventoryTest {
             val lineEnd = contents.indexOf('\n', match.range.first).takeIf { it >= 0 } ?: contents.length
             val line = contents.substring(lineStart, lineEnd).trim()
             if (contents.indexOf("//", lineStart) in lineStart until match.range.first) return@mapNotNull null
+            val prefix = contents.substring(lineStart, match.range.first).trim()
+            if (setter.containsMatchIn(line) || prefix.substringAfterLast(' ') == "fun") return@mapNotNull null
+            if (path == "settings/SettingsApplier.kt" && line == "set()") return@mapNotNull null
             // AlarmManager.set has a generic name. These two calls write a QR bit array.
             if (path == "ui/qr/BitBuffer.java" && line in setOf(
                     "data.set(bitLength, QrCode.getBit(val, i));",
