@@ -151,11 +151,12 @@ API (`PPDNS_API_TOKEN` and the private address from `PPDNS_API_BIND`).
 
 In the web dashboard, open the phone's **Web filter**. The address appears for
 household members after the DNS service confirms provisioning with
-`DNS_PROVIDER=http`. After switching from `mock` to `http` or upgrading from an
-older schema, the background sync provisions existing phones with the real
-resolver before the dashboard shows their addresses. The hostname uses your
-configured DNS suffix. Treat it as private: sharing it gives other devices and
-apps access to the same filter rules.
+`DNS_PROVIDER=http`. After switching from `mock` to `http`, changing
+`DNS_API_URL` or `DNS_HOST_SUFFIX`, or upgrading from an older confirmation
+format, the background sync provisions existing phones with the configured
+resolver before the dashboard shows their addresses or Android starts using the
+new configuration. Treat the hostname as private: sharing it gives other devices
+and apps access to the same filter rules.
 
 Android Private DNS takes the hostname alone. A compatible router or VPN takes
 the hostname and TCP port 853 in its DNS-over-TLS upstream settings, using the

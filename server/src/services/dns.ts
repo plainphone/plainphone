@@ -1,17 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
+import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsDeletions, dnsSettings, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
-function needsDnsConfirmation(provider: Ctx["cfg"]["DNS_PROVIDER"]) {
-  return or(isNull(phones.dnsConfirmedAt), sql`${phones.dnsConfirmedProvider} is distinct from ${provider}`);
+function dnsConfirmationTag(cfg: Ctx["cfg"]): string {
+  if (cfg.DNS_PROVIDER === "mock") return "mock";
+  // Keep resolver configuration out of the database while invalidating legacy "http" tags.
+  const resolver = JSON.stringify([cfg.DNS_API_URL, cfg.DNS_HOST_SUFFIX]);
+  return `http:${createHash("sha256").update(resolver).digest("hex")}`;
+}
+
+export function isDnsReady(
+  ctx: Ctx,
+  phone: Pick<typeof phones.$inferSelect, "dnsConfirmedAt" | "dnsConfirmedProvider">,
+): boolean {
+  return ctx.cfg.DNS_PROVIDER === "http" &&
+    phone.dnsConfirmedAt !== null &&
+    phone.dnsConfirmedProvider === dnsConfirmationTag(ctx.cfg);
+}
+
+function needsDnsConfirmation(tag: string) {
+  return or(isNull(phones.dnsConfirmedAt), sql`${phones.dnsConfirmedProvider} is distinct from ${tag}`);
 }
 
 export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
   await ctx.db
     .update(phones)
     .set({ dnsDirty: true })
-    .where(and(eq(phones.dnsDirty, false), needsDnsConfirmation(ctx.cfg.DNS_PROVIDER)));
+    .where(and(eq(phones.dnsDirty, false), needsDnsConfirmation(dnsConfirmationTag(ctx.cfg))));
 }
 
 /**
@@ -19,7 +36,7 @@ export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
  * marked dirty and the sweeper retries; the API call that caused it still succeeds.
  */
 export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
-  const provider = ctx.cfg.DNS_PROVIDER;
+  const tag = dnsConfirmationTag(ctx.cfg);
   const [bumped] = await ctx.db
     .update(phones)
     .set({ dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` })
@@ -40,11 +57,11 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
       allowDomains: row.dns.allowDomains,
       blockDomains: row.dns.blockDomains,
     });
-    // Keep the first successful confirmation for this provider through later failures.
+    // Keep the first successful confirmation for this resolver through later failures.
     await ctx.db
       .update(phones)
-      .set({ dnsConfirmedAt: ctx.now(), dnsConfirmedProvider: provider })
-      .where(and(eq(phones.id, phoneId), needsDnsConfirmation(provider)));
+      .set({ dnsConfirmedAt: ctx.now(), dnsConfirmedProvider: tag })
+      .where(and(eq(phones.id, phoneId), needsDnsConfirmation(tag)));
     const [still] = await ctx.db
       .update(phones)
       .set({ dnsDirty: false })
@@ -69,7 +86,7 @@ export async function syncDirtyDns(ctx: Ctx): Promise<number> {
   const dirty = await ctx.db
     .select({ id: phones.id })
     .from(phones)
-    .where(or(eq(phones.dnsDirty, true), needsDnsConfirmation(ctx.cfg.DNS_PROVIDER)));
+    .where(or(eq(phones.dnsDirty, true), needsDnsConfirmation(dnsConfirmationTag(ctx.cfg))));
   let ok = 0;
   for (const p of dirty) if (await syncDns(ctx, p.id)) ok++;
   return ok;

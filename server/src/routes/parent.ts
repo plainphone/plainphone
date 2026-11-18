@@ -45,7 +45,7 @@ import {
 } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
-import { syncDns } from "../services/dns.js";
+import { isDnsReady, syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
@@ -765,7 +765,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const [row] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
     c.header("Cache-Control", "no-store");
     return c.json({
-      host: ctx.cfg.DNS_PROVIDER === "http" && phone.dnsConfirmedProvider === "http" && phone.dnsConfirmedAt !== null
+      host: isDnsReady(ctx, phone)
         ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`
         : null,
       synced: !phone.dnsDirty,
