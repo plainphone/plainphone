@@ -75,8 +75,15 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1794958381806,
-      "tag": "0010_security_hardening",
+      "when": 1794954837605,
+      "tag": "0010_phone_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794961883729,
+      "tag": "0011_security_hardening",
       "breakpoints": true
     }
   ]

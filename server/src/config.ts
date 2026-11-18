@@ -56,6 +56,7 @@ const schema = z.object({
    * APK_DOWNLOAD_URL and APK_SIGNATURE_CHECKSUM (base64url SHA-256 of the signing certificate).
    */
   APK_DOWNLOAD_URL: unsetIfEmpty(z.url().optional()),
+  APK_METADATA_URL: unsetIfEmpty(z.url({ protocol: /^https$/ }).optional()),
   APK_RELEASES_REPO: unsetIfEmpty(z.string().regex(/^[\w.-]+\/[\w.-]+$/).default("plainphone/plainphone")),
   APK_SIGNATURE_CHECKSUM: unsetIfEmpty(
     z

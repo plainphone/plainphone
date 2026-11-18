@@ -90,9 +90,27 @@ export const householdInvites = pgTable("household_invites", {
   createdAt: createdAt(),
 });
 
+export const UPDATE_ERROR_CODES = [
+  "battery_exemption_missing",
+  "network",
+  "signature_mismatch",
+  "version_not_newer",
+  "metadata_mismatch",
+  "install_failed",
+  "unknown",
+] as const;
+
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
   appVersion: string;
+  appVersionCode?: number;
+  update?: {
+    state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
+    errorCode?: (typeof UPDATE_ERROR_CODES)[number];
+    detail: string | null;
+    checkedAt: string | null;
+    latestVersion: string | null;
+  };
   batteryPct: number | null;
   charging: boolean | null;
   deviceOwner: boolean;
@@ -182,6 +200,7 @@ export const phones = pgTable(
     dnsConfirmedAt: timestamp("dns_confirmed_at", { withTimezone: true }),
     /** Kept equal to `locationMode !== "off"`, for phones and clients that only know the boolean. */
     locationEnabled: boolean("location_enabled").notNull(),
+    updateRequestedAt: timestamp("update_requested_at", { withTimezone: true }),
     /** When the phone sends its position (docs/location.md). */
     locationMode: text("location_mode", { enum: LOCATION_MODES }).notNull().default("off"),
     /** "always" is time-boxed: after this the phone falls back to "checkin" (sweeper). */
@@ -198,7 +217,9 @@ export const phones = pgTable(
     releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
-    deviceStatus: jsonb("device_status").$type<DeviceStatus>(),
+    deviceStatus: jsonb("device_status").$type<DeviceStatus & {
+      installOverrun?: { policy: string; receivedAt: string };
+    }>(),
     /** Server time of that report. */
     statusReportedAt: timestamp("status_reported_at", { withTimezone: true }),
     /** The last hardware attestation result (#23); null until the phone attested once. */

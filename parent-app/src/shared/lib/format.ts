@@ -113,6 +113,10 @@ export function formatMoney(minor: number, currency: string, locale: Locale): st
   );
 }
 
+export function installWindowOverrunSeconds(policy: string): string | undefined {
+  return /^install window overran: (\d+)s$/.exec(policy)?.[1];
+}
+
 export function formatList(items: string[], locale: Locale): string {
   return new Intl.ListFormat(intlLocale(locale), { style: "long", type: "conjunction" }).format(items);
 }

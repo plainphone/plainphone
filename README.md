@@ -144,6 +144,18 @@ The script reads the signing certificate checksum from the APK (or takes `--chec
 
 A phone configured with the script can show a pairing code, which the parent claims in the dashboard. The device token is sealed with a key in the Android Keystore. Pairing again later needs the maintenance PIN.
 
+## Updating the phone app
+
+In strong mode Plainphone checks daily on an unmetered connection or while charging and
+installs a newer release signed with the same certificate when Android allows Plainphone
+to run without battery optimization. **Update now** on the phone's
+dashboard page uses a direct connection while the screen is on, and push and rules sync
+deliver the request with the screen off. In light mode the
+phone shows a quiet update notification for manual installation. See
+[Android updates](docs/android-updates.md) for the first manual update, the foreground
+watchdog, deadline recovery even when lease storage fails, release metadata, and the
+real-phone release check.
+
 ## Roadmap
 
 1. Proof of lock

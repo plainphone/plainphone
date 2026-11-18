@@ -45,6 +45,7 @@ class GuardService : AccessibilityService() {
         isConnected = true
         instance = java.lang.ref.WeakReference(this)
         Log.i(TAG, "guard connected")
+        Lock.recoverInstallAsync(this, "guard connected", force = true)
         keywords = buildKeywords()
         screenReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {

@@ -10,7 +10,7 @@ import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Scr
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { formatFailedPolicies } from "../../../shared/lib/failedPolicies";
-import { formatPatchMonth, formatRelative } from "../../../shared/lib/format";
+import { formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -189,13 +189,14 @@ function Overview() {
   ];
   if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
+  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
     phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phones.neverSeen"),
   ].join(", ");
 
-  const failedPolicies = phone.status?.failedPolicies ?? [];
+  const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
@@ -226,6 +227,7 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
+      {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun", { seconds: overrun })} /> : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>

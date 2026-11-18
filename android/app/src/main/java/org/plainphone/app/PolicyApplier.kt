@@ -31,7 +31,32 @@ class PolicyApplier(
     private val hardening: Hardening? = null,
     /** Phone settings and the home screen (docs/phone-settings.md); null leaves them alone. */
     private val settings: SettingsApplier? = null,
+    private val onInstallsAllowed: () -> Unit = {},
+    private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
+    /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
+    private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
+
+    fun applyInstallRestriction(config: PolicyConfig): StepResult = step(INSTALL_RESTRICTION_STEP) {
+        if (installsAllowed(config)) {
+            val clear = {
+                device.clearRestriction(INSTALL_APPS)
+                onInstallsAllowed()
+            }
+            try {
+                if (clearInstallsIfAllowed == null) {
+                    clear()
+                } else if (!clearInstallsIfAllowed.invoke(config, clear)) {
+                    device.addRestriction(INSTALL_APPS)
+                }
+            } finally {
+                // The policy can change while the Binder call is in flight.
+                if (!installsAllowed(config)) device.addRestriction(INSTALL_APPS)
+            }
+        } else {
+            device.addRestriction(INSTALL_APPS)
+        }
+    }
 
     fun apply(config: PolicyConfig): List<StepResult> {
         if (!device.isDeviceOwner()) {
@@ -44,14 +69,11 @@ class PolicyApplier(
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
         for (key in LockPolicy.restrictions(sdkInt)) {
-            val allowedInInstall = key == INSTALL_APPS ||
-                (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS && config.installAccountsAllowed)
-            if (config.installing != null && allowedInInstall) {
-                // R2: one approved catalog app is being installed from Play. Re-added when it is installed or after 15 min.
-                results += step("install window: clear $key") { device.clearRestriction(key) }
-                continue
-            }
-            results += step("restriction $key") { device.addRestriction(key) }
+            results += if (key == INSTALL_APPS) applyInstallRestriction(config)
+            else if (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS &&
+                config.installing != null && config.installAccountsAllowed
+            ) step("install window: clear $key") { device.clearRestriction(key) }
+            else step("restriction $key") { device.addRestriction(key) }
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
@@ -258,15 +280,16 @@ class PolicyApplier(
         return StepResult(SHOW_HIDDEN, failed.isEmpty(), "${hidden.size - failed.size} shown")
     }
 
-    private companion object {
+    companion object {
+        const val INSTALL_RESTRICTION_STEP = "restriction no_install_apps"
         /** Android version for an API level, for status texts (29 = 10 ... 33 = 13). */
-        fun androidVersion(sdkInt: Int) = if (sdkInt in 29..33) (sdkInt - 19).toString() else "API $sdkInt"
+        private fun androidVersion(sdkInt: Int) = if (sdkInt in 29..33) (sdkInt - 19).toString() else "API $sdkInt"
 
-        const val SHOW_HIDDEN = "show hidden apps"
-        const val INSTALL_APPS = "no_install_apps" // UserManager.DISALLOW_INSTALL_APPS
+        private const val SHOW_HIDDEN = "show hidden apps"
+        private const val INSTALL_APPS = "no_install_apps" // UserManager.DISALLOW_INSTALL_APPS
         // RoleManager.ROLE_DIALER / ROLE_SMS, as plain strings so the class stays JVM-testable.
-        const val ROLE_DIALER = "android.app.role.DIALER"
-        const val ROLE_SMS = "android.app.role.SMS"
+        private const val ROLE_DIALER = "android.app.role.DIALER"
+        private const val ROLE_SMS = "android.app.role.SMS"
     }
 
     private inline fun step(name: String, block: () -> Any?): StepResult = try {

@@ -17,9 +17,10 @@ import {
   type Protection,
 } from "../lib/api";
 import { formatFailedPolicies } from "../lib/failedPolicies";
-import { formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative } from "../lib/format";
+import { formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
+import { PhoneAppVersion } from "./PhoneAppVersion";
 
 interface PhoneCtx {
   phone: Phone;
@@ -320,6 +321,9 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   const { t, locale } = useI18n();
   const s = phone.status;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
+  const failures = s?.failedPolicies ?? [];
+  const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
+  const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
   const when = (iso: string) => formatRelative(iso, now, locale);
   // Last time the phone fetched its rules (the server sees every poll); rulesAppliedAt is only the last lock run.
   const syncedAt = phone.lastSeenAt;
@@ -330,8 +334,8 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         <div className="notice notice-error" role="status">
           <div>
             <p className="row-title">{t("phone.lockBroken")}</p>
-            {s.failedPolicies.length > 0 && (
-              <p>{t("phone.lockFailed", { steps: formatFailedPolicies(s.failedPolicies, locale) })}</p>
+            {failedSteps.length > 0 && (
+              <p>{t("phone.lockFailed", { steps: formatFailedPolicies(failedSteps, locale) })}</p>
             )}
           </div>
         </div>
@@ -348,6 +352,11 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
       )}
       {s ? (
         <>
+          {overrun !== undefined && (
+            <p className="notice notice-warn" role="status">
+              {t("phone.installWindowOverrun", { seconds: overrun })}
+            </p>
+          )}
           <ul className="list status-list">
             {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
             {s.batteryPct !== null && (
@@ -357,7 +366,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
               </li>
             )}
             <li>{syncedAt ? t("phone.synced", { when: when(syncedAt) }) : t("phones.neverSeen")}</li>
-            <li>{t("phone.appVersion", { version: s.appVersion })}</li>
+            <PhoneAppVersion key={phone.id} phoneId={phone.id} status={s} />
             {s.resetProtection && <li>{t(RESET_PROTECTION_TEXT[s.resetProtection])}</li>}
             {phone.mode === "strong" && !phone.attestation && <li>{t("phone.attPending")}</li>}
             {s.accountTypes && s.accountTypes.length > 0 && (

@@ -2,9 +2,11 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import android.os.CancellationSignal
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -71,6 +73,8 @@ data class DeviceStatus(
     val dnsHost: String?,
     val resetProtection: String? = null,
     val accountTypes: List<String>? = null,
+    val appVersionCode: Long? = null,
+    val update: org.plainphone.app.update.UpdateReport? = null,
     val mode: String = "strong",
     val protections: Map<String, Boolean>? = null,
     val timeUsed: Map<String, Int>? = null,
@@ -93,6 +97,8 @@ data class DeviceStatus(
             // Optional fields (docs/sync-api.md): only sent when known.
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
+            appVersionCode?.let { put("appVersionCode", it) }
+            update?.let { put("update", it.toJson()) }
         }
 }
 
@@ -105,7 +111,17 @@ class HttpError(val status: Int, message: String) : IOException("HTTP $status: $
  * Plain [HttpURLConnection] client, no dependencies. Blocking: call it from a worker thread.
  * Network failures surface as [IOException]; nothing here ever changes the lock.
  */
-class PlainphoneApi(baseUrl: String) : SyncApi {
+class PlainphoneApi internal constructor(
+    baseUrl: String,
+    private val openConnection: (URL) -> HttpURLConnection,
+) : SyncApi {
+    constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
+
+    private companion object {
+        // Disconnect can block on I/O. Keep it off the screen broadcast thread.
+        val disconnects = Executors.newSingleThreadExecutor()
+    }
+
     private val base = baseUrl.trimEnd('/') + "/api"
 
     private class Response(val status: Int, val body: String, val etag: String?)
@@ -116,12 +132,14 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
         token: String? = null,
         body: JSONObject? = null,
         headers: Map<String, String> = emptyMap(),
+        readTimeoutMs: Int = 30_000,
+        cancellation: CancellationSignal? = null,
     ): Response {
-        val conn = URL(base + path).openConnection() as HttpURLConnection
+        val conn = openConnection(URL(base + path))
         try {
             conn.requestMethod = method
             conn.connectTimeout = 15_000
-            conn.readTimeout = 30_000
+            conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             conn.instanceFollowRedirects = false // never send the token somewhere else
             conn.setRequestProperty("Accept", "application/json")
@@ -132,12 +150,28 @@ class PlainphoneApi(baseUrl: String) : SyncApi {
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             }
+            cancellation?.setOnCancelListener { disconnects.execute { conn.disconnect() } }
+            cancellation?.throwIfCanceled()
             val status = conn.responseCode
             val stream = if (status >= 400) conn.errorStream else conn.inputStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return Response(status, text, conn.getHeaderField("ETag"))
         } finally {
+            cancellation?.setOnCancelListener(null)
             conn.disconnect()
+        }
+    }
+
+    fun waitForUpdateRequest(token: String, afterMs: Long, cancellation: CancellationSignal): Long? {
+        val response = call(
+            "GET", "/device/update-request?after=$afterMs", token, readTimeoutMs = 65_000, cancellation = cancellation,
+        )
+        return when (response.status) {
+            200 -> JSONObject(response.body).getLong("requestedAtMs").also {
+                if (it <= afterMs) throw IOException("update request was already handled")
+            }
+            204 -> null
+            else -> throw HttpError(response.status, response.body)
         }
     }
 

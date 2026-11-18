@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // The parent app shares its copy, formatting and change descriptions with the PWA.
-// These files are platform-free TypeScript, so they are copied verbatim from web/src
+// These files are platform-free TypeScript, so they are copied from web/src
 // into src/shared. Run `pnpm sync:shared` after changing them in web/. CI warns when the
 // committed copies have drifted, then tests the app with the PWA's current files.
 
-import { copyFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,14 +20,17 @@ let drift = 0;
 for (const f of FILES) {
   const from = join(webSrc, f);
   const to = join(shared, f);
+  const source = readFileSync(from, "utf8");
+  // Update controls and outcome copy currently exist only in the dashboard.
+  const content = f.startsWith("i18n/") ? source.replace(/^  "phone\.update.*\n/gm, "") : source;
   if (check) {
-    if (!existsSync(to) || readFileSync(from, "utf8") !== readFileSync(to, "utf8")) {
+    if (!existsSync(to) || content !== readFileSync(to, "utf8")) {
       console.error(`out of date: src/shared/${f} (run pnpm sync:shared)`);
       drift++;
     }
   } else {
     mkdirSync(dirname(to), { recursive: true });
-    copyFileSync(from, to);
+    writeFileSync(to, content);
     console.log(`copied web/src/${f}`);
   }
 }

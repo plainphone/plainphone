@@ -3,19 +3,19 @@
 package org.plainphone.app.catalog
 
 import android.accounts.AccountManager
-import android.app.AlarmManager
-import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import java.security.MessageDigest
 import java.util.Base64
 import org.plainphone.app.Lock
 import org.plainphone.app.PolicyConfig
-import org.plainphone.app.RelockReceiver
 import org.plainphone.app.light.Mode
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.update.InstallLease
 
 /**
  * Installing an app the parent picked from the catalog (R2, docs/app-catalog.md).
@@ -31,18 +31,18 @@ import org.plainphone.app.sync.SyncStore
 object InstallWindow {
     const val WINDOW_MS = 15 * 60_000L
     private const val GOOGLE = "com.google"
-    private const val PREFS = "plainphone_install"
     private const val ACCOUNT_BASELINE = "googleAccountFingerprints"
+    private const val PREFS = "plainphone_install"
 
-    private val stateLock = Any()
+    // Account callbacks run on the main thread, which must stay free to start the watchdog.
+    private val accountLock = Any()
 
     internal data class Active(val packageName: String, val accountsAllowed: Boolean)
 
     internal fun active(context: Context, nowMs: Long = System.currentTimeMillis()): Active? {
-        return synchronized(stateLock) {
+        return synchronized(accountLock) {
+            val pkg = current(context, nowMs) ?: return null
             val p = prefs(context)
-            val pkg = p.getString("pkg", null) ?: return null
-            if (p.getLong("until", 0L) <= nowMs || isInstalled(context, pkg)) return null
             val baseline = p.getStringSet(ACCOUNT_BASELINE, null)
             val accountsAllowed = p.getBoolean("accountsAllowed", false) &&
                 baseline != null && baseline.containsAll(googleAccountFingerprints(context))
@@ -50,46 +50,108 @@ object InstallWindow {
         }
     }
 
-    fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? =
-        active(context, nowMs)?.packageName
+    /** The package whose install window is open right now, or null. */
+    fun current(context: Context, nowMs: Long = System.currentTimeMillis()): String? {
+        val p = prefs(context)
+        val pkg = p.getString("pkg", null) ?: return null
+        if (!InstallLease.android(context).isOpen(InstallLease.CATALOG)) return null
+        return pkg.takeIf { p.getLong("until", 0L) > nowMs && !isInstalled(context, pkg) }
+    }
 
-    /** Opens Play for this app. Call off the main thread. */
+    /** Opens Play for [packageName]. Blocking in strong mode (applies the lock): call off the main thread. */
     fun open(context: Context, packageName: String) {
-        open(context, packageName, accountsAllowed = false)
+        open(context, packageName, false, applyCatalogPolicy(context, packageName))
     }
 
     /** Only called after the parent PIN has been verified. */
-    internal fun openForParent(context: Context, packageName: String) =
-        open(context, packageName, accountsAllowed = true)
+    internal fun openForParent(context: Context, packageName: String): OpenResult =
+        open(context, packageName, true, applyCatalogPolicy(context, packageName))
 
     internal enum class OpenResult { OPENED, UNAVAILABLE, DAILY_LIMIT }
 
-    private fun open(context: Context, packageName: String, accountsAllowed: Boolean): OpenResult {
-        val app = context.applicationContext
-        if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false) return OpenResult.UNAVAILABLE
-        if (isInstalled(app, packageName)) return OpenResult.UNAVAILABLE
+    private fun applyCatalogPolicy(context: Context, packageName: String): (() -> Unit) -> Unit =
+        { onInstallsAllowed ->
+            Lock.applyForInstall(context.applicationContext, "install window for $packageName", true, onInstallsAllowed)
+        }
 
-        val changed = synchronized(stateLock) {
+    internal fun open(context: Context, packageName: String, applyPolicy: (() -> Unit) -> Unit) =
+        open(context, packageName, false, applyPolicy)
+
+    @SuppressLint("ApplySharedPref")
+    private fun open(
+        context: Context,
+        packageName: String,
+        accountsAllowed: Boolean,
+        applyPolicy: (() -> Unit) -> Unit,
+    ): OpenResult {
+        val app = context.applicationContext
+        // Both modes: strong mode lifts the install restriction and shows Play, light mode's guard
+        // lets Play through for the window instead of closing it.
+        // Tapping again does not extend an open window, or Play could be kept open for good.
+        // At most MAX_PER_DAY windows a day, so alternating between approved apps cannot keep Play open.
+        synchronized(this) {
+            if (SyncStore(app).rules()?.toInstall?.none { it.packageName == packageName } != false ||
+                isInstalled(app, packageName)
+            ) return OpenResult.UNAVAILABLE
             val allowAccounts = accountsAllowed && Mode.isStrong(app)
             val window = active(app)
-            val p = prefs(app)
-            if (window?.packageName == packageName) {
-                if (!allowAccounts || window.accountsAllowed) return@synchronized false
-                p.edit().putBoolean("accountsAllowed", true)
-                    .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
-            } else {
-                if (!takeWindow(app)) return OpenResult.DAILY_LIMIT
-                p.edit().putString("pkg", packageName)
-                    .putLong("until", System.currentTimeMillis() + WINDOW_MS)
-                    .putBoolean("accountsAllowed", allowAccounts)
-                    .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) googleAccountFingerprints(app) else null)
-                    .remove("googleAccounts")
-                    .apply()
-                scheduleClose(app)
+            if (window?.packageName != packageName) {
+                val day = java.time.LocalDate.now().toString()
+                val p = prefs(app)
+                val previousDay = p.getString("day", null)
+                val previousCount = p.getInt("windows", 0)
+                val used = if (previousDay == day) previousCount else 0
+                if (used >= MAX_PER_DAY) return OpenResult.DAILY_LIMIT
+
+                val lease = InstallLease.android(app)
+                var started = false
+                var usedWindow = false
+                try {
+                    // A restart may relock the phone, but it must retain this reservation.
+                    check(p.edit().putString("day", day).putInt("windows", used + 1).commit()) {
+                        "Could not reserve the catalog quota"
+                    }
+                    lease.begin(InstallLease.CATALOG, WINDOW_MS)
+                    started = true
+                    synchronized(accountLock) {
+                        check(p.edit().putString("pkg", packageName)
+                            .putLong("until", System.currentTimeMillis() + WINDOW_MS)
+                            .putBoolean("accountsAllowed", allowAccounts)
+                            .putStringSet(ACCOUNT_BASELINE, if (allowAccounts) googleAccountFingerprints(app) else null)
+                            .remove("googleAccounts")
+                            .commit()) { "Could not save the catalog target" }
+                    }
+                    applyPolicy { usedWindow = true }
+                    check(current(app) == packageName) { "Catalog target is no longer eligible" }
+                } catch (e: Exception) {
+                    Log.w("Plainphone", "catalog install window failed", e)
+                    try {
+                        if (started) close(app, "catalog install window failed", packageName)
+                    } finally {
+                        if (!usedWindow && !p.edit().putString("day", previousDay).putInt("windows", previousCount).commit()) {
+                            Log.e("Plainphone", "could not restore the catalog quota")
+                        }
+                    }
+                    return OpenResult.UNAVAILABLE
+                }
+            } else if (allowAccounts && !window.accountsAllowed) {
+                val p = prefs(app)
+                synchronized(accountLock) {
+                    p.edit().putBoolean("accountsAllowed", true)
+                        .putStringSet(ACCOUNT_BASELINE, googleAccountFingerprints(app)).remove("googleAccounts").apply()
+                }
+                try {
+                    applyPolicy {}
+                } catch (e: Exception) {
+                    synchronized(accountLock) {
+                        p.edit().remove("accountsAllowed").remove(ACCOUNT_BASELINE).apply()
+                    }
+                    Lock.applyAsync(app, "restore account restriction")
+                    Log.w("Plainphone", "could not apply parent install window", e)
+                    return OpenResult.UNAVAILABLE
+                }
             }
-            true
         }
-        if (changed) runCatching { Lock.applyNow(app, "install window for $packageName") }
         launchPlay(app, packageName)
         return OpenResult.OPENED
     }
@@ -99,7 +161,7 @@ object InstallWindow {
         val app = context.applicationContext
         AccountManager.get(app).addOnAccountsUpdatedListener(
             {
-                val closed = synchronized(stateLock) { updateAccountWindow(app) }
+                val closed = synchronized(accountLock) { updateAccountWindow(app) }
                 if (closed) Lock.applyIfNeededAsync(app, "Google account added during install") {}
             },
             null,
@@ -131,31 +193,28 @@ object InstallWindow {
 
     const val MAX_PER_DAY = 5
 
-    private fun takeWindow(context: Context): Boolean {
-        val day = java.time.LocalDate.now().toString()
-        val p = prefs(context)
-        val used = if (p.getString("day", null) == day) p.getInt("windows", 0) else 0
-        if (used >= MAX_PER_DAY) return false
-        p.edit().putString("day", day).putInt("windows", used + 1).apply()
-        return true
-    }
-
     /** Ends the window (app installed or time up) and puts the lock back. */
-    fun close(context: Context, reason: String) {
+    @Synchronized
+    fun close(context: Context, reason: String, expectedPackage: String? = null) {
         val app = context.applicationContext
-        synchronized(stateLock) {
-            if (prefs(app).getString("pkg", null) == null) return
+        val openPackage = prefs(app).getString("pkg", null) ?: return
+        if (expectedPackage != null && openPackage != expectedPackage) return
+        synchronized(accountLock) {
             prefs(app).edit().remove("pkg").remove("until").remove("accountsAllowed")
                 .remove(ACCOUNT_BASELINE).remove("googleAccounts").apply()
         }
-        Lock.applyAsync(app, reason)
+        try {
+            InstallLease.android(app).invalidate(InstallLease.CATALOG)
+        } finally {
+            Lock.recoverInstallAsync(app, reason)
+        }
     }
 
     /** Called for every package added while the app runs. */
     fun onPackageAdded(context: Context, packageName: String) {
         val open = prefs(context).getString("pkg", null)
         when {
-            packageName == open -> close(context, "installed $packageName")
+            packageName == open -> close(context, "installed $packageName", packageName)
             open != null -> Lock.applyAsync(context, "app installed during install window")
             // Light mode cannot stop installs: put the new app on the guard's list straight away.
             org.plainphone.app.light.Mode.isLight(context) && !Lock.isInMaintenanceWindow(context) ->
@@ -178,17 +237,6 @@ object InstallWindow {
             // No Play Store (a phone without Google): the web page at least says what the app is.
             runCatching { context.startActivity(webIntent(packageName)) }
         }
-    }
-
-    private fun scheduleClose(context: Context) {
-        val intent = PendingIntent.getBroadcast(
-            context,
-            2,
-            Intent(context, RelockReceiver::class.java).setAction(RelockReceiver.ACTION_INSTALL_DONE),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        context.getSystemService(AlarmManager::class.java)
-            .setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + WINDOW_MS + 1_000L, intent)
     }
 
     private fun isInstalled(context: Context, pkg: String) =
