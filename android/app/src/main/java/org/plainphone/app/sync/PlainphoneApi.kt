@@ -61,6 +61,7 @@ data class Pairing(
 sealed interface PairPoll {
     data class Confirm(val maskedEmail: String, val householdName: String?) : PairPoll
     data object Waiting : PairPoll
+    data object InvalidKey : PairPoll
     data object Expired : PairPoll
     data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
 }
@@ -68,6 +69,7 @@ sealed interface PairPoll {
 sealed interface EnrollResult {
     data class Paired(val phoneId: String, val deviceToken: String) : EnrollResult
     /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
+    data object InvalidKey : EnrollResult
     data object Rejected : EnrollResult
 }
 
@@ -298,7 +300,16 @@ class PlainphoneApi private constructor(
             headers = mapOf("X-Poll-Secret" to pairing.pollSecret),
             body = JSONObject().put("action", if (confirm) "confirm" else "cancel")
                 .put("key", if (confirm) setupKey() else null))
+        if (confirm && invalidSetupKey(r)) return PairPoll.InvalidKey
         return pairingResult(r)
+    }
+
+    private fun invalidSetupKey(r: Response): Boolean {
+        if (r.status != 400) return false
+        val json = runCatching { JSONObject(r.body) }.getOrNull() ?: return false
+        if (json.optString("error") == "invalid setup key") return true
+        val issues = json.optJSONArray("issues") ?: return false
+        return (0 until issues.length()).any { issues.optJSONObject(it)?.optString("path")?.substringBefore('.') == "key" }
     }
 
     private fun pairingResult(r: Response): PairPoll =
@@ -341,13 +352,16 @@ class PlainphoneApi private constructor(
         return JSONObject(r.body).getString("url")
     }
 
-    fun approvalRequests(token: String): List<Pair<String, String>> {
+    data class ApprovalRequest(val id: String, val type: String, val appLabel: String?)
+
+    fun approvalRequests(token: String): List<ApprovalRequest> {
         val r = call("GET", "/device/approval-challenge", token)
         if (r.status != 200) throw HttpError(r.status, r.body)
         val requests = JSONObject(r.body).getJSONArray("changes")
         return List(requests.length()) { index ->
             val request = requests.getJSONObject(index)
-            request.getString("id") to request.getString("type")
+            ApprovalRequest(request.getString("id"), request.getString("type"),
+                request.optString("appLabel").takeUnless { request.isNull("appLabel") })
         }
     }
 
@@ -385,7 +399,8 @@ class PlainphoneApi private constructor(
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
             200 -> JSONObject(r.body).let { EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
-            400, 404, 410 -> EnrollResult.Rejected
+            400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
+            404, 410 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }

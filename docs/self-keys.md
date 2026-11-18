@@ -3,7 +3,9 @@
 Choose **Myself** on Android and select a key before confirming setup. A wait-time
 key takes 1, 6, 12, 24, 48 or 72 hours to loosen rules or release the phone.
 Stricter rules take effect at the next connection. A trusted person can approve
-loosening requests. Until the person joins, new requests use a 24-hour wait.
+loosening requests. Until the person joins, new requests use a 24-hour wait. When a QR helper
+joins, requests made while waiting for that helper switch to trusted approval
+if their wait has yet to expire.
 Existing phones and older Android versions keep their established key or the
 legacy 24-hour default.
 
@@ -22,6 +24,8 @@ mode uses its existing release flow.
 ## Help another person
 
 Choose **A person I trust** and enter their email or choose a QR invitation.
+The helper needs a separate household. If pairing rejects the email, correct
+it on the phone or choose a QR invitation without starting setup again.
 Once the phone connects, it or its dashboard can show a 15-minute invitation.
 The friend scans it, signs in with a magic link if needed, and accepts in their
 own account. A new QR replaces the previous one. The invitation grants helper
@@ -31,28 +35,35 @@ key. Two people can invite each other separately.
 
 To end your outgoing key, choose **Wait time** and save. The request goes to
 your current helper. The opposite direction of a mutual arrangement continues
-until that person chooses to change their key.
+until that person chooses to change their key. During upgrade, pending legacy
+requests whose helper is ineligible move to the existing wait time, starting at
+the upgrade.
 
 On the phone's Today screen, **Ask for approval** shows the pending trusted
-requests. Choose a request and show the QR. The helper can scan it from the
-dashboard on a browser with QR detection, in the Plainphone parent app, or
-open it with the phone camera.
+requests. App permissions and time limits name the affected app or the total
+limit. Choose a request and show the QR. The helper can scan it from the
+dashboard with camera access, in the Plainphone parent app, or with the
+phone camera.
 **Scan a Plainphone code** in the Android app opens the dashboard camera flow
 in the browser. Review the named rule and approve as the signed-in helper.
 
 The server signs each challenge for one phone and change, and validates its
 two-minute deadline and current helper when approving. Applying the request
 consumes the opportunity to use the code. The Android dialog blocks system
-screenshots. A photo taken by a second camera can still be scanned by the
-assigned helper before the code expires. Service restarts invalidate open
+screenshots. A copied image of an unused code can still be scanned by the
+assigned helper before the code expires. The code cannot verify that the
+two people are in the same place. Service restarts invalidate open
 approval codes.
 
 ## Copy rules into a new setup
 
 Show **Set up like me** from Today or the owner's dashboard. The invitee scans
-the code and begins a new Myself setup in their own dashboard. Their draft
-contains time limits and weekday overrides, schedules, app choices and blocked
-web categories. They can edit those rules before pairing. Contacts, locations,
+the code to begin a Myself setup in their own dashboard. If they already opened
+a light-mode setup link on Android, **Copy rules from a friend** replaces
+the rule choices in that same draft after confirmation. The setup link remains
+usable. The copied rules include time limits and weekday overrides, schedules,
+app choices and blocked web categories. The recipient can edit those rules in
+their dashboard before pairing. Contacts, locations,
 domain exceptions, usage history and helper relationships stay with the original
 account. The server deletes the shared snapshot after expiry and stores it with
 no source-account identifier.

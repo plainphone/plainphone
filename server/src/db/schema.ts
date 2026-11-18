@@ -467,6 +467,7 @@ export const pendingChanges = pgTable(
       .default("pending"),
     /** For the delay key: when the change takes effect. Null for the trusted-person key. */
     effectiveAt: timestamp("effective_at", { withTimezone: true }),
+    awaitingQrHelper: boolean("awaiting_qr_helper").notNull().default(false),
     decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),

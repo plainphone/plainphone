@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
-import { householdInvites, householdMembers, phones, selfKeys } from "../db/schema.js";
+import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import { householdInvites, householdMembers, pendingChanges, phones, selfKeys } from "../db/schema.js";
 import { randomToken, sha256 } from "../lib/crypto.js";
 import type { Ctx } from "./context.js";
 
@@ -47,6 +47,11 @@ export async function acceptTrustedInvite(ctx: Ctx, token: string, user: { id: s
       .where(and(match, gt(householdInvites.expiresAt, ctx.now()))).returning({ id: householdInvites.id });
     if (!invite) return false;
     await tx.update(selfKeys).set({ trustedUserId: user.id, trustedEmail: user.email }).where(eq(selfKeys.phoneId, phone.id));
+    await tx.update(pendingChanges).set({ keyType: "trusted", effectiveAt: null, awaitingQrHelper: false }).where(and(
+      eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "delay"),
+      eq(pendingChanges.awaitingQrHelper, true), gt(pendingChanges.effectiveAt, ctx.now()),
+      sql`${pendingChanges.requestedBy} is distinct from ${user.id}`,
+    ));
     return true;
   });
 }

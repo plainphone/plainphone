@@ -82,6 +82,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/enrollment-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy a template into an unused light-mode Self setup link */
+        post: operations["postDeviceEnrollmentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/enroll": {
         parameters: {
             query?: never;
@@ -2713,7 +2730,6 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
-                    key?: components["schemas"]["InitialSelfKey"];
                     /** @enum {unknown} */
                     mode: "strong" | "light";
                     cancel?: boolean;
@@ -2752,6 +2768,39 @@ export interface operations {
             429: components["responses"]["Error"];
         };
     };
+    postDeviceEnrollmentTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    template: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rules copied into the existing draft */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Setup link or template unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     postDeviceEnroll: {
         parameters: {
             query?: never;
@@ -2763,6 +2812,7 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
+                    key?: components["schemas"]["InitialSelfKey"];
                     /** @description Random id the phone makes once and keeps; only its hash is stored. */
                     installId: string;
                     deviceInfo?: {
@@ -3041,12 +3091,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Pending changes with id and type */
+            /** @description Pending changes and their affected rule targets. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        changes: {
+                            /** Format: uuid */
+                            id: string;
+                            type: string;
+                            /** @description App label, package fallback, or * for the total time limit. */
+                            appLabel: string | null;
+                        }[];
+                    };
+                };
             };
         };
     };

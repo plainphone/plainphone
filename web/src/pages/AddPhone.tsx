@@ -73,7 +73,7 @@ export function AddPhonePage() {
       </p>
       {template && <p className="notice notice-info">{t("template.importHelp")}</p>}
       {!mode && <ModeStep onChoose={setMode} />}
-      {mode && step !== 3 && <Progress step={step} total={mode === "light" ? 2 : 3} />}
+      {mode && step !== 3 && <Progress step={step} total={mode === "light" || template ? 2 : 3} />}
       {mode && step === 1 && (
         <WhoStep
           name={name}
@@ -81,7 +81,7 @@ export function AddPhonePage() {
           onName={setName}
           onProfile={setProfile}
           selfOnly={Boolean(template)}
-          onNext={mode === "light" ? () => makeQr() : () => setStep(2)}
+          onNext={mode === "light" || template ? () => makeQr() : () => setStep(2)}
           makeLink={mode === "light"}
           onBack={() => setMode(null)}
         />

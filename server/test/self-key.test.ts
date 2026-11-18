@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { eq, sql } from "drizzle-orm";
+import { householdMembers, phones, selfKeys } from "../src/db/schema.js";
 import { describe, expect, it } from "vitest";
 import { coverage, scheduleLoosens } from "../src/services/changes.js";
 import { sweep } from "../src/services/sweeper.js";
-import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
+import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
@@ -141,6 +145,36 @@ describe("Self profile: ways around the key", () => {
 });
 
 describe("Self profile with a trusted person", () => {
+  it("recovers a legacy request with an ineligible household helper after the configured delay", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const [phone] = await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId));
+    assert.ok(phone);
+    const requesterId = (await me.get("/api/me")).json.user.id;
+    const helper = await signIn(h, "household-helper@example.org");
+    const helperId = (await helper.get("/api/me")).json.user.id;
+    await h.ctx.db.insert(householdMembers).values({ householdId: phone.householdId, userId: helperId, role: "parent" });
+    await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedUserId: helperId, delayHours: 6 })
+      .where(eq(selfKeys.phoneId, phoneId));
+    const [change] = await h.ctx.db.execute<{ id: string }>(sql`
+      insert into pending_changes (phone_id, requested_by, op, key_type)
+      values (${phone.id}, ${requesterId}, ${JSON.stringify({ type: "app.set", packageName: "com.instagram.android", allowed: true })}::jsonb, 'trusted')
+      returning id`);
+    assert.ok(change);
+    const migration = await readFile(new URL("../drizzle/0018_recover_trusted_requests.sql", import.meta.url), "utf8");
+    await h.ctx.db.execute(sql.raw(migration.split("--> statement-breakpoint")[1]!));
+    const [row] = await h.ctx.db.execute<{ key_type: string; effective_at: string }>(sql`
+      select key_type, effective_at from pending_changes where id = ${change.id}`);
+    assert.ok(row);
+    expect(row.key_type).toBe("delay");
+    const deadline = new Date(row.effective_at).getTime();
+    expect(deadline - Date.now()).toBeGreaterThan(5 * 3_600_000);
+    h.clock.advance(deadline - h.clock.now.getTime() - 1);
+    await sweep(h.ctx);
+    expect(await allowed(device)).not.toContain("com.instagram.android");
+    h.clock.advance(2);
+    expect(await allowed(device)).toContain("com.instagram.android");
+  });
+
   it("waits for the trusted person's approval", async () => {
     const { me, phoneId, device } = await selfPhone();
     const key = { keyType: "trusted", delayHours: 24, trustedEmail: "friend@example.org", payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone" };
@@ -198,6 +232,36 @@ describe("Self profile with a trusted person", () => {
     expect(tried).toBe(1);
     expect((await friend.post(`/api/changes/${again.json.change.id}/reject`)).status).toBe(204);
     expect(await allowed(device)).not.toContain("com.instagram.android");
+  });
+
+  it("names the affected apps and total limit in phone and helper approvals", async () => {
+    const { me, phoneId, device } = await selfPhone();
+    const helper = await signIn(h, "helper@example.org");
+    const phone = `/api/phones/${phoneId}`;
+    const key = await me.put(`${phone}/key`, {
+      keyType: "trusted", delayHours: 24, trustedEmail: "helper@example.org",
+      payUnlockEnabled: false, payUnlockAmount: 50000, payUnlockRecipient: "plainphone",
+    });
+    expect(key.status).toBe(202);
+    h.clock.advance(24 * 3_600_000);
+    await sweep(h.ctx);
+    await me.put(`${phone}/time-limits/total`, { minutes: 30 });
+    await me.put(`${phone}/time-limits/apps/com.spotify.music`, { minutes: 10 });
+    const appLimit = await me.put(`${phone}/time-limits/apps/com.spotify.music`, { minutes: 20 });
+    expect(appLimit.status).toBe(202);
+    const limit = await me.put(`${phone}/time-limits/total`, { minutes: 60 });
+    expect(limit.status).toBe(202);
+    const app = await me.put(`${phone}/apps/com.instagram.android`, { allowed: true });
+    expect(app.status).toBe(202);
+    expect((await device.get("/api/device/approval-challenge")).json.changes).toEqual(expect.arrayContaining([
+      { id: limit.json.change.id, type: "timeLimit.set", appLabel: "*" },
+      { id: appLimit.json.change.id, type: "timeLimit.set", appLabel: "Spotify" },
+      { id: app.json.change.id, type: "app.set", appLabel: "Instagram" },
+    ]));
+    expect((await helper.get("/api/approvals")).json.approvals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: limit.json.change.id, appLabel: "*" }),
+      expect.objectContaining({ id: appLimit.json.change.id, appLabel: "Spotify" }),
+    ]));
   });
 
   it("binds QR approval to the current helper, change and expiry and consumes it on approval", async () => {
@@ -281,7 +345,14 @@ describe("Self profile with a trusted person", () => {
     const shared = await me.post(`${source}/self-template`);
     const template = new URLSearchParams(new URL(shared.json.url).hash.slice(1)).get("template");
     expect((await stranger.post("/api/phones/enroll", { name: "Child", profile: "child", mode: "light", template })).status).toBe(400);
-    const imported = await stranger.post("/api/phones/enroll", { name: "Copy", profile: "self", mode: "light", template });
+    const device = new Client(h);
+    const childDraft = await stranger.post("/api/phones/enroll", { name: "Child draft", profile: "child", mode: "light" });
+    expect((await device.post("/api/device/enrollment-template", { token: childDraft.json.enrollment.token, template })).status).toBe(404);
+    const imported = await stranger.post("/api/phones/enroll", { name: "Copy", profile: "self", mode: "light" });
+    const { token } = imported.json.enrollment;
+    for (let i = 0; i < 2; i++) {
+      expect((await device.post("/api/device/enrollment-template", { token, template })).status).toBe(204);
+    }
     expect(imported.status).toBe(201);
     const copy = `/api/phones/${imported.json.phone.id}`;
     expect((await stranger.get(`${copy}/time-limits`)).json.total).toEqual({ minutes: 50, days: { "1": 40 } });
@@ -291,6 +362,8 @@ describe("Self profile with a trusted person", () => {
     expect((await stranger.get(`${copy}/dns`)).json.blockDomains).toEqual([]);
     expect((await stranger.get("/api/people-i-help")).json.people).toEqual([]);
     expect((await stranger.put(`${copy}/time-limits/total`, { minutes: 70 })).status).toBe(200);
+    expect((await device.post("/api/device/enroll", { token, installId: "template-copy-install" })).json.phoneId).toBe(imported.json.phone.id);
+    expect((await device.post("/api/device/enrollment-template", { token, template })).status).toBe(404);
     h.clock.advance(15 * 60_000);
     expect((await stranger.post("/api/phones/enroll", { name: "Expired", profile: "self", template })).status).toBe(404);
   });

@@ -45,7 +45,7 @@ internal fun SelfApprovalAction() {
     var invite by remember { mutableStateOf(false) }
     var open by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
-    var requests by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
+    var requests by remember { mutableStateOf<List<PlainphoneApi.ApprovalRequest>?>(null) }
     var selected by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<String?>(null) }
     val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null }
@@ -102,14 +102,21 @@ internal fun SelfApprovalAction() {
                     }
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
-                    else -> rows.forEachIndexed { index, (id, type) ->
-                        val title = when {
-                            type == "phone.release" -> R.string.self_approval_release
-                            type.startsWith("key.") -> R.string.setup_key_title
-                            else -> R.string.self_approval_rule
+                    else -> rows.forEachIndexed { index, request ->
+                        val target = when (request.appLabel) {
+                            "*" -> stringResource(R.string.self_approval_all_apps)
+                            else -> request.appLabel
                         }
-                        TextButton(onClick = { selected = id }) {
-                            Text(stringResource(R.string.self_approval_item, index + 1, stringResource(title)))
+                        val title = when {
+                            request.type == "phone.release" -> stringResource(R.string.self_approval_release)
+                            request.type.startsWith("key.") -> stringResource(R.string.setup_key_title)
+                            request.type.startsWith("timeLimit.") && target != null ->
+                                stringResource(R.string.self_approval_time_limit, target)
+                            target != null -> stringResource(R.string.self_approval_app, target)
+                            else -> stringResource(R.string.self_approval_rule)
+                        }
+                        TextButton(onClick = { selected = request.id }) {
+                            Text(stringResource(R.string.self_approval_item, index + 1, title))
                         }
                     }
                 }
@@ -123,10 +130,14 @@ internal fun SelfApprovalAction() {
 
 
 @Composable
-internal fun ScanPlainphoneCode(label: Int = R.string.self_scan_code) {
+internal fun ScanPlainphoneCode(label: Int = R.string.self_scan_code, setup: LightEnrollment.Link? = null) {
     val context = LocalContext.current
     TextButton(onClick = {
         val base = ConfigStore(context).load().serverUrl.trimEnd('/')
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$base/approvals?scan=1"))) }
+        val url = if (setup == null) Uri.parse("$base/approvals?scan=1") else {
+            val fragment = "token=${Uri.encode(setup.token)}&package=${Uri.encode(context.packageName)}"
+            Uri.parse("${setup.server}/install-phone?scan=template").buildUpon().encodedFragment(fragment).build()
+        }
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url)) }
     }) { Text(stringResource(label)) }
 }

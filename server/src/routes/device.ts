@@ -18,7 +18,7 @@ import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
-import { shareSelfTemplate } from "../services/self-template.js";
+import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
@@ -197,6 +197,29 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json(result);
   });
 
+  // A phone with a setup link can copy rules into that same draft before connecting.
+  app.post("/enrollment-template", async (c) => {
+    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    const input = await body(c, z.object({
+      token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
+      template: templateCode,
+    }));
+    const now = ctx.now();
+    const phoneId = await ctx.db.transaction(async (tx) => {
+      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
+      if (!e || e.usedAt || e.expiresAt <= now) return null;
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
+      if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
+      const rules = await readSelfTemplate(tx, input.template, now);
+      if (!rules) return null;
+      await replaceDraftTemplate(tx, phone.id, rules, now);
+      return phone.id;
+    });
+    if (!phoneId) return c.json({ error: "setup link or template unavailable" }, 404);
+    await syncDns(ctx, phoneId);
+    return c.body(null, 204);
+  });
+
   // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
   app.post("/enroll", async (c) => {
     if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
@@ -332,14 +355,20 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/approval-challenge", async (c) => {
     const phone = c.get("phone");
     if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
-    const rows = await ctx.db.select({ id: pendingChanges.id, op: pendingChanges.op }).from(pendingChanges)
+    const rows = await ctx.db.select({ id: pendingChanges.id, op: pendingChanges.op,
+      appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')`,
+    }).from(pendingChanges)
+      .leftJoin(phoneApps, and(
+        eq(phoneApps.phoneId, pendingChanges.phoneId),
+        eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`),
+      ))
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .where(and(
         eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
         eq(pendingChanges.keyType, "trusted"), eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
       )).orderBy(pendingChanges.createdAt);
     c.header("Cache-Control", "no-store");
-    return c.json({ changes: rows.map(({ id, op }) => ({ id, type: (op as { type: string }).type })) });
+    return c.json({ changes: rows.map(({ id, op, appLabel }) => ({ id, type: (op as { type: string }).type, appLabel })) });
   });
 
   app.post("/approval-challenge", async (c) => {

@@ -47,11 +47,19 @@ export async function readSelfTemplate(tx: Tx, code: string, now: Date) {
   return row ? templateRules.parse(row.rules) : null;
 }
 
+/** Caller holds the unpaired Self draft's phone lock. */
+export async function replaceDraftTemplate(tx: Tx, phoneId: string, rules: z.infer<typeof templateRules>, now: Date) {
+  await tx.delete(phoneApps).where(and(eq(phoneApps.phoneId, phoneId), eq(phoneApps.core, false)));
+  await tx.delete(schedules).where(eq(schedules.phoneId, phoneId));
+  await tx.delete(timeLimits).where(eq(timeLimits.phoneId, phoneId));
+  await applySelfTemplate(tx, phoneId, rules, now);
+}
+
 export async function applySelfTemplate(tx: Tx, phoneId: string, rules: z.infer<typeof templateRules>, now: Date) {
   if (rules.apps.length) {
     await tx.insert(phoneApps).values(rules.apps.map((app) => ({
       ...app, phoneId, label: app.packageName, installed: false, reportedAt: now,
-    })));
+    }))).onConflictDoNothing();
   }
   if (rules.schedules.length) await tx.insert(schedules).values(rules.schedules.map((rule) => ({ ...rule, phoneId })));
   if (rules.limits.length) await tx.insert(timeLimits).values(rules.limits.map((rule) => ({ ...rule, phoneId })));

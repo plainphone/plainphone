@@ -76,7 +76,7 @@ export function InvitePage() {
       ) : result === "ok" ? (
         <div className="stack">
           <p className="notice notice-success" role="status">
-            {t("invite.accepted")}
+            {t(trusted ? "invite.trustedAccepted" : "invite.accepted")}
           </p>
           <p>
             <Link className="btn btn-primary" to={trusted ? "/approvals" : "/"}>

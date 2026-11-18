@@ -360,6 +360,9 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .values({ phoneId: phone.id, ...values })
         .onConflictDoUpdate({ target: selfKeys.phoneId, set: values });
       await db.delete(householdInvites).where(eq(householdInvites.trustedPhoneId, phone.id));
+      await db.update(pendingChanges).set({ awaitingQrHelper: false }).where(and(
+        eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.awaitingQrHelper, true),
+      ));
       if (!values.trustedUserId) {
         await db.update(pendingChanges).set({
           keyType: "delay",
@@ -512,6 +515,7 @@ export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: O
           requestedBy: userId,
           op,
           keyType,
+          awaitingQrHelper: key?.keyType === "trusted" && !key.trustedUserId && !key.trustedEmail,
           effectiveAt: keyType === "delay" ? new Date(ctx.now().getTime() + delayHours * 3_600_000) : null,
         })
         .returning();

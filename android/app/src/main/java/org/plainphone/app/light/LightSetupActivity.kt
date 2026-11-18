@@ -186,7 +186,7 @@ class LightSetupActivity : ComponentActivity() {
                         secondary = stringResource(R.string.setup_back),
                         onSecondary = back,
                     ) {
-                        ScanPlainphoneCode(R.string.self_template_import)
+                        ScanPlainphoneCode(R.string.self_template_import, pendingLink)
                         for (minutes in SETUP_UNDO_CHOICES) {
                             OutlinedButton(
                                 onClick = { undoMinutes = minutes },

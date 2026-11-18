@@ -1004,7 +1004,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.get("/approvals", async (c) => {
     const rows = await ctx.db
-      .select({ change: pendingChanges, phoneName: phones.name, requester: users.email, appLabel: phoneApps.label })
+      .select({ change: pendingChanges, phoneName: phones.name, requester: users.email, appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')` })
       .from(pendingChanges)
       .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
       .innerJoin(phones, eq(phones.id, pendingChanges.phoneId))

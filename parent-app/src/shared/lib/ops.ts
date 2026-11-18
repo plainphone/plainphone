@@ -113,7 +113,7 @@ export function describeApproval(type: Op["type"], t: T, app: string | null) {
     case "catalog.remove":
       return app ? t("appr.appRule", { app }) : t("appr.apps");
     case "timeLimit.set":
-    case "timeLimit.bonus": return t("appr.timeRule");
+    case "timeLimit.bonus": return app ? t("appr.namedTimeRule", { name: app === "*" ? t("time.totalTitle") : app }) : t("appr.timeRule");
     case "dns.category":
     case "dns.allowDomain":
     case "dns.blockDomain": return t("appr.webRule");

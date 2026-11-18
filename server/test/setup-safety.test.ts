@@ -98,10 +98,15 @@ describe("onboarding safety", () => {
     const invite = await qr.parent.post(`/api/phones/${phone.id}/trusted-invite`);
     const token = new URLSearchParams(new URL(invite.json.url).hash.slice(1)).get("token");
     expect((await qr.parent.post("/api/invites/accept", { token })).status).toBe(400);
+    const change = await qr.parent.post(`/api/phones/${phone.id}/release`);
+    expect(change.json.change.keyType).toBe("delay");
     const helper = await signIn(h, "new-helper@example.org");
     expect((await helper.post("/api/invites/accept", { token })).json).toEqual({ trusted: true });
     expect((await helper.post("/api/invites/accept", { token })).status).toBe(400);
     expect((await helper.get(`/api/phones/${phone.id}`)).status).toBe(404);
+    expect((await helper.get("/api/approvals")).json.approvals).toMatchObject([{ id: change.json.change.id }]);
+    expect((await qr.device.get("/api/device/approval-challenge")).json.changes)
+      .toMatchObject([{ id: change.json.change.id, type: "phone.release" }]);
     expect((await helper.get("/api/people-i-help")).json.people).toMatchObject([{ id: phone.id, name: "My phone" }]);
     const email = await start(qr.parent);
     await email.claim();
@@ -195,6 +200,22 @@ describe("onboarding safety", () => {
     expect((await poll()).json).toEqual({
       status: "confirm", maskedEmail: "c***@example.org", householdName: household.name,
     });
+  });
+
+  it("keeps a dashboard setup link usable after a rejected key and stores the corrected choice", async () => {
+    const parent = await signIn(h, "claimer@example.org");
+    const device = new Client(h);
+    const made = await parent.post("/api/phones/enroll", { mode: "light", name: "My phone", profile: "self" });
+    expect(made.status).toBe(201);
+    const { token } = made.json.enrollment;
+    const path = "/api/device/enroll";
+    const input = { token, installId: "setup-safety-test-install" };
+    expect((await device.post(path, { ...input, key: { keyType: "trusted", trustedEmail: "claimer@example.org" } })).status).toBe(400);
+    expect((await device.post("/api/device/enrollment-review", { token, mode: "light" })).status).toBe(200);
+    const enrolled = await device.post(path, { ...input, key: { keyType: "delay", delayHours: 6 } });
+    expect(enrolled.status).toBe(200);
+    expect(enrolled.json.phoneId).toBe(made.json.phone.id);
+    expect((await parent.get(`/api/phones/${made.json.phone.id}/key`)).json.delayHours).toBe(6);
   });
 
   it("reviews and cancels a light-mode setup link before redemption", async () => {

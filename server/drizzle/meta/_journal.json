@@ -127,6 +127,13 @@
       "when": 1794996216802,
       "tag": "0017_self_rule_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794997912187,
+      "tag": "0018_recover_trusted_requests",
+      "breakpoints": true
     }
   ]
 }

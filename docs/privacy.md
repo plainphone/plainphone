@@ -118,7 +118,9 @@ A trusted person can see which phone and account they help, pending changes and
 the names of the rules they can approve. The helper account receives no
 location, messages, contacts, browsing or usage history. A trusted invitation
 grants no household membership. Any data the owner explicitly shares through
-a separate feature follows that feature's access rules.
+a separate feature follows that feature's access rules. The dashboard decodes
+QR codes in the browser. It sends the code needed for the selected action to
+Plainphone, and keeps camera images on the device.
 
 A **Set up like me** code contains a link to a 15-minute snapshot of time limits,
 schedules, app choices and web filter categories. It excludes contacts, domain

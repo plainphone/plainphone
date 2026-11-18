@@ -47,6 +47,7 @@ class PairingController(
         when (result) {
             is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken)
             EnrollResult.Rejected -> store.saveEnrollToken(null)
+            EnrollResult.InvalidKey -> store.clearEnrollmentConfirmation()
         }
         return result
     }
@@ -62,7 +63,7 @@ class PairingController(
         when (result) {
             is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken)
             PairPoll.Expired -> store.savePairing(null)
-            is PairPoll.Confirm, PairPoll.Waiting -> Unit
+            is PairPoll.Confirm, PairPoll.InvalidKey, PairPoll.Waiting -> Unit
         }
         return result
     }

@@ -17,6 +17,7 @@ import org.robolectric.RobolectricTestRunner
 class PlainphoneApiReleaseTest {
     private lateinit var server: HttpServer
     private var answer = 204
+    private var errorBody = """{"error":"x"}"""
     private val seen = mutableListOf<Triple<String, String, String?>>()
 
     @Before
@@ -25,7 +26,7 @@ class PlainphoneApiReleaseTest {
         server.createContext("/") { ex ->
             seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
             ex.requestBody.readBytes()
-            val body = if (answer == 204) ByteArray(0) else """{"error":"x"}""".toByteArray()
+            val body = if (answer == 204) ByteArray(0) else errorBody.toByteArray()
             ex.sendResponseHeaders(answer, if (answer == 204) -1 else body.size.toLong())
             if (answer != 204) ex.responseBody.use { it.write(body) }
             ex.close()
@@ -37,6 +38,17 @@ class PlainphoneApiReleaseTest {
     fun stop() = server.stop(0)
 
     private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}")
+
+    @Test
+    fun `an invalid setup key is distinct from a rejected enrollment token`() {
+        answer = 400
+        errorBody = """{"error":"invalid setup key"}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
+        errorBody = """{"error":"invalid input","issues":[{"path":"key.trustedEmail","message":"Invalid email"}]}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
+        answer = 410
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+    }
 
     @Test
     fun `posts to the released endpoint with the device token`() {

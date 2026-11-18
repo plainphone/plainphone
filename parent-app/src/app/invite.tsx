@@ -98,7 +98,7 @@ export default function InviteScreen() {
         <Notice tone="info" text={t("invite.accepting")} />
       ) : result === "ok" ? (
         <>
-          <Notice tone="success" text={t("invite.accepted")} />
+          <Notice tone="success" text={t(trusted ? "invite.trustedAccepted" : "invite.accepted")} />
           <Button testID="invite-done" title={t(trusted ? "appr.title" : "invite.toPhones")} onPress={() => router.replace(trusted ? "/approvals" : "/")} />
         </>
       ) : (

@@ -969,7 +969,6 @@ paths:
               required: [token, mode]
               properties:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
-                key: { $ref: "#/components/schemas/InitialSelfKey" }
                 mode: { enum: [strong, light] }
                 cancel: { type: boolean }
       responses:
@@ -986,6 +985,27 @@ paths:
                   profile: { enum: [child, self] }
         "204": { description: "Cancelled and pending phone entry removed" }
         "404": { description: "Setup link unavailable" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /device/enrollment-template:
+    post:
+      operationId: postDeviceEnrollmentTemplate
+      security: []
+      tags: [device]
+      summary: Copy a template into an unused light-mode Self setup link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, template]
+              properties:
+                token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                template: { type: string, pattern: "^pp_r_[A-Za-z0-9_-]{30,70}$" }
+      responses:
+        "204": { description: Rules copied into the existing draft }
+        "404": { description: Setup link or template unavailable }
         "429": { $ref: "#/components/responses/Error" }
 
   /device/enroll:
@@ -1011,6 +1031,7 @@ paths:
               required: [token, installId]
               properties:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                key: { $ref: "#/components/schemas/InitialSelfKey" }
                 installId:
                   type: string
                   pattern: "^[A-Za-z0-9_-]{16,64}$"
@@ -1204,7 +1225,23 @@ paths:
       tags: [device]
       summary: List pending trusted approvals for this Self phone
       responses:
-        "200": { description: Pending changes with id and type }
+        "200":
+          description: Pending changes and their affected rule targets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes]
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, type, appLabel]
+                      properties:
+                        id: { type: string, format: uuid }
+                        type: { type: string }
+                        appLabel: { type: [string, "null"], description: "App label, package fallback, or * for the total time limit." }
     post:
       operationId: postDeviceApprovalChallenge
       security: [{ device: [] }]

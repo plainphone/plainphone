@@ -278,6 +278,10 @@
     <string name="self_approval_empty">Ingen ændringer venter på din betroede person.</string>
     <string name="self_approval_release">Frigiv telefonen</string>
     <string name="self_approval_rule">Ændr en regel</string>
+    <string name="setup_key_invalid">Brug en anden mailadresse. Din hjælper skal have sin egen husstand.</string>
+    <string name="self_approval_all_apps">Alle apps tilsammen</string>
+    <string name="self_approval_time_limit">Tidsgrænse: %1$s</string>
+    <string name="self_approval_app">Appregel: %1$s</string>
     <string name="self_approval_item">%1$d. %2$s</string>
     <string name="setup_key_qr">Invitér med QR-kode</string>
     <string name="setup_key_qr_help">Du kan vise invitationskoden, så snart din telefon er forbundet.</string>

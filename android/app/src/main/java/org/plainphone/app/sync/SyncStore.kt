@@ -134,6 +134,9 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     @SuppressLint("ApplySharedPref") // Worker may redeem the token after process death.
     fun confirmEnrollment(): Boolean = prefs.edit().putBoolean("enroll_confirmed", true).commit()
 
+    @SuppressLint("ApplySharedPref") // Stop the worker retrying the rejected choice.
+    fun clearEnrollmentConfirmation() { prefs.edit().remove("enroll_confirmed").commit() }
+
     @SuppressLint("ApplySharedPref") // written during provisioning, before the process may be killed
     fun saveEnrollToken(token: String?) {
         if (token != null && token == enrollToken()) return
