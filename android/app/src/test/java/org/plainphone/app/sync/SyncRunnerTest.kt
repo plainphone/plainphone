@@ -345,6 +345,24 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a two minute old post-request cache does not skip the precise Find lookup`() {
+        pair()
+        val requested = device.now
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested)
+        device.lastKnownFix = cached
+        device.now += 2 * 60_000L
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with a stale cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(cached.copy(recordedAtMs = device.now))
+    }
+
+    @Test
     fun `a coarse post-request cache is still sent when the Find lookup has no fix`() {
         pair()
         val requested = device.now

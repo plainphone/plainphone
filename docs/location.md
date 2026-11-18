@@ -63,8 +63,9 @@ Regular `always` reports use Android 12's low-power setting. On older Android ve
 fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
 100 m or better before starting GPS. Both providers share the same deadline.
 
-Find can reuse a cached position recorded at or after the request if it is younger than
-2 minutes and accurate to 100 m or better. Regular `always` reports can reuse a cached
+Before starting a lookup, Find can reuse a cached position from an active provider
+recorded at or after the request if it is younger than 2 minutes and accurate to 100 m
+or better. Regular `always` reports can reuse a cached
 position younger than 10 minutes and accurate to 1,000 m or better. If either lookup
 gives no fix, the phone can send its newest known position with the original recorded time.
 A position older than the request leaves Find open. Check-in lookups only accept a fix

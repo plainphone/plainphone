@@ -33,6 +33,7 @@ interface SyncDevice {
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
     fun lastKnownLocation(): LocationFix?
+    fun cachedPreciseLocation(notBeforeMs: Long): LocationFix?
     fun cachedCoarseLocation(): LocationFix?
     /** The installed versionCode, for the dashboard's "update available". */
     fun appVersionCode(): Long? = null
@@ -247,13 +248,13 @@ class SyncRunner(
 
         // Once an older position has been shared, give later retry slots to fresh lookups.
         val cachedFind = if (find != null && savedFind == null && now < find.expiresAt) {
-            device.lastKnownLocation()?.takeIf {
-                !store.isLocationRejected(it) && if (it.recordedAtMs >= find.start) {
-                    (it.accuracyM ?: Float.POSITIVE_INFINITY) <= PRECISE_ACCURACY_METERS
-                } else {
-                    store.shownLocateMs != find.start
+            val recent = device.cachedPreciseLocation(find.start)?.takeUnless(store::isLocationRejected)
+            val older = if (recent == null && store.shownLocateMs != find.start) {
+                device.lastKnownLocation()?.takeIf {
+                    it.recordedAtMs < find.start && !store.isLocationRejected(it)
                 }
-            }?.let { PendingLocation(it, find.purpose, now) }
+            } else null
+            (recent ?: older)?.let { PendingLocation(it, find.purpose, now) }
         } else null
         val readyFind = savedFind ?: cachedFind
         var findNeedsLookup = readyFind == null

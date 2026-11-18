@@ -98,6 +98,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? =
         LocationReader(context).current(precise, notBeforeMs = notBeforeMs, fresh = fresh)
     override fun lastKnownLocation(): LocationFix? = LocationReader(context).lastKnown()
+    override fun cachedPreciseLocation(notBeforeMs: Long): LocationFix? =
+        LocationReader(context).current(precise = true, timeoutMs = 0, notBeforeMs = notBeforeMs)
     override fun cachedCoarseLocation(): LocationFix? = LocationReader(context).current(precise = false, timeoutMs = 0)
 
     override fun appVersionCode(): Long =
