@@ -524,10 +524,26 @@ class UpdateAlarmTest {
         }
     }
 
-    @Test fun scheduledAlarmBroadcastRestoresTheRestriction() {
+    @Test fun openingSelfUpdateSchedulesTheExpiryAlarm() {
+        val expiry = SystemClock.elapsedRealtime() + 360_000L
         openSelfUpdate()
         val alarm = alarms.scheduledAlarms.single()
-        ShadowSystemClock.advanceBy(Duration.ofMinutes(6))
+        assertEquals(AlarmManager.ELAPSED_REALTIME_WAKEUP, alarm.getType())
+        assertEquals(expiry, alarm.triggerAtMs)
+        assertTrue(alarm.isAllowWhileIdle)
+        @Suppress("DEPRECATION") // Robolectric exposes the scheduled PendingIntent through this field.
+        val intent = shadowOf(checkNotNull(alarm.operation)).savedIntent
+        assertEquals(UpdateReceiver.ACTION_LEASE_EXPIRED, intent.action)
+        assertEquals(InstallLease.SELF_UPDATE, intent.data?.schemeSpecificPart)
+    }
+
+    @Test fun scheduledAlarmBroadcastRestoresTheRestriction() {
+        // Model delayed alarm delivery after the watchdog and worker are gone.
+        restoreOverdueLease(overrunMs = 0)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        UpdateReceiver.scheduleLeaseExpiry(context, InstallLease.SELF_UPDATE, SystemClock.elapsedRealtime())
+        val alarm = alarms.scheduledAlarms.single()
+        assertFalse(installsRestricted())
         alarms.fireAlarm(alarm)
         shadowOf(android.os.Looper.getMainLooper()).idle()
         awaitRecovery()

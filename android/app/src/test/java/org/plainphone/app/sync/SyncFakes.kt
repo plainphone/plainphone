@@ -23,6 +23,10 @@ class FakeSyncDevice(
     var cachedLocation: LocationFix? = null
     var lastKnownFix: LocationFix? = null
     override fun lastKnownLocation() = lastKnownFix
+    override fun cachedPreciseLocation(notBeforeMs: Long) = lastKnownFix?.takeIf {
+        it.recordedAtMs >= notBeforeMs && now - it.recordedAtMs in 0 until 2 * 60_000L &&
+            (it.accuracyM ?: Float.POSITIVE_INFINITY) <= PRECISE_ACCURACY_METERS
+    }
     override fun cachedCoarseLocation() = cachedLocation
     val locationRequests = mutableListOf<Boolean>()
     val freshLocationRequests = mutableListOf<Boolean>()
