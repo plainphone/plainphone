@@ -327,7 +327,7 @@ describe("approvals", () => {
     await renderRouter(routes, { initialUrl: "/approvals" });
     expect(await screen.findByText("Show Instagram")).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Approve: Show Instagram"));
-    expect(await screen.findByText("Approved. The phone gets the change within a minute.")).toBeTruthy();
+    expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/changes/a1/approve")).toBe(true);
   });
 });
@@ -395,7 +395,7 @@ describe("invitations", () => {
     (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_loginlink123");
     const api = phoneApi();
     await renderRouter(routes, { initialUrl: "/invite" });
-    expect(await screen.findByText("This page needs an invitation link.")).toBeTruthy();
+    expect(await screen.findByText("Open the invitation link you were sent.")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(false);
     (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });

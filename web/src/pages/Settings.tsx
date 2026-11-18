@@ -62,7 +62,11 @@ function AccountSection() {
       <div className="danger-zone">
         {open ? (
           <form onSubmit={del} noValidate className="stack-sm">
-            <p>{t("settings.deleteExplain")}</p>
+            <ul>
+              <li>{t("settings.deleteAccount")}</li>
+              <li>{t("settings.deleteShared")}</li>
+              <li>{t("settings.deletePhones")}</li>
+            </ul>
             <Field label={t("settings.deleteConfirmLabel")}>
               {(p) => (
                 <input

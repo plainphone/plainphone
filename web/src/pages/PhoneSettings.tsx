@@ -154,6 +154,7 @@ function SettingRow({
       <p className="help" id={`${id}-d`}>
         {t(`phoneSettings.${spec.key}.desc` as MessageKey)}
       </p>
+      {spec.key === "nfc" && <p className="help" id={`${id}-nfc-help`}>{t("phoneSettings.nfc.help")}</p>}
       <PickGroup
         name={`${id}-mode`}
         value={shown.mode}
@@ -161,7 +162,7 @@ function SettingRow({
         onChange={pickMode}
         disabled={disabled}
         labelledBy={`${id}-n`}
-        describedBy={`${id}-d`}
+        describedBy={spec.key === "nfc" ? `${id}-d ${id}-nfc-help` : `${id}-d`}
       />
       {choices && (
         <div className="setting-value">

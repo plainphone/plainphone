@@ -17,6 +17,7 @@ import {
   type Protection,
 } from "../lib/api";
 import { formatDateTime, formatDuration, formatList, formatRelative, installWindowOverrunSeconds } from "../lib/format";
+import { lockStepLabel } from "../lib/lock-steps";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { PhoneAppVersion } from "./PhoneAppVersion";
@@ -300,15 +301,12 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
 }
 
 /** What the phone reported about its battery, app and lock, and whether the web filter is live. */
-function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
+function PhoneStatusBlock({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const s = phone.status;
   const failures = s?.failedPolicies ?? [];
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
-  const when = (iso: string) => formatRelative(iso, now, locale);
-  // Last time the phone fetched its rules (the server sees every poll); rulesAppliedAt is only the last lock run.
-  const syncedAt = phone.lastSeenAt;
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>
@@ -319,15 +317,19 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
               <div>
                 <p className="row-title">{t("phone.lockBroken")}</p>
                 {failedSteps.length > 0 && (
-                  <p>{t("phone.lockFailed", { steps: formatList(failedSteps, locale) })}</p>
+                  <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t)))], locale) })}</p>
                 )}
               </div>
             </div>
           )}
-          {overrun !== undefined && (
-            <p className="notice notice-warn" role="status">
-              {t("phone.installWindowOverrun", { seconds: overrun })}
-            </p>
+          {failures.length > 0 && (
+            <details className="details details-lead lock-details">
+              <summary>{t("phone.lockDetails")}</summary>
+              {overrun !== undefined && <p>{t("phone.installWindowOverrun", { seconds: overrun })}</p>}
+              <ul>
+                {failures.map((step, index) => <li key={index}><code>{step}</code></li>)}
+              </ul>
+            </details>
           )}
           {s.maintenance && (
             <p className="notice notice-warn" role="status">
@@ -342,10 +344,8 @@ function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
                 {s.charging ? `, ${t("phone.charging")}` : ""}
               </li>
             )}
-            <li>{syncedAt ? t("phone.synced", { when: when(syncedAt) }) : t("phones.neverSeen")}</li>
             <PhoneAppVersion key={phone.id} phoneId={phone.id} status={s} />
           </ul>
-          <p className="help status-updated">{t("phone.statusUpdated", { when: when(s.reportedAt) })}</p>
         </>
       ) : (
         <p className="muted">{t("phone.statusNone")}</p>
@@ -390,21 +390,36 @@ export function PhoneOverview() {
       window.clearInterval(id);
     };
   }, [phone.id, releasing, releasedText, navigate]);
-  const items: { to: string; label: string; hint: string }[] = [
-    { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
-    { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
-    { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
-    { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
-    { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+  const groups = [
     {
-      to: "location",
-      label: t("phone.location"),
-      hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff"),
+      title: t("phone.rulesPeople"),
+      items: [
+        { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
+        { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
+        { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
+      ],
     },
-    { to: "settings", label: t("phone.settings"), hint: t("phone.settingsHint") },
-    { to: "home", label: t("phone.home"), hint: t("phone.homeHint") },
+    {
+      title: t("phone.rulesWhen"),
+      items: [
+        { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
+        { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+      ],
+    },
+    {
+      title: t("phone.rulesDevice"),
+      items: [
+        {
+          to: "location",
+          label: t("phone.location"),
+          hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff"),
+        },
+        { to: "home", label: t("phone.home"), hint: t("phone.homeHint") },
+        { to: "settings", label: t("phone.settings"), hint: t("phone.settingsHint") },
+        ...(phone.profile === "self" ? [{ to: "key", label: t("phone.key"), hint: t("phone.keyHint") }] : []),
+      ],
+    },
   ];
-  if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
   return (
     <>
@@ -416,7 +431,7 @@ export function PhoneOverview() {
             <span>
               {phone.lastSeenAt
                 ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                : t("phones.neverSeen")}
+                : t("phone.neverOnline")}
             </span>
           </span>
         }
@@ -438,7 +453,7 @@ export function PhoneOverview() {
 
       {phone.openRequests > 0 && <RequestsSection />}
 
-      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
+      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} />}
 
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">
@@ -449,31 +464,29 @@ export function PhoneOverview() {
 
       <section className="section" aria-labelledby="rules-h">
         <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
-        <ul className="list phone-rules">
-          {items.map((i) => (
-            <li key={i.to}>
-              <Link to={`${base}/${i.to}`} className="row-link">
-                <span className="row-main">
-                  <span className="row-title">{i.label}</span>
-                  <span className="row-meta">{i.hint}</span>
-                </span>
-                <Chevron />
-              </Link>
-            </li>
+        <div className="stack">
+          {groups.map(({ title, items }) => (
+            <div key={title} className="stack-sm">
+              <h3 className="h3">{title}</h3>
+              <ul className="list phone-rules">
+                {items.map(({ to, label, hint }) => (
+                  <li key={to}>
+                    <Link to={`${base}/${to}`} className="row-link">
+                      <span className="row-main">
+                        <span className="row-title">{label}</span>
+                        <span className="row-meta">{hint}</span>
+                      </span>
+                      <Chevron />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-          <li>
-            <Link to="/household" className="row-link">
-              <span className="row-main">
-                <span className="row-title">{t("phone.household")}</span>
-                <span className="row-meta">{t("phone.householdHint")}</span>
-              </span>
-              <Chevron />
-            </Link>
-          </li>
-        </ul>
+        </div>
       </section>
 
-      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
+      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} />}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <ManagePhone />
@@ -695,6 +708,7 @@ function ManagePhone() {
         {confirming ? (
           <div className="stack-sm" role="group" aria-labelledby="danger-q">
             <p id="danger-q" tabIndex={-1} ref={questionRef}>
+              <strong>{t(confirming === "release" ? "phone.releaseQuestion" : "phone.removeQuestion")}</strong>{" "}
               {t(
                 confirming === "release"
                   ? self
