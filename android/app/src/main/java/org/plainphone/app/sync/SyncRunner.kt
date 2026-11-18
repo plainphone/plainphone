@@ -13,8 +13,10 @@ internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 interface SyncDevice {
     fun nowMs(): Long
     fun appVersion(): String
+    /** Core packages whose membership can change without a package event. */
+    fun dynamicCorePackages(): Set<String> = emptySet()
     /** Launchable apps, including the ones Plainphone hid. */
-    fun installedApps(): List<InstalledApp>
+    fun installedApps(dynamicCore: Set<String>): List<InstalledApp>
     /**
      * Re-applies the lock with the stored rules if the merged config changed or the last
      * run is older than [maxAgeMs]. Never during a maintenance unlock.
@@ -204,11 +206,12 @@ class SyncRunner(
 
     private fun reportApps(token: String) {
         val at = device.nowMs()
-        val generation = store.appScanGeneration(at) ?: return
-        val apps = device.installedApps().sortedBy { it.packageName }
+        val dynamicCore = device.dynamicCorePackages()
+        val generation = store.appScanGeneration(at, dynamicCore) ?: return
+        val apps = device.installedApps(dynamicCore).sortedBy { it.packageName }
         val hash = sha256(apps.joinToString("\n") { "${it.packageName}\t${it.label}\t${it.core}" })
         if (hash != store.appsHash) api.reportApps(token, apps)
-        store.finishAppScan(generation, hash, at)
+        store.finishAppScan(generation, hash, at, dynamicCore)
     }
 
     private fun reportSafetyEvents(token: String) {

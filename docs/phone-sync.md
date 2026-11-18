@@ -53,8 +53,9 @@ way to close that gap; polling stays the guarantee, so phones without Google Pla
 
 One sync: report the installed apps if they changed, fetch the rules with `If-None-Match`, store
 them, re-apply the lock if the merged result changed (or every 15 minutes anyway, which heals
-changes made on the phone), answer "Find", report status. Package changes, new rules, and process
-startup invalidate the inventory. Otherwise, sync skips the scan for up to 24 hours after the
+changes made on the phone), answer "Find", report status. Package changes, new rules, process
+startup, and changes to the enabled keyboard packages or default SMS app can trigger a fresh
+inventory scan. Otherwise, sync skips the scan for up to 24 hours after the
 last successful check. An unchanged list needs no upload. See the [Android wakeup inventory](wakeups.md)
 for the scheduling call sites.
 

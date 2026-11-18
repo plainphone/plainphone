@@ -37,15 +37,14 @@ class PlainphoneApplication : Application() {
             .onFailure { Log.e("Plainphone", "could not set up safety notifications", it) }
         // Package broadcasts can be missed while the process is stopped.
         SyncStore(this).markAppsDirty()
-        // Reconcile an interrupted install before an update worker can start in this process.
-        runCatching { SelfUpdate.onStart(this) }
-            .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
+        Thread({
+            runCatching { SyncScheduler.ensurePeriodic(this) }
+                .onFailure { Log.e("Plainphone", "could not set up periodic sync", it) }
+            runCatching { SelfUpdate.onStart(this) }
+                .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
+        }, "plainphone-sync-startup").start()
         try {
             HomeGuard.onAppStart(this)
-            Thread({
-                runCatching { SyncScheduler.ensurePeriodic(this) }
-                    .onFailure { Log.e("Plainphone", "could not set up periodic sync", it) }
-            }, "plainphone-sync-startup").start()
             registerReceiver(
                 object : BroadcastReceiver() {
                     override fun onReceive(context: Context, intent: Intent) {

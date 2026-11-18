@@ -48,19 +48,17 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
         return !metered || charging
     }
 
-    override fun fetchLatest(): ReleaseInfo? {
-        val conn = open("$serverUrl/download/android/latest.json", followRedirects = false)
+    override fun fetchLatest(): ReleaseInfo? =
+        fetchLatest(open("$serverUrl/download/android/latest.json", followRedirects = false))
+
+    internal fun fetchLatest(conn: HttpURLConnection): ReleaseInfo? {
         try {
             conn.setRequestProperty("Accept", "application/json")
             return when (val status = conn.responseCode) {
                 200 -> ReleaseInfo.parse(conn.inputStream.use(::readMetadata))
                 404 -> {
-                    // Older server, or a self-hoster's own build without metadata.
-                    try {
-                        conn.errorStream?.use(::readMetadata)
-                    } catch (_: IOException) {
-                        conn.disconnect()
-                    }
+                    // Start the older-server fallback without waiting for the error body.
+                    conn.disconnect()
                     null
                 }
                 else -> throw IOException("release metadata: HTTP $status")

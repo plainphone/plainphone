@@ -22,8 +22,9 @@ class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context,
         val force = inputData.getBoolean(KEY_FORCE, false)
         try {
             org.plainphone.app.Lock.recoverInstall(applicationContext, "update check")
+            SelfUpdate.reconcileOnStart(applicationContext)
         } catch (e: Exception) {
-            Log.e("Plainphone", "could not recover install restriction before the update check", e)
+            Log.e("Plainphone", "could not recover the previous install before the update check", e)
             return Result.retry()
         }
         return try {
@@ -59,6 +60,21 @@ object SelfUpdate {
     }
 
     fun onStart(context: Context) {
+        reconcileOnStart(context)
+
+        // WorkManager combines constraints with AND. Poll more often than the shared daily
+        // gate, so a check by one worker does not cost the other worker an entire day.
+        schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
+        schedule(context, "$PERIODIC-charging", Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
+    }
+
+    private val reconciliationLock = Any()
+    private var reconciledOnStart = false
+
+    // Persisted jobs can run before the Application startup thread reaches onStart.
+    internal fun reconcileOnStart(context: Context) = synchronized(reconciliationLock) {
+        if (reconciledOnStart) return@synchronized
         val store = PrefsUpdateStateStore(context)
         val target = store.installingVersionCode
         if (target > 0L) {
@@ -86,11 +102,7 @@ object SelfUpdate {
             }
         }
 
-        // WorkManager combines constraints with AND. Poll more often than the shared daily
-        // gate, so a check by one worker does not cost the other worker an entire day.
-        schedule(context, PERIODIC, Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
-        schedule(context, "$PERIODIC-charging", Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED).setRequiresCharging(true).build())
+        reconciledOnStart = true
     }
 
     private fun schedule(context: Context, name: String, constraints: Constraints) {

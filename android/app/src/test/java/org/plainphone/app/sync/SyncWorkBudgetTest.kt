@@ -2,9 +2,11 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import android.app.AlarmManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
@@ -18,6 +20,8 @@ import java.util.concurrent.TimeUnit
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.PlainphoneApplication
+import org.plainphone.app.safety.Safety
+import org.plainphone.app.safety.SafetyAlarmReceiver
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -26,6 +30,7 @@ import org.robolectric.util.ReflectionHelpers
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class SyncWorkBudgetTest {
+    @Suppress("DEPRECATION") // Robolectric exposes the PendingIntent as a field.
     @Test
     fun `boot and repeated sync triggers keep a single periodic and immediate sync`() {
         val context = ApplicationProvider.getApplicationContext<Application>()
@@ -38,12 +43,22 @@ class SyncWorkBudgetTest {
         val store = SyncStore(context, FakeSecretBox())
         app.onCreate()
         store.savePaired("phone", "test-token")
+        // Robolectric has no Android Keystore. Seed the process cache as if the token had been opened.
+        val prefs = context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE)
+        val cacheType = Class.forName(SyncStore::class.java.name + "\$CachedToken")
+        val cached = ReflectionHelpers.callConstructor(
+            cacheType,
+            ReflectionHelpers.ClassParameter.from(SharedPreferences::class.java, prefs),
+            ReflectionHelpers.ClassParameter.from(String::class.java, prefs.getString("device_token", null)),
+            ReflectionHelpers.ClassParameter.from(String::class.java, "test-token"),
+        )
+        ReflectionHelpers.setStaticField(SyncStore::class.java, "tokenCache", cached)
 
         // The real boot receiver delegates sync scheduling to this entry point.
         SyncScheduler.onBoot(context)
         val now = System.currentTimeMillis()
-        store.finishAppScan(checkNotNull(store.appScanGeneration(now)), "test-inventory", now)
-        assertThat(store.appScanGeneration(now)).isNull()
+        store.finishAppScan(checkNotNull(store.appScanGeneration(now, emptySet())), "test-inventory", now, emptySet())
+        assertThat(store.appScanGeneration(now, emptySet())).isNull()
         fun checkBudget() {
             val jobs = manager.getWorkInfos(WorkQuery.fromTags(listOf(SyncWorker::class.java.name)))
                 .get(5, TimeUnit.SECONDS).filterNot { it.state.isFinished }
@@ -55,17 +70,37 @@ class SyncWorkBudgetTest {
                 .isAtMost(1)
         }
         checkBudget()
-        val immediate = manager.getWorkInfosForUniqueWork("plainphone-sync-now").get(5, TimeUnit.SECONDS)
-        assertThat(immediate.filterNot { it.state.isFinished }).hasSize(1)
-        for (intent in listOf(
-            Intent(Intent.ACTION_SCREEN_ON),
-            Intent(Intent.ACTION_SCREEN_OFF),
-            Intent(Intent.ACTION_PACKAGE_ADDED, Uri.parse("package:org.example.app")),
-        )) {
+        fun checkImmediateSync() {
+            val immediate = manager.getWorkInfosForUniqueWork("plainphone-sync-now").get(5, TimeUnit.SECONDS)
+            assertThat(immediate.filterNot { it.state.isFinished }).hasSize(1)
+        }
+        fun broadcast(intent: Intent) {
             context.sendBroadcast(intent)
             shadowOf(Looper.getMainLooper()).idle()
             checkBudget()
         }
-        assertThat(store.appScanGeneration(now)).isNotNull()
+        fun clearImmediateSync() {
+            manager.cancelUniqueWork("plainphone-sync-now").result.get(5, TimeUnit.SECONDS)
+        }
+
+        checkImmediateSync()
+        clearImmediateSync()
+        broadcast(Intent(Intent.ACTION_SCREEN_ON))
+        checkImmediateSync()
+
+        val alarmManager = context.getSystemService(AlarmManager::class.java)!!
+        val alarms = shadowOf(alarmManager)
+        val bootAlarm = alarms.scheduledAlarms.single()
+        alarmManager.cancel(checkNotNull(bootAlarm.operation))
+        assertThat(alarms.scheduledAlarms).isEmpty()
+        broadcast(Intent(Intent.ACTION_SCREEN_OFF))
+        val idleAlarm = alarms.scheduledAlarms.single()
+        assertThat(shadowOf(checkNotNull(idleAlarm.operation)).savedIntent.getIntExtra(SafetyAlarmReceiver.EXTRA_KIND, -1))
+            .isEqualTo(Safety.REQ_IDLE)
+
+        clearImmediateSync()
+        broadcast(Intent(Intent.ACTION_PACKAGE_ADDED, Uri.parse("package:org.example.app")))
+        checkImmediateSync()
+        assertThat(store.appScanGeneration(now, emptySet())).isNotNull()
     }
 }

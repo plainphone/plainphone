@@ -15,8 +15,13 @@ class WakeupInventoryTest {
         val actual = source.walkTopDown()
             .filter { it.isFile && it.extension in setOf("kt", "java") }
             .flatMap { file ->
-                file.readLines().asSequence().filter(calls::containsMatchIn)
-                    .map { file.relativeTo(app).invariantSeparatorsPath to it.trim() }
+                val contents = file.readText()
+                calls.findAll(contents).map { match ->
+                    val lineStart = contents.lastIndexOf('\n', match.range.first - 1) + 1
+                    val lineEnd = contents.indexOf('\n', match.range.first).takeIf { it >= 0 } ?: contents.length
+                    val line = contents.substring(lineStart, lineEnd).trim()
+                    file.relativeTo(app).invariantSeparatorsPath to line
+                }
             }.toList()
         val row = Regex("""^\| `([^`]+)` `([^`]+)` \|""")
         val documented = File("../../docs/wakeups.md").readLines().mapNotNull { line ->

@@ -136,6 +136,28 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `changing enabled keyboards refreshes core flags with unchanged rules`() {
+        pair()
+        val keyboard = InstalledApp("com.example.keyboard", "Keyboard", core = false)
+        device.apps = listOf(keyboard)
+        runner.run("initial inventory")
+        api.rules = RulesResult.Unchanged
+
+        val coreKeyboard = keyboard.copy(core = true)
+        device.apps = listOf(coreKeyboard)
+        device.dynamicCorePackages = setOf(keyboard.packageName)
+        runner.run("enabled keyboard")
+        runner.run("same keyboard")
+
+        device.apps = listOf(keyboard)
+        device.dynamicCorePackages = emptySet()
+        runner.run("disabled keyboard")
+
+        assertThat(api.appsReported).containsExactly(listOf(keyboard), listOf(coreKeyboard), listOf(keyboard)).inOrder()
+        assertThat(device.installedAppsCalls).isEqualTo(3)
+    }
+
+    @Test
     fun `a change during an upload is still reported on the next sync`() {
         pair()
         runner.run("initial inventory")

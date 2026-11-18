@@ -36,8 +36,11 @@ class FakeSyncDevice(
 
     override fun nowMs() = now
     override fun appVersion() = "0.1.2"
+    var dynamicCorePackages = emptySet<String>()
+    override fun dynamicCorePackages() = dynamicCorePackages
+
     var installedAppsCalls = 0
-    override fun installedApps(): List<InstalledApp> {
+    override fun installedApps(dynamicCore: Set<String>): List<InstalledApp> {
         installedAppsCalls++
         return apps
     }

@@ -98,6 +98,11 @@ The next ordinary rules sync also delivers the request when push is unavailable.
 Light mode shows an update on the Today screen and sends a quiet notification when
 permitted. Installing the offered version or a newer one clears the prompt.
 
+On startup the app reconciles interrupted installations and fulfilled update prompts on a
+background thread. Update workers wait for that reconciliation before checking for releases.
+If an older server answers 404 for release metadata, the strong-mode download fallback
+starts without reading the error body.
+
 ### Update failures
 
 The phone reports an optional `update.errorCode` with the technical detail in

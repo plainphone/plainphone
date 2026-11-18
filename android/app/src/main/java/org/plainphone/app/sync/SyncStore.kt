@@ -194,16 +194,17 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     private fun nextAppGeneration() = prefs.getLong(KEY_APPS_GENERATION, 0L) + 1
 
-    internal fun appScanGeneration(nowMs: Long): Long? = synchronized(appReportLock) {
+    internal fun appScanGeneration(nowMs: Long, dynamicCore: Set<String>): Long? = synchronized(appReportLock) {
         val generation = prefs.getLong(KEY_APPS_GENERATION, 0L)
         val lastScan = prefs.getLong(KEY_APPS_SCANNED_AT, 0L)
         generation.takeIf {
-            appsHash == null || lastScan == 0L || nowMs - lastScan !in 0 until APP_SCAN_INTERVAL_MS ||
+            appsHash == null || dynamicCore != prefs.getStringSet(KEY_APPS_DYNAMIC_CORE, null) ||
+                lastScan == 0L || nowMs - lastScan !in 0 until APP_SCAN_INTERVAL_MS ||
                 generation != prefs.getLong(KEY_APPS_SCANNED_GENERATION, -1L)
         }
     }
 
-    internal fun finishAppScan(generation: Long, hash: String, nowMs: Long) {
+    internal fun finishAppScan(generation: Long, hash: String, nowMs: Long, dynamicCore: Set<String>) {
         synchronized(appReportLock) {
             if (prefs.getLong(KEY_APPS_GENERATION, 0L) != generation) {
                 // The server may now hold a different hash from the one we last recorded.
@@ -211,7 +212,8 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 return
             }
             prefs.edit().putString(KEY_APPS_HASH, hash).putLong(KEY_APPS_SCANNED_AT, nowMs)
-                .putLong(KEY_APPS_SCANNED_GENERATION, generation).apply()
+                .putLong(KEY_APPS_SCANNED_GENERATION, generation)
+                .putStringSet(KEY_APPS_DYNAMIC_CORE, dynamicCore).apply()
         }
     }
 
@@ -351,6 +353,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_APPS_HASH = "apps_hash"
         private const val KEY_APPS_GENERATION = "apps_generation"
         private const val KEY_APPS_SCANNED_AT = "apps_scanned_at"
+        private const val KEY_APPS_DYNAMIC_CORE = "apps_dynamic_core"
         private const val KEY_APPS_SCANNED_GENERATION = "apps_scanned_generation"
         private const val KEY_STATUS_HASH = "status_hash"
         private const val KEY_STATUS_AT = "status_at"

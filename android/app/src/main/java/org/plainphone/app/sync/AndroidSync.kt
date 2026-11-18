@@ -58,10 +58,12 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun appVersion(): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 
-    override fun installedApps(): List<InstalledApp> {
+    override fun dynamicCorePackages() = AndroidDeviceControls(context).dynamicCorePackages()
+
+    override fun installedApps(dynamicCore: Set<String>): List<InstalledApp> {
         val pm = context.packageManager
         val controls = AndroidDeviceControls(context)
-        val core = controls.corePackages()
+        val core = controls.corePackages(dynamicCore)
         val telephony = controls.telephonyApps()
         // The maker's phone and SMS apps are never reported as core: Plainphone hides them
         // regardless of dashboard rules so it can enforce approved contacts.
