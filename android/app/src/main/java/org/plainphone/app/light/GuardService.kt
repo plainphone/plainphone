@@ -150,7 +150,11 @@ class GuardService : AccessibilityService() {
         vpnDialogOpened: Boolean,
     ): Boolean {
         try {
-            val root = rootInActiveWindow ?: return false
+            val root = if (vpnDialogOpened && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getRootInActiveWindow(0)
+            } else {
+                rootInActiveWindow
+            } ?: return false
             val matchesPackage = root.packageName?.toString() == pkg
             if (!matchesPackage || vpnDialogOpened || keywords == null) {
                 recycle(root)

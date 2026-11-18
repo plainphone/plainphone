@@ -5,6 +5,7 @@ package org.plainphone.app.light
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
+import android.os.Build
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -54,6 +55,7 @@ class GuardServiceTest {
         assertEquals(1, shadow.rootReads)
     }
 
+    @Config(sdk = [31, 34])
     @Test fun closesActiveVpnDialogImmediatelyWithOneRootLookup() {
         val service = Robolectric.buildService(GuardService::class.java).create().get()
         val shadow = prepareGuard(service)
@@ -63,7 +65,9 @@ class GuardServiceTest {
 
         assertEquals(listOf(AccessibilityService.GLOBAL_ACTION_BACK), shadow.globalActions)
         assertEquals(1, shadow.rootReads)
-        assertEquals(listOf(false), shadow.cacheSettings)
+        val supportsPrefetchFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        assertEquals(if (supportsPrefetchFlags) listOf(0) else emptyList(), shadow.prefetchFlags)
+        assertEquals(if (supportsPrefetchFlags) listOf(false) else emptyList(), shadow.cacheSettings)
 
         // A queued content event can arrive after the dialog has already closed.
         shadow.root = null
@@ -124,6 +128,7 @@ class GuardServiceTest {
         var root: AccessibilityNodeInfo? = null
         var rootReads = 0
 
+        val prefetchFlags = mutableListOf<Int>()
         val globalActions = mutableListOf<Int>()
         val cacheSettings = mutableListOf<Boolean>()
 
@@ -142,6 +147,12 @@ class GuardServiceTest {
         @Implementation fun setCacheEnabled(enabled: Boolean): Boolean {
             cacheSettings += enabled
             return true
+        }
+
+        @Implementation(minSdk = 33)
+        fun getRootInActiveWindow(prefetchingStrategy: Int): AccessibilityNodeInfo? {
+            prefetchFlags += prefetchingStrategy
+            return getRootInActiveWindow()
         }
 
         @Implementation fun getRootInActiveWindow(): AccessibilityNodeInfo? {
