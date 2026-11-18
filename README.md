@@ -123,6 +123,11 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 
 The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web app, parent app, DNS and site are covered in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Android parent-app push for approvals uses `GOOGLE_SERVICES_JSON` in the EAS
+environment (or a local `parent-app/google-services.json`) and
+`FCM_SERVICE_ACCOUNT_JSON` on the server. See the
+[parent-app push setup](docs/parent-app.md#push-notifications).
+
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.
 
 The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).

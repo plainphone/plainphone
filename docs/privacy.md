@@ -28,7 +28,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
 | Address book suggestions from a Child phone (display names and international phone numbers) | pending names and numbers until review, removal from the synced address book, or the parent turning suggestions off. Reviewed numbers stay until the phone is removed to prevent repeat suggestions | `contact_suggestions`, `PUT /api/device/contact-suggestions` |
 | Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
-| Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off, removes the device or signs out on it, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
+| Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent removes the subscription, signs out on the device while connected, or deletes the account. Browser subscriptions are also removed after HTTP 404/410 or 20 consecutive send failures. FCM tokens are also removed when Firebase reports them as unregistered | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
 | Per parent and phone: notifications muted (one row when off) | until switched back on, the phone is removed or the account is deleted | `notification_mutes` |
 | Per phone (shared by its parents): hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
 | Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
@@ -56,6 +56,10 @@ device (RFC 8291) and signed with our VAPID key (RFC 8292), so the push service
 sees only the endpoint, the time and the size. Alerts about removed protection
 and quiet phones also go out by email to every household member who has not
 muted the phone.
+
+For Android parent-app notifications, Firebase receives the registration token,
+a generic notification and its type (approval or test). It receives no phone
+name, contact details, request content or location in these messages.
 
 IP addresses are only held in memory, for rate limits. The full rules for deletion,
 including what happens to a household with two parents, are in

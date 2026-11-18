@@ -4,6 +4,8 @@
 // Self-hosting: build with PLAINPHONE_SERVER_URL=https://your.server and your own
 // bundle id/team (PLAINPHONE_BUNDLE_ID, PLAINPHONE_APPLE_TEAM_ID); then set the
 // matching APPLE_APP_IDS and ANDROID_APP_* on the server (docs/parent-app.md).
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const SERVER_URL = (process.env.PLAINPHONE_SERVER_URL ?? "https://app.plainphone.org").replace(/\/+$/, "");
@@ -12,6 +14,15 @@ const BUNDLE_ID = process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.parent";
 const APPLE_TEAM_ID = process.env.PLAINPHONE_APPLE_TEAM_ID ?? "P7698GU4AV";
 /** Paths the app opens. Keep in sync with APP_LINK_PATHS in server/src/app.ts. */
 const LINK_PATHS = ["/auth/app", "/pair", "/invite"];
+
+function googleServicesFile(): string | undefined {
+  const easFile = process.env.GOOGLE_SERVICES_JSON;
+  if (easFile && existsSync(resolve(__dirname, easFile))) return easFile;
+  const localFile = "./google-services.json";
+  if (existsSync(resolve(__dirname, localFile))) return localFile;
+  console.warn("Plainphone: Android push is disabled. Set GOOGLE_SERVICES_JSON or add parent-app/google-services.json.");
+  return undefined;
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -44,6 +55,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: BUNDLE_ID,
+    googleServicesFile: googleServicesFile(),
     versionCode: 1,
     adaptiveIcon: {
       backgroundColor: "#24604a",

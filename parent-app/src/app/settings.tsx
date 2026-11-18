@@ -7,7 +7,7 @@ import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_HOST } from "../lib/config";
-import { enablePush, pushState, type PushState } from "../lib/notifications";
+import { enablePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
 function Settings() {
@@ -16,11 +16,16 @@ function Settings() {
   const me = useMe();
   const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
 
   useEffect(() => {
-    void pushState().then(setPush).catch(() => setPush("unsupported"));
-  }, []);
+    let active = true;
+    void enablePush(locale, false)
+      .then((state) => { if (active) setPush(state); })
+      .catch(() => { if (active) setPush("unavailable"); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
+  }, [locale]);
 
   return (
     <Screen testID="settings">
@@ -41,21 +46,25 @@ function Settings() {
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
           {push === "granted" ? (
-            <Notice tone="success" text={`${t("native.notificationsOn")} ${t("native.notificationsLater")}`} />
+            <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (
-            <Button
-              kind="secondary"
-              title={t("native.notificationsAsk")}
-              busy={busy}
-              onPress={() => {
-                setBusy(true);
-                void enablePush(locale)
-                  .then((r) => setPush(r.state))
-                  .finally(() => setBusy(false));
-              }}
-            />
+            <>
+              {push === "unavailable" && <Notice tone="warn" text={t("native.notificationsUnavailable")} />}
+              <Button
+                kind="secondary"
+                title={t("native.notificationsAsk")}
+                busy={busy}
+                onPress={() => {
+                  setBusy(true);
+                  void enablePush(locale)
+                    .then(setPush)
+                    .catch(() => setPush("unavailable"))
+                    .finally(() => setBusy(false));
+                }}
+              />
+            </>
           )}
         </Card>
       ) : null}
@@ -67,6 +76,7 @@ function Settings() {
       <Button
         kind="secondary"
         title={t("nav.logout")}
+        disabled={busy}
         testID="logout"
         onPress={() => void logout().then(() => router.replace("/login"))}
       />

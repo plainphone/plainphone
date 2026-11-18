@@ -33,13 +33,53 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 ## Push notifications
 
-The app is ready for two notifications: a change waiting for your approval, and a position that is ready after Find. It asks for permission in Settings, creates the Android channels `approval` and `location`, and reads the native device token (APNs or FCM). It does not use the Expo push service.
+The Android parent app receives Firebase Cloud Messaging (FCM) notifications when
+a rule change is waiting for a trusted person's approval. Tapping the notification
+opens the approvals list. The message carries generic text and an event type,
+without phone names, contact details or location. The existing test-notification
+endpoint can also send to FCM. In the native app, open Settings and allow
+notifications to register the device token directly with your Plainphone server.
 
-Still missing before notifications arrive:
+### Android build
 
-1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
-3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
+The Firebase project is `plainphone`, and its Android app is `org.plainphone.parent`.
+The build needs that app's `google-services.json` from Firebase Project settings.
+For a local build, retrieve the file from Bitwarden item
+`Firebase Plainphone (plainphone) google-services.json` and save it as
+`parent-app/google-services.json`. Git ignores this path.
+
+For EAS, open the parent app project in the Expo dashboard, go to Environment
+variables, upload the JSON as a **File** named `GOOGLE_SERVICES_JSON`, set visibility
+to **Secret**, and select the environment used by the Android build profile
+(for example, `production`). EAS supplies the uploaded file's path to
+`android.googleServicesFile`. The app also builds without the file and logs a
+warning that Android push is disabled.
+[Expo file-variable setup](https://docs.expo.dev/eas/environment-variables/manage/#secrets-and-file-variables)
+
+For a self-hosted build with a custom `PLAINPHONE_BUNDLE_ID`, register that Android
+package in your Firebase project and use its corresponding file.
+
+### Server
+
+Set `FCM_SERVICE_ACCOUNT_JSON` on the server, for example in the Dokploy app's
+Environment settings or in the self-hosted Compose `.env`. Use a service-account
+key JSON for the same Firebase project as the Android build. For an env editor
+that expects a single line, use base64 of the whole JSON file. Treat it as a
+server secret. Enable the Firebase Cloud Messaging API for the project and give
+the service account permission to send messages, for example with the Firebase
+Cloud Messaging API Admin role. If the env variable is empty, FCM is off and
+the server logs one warning at startup. Web Push uses its existing VAPID
+configuration independently.
+[Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api)
+
+FCM tokens are removed on Firebase's token-specific `UNREGISTERED` (HTTP 404)
+response. Other failures keep the subscription.
+
+TODO for iOS delivery: the app registers APNs tokens, and the server stores
+them. Add an APNs implementation of `NativeParentPushProvider` and wire it into
+notification dispatch alongside FCM. Document APNs credentials and environment
+selection when adding it. Native location notifications are also outside the
+current delivery scope.
 
 ## Location screen
 

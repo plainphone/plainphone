@@ -213,7 +213,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
   });
 
-  // --- Notifications (Web Push now; APNs/FCM tokens can be stored for the native apps) ---
+  // --- Notifications (browser and native app subscriptions) ---
 
   const pushHosts = [
     ...DEFAULT_PUSH_HOSTS,

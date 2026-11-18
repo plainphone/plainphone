@@ -281,7 +281,9 @@ decline. The phone UI for this is not built yet; the server side is.
 The server has a push abstraction. FCM is the planned layer: the phone registers its token with
 `PUT /device/push-token`, and the server sends a data message (`rules` or `locate`) that makes
 the phone poll at once. Polling stays the guarantee, so a phone without Google Play Services
-works, just slower. No Firebase project exists yet.
+works, just slower. The existing `plainphone` Firebase project is used by the
+[Android parent app](parent-app.md#push-notifications). The phone app
+(`org.plainphone.app`) continues to poll.
 
 ## The phone's implementation
 

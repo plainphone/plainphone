@@ -592,8 +592,8 @@ export interface paths {
         /**
          * Register this browser or app install
          * @description `web`: the PushSubscription from the browser. Only the browsers' push services are
-         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
-         *     now, sending to them comes with the native apps. Registering an endpoint that belongs
+         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app.
+         *     Servers with FCM configured can send to `fcm` tokens. Registering an endpoint that belongs
          *     to someone else moves it to you (another person signed in on the same device).
          */
         post: operations["postNotificationSubscription"];
