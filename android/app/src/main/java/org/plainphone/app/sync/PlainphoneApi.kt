@@ -167,9 +167,15 @@ class PlainphoneApi internal constructor(
             val stream = if (status >= 400) conn.errorStream else conn.inputStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             return Response(status, text, conn.getHeaderField("ETag"))
+        } catch (e: Exception) {
+            if (cancellation == null) conn.disconnect()
+            throw e
         } finally {
-            cancellation?.setOnCancelListener(null)
-            conn.disconnect()
+            // Preserve the cancellable long poll's connection lifecycle.
+            if (cancellation != null) {
+                cancellation.setOnCancelListener(null)
+                conn.disconnect()
+            }
         }
     }
 
