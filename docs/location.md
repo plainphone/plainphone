@@ -55,15 +55,18 @@ page. The parent app shows the same, on OpenStreetMap raster tiles after "Show m
 
 ### Location time and accuracy
 
-Each location lookup has one 30-second budget. The phone uses the fused provider when it is
-enabled. If fused is unavailable, a precise lookup asks GPS and the network provider in
-parallel within the same budget. It takes the first fix accurate to 100 m or
-better, or keeps the most accurate fix received by the deadline.
-Regular `always` reports use Android 12's low-power setting. On older Android versions without
-fused, regular reports give the network provider up to 500 ms to deliver a fix accurate to
-100 m or better before starting GPS. Both providers share the same deadline.
+Each location lookup has one 30-second budget. Find and check-in lookups give the fused
+provider the first 15 seconds when it is enabled. If no fix accurate to 100 m or better
+arrives in that time, GPS and the network provider join in parallel while fused keeps
+listening. If fused is unavailable, GPS and the network provider start immediately.
+The first fix accurate to 100 m or better wins. At the deadline, the phone uses the most
+accurate fix received.
+Regular `always` reports use fused when enabled and Android 12's low-power setting. On older
+Android versions without fused, regular reports give the network provider up to 500 ms to
+deliver a fix accurate to 100 m or better before starting GPS. Both providers share the same
+deadline.
 
-Before starting a lookup, Find can reuse a cached position from an active provider
+Before starting a lookup, Find can reuse the newest eligible cached position from any provider
 recorded at or after the request if it is younger than 2 minutes and accurate to 100 m
 or better. Regular `always` reports can reuse a cached
 position younger than 10 minutes and accurate to 1,000 m or better. If either lookup

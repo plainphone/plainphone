@@ -116,27 +116,50 @@ class LocationReaderTest {
 
     @Test
     @Config(sdk = [31])
-    fun `an unresponsive fused provider never starts GPS or network`() {
+    fun `an unresponsive fused provider starts GPS and network after 15 seconds within the budget`() {
         val fused = LocationManager.FUSED_PROVIDER
         manager.setProviderEnabled(fused, true)
         val executor = Executors.newSingleThreadExecutor()
         try {
+            val started = System.nanoTime()
+            val deadline = started + TimeUnit.SECONDS.toNanos(32)
             val result = executor.submit<LocationFix?> {
-                LocationReader(context).current(precise = true, timeoutMs = 3_000)
+                LocationReader(context).current(precise = true)
             }
             awaitRequests(fused)
-            // Watch for registrations throughout the fused budget, before cancellation.
-            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4)
-            while (!result.isDone && System.nanoTime() < deadline) {
-                assertThat(manager.getLegacyLocationRequests(gps)).isEmpty()
-                assertThat(manager.getLegacyLocationRequests(network)).isEmpty()
-                Thread.sleep(10)
-            }
-            assertThat(result.get(1, TimeUnit.SECONDS)).isNull()
-            assertThat(manager.getLegacyLocationRequests(fused)).isEmpty()
+            assertThat(manager.getLocationRequests(gps)).isEmpty()
+            assertThat(manager.getLocationRequests(network)).isEmpty()
+            val beforeFallback = started + TimeUnit.SECONDS.toNanos(14)
+            TimeUnit.NANOSECONDS.sleep(beforeFallback - System.nanoTime())
+            awaitRequests(gps, network, timeoutSeconds = 3)
+            assertThat(manager.getLocationRequests(gps).single().durationMillis).isAtMost(15_000L)
+            assertThat(manager.getLocationRequests(network).single().durationMillis).isAtMost(15_000L)
+            assertThat(manager.getLocationRequests(fused)).hasSize(1)
+            manager.simulateLocation(fix(gps, 150f))
+            manager.simulateLocation(fix(network, 200f))
+            assertThat(result.get(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)?.accuracyM)
+                .isEqualTo(150f)
+            assertThat(manager.getLocationRequests(fused)).isEmpty()
+            assertThat(manager.getLocationRequests(gps)).isEmpty()
+            assertThat(manager.getLocationRequests(network)).isEmpty()
         } finally {
             executor.shutdownNow()
         }
+    }
+
+    @Test
+    @Config(sdk = [31])
+    fun `Find reads a fresh GPS cache without starting a lookup when fused cache is empty`() {
+        val fused = LocationManager.FUSED_PROVIDER
+        manager.setProviderEnabled(fused, true)
+        val cached = fix(gps, 50f)
+        manager.simulateLocation(cached)
+
+        assertThat(AndroidSyncDevice(context).cachedPreciseLocation(cached.time)?.recordedAtMs)
+            .isEqualTo(cached.time)
+        assertThat(manager.getLocationRequests(fused)).isEmpty()
+        assertThat(manager.getLocationRequests(gps)).isEmpty()
+        assertThat(manager.getLocationRequests(network)).isEmpty()
     }
 
     @Test
@@ -318,8 +341,8 @@ class LocationReaderTest {
         }
     }
 
-    private fun awaitRequests(vararg providers: String) {
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+    private fun awaitRequests(vararg providers: String, timeoutSeconds: Long = 2) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         while (System.nanoTime() < deadline && providers.any { manager.getLegacyLocationRequests(it).isEmpty() }) {
             Thread.sleep(10)
         }

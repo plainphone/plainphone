@@ -136,19 +136,20 @@ class LocationReader(private val context: Context) {
         notBeforeMs: Long? = null,
         fresh: Boolean = false,
     ): LocationFix? {
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, LOCATION_LOOKUP_BUDGET_MS))
+        val startedAt = System.nanoTime()
+        val deadline = startedAt + TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceIn(0L, LOCATION_LOOKUP_BUDGET_MS))
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         if (!lm.isLocationEnabled) return null
         val enabled = lm.allProviders.filter(lm::isProviderEnabled)
         val providers = when {
+            precise -> listOf(FUSED, LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             FUSED in enabled -> listOf(FUSED)
-            precise -> listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             else -> listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
         }.filter { it in enabled }
         val maxAge = TimeUnit.MINUTES.toNanos(if (precise) 2 else 10)
         val maxAccuracy = if (precise) PRECISE_ACCURACY_METERS else 1_000f
         if (!fresh) {
-            val cachedLocations = knownLocations(lm, providers)
+            val cachedLocations = knownLocations(lm, if (precise) lm.allProviders else providers)
             val now = SystemClock.elapsedRealtimeNanos()
             val cached = cachedLocations
                 .filter {
@@ -167,7 +168,8 @@ class LocationReader(private val context: Context) {
             notBeforeMs != null -> { fix -> fix.time >= notBeforeMs || fix.elapsedRealtimeNanos > lookupStarted }
             else -> null
         }
-        return await(lm, providers, precise, deadline, acceptUpdate)?.toFix()
+        val fusedDeadline = minOf(deadline, startedAt + TimeUnit.SECONDS.toNanos(15))
+        return await(lm, providers, precise, deadline, fusedDeadline, acceptUpdate)?.toFix()
     }
 
     fun lastKnown(): LocationFix? {
@@ -188,22 +190,40 @@ class LocationReader(private val context: Context) {
         providers: List<String>,
         precise: Boolean,
         deadline: Long,
+        fusedDeadline: Long,
         acceptUpdate: ((Location) -> Boolean)?,
     ): Location? {
         val results = LinkedBlockingQueue<Result>()
         val cancellations = mutableListOf<CancellationSignal>()
         var best: Location? = null
         var pending = 0
+        fun awaitFix(until: Long, waitForDeadline: Boolean = false): Location? {
+            while (pending > 0 || waitForDeadline) {
+                val remaining = until - System.nanoTime()
+                if (remaining <= 0) return null
+                val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return null
+                if (result.complete) pending--
+                val fix = result.location ?: continue
+                if (fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
+                val previous = best
+                if (previous == null || fix.accuracyOrUnknown() < previous.accuracyOrUnknown()) best = fix
+            }
+            return null
+        }
+
         try {
             for ((index, provider) in providers.withIndex()) {
-                if (index == 1 && !precise && Build.VERSION.SDK_INT < 31) {
+                if (index == 1 && precise && providers.first() == FUSED) {
+                    awaitFix(fusedDeadline, waitForDeadline = true)?.let { return it }
+                } else if (index == 1 && !precise && Build.VERSION.SDK_INT < 31) {
                     // Allow a quick network fix to avoid waking GPS, while leaving time for GPS.
                     val headStart = minOf(TimeUnit.MILLISECONDS.toNanos(500), (deadline - System.nanoTime()) / 2)
                     val network = results.poll(headStart.coerceAtLeast(0L), TimeUnit.NANOSECONDS)
                     if (network != null) {
                         pending--
-                        best = network.location
-                        if (best != null && best.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return best
+                        val fix = network.location
+                        best = fix
+                        if (fix != null && fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
                     }
                 }
                 val remaining = deadline - System.nanoTime()
@@ -237,17 +257,7 @@ class LocationReader(private val context: Context) {
                     done(null)
                 }
             }
-            while (pending > 0) {
-                val remaining = deadline - System.nanoTime()
-                if (remaining <= 0) return best
-                val result = results.poll(remaining, TimeUnit.NANOSECONDS) ?: return best
-                if (result.complete) pending--
-                val fix = result.location ?: continue
-                if (fix.accuracyOrUnknown() <= PRECISE_ACCURACY_METERS) return fix
-                val previous = best
-                if (previous == null || fix.accuracyOrUnknown() < previous.accuracyOrUnknown()) best = fix
-            }
-            return best
+            return awaitFix(deadline) ?: best
         } finally {
             cancellations.forEach { cancel ->
                 runCatching { cancel.cancel() }

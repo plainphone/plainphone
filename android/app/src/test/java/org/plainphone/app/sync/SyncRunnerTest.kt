@@ -363,6 +363,26 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a post-request cache older than two minutes is still sent when the Find lookup has no fix`() {
+        pair()
+        val requested = device.now
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested + 1_000L)
+        device.fix = null
+        device.lastKnownFix = cached
+        device.now = cached.recordedAtMs + 2 * 60_000L + 1
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with only a stale cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(cached)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
     fun `a coarse post-request cache is still sent when the Find lookup has no fix`() {
         pair()
         val requested = device.now
