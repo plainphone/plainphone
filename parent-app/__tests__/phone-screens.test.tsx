@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: typeof PHONE & { status?: { lockIntact: boolean; failedPolicies: string[] } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -80,6 +80,15 @@ describe("overview", () => {
     expect(screen.queryByTestId("section-key")).toBeNull();
     // Child phones have nothing waiting.
     expect(screen.queryByText("Waiting changes")).toBeNull();
+  });
+
+  it("shows the app installation warning even when the lock is intact", async () => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"] } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("App installation stayed open longer than planned during an update.")).toBeTruthy();
+    expect(screen.queryByText("42 seconds longer than planned.")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Show technical details" }));
+    expect(screen.getByText("42 seconds longer than planned.")).toBeTruthy();
   });
 
   it("lists waiting changes on a Self phone and cancels one", async () => {

@@ -63,7 +63,8 @@ physical-device testing.
 Strong mode starts inside Android's provisioning screens. Plainphone cannot report download or
 installation progress before it runs. The dashboard waits for an actual enrollment and then shows
 the connection. On Android 10–13, also confirm the default phone-app dialog and check the phone's
-reported lock status.
+reported lock status. Both parent apps show the app installation warning even when the lock is
+intact. Open **Show technical details** to see how long the installation window overran.
 
 The dashboard setup changes require no additional migration, environment variable or dependency. Release an APK containing the
 browser-to-app handoff before publishing the light-mode guide and dashboard flow. Test Chrome to

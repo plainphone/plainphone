@@ -322,13 +322,18 @@ function PhoneStatusBlock({ phone }: { phone: Phone }) {
               </div>
             </div>
           )}
-          {failures.length > 0 && (
+          {overrun !== undefined && (
+            <p className="notice notice-warn" role="status">{t("phone.installWindowOverrun")}</p>
+          )}
+          {(overrun !== undefined || failedSteps.length > 0) && (
             <details className="details details-lead lock-details">
               <summary>{t("phone.lockDetails")}</summary>
-              {overrun !== undefined && <p>{t("phone.installWindowOverrun", { seconds: overrun })}</p>}
-              <ul>
-                {failures.map((step, index) => <li key={index}><code>{step}</code></li>)}
-              </ul>
+              {overrun !== undefined && <p>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</p>}
+              {failedSteps.length > 0 && (
+                <ul>
+                  {failedSteps.map((step, index) => <li key={index}><code>{step}</code></li>)}
+                </ul>
+              )}
             </details>
           )}
           {s.maintenance && (
@@ -462,7 +467,7 @@ export function PhoneOverview() {
         </section>
       )}
 
-      <section className="section" aria-labelledby="rules-h">
+      <section className="section rules-section" aria-labelledby="rules-h">
         <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
         <div className="stack">
           {groups.map(({ title, items }) => (

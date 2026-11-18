@@ -6,10 +6,10 @@ import { lockStepLabel } from "./lock-steps";
 describe("lock step labels", () => {
   it("translates strong and light mode steps", () => {
     const da = makeT("da");
-    expect(lockStepLabel("restriction no_install_apps", da)).toBe("Begrænsning af appinstallation");
-    expect(lockStepLabel("DNS filter (VPN)", da)).toBe("Webfilter i let tilstand");
+    expect(lockStepLabel("restriction no_install_apps", da)).toBe("begrænsning af appinstallation");
+    expect(lockStepLabel("DNS filter (VPN)", da)).toBe("webfilter i let tilstand");
     expect(lockStepLabel("setting screenTimeout", da)).toBe("Skærmens slukketid");
-    expect(lockStepLabel("factory reset protection (2 account(s))", da)).toBe("Beskyttelse mod fabriksnulstilling");
+    expect(lockStepLabel("factory reset protection (2 account(s))", da)).toBe("beskyttelse mod fabriksnulstilling");
   });
 
   it("uses a generic label for unknown steps in both languages", () => {

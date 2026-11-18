@@ -336,6 +336,10 @@ main {
   margin-bottom: 0.5rem;
 }
 
+.rules-section > h2 {
+  margin-bottom: 1.25rem;
+}
+
 .section > .help {
   margin-bottom: 0.75rem;
 }

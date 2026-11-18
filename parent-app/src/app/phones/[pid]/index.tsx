@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
-import { ItemRow } from "../../../components/parts";
+import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
@@ -183,7 +183,14 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
-      {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun", { seconds: overrun })} /> : null}
+      {overrun !== undefined ? (
+        <VStack>
+          <Notice tone="warn" text={t("phone.installWindowOverrun")} />
+          <Disclosure title={t("phone.lockDetails")}>
+            <Text>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</Text>
+          </Disclosure>
+        </VStack>
+      ) : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>
@@ -204,7 +211,6 @@ function Overview() {
               onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
             />
           ))}
-          <LinkRow title={t("phone.household")} meta={t("phone.householdHint")} onPress={() => router.push("/household")} />
         </VStack>
       </VStack>
 
