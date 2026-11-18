@@ -178,10 +178,10 @@ parent (PWA)                                server                          phon
 
 **Undo light-mode setup.** The phone decides whether the window is open using elapsed time
 on the boot when setup completed. After switching off locally, it sends an authenticated
-`POST /device/undo-setup`. The server removes the light-mode phone and sends the standard
-protection-removed notice with the reason that set-up was undone on the phone. The phone
-retries the report until it gets `204` (removed) or `401` (pairing already gone). Only the
-request that deletes the phone sends a notice.
+`POST /device/undo-setup`. In one transaction the server removes the phone and queues the
+standard protection-removed notice, which says setup was undone on the phone. The sweeper
+retries failed deliveries. The phone retries the report until it gets `204` (removed) or
+`401` (pairing already gone). Repeated reports cannot enqueue a second notice.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up

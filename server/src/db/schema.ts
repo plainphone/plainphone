@@ -529,6 +529,16 @@ export const pushSubscriptions = pgTable(
   (t) => [index("push_subscriptions_user_idx").on(t.userId)],
 );
 
+// A deleted phone must no longer be needed to deliver its final notice.
+export const setupUndoNotices = pgTable("setup_undo_notices", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull(),
+  phoneName: text("phone_name").notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
+}, (t) => [index("setup_undo_notices_due_idx").on(t.nextAttemptAt)]);
+
 /** Phones a parent does not want notifications about. Absent means on. */
 export const notificationMutes = pgTable(
   "notification_mutes",

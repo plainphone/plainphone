@@ -56,7 +56,8 @@ The same APK, installed as a normal app, without a reset. A local VPN that only 
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
-even offline, and the phone updates the dashboard once it reconnects. Device Owner setup also waits
+even offline. When the phone reconnects, it updates the dashboard and makes Plainphone available
+for uninstallation. Device Owner setup also waits
 for confirmation on the phone before applying Plainphone policies. See [docs/light-mode.md](docs/light-mode.md).
 
 ### In both modes

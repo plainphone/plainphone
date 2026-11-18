@@ -171,8 +171,12 @@ object LightSetup {
         // Persist the accepted tap before switching off, so sync can finish the release after a crash.
         val app = context.applicationContext
         Lock.releaseAsync(app) { results ->
-            if (results.all { it.ok }) store.markReleased()
-            SyncScheduler.finishSetupUndo(app)
+            if (results.all { it.ok }) {
+                store.markReleased()
+                SyncScheduler.finishSetupUndo(app)
+            } else {
+                SyncScheduler.recoverSetupUndoLocally(app)
+            }
         }
         return true
     }

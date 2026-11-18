@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, signIn, useHarness } from "./harness.js";
 
@@ -54,10 +54,38 @@ describe("onboarding safety", () => {
     expect(reports.map(({ status }) => status)).toContain(204);
     expect((await device.post(path)).status).toBe(401);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
+    await sweep(h.ctx);
     const notices = h.mail.outbox.slice(before);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.to).toBe("claimer@example.org");
     expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+  });
+
+  it("recovers an unsent notice after the phone deletion is committed", async () => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    expect((await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/test", keys: { p256dh: "A".repeat(87), auth: "A".repeat(22) },
+    })).status).toBe(201);
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
+    expect((await device.post("/api/device/undo-setup")).status).toBe(401);
+    expect(h.mail.outbox).toHaveLength(before);
+
+    const send = vi.spyOn(h.mail, "send").mockRejectedValue(new Error("mail unavailable"));
+    await sweep(h.ctx);
+    expect(h.mail.outbox).toHaveLength(before);
+    expect(h.parentPush.sent).toHaveLength(1);
+
+    send.mockRestore();
+    h.clock.advance(60_000);
+    await Promise.all([sweep(h.ctx), sweep(h.ctx)]);
+    await sweep(h.ctx);
+    expect(h.mail.outbox.slice(before).map((notice) => notice.text))
+      .toEqual([expect.stringContaining("Set-up was undone on the phone")]);
+    expect(h.parentPush.sent.map(({ msg }) => msg.body)).toEqual(["Set-up was undone on the phone."]);
   });
 
   it("keeps Device Owner paired when it reports a setup undo", async () => {

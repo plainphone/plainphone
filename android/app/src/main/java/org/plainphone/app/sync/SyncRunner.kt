@@ -30,6 +30,7 @@ interface SyncDevice {
      * relock. Blocking. Every step that did not hold is in the list as a failure.
      */
     fun release(): List<StepResult>
+    fun removeSetupUndoAdmin()
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
     fun lastKnownLocation(): LocationFix?
@@ -196,6 +197,7 @@ class SyncRunner(
         val done = try {
             if (store.setupUndoPending) {
                 api.reportSetupUndo(token)
+                device.removeSetupUndoAdmin()
                 true
             } else api.ackReleased(token)
         } catch (e: IOException) {

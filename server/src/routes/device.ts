@@ -17,7 +17,8 @@ import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
-import { notifyHousehold, notifyHouseholdMembers, phoneAlertRecipients, protectionLost } from "../services/notifications.js";
+import { notifyHousehold, protectionLost } from "../services/notifications.js";
+import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
@@ -275,21 +276,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const phone = c.get("phone");
       const undo = path === "/undo-setup";
       const result = await ctx.db.transaction(async (tx) => {
-        // Only the request that deletes the authenticated pairing may send the notice.
+        // Only the request that deletes the authenticated pairing may queue the notice.
         const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo ? fresh.mode !== "light" : !fresh.releaseRequestedAt) return { status: 409 as const };
-        const members = undo ? await phoneAlertRecipients(tx, phone.id, fresh.householdId) : null;
-        return { status: 204 as const, clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
+        if (undo) await queueSetupUndoNotices(ctx, tx, fresh);
+        return { status: 204 as const, clientId: await deletePhone(tx, phone.id) };
       });
       if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
       if (result.status === 409) {
         return c.json({ error: undo ? "setup undo is only available in light mode" : "this phone has not been asked to release" }, 409);
-      }
-      if (result.members) {
-        await notifyHouseholdMembers(ctx, result.members, {
-          type: "protection", phoneId: phone.id, phoneName: result.name, reason: "setup-undo",
-        });
       }
       if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
       return c.body(null, 204);

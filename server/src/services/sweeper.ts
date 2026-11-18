@@ -9,6 +9,7 @@ import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation 
 import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
+import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -32,6 +33,7 @@ export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
 
 /** One pass of background work: due delay-key changes, DNS retries, expired rows. */
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
+  await deliverSetupUndoNotices(ctx);
   const now = ctx.now();
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);

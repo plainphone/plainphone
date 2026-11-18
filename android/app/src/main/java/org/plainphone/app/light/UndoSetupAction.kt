@@ -36,7 +36,7 @@ internal fun UndoSetupAction(activity: ComponentActivity, revision: Int) {
     if (deadline > 0) {
         TextButton(onClick = {
             val accepted = LightSetup.undo(activity)
-            deadline = LightSetup.localUndoDeadline(activity)
+            deadline = if (accepted) 0 else LightSetup.localUndoDeadline(activity)
             status = when {
                 accepted -> R.string.setup_undo_requested
                 deadline == 0L -> R.string.setup_undo_closed

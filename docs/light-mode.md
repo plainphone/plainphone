@@ -110,13 +110,16 @@ light-mode setup completes. The phone saves the window length, the boot count an
 time since boot at completion. Changing the clock has no effect. Rebooting closes the window.
 The maintenance PIN and dashboard release remain available.
 
-Tapping **Undo setup** immediately switches off the guard, VPN and device admin through the same
-local release as the maintenance screen, even offline. The phone saves the accepted undo and
-retries the report after reconnecting. The dashboard removes the phone and sends the household
-the standard protection-removed notice, which says that set-up was undone on the phone. Android
-keeps its default Phone and SMS apps selected until you change them in Settings or uninstall
-Plainphone. Keep Plainphone installed until the phone has disappeared from the dashboard so the
-pending report can reach the server.
+Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
+The phone saves the accepted undo and retries the report after reconnecting. Once the server
+acknowledges it, Plainphone removes its device administrator so Android allows normal
+uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
+If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
+
+The server removes the phone from the dashboard and queues the standard protection-removed
+notice in the same database transaction. Delivery runs in the background and is retried if a
+configured mail or push provider is unavailable. Android keeps its default Phone and SMS apps
+selected until you change them in Settings or uninstall Plainphone.
 
 In light mode, the phone already enforces protection locally. A time-boxed window measured by
 the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the

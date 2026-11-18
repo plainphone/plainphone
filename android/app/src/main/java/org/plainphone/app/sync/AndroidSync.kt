@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
+import org.plainphone.app.light.LightRelease
 import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
@@ -86,6 +87,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun lockState(): LockState = Lock.lockState(context)
 
     override fun release(): List<StepResult> = Lock.releaseNow(context)
+
+    override fun removeSetupUndoAdmin() = LightRelease.removeAdmin(context)
 
     override fun battery(): Pair<Int?, Boolean?> {
         val bm = context.getSystemService(BatteryManager::class.java) ?: return null to null
@@ -392,6 +395,25 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
     }
 }
 
+/** Finishes an accepted local release even when the phone stays offline. */
+class LocalSetupUndoWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result {
+        val store = SyncStore(applicationContext)
+        if (!store.setupUndoPending) return Result.success()
+        try {
+            if (!store.released) {
+                if (Lock.releaseNow(applicationContext).any { !it.ok }) return Result.retry()
+                store.markReleased()
+            }
+            SyncScheduler.finishSetupUndo(applicationContext)
+            return Result.success()
+        } catch (e: Exception) {
+            Log.w("Plainphone", "local undo incomplete", e)
+            return Result.retry()
+        }
+    }
+}
+
 /**
  * Retries pairing in the background once the account on a provisioning QR code has been confirmed. Scheduled by
  * [SyncScheduler.enrollIfNeeded]; retried with backoff until the token is used or refused.
@@ -427,13 +449,19 @@ object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
     private const val NOW = "plainphone-sync-now"
     private const val SOON = "plainphone-sync-soon"
+    private const val LOCAL_UNDO = "plainphone-local-setup-undo"
     private const val FINISH_UNDO = "plainphone-sync-finish-undo"
     private const val ENROLL = "plainphone-enroll"
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
     fun ensurePeriodic(context: Context) {
-        if (!SyncStore(context).hasStoredPairing) return
+        val store = SyncStore(context)
+        if (!store.hasStoredPairing) return
+        if (store.setupUndoPending) {
+            recoverSetupUndoLocally(context)
+            return
+        }
         org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(network)
@@ -444,11 +472,17 @@ object SyncScheduler {
 
     fun now(context: Context, reason: String) = enqueueNow(context, reason, NOW)
 
+    fun recoverSetupUndoLocally(context: Context) {
+        val request = OneTimeWorkRequestBuilder<LocalSetupUndoWorker>().build()
+        WorkManager.getInstance(context).enqueueUniqueWork(LOCAL_UNDO, ExistingWorkPolicy.KEEP, request)
+    }
+
     fun finishSetupUndo(context: Context) = enqueueNow(context, "undo setup", FINISH_UNDO)
 
     private fun enqueueNow(context: Context, reason: String, workName: String) {
-        if (!SyncStore(context).hasStoredPairing) return
-        if (workName == NOW) org.plainphone.app.update.UpdateRequestListener.start(context)
+        val store = SyncStore(context)
+        if (!store.hasStoredPairing) return
+        if (workName == NOW && !store.setupUndoPending) org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -491,6 +525,7 @@ object SyncScheduler {
         WorkManager.getInstance(context).apply {
             cancelUniqueWork(PERIODIC)
             cancelUniqueWork(NOW)
+            cancelUniqueWork(LOCAL_UNDO)
             cancelUniqueWork(FINISH_UNDO)
             cancelUniqueWork(SOON)
         }
