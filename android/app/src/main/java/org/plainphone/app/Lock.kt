@@ -13,12 +13,14 @@ import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
+import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.settings.AndroidSettingsControls
 import org.plainphone.app.settings.PrefsPresetStore
 import org.plainphone.app.settings.SettingsApplier
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
+import org.plainphone.app.sync.StatusNotices
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.light.LightLock
@@ -38,17 +40,20 @@ object Lock {
     fun applier(context: Context, onInstallsAllowed: () -> Unit = {}): PolicyApplier {
         val app = context.applicationContext
         val device = AndroidDeviceControls(app)
+        val sdk = Build.VERSION.SDK_INT
         val installLease = InstallLease.android(app)
         return PolicyApplier(
             device,
             PrefsHiddenAppsStore(app),
-            Build.VERSION.SDK_INT,
-            settings = SettingsApplier(device, AndroidSettingsControls(app), PrefsPresetStore(app), Build.VERSION.SDK_INT),
+            sdk,
+            hardening = Hardening(AndroidHardeningControls(app), sdk),
+            settings = SettingsApplier(device, AndroidSettingsControls(app), PrefsPresetStore(app), sdk),
             onInstallsAllowed = onInstallsAllowed,
             clearInstallsIfAllowed = { config, clear ->
                 installLease.clearIfAllowed(config.installing != null, clear)
             },
             installsAllowed = { config -> installLease.allowsInstall(config.installing != null) },
+            enforceAccountRestriction = installLease::enforceAccountRestriction,
         )
     }
 
@@ -120,13 +125,14 @@ object Lock {
     /** The lock config right now: the QR code's, with the parent's last known rules merged in. */
     fun effectiveConfig(context: Context, now: Instant = Instant.now()): PolicyConfig {
         val sync = SyncStore(context)
+        val install = InstallWindow.current(context, now.toEpochMilli())
         return EffectivePolicy.merge(
             ConfigStore(context).load(),
             sync.rules(),
             now,
             removed = sync.removed,
             timeBlocked = TimeGuard.blockedNow(context, now),
-            installing = InstallWindow.current(context, now.toEpochMilli()),
+            installing = install,
         )
     }
 
@@ -144,6 +150,12 @@ object Lock {
         // A release that has not finished yet: do not lock again in between, the next sync retries it.
         if (sync.releaseAsked) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
         val config = effectiveConfig(context)
+        if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
+            return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
+                saveReport(context, "apply ($reason)", it)
+                saveApplied(context, config, it, waitingForBootWarning = true)
+            }
+        }
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
         val results = if (Mode.isLight(context)) {
             LightLock.apply(context, config).also {
@@ -204,17 +216,41 @@ object Lock {
             failedPolicies = p.getString("applied_failed", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty(),
             appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
             dnsHost = p.getString("dns_in_use", null),
+            resetProtection = p.getString("reset_protection", null),
+            callRoleActionNeeded = p.getBoolean("call_role_action_needed", false),
+            accountTypes = p.getStringSet("account_types", null)?.sorted(),
         )
     }
 
-    private fun saveApplied(context: Context, config: PolicyConfig, results: List<StepResult>) {
+    private fun saveApplied(
+        context: Context,
+        config: PolicyConfig,
+        results: List<StepResult>,
+        waitingForBootWarning: Boolean = false,
+    ) {
         val now = System.currentTimeMillis()
         val edit = prefs(context).edit()
+            .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") {
+                if (it.name == Hardening.EXTRA_USERS && it.detail.contains("extra profile present")) {
+                    "${it.name}: ${it.detail}".take(200)
+                } else {
+                    it.name
+                }
+            })
+        edit.putBoolean("call_role_action_needed", Hardening.callRoleActionNeeded(results))
+        if (Hardening.parallelAppsRemoved(results)) StatusNotices(context).record(StatusNotices.PARALLEL_APPS_REMOVED)
+        if (waitingForBootWarning) {
+            // Report the failure without counting this as an applied configuration.
+            edit.remove("applied_fingerprint").remove("applied_at").apply()
+            return
+        }
+        edit.remove("owner_release_started")
             .putLong("applied_at", now)
             .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
-            .putString("applied_failed", results.filterNot { it.ok }.joinToString("\n") { it.name })
         // Android keeps the old host when the new one does not answer, so only a success changes it.
         if (results.any { (it.name == "private DNS" || it.name == "DNS filter (VPN)") && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
+        Hardening.accountTypes(results)?.let { edit.putStringSet("account_types", it.toSet()) }
         val wasOwner = results.none { it.name == "device owner" && !it.ok }
         if (wasOwner && !prefs(context).contains("first_applied_at")) {
             edit.putLong("first_applied_at", now)
@@ -250,11 +286,16 @@ object Lock {
     )
 
     /** For alarms and screen-on: re-applies only if the merged config changed (or is 15 min old); never during maintenance. */
-    fun applyIfNeededAsync(context: Context, reason: String, done: () -> Unit) {
+    fun applyIfNeededAsync(
+        context: Context,
+        reason: String,
+        maxAgeMs: Long = org.plainphone.app.sync.SyncRunner.APPLY_MAX_AGE_MS,
+        done: () -> Unit,
+    ) {
         val app = context.applicationContext
         executor.execute {
             try {
-                applyIfNeeded(app, reason, maxAgeMs = org.plainphone.app.sync.SyncRunner.APPLY_MAX_AGE_MS)
+                applyIfNeeded(app, reason, maxAgeMs)
             } catch (e: Exception) {
                 Log.e(TAG, "apply crashed", e)
             } finally {
@@ -298,10 +339,16 @@ object Lock {
     fun releaseNow(context: Context): List<StepResult> = synchronized(APPLY_LOCK) {
         cancelRelock(context)
         context.getSystemService(AlarmManager::class.java).cancel(windowIntent(context))
-        if (Mode.isLight(context)) {
-            LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
-        } else {
+        val state = prefs(context)
+        val ownerReleaseStarted = state.getBoolean("owner_release_started", false)
+        if (Mode.isStrong(context) || ownerReleaseStarted) {
+            // Keep the release path across a restart after Android has cleared Device Owner.
+            if (!ownerReleaseStarted && !state.edit().putBoolean("owner_release_started", true).commit()) {
+                return listOf(StepResult("release", false, "could not save release progress"))
+            }
             applier(context).release().also { saveReport(context, "released Device Owner", it) }
+        } else {
+            LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
         }
     }
 

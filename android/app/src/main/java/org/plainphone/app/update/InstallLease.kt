@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.Settings
 import java.util.UUID
+import org.plainphone.app.catalog.CatalogAccounts
 
 /**
  * Lease states under LOCK: absent → open → closing → absent.
@@ -22,6 +23,8 @@ class InstallLease(
     private val restrictionLifted: () -> Boolean = { false },
     private val tracksOverruns: () -> Boolean = { false },
     private val onRecovered: (Boolean) -> Unit = {},
+    private val relockCatalogAccounts: () -> Unit = {},
+    private val onCatalogAccountsClosed: (String, Boolean) -> Unit = { _, _ -> },
     /** Opens the restriction through the normal policy path. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
@@ -35,6 +38,7 @@ class InstallLease(
         val invalidated: Boolean = false,
         val pendingOverrunMs: Long? = null,
         val id: String? = null,
+        val allowAccountSuccess: Boolean = false,
     )
 
     interface Store {
@@ -66,9 +70,43 @@ class InstallLease(
     }
 
     /** Keeps the durable marker until Android has finished the restriction clear. */
-    fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean {
+    fun clearIfAllowed(catalogApproved: Boolean, clear: () -> Unit): Boolean =
+        clearWhileAllowed({ allowsInstallLocked(catalogApproved) }, clear)
+
+    internal fun catalogId(): String? = synchronized(LOCK) { valid(loadLocked())[CATALOG]?.id }
+
+    internal fun catalogRemainingMs(id: String): Long = synchronized(LOCK) {
+        valid(loadLocked())[CATALOG]?.takeIf { it.id == id }
+            ?.let { (it.untilMs - env.nowMs()).coerceAtLeast(0) } ?: 0
+    }
+
+    internal fun armCatalogAccounts(id: String, deadlineMs: Long): String {
+        val requestId = UUID.randomUUID().toString()
+        val remaining = minOf(catalogRemainingMs(id), deadlineMs - env.nowMs())
+        check(remaining > 0) { "Catalog account window expired" }
+        start(CATALOG_ACCOUNTS, remaining, requestId, deadlineMs, catalogId = id)
+        return requestId
+    }
+
+    internal fun clearCatalogAccountsIfAllowed(
+        id: String, requestId: String, eligible: () -> Boolean, clear: () -> Unit,
+    ): Boolean = clearWhileAllowed({
+        catalogId() == id && allowsCatalogAccountChanges(requestId) && eligible()
+    }, clear) && allowsCatalogAccountChanges(requestId)
+
+    internal fun finishCatalogAccounts(requestId: String) =
+        close(CATALOG_ACCOUNTS, "catalog account changes ended") { it.id == requestId }
+
+    internal fun allowsCatalogAccountChanges(requestId: String): Boolean =
+        isOpen(CATALOG_ACCOUNTS, requestId)
+
+    internal fun enforceAccountRestriction(addRestriction: () -> Unit) = synchronized(LOCK) {
+        if (!isOpen(CATALOG_ACCOUNTS)) addRestriction()
+    }
+
+    private fun clearWhileAllowed(allowed: () -> Boolean, clear: () -> Unit): Boolean {
         synchronized(LOCK) {
-            if (!allowsInstallLocked(catalogApproved)) return false
+            if (!allowed()) return false
             clearsInFlight++
         }
         try {
@@ -76,7 +114,7 @@ class InstallLease(
         } finally {
             val catalogChanged = synchronized(LOCK) {
                 try {
-                    recoverLocked("install restriction clear finished", finishingClear = true)
+                    recoverLocked("restriction clear finished", finishingClear = true)
                 } finally {
                     clearsInFlight--
                 }
@@ -112,10 +150,14 @@ class InstallLease(
         start(holder, durationMs)
     }
 
-    private fun start(holder: String, durationMs: Long): Lease {
+    private fun start(
+        holder: String, durationMs: Long, id: String = UUID.randomUUID().toString(),
+        deadlineMs: Long = Long.MAX_VALUE, catalogId: String? = null,
+    ): Lease {
         val duration = durationMs.coerceIn(1L, MAX_MS)
-        val until = env.nowMs() + duration
-        val wallDeadline = env.wallNowMs() + duration
+        val now = env.nowMs()
+        val until = minOf(now + duration, deadlineMs)
+        val wallDeadline = env.wallNowMs() + (until - now)
         var started: Lease? = null
         var catalogChanged: Boolean? = null
         try {
@@ -140,6 +182,7 @@ class InstallLease(
                     val current = loadLocked()
                     val open = valid(current)
                     check(current.keys == open.keys) { "Previous install window still needs recovery" }
+                    if (catalogId != null) check(open[CATALOG]?.id == catalogId)
                     val existing = open[holder]
                     if (existing != null) {
                         check(holder == CATALOG) { "Install window already open: $holder" }
@@ -147,7 +190,7 @@ class InstallLease(
                     } else {
                         check(until > env.nowMs()) { "Install watchdog started after its deadline" }
                         val lease = Lease(until, env.bootCount(), env.versionCode(), env.processId(),
-                            wallDeadlineMs = wallDeadline, id = UUID.randomUUID().toString())
+                            wallDeadlineMs = wallDeadline, id = id)
                         env.scheduleExpiry(holder, until)
                         store.save(current + (holder to lease))
                         started = lease
@@ -184,17 +227,26 @@ class InstallLease(
     ): Boolean? {
         val durable = store.load()
         val current = withPendingClosures(durable)
-        val open = if (force) emptyMap() else valid(current).filterKeys { it != closingHolder }
+        val validLeases = if (force) emptyMap() else valid(current)
+        val open = validLeases.filterKeys {
+            it != closingHolder && !(closingHolder == CATALOG && it == CATALOG_ACCOUNTS)
+        }
         val closing = current - open.keys
         if (closing.isEmpty() && (open.isNotEmpty() || !restrictionLifted())) return null
 
         // Capture the overrun before relocking, which may change Android's state and then throw.
         val wasLifted = closing.isNotEmpty() && open.isEmpty() &&
             runCatching(restrictionLifted).getOrDefault(false)
-        val track = open.isEmpty() && closing.isNotEmpty() && tracksOverruns()
+        val track = open.isEmpty() && closing.keys.any { it != CATALOG_ACCOUNTS } && tracksOverruns()
         val pending = closing.mapValues { (holder, lease) ->
-            val marker = if (holder == closingHolder) lease.copy(invalidated = true) else lease
-            closingLease(marker, track, wasLifted)
+            val marker = if (holder == closingHolder) {
+                lease.copy(
+                    invalidated = true,
+                    allowAccountSuccess = lease.allowAccountSuccess ||
+                        (holder == CATALOG_ACCOUNTS && holder in validLeases),
+                )
+            } else lease
+            closingLease(marker, track && holder != CATALOG_ACCOUNTS, wasLifted)
         }
         val marked = open + pending
         val writeFailure = try {
@@ -204,15 +256,21 @@ class InstallLease(
             e
         }
 
-        if (open.isEmpty()) {
-            if (relockNow == null) applyLock(reason, CATALOG in closing)
-            else relockNow.invoke()
+        try {
+            if (open.isEmpty()) {
+                if (relockNow == null) applyLock(reason, CATALOG in closing)
+                else relockNow.invoke()
+            }
+        } finally {
+            if (CATALOG in closing || CATALOG_ACCOUNTS in closing) relockCatalogAccounts()
         }
 
         if (closing.isEmpty()) return false
         // Include time spent in the policy write. A clear can take effect again
         // after that write, so retain its closing record until it returns.
-        val completed = pending.mapValues { (_, lease) -> closingLease(lease, track && wasLifted, wasLifted) }
+        val completed = pending.mapValues { (holder, lease) ->
+            closingLease(lease, track && wasLifted && holder != CATALOG_ACCOUNTS, wasLifted)
+        }
         if (writeFailure != null) {
             rememberClosures(completed)
             throw writeFailure
@@ -220,6 +278,9 @@ class InstallLease(
         if (completed != pending) saveClosingLocked(open + completed)
         val otherClears = clearsInFlight - if (finishingClear) 1 else 0
         if (otherClears != 0) return false
+        completed[CATALOG_ACCOUNTS]?.let { lease ->
+            lease.id?.let { onCatalogAccountsClosed(it, lease.allowAccountSuccess) }
+        }
         val overrun = completed.values.mapNotNull { it.pendingOverrunMs }.maxOrNull()
         store.retire(open, overrun?.let { (it + 999) / 1_000 })
         closing.forEach { (holder, lease) ->
@@ -241,7 +302,7 @@ class InstallLease(
         leases.mapValues { (holder, lease) -> pendingClosures[closureKey(holder, lease)] ?: lease }
 
     private fun closureKey(holder: String, lease: Lease) =
-        holder to lease.copy(invalidated = false, pendingOverrunMs = null)
+        holder to lease.copy(invalidated = false, pendingOverrunMs = null, allowAccountSuccess = false)
 
     private fun rememberClosures(leases: Map<String, Lease>) {
         leases.forEach { (holder, lease) ->
@@ -303,15 +364,17 @@ class InstallLease(
         if (leases.isEmpty()) return leases
         val now = env.nowMs()
         val process = env.processId()
-        return leases.filterValues { lease ->
+        val open = leases.filterValues { lease ->
             !lease.invalidated && lease.untilMs > now && lease.untilMs - now <= MAX_MS && lease.process == process &&
                 lease.bootCount == env.bootCount() && lease.versionCode == env.versionCode()
         }
+        return if (CATALOG in open) open else open - CATALOG_ACCOUNTS
     }
 
     companion object {
         const val SELF_UPDATE = "self-update"
         const val CATALOG = "catalog"
+        internal const val CATALOG_ACCOUNTS = "catalog-accounts"
         const val MAX_MS = 15 * 60_000L
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
@@ -336,6 +399,17 @@ class InstallLease(
                     if (!lock.isInMaintenanceWindow(app) && device.isDeviceOwner()) {
                         device.addRestriction(restriction)
                     }
+                },
+                relockCatalogAccounts = {
+                    val sync = org.plainphone.app.sync.SyncStore(app)
+                    if (!lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
+                        device.isDeviceOwner()
+                    ) {
+                        device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                    }
+                },
+                onCatalogAccountsClosed = { id, allowSuccess ->
+                    CatalogAccounts.recordFallbackOutcome(app, id, allowSuccess)
                 },
                 restrictionLifted = {
                     val sync = org.plainphone.app.sync.SyncStore(app)
@@ -374,6 +448,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
                 parts.getOrNull(6) == "true",
                 parts.getOrNull(7)?.toLongOrNull(),
                 parts.getOrNull(8)?.takeIf(String::isNotEmpty),
+                allowAccountSuccess = parts.getOrNull(9) == "true",
             )
         }.getOrNull()
         lease?.let { holder to it }
@@ -405,7 +480,7 @@ private class PrefsLeaseStore(context: Context) : InstallLease.Store {
         leases.forEach { (holder, l) ->
             edit.putString(holder, listOf(l.untilMs, l.bootCount, l.versionCode, l.process,
                 l.sessionId ?: "", l.wallDeadlineMs ?: "", l.invalidated, l.pendingOverrunMs ?: "",
-                l.id ?: "").joinToString(","))
+                l.id ?: "", l.allowAccountSuccess).joinToString(","))
         }
         if (overrunSeconds != null) {
             val priorSequence = previous[OVERRUN]?.split(',')?.getOrNull(1)?.toLongOrNull() ?: 0

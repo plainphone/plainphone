@@ -17,6 +17,8 @@ class SyncStore(context: Context, private val box: SecretBox = KeystoreSecretBox
     private val app = context.applicationContext
     private val prefs: SharedPreferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    internal val statusNotices = StatusNotices(app)
+
     internal fun installWindowOverrun(nowMs: Long) =
         org.plainphone.app.update.InstallLease.latestOverrun(app, nowMs)?.takeIf {
             it.sequence > prefs.getLong(KEY_ACKED_INSTALL_OVERRUN, 0) &&

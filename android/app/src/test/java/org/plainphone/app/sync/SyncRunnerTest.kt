@@ -246,6 +246,43 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a coarse post-request cache does not skip the precise Find lookup`() {
+        pair()
+        val requested = device.now
+        val precise = requireNotNull(device.fix).copy(recordedAtMs = requested)
+        device.lastKnownFix = precise.copy(accuracyM = 2_000f)
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with a coarse cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(precise)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
+    fun `a coarse post-request cache is still sent when the Find lookup has no fix`() {
+        pair()
+        val requested = device.now
+        val cached = requireNotNull(device.fix).copy(recordedAtMs = requested, accuracyM = 2_000f)
+        device.fix = null
+        device.lastKnownFix = cached
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(
+            locationMode = "find",
+            requestedAt = java.time.Instant.ofEpochMilli(requested).toString(),
+        ))
+
+        runner.run("Find with only a coarse cached fix")
+
+        assertThat(device.locationRequests).containsExactly(true)
+        assertThat(api.locations).containsExactly(cached)
+        assertThat(store.answeredLocateMs).isEqualTo(requested)
+    }
+
+    @Test
     fun `always reports cached positions during Find backoff without starting a lookup`() {
         pair()
         val fix = requireNotNull(device.fix).copy(recordedAtMs = device.now - 1)
@@ -323,6 +360,24 @@ class SyncRunnerTest {
         device.now += SyncRunner.STATUS_EVERY_MS
         runner.run("4")
         assertThat(api.statuses).hasSize(3)
+    }
+
+    @Test
+    fun `call role and parallel apps notices leave the lock intact`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        device.lock = device.lock.copy(callRoleActionNeeded = true)
+        store.statusNotices.record(StatusNotices.PARALLEL_APPS_REMOVED)
+        runner.run("status")
+
+        val status = api.statuses.single()
+        assertThat(status.lockIntact).isTrue()
+        assertThat(status.failedPolicies).isEmpty()
+        assertThat(status.toJson().getBoolean("callRoleActionNeeded")).isTrue()
+        assertThat(status.toJson().getBoolean("parallelAppsRemoved")).isTrue()
+        assertThat(store.statusNotices.pending(StatusNotices.PARALLEL_APPS_REMOVED)).isNull()
+        runner.run("acknowledged")
+        assertThat(api.statuses.last().toJson().has("parallelAppsRemoved")).isFalse()
     }
 
     @Test

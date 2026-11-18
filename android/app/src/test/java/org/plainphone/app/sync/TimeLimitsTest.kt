@@ -94,7 +94,10 @@ class TimeLimitsTest {
         val merged = EffectivePolicy.merge(PolicyConfig(), r, now, installing = "dk.mitid.app.android")
         assertThat(merged.allowedPackages).contains("dk.mitid.app.android")
         assertThat(merged.installing).isEqualTo("dk.mitid.app.android")
-        assertThat(EffectivePolicy.merge(PolicyConfig(), r, now, installing = "com.tiktok").installing).isNull()
+        val unapproved = EffectivePolicy.merge(
+            PolicyConfig(), r, now, installing = "com.tiktok",
+        )
+        assertThat(unapproved.installing).isNull()
     }
 
     @Test

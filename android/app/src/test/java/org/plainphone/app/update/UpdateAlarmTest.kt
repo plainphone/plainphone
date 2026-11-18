@@ -358,6 +358,8 @@ class UpdateAlarmTest {
             listOf(listOf("install window overran: 40s"), emptyList<String>()),
             api.statuses.map { it.failedPolicies },
         )
+        assertEquals(1L, api.statuses.first().toJson().getLong("installOverrunSequence"))
+        assertFalse(api.statuses.last().toJson().has("installOverrunSequence"))
     }
 
     @Test fun legacyOverrunSurvivesUpgradeAndExpiresFromFirstRead() {

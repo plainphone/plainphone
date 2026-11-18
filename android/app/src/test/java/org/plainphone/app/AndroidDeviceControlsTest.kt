@@ -3,11 +3,13 @@
 package org.plainphone.app
 
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.os.UserManager
 import androidx.test.core.app.ApplicationProvider
@@ -15,6 +17,8 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.telephony.PlainphoneCallRedirectionService
+import org.plainphone.app.telephony.PlainphoneCallScreeningService
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -35,6 +39,18 @@ open class AndroidDeviceControlsTest {
         assertThat(shadowOf(dpm).setDeviceOwner(PlainphoneAdminReceiver.component(context))).isTrue()
         installLaunchable("com.zhiliaoapp.musically")
         installLaunchable("com.android.chrome")
+    }
+
+    @Test
+    fun `release disables both call role services`() {
+        val hardening = Hardening(AndroidHardeningControls(context), sdk)
+        val applier = PolicyApplier(FakeDevice(), MemoryHiddenStore(), sdk, hardening)
+        applier.release()
+
+        for (service in listOf(PlainphoneCallScreeningService::class.java, PlainphoneCallRedirectionService::class.java)) {
+            assertThat(context.packageManager.getComponentEnabledSetting(ComponentName(context, service)))
+                .isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+        }
     }
 
     @Test

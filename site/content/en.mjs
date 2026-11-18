@@ -203,6 +203,8 @@ export default {
             list: [
               "the name the adult gives the phone, whether it is a child’s or an adult’s own phone, its time zone and when it last contacted the server",
               "a few short facts the phone reports when it pairs, such as its model and Android version, and its latest status: battery level, app version, whether its lock is intact and which web filter address it uses. Each report replaces the one before",
+              "if you turn on protection against reset, your household keeps your numeric Google account ID and when it was linked. Disconnect it in Household settings to delete it, or delete your Plainphone account. We do not store your Google email address or sign-in tokens for this feature",
+              "for a phone in strong mode, the latest system check, including whether the bootloader is locked, the security patch level and the check time. Each check replaces the previous one, and removing the phone deletes it. We do not keep its certificate chain",
               "the apps on the phone (name and package name) and which of them are allowed",
               "approved contacts: the names and numbers a parent types into the parent app. The server holds nothing else from the phone’s contacts",
               "web filter settings: which categories are blocked, and the domains the parent allows or blocks",

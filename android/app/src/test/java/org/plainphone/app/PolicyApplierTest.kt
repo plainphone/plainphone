@@ -188,18 +188,59 @@ class PolicyApplierTest {
     }
 
     @Test
-    fun `FRP is only set when account IDs are configured`() {
-        applier.apply(config)
-        assertThat(device.frp).isNull()
-        applier.apply(config.copy(frpAccountIds = setOf("123456789")))
-        assertThat(device.frp).containsExactly("123456789")
+    fun `FRP runs through the hardening steps, before private DNS`() {
+        val hardening = FakeHardening()
+        val results = PolicyApplier(device, store, 35, Hardening(hardening, 35)).apply(config.copy(frpAccountIds = setOf("123456789")))
+        assertThat(hardening.policyAccounts).containsExactly("123456789")
+        val names = results.map { it.name }
+        assertThat(names.indexOf(Hardening.RESET_PROTECTION)).isLessThan(names.indexOf("private DNS"))
+    }
+
+    @Test
+    fun `FRP broadcast precedes blocking account changes on apply and relock`() {
+        for (sdk in listOf(29, 30, 35)) {
+            val controls = FakeHardening()
+            val checked = object : DeviceControls by device {
+                override fun addRestriction(key: String) {
+                    if (key == android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS) {
+                        assertThat(controls.broadcasts).isGreaterThan(0)
+                        val ids = if (sdk == 29) controls.legacyFrp else controls.policyAccounts
+                        assertThat(ids).containsExactly("123")
+                    }
+                    device.addRestriction(key)
+                }
+            }
+            val policy = PolicyApplier(checked, store, sdk, Hardening(controls, sdk))
+            val configured = config.copy(frpAccountIds = setOf("123"))
+            assertThat(policy.apply(configured).single { it.name.endsWith("no_modify_accounts") }.ok).isTrue()
+            policy.lift()
+            assertThat(device.restrictions).doesNotContain(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+            controls.broadcasts = 0
+            assertThat(policy.apply(configured).single { it.name.endsWith("no_modify_accounts") }.ok).isTrue()
+        }
+    }
+
+    @Test
+    fun `the emergency dialers stay visible and callable under strong mode limits`() {
+        val systemDialer = "com.android.dialer"
+        device.telephony = TelephonyApps(setOf(systemDialer, device.ownPackage), emptySet(), systemDialer)
+        device.launchable += setOf(systemDialer, device.ownPackage)
+        for (sdk in listOf(29, 33, 35)) {
+            val results = PolicyApplier(device, store, sdk, Hardening(FakeHardening(), sdk)).apply(
+                config.copy(allowedPackages = emptySet(), timeBlocked = setOf(systemDialer, device.ownPackage)),
+            )
+            assertThat(results.single { it.name == "time limits" }.ok).isTrue()
+            assertThat(device.hidden).containsNoneOf(systemDialer, device.ownPackage)
+            assertThat(device.suspended).containsNoneOf(systemDialer, device.ownPackage)
+            assertThat(device.restrictions).doesNotContain(android.os.UserManager.DISALLOW_OUTGOING_CALLS)
+        }
     }
 
     @Test
     fun `FRP unsupported on the device is reported, not fatal`() {
-        device.frpUnsupported = true
-        val results = applier.apply(config.copy(frpAccountIds = setOf("1")))
-        assertThat(results.single { it.name.startsWith("factory reset") }.ok).isFalse()
+        val hardening = FakeHardening().apply { frpUnsupported = true }
+        val results = PolicyApplier(device, store, 35, Hardening(hardening, 35)).apply(config.copy(frpAccountIds = setOf("1")))
+        assertThat(results.single { it.name == Hardening.RESET_PROTECTION }.ok).isFalse()
         assertThat(device.restrictions).isNotEmpty()
     }
 
@@ -256,7 +297,8 @@ class PolicyApplierTest {
 
     @Test
     fun `release succeeds without FRP support and after Device Owner is already gone`() {
-        device.frpUnsupported = true
+        val hardening = FakeHardening().apply { frpUnsupported = true }
+        val applier = PolicyApplier(device, store, 35, Hardening(hardening, 35))
         assertThat(applier.release().filterNot { it.ok }).isEmpty()
         assertThat(device.owner).isFalse()
         assertThat(applier.release().filterNot { it.ok }).isEmpty()
@@ -274,14 +316,23 @@ class PolicyApplierTest {
     }
 
     @Test
+    fun `release succeeds when Device Owner is already gone`() {
+        device.owner = false
+        assertThat(applier.release().single().ok).isTrue()
+    }
+
+    @Test
     fun `release undoes everything and gives up Device Owner`() {
+        val hardening = FakeHardening()
+        val applier = PolicyApplier(device, store, 35, Hardening(hardening, 35))
         applier.apply(config.copy(frpAccountIds = setOf("1")))
         applier.release()
+        assertThat(hardening.policyAccounts).isNull()
+        assertThat(hardening.noUserControl).isEmpty()
         assertThat(device.owner).isFalse()
         assertThat(device.restrictions).isEmpty()
         assertThat(device.hidden).isEmpty()
         assertThat(device.uninstallBlocked).isEmpty()
-        assertThat(device.frp).isNull()
         assertThat(device.appRestrictions[LockPolicy.CHROME_PACKAGE]).isNull()
     }
 }
@@ -309,9 +360,10 @@ class TimeLimitApplierTest {
     fun `the install window lifts the install restriction and shows Play, then closes`() {
         applier.apply(config.copy(installing = "dk.mitid.app.android"))
         assertThat(device.restrictions).doesNotContain("no_install_apps")
+        assertThat(device.restrictions).contains("no_modify_accounts")
         assertThat(device.hidden).doesNotContain("com.android.vending")
         applier.apply(config)
-        assertThat(device.restrictions).contains("no_install_apps")
+        assertThat(device.restrictions).containsAtLeast("no_install_apps", "no_modify_accounts")
         assertThat(device.hidden).contains("com.android.vending")
     }
 

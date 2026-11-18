@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Log
+import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.home.HomeGuard
 import org.plainphone.app.sync.SyncScheduler
@@ -28,6 +29,8 @@ class PlainphoneApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         Lock.recoverInstallAsync(this)
+        runCatching { CatalogAccounts.watchAccounts(this) }
+            .onFailure { Log.w("Plainphone", "Could not watch Google accounts", it) }
         runCatching { org.plainphone.app.update.SelfUpdate.onStart(this) }
             .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
         try {
@@ -83,5 +86,6 @@ class PlainphoneApplication : Application() {
             // Never let the sync hooks stop the phone app from starting.
             Log.e("Plainphone", "could not set up sync triggers", e)
         }
+        runCatching { RoleWatcher.register(this) }.onFailure { Log.e("Plainphone", "could not watch the phone app role", it) }
     }
 }

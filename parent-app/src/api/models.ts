@@ -35,6 +35,7 @@ export interface Phone {
   dnsSynced: boolean;
   hasLocation: boolean;
   status?: components["schemas"]["PhoneStatus"] | null;
+  attestation?: components["schemas"]["Attestation"] | null;
 }
 export interface App {
   packageName: string;

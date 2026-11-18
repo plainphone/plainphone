@@ -9,7 +9,8 @@ import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneConte
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { formatFailedPolicies } from "../../../shared/lib/failedPolicies";
+import { formatAccountTypes, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -142,6 +143,22 @@ function RemovePhone() {
   );
 }
 
+const resetStatus = {
+  on: "phone.frpOn",
+  off: "phone.frpOff",
+  "no-play-services": "phone.frpNoPlay",
+  failed: "phone.frpFailed",
+} as const;
+
+const systemStatus = {
+  verified: "phone.attVerified",
+  unlocked: "phone.attUnlocked",
+  "custom-os": "phone.attCustomOs",
+  "failed-boot": "phone.attFailedBoot",
+  revoked: "phone.attRevoked",
+  unverifiable: "phone.attUnverifiable",
+} as const;
+
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -179,10 +196,43 @@ function Overview() {
     phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phones.neverSeen"),
   ].join(", ");
 
+  const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
+  const reset = phone.status?.resetProtection;
+  const system = phone.attestation?.state;
+  const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
+
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+      {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
+      {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
+      {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
+      {failedPolicies.length > 0 ? (
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatFailedPolicies(failedPolicies, locale) })} />
+      ) : null}
+      {phone.mode === "strong" && phone.pairedAt ? (
+        <VStack gap={space.sm}>
+          {reset ? <Text>{t(resetStatus[reset])}</Text> : null}
+          {phone.status?.accountTypes?.length ? (
+            <Text variant="muted">{t("phone.accountTypes", { types: formatAccountTypes(phone.status.accountTypes, locale) })}</Text>
+          ) : null}
+          {patchMonth ? <Text variant="muted">{t("phone.attPatchMonth", { month: patchMonth })}</Text> : null}
+          {system && system !== "verified" && system !== "unverifiable"
+            ? <Notice tone="warn" text={t(systemStatus[system])} />
+            : <Text variant="muted">{t(system ? systemStatus[system] : "phone.attPending")}</Text>}
+          {phone.attestation?.lastFailedAt ? (
+            <Text variant="muted">{t("phone.attLastFailedAt", { when: formatRelative(phone.attestation.lastFailedAt, now, locale) })}</Text>
+          ) : null}
+          {phone.attestation?.checkedAt ? (
+            <Text variant="muted">
+              {t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", {
+                when: formatRelative(phone.attestation.checkedAt, now, locale),
+              })}
+            </Text>
+          ) : null}
+        </VStack>
+      ) : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun", { seconds: overrun })} /> : null}
 
       {phone.profile === "self" || pending.length > 0 ? (

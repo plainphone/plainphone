@@ -121,6 +121,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     }
 }
 
+internal const val PRECISE_ACCURACY_METERS = 100f
+
 /**
  * One position via the platform's location service. The platform "fused" provider is used when
  * the phone has one (on phones with Google Play services it is backed by Google's fused location),
@@ -309,7 +311,6 @@ class LocationReader(private val context: Context) {
 
     private companion object {
         const val FUSED = "fused"
-        const val PRECISE_ACCURACY_METERS = 100f
         val DIRECT_EXECUTOR = Executor { it.run() }
     }
 }
@@ -328,6 +329,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
         Log.i("Plainphone", "sync ($reason): $outcome")
         return when (outcome) {
             is SyncRunner.Outcome.Synced -> {
+                // #23: once a day, attest the boot state to the server. Never affects the lock.
+                runCatching { SyncStore(applicationContext).deviceToken()?.let { AttestationRunner.forContext(applicationContext).runIfDue(it) } }
                 // While someone is using the phone, keep the fast cadence (rules and "Find" within a minute).
                 // While a ring or an "Are you okay?" is open (pollSeconds 10), also with the screen off.
                 val open = outcome.pollSeconds < ServerRules.DEFAULT_POLL_SECONDS

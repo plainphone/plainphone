@@ -48,6 +48,16 @@ export function formatDateTime(iso: string, locale: Locale): string {
   }).format(new Date(iso));
 }
 
+/** Android key attestation reports the OS security update as YYYYMM. */
+export function formatPatchMonth(level: number | null | undefined, locale: Locale): string | null {
+  if (!level || !Number.isInteger(level)) return null;
+  const year = Math.floor(level / 100);
+  const month = level % 100;
+  if (year < 2000 || year > 9999 || month < 1 || month > 12) return null;
+  return new Intl.DateTimeFormat(intlLocale(locale), { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1)));
+}
+
 /** ISO weekday (1 = Monday ... 7 = Sunday) to a localised name. */
 export function weekdayName(isoDay: number, locale: Locale, width: "short" | "long" = "short"): string {
   // 1 January 2024 was a Monday.
@@ -155,4 +165,16 @@ export function todayIn(timezone: string, now: Date = new Date()): { isoDay: num
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return { isoDay: days.indexOf(get("weekday")) + 1, date: `${get("year")}-${get("month")}-${get("day")}` };
+}
+
+/** Android reports provider identifiers, never account names. */
+export function formatAccountTypes(types: string[], locale: Locale): string {
+  const labels = types.map((type) => {
+    if (type === "com.google") return "Google";
+    if (type === "com.oneplus" || type.startsWith("com.oneplus.")) return "OnePlus";
+    if (type === "com.samsung.android.account" || type === "com.osp.app.signin") return "Samsung";
+    if (type === "com.xiaomi") return "Xiaomi";
+    return locale === "da" ? "Anden konto" : "Other account";
+  });
+  return formatList([...new Set(labels)], locale);
 }

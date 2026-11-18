@@ -100,6 +100,7 @@ import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Direction
+import org.plainphone.app.contacts.EmergencyNumbers
 import org.plainphone.app.contacts.HelpReplies
 import org.plainphone.app.contacts.HelpLinks
 import org.plainphone.app.contacts.TelephonyLog
@@ -184,18 +185,23 @@ class PhoneActivity : ComponentActivity() {
 
 /** Starts a call if the contacts rule allows it. Returns null on success, else a message for the user. */
 fun placeCall(context: Context, number: String): String? {
-    val rules = ContactPolicySources.get(context).rules()
-    val decision = context.contactPolicy().decide(rules, Channel.CALL, Direction.OUTGOING, number)
-    if (!decision.allowed) {
-        TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
-        return context.getString(R.string.call_not_allowed)
+    val rules = if (EmergencyNumbers.forContext(context).isEmergency(number)) null
+        else ContactPolicySources.get(context).rules()
+    if (rules != null) {
+        val decision = context.contactPolicy().decide(
+            rules, Channel.CALL, Direction.OUTGOING, number,
+        )
+        if (!decision.allowed) {
+            TelephonyLog(context).recordBlocked(Channel.CALL, Direction.OUTGOING, number)
+            return context.getString(R.string.call_not_allowed)
+        }
     }
     if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
         return context.getString(R.string.call_no_permission)
     }
     return runCatching {
         context.getSystemService(TelecomManager::class.java).placeCall(Uri.fromParts("tel", number, null), Bundle())
-        rules.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
+        rules?.replyHelpContact(number, Channel.CALL)?.let { HelpReplies(context).record(Channel.CALL, it.number) }
         null
     }.getOrElse { context.getString(R.string.call_failed) }
 }

@@ -71,11 +71,17 @@ data class DeviceStatus(
     val rulesEtag: String?,
     val rulesAppliedAtMs: Long?,
     val dnsHost: String?,
+    val resetProtection: String? = null,
+    val accountTypes: List<String>? = null,
     val appVersionCode: Long? = null,
     val update: org.plainphone.app.update.UpdateReport? = null,
     val mode: String = "strong",
     val protections: Map<String, Boolean>? = null,
     val timeUsed: Map<String, Int>? = null,
+    val installOverrunSequence: Long? = null,
+    val callRoleActionNeeded: Boolean = false,
+    val parallelAppsRemovedId: String? = null,
+    val lateGoogleAccountId: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -88,11 +94,20 @@ data class DeviceStatus(
         .put("rulesEtag", rulesEtag?.take(100) ?: JSONObject.NULL)
         .put("rulesAppliedAt", rulesAppliedAtMs?.let { iso(it) } ?: JSONObject.NULL)
         .put("dnsHost", dnsHost?.take(253) ?: JSONObject.NULL)
+        .put("resetProtection", resetProtection?.take(40) ?: JSONObject.NULL)
+        .put("accountTypes", accountTypes?.let { t -> JSONArray(t.take(20).map { it.take(100) }) } ?: JSONObject.NULL)
         .put("mode", mode)
         .apply {
             // Optional fields (docs/sync-api.md): only sent when known.
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
+            if (callRoleActionNeeded) put("callRoleActionNeeded", true)
+            parallelAppsRemovedId?.let {
+                put("parallelAppsRemoved", true)
+                put("parallelAppsRemovedId", it)
+            }
+            lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
+            installOverrunSequence?.let { put("installOverrunSequence", it) }
             appVersionCode?.let { put("appVersionCode", it) }
             update?.let { put("update", it.toJson()) }
         }

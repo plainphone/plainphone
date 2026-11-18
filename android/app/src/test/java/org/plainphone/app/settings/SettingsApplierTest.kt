@@ -213,7 +213,7 @@ class SettingsApplierTest {
 
     // --- Through PolicyApplier -------------------------------------------------------
 
-    private val policy = PolicyApplier(device, MemoryHiddenStore(), 35, settings)
+    private val policy = PolicyApplier(device, MemoryHiddenStore(), 35, settings = settings)
     private fun config(locationRequired: Boolean, s: PhoneSettings) =
         PolicyConfig(server = ServerOverlay(locationRequired = locationRequired, settings = s))
 
