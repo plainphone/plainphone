@@ -148,7 +148,7 @@ object Lock {
         val sync = SyncStore(context)
         if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
         // A release that has not finished yet: do not lock again in between, the next sync retries it.
-        if (sync.releaseAsked) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
+        if (sync.releaseAsked || sync.setupUndoPending) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
         val config = effectiveConfig(context)
         if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
             return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
@@ -179,7 +179,7 @@ object Lock {
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
-        SyncStore(context).let { if (it.released || it.releaseAsked) return null }
+        SyncStore(context).let { if (it.released || it.releaseAsked || it.setupUndoPending) return null }
         recoverInstall(context, reason)
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs

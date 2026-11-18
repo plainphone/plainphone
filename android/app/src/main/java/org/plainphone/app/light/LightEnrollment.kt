@@ -33,6 +33,7 @@ internal object LightEnrollment {
             }
             LightSetup.savePin(context, pin, link.server)
             LightSetup.markDashboardPin(context)
+            LightSetup.markLinkReviewed(context)
             sync.saveEnrollToken(link.token)
             true
         }

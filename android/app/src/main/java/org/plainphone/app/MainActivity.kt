@@ -24,6 +24,7 @@ import org.plainphone.app.light.HomeActivity
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.provisioning.BootloaderWarning
+import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.ui.PairingActivity
 
 /**
@@ -51,7 +52,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
-        if (!isDeviceOwner() && intent?.action != DevicePolicyManager.ACTION_PROVISIONING_SUCCESSFUL) {
+        if (!isDeviceOwner()) {
             val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
                 LightSetupActivity.intent(this).apply {
                     if (intent?.action == Intent.ACTION_VIEW) {
@@ -115,9 +116,12 @@ class MainActivity : Activity() {
     }
 
     private var bootWarningDialog: AlertDialog? = null
+    private val enrollmentNotice by lazy { EnrollmentAccountNotice(this) }
 
     override fun onResume() {
         super.onResume()
+        if (!::status.isInitialized) return
+        enrollmentNotice.start()
         taps = 0
         refresh()
         if (isDeviceOwner() && BootloaderWarning.needsAcknowledgement(this)) {
@@ -139,8 +143,10 @@ class MainActivity : Activity() {
                     refresh()
                     // Android 10 to 13: the phone app (and the call screening and redirection roles) can only be set with the system dialog.
                     if (askForRole()) return@runOnUiThread
-                    // Straight after setup: pair with the parent's dashboard (once).
-                    if (justProvisioned && PairingActivity.canPairWithoutPin(this)) {
+                    // A dashboard QR is handled by EnrollWorker. Script-made QR codes need a pairing code.
+                    if (started && justProvisioned && SyncStore(this).enrollToken() == null &&
+                        PairingActivity.canPairWithoutPin(this)
+                    ) {
                         intent = Intent(this, MainActivity::class.java)
                         startActivity(PairingActivity.intent(this, authorized = false))
                     }
@@ -171,6 +177,11 @@ class MainActivity : Activity() {
             startActivityForResult(roles.createRequestRoleIntent(role), REQUEST_ROLE)
         }.isSuccess
         return roleDialogOpen
+    }
+
+    override fun onPause() {
+        if (::status.isInitialized) enrollmentNotice.stop()
+        super.onPause()
     }
 
     override fun onStop() {

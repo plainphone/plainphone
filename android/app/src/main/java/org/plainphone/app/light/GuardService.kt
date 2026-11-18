@@ -58,6 +58,10 @@ class GuardService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
+        if (LightRelease.isReleased(this)) {
+            disableSelf()
+            return
+        }
         isConnected = true
         instance = java.lang.ref.WeakReference(this)
         Log.i(TAG, "guard connected")
@@ -77,7 +81,7 @@ class GuardService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
-        if (Mode.isStrong(this)) {
+        if (Mode.isStrong(this) || LightRelease.isReleased(this)) {
             cancelSettingsChecks()
             updateEventTypes(watchContent = false)
             return
@@ -192,7 +196,7 @@ class GuardService : AccessibilityService() {
     }
 
     private fun canGuardSettings() =
-        !Mode.isStrong(this) && !Lock.isInMaintenanceWindow(this) && LightSetup.isComplete(this)
+        !Mode.isStrong(this) && !LightRelease.isReleased(this) && !Lock.isInMaintenanceWindow(this) && LightSetup.isComplete(this)
 
     private fun isInteractive(): Boolean =
         getSystemService(PowerManager::class.java)?.isInteractive == true
@@ -253,7 +257,7 @@ class GuardService : AccessibilityService() {
 
     /** Time limits: re-evaluated when an app comes to the front and every [TICK_MS] while it stays there. */
     private fun checkTime(pkg: String, force: Boolean) {
-        if (pkg == packageName || isOverlay(pkg)) return
+        if (LightRelease.isReleased(this) || pkg == packageName || isOverlay(pkg)) return
         val now = SystemClock.elapsedRealtime()
         if (!force && now - lastTimeCheck < 5_000L) return
         lastTimeCheck = now
@@ -273,6 +277,7 @@ class GuardService : AccessibilityService() {
     }
 
     private fun block(pkg: String, reason: BlockedActivity.Reason) {
+        if (LightRelease.isReleased(this)) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastBlockAt < 700L) return
         lastBlockAt = now

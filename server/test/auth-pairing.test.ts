@@ -107,7 +107,7 @@ describe("accounts", () => {
 });
 
 describe("pairing", () => {
-  it("pairs a phone by code and hands out the device token exactly once", async () => {
+  it("recovers the same device token until the first rules sync", async () => {
     const parent = await signIn(h, "p@example.org");
     const device = new Client(h);
     const start = await device.post("/api/device/pairings", { mode: "strong" });
@@ -129,11 +129,16 @@ describe("pairing", () => {
     const got = await poll();
     expect(got.status).toBe(200);
     expect(got.json.deviceToken).toMatch(/^pp_d_/);
-    expect((await poll()).status).toBe(410);
+    h.clock.advance(16 * 60_000);
+    const retry = await poll();
+    expect(retry.status).toBe(200);
+    expect(retry.json).toEqual(got.json);
+    expect((await poll("wrong")).status).toBe(404);
     expect((await parent.post("/api/phones/claim", { code: typed, name: "Again", profile: "child" })).status).toBe(404);
 
     device.token = got.json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
+    expect((await poll()).status).toBe(410);
     // A device token cannot use the parent API.
     expect((await device.get("/api/phones")).status).toBe(403);
     // The phone was registered with the DNS service with every category blocked.

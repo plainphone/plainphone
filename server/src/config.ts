@@ -62,7 +62,7 @@ const schema = z.object({
     z
       .string()
       .regex(/^[A-Za-z0-9_-]{43}$/)
-      .default("mPJAQkicVVPhhgwsBAZJoNloyyj1Cnln74AnjZDi2LM"),
+      .default("iGj8FnevSjpvbT6FjOJt-bbsEQc1nbs8I4MbDOBUEhU"),
   ),
   /** Private DNS the phone uses from setup until its own filter host is ready. */
   PROVISIONING_DNS_HOST: unsetIfEmpty(z.string().default("family.adguard-dns.com")),

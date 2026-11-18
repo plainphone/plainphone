@@ -1,5 +1,5 @@
 {
-  "id": "ae3950d6-8889-4a07-a9fe-58718b68a273",
+  "id": "59e6fdb4-2c66-447d-a6d9-e574c807c687",
   "prevId": "abc9308a-e3c3-4d8f-9e5d-abc88767ee8e",
   "version": "7",
   "dialect": "postgresql",
@@ -815,6 +815,25 @@
           "primaryKey": false,
           "notNull": false
         },
+        "profile_hint": {
+          "name": "profile_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requires_confirmation": {
+          "name": "requires_confirmation",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "claimed_by": {
+          "name": "claimed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "pending_device_token": {
           "name": "pending_device_token",
           "type": "text",
@@ -860,6 +879,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pairings_claimed_by_users_id_fk": {
+          "name": "pairings_claimed_by_users_id_fk",
+          "tableFrom": "pairings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "claimed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1392,12 +1424,6 @@
         "dns_confirmed_at": {
           "name": "dns_confirmed_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dns_confirmed_provider": {
-          "name": "dns_confirmed_provider",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

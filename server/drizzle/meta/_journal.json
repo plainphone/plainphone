@@ -96,8 +96,22 @@
     {
       "idx": 13,
       "version": "7",
-      "when": 1794994595334,
-      "tag": "0013_dns_confirmation_provider",
+      "when": 1794990431401,
+      "tag": "0013_pairing_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794999157207,
+      "tag": "0014_setup_undo_notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795005826365,
+      "tag": "0015_dns_confirmation_provider",
       "breakpoints": true
     }
   ]

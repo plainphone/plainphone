@@ -392,18 +392,19 @@ class InstallLease(
             val device = org.plainphone.app.AndroidDeviceControls(app)
             val restriction = android.os.UserManager.DISALLOW_INSTALL_APPS
             val lock = org.plainphone.app.Lock
+            fun canRestoreRestrictions() = device.isDeviceOwner()
             return InstallLease(
                 PrefsLeaseStore(app),
                 AndroidLeaseEnv(app),
                 relockNow = {
-                    if (!lock.isInMaintenanceWindow(app) && device.isDeviceOwner()) {
+                    if (!lock.isInMaintenanceWindow(app) && canRestoreRestrictions()) {
                         device.addRestriction(restriction)
                     }
                 },
                 relockCatalogAccounts = {
                     val sync = org.plainphone.app.sync.SyncStore(app)
                     if (!lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
-                        device.isDeviceOwner()
+                        canRestoreRestrictions()
                     ) {
                         device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
                     }
@@ -414,7 +415,7 @@ class InstallLease(
                 restrictionLifted = {
                     val sync = org.plainphone.app.sync.SyncStore(app)
                     !lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
-                        device.isDeviceOwner() &&
+                        canRestoreRestrictions() &&
                         !app.getSystemService(android.os.UserManager::class.java).hasUserRestriction(restriction)
                 },
                 tracksOverruns = {
