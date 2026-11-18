@@ -21,7 +21,7 @@ import {
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
-import { isDnsReady } from "./dns.js";
+import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
 import { loadTimeLimits } from "./limits.js";
@@ -171,7 +171,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       mode: phone.mode,
       timezone: phone.timezone,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
-      dnsReady: isDnsReady(ctx, phone),
+      dnsReady: isRulesDnsReady(ctx, phone),
       locationEnabled: phone.locationEnabled,
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,

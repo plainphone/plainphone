@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-import { eq } from "drizzle-orm";
+import { readFile } from "node:fs/promises";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { phones } from "../src/db/schema.js";
 import { HttpDnsProvider } from "../src/providers/dns.js";
@@ -177,7 +178,7 @@ describe("DNS readiness", () => {
       request.mockClear();
 
       expect((await parent.get(path)).json.host).toBeNull();
-      expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+      expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
       await markUnconfirmedDnsDirty(h.ctx);
       expect((await parent.get(path)).json.synced).toBe(false);
 
@@ -195,7 +196,7 @@ describe("DNS readiness", () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);
 
-    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(true);
     expect((await parent.get(`/api/phones/${phoneId}`)).json).toMatchObject({
       dnsConfigured: false,
       dnsReady: false,
@@ -220,33 +221,61 @@ describe("DNS readiness", () => {
     expect((await parent.get(path)).json.host).toMatch(/\.dns\.plainphone\.org$/);
   });
 
-  it("preserves legacy HTTP DNS readiness during an opted-in upgrade and API outage", async () => {
+  it("preserves DNS on every confirmed phone across migration 0015 and a retry", async () => {
     const request = useHttpDns();
     const parent = await signIn(h, "parent@example.org");
-    const { phoneId, device } = await pairPhone(h, parent);
-    const path = `/api/phones/${phoneId}/dns`;
-    const before = (await device.get("/api/device/rules")).json.dns;
-    const confirmation = await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) });
-    await h.ctx.db.update(phones).set({ dnsConfirmedProvider: null, dnsDirty: true }).where(eq(phones.id, phoneId));
+    const existing: { phoneId: string; device: Client; dns: { host: string; ready: boolean } }[] = [];
+    for (const name of ["Alma", "Bo"]) {
+      const { phoneId, device } = await pairPhone(h, parent, { name });
+      const { dns } = (await device.get("/api/device/rules")).json;
+      expect(dns.ready).toBe(true);
+      existing.push({ phoneId, device, dns });
+    }
 
-    h.ctx.cfg.DNS_ADOPT_LEGACY_CONFIRMATIONS = true;
+    const migration = await readFile(new URL("../drizzle/0015_dns_confirmation_provider.sql", import.meta.url), "utf8");
+    await h.ctx.db.transaction(async (tx) => {
+      await tx.execute(sql`alter table phones drop column dns_confirmed_provider`);
+      await tx.execute(sql.raw(migration));
+    });
+
+    const originalClientUrls = request.mock.calls.map(([url]) => String(url));
     request.mockClear();
-    request.mockResolvedValue(new Response(null, { status: 503 }));
+    const expectLegacyRules = async () => {
+      for (const { device, dns } of existing) {
+        expect((await device.get("/api/device/rules")).json.dns).toEqual(dns);
+      }
+    };
+    await expectLegacyRules();
     await markUnconfirmedDnsDirty(h.ctx);
     expect(request).not.toHaveBeenCalled();
-    expect(before.ready).toBe(true);
-    expect((await device.get("/api/device/rules")).json.dns).toEqual(before);
-    expect((await parent.get(path)).json).toMatchObject({ host: before.host, synced: false });
-    expect(await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) }))
-      .toMatchObject({ dnsConfirmedAt: confirmation!.dnsConfirmedAt });
+    for (const { phoneId } of existing) {
+      expect((await parent.get(`/api/phones/${phoneId}/dns`)).json)
+        .toMatchObject({ host: null, synced: false });
+    }
+    request.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    await expectLegacyRules();
+    // One client failed to update. Both keep their rules while that client retries.
+    const rows = await h.ctx.db.select().from(phones);
+    expect(rows.filter((row) => row.dnsConfirmedProvider === null)).toHaveLength(1);
+    for (const row of rows) {
+      const path = `/api/phones/${row.id}/dns`;
+      if (row.dnsConfirmedProvider === null) {
+        expect(row.dnsConfirmedAt).toEqual(h.clock.now);
+        expect((await parent.get(path)).json).toMatchObject({ host: null, synced: false });
+      }
+    }
 
     await sweep(h.ctx);
-    expect(request).toHaveBeenCalledTimes(1);
-    expect((await device.get("/api/device/rules")).json.dns).toEqual(before);
-
-    h.ctx.cfg.DNS_API_URL = "https://different-resolver.example.test";
-    await markUnconfirmedDnsDirty(h.ctx);
-    expect((await device.get("/api/device/rules")).json.dns.ready).toBe(false);
+    await expectLegacyRules();
+    expect(request.mock.calls.map(([, init]) => init?.method)).toEqual(["PATCH", "PATCH", "PATCH"]);
+    expect(new Set(request.mock.calls.map(([url]) => String(url)))).toEqual(new Set(originalClientUrls));
+    for (const { phoneId, dns } of existing) {
+      expect(await h.ctx.db.query.phones.findFirst({ where: eq(phones.id, phoneId) }))
+        .toMatchObject({ dnsConfirmedProvider: expect.stringMatching(/^http:/), dnsDirty: false });
+      expect((await parent.get(`/api/phones/${phoneId}/dns`)).json)
+        .toMatchObject({ host: dns.host, synced: true });
+    }
   });
 
   it("returns the configured DoT host only to household members after provisioning", async () => {

@@ -20,8 +20,6 @@ const schema = z.object({
   DNS_PROVIDER: z.enum(["mock", "http"]).default("mock"),
   DNS_API_URL: z.string().optional(),
   DNS_API_TOKEN: z.string().optional(),
-  /** One-time upgrade for databases that used only this HTTP resolver. */
-  DNS_ADOPT_LEGACY_CONFIRMATIONS: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
   /** Hostname suffix for per-phone DNS-over-TLS, e.g. dns.plainphone.org */
   DNS_HOST_SUFFIX: z.string().default("dns.plainphone.org"),
   /** Only "none" today: phones poll. FCM is the planned next layer (docs/sync-api.md). */

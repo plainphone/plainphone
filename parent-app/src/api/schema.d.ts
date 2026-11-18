@@ -1952,7 +1952,7 @@ export interface components {
                  * @example k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org
                  */
                 host?: string;
-                /** @description The DNS service has accepted this phone's ClientID. Until it is true the phone keeps its current private DNS host, because the DNS service refuses unknown ClientIDs and the phone would lose DNS entirely. It never goes back to false. */
+                /** @description The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone keeps its current private DNS host. */
                 ready?: boolean;
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
@@ -2142,7 +2142,7 @@ export interface components {
             dnsSynced?: boolean;
             /** @description Whether this server has a DNS filter service configured */
             dnsConfigured?: boolean;
-            /** @description The DNS service has accepted the phone's ClientID at least once (`dns.ready` in the rules). Until then the web filter is not active on the phone. */
+            /** @description The configured HTTP DNS resolver has confirmed provisioning of this phone's ClientID. */
             dnsReady?: boolean;
             hasLocation?: boolean;
             /** @description The phone's last hardware attestation (#23); null when it has not attested. */

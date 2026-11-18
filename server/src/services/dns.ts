@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DnsCategory, dnsDeletions, dnsSettings, phones } from "../db/schema.js";
 import type { Ctx } from "./context.js";
 
@@ -11,9 +11,16 @@ function dnsConfirmationTag(cfg: Ctx["cfg"]): string {
   return `http:${createHash("sha256").update(resolver).digest("hex")}`;
 }
 
+type DnsConfirmation = Pick<typeof phones.$inferSelect, "dnsConfirmedAt" | "dnsConfirmedProvider">;
+
+export function isRulesDnsReady(ctx: Ctx, phone: DnsConfirmation): boolean {
+  return phone.dnsConfirmedAt !== null &&
+    !(ctx.cfg.DNS_PROVIDER === "http" && phone.dnsConfirmedProvider === "mock");
+}
+
 export function isDnsReady(
   ctx: Ctx,
-  phone: Pick<typeof phones.$inferSelect, "dnsConfirmedAt" | "dnsConfirmedProvider">,
+  phone: DnsConfirmation,
 ): boolean {
   return ctx.cfg.DNS_PROVIDER === "http" &&
     phone.dnsConfirmedAt !== null &&
@@ -26,12 +33,6 @@ function needsDnsConfirmation(tag: string) {
 
 export async function markUnconfirmedDnsDirty(ctx: Ctx): Promise<void> {
   const tag = dnsConfirmationTag(ctx.cfg);
-  if (ctx.cfg.DNS_PROVIDER === "http" && ctx.cfg.DNS_ADOPT_LEGACY_CONFIRMATIONS) {
-    await ctx.db
-      .update(phones)
-      .set({ dnsConfirmedProvider: tag })
-      .where(and(isNull(phones.dnsConfirmedProvider), isNotNull(phones.dnsConfirmedAt)));
-  }
   await ctx.db
     .update(phones)
     .set({ dnsDirty: true })
@@ -90,10 +91,11 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
  * Retries dirty phones and confirms legacy or previously provisioned phones with the current provider.
  */
 export async function syncDirtyDns(ctx: Ctx): Promise<number> {
+  await markUnconfirmedDnsDirty(ctx);
   const dirty = await ctx.db
     .select({ id: phones.id })
     .from(phones)
-    .where(or(eq(phones.dnsDirty, true), needsDnsConfirmation(dnsConfirmationTag(ctx.cfg))));
+    .where(eq(phones.dnsDirty, true));
   let ok = 0;
   for (const p of dirty) if (await syncDns(ctx, p.id)) ok++;
   return ok;
