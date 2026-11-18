@@ -63,6 +63,11 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
 
+    val setupUndoPending: Boolean get() = prefs.getBoolean("setup_undo", false)
+
+    @SuppressLint("ApplySharedPref") // Release must resume after process death.
+    fun beginSetupUndo(): Boolean = prefs.edit().putBoolean("setup_undo", true).commit()
+
     /**
      * True once a parent's release has switched Plainphone off on this phone. From then on the
      * lock never comes back, even if the server could not be told yet: only the acknowledgement
@@ -97,14 +102,14 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 .putString(KEY_PHONE_ID, phoneId)
                 .putBoolean(KEY_EVER_PAIRED, true)
                 .putBoolean(KEY_REMOVED, false)
-                .remove(KEY_RELEASED)
+                .remove(KEY_RELEASED).remove("setup_undo")
                 // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
                 .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
                 .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
                 .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
                 .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
                 .remove(KEY_PAIRING)
-                .remove(KEY_ENROLL)
+                .remove(KEY_ENROLL).remove("enroll_confirmed")
             synchronized(appReportLock) {
                 pairing.putLong(KEY_APPS_GENERATION, nextAppGeneration()).commit()
             }
@@ -115,9 +120,17 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
     fun enrollToken(): String? = prefs.getString(KEY_ENROLL, null)?.let(box::open)
 
+    val enrollmentConfirmed: Boolean get() = prefs.getBoolean("enroll_confirmed", false)
+
+    @SuppressLint("ApplySharedPref") // Worker may redeem the token after process death.
+    fun confirmEnrollment(): Boolean = prefs.edit().putBoolean("enroll_confirmed", true).commit()
+
     @SuppressLint("ApplySharedPref") // written during provisioning, before the process may be killed
     fun saveEnrollToken(token: String?) {
-        prefs.edit().apply { if (token == null) remove(KEY_ENROLL) else putString(KEY_ENROLL, box.seal(token)) }.commit()
+        if (token != null && token == enrollToken()) return
+        prefs.edit().remove("enroll_confirmed").apply {
+            if (token == null) remove(KEY_ENROLL) else putString(KEY_ENROLL, box.seal(token))
+        }.commit()
     }
 
     /** Random id made once per install; lets the server recognise this phone if an answer was lost. */
@@ -140,7 +153,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     fun pairing(): Pairing? = prefs.getString(KEY_PAIRING, null)?.let { raw ->
         runCatching {
             val parts = raw.split('\n')
-            Pairing(parts[0], parts[1], box.open(parts[2]) ?: return null, parts[3], parts[4].toLong())
+            Pairing(parts[0], parts[1], box.open(parts[2]) ?: return null, parts[3], parts[4].toLong(), parts.getOrNull(5) == "true")
         }.getOrNull()
     }
 
@@ -149,7 +162,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             prefs.edit().remove(KEY_PAIRING).apply()
             return
         }
-        prefs.edit().putString(KEY_PAIRING, listOf(p.id, p.code, box.seal(p.pollSecret), p.qrUrl, p.expiresAtMs.toString()).joinToString("\n")).apply()
+        prefs.edit().putString(KEY_PAIRING, listOf(p.id, p.code, box.seal(p.pollSecret), p.qrUrl, p.expiresAtMs.toString(), p.requiresConfirmation.toString()).joinToString("\n")).apply()
     }
 
     // --- Rules -------------------------------------------------------------------

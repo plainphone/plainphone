@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.OutlinedButton
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +41,7 @@ import kotlinx.coroutines.withContext
 import org.plainphone.app.Lock
 import org.plainphone.app.R
 import org.plainphone.app.sync.PairingController
+import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
@@ -53,7 +57,22 @@ class LightSetupActivity : ComponentActivity() {
     private var pendingLink by mutableStateOf<LightEnrollment.Link?>(null)
     private var batteryPromptOpened by mutableStateOf(false)
 
-    private val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
+    private var requestedStep: LightSetup.Step? = null
+    private var restrictedStep by mutableStateOf<LightSetup.Step?>(null)
+    private val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        val step = requestedStep
+        requestedStep = null
+        if (step != null && needsRestrictedSettingsHelp(Build.VERSION.SDK_INT, step, LightSetup.isDone(this, step))) {
+            restrictedStep = step
+        }
+        refresh++
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("requestedStep", requestedStep?.name)
+        outState.putString("restrictedStep", restrictedStep?.name)
+        super.onSaveInstanceState(outState)
+    }
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[Manifest.permission.POST_NOTIFICATIONS] == true &&
             !LightSetup.isDone(this, LightSetup.Step.RUNNING)
@@ -63,6 +82,8 @@ class LightSetupActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
+        restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
         receiveLink(intent)
         enableEdgeToEdge()
         setContent {
@@ -70,13 +91,69 @@ class LightSetupActivity : ComponentActivity() {
                 @Suppress("UNUSED_EXPRESSION") refresh // recompose after every return from Settings
                 val link = pendingLink
                 val step = LightSetup.next(this)
-                if (link != null) {
+                if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) {
+                    AudienceScreen()
+                } else if (link != null) {
                     key(link) { ConfirmLink(link) }
                 } else if (step == null) {
                     Done(onFinish = ::finishSetup)
                 } else {
                     key(step) { StepScreen(step) }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun AudienceScreen() {
+        var audience by rememberSaveable { mutableStateOf<SetupAudience?>(null) }
+        val back = { audience = null }
+        BackHandler(audience != null, onBack = back)
+        when (audience) {
+            null -> CalmScreen(
+                eyebrow = null,
+                title = stringResource(R.string.setup_audience),
+                body = null,
+                primary = null,
+                onPrimary = {},
+            ) {
+                for ((choice, label) in listOf(
+                    SetupAudience.CHILD to R.string.setup_child,
+                    SetupAudience.PARENT to R.string.setup_parent,
+                    SetupAudience.MYSELF to R.string.setup_myself,
+                )) {
+                    OutlinedButton(onClick = { audience = choice }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(label))
+                    }
+                }
+            }
+            SetupAudience.PARENT -> CalmScreen(
+                eyebrow = null,
+                title = stringResource(R.string.setup_parent),
+                body = stringResource(R.string.setup_parent_body),
+                primary = stringResource(R.string.setup_dashboard),
+                onPrimary = { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://app.plainphone.org"))) } },
+                secondary = stringResource(R.string.setup_back),
+                onSecondary = back,
+            ) {
+                OutlinedButton(onClick = { audience = SetupAudience.MYSELF }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.setup_parent_try_self))
+                }
+            }
+            else -> {
+                val choice = checkNotNull(audience)
+                CalmScreen(
+                    eyebrow = null,
+                    title = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self else R.string.setup_confirm_child),
+                    body = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self_body else R.string.setup_confirm_child_body),
+                    primary = stringResource(R.string.setup_continue),
+                    onPrimary = {
+                        LightSetup.saveProfile(this, checkNotNull(choice.profile))
+                        refresh++
+                    },
+                    secondary = stringResource(R.string.setup_back),
+                    onSecondary = back,
+                )
             }
         }
     }
@@ -104,12 +181,39 @@ class LightSetupActivity : ComponentActivity() {
         var error by remember { mutableStateOf<Int?>(null) }
         var saving by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
+        val api = remember(link) { PlainphoneApi(link.server, applicationContext) }
+        var review by remember(link) { mutableStateOf<Pair<PlainphoneApi.PollAccount, String>?>(null) }
+        var retry by remember(link) { mutableIntStateOf(0) }
+        LaunchedEffect(link, retry) {
+            try {
+                review = withContext(Dispatchers.IO) { api.reviewEnrollment(link.token, "light") }
+            } catch (_: java.io.IOException) {
+                error = R.string.pairing_failed
+            }
+        }
+        val account = review?.first
+        val matches = review?.second == LightSetup.profile(this)
         CalmScreen(
             eyebrow = null,
             title = stringResource(R.string.light_confirm_link_title),
-            body = stringResource(R.string.light_confirm_link_body, link.server),
-            primary = if (saving) null else stringResource(R.string.light_confirm_link_action),
-            onPrimary = {
+            body = when {
+                account == null -> stringResource(R.string.pairing_loading)
+                !matches -> stringResource(R.string.setup_profile_mismatch)
+                else -> stringResource(if (LightSetup.profile(this) == "self") R.string.setup_link_self else R.string.light_confirm_link_body, link.server)
+            },
+            primary = when {
+                saving -> null
+                account == null && error != null -> stringResource(R.string.pairing_retry)
+                matches -> stringResource(R.string.light_confirm_link_action)
+                else -> null
+            },
+            onPrimary = primary@{
+                if (account == null) {
+                    error = null
+                    retry++
+                    return@primary
+                }
+                if (!matches) return@primary
                 error = when {
                     pin.length < 6 -> R.string.light_pin_too_short
                     pin != repeatedPin -> R.string.light_pin_mismatch
@@ -130,17 +234,35 @@ class LightSetupActivity : ComponentActivity() {
                     }
                 }
             },
-            secondary = if (saving) null else stringResource(android.R.string.cancel),
-            onSecondary = ::dismissLink,
+            secondary = if (saving) null else stringResource(R.string.setup_not_you),
+            onSecondary = {
+                saving = true
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { api.cancelEnrollment(link.token, "light") }
+                        dismissLink()
+                    } catch (_: java.io.IOException) {
+                        error = R.string.pairing_failed
+                    } finally {
+                        saving = false
+                    }
+                }
+            },
         ) {
-            PinField(pin, {
-                pin = it.filter { digit -> digit in '0'..'9' }.take(12)
-                error = null
-            }, stringResource(R.string.light_pin_label))
-            PinField(repeatedPin, {
-                repeatedPin = it.filter { digit -> digit in '0'..'9' }.take(12)
-                error = null
-            }, stringResource(R.string.light_pin_again))
+            account?.let {
+                Text(stringResource(R.string.setup_pair_account, it.maskedEmail))
+                it.householdName?.let { name -> Text(stringResource(R.string.setup_pair_household, name)) }
+            }
+            if (matches && account != null) {
+                PinField(pin, {
+                    pin = it.filter { digit -> digit in '0'..'9' }.take(12)
+                    error = null
+                }, stringResource(R.string.light_pin_label))
+                PinField(repeatedPin, {
+                    repeatedPin = it.filter { digit -> digit in '0'..'9' }.take(12)
+                    error = null
+                }, stringResource(R.string.light_pin_again))
+            }
             error?.let { Text(stringResource(it), color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
         }
     }
@@ -148,8 +270,9 @@ class LightSetupActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refresh++
+        if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) return
         if (LightSetup.next(this) == null && !LightRelease.isReleased(this)) LightSetup.markComplete(this)
-        if (!Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
+        if (SyncStore(this).isPaired && !Lock.isInMaintenanceWindow(this)) Lock.applyAsync(this, "light setup")
     }
 
     private fun finishSetup() {
@@ -161,6 +284,18 @@ class LightSetupActivity : ComponentActivity() {
 
     @Composable
     private fun StepScreen(step: LightSetup.Step) {
+        if (restrictedStep == step) {
+            CalmScreen(
+                eyebrow = null,
+                title = stringResource(step.title),
+                body = stringResource(R.string.setup_restricted_body),
+                primary = stringResource(R.string.light_app_info),
+                onPrimary = { open(LightSetup.appDetails(this)) },
+                secondary = stringResource(R.string.pairing_retry),
+                onSecondary = { restrictedStep = null; act(step) },
+            )
+            return
+        }
         val dashboard = LightSetup.hasDashboardPin(this) && step != LightSetup.Step.PIN
         val index = LightSetup.Step.entries.indexOf(step) - if (dashboard) 1 else 0
         val total = LightSetup.Step.entries.size - if (dashboard) 1 else 0
@@ -178,13 +313,14 @@ class LightSetupActivity : ComponentActivity() {
         ) LightSetup.batteryMaker() else null
         val backgroundLocationSettings = step == LightSetup.Step.LOCATION &&
             Build.VERSION.SDK_INT >= 30 && fineLocationAllowed()
-        var guardHelp by rememberSaveable { mutableStateOf(false) }
         CalmScreen(
             eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
-            title = stringResource(step.title),
+            title = stringResource(if (step == LightSetup.Step.PAIR && LightSetup.profile(this) == "self") R.string.setup_pair_self_title else step.title),
             body = stringResource(when {
                 batteryHelp != null -> batteryHelp
                 backgroundLocationSettings -> R.string.light_step_location_settings
+                step == LightSetup.Step.PAIR && LightSetup.profile(this) == "self" -> R.string.setup_pair_self
+                step == LightSetup.Step.ADMIN && LightSetup.profile(this) == "self" -> R.string.setup_admin_self
                 else -> step.body
             }),
             primary = stringResource(when {
@@ -200,8 +336,6 @@ class LightSetupActivity : ComponentActivity() {
             secondary = when {
                 batteryHelp != null && batteryDone -> stringResource(R.string.light_battery_continue)
                 step.optional -> stringResource(if (dashboard) R.string.light_skip_options else R.string.light_skip)
-                step == LightSetup.Step.GUARD && Build.VERSION.SDK_INT >= 33 ->
-                    stringResource(if (guardHelp) R.string.light_app_info else R.string.light_guard_help)
                 else -> null
             },
             onSecondary = {
@@ -211,22 +345,18 @@ class LightSetupActivity : ComponentActivity() {
                 } else if (step.optional) {
                     if (dashboard) LightSetup.skipOptions(this) else LightSetup.skip(this, step)
                     refresh++
-                } else {
-                    guardHelp = true
-                    open(LightSetup.appDetails(this))
                 }
             },
             progress = (index + 1f) / total,
         ) {
             PermissionIllustration(step)
-            if (guardHelp) Text(stringResource(R.string.light_guard_help_body))
         }
     }
 
     @Composable
     private fun DashboardPairStep() {
         val store = SyncStore(this)
-        val linkAvailable = store.enrollToken() != null
+        val linkAvailable = LightSetup.linkReviewed(this) && store.enrollToken() != null
         val paired = store.isPaired
         val canConnect = linkAvailable || paired
         var attempt by remember { mutableIntStateOf(0) }
@@ -260,7 +390,7 @@ class LightSetupActivity : ComponentActivity() {
         }
         CalmScreen(
             eyebrow = null,
-            title = stringResource(R.string.light_step_pair_title),
+            title = stringResource(if (LightSetup.profile(this) == "self") R.string.setup_pair_self_title else R.string.light_step_pair_title),
             body = stringResource(when {
                 failed -> R.string.light_link_network
                 paired -> R.string.light_link_rules
@@ -289,7 +419,10 @@ class LightSetupActivity : ComponentActivity() {
                 }
             LightSetup.Step.USAGE ->
                 open(LightSetup.intent(this, step), Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
-            else -> open(LightSetup.intent(this, step))
+            else -> {
+                requestedStep = step.takeIf { needsRestrictedSettingsHelp(Build.VERSION.SDK_INT, it, false) }
+                open(LightSetup.intent(this, step))
+            }
         }
     }
 
@@ -373,11 +506,13 @@ class LightSetupActivity : ComponentActivity() {
         CalmScreen(
             eyebrow = null,
             title = stringResource(R.string.light_done_title),
-            body = stringResource(R.string.light_done_body),
+            body = stringResource(if (LightSetup.profile(this) == "self") R.string.setup_done_self else R.string.light_done_body),
             primary = stringResource(R.string.light_done_action),
             onPrimary = onFinish,
             progress = 1f,
-        )
+        ) {
+            UndoSetupAction(this@LightSetupActivity, refresh, ::finish)
+        }
     }
 
     companion object {

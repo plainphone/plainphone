@@ -18,14 +18,14 @@ can use this retry. Safety events only notify on the first recorded answer. Rele
 transactional and a repeated acknowledgement can return 401, which the phone already accepts.
 Find and check-in uploads replay the original fix and purpose; the server checks the matching
 request and can return 409 if it already consumed the upload. Enrollment rotates the device
-token on redemption, pairing creation allocates a new pairing, and a completed pairing poll
-returns the token only once. Those operations never use the immediate retry.
+token on redemption, pairing creation allocates a new pairing, and the legacy pairing poll
+consumes the token. Those operations never use the immediate retry.
 
 ## Flow
 
 ```
 phone                                      server                         parent (PWA)
-  | POST /device/pairings {mode}             |                                  |
+  | POST /device/pairings {mode, profile, confirmOnPhone: true}             |                                  |
   |----------------------------------------->|                                  |
   |  201 {pairingId, code, pollSecret, qrUrl}|                                  |
   |  show code "K7MP-4QXR" + QR of qrUrl     |                                  |
@@ -34,7 +34,9 @@ phone                                      server                         parent
   | GET /device/pairings/{id}  (every 3-5 s) |                                  |
   |   X-Poll-Secret: ...                     |                                  |
   |----------------------------------------->|                                  |
-  |  202 waiting ... 200 {deviceToken}       |  (token is handed out once)      |
+  |  202 waiting ... 202 {status: confirm, maskedEmail, householdName}
+  | POST /device/pairings/{id} {action: confirm} with X-Poll-Secret
+  |  200 {deviceToken}
   |                                          |                                  |
   | PUT /device/apps {apps:[...]}            |                                  |
   | GET /device/rules  If-None-Match: <etag> |   PUT /phones/{id}/apps/...      |
@@ -48,12 +50,15 @@ phone                                      server                         parent
   |                                          |<---------------------------------|
 ```
 
-1. **Pairing.** A QR code made in the dashboard carries a one-time enrollment token (see
-   [Setup from the dashboard](#setup-from-the-dashboard) below): the phone pairs with it by itself.
-   Otherwise the phone starts a pairing and shows the 8-character code and a QR code of
-   `qrUrl`. The parent's phone camera opens the PWA with the code filled in. Codes live 15
-   minutes. The phone polls with its `pollSecret`; the device token comes back exactly once
-   (`410` afterwards). Store it in encrypted storage (Android Keystore-backed).
+1. **Pairing.** A dashboard setup token goes through [enrollment](#setup-from-the-dashboard).
+   Otherwise the phone shows a 15-minute code and a QR code. The dashboard uses the code to
+   preselect the phone's profile and the adult submits the claim. With `confirmOnPhone: true`,
+   a claim creates a pending phone. Polling with the secret returns only the claimer's masked
+   email and the household name. The phone sends `{action: "confirm"}` to the same URL to finish
+   pairing. The token can be recovered with the same secret until the code expires. With
+   `{action: "cancel"}`, the server removes the pending phone and code. The sweeper removes
+   expired pending claims. Older clients still receive their device token once from GET.
+   Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
    is the complete truth; there are no deltas. A release request changes the ETag, so a
@@ -152,8 +157,10 @@ parent (PWA)                                server                          phon
 - In light mode the QR code opens `/install-phone` with the token, Android package and language in
   the URL fragment. The page removes the fragment from the current history entry and uses the
   token in a package-scoped Android intent. The parent enters the PIN twice in the app, which
-  salts and hashes it locally. After the required permissions are granted, the app sends the
-  token and ordinary enrollment metadata.
+  salts and hashes it locally. The phone first calls `POST /device/enrollment-review` with the
+  setup token and mode. The response identifies the profile, household and masked issuer. Sending
+  `cancel: true` instead removes the unused phone and token. Strong mode reviews the account
+  after Android provisioning and before redeeming the dashboard token.
 - `mode` defaults to `strong` for existing clients. Enrollment keeps the selected mode on
   the phone entry. The phone separately reports what Android granted in its protection status.
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
@@ -165,6 +172,11 @@ parent (PWA)                                server                          phon
 - Code pairing keeps working, for QR codes made with the script and for self-hosters.
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).
+
+**Undo light-mode setup.** The phone checks the monotonic ten-minute window locally before
+starting release. After local release succeeds, it calls `POST /device/undo-setup` with its
+device token. The server removes the phone and sends the standard protection-loss notice.
+The acknowledgement can be retried offline and accepted when connectivity returns.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up

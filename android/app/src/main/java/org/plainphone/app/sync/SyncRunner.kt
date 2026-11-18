@@ -112,6 +112,9 @@ class SyncRunner(
         // Released already: Plainphone is off, so the lock is never applied again. Only the
         // server still has to be told (it may have been unreachable the last time).
         if (store.released) acknowledgeRelease(token)?.let { return it }
+        if (store.setupUndoPending) {
+            return releaseIfAsked(token) ?: Outcome.Failed("setup undo pending")
+        }
 
         // Apps first: a newly installed app then shows up (hidden) in the rules fetched right after.
         guarded("report apps") { reportApps(token) }
@@ -170,7 +173,7 @@ class SyncRunner(
      * nothing is reported to the parent meanwhile, since they asked for the protection to go.
      */
     private fun releaseIfAsked(token: String): Outcome? {
-        if (!store.releaseAsked) return null
+        if (!store.releaseAsked && !store.setupUndoPending) return null
         val results = try {
             device.release()
         } catch (e: Exception) {
@@ -193,7 +196,7 @@ class SyncRunner(
      */
     private fun acknowledgeRelease(token: String): Outcome? {
         val done = try {
-            api.ackReleased(token)
+            if (store.setupUndoPending) api.ackSetupUndo(token) else api.ackReleased(token)
         } catch (e: IOException) {
             return Outcome.Failed("release not acknowledged yet: ${e.message ?: e.javaClass.simpleName}")
         }
@@ -201,6 +204,7 @@ class SyncRunner(
             store.markRemoved()
             return Outcome.Removed
         }
+        if (store.setupUndoPending) return Outcome.Failed("setup undo not acknowledged yet")
         store.clearReleased()
         return null
     }

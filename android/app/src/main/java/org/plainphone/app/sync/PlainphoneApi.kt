@@ -23,6 +23,9 @@ import org.json.JSONObject
 /** The phone's side of the sync API (server/openapi.yaml, tag "device"). Faked in unit tests. */
 interface SyncApi {
     fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing
+    fun startConfirmedPairing(mode: String, deviceInfo: Map<String, String>, profile: String?): Pairing =
+        startPairing(mode, deviceInfo)
+    fun decidePairing(pairing: Pairing, confirm: Boolean): PairPoll = error("Pairing confirmation unavailable")
     fun pollPairing(pairingId: String, pollSecret: String): PairPoll
     /** Pairs with the one-time token from a dashboard-made provisioning QR code (POST /device/enroll). */
     fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult
@@ -36,6 +39,7 @@ interface SyncApi {
      * the server deleted the phone (204) or no longer knows it (401); false when nobody asked for a
      * release (409). Other answers and network errors throw.
      */
+    fun ackSetupUndo(token: String): Boolean = false
     fun ackReleased(token: String): Boolean
     /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
@@ -44,9 +48,17 @@ interface SyncApi {
     fun reportSafety(token: String, requestId: String, event: String): Boolean
 }
 
-data class Pairing(val id: String, val code: String, val pollSecret: String, val qrUrl: String, val expiresAtMs: Long)
+data class Pairing(
+    val id: String,
+    val code: String,
+    val pollSecret: String,
+    val qrUrl: String,
+    val expiresAtMs: Long,
+    val requiresConfirmation: Boolean = true,
+)
 
 sealed interface PairPoll {
+    data class Confirm(val maskedEmail: String, val householdName: String?) : PairPoll
     data object Waiting : PairPoll
     data object Expired : PairPoll
     data class Paired(val phoneId: String, val deviceToken: String) : PairPoll
@@ -252,10 +264,15 @@ class PlainphoneApi private constructor(
         }
     }
 
-    override fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing {
-        val r = call("POST", "/device/pairings", body = JSONObject().put("mode", mode).put("deviceInfo", JSONObject(deviceInfo)))
+    override fun startPairing(mode: String, deviceInfo: Map<String, String>): Pairing =
+        startConfirmedPairing(mode, deviceInfo, null)
+
+    override fun startConfirmedPairing(mode: String, deviceInfo: Map<String, String>, profile: String?): Pairing {
+        val r = call("POST", "/device/pairings", body = JSONObject().put("mode", mode)
+            .put("deviceInfo", JSONObject(deviceInfo)).put("confirmOnPhone", true).put("profile", profile))
         if (r.status != 201) throw HttpError(r.status, r.body)
         val j = JSONObject(r.body)
+        if (!j.optBoolean("confirmOnPhone")) throw IOException("Server does not support pairing confirmation")
         return Pairing(
             id = j.getString("pairingId"),
             code = j.getString("code"),
@@ -270,12 +287,47 @@ class PlainphoneApi private constructor(
         val r = call(
             "GET", "/device/pairings/$pairingId", headers = mapOf("X-Poll-Secret" to pollSecret), replayable = false,
         )
-        return when (r.status) {
+        return pairingResult(r)
+    }
+
+    override fun decidePairing(pairing: Pairing, confirm: Boolean): PairPoll {
+        val r = call("POST", "/device/pairings/${pairing.id}",
+            headers = mapOf("X-Poll-Secret" to pairing.pollSecret),
+            body = JSONObject().put("action", if (confirm) "confirm" else "cancel"))
+        return pairingResult(r)
+    }
+
+    private fun pairingResult(r: Response): PairPoll =
+        when (r.status) {
             200 -> JSONObject(r.body).let { PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken")) }
-            202 -> PairPoll.Waiting
-            404, 410 -> PairPoll.Expired
+            202 -> JSONObject(r.body).let {
+                if (it.optString("status") == "confirm") {
+                    PairPoll.Confirm(it.getString("maskedEmail"), it.optString("householdName").takeUnless { _ -> it.isNull("householdName") })
+                } else PairPoll.Waiting
+            }
+            204, 404, 410 -> PairPoll.Expired
             else -> throw HttpError(r.status, r.body)
         }
+
+    fun reviewEnrollment(token: String, mode: String): Pair<PollAccount, String> {
+        val r = call("POST", "/device/enrollment-review", body = JSONObject().put("token", token).put("mode", mode))
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        val info = JSONObject(r.body)
+        val household = if (info.isNull("householdName")) null else info.getString("householdName")
+        return PollAccount(info.getString("maskedEmail"), household) to info.getString("profile")
+    }
+
+    fun cancelEnrollment(token: String, mode: String) {
+        val r = call("POST", "/device/enrollment-review", body = JSONObject().put("token", token).put("mode", mode).put("cancel", true))
+        if (r.status !in setOf(204, 404, 410)) throw HttpError(r.status, r.body)
+    }
+
+    data class PollAccount(val maskedEmail: String, val householdName: String?)
+
+    override fun ackSetupUndo(token: String): Boolean {
+        val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
+        if (r.status !in setOf(204, 401)) throw HttpError(r.status, r.body)
+        return true
     }
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {

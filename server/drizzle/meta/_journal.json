@@ -92,6 +92,13 @@
       "when": 1794964044239,
       "tag": "0012_security_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794990431401,
+      "tag": "0013_pairing_confirmation",
+      "breakpoints": true
     }
   ]
 }

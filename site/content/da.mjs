@@ -394,10 +394,11 @@ export default {
     lightSteps: [
       ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
       ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
-      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Tjek adressen på dit dashboard. Vælg en forælder-PIN på 6 til 12 cifre, og indtast den to gange på telefonen. Følg trinene, indtil telefonen har hentet dine regler.", "permissions"],
+      ["Gå tilbage til Chrome, og tryk på Åbn Plainphone", "Vælg Barnets eller Min egen på telefonen. Tjek den maskerede konto og husstanden, vælg en PIN på 6 til 12 cifre, og indtast den to gange. Følg trinene for at afslutte opsætningen.", "permissions"],
     ],
     lightHelpItems: [
-      ["Android siger, at en indstilling er begrænset", "Åbn hjælpen under trinet med vagten i Plainphone. Tryk på de tre prikker i Appinfo, og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen. Vagten lukker apps, du ikke har tilladt."],
+      ["Android siger, at en indstilling er begrænset", "På Android 13 eller nyere kan det ramme telefonappen, beskedappen eller vagten. Åbn Appinfo fra Plainphone. Tryk på ⋮ (øverst til højre), og vælg Tillad begrænsede indstillinger. Gå tilbage til Plainphone, og prøv igen."],
+      ["Jeg satte den forkerte telefon op", "Tryk på Fortryd opsætning i Plainphone inden for ti minutter, efter du er færdig med opsætningen i let tilstand. Det slår Plainphone fra og fjerner telefonen fra dashboardet, når telefonen får forbindelse."],
       ["Android spørger, om den må forbinde til et VPN", "Tryk på OK. Så kan Plainphone tjekke webadresser med dit webfilter."],
       ["Jeg åbnede appen fra installationsvinduet", "Gå tilbage til Chrome, og tryk på Åbn Plainphone på opsætningssiden. Hvis du allerede har indtastet en PIN-kode på telefonen, skal du bruge den samme i dashboardet."],
     ],

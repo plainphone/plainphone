@@ -396,10 +396,11 @@ export default {
     lightSteps: [
       ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
       ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
-      ["Return to Chrome and tap Open Plainphone", "Check your dashboard address, then choose a parent PIN of 6 to 12 digits and enter it twice on the phone. Follow the prompts until the phone has received your rules.", "permissions"],
+      ["Return to Chrome and tap Open Plainphone", "Choose Child or Myself on the phone. Check the masked account and household, then choose a PIN of 6 to 12 digits and enter it twice. Follow the prompts to finish setup.", "permissions"],
     ],
     lightHelpItems: [
-      ["Android says a setting is restricted", "In Plainphone, open the help below the guard step. From App info, tap the three dots and pick Allow restricted settings. Return to Plainphone and try again. The guard closes apps you haven’t allowed."],
+      ["Android says a setting is restricted", "On Android 13 or later, this can affect the phone app, messages app or guard. Open App info from Plainphone. Tap ⋮ (top right), then Allow restricted settings. Return to Plainphone and try again."],
+      ["I set up the wrong phone", "Tap Undo setup in Plainphone within ten minutes of finishing light-mode setup. This switches Plainphone off and removes the phone from the dashboard when it can connect."],
       ["Android asks to start a VPN connection", "Tap OK. That is how Plainphone checks web addresses against your web filter."],
       ["I opened the app from the installer", "Go back to Chrome and tap Open Plainphone on the setup page. If you already entered a PIN on the phone, use that same PIN in the dashboard."],
     ],

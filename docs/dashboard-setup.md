@@ -14,14 +14,16 @@ for strong mode and on the phone for light mode.
 | Strong mode and the first Android screen | Ask parents to stop at the first welcome screen and tap the same spot six times. The guide shows the spot and explains Android's organisation-management prompt. |
 | Strong mode and Wi-Fi | Offer Wi-Fi in the code or use Android's network picker. Hidden networks, WPA3-only networks and networks with sign-in pages need a separate connection. The QR code includes any entered password, so keep it private. |
 | Strong mode on Android 10–13 | Explain when to choose Plainphone as the default phone app and how to open the app again if the dialog was dismissed. |
-| Light mode and APK installation | The QR and link go to a page with the latest APK and Android's **Allow from this source** instructions. After installing, return to the same Chrome tab and use **Open Plainphone** on that page to pass the token to the app. The page still works if Chrome reloads it. Check the dashboard address, then choose and confirm a parent PIN on the phone. |
+| Light mode and APK installation | The QR and link go to a page with the latest APK and Android's **Allow from this source** instructions. After installing, return to the same Chrome tab and use **Open Plainphone** on that page to pass the token to the app. The page still works if Chrome reloads it. Choose who uses the phone, check the masked account and household, then choose and confirm the maintenance PIN. |
 | Light mode and Android prompts | Phone, messages and the web filter explain why Android asks. Each required permission has one primary action. Plainphone rechecks after the system screen closes. |
-| Light mode and restricted settings | The guard has a route to Plainphone's App info for the Android 13+ restriction. Return to the guard step after allowing it. |
+| Light mode and restricted settings | On Android 13+, the default phone app, SMS app and guard steps link to Plainphone’s App info when Android did not grant access. Use **⋮ → Allow restricted settings**, then return and retry. |
 | Background operation, location and always-on filter | Put these after the required permissions, with a single action to continue without extras. Battery exemption uses the Android prompt. OnePlus and Xiaomi point to their battery controls in App info. Samsung opens Never sleeping apps when its settings app supports that link. |
 | Handoff, weak Wi-Fi and an expired link | The dashboard waits for the phone. In light mode the phone offers a retry if enrollment or the first rules fetch fails, or asks for a new link when the server rejects an unused token. It shows the finish screen after storing the first rules. The dashboard checks expiry locally, including when offline, and can issue a new link. A new link replaces the pending token and PIN after confirmation on a phone that has not paired. |
 | After connecting | Offer three direct links for contacts, catalog apps and school hours. |
 
-## Before and after
+## Previous setup walkthrough
+
+The figures below predate phone-side role selection and account review.
 
 Counts come from the screens and their actions. The Android tap counts are walkthrough estimates.
 For the strong-mode comparison, start with a new phone on Android 14 or newer and an already

@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.PersistableBundle
 import org.plainphone.app.contacts.LocalContactPolicySource
-import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 
 /** The Device Policy Controller entry point that makes Plainphone Device Owner. */
@@ -45,8 +44,6 @@ class PlainphoneAdminReceiver : DeviceAdminReceiver() {
             val sync = SyncStore(context)
             if (config.enrollToken != null && !sync.everPaired) {
                 sync.saveEnrollToken(config.enrollToken)
-                // Pair as soon as there is a network, even if nobody opens the pairing screen.
-                SyncScheduler.enrollIfNeeded(context)
             }
         }
     }

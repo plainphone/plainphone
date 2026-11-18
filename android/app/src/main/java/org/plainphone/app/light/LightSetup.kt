@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import java.security.SecureRandom
 import org.plainphone.app.ConfigStore
@@ -28,6 +29,7 @@ object LightSetup {
 
     enum class Step(val title: Int, val body: Int, val action: Int, val optional: Boolean = false) {
         PIN(R.string.light_step_pin_title, R.string.light_step_pin_body, R.string.light_step_pin_action),
+        PAIR(R.string.light_step_pair_title, R.string.light_step_pair_body, R.string.light_step_pair_action),
         PHONE(R.string.light_step_phone_title, R.string.light_step_phone_body, R.string.light_step_phone_action),
         SMS(R.string.light_step_sms_title, R.string.light_step_sms_body, R.string.light_step_sms_action),
         FILTER(R.string.light_step_filter_title, R.string.light_step_filter_body, R.string.light_step_filter_action),
@@ -37,7 +39,6 @@ object LightSetup {
         RUNNING(R.string.light_step_running_title, R.string.light_step_running_body, R.string.light_step_running_action, optional = true),
         LOCATION(R.string.light_step_location_title, R.string.light_step_location_body, R.string.light_step_location_action, optional = true),
         ALWAYS_ON(R.string.light_step_alwayson_title, R.string.light_step_alwayson_body, R.string.light_step_alwayson_action, optional = true),
-        PAIR(R.string.light_step_pair_title, R.string.light_step_pair_body, R.string.light_step_pair_action),
     }
 
     fun isDone(context: Context, step: Step): Boolean = when (step) {
@@ -60,6 +61,19 @@ object LightSetup {
 
     internal fun hasDashboardRules(store: SyncStore): Boolean =
         store.isPaired && store.etag != null && store.rules() != null
+
+    fun profile(context: Context): String? = prefs(context).getString("profile", null)
+
+    fun saveProfile(context: Context, profile: String) {
+        prefs(context).edit().putString("profile", profile).apply()
+    }
+
+    fun linkReviewed(context: Context) = prefs(context).getBoolean("linkReviewed", false)
+
+    @SuppressLint("ApplySharedPref") // Persist the review before exposing the enrollment token to sync.
+    fun markLinkReviewed(context: Context) {
+        prefs(context).edit().putBoolean("linkReviewed", true).commit()
+    }
 
     fun hasDashboardPin(context: Context) = prefs(context).getBoolean("dashboardPin", false)
 
@@ -111,10 +125,32 @@ object LightSetup {
     /** Setup counts as complete once it was finished once; afterwards the guard protects the screens. */
     fun isComplete(context: Context): Boolean = prefs(context).getBoolean("complete", false)
 
+    @Synchronized
     fun markComplete(context: Context) {
-        prefs(context).edit().putBoolean("complete", true).apply()
+        if (isComplete(context)) return
+        val edit = prefs(context).edit().putBoolean("complete", true)
+        if (profile(context) != null && !SyncStore(context).released && !SyncStore(context).setupUndoPending) {
+            edit.putLong("completedElapsed", SystemClock.elapsedRealtime()).putInt("completedBoot", bootCount(context))
+        }
+        edit.apply()
         LightRelease.clear(context)
     }
+
+    fun undoRemaining(context: Context): Long {
+        if (!Mode.isLight(context) || !isComplete(context) || SyncStore(context).setupUndoPending) return 0
+        val boot = bootCount(context)
+        val saved = prefs(context)
+        if (boot < 0 || boot != saved.getInt("completedBoot", -1)) return 0
+        return setupUndoRemaining(saved.getLong("completedElapsed", -1), SystemClock.elapsedRealtime())
+    }
+
+    @Synchronized
+    fun requestUndo(context: Context): Boolean {
+        if (undoRemaining(context) <= 0) return false
+        return SyncStore(context).beginSetupUndo()
+    }
+
+    private fun bootCount(context: Context) = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
     fun savePin(context: Context, pin: String, server: String? = null) {
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -137,7 +173,7 @@ object LightSetup {
         Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}"))
         Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))
-            .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(R.string.light_admin_explanation))
+            .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, context.getString(if (profile(context) == "self") R.string.setup_admin_self else R.string.light_admin_explanation))
         Step.RUNNING -> if (!notificationsAllowed(context)) {
             null // asked as a runtime permission by the activity
         } else {

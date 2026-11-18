@@ -251,6 +251,9 @@ export const pairings = pgTable("pairings", {
   mode: text("mode", { enum: ["strong", "light"] }).notNull(),
   deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
   phoneId: uuid("phone_id").references(() => phones.id, { onDelete: "cascade" }),
+  profileHint: text("profile_hint", { enum: ["child", "self"] }),
+  requiresConfirmation: boolean("requires_confirmation").notNull().default(false),
+  claimedBy: uuid("claimed_by").references(() => users.id, { onDelete: "set null" }),
   /** Device token handed to the phone on its next poll; cleared after delivery. */
   pendingDeviceToken: text("pending_device_token"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

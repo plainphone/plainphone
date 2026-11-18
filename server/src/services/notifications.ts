@@ -202,15 +202,28 @@ export async function notifyUsers(
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  const muted = ctx.db
+  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
+}
+
+type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
+
+export async function phoneAlertRecipients(db: RecipientDb, phoneId: string, householdId: string) {
+  const muted = db
     .select({ id: notificationMutes.userId })
     .from(notificationMutes)
     .where(eq(notificationMutes.phoneId, phoneId));
-  const members = await ctx.db
+  return db
     .select({ id: householdMembers.userId, email: users.email, locale: users.locale })
     .from(householdMembers)
     .innerJoin(users, eq(users.id, householdMembers.userId))
-    .where(and(eq(householdMembers.householdId, phone.householdId), notInArray(householdMembers.userId, muted)));
+    .where(and(eq(householdMembers.householdId, householdId), notInArray(householdMembers.userId, muted)));
+}
+
+export async function notifyHouseholdMembers(
+  ctx: Ctx,
+  members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
+  e: NotifyEvent,
+): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
   if ((e.type === "protection" || e.type === "offline") && ctx.mail.canSend) {

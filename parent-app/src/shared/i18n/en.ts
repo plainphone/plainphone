@@ -89,6 +89,9 @@ export const en = {
   "profile.child": "Child",
   "profile.self": "Self",
   "profile.childHelp": `You and the other caregivers in the household set the rules. ${changeTiming}`,
+  "pair.confirmOnPhone": "Confirm the account on the phone to finish connecting.",
+  "pair.profileFromPhone": "This profile was selected on the phone. Review it before adding the phone.",
+  "pair.profileMismatch": "Choose the same profile as on the phone.",
   "profile.selfHelp": `Stricter rules take effect ${nextOnline} Looser rules wait for your key.`,
 
   "mode.strong": "Strong mode",

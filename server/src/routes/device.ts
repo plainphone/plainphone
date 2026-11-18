@@ -6,17 +6,18 @@ import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { enrollments, households, pairings, phoneApps, phones, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { applyDueChanges, deletePhone } from "../services/changes.js";
-import { retryDnsDeletions } from "../services/dns.js";
+import { pairingAccount } from "../services/pairing-account.js";
+import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
-import { notifyHousehold, protectionLost } from "../services/notifications.js";
+import { notifyHousehold, notifyHouseholdMembers, phoneAlertRecipients, protectionLost } from "../services/notifications.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
@@ -47,7 +48,7 @@ const protections = z.strictObject(Object.fromEntries(PROTECTIONS.map((k) => [k,
 export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<Env>) => void) {
   const app = new Hono<Env>();
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
-  const pairPollLimit = new RateLimiter(120, 60 * 60_000);
+  const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
 
   // --- Pairing (no device token yet) -------------------------------------------
@@ -56,7 +57,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!pairStartLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many pairings" });
     const input = await body(
       c,
-      z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional() }),
+      z.object({ mode: z.enum(["strong", "light"]).default("strong"), deviceInfo: deviceInfo.optional(), profile: z.enum(["child", "self"]).optional(), confirmOnPhone: z.boolean().optional() }),
     );
     const code = pairingCode();
     const pollSecret = randomToken();
@@ -69,44 +70,105 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         mode: input.mode,
         deviceInfo: input.deviceInfo ?? null,
         expiresAt,
+        profileHint: input.profile,
+        requiresConfirmation: input.confirmOnPhone ?? false,
       })
       .returning();
     return c.json(
       {
         pairingId: p!.id,
+        confirmOnPhone: p!.requiresConfirmation,
         code,
         pollSecret,
         expiresAt: expiresAt.toISOString(),
         // What the phone renders as a QR code: the parent's camera opens the PWA with the code filled in.
-        qrUrl: `${ctx.cfg.PUBLIC_URL}/pair?code=${encodeURIComponent(code)}`,
+        qrUrl: `${ctx.cfg.PUBLIC_URL}/pair?code=${encodeURIComponent(code)}${input.profile ? `&profile=${input.profile}` : ""}`,
       },
       201,
     );
   });
 
-  app.get("/pairings/:id", async (c) => {
-    const id = c.req.param("id");
-    const secret = c.req.header("x-poll-secret") ?? "";
-    if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
-    if (!z.uuid().safeParse(id).success) throw new HTTPException(404, { message: "not found" });
-    const result = await ctx.db.transaction(async (tx) => {
+  const pairingPoll = async (id: string, secret: string, action?: "confirm" | "cancel") => {
+    if (!z.uuid().safeParse(id).success) return { status: 404 as const };
+    return ctx.db.transaction(async (tx) => {
       const [p] = await tx.select().from(pairings).where(eq(pairings.id, id)).for("update");
       if (!p || !safeEqualHex(p.pollSecretHash, sha256(secret))) return { status: 404 as const };
-      if (!p.claimedAt) {
-        if (p.expiresAt <= ctx.now()) return { status: 410 as const };
-        return { status: 202 as const };
+      if (action === "cancel" && !p.deliveredAt) {
+        const clientId = p.phoneId ? await deletePhone(tx, p.phoneId) : null;
+        await tx.delete(pairings).where(eq(pairings.id, id));
+        return { status: 204 as const, clientId };
       }
-      if (!p.pendingDeviceToken) return { status: 410 as const }; // already delivered once
-      await tx
-        .update(pairings)
-        .set({ pendingDeviceToken: null, deliveredAt: ctx.now() })
-        .where(eq(pairings.id, p.id));
-      return { status: 200 as const, phoneId: p.phoneId!, deviceToken: p.pendingDeviceToken };
+      if (action === "cancel") return { status: 410 as const };
+      if (!p.claimedAt) return { status: p.expiresAt <= ctx.now() ? 410 as const : 202 as const };
+      if (!p.pendingDeviceToken || !p.phoneId) return { status: 410 as const };
+      if (p.requiresConfirmation && p.expiresAt <= ctx.now()) return { status: 410 as const };
+      if (p.requiresConfirmation && !p.deliveredAt && action !== "confirm") {
+        const [account] = p.claimedBy
+          ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, p.claimedBy))
+          : [];
+        const [household] = await tx.select({ name: households.name }).from(phones)
+          .innerJoin(households, eq(phones.householdId, households.id)).where(eq(phones.id, p.phoneId));
+        const details = pairingAccount(p.claimedBy, account, household?.name ?? null);
+        return details ? { status: 202 as const, details } : { status: 410 as const };
+      }
+      if (p.requiresConfirmation && !p.deliveredAt) {
+        if (!p.claimedBy) return { status: 410 as const };
+        await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken), pairedAt: ctx.now() })
+          .where(eq(phones.id, p.phoneId));
+      }
+      // New clients may retry confirmation after losing the response. The secret is still required,
+      // and the retry window is bounded by the original code expiry.
+      await tx.update(pairings)
+        .set({ pendingDeviceToken: p.requiresConfirmation ? p.pendingDeviceToken : null, deliveredAt: p.deliveredAt ?? ctx.now() })
+        .where(eq(pairings.id, id));
+      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt };
     });
+  };
+
+  app.on(["GET", "POST"], "/pairings/:id", async (c) => {
+    const id = c.req.param("id");
+    if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
+    const action = c.req.method === "POST" ? (await body(c, z.object({ action: z.enum(["confirm", "cancel"]) }))).action : undefined;
+    const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", action);
+    c.header("Cache-Control", "no-store");
     if (result.status === 404) throw new HTTPException(404, { message: "not found" });
     if (result.status === 410) return c.json({ error: "expired" }, 410);
-    if (result.status === 202) return c.json({ status: "waiting" }, 202);
+    if (result.status === 204) {
+      if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+      return c.body(null, 204);
+    }
+    if (result.status === 202) return c.json(result.details ? { status: "confirm", ...result.details } : { status: "waiting" }, 202);
+    if (result.sync) await syncDns(ctx, result.phoneId);
     return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken }, 200);
+  });
+
+  app.post("/enrollment-review", async (c) => {
+    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    const input = await body(c, z.object({
+      token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
+      mode: z.enum(["light", "strong"]),
+      cancel: z.boolean().optional(),
+    }));
+    const result = await ctx.db.transaction(async (tx) => {
+      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
+      if (!e || e.usedAt || (!input.cancel && e.expiresAt <= ctx.now())) return null;
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
+      if (!phone || phone.mode !== input.mode || phone.deviceTokenHash) return null;
+      if (input.cancel) return { clientId: await deletePhone(tx, phone.id) };
+      const [account] = e.createdBy
+        ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, e.createdBy))
+        : [];
+      const [household] = await tx.select({ name: households.name }).from(households).where(eq(households.id, phone.householdId));
+      const details = pairingAccount(e.createdBy, account, household?.name ?? null);
+      return details ? { ...details, profile: phone.profile } : null;
+    });
+    c.header("Cache-Control", "no-store");
+    if (!result) return c.json({ error: "setup link unavailable" }, 404);
+    if ("clientId" in result) {
+      if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+      return c.body(null, 204);
+    }
+    return c.json(result);
   });
 
   // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
@@ -207,6 +269,22 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (result.status === 409) return c.json({ error: "this phone has not been asked to release" }, 409);
     // Failures stay queued in dns_deletions and the sweeper retries them.
     if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+    return c.body(null, 204);
+  });
+
+  app.post("/undo-setup", async (c) => {
+    const phone = c.get("phone");
+    if (phone.mode !== "light") return c.json({ error: "undo is only available in light mode" }, 409);
+    const removed = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh) return null;
+      const members = await phoneAlertRecipients(tx, phone.id, fresh.householdId);
+      return { clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
+    });
+    if (removed?.clientId) {
+      await notifyHouseholdMembers(ctx, removed.members, { type: "protection", phoneId: phone.id, phoneName: removed.name, reason: "lock" });
+      await retryDnsDeletions(ctx, [removed.clientId]);
+    }
     return c.body(null, 204);
   });
 

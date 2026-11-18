@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { householdInvites, magicLinks, pairings, pendingChanges, phoneRequests, sessions } from "../db/schema.js";
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
-import { applyDueChanges } from "./changes.js";
+import { applyDueChanges, deletePhone } from "./changes.js";
 import type { Ctx } from "./context.js";
 import { wakePhone } from "./phones.js";
 import { alertUnansweredCheckins, deleteOldSafetyRequests, expireAlwaysLocation } from "./safety.js";
@@ -40,6 +40,15 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   for (const id of ended) await wakePhone(ctx, id, "rules");
   const dayAgo = new Date(now.getTime() - DAY);
   const count = async (q: Promise<{ count: number }>) => (await q).count;
+  await ctx.db.transaction(async (tx) => {
+    const expired = await tx.select({ phoneId: pairings.phoneId }).from(pairings)
+      .where(and(eq(pairings.requiresConfirmation, true), isNull(pairings.deliveredAt),
+        isNotNull(pairings.phoneId), lt(pairings.expiresAt, now))).for("update");
+    for (const { phoneId } of expired) if (phoneId) await deletePhone(tx, phoneId);
+  });
+  await ctx.db.update(pairings).set({ pendingDeviceToken: null })
+    .where(and(eq(pairings.requiresConfirmation, true), isNotNull(pairings.deliveredAt),
+      isNotNull(pairings.pendingDeviceToken), lt(pairings.expiresAt, now)));
   const deleted = {
     magicLinks: await count(expiredMagicLinksDelete(ctx.db, now)),
     sessions: await count(ctx.db.delete(sessions).where(lt(sessions.expiresAt, now))),

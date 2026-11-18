@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
@@ -17,6 +17,9 @@ function PairForm() {
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>("child");
+  const [hint, setHint] = useState<Profile | null>(null);
+  const [lookupPending, setLookupPending] = useState(false);
+  const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
   const [notice, setNotice] = useState<NoticeValue | null>(null);
@@ -27,6 +30,26 @@ function PairForm() {
     setSeenParam(params.code);
     if (params.code) setCode(normaliseCode(params.code));
   }
+
+  useEffect(() => {
+    setHint(null);
+    if (code.replace(/-/g, "").length !== 8) {
+      setLookupPending(false);
+      return;
+    }
+    let current = true;
+    setLookupPending(true);
+    client.POST("/phones/pairing-profile", { body: { code } }).then(({ data }) => {
+      if (!current || !data?.profile) return;
+      setHint(data.profile);
+      setProfile(data.profile);
+    }).catch(() => {
+      // The claim endpoint checks the profile again.
+    }).finally(() => {
+      if (current) setLookupPending(false);
+    });
+    return () => { current = false; };
+  }, [code]);
 
   async function submit() {
     setNotice(null);
@@ -44,9 +67,11 @@ function PairForm() {
         timezone = undefined;
       }
       const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone } }));
-      router.replace({ pathname: "/phones/[pid]", params: { pid: phone.id } });
+      if (phone.pairedAt === null) setAwaitingPhone(true);
+      else router.replace({ pathname: "/phones/[pid]", params: { pid: phone.id } });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
+      if (err instanceof ApiError && err.status === 409) setNotice({ tone: "error", text: t("pair.profileMismatch") });
+      else if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
       else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
         const f = err.fields();
         setErrors({ code: f.code ? t("pair.codeInvalid") : undefined, name: f.name ? t("pair.nameRequired") : undefined });
@@ -56,6 +81,14 @@ function PairForm() {
       setBusy(false);
     }
   }
+
+  if (awaitingPhone) return (
+    <Screen testID="pair">
+      <PageTitle>{t("pair.title")}</PageTitle>
+      <LiveStatus notice={{ tone: "success", text: t("pair.confirmOnPhone") }} />
+      <Button title={t("nav.phones")} onPress={() => router.replace("/")} />
+    </Screen>
+  );
 
   const canScan = Platform.OS !== "web";
   return (
@@ -103,6 +136,8 @@ function PairForm() {
         />
         <Choice<Profile>
           label={t("pair.profile")}
+          hint={hint ? t("pair.profileFromPhone") : undefined}
+          disabled={hint !== null}
           value={profile}
           onChange={setProfile}
           options={[
@@ -111,7 +146,7 @@ function PairForm() {
           ]}
         />
       </Stack>
-      <Button testID="pair-submit" title={busy ? t("pair.adding") : t("pair.submit")} busy={busy} onPress={() => void submit()} />
+      <Button testID="pair-submit" title={busy ? t("pair.adding") : t("pair.submit")} busy={busy} disabled={lookupPending} onPress={() => void submit()} />
     </Screen>
   );
 }

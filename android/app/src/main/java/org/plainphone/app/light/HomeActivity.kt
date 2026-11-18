@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
@@ -24,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -121,6 +121,7 @@ class HomeActivity : ComponentActivity() {
                 }
             },
         ) {
+            if (light) UndoSetupAction(this@HomeActivity, refresh) { refresh++ }
             androidx.compose.material3.TextButton(onClick = {
                 startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
             }) { Text(stringResource(R.string.help_lines_title)) }

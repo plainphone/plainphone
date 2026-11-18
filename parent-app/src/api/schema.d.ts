@@ -53,11 +53,29 @@ export interface paths {
         };
         /**
          * Poll pairing (phone)
-         * @description Poll every 3-5 seconds while the code is shown. The device token is returned exactly once.
+         * @description Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
          */
         get: operations["getDevicePairings"];
         put?: never;
-        post?: never;
+        /** Confirm the claimed account or cancel pairing (phone) */
+        post: operations["postDevicePairingDecision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/enrollment-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review or cancel an unused dashboard setup token (phone) */
+        post: operations["postDeviceEnrollmentReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -76,7 +94,7 @@ export interface paths {
         /**
          * Pair with a dashboard setup token (phone)
          * @description A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
-         *     setup link carries a one-time enrollment token. After setup the phone sends it here and gets
+         *     setup link carries a one-time enrollment token. After confirming the account, the phone sends it here and gets
          *     its device token, with no code to type. The token is bound to the phone entry the parent made,
          *     works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
          *     may ask again for 60 minutes; it then gets a new device token and the earlier one stops
@@ -222,6 +240,26 @@ export interface paths {
          *     already went through. See docs/sync-api.md.
          */
         post: operations["postDeviceReleased"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/undo-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge local undo of a new light-mode setup (phone)
+         * @description The phone checks the ten-minute window locally and retries this acknowledgement if offline.
+         */
+        post: operations["postDeviceUndoSetup"];
         delete?: never;
         options?: never;
         head?: never;
@@ -664,6 +702,23 @@ export interface paths {
         get: operations["getPhones"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/pairing-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the profile hint for a pairing code */
+        post: operations["postPhonesPairingProfile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2291,6 +2346,10 @@ export interface operations {
                      * @enum {unknown}
                      */
                     mode?: "strong" | "light";
+                    /** @enum {unknown} */
+                    profile?: "child" | "self";
+                    /** @default false */
+                    confirmOnPhone?: boolean;
                     /**
                      * @example {
                      *       "model": "Galaxy A15",
@@ -2311,6 +2370,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        confirmOnPhone?: boolean;
                         /** Format: uuid */
                         pairingId?: string;
                         /** @example K7MP-4QXR */
@@ -2355,12 +2415,19 @@ export interface operations {
                     };
                 };
             };
-            /** @description Waiting for a parent */
+            /** @description Waiting for a claim or for the phone to review the masked account. */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {unknown} */
+                        status?: "waiting" | "confirm";
+                        maskedEmail?: string;
+                        householdName?: string | null;
+                    };
+                };
             };
             /** @description Unknown pairing or wrong secret */
             404: {
@@ -2376,6 +2443,113 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    postDevicePairingDecision: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Poll-Secret": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    action: "confirm" | "cancel";
+                };
+            };
+        };
+        responses: {
+            /** @description Confirmed. A retry before expiry can recover a lost response. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "paired";
+                        /** Format: uuid */
+                        phoneId: string;
+                        deviceToken: string;
+                    };
+                };
+            };
+            /** @description Cancelled. Any pending phone entry was removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown pairing or wrong secret */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Expired or already confirmed */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postDeviceEnrollmentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    /** @enum {unknown} */
+                    mode: "strong" | "light";
+                    cancel?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The masked account that issued the link and the existing profile. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        maskedEmail: string;
+                        householdName: string | null;
+                        /** @enum {unknown} */
+                        profile: "child" | "self";
+                    };
+                };
+            };
+            /** @description Cancelled and pending phone entry removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Setup link unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
         };
     };
     postDeviceEnroll: {
@@ -2648,6 +2822,26 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The phone is deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    postDeviceUndoSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The phone was removed */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -3457,6 +3651,43 @@ export interface operations {
             };
         };
     };
+    postPhonesPairingProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The profile selected on the phone, if supplied. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {unknown} */
+                        profile?: "child" | "self" | null;
+                    };
+                };
+            };
+            /** @description Code not found or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     postPhonesClaim: {
         parameters: {
             query?: never;
@@ -3479,7 +3710,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Paired */
+            /** @description Claimed. For new clients, the phone must confirm before it receives rules. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -3490,6 +3721,13 @@ export interface operations {
             };
             /** @description Code not found or expired */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Profile differs from the choice on the phone */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

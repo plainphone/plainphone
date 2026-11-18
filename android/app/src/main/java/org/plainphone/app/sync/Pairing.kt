@@ -15,15 +15,17 @@ class PairingController(
     private val deviceInfo: Map<String, String>,
     /** "strong" (Device Owner) or "light" (an ordinary app), sent with the pairing. */
     private val mode: String = "strong",
+    private val profile: String? = null,
+    private val canRedeemEnrollment: () -> Boolean = { true },
 ) {
     /** The pairing on screen, if it is still good for at least a little while. */
-    fun current(): Pairing? = store.pairing()?.takeIf { it.expiresAtMs - nowMs() > MIN_REMAINING_MS }
+    fun current(): Pairing? = store.pairing()?.takeIf { it.requiresConfirmation && it.expiresAtMs > nowMs() }
 
     /** Starts a new pairing (or keeps showing the current one). */
     fun start(): Pairing {
         check(!store.isPaired) { "already paired" }
         current()?.let { return it }
-        return api.startPairing(mode, deviceInfo).also(store::savePairing)
+        return api.startConfirmedPairing(mode, deviceInfo, profile).also(store::savePairing)
     }
 
     /**
@@ -39,6 +41,7 @@ class PairingController(
             store.saveEnrollToken(null)
             return null
         }
+        if (!canRedeemEnrollment()) return null
         val token = store.enrollToken() ?: return null
         val result = api.enroll(token, store.installId(), deviceInfo)
         when (result) {
@@ -59,14 +62,21 @@ class PairingController(
         when (result) {
             is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken)
             PairPoll.Expired -> store.savePairing(null)
-            PairPoll.Waiting -> Unit
+            is PairPoll.Confirm, PairPoll.Waiting -> Unit
         }
         return result
     }
 
+    fun decide(confirm: Boolean): PairPoll {
+        val pairing = store.pairing() ?: return PairPoll.Expired
+        return api.decidePairing(pairing, confirm).also {
+            if (it is PairPoll.Paired) store.savePaired(it.phoneId, it.deviceToken)
+            if (it == PairPoll.Expired) store.savePairing(null)
+        }
+    }
+
     companion object {
         internal val enrollmentLock = Any()
-        private const val MIN_REMAINING_MS = 60_000L
         /** A phone that has never been paired can be paired without the PIN this long after setup. */
         const val FREE_PAIRING_MS = 60 * 60_000L
 

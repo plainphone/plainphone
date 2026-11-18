@@ -88,6 +88,9 @@ export const da: Messages = {
   "profile.child": "Barn",
   "profile.self": "Mig selv",
   "profile.childHelp": `Du og de andre forældre i husstanden bestemmer reglerne. ${changeTiming}`,
+  "pair.confirmOnPhone": "Bekræft kontoen på telefonen for at forbinde den.",
+  "pair.profileFromPhone": "Profilen blev valgt på telefonen. Tjek den, før du tilføjer telefonen.",
+  "pair.profileMismatch": "Vælg den samme profil som på telefonen.",
   "profile.selfHelp": `Strammere regler gælder, ${nextOnline} Løsere regler venter på din nøgle.`,
 
   "mode.strong": "Stærk tilstand",

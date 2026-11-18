@@ -841,6 +841,8 @@ paths:
               type: object
               properties:
                 mode: { enum: [strong, light], default: strong }
+                profile: { enum: [child, self] }
+                confirmOnPhone: { type: boolean, default: false }
                 deviceInfo:
                   type: object
                   additionalProperties: { type: string, maxLength: 200 }
@@ -854,6 +856,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  confirmOnPhone: { type: boolean }
                   pairingId: { type: string, format: uuid }
                   code: { type: string, examples: ["K7MP-4QXR"] }
                   pollSecret: { type: string }
@@ -867,7 +870,7 @@ paths:
       security: []
       tags: [device]
       summary: Poll pairing (phone)
-      description: Poll every 3-5 seconds while the code is shown. The device token is returned exactly once.
+      description: Poll every 3-5 seconds. New clients review the claimed account before confirming. Legacy pairings receive the token once.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
@@ -882,9 +885,84 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string, examples: [pp_d_…] }
-        "202": { description: "Waiting for a parent" }
+        "202":
+          description: Waiting for a claim or for the phone to review the masked account.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { enum: [waiting, confirm] }
+                  maskedEmail: { type: string }
+                  householdName: { type: [string, "null"] }
         "404": { description: "Unknown pairing or wrong secret" }
         "410": { description: "Expired, or the token was already delivered. Start again." }
+
+    post:
+      operationId: postDevicePairingDecision
+      security: []
+      tags: [device]
+      summary: Confirm the claimed account or cancel pairing (phone)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { enum: [confirm, cancel] }
+      responses:
+        "200":
+          description: Confirmed. A retry before expiry can recover a lost response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, phoneId, deviceToken]
+                properties:
+                  status: { const: paired }
+                  phoneId: { type: string, format: uuid }
+                  deviceToken: { type: string }
+        "204": { description: "Cancelled. Any pending phone entry was removed." }
+        "404": { description: "Unknown pairing or wrong secret" }
+        "410": { description: "Expired or already confirmed" }
+
+  /device/enrollment-review:
+    post:
+      operationId: postDeviceEnrollmentReview
+      security: []
+      tags: [device]
+      summary: Review or cancel an unused dashboard setup token (phone)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, mode]
+              properties:
+                token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                mode: { enum: [strong, light] }
+                cancel: { type: boolean }
+      responses:
+        "200":
+          description: The masked account that issued the link and the existing profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [maskedEmail, householdName, profile]
+                properties:
+                  maskedEmail: { type: string }
+                  householdName: { type: [string, "null"] }
+                  profile: { enum: [child, self] }
+        "204": { description: "Cancelled and pending phone entry removed" }
+        "404": { description: "Setup link unavailable" }
+        "429": { $ref: "#/components/responses/Error" }
 
   /device/enroll:
     post:
@@ -894,7 +972,7 @@ paths:
       summary: Pair with a dashboard setup token (phone)
       description: |
         A strong-mode provisioning QR code (`plainphone.enroll` in the admin extras) or a light-mode
-        setup link carries a one-time enrollment token. After setup the phone sends it here and gets
+        setup link carries a one-time enrollment token. After confirming the account, the phone sends it here and gets
         its device token, with no code to type. The token is bound to the phone entry the parent made,
         works once and expires after 24 hours. If the answer is lost, the same phone (same `installId`)
         may ask again for 60 minutes; it then gets a new device token and the earlier one stops
@@ -1092,6 +1170,18 @@ paths:
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone is deleted" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /device/undo-setup:
+    post:
+      operationId: postDeviceUndoSetup
+      tags: [device]
+      summary: Acknowledge local undo of a new light-mode setup (phone)
+      description: The phone checks the ten-minute window locally and retries this acknowledgement if offline.
+      security: [{ device: [] }]
+      responses:
+        "204": { description: "The phone was removed" }
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
@@ -1641,6 +1731,33 @@ paths:
                 type: object
                 properties:
                   phones: { type: array, items: { $ref: "#/components/schemas/PhoneSummary" } }
+  /phones/pairing-profile:
+    post:
+      operationId: postPhonesPairingProfile
+      tags: [phones]
+      summary: Read the profile hint for a pairing code
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: The profile selected on the phone, if supplied.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile: { enum: [child, self, null] }
+        "404": { description: "Code not found or expired" }
+        "429": { $ref: "#/components/responses/Error" }
+
   /phones/claim:
     post:
       operationId: postPhonesClaim
@@ -1663,11 +1780,12 @@ paths:
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
         "201":
-          description: Paired
+          description: Claimed. For new clients, the phone must confirm before it receives rules.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
+        "409": { description: "Profile differs from the choice on the phone" }
   /phones/enroll:
     post:
       operationId: postPhonesEnroll
