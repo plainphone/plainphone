@@ -44,7 +44,7 @@ export function setUnauthorizedHandler(fn: ((rejected: string | null) => void) |
 
 const auth: Middleware = {
   onRequest({ request }) {
-    if (token) request.headers.set("authorization", `Bearer ${token}`);
+    if (token && !request.headers.has("authorization")) request.headers.set("authorization", `Bearer ${token}`);
     request.headers.set("accept", "application/json");
     // The server refuses writes without a JSON content type (415), even with an empty body.
     if (request.method !== "GET" && !request.headers.has("content-type")) {

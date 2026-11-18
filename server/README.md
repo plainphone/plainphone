@@ -17,7 +17,7 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
 | `src/routes/parent.ts` | Parent API: sign-in, households, phones, rules, Self key, approvals |
 | `src/services/changes.ts` | Every rule change: applied at once, or held by the Self key |
 | `src/services/phones.ts` | Rules document, starter packs, new phones |
-| `src/providers/` | Mail (none, log, SMTP), DNS (mock, HTTP), push (none for now) |
+| `src/providers/` | Mail (none, log, SMTP), DNS (mock, HTTP), push (Web Push and FCM for the parent app, polling for Device Owner phones) |
 | `src/services/sweeper.ts` | Every minute: due delayed changes, DNS retries, expired rows |
 | `test/` | Integration tests against a real PostgreSQL |
 

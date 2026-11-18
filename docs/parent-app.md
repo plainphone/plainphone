@@ -72,6 +72,12 @@ the server logs one warning at startup. Web Push uses its existing VAPID
 configuration independently.
 [Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api)
 
+With system notification permission already granted, the app registers the current
+native token after sign-in and when it returns to the foreground. Signing out or
+switching accounts with a login link detaches this installation's previous
+subscription on the server. If sign-out with a registered subscription fails,
+the app keeps the session so the user can retry.
+
 FCM tokens are removed on Firebase's token-specific `UNREGISTERED` (HTTP 404)
 response. Other failures keep the subscription.
 

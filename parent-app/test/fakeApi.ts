@@ -6,6 +6,7 @@
 export interface Call {
   method: string;
   path: string;
+  query: URLSearchParams;
   body: unknown;
   auth: string | null;
 }
@@ -18,7 +19,7 @@ export function fakeApi(routes: Record<string, Handler | { status?: number; body
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/api/, "");
     const text = req.method === "GET" ? "" : await req.text();
-    const call: Call = { method: req.method, path, body: text ? JSON.parse(text) : undefined, auth: req.headers.get("authorization") };
+    const call: Call = { method: req.method, path, query: url.searchParams, body: text ? JSON.parse(text) : undefined, auth: req.headers.get("authorization") };
     calls.push(call);
     const key = `${req.method} ${path}`;
     const route = routes[key];

@@ -3,7 +3,7 @@ import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { client, getSessionToken, unwrap } from "../api/client";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -49,10 +49,26 @@ async function ensureChannels(locale: "en" | "da") {
 
 export type PushState = "unsupported" | "granted" | "denied" | "undetermined" | "unavailable";
 
-export async function enablePush(locale: "en" | "da", ask = true): Promise<PushState> {
+// Session changes must wait for an in-flight registration to persist its subscription ID.
+let pending: Promise<unknown> = Promise.resolve();
+
+export function withPushRegistration<T>(run: () => Promise<T>): Promise<T> {
+  const result = pending.then(run);
+  pending = result.catch(() => undefined);
+  return result;
+}
+
+export function enablePush(locale: "en" | "da", ask = true): Promise<PushState> {
+  const session = getSessionToken();
+  return withPushRegistration(async () => {
+    if (!session || getSessionToken() !== session) return "unavailable";
+    return registerPush(locale, ask);
+  });
+}
+
+async function registerPush(locale: "en" | "da", ask: boolean): Promise<PushState> {
   if (Platform.OS !== "android" && Platform.OS !== "ios") return "unsupported";
   const session = getSessionToken();
-  if (!session) return "unavailable";
   const permission = ask
     ? await ensureChannels(locale).then(() => Notifications.requestPermissionsAsync())
     : await Notifications.getPermissionsAsync();
@@ -67,27 +83,40 @@ export async function enablePush(locale: "en" | "da", ask = true): Promise<PushS
   }
   if (nativeToken.type !== Platform.OS || typeof nativeToken.data !== "string") return "unavailable";
 
-  const previous = await getItem(SUBSCRIPTION_KEY);
+  const previous = await getPushSubscriptionId();
   if (getSessionToken() !== session) return "unavailable";
   const { id } = await unwrap<{ id: string }>(client.POST("/notifications/subscriptions", {
-    body: { platform: nativeToken.type === "android" ? "fcm" : "apns", token: nativeToken.data },
+    body: {
+      platform: nativeToken.type === "android" ? "fcm" : "apns",
+      token: nativeToken.data,
+      ...(previous ? { replacesSubscriptionId: previous } : {}),
+    },
   }));
-  if (previous && previous !== id && getSessionToken() === session) {
-    await deleteSubscription(previous);
-  }
   await setItem(SUBSCRIPTION_KEY, id);
   return "granted";
 }
 
-function deleteSubscription(id: string) {
-  return unwrap(client.DELETE("/notifications/subscriptions/{sid}", { params: { path: { sid: id } } }));
+export function getPushSubscriptionId() {
+  return getItem(SUBSCRIPTION_KEY);
 }
 
-export async function unregisterPush(): Promise<void> {
-  const id = await getItem(SUBSCRIPTION_KEY);
-  if (!id) return;
-  await deleteSubscription(id);
-  await removeItem(SUBSCRIPTION_KEY);
+export function clearPushSubscription() {
+  return removeItem(SUBSCRIPTION_KEY);
+}
+
+/** Reconcile the token after sign-in and whenever the app returns to the foreground. */
+export function usePushRegistration(session: string | null, locale: "en" | "da") {
+  useEffect(() => {
+    if (!session || (Platform.OS !== "android" && Platform.OS !== "ios")) return;
+    const sync = () => {
+      if (getSessionToken() === session) void enablePush(locale, false).catch(() => undefined);
+    };
+    sync();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") sync();
+    });
+    return () => sub.remove();
+  }, [session, locale]);
 }
 
 /** Opens the right screen when the user taps a notification. */

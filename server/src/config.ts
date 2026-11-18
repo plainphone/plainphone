@@ -22,8 +22,9 @@ const schema = z.object({
   DNS_API_TOKEN: z.string().optional(),
   /** Hostname suffix for per-phone DNS-over-TLS, e.g. dns.plainphone.org */
   DNS_HOST_SUFFIX: z.string().default("dns.plainphone.org"),
-  /** Only "none" today: phones poll. FCM is the planned next layer (docs/sync-api.md). */
+  /** Service-account JSON (or base64) for Android parent app notifications. */
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /** Device Owner phones poll and currently support only "none". */
   PUSH_PROVIDER: z.enum(["none"]).default("none"),
   /**
    * Native parent apps that may open this server's links (universal links / app links),

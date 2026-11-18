@@ -17,6 +17,8 @@ function Settings() {
   const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -73,12 +75,24 @@ function Settings() {
         <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
+      {signOutFailed ? <Notice tone="warn" text={t("error.generic")} /> : null}
       <Button
         kind="secondary"
         title={t("nav.logout")}
         disabled={busy}
+        busy={signingOut}
         testID="logout"
-        onPress={() => void logout().then(() => router.replace("/login"))}
+        onPress={() => {
+          setSigningOut(true);
+          setSignOutFailed(false);
+          void logout().then(
+            () => router.replace("/login"),
+            () => {
+              setSignOutFailed(true);
+              setSigningOut(false);
+            },
+          );
+        }}
       />
     </Screen>
   );

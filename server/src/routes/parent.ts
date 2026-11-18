@@ -123,9 +123,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         locale: v.locale.default("en"),
         /** Native apps ask for the token; the PWA only gets the HttpOnly cookie. */
         client: z.enum(["web", "native"]).default("web"),
+        previousSubscriptionId: z.uuid().optional(),
       }),
     );
-    const out = await verifyMagicLink(ctx, input.token, input.locale);
+    const auth = c.req.header("authorization");
+    const previousPush = input.client === "native" && input.previousSubscriptionId && auth?.startsWith("Bearer ")
+      ? { session: auth.slice(7), id: input.previousSubscriptionId }
+      : undefined;
+    const out = await verifyMagicLink(ctx, input.token, input.locale, previousPush);
     if (!out) return c.json({ error: "this link is expired or already used" }, 400);
     setCookie(c, SESSION_COOKIE, out.sessionToken, {
       httpOnly: true,
@@ -170,7 +175,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.post("/auth/logout", async (c) => {
     const auth = c.req.header("authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : getCookie(c, SESSION_COOKIE);
-    if (token) await endSession(ctx, token);
+    const subscriptionId = z.uuid().optional().safeParse(c.req.query("subscriptionId"));
+    if (!subscriptionId.success) throw new HTTPException(400, { message: "invalid subscription id" });
+    if (token) await endSession(ctx, token, auth.startsWith("Bearer ") ? subscriptionId.data : undefined);
     deleteCookie(c, SESSION_COOKIE, { path: "/api" });
     return c.body(null, 204);
   });
@@ -266,7 +273,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           // The browser rotated the subscription: the old endpoint this one replaces.
           replaces: z.string().max(2000).optional(),
         }),
-        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label }),
+        z.object({
+          platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label,
+          replacesSubscriptionId: z.uuid().optional(),
+        }),
       ]),
     );
     if (input.platform === "web" && !ctx.parentPush.webPublicKey) {
@@ -280,20 +290,30 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         ? { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth }
         : { endpoint: input.token, p256dh: null, auth: null };
     // The same browser or app install signing in as someone else takes the row over.
-    const [row] = await ctx.db
-      .insert(pushSubscriptions)
-      .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
-      .onConflictDoUpdate({
-        target: pushSubscriptions.endpoint,
-        set: {
-          userId: user.id,
-          platform: input.platform,
-          label: sql`coalesce(excluded.label, ${pushSubscriptions.label})`,
-          failures: 0,
-          ...values,
-        },
-      })
-      .returning();
+    const row = await ctx.db.transaction(async (tx) => {
+      const [registered] = await tx
+        .insert(pushSubscriptions)
+        .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
+        .onConflictDoUpdate({
+          target: pushSubscriptions.endpoint,
+          set: {
+            userId: user.id,
+            platform: input.platform,
+            label: sql`coalesce(excluded.label, ${pushSubscriptions.label})`,
+            failures: 0,
+            ...values,
+          },
+        })
+        .returning();
+      if (input.platform !== "web" && input.replacesSubscriptionId && input.replacesSubscriptionId !== registered!.id) {
+        await tx.delete(pushSubscriptions).where(and(
+          eq(pushSubscriptions.id, input.replacesSubscriptionId),
+          eq(pushSubscriptions.userId, user.id),
+          eq(pushSubscriptions.platform, input.platform),
+        ));
+      }
+      return registered!;
+    });
     if (input.platform === "web" && input.replaces && input.replaces !== input.endpoint) {
       const [old] = await ctx.db
         .delete(pushSubscriptions)

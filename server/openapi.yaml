@@ -1657,6 +1657,10 @@ paths:
               required: [token]
               properties:
                 token: { type: string }
+                previousSubscriptionId:
+                  type: string
+                  format: uuid
+                  description: Native subscription to remove from the account authenticated by the previous Bearer token.
                 locale: { enum: [en, da] }
                 client:
                   enum: [web, native]
@@ -1683,6 +1687,11 @@ paths:
     post:
       operationId: postAuthLogout
       summary: Post auth logout
+      parameters:
+        - in: query
+          name: subscriptionId
+          schema: { type: string, format: uuid }
+          description: Native subscription on this install to remove during Bearer-authenticated logout.
       tags: [auth]
       security: [{ session: [] }, { cookie: [] }]
       responses:
@@ -1811,6 +1820,7 @@ paths:
                   required: [platform, token]
                   properties:
                     platform: { enum: [apns, fcm] }
+                    replacesSubscriptionId: { type: string, format: uuid }
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     label: { type: string, maxLength: 60 }
       responses:

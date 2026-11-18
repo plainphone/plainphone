@@ -3725,6 +3725,11 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
+                    /**
+                     * Format: uuid
+                     * @description Native subscription to remove from the account authenticated by the previous Bearer token.
+                     */
+                    previousSubscriptionId?: string;
                     /** @enum {unknown} */
                     locale?: "en" | "da";
                     /**
@@ -3758,7 +3763,10 @@ export interface operations {
     };
     postAuthLogout: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Native subscription on this install to remove during Bearer-authenticated logout. */
+                subscriptionId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3919,6 +3927,8 @@ export interface operations {
                 } | {
                     /** @enum {unknown} */
                     platform: "apns" | "fcm";
+                    /** Format: uuid */
+                    replacesSubscriptionId?: string;
                     token: string;
                     label?: string;
                 };

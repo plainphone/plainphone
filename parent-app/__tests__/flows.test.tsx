@@ -2,6 +2,8 @@
 //
 // Core flows through the real router and screens, against a fake API.
 import * as SecureStore from "expo-secure-store";
+import * as Notifications from "expo-notifications";
+import { AppState, Platform } from "react-native";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
@@ -148,6 +150,26 @@ describe("login links in other situations", () => {
     (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });
 
+  it("sends the previous subscription and session when a login link cold-starts the app", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    await SecureStore.setItemAsync("pp.session", "pp_s_previous");
+    await SecureStore.setItemAsync("pp.pushSubscription", id);
+    jest.mocked(Linking.getInitialURL).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_switch1234");
+    const api = fakeApi({
+      "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_new" } },
+      "GET /me": { body: ME },
+      "GET /phones": { body: { phones: [PHONE] } },
+    });
+
+    await renderRouter(routes, { initialUrl: "/auth/app" });
+    expect(await screen.findByText("Alma")).toBeTruthy();
+    expect(api.calls.find((c) => c.path === "/auth/verify")).toMatchObject({
+      auth: "Bearer pp_s_previous",
+      body: { previousSubscriptionId: id },
+    });
+    expect(await SecureStore.getItemAsync("pp.pushSubscription")).toBeNull();
+  });
+
   it("opens on top of the login screen and leaves no login screen behind", async () => {
     const api = fakeApi({
       "GET /health": { body: { ok: true, mail: "smtp" } },
@@ -207,6 +229,64 @@ describe("signed in", () => {
     await waitFor(() => expect(screen).toHavePathname("/login"));
     expect(api.calls.find((c) => c.path === "/auth/logout")!.auth).toBe("Bearer pp_s_saved");
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("retries logout with the subscription ID if the server cannot sign out yet", async () => {
+    const subscriptionId = "11111111-1111-4111-8111-111111111111";
+    await SecureStore.setItemAsync("pp.pushSubscription", subscriptionId);
+    let attempts = 0;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "POST /auth/logout": () => ({ status: ++attempts === 1 ? 503 : 204 }),
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+
+    await fireEvent.press(await screen.findByTestId("logout"));
+    expect(await screen.findByText("Something went wrong. Please try again.")).toBeTruthy();
+    expect(await SecureStore.getItemAsync("pp.session")).toBe("pp_s_saved");
+    await fireEvent.press(screen.getByTestId("logout"));
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+
+    expect(api.calls.filter((call) => call.path === "/auth/logout").map((call) => call.query.get("subscriptionId")))
+      .toEqual([subscriptionId, subscriptionId]);
+    expect(await SecureStore.getItemAsync("pp.pushSubscription")).toBeNull();
+  });
+
+  it("refreshes the native push token on foreground without opening settings", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "android");
+    const listeners = new Set<(state: "active") => void>();
+    const appState = jest.spyOn(AppState, "addEventListener").mockImplementation((event, listener) => {
+      if (event === "change") listeners.add(listener);
+      return { remove: () => { listeners.delete(listener); } };
+    });
+    const permission = jest.mocked(Notifications.getPermissionsAsync)
+      .mockResolvedValue({ granted: true } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
+    const deviceToken = jest.mocked(Notifications.getDevicePushTokenAsync)
+      .mockResolvedValueOnce({ type: "android", data: "original-token" })
+      .mockResolvedValueOnce({ type: "android", data: "rotated-token" });
+    try {
+      const api = fakeApi({
+        "GET /me": { body: ME },
+        "GET /phones": { body: { phones: [PHONE] } },
+        "POST /notifications/subscriptions": { status: 201, body: { id: "11111111-1111-4111-8111-111111111111" } },
+      });
+      await renderRouter(routes, { initialUrl: "/" });
+      const registrations = () => api.calls.filter((call) => call.path === "/notifications/subscriptions");
+      await waitFor(() => expect(registrations()).toHaveLength(1));
+      await act(async () => {
+        for (const listener of listeners) listener("active");
+      });
+      await waitFor(() => expect(registrations().slice(0, 2).map((call) => call.body)).toEqual([
+        { platform: "fcm", token: "original-token" },
+        { platform: "fcm", token: "rotated-token", replacesSubscriptionId: "11111111-1111-4111-8111-111111111111" },
+      ]));
+    } finally {
+      os.restore();
+      appState.mockRestore();
+      permission.mockResolvedValue({ granted: false, canAskAgain: true } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
+      deviceToken.mockResolvedValue({ type: "android", data: "fcm-token" });
+    }
   });
 
   it("switches the language and saves it on the account", async () => {

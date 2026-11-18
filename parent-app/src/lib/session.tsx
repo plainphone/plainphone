@@ -6,7 +6,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { unregisterPush } from "./notifications";
+import { clearPushSubscription, getPushSubscriptionId, usePushRegistration, withPushRegistration } from "./notifications";
 import { loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -37,11 +37,12 @@ interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null);
 
 // One verify per link token, also when effects run twice in development.
-const inflight = new Map<string, Promise<{ sessionToken?: string }>>();
+const inflight = new Map<string, Promise<Me | null>>();
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { setLocale, locale } = useI18n();
   const [state, setState] = useState<State>({ status: "loading" });
+  usePushRegistration(state.status === "in" ? getSessionToken() : null, locale);
   const [next, setNextState] = useState<string | null>(null);
   const setNext = useCallback((path: string | null) => {
     const p = safePath(path);
@@ -120,46 +121,59 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [restore, signOutLocally]);
 
   const verify = useCallback(
-    async (linkToken: string) => {
+    (linkToken: string) => {
+      const existing = inflight.get(linkToken);
+      if (existing) return existing;
+
       linkSignIn.current = true;
-      // A new sign-in gets a fresh answer from takeNext(), also without passing through anon.
-      taking.current = null;
-      let p = inflight.get(linkToken);
-      if (!p) {
-        p = unwrap<{ sessionToken?: string }>(
-          client.POST("/auth/verify", { body: { token: linkToken, locale: localeRef.current, client: "native" } }),
-        );
-        inflight.set(linkToken, p);
-        // A failed attempt (offline, say) can be retried with the same link.
-        p.catch(() => inflight.delete(linkToken));
-      }
-      let out: { sessionToken?: string };
-      try {
-        out = await p;
-        if (!out.sessionToken) throw new ApiError(500, "no session token");
-      } catch (err) {
-        // A used or expired link: carry on with the saved session, if there is one.
-        linkSignIn.current = false;
-        if (!getSessionToken()) await restore();
-        throw err;
-      }
-      setSessionToken(out.sessionToken!);
-      await setItem(TOKEN_KEY, out.sessionToken);
-      return refresh();
+      const signIn = withPushRegistration(async () => {
+        // A new sign-in gets a fresh answer from takeNext(), also without passing through anon.
+        taking.current = null;
+        let sessionToken: string;
+        try {
+          const previousSubscriptionId = await getPushSubscriptionId();
+          const previousSession = previousSubscriptionId ? getSessionToken() ?? await getItem(TOKEN_KEY) : null;
+          const out = await unwrap<{ sessionToken?: string }>(client.POST("/auth/verify", {
+            ...(previousSession ? { headers: { authorization: `Bearer ${previousSession}` } } : {}),
+            body: {
+              token: linkToken,
+              locale: localeRef.current,
+              client: "native",
+              ...(previousSession && previousSubscriptionId ? { previousSubscriptionId } : {}),
+            },
+          }));
+          if (!out.sessionToken) throw new ApiError(500, "no session token");
+          sessionToken = out.sessionToken;
+        } catch (err) {
+          // A used or expired link: carry on with the saved session, if there is one.
+          linkSignIn.current = false;
+          if (!getSessionToken()) await restore();
+          throw err;
+        }
+        await clearPushSubscription().catch(() => undefined);
+        setSessionToken(sessionToken);
+        await setItem(TOKEN_KEY, sessionToken);
+        return refresh();
+      }).finally(() => inflight.delete(linkToken));
+      inflight.set(linkToken, signIn);
+      return signIn;
     },
     [refresh, restore],
   );
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => withPushRegistration(async () => {
+    const subscriptionId = await getPushSubscriptionId();
     try {
-      await unregisterPush().catch(() => undefined);
-      await unwrap(client.POST("/auth/logout"));
-    } catch {
-      // signed out locally either way
-    } finally {
-      await signOutLocally();
+      await unwrap(client.POST("/auth/logout", {
+        params: { query: { subscriptionId: subscriptionId ?? undefined } },
+      }));
+    } catch (err) {
+      // With push enabled, keep the session available to retry server-side cleanup.
+      if (subscriptionId) throw err;
     }
-  }, [signOutLocally]);
+    if (subscriptionId) await clearPushSubscription().catch(() => undefined);
+    await signOutLocally();
+  }), [signOutLocally]);
 
   const saveLocale = useCallback(
     (l: Locale) => {
