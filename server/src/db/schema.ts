@@ -187,6 +187,7 @@ export const phones = pgTable(
       .references(() => households.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     profile: text("profile", { enum: ["child", "self"] }).notNull(),
+    selfScheduleContacts: boolean("self_schedule_contacts").notNull().default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
@@ -325,6 +326,22 @@ export const contacts = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("contacts_phone_number_uq").on(t.phoneId, t.number)],
+);
+
+// A cleared name remembers a reviewed number without retaining the address book label.
+export const contactSuggestions = pgTable(
+  "contact_suggestions",
+  {
+    id: id(),
+    groupId: uuid("group_id").notNull(),
+    phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+    name: text("name"),
+    number: text("number").notNull(),
+  },
+  (t) => [
+    uniqueIndex("contact_suggestions_phone_number_uq").on(t.phoneId, t.number),
+    index("contact_suggestions_phone_group_idx").on(t.phoneId, t.groupId),
+  ],
 );
 
 export const DNS_CATEGORIES = ["social", "adult", "gambling", "games", "dating", "video"] as const;

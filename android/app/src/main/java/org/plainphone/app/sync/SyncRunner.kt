@@ -5,13 +5,16 @@ package org.plainphone.app.sync
 import android.util.Log
 import java.io.IOException
 import java.security.MessageDigest
+import org.json.JSONArray
 import org.plainphone.app.StepResult
+import org.plainphone.app.contacts.DeviceContact
 
 internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
     fun nowMs(): Long
+    fun contactSuggestions(): List<DeviceContact> = emptyList()
     fun appVersion(): String
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
@@ -154,6 +157,16 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
+        if (rules?.profile == "child") guarded("report contact suggestions") {
+            val contacts = device.contactSuggestions()
+            val fingerprint = sha256(JSONArray().apply {
+                contacts.forEach { put(JSONArray(listOf(it.name, JSONArray(it.numbers)))) }
+            }.toString())
+            if (contacts.isNotEmpty() && store.contactSuggestionsFingerprint != fingerprint) {
+                contacts.chunked(100).forEach { api.reportContactSuggestions(token, it) }
+                store.contactSuggestionsFingerprint = fingerprint
+            }
+        }
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }

@@ -1,6 +1,9 @@
 # Approved contacts (phase 2)
 
-Plainphone is the phone's default **phone app** and **SMS app**. Calls and text messages only go to and come from the numbers on the approved list. Emergency numbers always work.
+Plainphone is the phone's default **phone app** and **SMS app**. Child phones
+limit calls and text messages to approved numbers. Self phones allow everyone
+by default and can limit calls and texts to favourites during schedules.
+Emergency numbers always work.
 
 This page describes how that is built, where Android sets the limits, and what is not covered yet.
 
@@ -11,6 +14,32 @@ and SMS can be browsed in pages, including entries from previous default apps
 that still exist in the providers. Opening an SMS conversation loads its newest
 messages first. Existing MMS and group MMS are listed as read-only placeholders.
 Conversations and call entries for numbers the child cannot contact are read-only.
+The history is limited to the Android providers. Chats stored only in an app,
+including private RCS conversations, cannot be imported.
+
+## Child contact suggestions
+
+When a paired Child phone grants contacts access, Plainphone reads phone entries
+from the Android address book, including synced accounts, and groups each
+contact's international numbers in a single suggestion. The dashboard offers **Approve**,
+**Dismiss** and **Approve all**. Only approved numbers can be called and texted.
+Suggestions refresh with phone sync. A reviewed number does not come back, even if
+the name changes or the phone reports the same address book again. The child
+can see what is shared on the Contacts tab. See [Privacy](privacy.md).
+
+## Self favourites
+
+The Contacts tab shows local contacts and favourites. After pairing in setup and
+later from **Choose favourites** in Contacts, pick contacts that should always
+be reachable. On the dashboard, **Favourites** lets you turn on the optional
+restriction for active schedules. When it is on, favourites can still call and
+text in both directions, alongside emergency and helpline exceptions. Adding a
+favourite after enabling the restriction, or turning the restriction off, waits
+for the Self key. Removing a favourite applies at once.
+
+App time limits keep telephony available as a core function. The favourites
+restriction applies only during an active schedule, including while app time
+limits are also in effect.
 
 ## How it works
 
@@ -27,7 +56,9 @@ Conversations and call entries for numbers the child cannot contact are read-onl
 
 When the phone is set up by QR code, Plainphone takes both roles itself before setup ends, and grants its own runtime permissions (`setPermissionGrantState`). If Android refuses a role, the status screen says so (`FAIL default phone app`), nothing telephony-related is hidden, and the rest of the lock still holds. When Device Owner is released on the maintenance screen, the roles go back to the system dialer and the maker's SMS app.
 
-The rule is only enforced while the phone is locked: Plainphone is Device Owner and no maintenance unlock is running. During a maintenance unlock, or on a phone where Plainphone is installed by hand, it works as an ordinary phone and SMS app.
+The rule is enforced while the phone is locked in strong mode or while paired
+light-mode protection is active. During a maintenance unlock or before light
+mode has finished setup, Plainphone works as an ordinary phone and SMS app.
 
 ## Emergency calls
 
@@ -63,7 +94,9 @@ Phase 2 has one implementation, `LocalContactPolicySource`, which keeps the list
 - **QR code:** `--contact 'Mum=+45 12 34 56 78'` (repeatable) and `--country-code 45`. The script refuses a number without `+` unless `--country-code` is given. The list in the QR code is only used the first time; scanning again never wipes changes made on the phone. If a number cannot be expanded during setup (no country yet), it waits and is added as soon as the phone knows its country.
 - **Maintenance screen:** tap "Version" seven times, enter the PIN, then "Approved contacts and blocked log". Add or remove contacts and see what was blocked. The screen closes as soon as it is left, so the PIN is needed again.
 
-Phase 3 adds a source that syncs the list from the parent's dashboard and swaps it in at `ContactPolicySources.get`. Nothing else in the app needs to change.
+Once paired, the synced source uses the approved list from the parent's
+dashboard or the Self phone's favourites. The last rules keep applying
+offline. The emergency and helpline checks are shared by both sources.
 
 ## The blocked log
 

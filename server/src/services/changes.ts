@@ -41,6 +41,7 @@ export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
+  | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
@@ -123,6 +124,8 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
       return true;
     case "contact.remove":
       return false;
+    case "contact.schedule":
+      return !op.restricted;
     case "dns.category":
       return !op.blocked;
     case "dns.allowDomain":
@@ -196,6 +199,9 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
       if (app.core && !op.allowed) throw new ChangeError(400, "core apps such as the dialer cannot be hidden");
       return;
     }
+    case "contact.schedule":
+      if (phone.profile !== "self") throw new ChangeError(400, "only Self phones can change scheduled contacts");
+      return;
     case "contact.remove": {
       const [c] = await db
         .select({ id: contacts.id })
@@ -282,6 +288,9 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op): Promi
         .insert(contacts)
         .values({ phoneId: phone.id, name: op.name, number: op.number })
         .onConflictDoUpdate({ target: [contacts.phoneId, contacts.number], set: { name: op.name } });
+      return { dns: false };
+    case "contact.schedule":
+      await db.update(phones).set({ selfScheduleContacts: op.restricted }).where(eq(phones.id, phone.id));
       return { dns: false };
     case "contact.remove":
       await db.delete(contacts).where(and(eq(contacts.id, op.contactId), eq(contacts.phoneId, phone.id)));
@@ -474,12 +483,27 @@ async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
 }
 
 /** Applies or queues one change. */
-export async function submitChange(ctx: Ctx, phone: Phone, userId: string, op: Op): Promise<ChangeResult> {
+export async function submitChange(
+  ctx: Ctx, phone: Phone, userId: string, op: Op, deviceFavourite = false,
+): Promise<ChangeResult> {
   const result = await ctx.db.transaction(async (tx) => {
     // Serialise changes per phone, so loosening checks see a stable state.
-    await tx.execute(sql`select id from phones where id = ${phone.id} for update`);
-    await validateOp(tx, phone, op);
-    if (phone.profile === "self" && (await isLoosening(tx, phone, op))) {
+    const [current] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+    if (!current) throw new ChangeError(404, "phone not found");
+    await validateOp(tx, current, op);
+    let unrestrictedFavourite = false;
+    if (deviceFavourite && op.type === "contact.add") {
+      const [known] = await tx.select({ id: contacts.id }).from(contacts)
+        .where(and(eq(contacts.phoneId, phone.id), eq(contacts.number, op.number)));
+      if (known) return { status: "applied" as const, op, dns: false };
+      unrestrictedFavourite = !current.selfScheduleContacts;
+      const [queued] = await tx.select().from(pendingChanges).where(and(
+        eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
+        sql`${pendingChanges.op}->>'type' = 'contact.add' and ${pendingChanges.op}->>'number' = ${op.number}`,
+      ));
+      if (queued) return { status: "pending" as const, op, change: queued, notify: null };
+    }
+    if (current.profile === "self" && !unrestrictedFavourite && (await isLoosening(tx, current, op))) {
       const [key] = await tx.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
       // A trusted person who has never signed in cannot approve anything. Fall back to
       // the delay, so a mistyped address never locks the owner in for good.

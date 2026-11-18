@@ -14,7 +14,11 @@ light mode by mistake.
 Why not a build flavor: a second APK doubles the releases, the signing and the testing, and the
 two modes share almost all code (rules, contacts, time limits, sync). The Calls and
 Messages tabs show history from Android once the required roles and permissions
-are granted. A Play build later will
+are granted. Child phones can grant address book access on the Contacts tab to
+suggest names and numbers to the dashboard. Self phones can grant the same
+permission to see local contacts and choose favourites when finishing setup or
+later from Contacts. See [Contacts](contacts.md) and [Privacy](privacy.md).
+A Play build later will
 be a flavor that leaves out what Play does not accept in a consumer app (see the table below);
 the code is already split so that is a build setting, not a rewrite.
 
@@ -26,7 +30,7 @@ the code is already split so that is a build setting, not a rewrite.
 | App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead | Apps open freely. The parent is told |
 | Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog (not the update dialog, so new Plainphone APKs install), and the VPN disconnect dialog. It matches actions (uninstall, deactivate, always-on…) next to Plainphone's name, not page titles, so Network & internet and the Apps list stay usable. The maintenance PIN opens a 30-minute window; repairing a protection (Today > Fix it) asks for it first | Plainphone can be switched off from Settings |
 | Uninstall | A device admin receiver (`LightAdminReceiver`). Android will not uninstall an active device admin, so it has to be switched off first, and that screen is guarded | Plainphone can be uninstalled from the launcher |
-| Approved contacts | The phone and SMS roles via Android's own `RoleManager` dialogs, like strong mode on Android 10-13. Calls and SMS from other numbers are blocked; emergency numbers always work | Calls and SMS are unfiltered. The parent is told |
+| Approved contacts | The phone and SMS roles via Android's own `RoleManager` dialogs, like strong mode on Android 10-13. Child phones block other numbers. Self phones can limit calls and SMS to favourites during schedules. Emergency numbers always work | Calls and SMS are unfiltered. The parent is told |
 | Time limits | Usage access (`UsageStatsManager`), counted on the phone and evaluated offline ([time-limits.md](time-limits.md)) | Time limits do not count. The parent is told when limits are set |
 | Find | Runtime location permission, "allow all the time" | No position |
 

@@ -43,6 +43,7 @@ import {
   type Op,
   submitChange,
 } from "../services/changes.js";
+import { pendingContactSuggestions, reviewContactSuggestions, reviewContactSuggestionsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { syncDns } from "../services/dns.js";
@@ -742,10 +743,29 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
+  app.get("/phones/:pid/contact-suggestions", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    return c.json({ suggestions: await pendingContactSuggestions(ctx, phone.id) });
+  });
+
+  app.post("/phones/:pid/contact-suggestions", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    await reviewContactSuggestions(ctx, phone.id, await body(c, reviewContactSuggestionsInput));
+    return c.body(null, 204);
+  });
+
+  app.put("/phones/:pid/contact-schedule", async (c) => {
+    const phone = await requirePhone(c);
+    const { restricted } = await body(c, z.strictObject({ restricted: z.boolean() }));
+    return change(c, phone, { type: "contact.schedule", restricted });
+  });
+
   app.get("/phones/:pid/contacts", async (c) => {
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
-    return c.json({ contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })) });
+    return c.json({ contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })), selfScheduleContacts: phone.selfScheduleContacts });
   });
 
   app.post("/phones/:pid/contacts", async (c) => {

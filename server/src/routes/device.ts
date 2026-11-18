@@ -6,13 +6,14 @@ import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { contacts, householdMembers, pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
-import { applyDueChanges, deletePhone } from "../services/changes.js";
+import { applyDueChanges, deletePhone, submitChange } from "../services/changes.js";
 import { retryDnsDeletions } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
+import { selfFavouriteInput, suggestContacts, suggestedContactsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
@@ -49,6 +50,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(120, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
+  const favouriteLimit = new RateLimiter(30, 60 * 60_000);
 
   // --- Pairing (no device token yet) -------------------------------------------
 
@@ -139,6 +141,30 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
+
+  app.put("/contact-suggestions", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
+    await suggestContacts(ctx, phone.id, await body(c, suggestedContactsInput));
+    return c.body(null, 204);
+  });
+
+  app.post("/self/favourites", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    if (!favouriteLimit.take(phone.id)) throw new HTTPException(429, { message: "too many favourite requests" });
+    const { favourite, ...input } = await body(c, selfFavouriteInput);
+    const [owner] = await ctx.db.select({ id: householdMembers.userId }).from(householdMembers)
+      .where(and(eq(householdMembers.householdId, phone.householdId), eq(householdMembers.role, "owner")))
+      .orderBy(householdMembers.userId);
+    if (!owner) throw new HTTPException(404, { message: "not found" });
+    const op = favourite ? { type: "contact.add" as const, ...input } : await ctx.db.select({ contactId: contacts.id })
+      .from(contacts).where(and(eq(contacts.phoneId, phone.id), eq(contacts.number, input.number)))
+      .then(([row]) => row ? { type: "contact.remove" as const, contactId: row.contactId } : null);
+    if (!op) return c.body(null, 204);
+    const result = await submitChange(ctx, phone, owner.id, op, true);
+    return c.body(null, result.status === "applied" ? 204 : 202);
+  });
 
   app.get("/rules", async (c) => {
     let phone = c.get("phone");

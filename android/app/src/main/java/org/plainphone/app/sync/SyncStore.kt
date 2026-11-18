@@ -61,6 +61,10 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     /** True once the phone has ever been paired. After that a new pairing needs the maintenance PIN. */
     val everPaired: Boolean get() = prefs.getBoolean(KEY_EVER_PAIRED, false)
 
+    internal var contactSuggestionsFingerprint: String?
+        get() = prefs.getString("contact_suggestions_${phoneId}", null)
+        set(value) { prefs.edit().putString("contact_suggestions_${phoneId}", value).apply() }
+
     val phoneId: String? get() = prefs.getString(KEY_PHONE_ID, null)
 
     /**

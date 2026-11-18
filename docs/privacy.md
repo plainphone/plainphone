@@ -26,6 +26,7 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Location mode (off, find, checkin, always) and the end of "always" | until the phone is removed; the end is cleared when "always" ends | `phones.location_mode`, `phones.location_always_until` |
 | "Ring the phone" and "Are you okay?" (times, the answer, and for "Call me" an approved contact's number; one of each kind per phone) | replaced by the next one; deleted a day after it ended | `safety_requests`, sweeper |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
+| Address book suggestions from a Child phone (display names and international phone numbers) | names until reviewed, and numbers until the phone is removed so reviewed numbers cannot be suggested again | `contact_suggestions`, `PUT /api/device/contact-suggestions` |
 | Requests from a phone (an app package name, or a contact's name and number) | while open, then 30 days after they are decided | sweeper, `REQUEST_HISTORY_DAYS` |
 | Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off, removes the device or signs out on it, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
 | Per parent and phone: notifications muted (one row when off) | until switched back on, the phone is removed or the account is deleted | `notification_mutes` |
@@ -37,7 +38,13 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | ClientIDs the DNS filter must forget | until the DNS service confirms the delete | `dns_deletions`, sweeper |
 | Database backups | 30 nightly copies on the hosted service; the sample `compose.yaml` keeps 14 daily and 8 weekly | Dokploy backup (hosted), `backup` service in `compose.yaml` |
 
-The Android call log and SMS/MMS history stay on the phone.
+The Android call log and SMS/MMS history stay on the phone. For Child contact
+suggestions, only a display name and phone number per address book entry are sent.
+Suggestions use the authenticated HTTPS API and PostgreSQL, like existing
+approved contacts. This path does not use end-to-end encryption. The dashboard
+shows pending suggestions to household members who can manage the phone. On Self
+phones, the address book stays local and only numbers and names explicitly
+selected as favourites are sent as rule changes.
 
 Notifications go to the browser's push service (Google FCM, Apple, Mozilla or
 Microsoft; only these hosts are accepted). The payload is encrypted for the

@@ -166,6 +166,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     phone: {
       id: phone.id,
       profile: phone.profile,
+      selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
@@ -198,6 +199,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   const doc = {
     phoneId: phone.id,
     profile: phone.profile,
+    selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
     apps: {

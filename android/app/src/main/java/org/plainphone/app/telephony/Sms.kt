@@ -27,6 +27,7 @@ import org.plainphone.app.contacts.Decision
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
+import org.plainphone.app.contacts.PhoneNumbers
 
 private const val TAG = "Plainphone"
 
@@ -75,7 +76,7 @@ internal fun smsThreads(
                 message.id > (firstLegacySend[help.number] ?: Long.MAX_VALUE) ->
                 SmsThread(help.number, SmsThreadKind.LEGACY)
             includeHistory -> SmsThread(
-                org.plainphone.app.contacts.PhoneNumbers.normalize(message.number, rules.country) ?: message.number,
+                PhoneNumbers.normalize(message.number, rules.country) ?: message.number,
             )
             else -> null
         }

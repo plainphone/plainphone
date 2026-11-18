@@ -42,6 +42,9 @@ import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
 import org.plainphone.app.update.SelfUpdate
+import org.plainphone.app.contacts.DeviceContact
+import org.plainphone.app.contacts.ContactPolicySources
+import org.plainphone.app.contacts.DeviceContacts
 
 /** Entry points for the rest of the app. */
 object Sync {
@@ -59,6 +62,15 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 
     override fun dynamicCorePackages() = AndroidDeviceControls(context).dynamicCorePackages()
+
+    override fun contactSuggestions(): List<DeviceContact> {
+        val country = ContactPolicySources.get(context).rules().country
+        return DeviceContacts.read(context, country)
+            .mapNotNull { contact ->
+                val numbers = contact.numbers.filter(DeviceContacts.internationalNumber::matches)
+                numbers.takeIf { it.isNotEmpty() }?.let { contact.copy(numbers = it) }
+            }
+    }
 
     override fun installedApps(dynamicCore: Set<String>): List<InstalledApp> {
         val pm = context.packageManager

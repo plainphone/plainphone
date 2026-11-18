@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.withContext
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
@@ -57,6 +59,7 @@ import org.plainphone.app.sync.PairPoll
 import org.plainphone.app.sync.Pairing
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
+import org.plainphone.app.sync.Sync
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.qr.QrCode
@@ -77,7 +80,22 @@ class PairingActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
-        setContent { PlainphoneTheme { PairingScreen(onDone = ::finish) } }
+        setContent {
+            PlainphoneTheme {
+                PairingScreen(onDone = {
+                    if (authorized) finish()
+                    else lifecycleScope.launch {
+                        val self = withContext(Dispatchers.IO) {
+                            val store = SyncStore(this@PairingActivity)
+                            if (store.rules() == null) Sync.runner(this@PairingActivity).run("setup finished")
+                            store.rules()?.profile == "self"
+                        }
+                        if (self) startActivity(PhoneActivity.favouritesIntent(this@PairingActivity))
+                        finish()
+                    }
+                })
+            }
+        }
     }
 
     companion object {

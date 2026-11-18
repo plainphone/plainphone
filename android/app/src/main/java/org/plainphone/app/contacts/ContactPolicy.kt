@@ -18,6 +18,8 @@ data class ContactRules(
     val country: PhoneNumbers.Country?,
     val help: HelpDirectory = HelpDirectory(),
     val replyAgeMs: (Channel, String) -> Long? = { _, _ -> null },
+    val selfProfile: Boolean = false,
+    val childProfile: Boolean = false,
 ) {
     fun helpContact(number: String?, channel: Channel): ApprovedContact? =
         help.contactFor(number, Helplines.country(country), channel)

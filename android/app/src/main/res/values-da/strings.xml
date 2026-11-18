@@ -73,6 +73,17 @@
     <string name="recent_other">Opkald</string>
     <string name="messages_empty">Ingen beskeder endnu.</string>
     <string name="messages_footnote">Nogle samtaler kan kun læses. Eksisterende billed- og gruppebeskeder vises uden indhold.</string>
+    <string name="contacts_child_sharing">Din forælder kan gennemgå navne og telefonnumre fra telefonens kontakter.</string>
+    <string name="contacts_read_permission">Giv adgang til kontakter</string>
+    <string name="contacts_favourites_choose">Vælg favoritter</string>
+    <string name="contacts_favourites_done">Færdig</string>
+    <string name="contacts_favourites_hint">Favoritter kan ringe og skrive til dig i skemaperioder, hvor opkald og sms er begrænset. Du kan også kontakte dem.</string>
+    <string name="contacts_self_empty">Ingen kontakter tilgængelige.</string>
+    <string name="contacts_favourite">Favorit</string>
+    <string name="contacts_favourite_add">Tilføj</string>
+    <string name="contacts_favourite_remove">Fjern</string>
+    <string name="contacts_favourite_waiting">Ændringen venter på din nøgle.</string>
+    <string name="contacts_favourite_failed">Favoritten kunne ikke ændres. Prøv igen.</string>
     <string name="history_read_only">Kan kun læses</string>
     <string name="history_load_older">Vis ældre</string>
     <string name="history_unknown">Ukendt nummer</string>

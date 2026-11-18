@@ -213,7 +213,7 @@ class MainActivity : Activity() {
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
             val contacts = ContactPolicySources.get(this@MainActivity).rules()
             appendLine(resources.getQuantityString(R.plurals.status_contacts, contacts.contacts.size, contacts.contacts.size))
-            if (!contacts.enforced) appendLine(getString(R.string.status_contacts_not_enforced))
+            if (!contacts.enforced && !contacts.selfProfile) appendLine(getString(R.string.status_contacts_not_enforced))
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))
             if (config.usesDefaultPin) appendLine(getString(R.string.status_default_pin))

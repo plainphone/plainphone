@@ -6,6 +6,10 @@ import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.telephony.TelephonyManager
 import android.util.Log
+import java.time.Instant
+import org.plainphone.app.light.LightRelease
+import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.Mode
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.sync.SyncStore
@@ -169,17 +173,26 @@ class LocalContactPolicySource(context: Context) : EditableContactPolicySource {
  */
 class SyncedContactPolicySource(
     context: Context,
-    private val serverContacts: () -> List<ApprovedContact>? = { SyncStore(context).rules()?.contacts },
+    private val serverContacts: (() -> List<ApprovedContact>?)? = null,
 ) : EditableContactPolicySource {
-    private val local = LocalContactPolicySource(context)
+    private val app = context.applicationContext
+    private val local = LocalContactPolicySource(app)
+    private val store = SyncStore(app)
 
     override fun rules(): ContactRules {
         val base = local.rules()
-        val fromServer = serverContacts() ?: return base
-        return base.copy(contacts = fromServer)
+        val server = store.rules()
+        val fromServer = (if (serverContacts != null) serverContacts.invoke() else server?.contacts) ?: return base
+        val controlled = base.enforced || (Mode.isLight(app) && LightSetup.isComplete(app) &&
+            !LightRelease.isReleased(app) && !Lock.isInMaintenanceWindow(app))
+        val synced = base.copy(enforced = controlled, contacts = fromServer, childProfile = server?.profile == "child")
+        return if (server?.profile == "self") {
+            selfTelephonyRules(synced, server.selfScheduleContacts, server.schedules, server.timezone, Instant.now())
+        } else synced
     }
 
-    override val managedRemotely: Boolean get() = serverContacts() != null
+    override val managedRemotely: Boolean
+        get() = if (serverContacts != null) serverContacts.invoke() != null else store.rules() != null
 
     override fun add(contact: ApprovedContact): Result<ApprovedContact> =
         if (managedRemotely) Result.failure(IllegalStateException("managed in the parent's dashboard")) else local.add(contact)

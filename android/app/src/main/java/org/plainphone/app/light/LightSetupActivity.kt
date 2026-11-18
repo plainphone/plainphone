@@ -156,6 +156,9 @@ class LightSetupActivity : ComponentActivity() {
         LightSetup.markComplete(this)
         Lock.applyAsync(this, "light setup done")
         startActivity(Intent(this, HomeActivity::class.java))
+        if (org.plainphone.app.sync.SyncStore(this).rules()?.profile == "self") {
+            startActivity(org.plainphone.app.ui.PhoneActivity.favouritesIntent(this))
+        }
         finish()
     }
 

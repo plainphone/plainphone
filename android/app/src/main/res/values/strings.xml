@@ -76,6 +76,17 @@
     <string name="recent_other">Call</string>
     <string name="messages_empty">No messages yet.</string>
     <string name="messages_footnote">Some conversations are read-only. Existing picture and group messages appear as placeholders.</string>
+    <string name="contacts_child_sharing">Your parent can review the names and numbers saved in this phone’s contacts.</string>
+    <string name="contacts_read_permission">Allow contacts access</string>
+    <string name="contacts_favourites_choose">Choose favourites</string>
+    <string name="contacts_favourites_done">Done</string>
+    <string name="contacts_favourites_hint">Favourites can call and text you during a schedule that limits calls and texts. You can reach them too.</string>
+    <string name="contacts_self_empty">No contacts available.</string>
+    <string name="contacts_favourite">Favourite</string>
+    <string name="contacts_favourite_add">Add</string>
+    <string name="contacts_favourite_remove">Remove</string>
+    <string name="contacts_favourite_waiting">This change is waiting for your key.</string>
+    <string name="contacts_favourite_failed">Could not change the favourite. Try again.</string>
     <string name="history_read_only">Read-only</string>
     <string name="history_load_older">Load older</string>
     <string name="history_unknown">Unknown number</string>
