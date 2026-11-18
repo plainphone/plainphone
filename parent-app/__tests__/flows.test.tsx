@@ -38,7 +38,7 @@ describe("logging in", () => {
   it("warns when the server cannot send mail", async () => {
     fakeApi({ "GET /health": { body: { ok: true, mail: "none" } } });
     await renderRouter(routes, { initialUrl: "/login" });
-    expect(await screen.findByText(/This server has no mail set up/)).toBeTruthy();
+    expect(await screen.findByText("The server can’t send sign-in links.")).toBeTruthy();
   });
 
   it("opens the login link, keeps the session in the keychain and shows the phones", async () => {

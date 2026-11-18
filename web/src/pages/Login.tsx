@@ -87,8 +87,14 @@ export function LoginPage() {
           {deleted && <p className="notice notice-info" role="status">{t("login.deleted")}</p>}
           {reason && <p className="notice notice-info">{t(reason === "invite" ? "login.inviteNote" : "login.pairNote")}</p>}
           {mail === false && (
-            <div className="notice notice-warn" role="note">
+            <div className="notice notice-warn stack-sm" role="note">
               <p>{t("login.noMail")}</p>
+              <details className="details details-lead">
+                <summary>{t("login.selfHost")}</summary>
+                <p>{t("login.selfHostHelp")}{" "}
+                  <a href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">{t("login.selfHostGuide")}</a>
+                </p>
+              </details>
             </div>
           )}
           <form onSubmit={submit} noValidate className="stack">

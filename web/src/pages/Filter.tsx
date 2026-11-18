@@ -42,7 +42,11 @@ export function FilterPage() {
 
   return (
     <>
-      <PageTitle sub={t("filter.intro")}>{t("filter.title")}</PageTitle>
+      <PageTitle sub={t("filter.summary")}>{t("filter.title")}</PageTitle>
+      <details className="details details-lead">
+        <summary>{t("filter.about")}</summary>
+        <p>{t("filter.limits")}</p>
+      </details>
       <LoadGate res={res}>
         {(dns) => (
           <>

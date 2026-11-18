@@ -58,3 +58,11 @@ The automated checks sampled the rendered controls and text. Manual screen-reade
 The review follow-up captured 24 views before and 24 after across Apps, Screen time and the phone overview using the same widths, themes and text sizes. All follow-up views fit the viewport. Browser assertions verified that app search kept the same status node when the last match disappeared and cleared it when a match returned. They also verified the app bonus button's accessible name in Danish and English and measured the desktop link corner radii on hover.
 
 The final review round captured the child and Self phone overviews at 390 and 1280 CSS px in both themes. Playwright verified that the odd desktop grid fills its last row, the Self overview can cancel a pending change above the rule links, and both per-app time buttons expose the visible label followed by the app name. It also checked that the contacts note follows the page title and that the skip link focuses main content.
+
+## Dashboard copy follow-up
+
+A web filter update that the server could not deliver leaves the previous filter rules in effect while Plainphone retries. This differs from rules that wait for the phone to come online. The Self profile explains that the next connection applies stricter rules and that loosening rules still waits for the key.
+
+The phone removal and account deletion confirmations distinguish the custom web filter from the lock and other rules that stay on the phone. Account deletion also explains that households with no other caregiver and their stored phone data are permanently deleted. See [Deleting accounts, phones and old data](account-deletion.md).
+
+Before and after captures compared the phone overview, Key and Web filter using the same mock Self phone and a pending web filter update. Playwright covered 390 and 1280 CSS px in both light and dark mode.

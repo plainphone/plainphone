@@ -4,13 +4,13 @@ import { useCallback, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
-import { ItemRow } from "../../../components/parts";
+import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatFailedPolicies } from "../../../shared/lib/failedPolicies";
-import { formatAccountTypes, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
 
 function PendingList() {
@@ -193,7 +193,7 @@ function Overview() {
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
-    phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phones.neverSeen"),
+    phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phone.neverOnline"),
   ].join(", ");
 
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
@@ -209,7 +209,7 @@ function Overview() {
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {failedPolicies.length > 0 ? (
-        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatFailedPolicies(failedPolicies, locale) })} />
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(failedPolicies.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
       ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>
@@ -233,7 +233,13 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
-      {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun", { seconds: overrun })} /> : null}
+      {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
+      {overrun !== undefined || failedPolicies.length > 0 ? (
+        <Disclosure title={t("phone.lockDetails")}>
+          {overrun !== undefined ? <Text>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</Text> : null}
+          {failedPolicies.map((step, index) => <Text key={index}>{step}</Text>)}
+        </Disclosure>
+      ) : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>
@@ -254,7 +260,6 @@ function Overview() {
               onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
             />
           ))}
-          <LinkRow title={t("phone.household")} meta={t("phone.householdHint")} onPress={() => router.push("/household")} />
         </VStack>
       </VStack>
 

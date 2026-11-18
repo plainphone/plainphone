@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useFocusEffect, useRouter } from "expo-router";
+import { Link, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, client, unwrap } from "../api/client";
 import { Mark } from "../components/Mark";
+import { Disclosure } from "../components/parts";
 import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { useSession } from "../lib/session";
@@ -88,7 +89,17 @@ export default function LoginScreen() {
           <>
             <PageTitle sub={t("login.intro")}>{t("login.title")}</PageTitle>
             {pairing || inviting ? <Notice tone="info" text={t(inviting ? "login.inviteNote" : "login.pairNote")} /> : null}
-            {mail === false ? <Notice tone="warn" text={t("login.noMail")} /> : null}
+            {mail === false ? (
+              <>
+                <Notice tone="warn" text={t("login.noMail")} />
+                <Disclosure title={t("login.selfHost")}>
+                  <Text>{t("login.selfHostHelp")}</Text>
+                  <Link href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">
+                    {t("login.selfHostGuide")}
+                  </Link>
+                </Disclosure>
+              </>
+            ) : null}
             <Field
               testID="login-email"
               label={t("login.email")}
