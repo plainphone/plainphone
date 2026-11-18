@@ -141,6 +141,14 @@ first release" in [dns/README.md](../dns/README.md)). AdGuard Home
 itself is pinned in `compose.yaml`; raise the version there after reading its
 release notes.
 
+Before moving to a new DNS hostname or resolver, register the existing phones'
+ClientIDs and filter settings on the destination resolver. Verify that the new
+per-phone hostnames resolve and answer DNS-over-TLS queries before changing
+`DNS_HOST_SUFFIX` or switching traffic. The rules API can serve the new hostname
+as ready immediately for previously confirmed phones, before background sync
+re-provisions them. A resolver that does not recognize a phone's ClientID can
+refuse its queries.
+
 ## Using your own filter with the Plainphone app
 
 Build the app and the QR code with your own DNS host (the hostname pattern is

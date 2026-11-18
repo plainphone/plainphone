@@ -1952,7 +1952,7 @@ export interface components {
                  * @example k3m2x7q9p4r8t6w2y5z3.dns.plainphone.org
                  */
                 host?: string;
-                /** @description The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone keeps its current private DNS host. */
+                /** @description The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone uses the private DNS host from its setup profile. */
                 ready?: boolean;
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
