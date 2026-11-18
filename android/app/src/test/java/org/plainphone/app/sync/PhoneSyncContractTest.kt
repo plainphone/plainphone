@@ -80,8 +80,8 @@ class PhoneSyncContractTest {
             lock = lock.copy(appliedAtMs = now)
         }
 
-        // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token once.
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        // 1. Pairing: the phone shows a code, the parent claims it, the phone gets its token.
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
         val started = pairing.start()
         assertThat(started.requiresConfirmation).isFalse()
         val code = started.code
@@ -95,7 +95,8 @@ class PhoneSyncContractTest {
         assertThat(pairing.poll()).isInstanceOf(PairPoll.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
-        assertThat(store.enrollmentAccount()?.maskedEmail).isNotEmpty()
+        assertThat(store.enrollmentAccount()?.maskedEmail).isEqualTo("p***@example.test")
+        assertThat(store.enrollmentAccount()?.householdName).isEqualTo("Home")
 
         // 2. First sync: apps reported, rules fetched and applied, status reported.
         val runner = SyncRunner(store, api, device)
@@ -165,7 +166,7 @@ class PhoneSyncContractTest {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val store = SyncStore(context, FakeSecretBox())
         val pairing = PairingController(
-            store, PlainphoneApi(url), System::currentTimeMillis, emptyMap(), mode = "light", profile = "child",
+            store, PlainphoneApi(url), emptyMap(), mode = "light", profile = "child",
         )
         val started = pairing.start()
         assertThat(started.requiresConfirmation).isTrue()
@@ -204,7 +205,7 @@ class PhoneSyncContractTest {
         // Provisioning stores the token from the QR extras; the phone enrolls with its own code.
         val config = PolicyConfig.fromExtras(android.os.PersistableBundle().apply { putString(PolicyConfig.KEY_ENROLL, token) })
         store.saveEnrollToken(config.enrollToken)
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
         assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         assertThat(store.isPaired).isTrue()
         assertThat(store.phoneId).isEqualTo(phoneId)
@@ -236,7 +237,7 @@ class PhoneSyncContractTest {
         // Never paired: there is nothing to release yet.
         assertThat(parent("POST", "/phones/$phoneId/release").first).isEqualTo(400)
         store.saveEnrollToken(out.getJSONObject("enrollment").getString("token"))
-        val pairing = PairingController(store, api, System::currentTimeMillis, mapOf("model" to "Contract test"))
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
         assertThat(pairing.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
         val device = FakeSyncDevice().apply {
             now = System.currentTimeMillis()

@@ -9,6 +9,7 @@ import {
   DNS_CATEGORIES,
   dnsSettings,
   locations,
+  pairings,
   pendingChanges,
   phoneApps,
   phoneSettings,
@@ -267,6 +268,8 @@ function summaryFields() {
   // Qualify the outer reference even in Drizzle's single-table select.
   const phoneId = sql`${phones}.${sql.identifier(phones.id.name)}`;
   return {
+    hasCodeClaim: sql<boolean>`exists (select 1 from ${pairings}
+      where ${pairings.phoneId} = ${phoneId} and ${pairings.requiresConfirmation})`,
     hasLocation: sql<boolean>`exists (select 1 from ${locations} where ${locations.phoneId} = ${phoneId})`,
     openRequests: sql<number>`(select count(*)::int from ${phoneRequests}
       where ${phoneRequests.phoneId} = ${phoneId} and ${phoneRequests.status} = 'pending')`,
@@ -279,12 +282,12 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
     .from(phones)
     .where(inArray(phones.householdId, householdIds))
     .orderBy(phones.createdAt);
-  return rows.map(({ phone, hasLocation, openRequests }) => summaryJson(ctx, phone, hasLocation, openRequests));
+  return rows.map(({ phone, hasLocation, openRequests, hasCodeClaim }) => summaryJson(ctx, phone, hasLocation, openRequests, hasCodeClaim));
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
   const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0);
+  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -332,7 +335,7 @@ function summaryStatus(phone: Phone, now: Date) {
   };
 }
 
-function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number) {
+function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number, hasCodeClaim: boolean) {
   return {
     id: phone.id,
     name: phone.name,
@@ -342,6 +345,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
+    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim,
     /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
     releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,

@@ -104,7 +104,6 @@ class PairingActivity : ComponentActivity() {
             return PairingController(
                 SyncStore(app),
                 PlainphoneApi(ConfigStore(app).load().serverUrl, app),
-                System::currentTimeMillis,
                 mapOf(
                     "manufacturer" to Build.MANUFACTURER.take(200),
                     "model" to Build.MODEL.take(200),

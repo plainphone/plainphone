@@ -73,6 +73,10 @@ intact. Open **Show technical details** to see how long the installation window 
 On the web filter screen, **What the filter can and can’t do** explains false positives and
 exceptions even when the DNS settings fail to load.
 
+When pairing with a code shown on the phone, a lost token response can be retried for up to
+24 hours after the server first issues it, until the first rules sync. If light-mode code pairing
+expires before the phone connects, remove its entry under **This phone** and pair again with a new code.
+
 Light-mode setup can be undone locally for ten minutes after permissions are finished.
 Rebooting closes the window. Test offline undo on a physical phone, then reconnect and check
 that the phone disappears from the dashboard and the household gets one notice.

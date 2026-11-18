@@ -290,7 +290,6 @@ class PlainphoneApi private constructor(
     }
 
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
-        // The server hands out the pairing token only once.
         val r = call(
             "GET", "/device/pairings/$pairingId", headers = mapOf("X-Poll-Secret" to pollSecret), replayable = false,
         )

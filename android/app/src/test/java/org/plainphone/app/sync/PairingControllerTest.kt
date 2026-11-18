@@ -15,7 +15,7 @@ class PairingControllerTest {
     private val store = SyncStore(context, FakeSecretBox())
     private val api = FakeSyncApi()
     private var now = 1_800_000_000_000L
-    private val controller = PairingController(store, api, { now }, mapOf("model" to "Test"))
+    private val controller = PairingController(store, api, mapOf("model" to "Test"))
 
     @Test
     fun `start shows a code, polling stores the token once paired`() {
@@ -48,8 +48,8 @@ class PairingControllerTest {
     }
 
     @Test
-    fun `a confirmed pairing can be recovered after its code expires`() {
-        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000)
+    fun `an automatic pairing can be recovered after its code expires`() {
+        api.pairing = api.pairing.copy(expiresAtMs = now + 15 * 60_000, requiresConfirmation = false)
         val pairing = controller.start()
         now += 16 * 60_000
         assertThat(controller.start()).isEqualTo(pairing)
@@ -122,7 +122,7 @@ class PairingControllerTest {
         api.enrollResult = EnrollResult.Paired("p", "pp_d_one")
         api.enrollDelayMs = 200
         // Two controllers, like PairingActivity and EnrollWorker each make their own.
-        val other = PairingController(store, api, { now }, mapOf("model" to "Test"))
+        val other = PairingController(store, api, mapOf("model" to "Test"))
         val threads = listOf(controller, other).map { c -> Thread { c.enroll() }.apply { start() } }
         threads.forEach { it.join() }
         assertThat(api.enrollCalls).hasSize(1)

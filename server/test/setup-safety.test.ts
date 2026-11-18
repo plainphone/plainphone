@@ -32,6 +32,7 @@ describe("onboarding safety", () => {
     const claimed = await claim();
     expect(claimed.status).toBe(201);
     expect(claimed.json.pairedAt).toBeNull();
+    expect(claimed.json.setupQrAvailable).toBe(false);
     expect((await poll()).json).toEqual({
       status: "confirm",
       maskedEmail: "c***@example.org",
@@ -276,10 +277,12 @@ describe("onboarding safety", () => {
     h.clock.advance(24 * 60 * 60_000);
     expect((await neverSynced.poll()).status).toBe(410);
     await sweep(h.ctx);
-    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(200);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).json)
+      .toMatchObject({ pairedAt: null, setupQrAvailable: false });
     h.clock.advance(24 * 60 * 60_000);
     await sweep(h.ctx);
-    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).status).toBe(200);
+    expect((await pending.parent.get(`/api/phones/${neverSyncedPhone.json.id}`)).json)
+      .toMatchObject({ pairedAt: null, setupQrAvailable: false });
     expect((await pending.parent.post(`/api/phones/${neverSyncedPhone.json.id}/enrollment`)).status).toBe(409);
     expect((await connected.parent.get(`/api/phones/${kept.json.id}`)).status).toBe(200);
   });
@@ -304,6 +307,7 @@ describe("onboarding safety", () => {
     const device = new Client(h);
     const made = await parent.post("/api/phones/enroll", { mode: "light", name: "My phone", profile: "self" });
     expect(made.status).toBe(201);
+    expect(made.json.phone.setupQrAvailable).toBe(true);
     const { token } = made.json.enrollment;
     const path = "/api/device/enrollment-review";
     expect((await device.post(path, { token, mode: "strong" })).status).toBe(404);

@@ -655,6 +655,9 @@ components:
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
         pairedAt: { type: [string, "null"], format: date-time }
+        setupQrAvailable:
+          type: boolean
+          description: Whether the dashboard can issue a new setup QR code for this phone.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -870,7 +873,7 @@ paths:
       security: []
       tags: [device]
       summary: Poll pairing (phone)
-      description: Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token once and can display the account.
+      description: Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token automatically and can display the account. After delivery, the same poll secret can recover the token for up to 24 hours or until the first rules sync.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: X-Poll-Secret, in: header, required: true, schema: { type: string } }
@@ -903,7 +906,7 @@ paths:
                   maskedEmail: { type: string }
                   householdName: { type: [string, "null"] }
         "404": { description: "Unknown pairing or wrong secret" }
-        "410": { description: "Expired, or the token was already delivered. Start again." }
+        "410": { description: "Expired, or the phone already synced. Start again if the token was lost." }
 
     post:
       operationId: postDevicePairingDecision

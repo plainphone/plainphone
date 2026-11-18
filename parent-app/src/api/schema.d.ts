@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Poll pairing (phone)
-         * @description Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token once and can display the account.
+         * @description Poll every 3-5 seconds. Light-mode phones review the claimed account before confirming. Strong-mode phones receive the token automatically and can display the account. After delivery, the same poll secret can recover the token for up to 24 hours or until the first rules sync.
          */
         get: operations["getDevicePairings"];
         put?: never;
@@ -2129,6 +2129,8 @@ export interface components {
             locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
+            /** @description Whether the dashboard can issue a new setup QR code for this phone. */
+            setupQrAvailable?: boolean;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -2443,7 +2445,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Expired, or the token was already delivered. Start again. */
+            /** @description Expired, or the phone already synced. Start again if the token was lost. */
             410: {
                 headers: {
                     [name: string]: unknown;

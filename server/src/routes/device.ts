@@ -102,10 +102,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (action === "cancel") return { status: 410 as const };
       if (!p.claimedAt) return { status: p.expiresAt <= ctx.now() ? 410 as const : 202 as const };
       if (!p.pendingDeviceToken || !p.phoneId) return { status: 410 as const };
-      if (p.requiresConfirmation) {
-        const deadline = p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS : p.expiresAt.getTime();
-        if (deadline <= ctx.now().getTime()) return { status: 410 as const };
-      }
+      const now = ctx.now();
+      if (p.deliveredAt ? p.deliveredAt.getTime() + PAIRING_RECOVERY_MS <= now.getTime()
+        : p.requiresConfirmation && p.expiresAt <= now) return { status: 410 as const };
       const needsReview = p.requiresConfirmation && !p.deliveredAt && action !== "confirm";
       let details = null;
       if (needsReview || p.mode === "strong") {
@@ -122,11 +121,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
       }
-      // New clients may retry confirmation after losing the response. The secret is still required,
-      // including after the original code expires. The sweeper bounds retention.
-      await tx.update(pairings)
-        .set({ pendingDeviceToken: p.requiresConfirmation ? p.pendingDeviceToken : null, deliveredAt: p.deliveredAt ?? ctx.now() })
-        .where(eq(pairings.id, id));
+      // Keep the token recoverable if the response is lost before the phone saves it.
+      if (!p.deliveredAt) await tx.update(pairings).set({ deliveredAt: now }).where(eq(pairings.id, id));
       return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, account: p.mode === "strong" ? details : null };
     });
   };
@@ -227,8 +223,10 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         .returning();
       if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
       phone = activated;
+    }
+    if (!phone.lastSeenAt) {
       await ctx.db.update(pairings).set({ pendingDeviceToken: null })
-        .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
+        .where(and(eq(pairings.phoneId, phone.id), isNotNull(pairings.pendingDeviceToken)));
     }
     // Throttle last-seen writes to one a minute.
     await ctx.db
