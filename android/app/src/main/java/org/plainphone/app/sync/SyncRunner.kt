@@ -100,6 +100,8 @@ class SyncRunner(
     private val api: SyncApi,
     private val device: SyncDevice,
 ) {
+    private data class PendingContactSuggestions(val token: String, val contacts: List<DeviceContact>)
+
     sealed interface Outcome {
         data object NotPaired : Outcome
         data object Removed : Outcome
@@ -111,8 +113,10 @@ class SyncRunner(
     fun run(reason: String): Outcome = synchronized(LOCK) { runLocked(reason) }
 
     private fun runLocked(reason: String): Outcome {
+        val token = if (store.removed) null else store.deviceToken()
+        if (pendingContactSuggestions?.token != token || store.released) pendingContactSuggestions = null
         if (store.removed) return Outcome.Removed
-        val token = store.deviceToken() ?: return Outcome.NotPaired
+        if (token == null) return Outcome.NotPaired
 
         // Released already: Plainphone is off, so the lock is never applied again. Only the
         // server still has to be told (it may have been unreachable the last time).
@@ -149,6 +153,7 @@ class SyncRunner(
                 // Removed in the dashboard. The phone stays locked with its last rules; pairing
                 // again needs the maintenance PIN (a Self user could otherwise pair as a child phone).
                 store.markRemoved()
+                pendingContactSuggestions = null
                 // Its DNS ClientID is deleted with it: switch back to the QR code's host right away.
                 device.applyLockIfNeeded("removed in the dashboard", APPLY_MAX_AGE_MS)
                 return Outcome.Removed
@@ -168,27 +173,39 @@ class SyncRunner(
         guarded("report status") { reportStatus(token) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
-        } else if (store.contactSuggestionsReadAt != null) {
-            store.contactSuggestionsReadAt = null
+        } else {
+            pendingContactSuggestions = null
+            if (store.contactSuggestionsReadAt != null) store.contactSuggestionsReadAt = null
         }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
 
     private fun reportContactSuggestions(token: String) {
+        if (!device.canReadContactSuggestions()) {
+            pendingContactSuggestions = null
+            return
+        }
         val now = device.nowMs()
         val last = store.contactSuggestionsReadAt
-        if (last != null && now - last in 0 until CONTACT_SUGGESTIONS_INTERVAL_MS) return
-        if (!device.canReadContactSuggestions()) return
+        if (last == null || now - last !in 0 until CONTACT_SUGGESTIONS_INTERVAL_MS) {
+            pendingContactSuggestions = null
+            readContactSuggestions(now)?.let { pendingContactSuggestions = PendingContactSuggestions(token, it) }
+        }
+        val pending = pendingContactSuggestions ?: return
+        api.reportContactSuggestions(token, pending.contacts)
+        pendingContactSuggestions = null
+    }
+
+    private fun readContactSuggestions(now: Long): List<DeviceContact>? {
         store.contactSuggestionsReadAt = now
-        val contacts = device.contactSuggestions() ?: return
+        val contacts = device.contactSuggestions() ?: return null
         // Bound number count as well, so even many numbers per contact fit the 4 MiB body limit.
         var numbersLeft = 100_000
-        val snapshot = contacts.take(DeviceContacts.SUGGESTION_LIMIT).mapNotNull { contact ->
+        return contacts.take(DeviceContacts.SUGGESTION_LIMIT).mapNotNull { contact ->
             val numbers = contact.numbers.distinct().take(numbersLeft)
             numbersLeft -= numbers.size
             numbers.takeIf { it.isNotEmpty() }?.let { contact.copy(numbers = it) }
         }
-        api.reportContactSuggestions(token, snapshot)
     }
 
     /**
@@ -199,6 +216,7 @@ class SyncRunner(
      */
     private fun releaseIfAsked(token: String): Outcome? {
         if (!store.releaseAsked && !store.setupUndoPending) return null
+        pendingContactSuggestions = null
         val results = try {
             device.release()
         } catch (e: Exception) {
@@ -490,6 +508,8 @@ class SyncRunner(
         private const val CONTACT_SUGGESTIONS_INTERVAL_MS = 6 * 60 * 60_000L
         private const val TAG = "Plainphone"
         private val LOCK = Any()
+        // Workers create new runners. Share the pending snapshot under LOCK and keep it off disk.
+        private var pendingContactSuggestions: PendingContactSuggestions? = null
         /** The lock is re-applied at least this often, so a change on the phone heals itself. */
         const val APPLY_MAX_AGE_MS = 15 * 60_000L
         const val STATUS_EVERY_MS = 15 * 60_000L

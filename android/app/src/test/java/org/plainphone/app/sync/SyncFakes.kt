@@ -85,7 +85,9 @@ class FakeSyncApi : SyncApi {
     var onReportApps: (() -> Unit)? = null
     val appsReported = mutableListOf<List<InstalledApp>>()
     val contactSnapshots = mutableListOf<List<DeviceContact>>()
+    var contactSuggestionsFailure: IOException? = null
     override fun reportContactSuggestions(token: String, contacts: List<DeviceContact>) {
+        contactSuggestionsFailure?.let { throw it }
         contactSnapshots += contacts
     }
     val locations = mutableListOf<LocationFix>()

@@ -144,6 +144,55 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `a failed suggestion upload retries without reading contacts again`() {
+        pair()
+        val snapshot = listOf(DeviceContact("Alex", listOf("+4512345678")))
+        var reads = 0
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions(): List<DeviceContact> {
+                reads++
+                return snapshot
+            }
+        }
+        api.rules = RulesResult.Changed("on", org.json.JSONObject(rulesJson())
+            .put("suggestDeviceContacts", true).toString())
+        api.contactSuggestionsFailure = IOException("offline")
+        SyncRunner(store, api, source).run("upload interrupted")
+        assertThat(reads).isEqualTo(1)
+        assertThat(api.contactSnapshots).isEmpty()
+
+        api.rules = RulesResult.Unchanged
+        api.contactSuggestionsFailure = null
+        SyncRunner(store, api, source).run("retry upload with a new runner")
+        SyncRunner(store, api, source).run("after upload")
+        assertThat(reads).isEqualTo(1)
+        assertThat(api.contactSnapshots).containsExactly(snapshot)
+    }
+
+    @Test
+    fun `turning off suggestions discards a failed upload`() {
+        pair()
+        var addressBook = listOf(DeviceContact("Alex", listOf("+4512345678")))
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions() = addressBook
+        }
+        fun rules(enabled: Boolean) = org.json.JSONObject(rulesJson()).put("suggestDeviceContacts", enabled).toString()
+        api.rules = RulesResult.Changed("on", rules(true))
+        api.contactSuggestionsFailure = IOException("offline")
+        SyncRunner(store, api, source).run("upload interrupted")
+
+        api.contactSuggestionsFailure = null
+        api.rules = RulesResult.Changed("off", rules(false))
+        SyncRunner(store, api, source).run("consent withdrawn")
+        assertThat(api.contactSnapshots).isEmpty()
+
+        addressBook = emptyList()
+        api.rules = RulesResult.Changed("on-again", rules(true))
+        SyncRunner(store, api, source).run("consent restored")
+        assertThat(api.contactSnapshots.single()).isEmpty()
+    }
+
+    @Test
     fun `a light child phone enforces contacts only with an explicit flag`() {
         pair()
         LightSetup.markComplete(context)

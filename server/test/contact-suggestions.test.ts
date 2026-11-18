@@ -138,18 +138,31 @@ it("requires opt-in and clears pending suggestions after opt-out", async () => {
 it("keeps the contact restriction off for paired light children when upgrading", async () => {
   const migration = await readFile(new URL("../drizzle/0016_contact_suggestions_and_self_schedule.sql", import.meta.url), "utf8");
   await h.ctx.db.transaction(async (tx) => {
-    await tx.execute(sql`create temp table phones (mode text, profile text, paired_at timestamptz) on commit drop`);
-    await tx.execute(sql`insert into phones values ('light', 'child', now())`);
+    await tx.execute(sql`
+      create temp table phones (
+        scenario text, mode text, profile text, paired_at timestamptz, device_token_hash text
+      ) on commit drop
+    `);
+    await tx.execute(sql`
+      insert into phones values
+        ('synced', 'light', 'child', now(), 'synced-token-hash'),
+        ('before first sync', 'light', 'child', null, 'confirmed-token-hash'),
+        ('awaiting confirmation', 'light', 'child', null, null),
+        ('strong', 'strong', 'child', now(), 'strong-token-hash')
+    `);
     for (const statement of migration.split("--> statement-breakpoint").filter((part) => /"suggest_device_contacts"|"light_contact_restriction"/.test(part))) {
       await tx.execute(sql.raw(statement));
     }
-    await tx.execute(sql`insert into phones values ('light', 'child', null)`);
+    await tx.execute(sql`insert into phones values ('new', 'light', 'child', now(), 'new-token-hash')`);
     const rows = await tx.execute(sql`
-      select suggest_device_contacts, light_contact_restriction from phones order by paired_at nulls last
+      select scenario, suggest_device_contacts, light_contact_restriction from phones order by scenario
     `);
     expect([...rows]).toEqual([
-      { suggest_device_contacts: false, light_contact_restriction: false },
-      { suggest_device_contacts: false, light_contact_restriction: true },
+      { scenario: "awaiting confirmation", suggest_device_contacts: false, light_contact_restriction: true },
+      { scenario: "before first sync", suggest_device_contacts: false, light_contact_restriction: false },
+      { scenario: "new", suggest_device_contacts: false, light_contact_restriction: true },
+      { scenario: "strong", suggest_device_contacts: false, light_contact_restriction: true },
+      { scenario: "synced", suggest_device_contacts: false, light_contact_restriction: false },
     ]);
   });
 });

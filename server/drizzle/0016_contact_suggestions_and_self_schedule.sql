@@ -1,7 +1,8 @@
 ALTER TABLE "phones" ADD COLUMN "suggest_device_contacts" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "phones" ADD COLUMN "light_contact_restriction" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+-- A phone can have a usable token before its first rules request sets paired_at.
 UPDATE "phones" SET "light_contact_restriction" = false
-WHERE "mode" = 'light' AND "paired_at" IS NOT NULL;--> statement-breakpoint
+WHERE "mode" = 'light' AND ("paired_at" IS NOT NULL OR "device_token_hash" IS NOT NULL);--> statement-breakpoint
 CREATE TABLE "contact_suggestions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,

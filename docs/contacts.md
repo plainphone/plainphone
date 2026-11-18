@@ -4,7 +4,8 @@ Plainphone is the phone's default **phone app** and **SMS app**. Strong Child
 phones enforce the approved contact list. For light Child phones, the dashboard
 has an **Only approved contacts can call and text** setting in **Contacts**.
 It starts on for new pairings and off for phones already paired at the time of
-the upgrade. An older server that does not send the setting leaves calls and
+the upgrade, even if they have yet to download their first rules. An older
+server that does not send the setting leaves calls and
 texts unrestricted in light mode. With the setting on and an empty approved
 list, the dashboard warns that nobody can call or text the phone except
 emergency numbers. New Self phones allow
@@ -39,7 +40,8 @@ names and international phone numbers to the parents in the household. The child
 can see whether suggestions are on in the phone's Contacts tab.
 
 The phone reads the address book at most once every six hours while enabled and
-sends up to 2,000 of the most recently updated contacts. The dashboard and
+sends up to 2,000 of the most recently updated contacts. If the upload fails,
+the app can retry from memory on the next sync. The dashboard and
 parent app offer **Approve**, **Dismiss** and **Approve all**. If a suggestion
 changes before review, its replacement stays pending. Reviewed numbers stay
 excluded from later suggestions. Turning suggestions off stops uploads and
@@ -68,6 +70,9 @@ app time limits are in effect.
 
 ## How it works
 
+The call and SMS checks below apply while the approved-contact restriction is
+active. It is optional on light-mode child phones.
+
 | Piece | Android API | What it does |
 |---|---|---|
 | Default phone app | `RoleManager.ROLE_DIALER`, set by `DevicePolicyManager.setDefaultDialerApplication` (Device Owner, Android 14+; on Android 10 to 13 through Android's role dialog, see [android-versions.md](android-versions.md)) | Plainphone's in-call service gets every call on the phone |
@@ -81,8 +86,9 @@ app time limits are in effect.
 
 When the phone is set up by QR code, Plainphone takes both roles itself before setup ends, and grants its own runtime permissions (`setPermissionGrantState`). If Android refuses a role, the status screen says so (`FAIL default phone app`), nothing telephony-related is hidden, and the rest of the lock still holds. When Device Owner is released on the maintenance screen, the roles go back to the system dialer and the maker's SMS app.
 
-The rule is enforced while the phone is locked in strong mode or while paired
-light-mode protection is active. During a maintenance unlock or before light
+The rule is enforced while the phone is locked in strong mode. On a light-mode
+child phone it also requires completed setup, active protection and the
+parent's approved-contact setting. During a maintenance unlock or before light
 mode has finished setup, Plainphone works as an ordinary phone and SMS app.
 
 ## Emergency calls
