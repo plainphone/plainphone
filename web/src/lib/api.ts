@@ -241,6 +241,7 @@ export interface LocationState {
   checkin: Checkin | null;
 }
 export interface KeyInput {
+  qrInvite?: boolean;
   keyType: "delay" | "trusted";
   delayHours: number;
   trustedEmail: string | null;
@@ -308,7 +309,10 @@ export type Op =
   | { type: "catalog.add"; packageName: string; label: string }
   | { type: "catalog.remove"; packageName: string };
 
+export type ApprovalSummary = Record<Locale, string>;
+
 export interface PendingChange {
+  summary?: ApprovalSummary;
   id: string;
   op: Op;
   keyType: "delay" | "trusted";
@@ -319,11 +323,11 @@ export type ChangeResult = { status: "applied" } | { status: "pending"; change: 
 
 export interface Approval {
   id: string;
+  phoneId: string;
   phoneName: string;
   requestedBy: string | null;
-  op: Op;
-  /** The app's name for app.set ops, when the phone has reported it. */
-  appLabel: string | null;
+  summary: ApprovalSummary;
+  revision: string;
   createdAt: string;
 }
 export interface Members {

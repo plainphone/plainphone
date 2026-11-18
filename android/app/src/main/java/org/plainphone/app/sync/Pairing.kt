@@ -42,8 +42,9 @@ class PairingController(
         val token = store.enrollToken() ?: return null
         val result = api.enroll(token, store.installId(), deviceInfo)
         when (result) {
-            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
+            is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
             EnrollResult.Rejected -> store.saveEnrollToken(null)
+            EnrollResult.InvalidKey -> store.clearEnrollmentConfirmation()
         }
         return result
     }
@@ -55,9 +56,9 @@ class PairingController(
         // A strong-mode code issued by an earlier app build may still require confirmation.
         val result = if (polled is PairPoll.Confirm && mode == "strong") api.decidePairing(p, true) else polled
         when (result) {
-            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" })
+            is PairPoll.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
             PairPoll.Expired -> store.savePairing(null)
-            is PairPoll.Confirm, PairPoll.Waiting -> Unit
+            is PairPoll.Confirm, PairPoll.InvalidKey, PairPoll.Waiting -> Unit
         }
         return result
     }
@@ -65,7 +66,7 @@ class PairingController(
     fun decide(confirm: Boolean): PairPoll {
         val pairing = store.pairing() ?: return PairPoll.Expired
         return api.decidePairing(pairing, confirm).also {
-            if (it is PairPoll.Paired) store.savePaired(it.phoneId, it.deviceToken)
+            if (it is PairPoll.Paired) store.savePaired(it.phoneId, it.deviceToken, it.account.takeIf { mode == "strong" }, it.setupUndoMinutes)
             if (it == PairPoll.Expired) store.savePairing(null)
         }
     }

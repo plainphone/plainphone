@@ -7,7 +7,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
-import { Button, errorMessage, Loading, Notice, PageTitle, Screen } from "../components/ui";
+import { Button, errorMessage, Loading, Notice, PageTitle, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { clearPendingInvite, loadPendingInvite, savePendingInvite } from "../lib/pendingInvite";
 import { useSession } from "../lib/session";
@@ -28,6 +28,8 @@ export default function InviteScreen() {
 
   // The token is in the link, or was kept from before the login.
   const token = linkToken ?? kept ?? null;
+  const trusted = token?.startsWith("pp_t_") ?? false;
+  const [confirmed, setConfirmed] = useState(false);
   const looking = !ready || (!linkToken && kept === undefined);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function InviteScreen() {
   }, [anon, token, setNext]);
 
   useEffect(() => {
-    if (!token || state.status !== "in") return;
+    if (!token || state.status !== "in" || (trusted && !confirmed)) return;
     let p = inflight.get(token);
     if (!p) {
       p = unwrap(client.POST("/invites/accept", { body: { token } }));
@@ -70,7 +72,7 @@ export default function InviteScreen() {
     });
     // Accept each token once; a changed language or a refreshed session must not run it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, state.status]);
+  }, [token, state.status, trusted, confirmed]);
 
   if (state.status === "loading" || looking) {
     return (
@@ -87,12 +89,17 @@ export default function InviteScreen() {
       <PageTitle>{t("invite.title")}</PageTitle>
       {!token ? (
         <Notice tone="error" text={t("invite.missing")} />
+      ) : trusted && !confirmed ? (
+        <>
+          <Text>{t("invite.trustedHelp")}</Text>
+          <Button title={t("invite.trustedAccept")} onPress={() => setConfirmed(true)} />
+        </>
       ) : result === null ? (
         <Notice tone="info" text={t("invite.accepting")} />
       ) : result === "ok" ? (
         <>
-          <Notice tone="success" text={t("invite.accepted")} />
-          <Button testID="invite-done" title={t("invite.toPhones")} onPress={() => router.replace("/")} />
+          <Notice tone="success" text={t(trusted ? "invite.trustedAccepted" : "invite.accepted")} />
+          <Button testID="invite-done" title={t(trusted ? "appr.title" : "invite.toPhones")} onPress={() => router.replace(trusted ? "/approvals" : "/")} />
         </>
       ) : (
         <Notice tone="error" text={result} />

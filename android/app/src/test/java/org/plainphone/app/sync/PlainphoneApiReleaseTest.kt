@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -32,7 +34,10 @@ import org.plainphone.app.light.LightAdminReceiver
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.SelfApprovalChoices
+import org.plainphone.app.light.SelfApprovalQr
 import org.plainphone.app.light.UndoSetupAction
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -56,7 +61,9 @@ class PlainphoneApiReleaseTest {
 
     private lateinit var server: HttpServer
     @Volatile private var answer = 204
+    @Volatile private var responseBody = """{"error":"x"}"""
     private val seen = mutableListOf<Triple<String, String, String?>>()
+    private val completionReports = mutableListOf<JSONObject>()
 
 
     @Before
@@ -64,8 +71,14 @@ class PlainphoneApiReleaseTest {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { ex ->
             seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
-            ex.requestBody.close()
-            ex.sendResponseHeaders(answer, -1)
+            val request = ex.requestBody.readBytes()
+            val status = if (ex.requestURI.path == "/api/device/setup-completion") {
+                completionReports += JSONObject(request.decodeToString())
+                if (answer == 204) 200 else answer
+            } else answer
+            val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
+            ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
+            if (status != 204) ex.responseBody.use { it.write(body) }
             ex.close()
         }
         server.start()
@@ -77,6 +90,50 @@ class PlainphoneApiReleaseTest {
     }
 
     private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}")
+
+    @Test
+    fun `an invalid setup key is distinct from a rejected enrollment token`() {
+        answer = 400
+        responseBody = """{"error":"invalid setup key"}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
+        responseBody = """{"error":"invalid input","issues":[{"path":"key.trustedEmail","message":"Invalid email"}]}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
+        answer = 410
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+    }
+
+    @Test
+    fun `approval choices and QR show the requested limit`() {
+        val shorter = "Instagram: 15 → 30 min a day"
+        val longer = "Instagram: 15 → 60 min a day"
+        responseBody = """{"changes":[
+            {"id":"short","summary":{"en":"$shorter","da":"$shorter"}},
+            {"id":"long","summary":{"en":"$longer","da":"$longer"}}
+        ]}"""
+        answer = 200
+        val requests = api().approvalRequests("test-token", "en")
+        val qrUrl = "http://127.0.0.1/approvals#code=phone.long.expiry.nonce"
+        responseBody = """{"url":"$qrUrl","summary":{"en":"$longer","da":"$longer"}}"""
+
+        var selectedId: String? = null
+        val shownQr = mutableStateOf<PlainphoneApi.ApprovalQr?>(null)
+        compose.setContent {
+            Column {
+                val qr = shownQr.value
+                if (qr == null) SelfApprovalChoices(requests) { selectedId = it }
+                else SelfApprovalQr(qr.url, qr.summary)
+            }
+        }
+        compose.onNodeWithText(shorter).assertIsDisplayed()
+        compose.onNodeWithText(longer).assertIsDisplayed()
+        compose.onNodeWithText(longer).performClick()
+        assertThat(selectedId).isEqualTo("long")
+        val qr = api().approvalQr("test-token", checkNotNull(selectedId), "en")
+        compose.runOnIdle { shownQr.value = qr }
+        compose.onNodeWithText(longer).assertIsDisplayed()
+        compose.onNodeWithText(shorter).assertDoesNotExist()
+        assertThat(seen.map { it.first }).containsExactly("GET", "POST").inOrder()
+    }
 
     @Test
     @Config(shadows = [PairedStore::class, GuardShadow::class], instrumentedPackages = ["org.plainphone.app.sync"])
@@ -112,10 +169,50 @@ class PlainphoneApiReleaseTest {
             .setRunAttemptCount(8).build()
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
         assertThat(policy.isAdminActive(admin)).isTrue()
+        answer = 409
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
+        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(SyncStore(context, FakeSecretBox()).removed).isFalse()
+
+        Settings.Global.putInt(context.contentResolver, Settings.Global.BOOT_COUNT, 2)
+        android.os.SystemClock.setCurrentTimeMillis(System.currentTimeMillis() + 7 * 86_400_000L)
         answer = 204
         assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
         assertThat(policy.isAdminActive(admin)).isFalse()
-        assertThat(seen).hasSize(2)
+        assertThat(seen.map { it.second }).containsExactlyElementsIn(
+            List(3) { listOf("/api/device/setup-completion", "/api/device/undo-setup") }.flatten(),
+        ).inOrder()
+        assertThat(completionReports.map { it.getInt("undoMinutes") }).containsExactly(30, 30, 30)
+        assertThat(completionReports.take(2).all { it.getLong("elapsedMs") >= 0 }).isTrue()
+        assertThat(completionReports.last().has("elapsedMs")).isTrue()
+        assertThat(completionReports.last().isNull("elapsedMs")).isTrue()
+        assertThat(LightSetup.pendingCompletion(context, "test-phone")).isNull()
+    }
+
+    @Test
+    @Config(shadows = [PairedStore::class], instrumentedPackages = ["org.plainphone.app.sync"])
+    fun `undo keeps admin until the server confirms the pairing is gone`() {
+        val context = completeSetup()
+        val store = SyncStore(context, FakeSecretBox())
+        store.savePaired("test-phone", "test-token")
+        assertThat(store.markSetupUndoPending("test-phone")).isTrue()
+        store.markReleased()
+        val policy = context.getSystemService(DevicePolicyManager::class.java)
+        val admin = LightAdminReceiver.component(context)
+        shadowOf(policy).setActiveAdmin(admin)
+
+        val worker = TestWorkerBuilder<SyncWorker>(context, Executor { it.run() }).build()
+        answer = 404
+        responseBody = "404 Not Found"
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.retry())
+        assertThat(policy.isAdminActive(admin)).isTrue()
+        assertThat(store.removed).isFalse()
+
+        answer = 401
+        responseBody = """{"error":"unknown device; pair again"}"""
+        assertThat(worker.doWork()).isEqualTo(ListenableWorker.Result.success())
+        assertThat(policy.isAdminActive(admin)).isFalse()
+        assertThat(store.removed).isTrue()
     }
 
     @Test
@@ -155,6 +252,7 @@ class PlainphoneApiReleaseTest {
         val config = ConfigStore(context)
         config.save(config.load().copy(serverUrl = "http://127.0.0.1:${server.address.port}"))
         LightSetup.saveProfile(context, "self")
+        LightSetup.saveUndoMinutes(context, 30)
         LightSetup.markComplete(context)
         return context
     }
@@ -182,11 +280,17 @@ class PlainphoneApiReleaseTest {
         answer = 204
         assertThat(api().reportSetupUndo("test-token")).isTrue()
         answer = 401
+        responseBody = """{"error":"device token required"}"""
+        assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
+        responseBody = """{"error":"unknown device; pair again"}"""
         assertThat(api().reportSetupUndo("test-token")).isTrue()
+        answer = 404
+        responseBody = "404 Not Found"
+        assertThrows(HttpError::class.java) { api().reportSetupUndo("test-token") }
         answer = 409
         assertThat(api().reportSetupUndo("test-token")).isFalse()
         assertThat(seen).containsExactlyElementsIn(
-            List(4) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
+            List(6) { Triple("POST", "/api/device/undo-setup", "Bearer test-token") },
         )
     }
 

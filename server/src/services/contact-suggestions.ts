@@ -40,13 +40,21 @@ export const childContactSettingsInput = z.strictObject({
 }).refine((input) => input.suggestDeviceContacts !== undefined || input.lightContactRestriction !== undefined);
 
 export async function updateChildContactSettings(ctx: Ctx, phoneId: string, input: z.infer<typeof childContactSettingsInput>) {
-  await ctx.db.transaction(async (tx) => {
-    await tx.update(phones).set(input).where(eq(phones.id, phoneId));
+  const result = await ctx.db.transaction(async (tx) => {
+    const columns = {
+      suggestDeviceContacts: phones.suggestDeviceContacts,
+      lightContactRestriction: phones.lightContactRestriction,
+    };
+    const [before] = await tx.select(columns).from(phones).where(eq(phones.id, phoneId)).for("update");
+    if (!before) return null;
+    const [after] = await tx.update(phones).set(input).where(eq(phones.id, phoneId)).returning(columns);
     if (input.suggestDeviceContacts === false) {
       await tx.delete(contactSuggestions).where(and(eq(contactSuggestions.phoneId, phoneId), isNotNull(contactSuggestions.name)));
     }
+    return { before, after };
   });
-  await wakePhone(ctx, phoneId, "rules");
+  if (result) await wakePhone(ctx, phoneId, "rules");
+  return result;
 }
 
 export async function suggestContacts(ctx: Ctx, phoneId: string, input: z.infer<typeof suggestedContactsInput>) {

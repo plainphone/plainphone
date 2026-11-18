@@ -18,6 +18,7 @@ import java.util.concurrent.Executors
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLPeerUnverifiedException
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.DeviceContact
@@ -43,6 +44,7 @@ interface SyncApi {
      * release (409). Other answers and network errors throw.
      */
     fun ackReleased(token: String): Boolean
+    fun reportSetupCompletion(token: String, completion: SetupCompletion): Unit = throw IOException("setup completion reporting unavailable")
     fun reportSetupUndo(token: String): Boolean = throw IOException("setup undo reporting unavailable")
     /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
@@ -63,8 +65,14 @@ data class Pairing(
 sealed interface PairPoll {
     data class Confirm(val maskedEmail: String, val householdName: String?) : PairPoll
     data object Waiting : PairPoll
+    data object InvalidKey : PairPoll
     data object Expired : PairPoll
-    data class Paired(val phoneId: String, val deviceToken: String, val account: PlainphoneApi.PollAccount? = null) : PairPoll
+    data class Paired(
+        val phoneId: String,
+        val deviceToken: String,
+        val account: PlainphoneApi.PollAccount? = null,
+        val setupUndoMinutes: Int? = null,
+    ) : PairPoll
 }
 
 sealed interface EnrollResult {
@@ -72,8 +80,10 @@ sealed interface EnrollResult {
         val phoneId: String,
         val deviceToken: String,
         val account: PlainphoneApi.PollAccount? = null,
+        val setupUndoMinutes: Int? = null,
     ) : EnrollResult
     /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
+    data object InvalidKey : EnrollResult
     data object Rejected : EnrollResult
 }
 
@@ -155,6 +165,7 @@ class PlainphoneApi private constructor(
     baseUrl: String,
     private val openConnection: (URL) -> HttpURLConnection,
     private val openFreshConnection: (URL) -> HttpURLConnection,
+    private val setupKey: () -> JSONObject? = { null },
 ) : SyncApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
@@ -172,6 +183,7 @@ class PlainphoneApi private constructor(
             // A new Network instance has its own, initially empty connection pool.
             Network.fromNetworkHandle(network.networkHandle).openConnection(url) as HttpURLConnection
         },
+        { org.plainphone.app.light.LightSetup.selfKey(context) },
     )
 
     private companion object {
@@ -302,14 +314,24 @@ class PlainphoneApi private constructor(
     override fun decidePairing(pairing: Pairing, confirm: Boolean): PairPoll {
         val r = call("POST", "/device/pairings/${pairing.id}",
             headers = mapOf("X-Poll-Secret" to pairing.pollSecret),
-            body = JSONObject().put("action", if (confirm) "confirm" else "cancel"))
+            body = JSONObject().put("action", if (confirm) "confirm" else "cancel")
+                .put("key", if (confirm) setupKey() else null))
+        if (confirm && invalidSetupKey(r)) return PairPoll.InvalidKey
         return pairingResult(r)
+    }
+
+    private fun invalidSetupKey(r: Response): Boolean {
+        if (r.status != 400) return false
+        val json = runCatching { JSONObject(r.body) }.getOrNull() ?: return false
+        if (json.optString("error") == "invalid setup key") return true
+        val issues = json.optJSONArray("issues") ?: return false
+        return (0 until issues.length()).any { issues.optJSONObject(it)?.optString("path")?.substringBefore('.') == "key" }
     }
 
     private fun pairingResult(r: Response): PairPoll =
         when (r.status) {
             200 -> JSONObject(r.body).let {
-                PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it))
+                PairPoll.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it), readSetupUndoMinutes(it))
             }
             202 -> JSONObject(r.body).let {
                 if (it.optString("status") == "confirm") {
@@ -335,26 +357,88 @@ class PlainphoneApi private constructor(
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
 
+    fun selfTemplateUrl(token: String): String {
+        val r = call("POST", "/device/self-template", token, JSONObject())
+        if (r.status != 201) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getString("url")
+    }
+
+    fun trustedInviteUrl(token: String): String? {
+        val r = call("POST", "/device/trusted-invite", token, JSONObject())
+        if (r.status == 409) return null
+        if (r.status != 201) throw HttpError(r.status, r.body)
+        return JSONObject(r.body).getString("url")
+    }
+
+    data class ApprovalRequest(val id: String, val summary: String)
+    data class ApprovalQr(val url: String, val summary: String)
+
+    fun approvalRequests(token: String, language: String): List<ApprovalRequest> {
+        val r = call("GET", "/device/approval-challenge", token)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readApprovalResponse {
+            val requests = JSONObject(r.body).getJSONArray("changes")
+            List(requests.length()) { index ->
+                val request = requests.getJSONObject(index)
+                ApprovalRequest(request.getString("id"), approvalSummary(request, language))
+            }
+        }
+    }
+
+    fun approvalQr(token: String, changeId: String, language: String): ApprovalQr {
+        val r = call("POST", "/device/approval-challenge", token, JSONObject().put("changeId", changeId))
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readApprovalResponse {
+            val response = JSONObject(r.body)
+            ApprovalQr(response.getString("url"), approvalSummary(response, language))
+        }
+    }
+
+    private fun approvalSummary(response: JSONObject, language: String): String =
+        response.getJSONObject("summary").getString(if (language == "da") "da" else "en")
+
+    private fun <T> readApprovalResponse(read: () -> T): T = try {
+        read()
+    } catch (error: JSONException) {
+        throw IOException("Invalid approval response", error)
+    }
+
+    override fun reportSetupCompletion(token: String, completion: SetupCompletion) {
+        val body = JSONObject().put("elapsedMs", completion.elapsedMs ?: JSONObject.NULL).put("undoMinutes", completion.undoMinutes)
+        val r = call("POST", "/device/setup-completion", token, body, replayable = true)
+        // A server from before setup completion can still receive the legacy undo report.
+        if (r.status !in listOf(200, 401, 404)) throw HttpError(r.status, r.body)
+    }
+
     override fun reportSetupUndo(token: String): Boolean {
-        val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
-        return when (r.status) {
-            204, 401 -> true
-            409 -> false
+        // No request body is needed. Fixed-length streaming can hide a 401 response body.
+        val r = call("POST", "/device/undo-setup", token, replayable = true)
+        // Older servers return 404 for the missing route even when the phone is still paired.
+        return when {
+            r.status in 200..299 -> true
+            r.status == 401 &&
+                runCatching { JSONObject(r.body).optString("error") }.getOrNull() == "unknown device; pair again" -> true
+            r.status == 409 -> false
             else -> throw HttpError(r.status, r.body)
         }
     }
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
+            .put("key", setupKey())
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
             200 -> JSONObject(r.body).let {
-                EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it))
+                EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it), readSetupUndoMinutes(it))
             }
-            400, 404, 410 -> EnrollResult.Rejected
+            400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
+            404, 410 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }
+
+    private fun readSetupUndoMinutes(body: JSONObject): Int? =
+        body.optInt("setupUndoMinutes", -1).takeIf { it in org.plainphone.app.light.SETUP_UNDO_CHOICES }
 
     private fun readPairingAccount(body: JSONObject): PollAccount? {
         val account = body.optJSONObject("account") ?: return null

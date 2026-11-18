@@ -128,7 +128,21 @@ class LightSetupActivity : ComponentActivity() {
     @Composable
     private fun AudienceScreen() {
         var audience by rememberSaveable { mutableStateOf<SetupAudience?>(null) }
-        val back = { audience = null }
+        var undoMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
+        var keyChosen by rememberSaveable { mutableStateOf(false) }
+        var waitHours by rememberSaveable { mutableStateOf<Int?>(null) }
+        var trusted by rememberSaveable { mutableStateOf(false) }
+        var inviteByQr by rememberSaveable { mutableStateOf(false) }
+        var email by rememberSaveable { mutableStateOf("") }
+        val back = {
+            audience = null
+            undoMinutes = null
+            keyChosen = false
+            waitHours = null
+            trusted = false
+            inviteByQr = false
+            email = ""
+        }
         BackHandler(audience != null, onBack = back)
         when (audience) {
             null -> CalmScreen(
@@ -160,15 +174,88 @@ class LightSetupActivity : ComponentActivity() {
                 OutlinedButton(onClick = { audience = SetupAudience.MYSELF }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.setup_parent_try_self))
                 }
+                ScanPlainphoneCode()
             }
             else -> {
                 val choice = checkNotNull(audience)
+                if (choice == SetupAudience.MYSELF && Mode.isLight(this) && undoMinutes == null) {
+                    CalmScreen(
+                        eyebrow = null,
+                        title = stringResource(R.string.setup_undo_choice_title),
+                        body = stringResource(R.string.setup_undo_choice_body),
+                        primary = null,
+                        onPrimary = {},
+                        secondary = stringResource(R.string.setup_back),
+                        onSecondary = back,
+                    ) {
+                        ScanPlainphoneCode(R.string.self_template_import, pendingLink)
+                        for (minutes in SETUP_UNDO_CHOICES) {
+                            OutlinedButton(
+                                onClick = { undoMinutes = minutes },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(when (minutes) {
+                                    0 -> stringResource(R.string.setup_undo_choice_off)
+                                    10 -> stringResource(R.string.setup_undo_choice_default)
+                                    else -> stringResource(R.string.setup_undo_choice_minutes, minutes)
+                                })
+                            }
+                        }
+                    }
+                    return
+                }
+                if (choice == SetupAudience.MYSELF && !keyChosen) {
+                    val ready = if (trusted) inviteByQr || android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() else waitHours != null
+                    CalmScreen(
+                        eyebrow = null,
+                        title = stringResource(R.string.setup_key_title),
+                        body = stringResource(R.string.setup_key_body) + "\n" +
+                            stringResource(R.string.setup_key_overrides_dashboard),
+                        primary = if (ready) stringResource(R.string.setup_continue) else null,
+                        onPrimary = { keyChosen = true },
+                        secondary = stringResource(R.string.setup_back),
+                        onSecondary = back,
+                    ) {
+                        OutlinedButton(onClick = { trusted = false; waitHours = null }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.setup_key_wait))
+                        }
+                        OutlinedButton(onClick = { trusted = true; waitHours = null }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.setup_key_trusted))
+                        }
+                        if (trusted) {
+                            OutlinedButton(onClick = { inviteByQr = !inviteByQr }, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(if (inviteByQr) R.string.setup_key_email else R.string.setup_key_qr))
+                            }
+                            if (inviteByQr) Text(stringResource(R.string.setup_key_qr_help))
+                            else OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text(stringResource(R.string.setup_key_email)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(stringResource(R.string.setup_key_trusted_preview))
+                        } else {
+                            for (hours in listOf(1, 6, 12, 24, 48, 72)) {
+                                OutlinedButton(onClick = { waitHours = hours }, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.setup_key_hours, hours))
+                                }
+                            }
+                            waitHours?.let { Text(stringResource(R.string.setup_key_wait_preview, it)) }
+                        }
+                    }
+                    return
+                }
                 CalmScreen(
                     eyebrow = null,
                     title = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self else R.string.setup_confirm_child),
                     body = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self_body else R.string.setup_confirm_child_body),
                     primary = stringResource(R.string.setup_continue),
                     onPrimary = {
+                        undoMinutes?.let { LightSetup.saveUndoMinutes(this, it) }
+                        if (choice == SetupAudience.MYSELF) {
+                            LightSetup.saveSelfKey(this, waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
+                        }
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
                         refresh++
                     },
@@ -563,6 +650,7 @@ class LightSetupActivity : ComponentActivity() {
             onPrimary = onFinish,
             progress = 1f,
         ) {
+            if (LightSetup.selfKey(this@LightSetupActivity)?.optString("keyType") == "trustedQr") SelfApprovalAction()
             UndoSetupAction(this@LightSetupActivity, refresh)
         }
     }

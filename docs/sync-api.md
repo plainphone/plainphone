@@ -60,8 +60,10 @@ phone                                      server                         parent
    sync activates the phone and clears the recovery token. Before confirmation,
    `{action: "cancel"}` removes the pending phone and code. The sweeper removes expired
    unconfirmed claims. Confirmed light phones can still sync or report Undo after their recovery
-   code expires. Strong-mode phones receive their device token once from GET, with the masked
-   account and household for an informational notice.
+   code expires. Strong-mode phones receive their device token from GET with the masked
+   account and household. If that response is lost, the same poll secret
+   recovers the token within 24 hours of the first delivery and before the
+   first authenticated rules sync.
    Store the device token in encrypted storage (Android Keystore-backed).
 2. **Rules.** Poll `GET /device/rules` with the last `ETag` in `If-None-Match`. `304` means
    nothing changed. On `200`, apply the whole document, then store the new ETag. The document
@@ -183,7 +185,9 @@ on the boot when setup completed. After switching off locally, it sends an authe
 `POST /device/undo-setup`. In one transaction the server removes the phone and queues the
 standard protection-removed notice, which says setup was undone on the phone. The sweeper
 retries failed deliveries. The phone retries the report until it gets `204` (removed) or
-`401` (pairing already gone). Repeated reports cannot enqueue a second notice.
+`401` with `{"error":"unknown device; pair again"}` (pairing already gone). A `404` from
+an older server can mean the route is missing, so the phone keeps retrying. Repeated
+reports cannot enqueue a second notice.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up
@@ -241,7 +245,12 @@ To remove such a phone from the dashboard without releasing it, use `DELETE /api
 
 Light-mode setup undo switches protection off locally. `POST /api/device/undo-setup` removes
 the phone and queues an undo notice when the authenticated report arrives, including after a
-long offline period or before the first rules sync.
+long offline period or before the first rules sync. A report received more than 48 hours after
+a recorded undo window ends is marked late in the notice. The phone retries until the server
+acknowledges the report or confirms the pairing is gone with the unknown-device response.
+The separate `POST /api/device/setup-completion` report provides the dashboard deadline and
+the timing for the notice. Its elapsed age comes from the current boot and is capped at seven days on the server.
+A phone that rebooted before reporting sends a null age.
 
 ### Requests (asking for an app or a contact)
 

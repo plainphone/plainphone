@@ -55,9 +55,22 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
-minutes after finishing permissions. Rebooting closes the window. Undo switches off protection
-even offline. The phone reports Undo when it reconnects, even before its first rules sync. Undo notices are sent only to current household members. See
+minutes by default after finishing permissions. The dashboard shows the reported deadline. Rebooting closes the window. Undo switches off protection
+even offline. The phone reports Undo when it reconnects, even before its first rules sync.
+The server removes the phone and notifies current household members whenever the report arrives.
+If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
 [docs/light-mode.md](docs/light-mode.md).
+
+### Myself keys and QR codes
+
+Choose a wait time or invite a trusted person by email or QR. Each person manages
+their own account and can hold the other's key. A helper can approve a request in
+the dashboard or scan a two-minute QR. Both show the current and requested
+rules before approval. If the relevant rule state changes, the helper must
+review the current state again. **Set up like me** copies selected rules into a friend's
+editable draft with a single-use, 15-minute code, including a draft already opened
+from a light-mode setup link.
+See [Self keys](docs/self-keys.md).
 
 ### In both modes
 

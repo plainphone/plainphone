@@ -34,6 +34,8 @@ interface SyncDevice {
      * relock. Blocking. Every step that did not hold is in the list as a failure.
      */
     fun release(): List<StepResult>
+    fun pendingSetupCompletion(phoneId: String?): SetupCompletion? = null
+    fun setupCompletionReported() {}
     fun removeSetupUndoAdmin()
     /** One position, or null if none could be had. [precise] for "Find", coarse for the regular report. */
     fun location(precise: Boolean, notBeforeMs: Long? = null, fresh: Boolean = false): LocationFix?
@@ -65,6 +67,8 @@ interface SyncDevice {
 
 /** Something the child did with a ring or an "Are you okay?", waiting to be sent. */
 data class SafetyEvent(val requestId: String, val event: String)
+
+data class SetupCompletion(val elapsedMs: Long?, val undoMinutes: Int)
 
 data class LockState(
     /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
@@ -177,6 +181,7 @@ class SyncRunner(
             pendingContactSuggestions = null
             if (store.contactSuggestionsReadAt != null) store.contactSuggestionsReadAt = null
         }
+        guarded("report setup completion") { reportSetupCompletion(token) }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
 
@@ -232,6 +237,12 @@ class SyncRunner(
         return acknowledgeRelease(token) ?: Outcome.Failed("the server says nobody asked for a release")
     }
 
+    private fun reportSetupCompletion(token: String) {
+        val completion = device.pendingSetupCompletion(store.phoneId) ?: return
+        api.reportSetupCompletion(token, completion)
+        device.setupCompletionReported()
+    }
+
     /**
      * Tells the server Plainphone is off. Done, or a phone the server no longer knows, ends the sync
      * as [Outcome.Removed]. A network error keeps the release for the next sync. Null means the server
@@ -240,9 +251,8 @@ class SyncRunner(
     private fun acknowledgeRelease(token: String): Outcome? {
         val done = try {
             if (store.setupUndoPending) {
-                // An older server can reject a delayed undo. Try acknowledging a dashboard
-                // release in that case and keep local protection switched off.
-                if (!api.reportSetupUndo(token)) api.ackReleased(token)
+                guarded("report setup completion") { reportSetupCompletion(token) }
+                if (!api.reportSetupUndo(token)) return Outcome.Failed("setup undo not acknowledged yet")
                 device.removeSetupUndoAdmin()
                 true
             } else api.ackReleased(token)

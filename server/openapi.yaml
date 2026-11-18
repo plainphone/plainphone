@@ -82,6 +82,17 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    ChildContactSettings:
+      type: object
+      required: [suggestDeviceContacts, lightContactRestriction]
+      properties:
+        suggestDeviceContacts: { type: boolean }
+        lightContactRestriction: { type: boolean }
+    SetupUndoWindow:
+      type: object
+      required: [undoRemainingMs]
+      properties:
+        undoRemainingMs: { type: integer, minimum: 0, maximum: 3600000 }
     SuggestedContactInput:
       type: object
       additionalProperties: false
@@ -397,12 +408,24 @@ components:
       properties:
         status: { const: applied }
 
+    ApprovalRevision:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: Revision from the helper approval list for the preview being approved.
+    ApprovalSummary:
+      type: object
+      required: [en, da]
+      properties:
+        en: { type: string }
+        da: { type: string }
+
     PendingChange:
       type: object
       required: [id, op, keyType, effectiveAt]
       properties:
         id: { type: string, format: uuid }
         op: { $ref: "#/components/schemas/Op" }
+        summary: { $ref: "#/components/schemas/ApprovalSummary" }
         keyType: { enum: [delay, trusted] }
         effectiveAt:
           type: [string, "null"]
@@ -830,6 +853,22 @@ components:
           maxItems: 50
           items: { $ref: "#/components/schemas/PackageName" }
 
+    InitialSelfKey:
+      oneOf:
+        - type: object
+          required: [keyType, delayHours]
+          properties:
+            keyType: { enum: [delay] }
+            delayHours: { type: integer, enum: [1, 6, 12, 24, 48, 72] }
+        - type: object
+          required: [keyType, trustedEmail]
+          properties:
+            keyType: { enum: [trusted] }
+            trustedEmail: { type: string, format: email }
+        - type: object
+          required: [keyType]
+          properties:
+            keyType: { enum: [trustedQr] }
     Key:
       type: object
       required: [keyType, delayHours, trustedEmail, payUnlockEnabled, payUnlockAmount, payUnlockRecipient]
@@ -837,6 +876,7 @@ components:
         keyType: { enum: [delay, trusted] }
         delayHours: { type: integer, minimum: 1, maximum: 72, default: 24 }
         trustedEmail: { type: [string, "null"], format: email }
+        qrInvite: { type: boolean, description: Choose a trusted person by QR instead of email. }
         payUnlockEnabled: { type: boolean }
         payUnlockAmount: { type: integer, minimum: 100, description: Minor units. }
         payUnlockRecipient: { enum: [plainphone] }
@@ -912,6 +952,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string, examples: [pp_d_…] }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked claimer and household for strong-mode pairing, when available.
@@ -949,6 +990,7 @@ paths:
               required: [action]
               properties:
                 action: { enum: [confirm, cancel] }
+                key: { $ref: "#/components/schemas/InitialSelfKey" }
       responses:
         "200":
           description: Confirmed. The token can be recovered for up to 24 hours or until the first rules sync.
@@ -961,6 +1003,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked claimer and household for strong-mode pairing, when available.
@@ -1005,6 +1048,36 @@ paths:
         "404": { description: "Setup link unavailable" }
         "429": { $ref: "#/components/responses/Error" }
 
+  /device/enrollment-template:
+    post:
+      operationId: postDeviceEnrollmentTemplate
+      security: []
+      tags: [device]
+      summary: Copy a template into an unused light-mode Self setup link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, template]
+              properties:
+                token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                template: { type: string, pattern: "^pp_r_[A-Za-z0-9_-]{30,70}$" }
+      responses:
+        "200":
+          description: Rules copied into the draft with one or more core app blocks skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [skippedCoreBlocks]
+                properties:
+                  skippedCoreBlocks: { type: integer, minimum: 1 }
+        "204": { description: Rules copied into the existing draft with no blocks skipped }
+        "404": { description: Setup link or template unavailable }
+        "429": { $ref: "#/components/responses/Error" }
+
   /device/enroll:
     post:
       operationId: postDeviceEnroll
@@ -1029,6 +1102,7 @@ paths:
               required: [token, installId]
               properties:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                key: { $ref: "#/components/schemas/InitialSelfKey" }
                 installId:
                   type: string
                   pattern: "^[A-Za-z0-9_-]{16,64}$"
@@ -1048,6 +1122,7 @@ paths:
                   status: { const: paired }
                   phoneId: { type: string, format: uuid }
                   deviceToken: { type: string }
+                  setupUndoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional dashboard override for light-mode setup. }
                   account:
                     type: object
                     description: Masked token issuer for a new strong-mode enrollment, when available.
@@ -1273,14 +1348,127 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /device/approval-challenge:
+    get:
+      operationId: getDeviceApprovalRequests
+      security: [{ device: [] }]
+      tags: [device]
+      summary: List pending trusted approvals for this Self phone
+      responses:
+        "200":
+          description: Pending changes and their affected rule targets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes]
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, type, appLabel, summary]
+                      properties:
+                        id: { type: string, format: uuid }
+                        type: { type: string }
+                        appLabel: { type: [string, "null"], description: "App label, package fallback, or * for the total time limit." }
+                        summary: { $ref: "#/components/schemas/ApprovalSummary" }
+    post:
+      operationId: postDeviceApprovalChallenge
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Issue a two-minute code and replace any earlier code for this change
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [changeId]
+              properties:
+                changeId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Challenge, QR URL and the change shown with it.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge, url, summary]
+                properties:
+                  challenge: { type: string }
+                  url: { type: string, format: uri }
+                  summary: { $ref: "#/components/schemas/ApprovalSummary" }
+        "404": { $ref: "#/components/responses/Error" }
+  /device/trusted-invite:
+    post:
+      operationId: postDeviceTrustedInvite
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Create a 15-minute helper invite for a Self phone waiting for a QR invite
+      responses:
+        "201": { description: Invite URL and expiry }
+        "409": { $ref: "#/components/responses/Error" }
+  /device/self-template:
+    post:
+      operationId: postDeviceSelfTemplate
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Share a short-lived copy of this Self phone’s selected rules
+      responses:
+        "201": { description: Template URL }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /device/setup-completion:
+    get:
+      operationId: getDeviceSetupCompletion
+      tags: [device]
+      summary: Read the remaining setup undo window (phone)
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: The time left, or zero when setup undo is unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postDeviceSetupCompletion
+      tags: [device]
+      summary: Record completion once for a light-mode phone
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [elapsedMs]
+              properties:
+                elapsedMs:
+                  type: [integer, "null"]
+                  minimum: 0
+                  description: Elapsed time since local setup completed, capped at seven days by the server. Null when unknown after a reboot.
+                undoMinutes: { type: integer, enum: [0, 5, 10, 30, 60], description: Optional Self phone choice. }
+      responses:
+        "200":
+          description: The time left, or zero when setup undo is unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
   /device/undo-setup:
     post:
       operationId: postDeviceUndoSetup
       tags: [device]
       summary: Report local undo of light-mode setup (phone)
       description: |
-        The phone decides its local undo window and switches off locally. The server accepts
-        authenticated report for light mode at any time and queues a notice when it removes the phone.
+        The phone decides its local undo window and switches off locally. The server records
+        authenticated light-mode reports at any time by removing the phone and queuing a notice.
+        Reports received more than 48 hours after a known window ended are marked as late.
+        A strong-mode phone receives a 409.
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }
@@ -1908,6 +2096,7 @@ paths:
               type: object
               required: [name, profile]
               properties:
+                template: { type: string, description: Optional rule template code for an unconnected Self phone. }
                 name: { type: string, maxLength: 40 }
                 mode: { type: string, enum: [strong, light], default: strong }
                 profile: { enum: [child, self] }
@@ -2431,7 +2620,16 @@ paths:
                   type: boolean
                   description: Available on light phones only.
       responses:
-        "204": { description: "Settings saved" }
+        "200":
+          description: Contact settings immediately before and after the save
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [before, after]
+                properties:
+                  before: { $ref: "#/components/schemas/ChildContactSettings" }
+                  after: { $ref: "#/components/schemas/ChildContactSettings" }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: "Child phone not found" }
     post:
@@ -2765,6 +2963,62 @@ paths:
         "200": { description: "The check-in, now cancelled (or as it was if already answered or located)" }
 
   # ---------------------------------------------------------------- self
+  /phones/{pid}/setup-undo:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: getPhoneSetupUndo
+      summary: Get the phone’s setup undo choice and whether it is still editable
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200":
+          description: Minutes, editability, and the deadline reported by the phone
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [minutes, editable, undoUntil]
+                properties:
+                  minutes: { type: integer, enum: [0, 5, 10, 30, 60] }
+                  editable: { type: boolean }
+                  undoUntil: { type: [string, "null"], format: date-time }
+    put:
+      operationId: putPhoneSetupUndo
+      summary: Set the setup undo period on a light-mode phone before pairing
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minutes]
+              properties:
+                minutes: { type: integer, enum: [0, 5, 10, 30, 60] }
+      responses:
+        "200": { description: Minutes and editable flag }
+        "409": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/trusted-invite:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneTrustedInvite
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Create a QR invite for a Self phone waiting for a helper
+      responses:
+        "201": { description: Invite URL and expiry }
+        "409": { $ref: "#/components/responses/Error" }
+  /phones/{pid}/self-template:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    post:
+      operationId: postPhoneSelfTemplate
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Share a short-lived copy of the phone’s selected rules
+      responses:
+        "201": { description: Template URL }
+        "409": { $ref: "#/components/responses/Error" }
   /phones/{pid}/key:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -2825,6 +3079,14 @@ paths:
       responses:
         "204": { description: "Cancelled" }
         "409": { description: "No longer pending" }
+  /people-i-help:
+    get:
+      operationId: getPeopleIHelp
+      tags: [self]
+      summary: List Self phones for which I hold the key
+      security: [{ session: [] }, { cookie: [] }]
+      responses:
+        "200": { description: Phones and owner emails }
   /approvals:
     get:
       operationId: getApprovals
@@ -2832,7 +3094,48 @@ paths:
       summary: Requests waiting for me as a trusted person
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt" }
+        "200":
+          description: Pending approvals with the change shown to the helper.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approvals]
+                properties:
+                  approvals:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, phoneId, phoneName, requestedBy, summary, revision, createdAt]
+                      properties:
+                        id: { type: string, format: uuid }
+                        phoneId: { type: string, format: uuid }
+                        phoneName: { type: string }
+                        requestedBy: { type: [string, "null"] }
+                        summary: { $ref: "#/components/schemas/ApprovalSummary" }
+                        revision: { $ref: "#/components/schemas/ApprovalRevision" }
+                        createdAt: { type: string, format: date-time }
+  /changes/{cid}/approve-qr:
+    post:
+      operationId: postChangesApproveQr
+      tags: [self]
+      security: [{ session: [] }, { cookie: [] }]
+      summary: Approve with a one-time QR challenge as the current trusted person
+      parameters: [{ $ref: "#/components/parameters/changeId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge, revision]
+              properties:
+                challenge: { type: string, maxLength: 240 }
+                revision: { $ref: "#/components/schemas/ApprovalRevision" }
+      responses:
+        "204": { description: Applied }
+        "404": { description: Not my request to decide }
+        "409": { description: Invalid code or stale preview }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove
@@ -2840,8 +3143,18 @@ paths:
       tags: [self]
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/changeId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [revision]
+              properties:
+                revision: { $ref: "#/components/schemas/ApprovalRevision" }
       responses:
         "204": { description: "Applied" }
+        "409": { description: "Stale preview or request no longer pending" }
         "404": { description: "Not my request to decide" }
   /changes/{cid}/reject:
     post:

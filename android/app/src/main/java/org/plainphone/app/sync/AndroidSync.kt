@@ -39,6 +39,7 @@ import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.light.LightRelease
+import org.plainphone.app.light.LightSetup
 import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
@@ -58,6 +59,10 @@ object Sync {
 /** Real phone effects for [SyncRunner]. */
 class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun nowMs() = System.currentTimeMillis()
+
+    override fun pendingSetupCompletion(phoneId: String?) = LightSetup.pendingCompletion(context, phoneId)
+
+    override fun setupCompletionReported() = LightSetup.completionReported(context)
 
     override fun appVersion(): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
@@ -398,8 +403,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
                 Result.success()
             }
             is SyncRunner.Outcome.Failed ->
-                if (runAttemptCount < 3 || SyncStore(applicationContext).setupUndoPending) Result.retry()
-                else Result.success()
+                SyncStore(applicationContext).let { store ->
+                    if (runAttemptCount < 3 || store.setupUndoPending ||
+                        LightSetup.pendingCompletion(applicationContext, store.phoneId) != null
+                    ) Result.retry() else Result.success()
+                }
             SyncRunner.Outcome.NotPaired, SyncRunner.Outcome.Removed -> Result.success()
         }
     }

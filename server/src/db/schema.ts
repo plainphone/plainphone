@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   doublePrecision,
@@ -82,6 +83,7 @@ export const householdInvites = pgTable("household_invites", {
   householdId: uuid("household_id")
     .notNull()
     .references(() => households.id, { onDelete: "cascade" }),
+  trustedPhoneId: uuid("trusted_phone_id").references((): AnyPgColumn => phones.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   invitedBy: uuid("invited_by").references(() => users.id, { onDelete: "set null" }),
@@ -218,6 +220,8 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
+    setupUndoMinutes: integer("setup_undo_minutes"),
+    setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
     /**
      * Set when the parents asked to release the phone: it switches Plainphone off on its own
      * and then calls `POST /device/released`, which deletes this row. Until then the rules
@@ -277,6 +281,8 @@ export const phoneApps = pgTable(
     packageName: text("package_name").notNull(),
     label: text("label").notNull(),
     allowed: boolean("allowed").notNull(),
+    /** Explicit block, distinct from the default for newly reported apps. */
+    explicitlyBlocked: boolean("explicitly_blocked").notNull().default(false),
     /** Reported by the phone: dialer, messages, settings, launcher... Never hidden. */
     core: boolean("core").notNull().default(false),
     installed: boolean("installed").notNull().default(true),
@@ -483,6 +489,9 @@ export const pendingChanges = pgTable(
       .default("pending"),
     /** For the delay key: when the change takes effect. Null for the trusted-person key. */
     effectiveAt: timestamp("effective_at", { withTimezone: true }),
+    approvalChallengeHash: text("approval_challenge_hash"),
+    approvalFingerprintKey: uuid("approval_fingerprint_key").defaultRandom().notNull(),
+    awaitingQrHelper: boolean("awaiting_qr_helper").notNull().default(false),
     decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -556,6 +565,7 @@ export const setupUndoNotices = pgTable("setup_undo_notices", {
   householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
   phoneId: uuid("phone_id").notNull(),
   phoneName: text("phone_name").notNull(),
+  reportedLate: boolean("reported_late").notNull().default(false),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   subscriptionId: uuid("subscription_id").references(() => pushSubscriptions.id, { onDelete: "cascade" }),
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull(),
@@ -639,3 +649,10 @@ export const frpAccounts = pgTable(
   },
   (t) => [primaryKey({ columns: [t.householdId, t.userId] })],
 );
+
+/** Short-lived rule snapshots, deliberately without a source or recipient identifier. */
+export const selfRuleTemplates = pgTable("self_rule_templates", {
+  tokenHash: text("token_hash").primaryKey(),
+  rules: jsonb("rules").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});

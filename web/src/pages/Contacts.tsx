@@ -33,13 +33,25 @@ export function ContactsPage() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsFailed, setSettingsFailed] = useState(false);
+  const [settingsSummary, setSettingsSummary] = useState("");
 
   async function changeSettings(settings: ChildContactSettings) {
     setSavingSettings(true);
     setSettingsFailed(false);
+    setSettingsSummary("");
     try {
-      await api.patch<void>(`/phones/${phone.id}/contacts`, settings);
-      res.setData((data) => data && { ...data, ...settings });
+      const { before, after } = await api.patch<{
+        before: Required<ChildContactSettings>;
+        after: Required<ChildContactSettings>;
+      }>(`/phones/${phone.id}/contacts`, settings);
+      const restriction = settings.lightContactRestriction !== undefined;
+      const key = restriction ? "lightContactRestriction" : "suggestDeviceContacts";
+      setSettingsSummary(t("contacts.settingChanged", {
+        setting: t(restriction ? "contacts.lightRestrict" : "contacts.suggestFromPhone"),
+        from: t(before[key] ? "contacts.settingOn" : "contacts.settingOff"),
+        to: t(after[key] ? "contacts.settingOn" : "contacts.settingOff"),
+      }));
+      res.setData((data) => data && { ...data, ...after });
     } catch {
       setSettingsFailed(true);
     } finally {
@@ -110,6 +122,7 @@ export function ContactsPage() {
             {!self && (
               <>
                 {settingsFailed && <p role="alert">{t("contacts.settingsError")}</p>}
+                <div role="status">{settingsSummary}</div>
                 {lightChild && (
                   <>
                     <label className="item">

@@ -7,14 +7,20 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { contacts, enrollments, householdMembers, households, pairings, phoneApps, phones, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
+import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
+import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
-import { applyDueChanges, deletePhone, submitChange } from "../services/changes.js";
+import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
+import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
+import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
+import { issueTrustedInvite } from "../services/trusted-invites.js";
+import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import { selfFavouriteInput, suggestContacts, suggestedContactsInput } from "../services/contact-suggestions.js";
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
@@ -28,6 +34,11 @@ import { createRequest, phoneRequestList, RequestError, requestJson } from "../s
 import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
+
+function setupUndoRemaining(phone: Phone, now: Date): number {
+  const deadline = setupUndoDeadline(phone);
+  return deadline === null ? 0 : Math.max(0, deadline - now.getTime());
+}
 export const DEVICE_PREFIX = "pp_d_";
 
 type Phone = typeof phones.$inferSelect;
@@ -53,6 +64,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const pairStartLimit = new RateLimiter(10, 60 * 60_000);
   const pairPollLimit = new RateLimiter(320, 60 * 60_000);
   const enrollLimit = new RateLimiter(20, 60 * 60_000);
+  const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const suggestionLimit = new RateLimiter(30, 60 * 60_000);
   const favouriteLimit = new RateLimiter(30, 60 * 60_000);
 
@@ -93,7 +105,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
   });
 
-  const pairingPoll = async (id: string, secret: string, action?: "confirm" | "cancel") => {
+  const pairingPoll = async (id: string, secret: string, action?: "confirm" | "cancel", key?: InitialSelfKey) => {
     if (!z.uuid().safeParse(id).success) return { status: 404 as const };
     return ctx.db.transaction(async (tx) => {
       const [p] = await tx.select().from(pairings).where(eq(pairings.id, id)).for("update");
@@ -122,30 +134,40 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (needsReview) return details ? { status: 202 as const, details } : { status: 410 as const };
       if (p.requiresConfirmation && !p.deliveredAt) {
         if (!p.claimedBy) return { status: 410 as const };
+        if (key) {
+          const [phone] = await tx.select().from(phones).where(eq(phones.id, p.phoneId)).for("update");
+          if (!phone || !(await setInitialSelfKey(tx, phone, key, now))) return { status: 400 as const };
+        }
         await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
           .where(eq(phones.id, p.phoneId));
       }
+      const [setup] = p.mode === "light" ? await tx.select({ setupUndoMinutes: phones.setupUndoMinutes })
+        .from(phones).where(eq(phones.id, p.phoneId)) : [];
       // Keep the token recoverable if the response is lost before the phone saves it.
       if (!p.deliveredAt) await tx.update(pairings).set({ deliveredAt: now }).where(eq(pairings.id, id));
-      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, account: p.mode === "strong" ? details : null };
+      return { status: 200 as const, phoneId: p.phoneId, deviceToken: p.pendingDeviceToken, sync: p.requiresConfirmation && !p.deliveredAt, ownerId: p.claimedBy, setupUndoMinutes: setup?.setupUndoMinutes, account: p.mode === "strong" ? details : null };
     });
   };
 
   app.on(["GET", "POST"], "/pairings/:id", async (c) => {
     const id = c.req.param("id");
     if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
-    const action = c.req.method === "POST" ? (await body(c, z.object({ action: z.enum(["confirm", "cancel"]) }))).action : undefined;
-    const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", action);
+    const decision = c.req.method === "POST" ? await body(c, z.object({ action: z.enum(["confirm", "cancel"]), key: initialSelfKey.optional() })) : undefined;
+    const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", decision?.action, decision?.key);
     c.header("Cache-Control", "no-store");
     if (result.status === 404) throw new HTTPException(404, { message: "not found" });
     if (result.status === 410) return c.json({ error: "expired" }, 410);
+    if (result.status === 400) return c.json({ error: "invalid setup key" }, 400);
     if (result.status === 204) {
       if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
       return c.body(null, 204);
     }
     if (result.status === 202) return c.json(result.details ? { status: "confirm", ...result.details } : { status: "waiting" }, 202);
-    if (result.sync) await syncDns(ctx, result.phoneId);
-    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.account && { account: result.account }) }, 200);
+    if (result.sync) {
+      await syncDns(ctx, result.phoneId);
+      await sendInitialKeyInvite(ctx, decision?.key, result.ownerId);
+    }
+    return c.json({ status: "paired", phoneId: result.phoneId, deviceToken: result.deviceToken, ...(result.setupUndoMinutes != null && { setupUndoMinutes: result.setupUndoMinutes }), ...(result.account && { account: result.account }) }, 200);
   });
 
   app.post("/enrollment-review", async (c) => {
@@ -177,6 +199,30 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json(result);
   });
 
+  // A phone with a setup link can copy rules into that same draft before connecting.
+  app.post("/enrollment-template", async (c) => {
+    if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
+    const input = await body(c, z.object({
+      token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
+      template: templateCode,
+    }));
+    const now = ctx.now();
+    const result = await ctx.db.transaction(async (tx) => {
+      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
+      if (!e || e.usedAt || e.expiresAt <= now) return null;
+      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
+      if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
+      const rules = await readSelfTemplate(tx, input.template, now);
+      if (!rules) return null;
+      const skippedCoreBlocks = await replaceDraftTemplate(tx, phone.id, rules, now);
+      return { phoneId: phone.id, skippedCoreBlocks };
+    });
+    if (!result) return c.json({ error: "setup link or template unavailable" }, 404);
+    await syncDns(ctx, result.phoneId);
+    if (result.skippedCoreBlocks > 0) return c.json({ skippedCoreBlocks: result.skippedCoreBlocks });
+    return c.body(null, 204);
+  });
+
   // Pairing by the one-time token from a dashboard-made provisioning QR code (no code to type).
   app.post("/enroll", async (c) => {
     if (!enrollLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many attempts" });
@@ -185,13 +231,14 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
         installId: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
+        key: initialSelfKey.optional(),
         deviceInfo: deviceInfo.optional(),
       }),
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
     if (r.status !== 200) return c.json({ error: r.error }, r.status);
-    const { phoneId, deviceToken, account } = r;
-    return c.json({ status: "paired", phoneId, deviceToken, ...(account && { account }) }, 200);
+    const { phoneId, deviceToken, account, setupUndoMinutes } = r;
+    return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
   });
 
   // --- Everything below needs the device token ------------------------------
@@ -307,13 +354,17 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     app.post(path, async (c) => {
       const phone = c.get("phone");
       const undo = path === "/undo-setup";
+      const receivedAt = ctx.now().getTime();
       const result = await ctx.db.transaction(async (tx) => {
         // Only the request that deletes the authenticated pairing may queue the notice.
         const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
         if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
         if (undo) {
           if (fresh.mode !== "light") return { status: 409 as const, error: "setup undo is only available in light mode" };
-          await queueSetupUndoNotices(ctx, tx, fresh);
+          const deadline = setupUndoDeadline(fresh);
+          const reportedLate = fresh.setupCompletedAt !== null &&
+            (deadline === null || receivedAt > deadline + SETUP_UNDO_REPORT_GRACE_MS);
+          await queueSetupUndoNotices(ctx, tx, fresh, reportedLate);
         } else if (!fresh.releaseRequestedAt) {
           return { status: 409 as const, error: "this phone has not been asked to release" };
         }
@@ -327,6 +378,113 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return c.body(null, 204);
     });
   }
+
+  app.post("/self-template", async (c) => {
+    const phone = c.get("phone");
+    if (!selfTemplateLimit.take(phone.id)) throw new HTTPException(429, { message: "too many setup templates" });
+    const template = await shareSelfTemplate(ctx, phone);
+    if (!template) return c.json({ error: "this phone cannot share a template right now" }, 409);
+    c.header("Cache-Control", "no-store");
+    return c.json(template, 201);
+  });
+
+  app.post("/trusted-invite", async (c) => {
+    const phone = c.get("phone");
+    const invite = await issueTrustedInvite(ctx, phone.id, { deviceHash: phone.deviceTokenHash });
+    if (!invite) return c.json({ error: "this phone cannot invite a helper right now" }, 409);
+    c.header("Cache-Control", "no-store");
+    return c.json(invite, 201);
+  });
+
+  app.get("/approval-challenge", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    const rows = await ctx.db.select({ id: pendingChanges.id, op: pendingChanges.op,
+      appLabel: sql<string | null>`coalesce(${phoneApps.label}, ${pendingChanges.op}->>'packageName')`,
+    }).from(pendingChanges)
+      .leftJoin(phoneApps, and(
+        eq(phoneApps.phoneId, pendingChanges.phoneId),
+        eq(phoneApps.packageName, sql`${pendingChanges.op}->>'packageName'`),
+      ))
+      .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
+      .where(and(
+        eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
+        eq(pendingChanges.keyType, "trusted"), eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
+      )).orderBy(pendingChanges.createdAt);
+    c.header("Cache-Control", "no-store");
+    const targets = rows.map((row) => ({ ...row, phoneId: phone.id, op: row.op as Op }));
+    const state = await loadApprovalSummaries(ctx.db, targets);
+    const bonusDate = approvalBonusDate(phone, ctx.now());
+    return c.json({ changes: targets.map(({ id, op, appLabel }) => ({
+      id, type: op.type, appLabel,
+      summary: formatApprovalSummary(state, phone.id, op, { id, owner: true, bonusDate }),
+    })) });
+  });
+
+  app.post("/approval-challenge", async (c) => {
+    const phone = c.get("phone");
+    const { changeId } = await body(c, z.object({ changeId: z.uuid() }));
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    const result = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return null;
+      const [change] = await tx.select({
+        id: pendingChanges.id, op: pendingChanges.op, helperId: selfKeys.trustedUserId,
+        approvalFingerprintKey: pendingChanges.approvalFingerprintKey,
+      }).from(pendingChanges)
+        .innerJoin(selfKeys, eq(selfKeys.phoneId, pendingChanges.phoneId))
+        .where(and(
+          eq(pendingChanges.id, changeId), eq(pendingChanges.phoneId, phone.id),
+          eq(pendingChanges.status, "pending"), eq(pendingChanges.keyType, "trusted"),
+          eq(selfKeys.keyType, "trusted"), isNotNull(selfKeys.trustedUserId),
+        ));
+      if (!change?.helperId) return null;
+      const op = change.op as Op;
+      const state = await loadApprovalSummaries(tx, [{ phoneId: phone.id, op }]);
+      const now = ctx.now();
+      const options = { id: changeId, bonusDate: op.type === "timeLimit.bonus" ? approvalBonusDate(fresh, now) : undefined };
+      const summary = formatApprovalSummary(state, phone.id, op, { ...options, owner: true });
+      const revision = approvalRevision(change, state, phone.id, op, options.bonusDate);
+      const challenge = issueApprovalChallenge(phone.id, changeId, now);
+      await tx.update(pendingChanges).set({ approvalChallengeHash: approvalChallengeHash(challenge, change.helperId, revision) })
+        .where(eq(pendingChanges.id, changeId));
+      return { challenge, summary, url: `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/approvals#code=${challenge}` };
+    });
+    if (!result) throw new HTTPException(404, { message: "not found" });
+    c.header("Cache-Control", "no-store");
+    return c.json(result);
+  });
+
+  app.get("/setup-completion", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json({ undoRemainingMs: setupUndoRemaining(c.get("phone"), ctx.now()) });
+  });
+
+  app.post("/setup-completion", async (c) => {
+    const { elapsedMs, undoMinutes } = await body(c, z.object({
+      elapsedMs: z.number().int().min(0).nullable(),
+      undoMinutes: undoMinutesInput.optional(),
+    }));
+    const phone = c.get("phone");
+    const remaining = await ctx.db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+      if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
+      const now = ctx.now();
+      if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
+      if (elapsedMs === null) return 0;
+      // First sync may be much later than local completion.
+      const age = Math.min(elapsedMs, MAX_SETUP_COMPLETION_AGE_MS);
+      const completedAt = new Date(Math.max(0, now.getTime() - age));
+      const setupUndoMinutes = (fresh.profile === "self" ? undoMinutes : undefined) ??
+        fresh.setupUndoMinutes ?? DEFAULT_SETUP_UNDO_MINUTES;
+      const completion = { setupCompletedAt: completedAt, setupUndoMinutes };
+      await tx.update(phones).set(completion).where(eq(phones.id, phone.id));
+      return setupUndoRemaining({ ...fresh, ...completion }, now);
+    });
+    c.header("Cache-Control", "no-store");
+    return c.json({ undoRemainingMs: remaining });
+  });
+
 
   app.put("/apps", async (c) => {
     const phone = c.get("phone");
@@ -346,6 +504,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const pack = starterPack(phone.timezone);
     await ctx.db.transaction(async (tx) => {
+      await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
       for (const a of input.apps) {
         await tx
           .insert(phoneApps)

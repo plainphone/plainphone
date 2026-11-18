@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { LoadGate, PageTitle, PickGroup, type PickOption, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
 import {
+  api,
   ApiError,
   getPhoneSettings,
   type PhoneSetting,
@@ -57,6 +58,7 @@ export function PhoneSettingsPage() {
           {t("phoneSettings.lightNote")}
         </p>
       )}
+      {light && <SetupUndoSetting key={phone.id} />}
       {phone.profile === "self" && <p className="help">{t("phoneSettings.selfNote")}</p>}
       <details className="details details-lead">
         <summary>{t("phoneSettings.explainTitle")}</summary>
@@ -189,4 +191,76 @@ function SettingRow({
       {spec.key === "location" && phone.locationEnabled && <p className="help setting-note">{t("phoneSettings.findNote")}</p>}
     </li>
   );
+}
+
+
+function SetupUndoSetting() {
+  const { t } = useI18n();
+  const { phone, run } = usePhone();
+  const id = useId();
+  const path = `/phones/${phone.id}/setup-undo`;
+  const res = useLoad(() => api.get<{ minutes: number; editable: boolean; undoUntil: string | null }>(path), [path]);
+  const [saving, setSaving] = useState(false);
+  const { data, loading, reload } = res;
+  const undoUntil = data?.undoUntil;
+
+  useEffect(() => {
+    if (undoUntil || loading || saving) return;
+    const timer = window.setTimeout(() => {
+      if (!document.hidden) void reload();
+    }, 10_000);
+    function refreshOnReturn() {
+      if (!document.hidden) {
+        window.clearTimeout(timer);
+        void reload();
+      }
+    }
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [undoUntil, loading, saving, reload]);
+
+  return <LoadGate res={res}>{({ minutes, editable, undoUntil }) => (
+    <div className="stack">
+      <label htmlFor={id}>{t("setupUndo.label")}</label>
+      <select id={id} value={minutes} disabled={!editable || saving} onChange={async (e) => {
+        const selected = Number(e.target.value);
+        setSaving(true);
+        try {
+          await run(() => api.put(path, { minutes: selected }), t("app.saved"));
+        } catch (err) {
+          if (!(err instanceof ApiError)) throw err;
+        } finally {
+          await res.reload();
+          setSaving(false);
+        }
+      }}>
+        {[0, 5, 10, 30, 60].map((value) => <option key={value} value={value}>
+          {value === 0 ? t("setupUndo.off") : t("setupUndo.minutes", { minutes: value })}
+        </option>)}
+      </select>
+      {undoUntil && minutes > 0 ? <SetupUndoDeadline undoUntil={undoUntil} /> :
+        <p className="help">{t(editable ? "setupUndo.help" : "setupUndo.closed")}</p>}
+    </div>
+  )}</LoadGate>;
+}
+
+function SetupUndoDeadline({ undoUntil }: { undoUntil: string }) {
+  const { locale, t } = useI18n();
+  const deadline = new Date(undoUntil);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const remaining = Date.parse(undoUntil) - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), remaining);
+    return () => window.clearTimeout(timer);
+  }, [undoUntil]);
+
+  return <p className="help">{deadline.getTime() > now
+    ? t("setupUndo.until", { time: deadline.toLocaleTimeString(locale === "da" ? "da-DK" : "en-GB", {
+      hour: "2-digit", minute: "2-digit",
+    }) })
+    : t("setupUndo.ended")}</p>;
 }

@@ -247,7 +247,7 @@ export function phoneAlertMail(
   locale: Locale,
   publicUrl: string,
   alert:
-    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" }
+    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean }
     | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string },
 ): Mail {
   const da = locale === "da";
@@ -284,6 +284,9 @@ export function phoneAlertMail(
         ];
   }
   const undone = alert.kind === "protection" && alert.reason === "setup-undo";
+  if (undone && alert.reportedLate) {
+    paragraphs.push(da ? "Telefonen rapporterede det med forsinkelse." : "The phone reported late.");
+  }
   return build(to, subject, {
     publicUrl,
     locale,

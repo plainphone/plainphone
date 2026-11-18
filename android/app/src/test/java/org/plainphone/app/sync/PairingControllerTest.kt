@@ -84,6 +84,22 @@ class PairingControllerTest {
     }
 
     @Test
+    fun `a refused key preserves the setup link for correcting the choice`() {
+        store.saveEnrollToken("pp_e_retry")
+        store.confirmEnrollment()
+        api.enrollResult = EnrollResult.InvalidKey
+
+        assertThat(controller.enroll()).isEqualTo(EnrollResult.InvalidKey)
+        assertThat(store.enrollToken()).isEqualTo("pp_e_retry")
+        assertThat(store.enrollmentConfirmed).isFalse()
+
+        store.confirmEnrollment()
+        api.enrollResult = EnrollResult.Paired("phone", "pp_d_connected")
+        assertThat(controller.enroll()).isEqualTo(EnrollResult.Paired("phone", "pp_d_connected"))
+        assertThat(store.enrollToken()).isNull()
+    }
+
+    @Test
     fun `setup can finish after background enrollment without reopening pairing`() {
         val setup = now - 60_000
         store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")

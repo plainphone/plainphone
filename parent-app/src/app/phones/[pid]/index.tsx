@@ -36,7 +36,7 @@ function PendingList() {
   return (
     <VStack gap={space.sm}>
       {pending.map((c) => {
-        const what = describeOp(c.op, t, locale, appLabel);
+        const what = c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel);
         return (
           <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
             <Button

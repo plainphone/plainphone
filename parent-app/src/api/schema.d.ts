@@ -82,6 +82,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/enrollment-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy a template into an unused light-mode Self setup link */
+        post: operations["postDeviceEnrollmentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/enroll": {
         parameters: {
             query?: never;
@@ -284,6 +301,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/approval-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List pending trusted approvals for this Self phone */
+        get: operations["getDeviceApprovalRequests"];
+        put?: never;
+        /** Issue a two-minute code and replace any earlier code for this change */
+        post: operations["postDeviceApprovalChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/trusted-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a 15-minute helper invite for a Self phone waiting for a QR invite */
+        post: operations["postDeviceTrustedInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/self-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share a short-lived copy of this Self phone’s selected rules */
+        post: operations["postDeviceSelfTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/setup-completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the remaining setup undo window (phone) */
+        get: operations["getDeviceSetupCompletion"];
+        put?: never;
+        /** Record completion once for a light-mode phone */
+        post: operations["postDeviceSetupCompletion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/undo-setup": {
         parameters: {
             query?: never;
@@ -295,8 +382,10 @@ export interface paths {
         put?: never;
         /**
          * Report local undo of light-mode setup (phone)
-         * @description The phone decides its local undo window and switches off locally. The server accepts
-         *     authenticated report for light mode at any time and queues a notice when it removes the phone.
+         * @description The phone decides its local undo window and switches off locally. The server records
+         *     authenticated light-mode reports at any time by removing the phone and queuing a notice.
+         *     Reports received more than 48 hours after a known window ended are marked as late.
+         *     A strong-mode phone receives a 409.
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -1540,6 +1629,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/setup-undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** Get the phone’s setup undo choice and whether it is still editable */
+        get: operations["getPhoneSetupUndo"];
+        /** Set the setup undo period on a light-mode phone before pairing */
+        put: operations["putPhoneSetupUndo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/trusted-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a QR invite for a Self phone waiting for a helper */
+        post: operations["postPhoneTrustedInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/self-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share a short-lived copy of the phone’s selected rules */
+        post: operations["postPhoneSelfTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/key": {
         parameters: {
             query?: never;
@@ -1597,6 +1744,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/people-i-help": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Self phones for which I hold the key */
+        get: operations["getPeopleIHelp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approvals": {
         parameters: {
             query?: never;
@@ -1608,6 +1772,23 @@ export interface paths {
         get: operations["getApprovals"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/changes/{cid}/approve-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve with a one-time QR challenge as the current trusted person */
+        post: operations["postChangesApproveQr"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1672,6 +1853,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChildContactSettings: {
+            suggestDeviceContacts: boolean;
+            lightContactRestriction: boolean;
+        };
+        SetupUndoWindow: {
+            undoRemainingMs: number;
+        };
         SuggestedContactInput: {
             name: string;
             numbers: components["schemas"]["E164"][];
@@ -1956,10 +2144,17 @@ export interface components {
             /** @constant */
             status: "applied";
         };
+        /** @description Revision from the helper approval list for the preview being approved. */
+        ApprovalRevision: string;
+        ApprovalSummary: {
+            en: string;
+            da: string;
+        };
         PendingChange: {
             /** Format: uuid */
             id: string;
             op: components["schemas"]["Op"];
+            summary?: components["schemas"]["ApprovalSummary"];
             /** @enum {unknown} */
             keyType: "delay" | "trusted";
             /**
@@ -2352,6 +2547,20 @@ export interface components {
             endMinute: number;
             allowedPackages?: components["schemas"]["PackageName"][];
         };
+        InitialSelfKey: {
+            /** @enum {unknown} */
+            keyType: "delay";
+            /** @enum {integer} */
+            delayHours: 1 | 6 | 12 | 24 | 48 | 72;
+        } | {
+            /** @enum {unknown} */
+            keyType: "trusted";
+            /** Format: email */
+            trustedEmail: string;
+        } | {
+            /** @enum {unknown} */
+            keyType: "trustedQr";
+        };
         Key: {
             /** @enum {unknown} */
             keyType: "delay" | "trusted";
@@ -2359,6 +2568,8 @@ export interface components {
             delayHours: number;
             /** Format: email */
             trustedEmail: string | null;
+            /** @description Choose a trusted person by QR instead of email. */
+            qrInvite?: boolean;
             payUnlockEnabled: boolean;
             /** @description Minor units. */
             payUnlockAmount: number;
@@ -2512,6 +2723,11 @@ export interface operations {
                         phoneId?: string;
                         /** @example pp_d_… */
                         deviceToken?: string;
+                        /**
+                         * @description Optional dashboard override for light-mode setup.
+                         * @enum {integer}
+                         */
+                        setupUndoMinutes?: 0 | 5 | 10 | 30 | 60;
                         /** @description Masked claimer and household for strong-mode pairing, when available. */
                         account?: {
                             maskedEmail: string;
@@ -2566,6 +2782,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     action: "confirm" | "cancel";
+                    key?: components["schemas"]["InitialSelfKey"];
                 };
             };
         };
@@ -2582,6 +2799,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId: string;
                         deviceToken: string;
+                        /**
+                         * @description Optional dashboard override for light-mode setup.
+                         * @enum {integer}
+                         */
+                        setupUndoMinutes?: 0 | 5 | 10 | 30 | 60;
                         /** @description Masked claimer and household for strong-mode pairing, when available. */
                         account?: {
                             maskedEmail: string;
@@ -2662,6 +2884,50 @@ export interface operations {
             429: components["responses"]["Error"];
         };
     };
+    postDeviceEnrollmentTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    template: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rules copied into the draft with one or more core app blocks skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        skippedCoreBlocks: number;
+                    };
+                };
+            };
+            /** @description Rules copied into the existing draft with no blocks skipped */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Setup link or template unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["Error"];
+        };
+    };
     postDeviceEnroll: {
         parameters: {
             query?: never;
@@ -2673,6 +2939,7 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
+                    key?: components["schemas"]["InitialSelfKey"];
                     /** @description Random id the phone makes once and keeps; only its hash is stored. */
                     installId: string;
                     deviceInfo?: {
@@ -2694,6 +2961,11 @@ export interface operations {
                         /** Format: uuid */
                         phoneId?: string;
                         deviceToken?: string;
+                        /**
+                         * @description Optional dashboard override for light-mode setup.
+                         * @enum {integer}
+                         */
+                        setupUndoMinutes?: 0 | 5 | 10 | 30 | 60;
                         /** @description Masked token issuer for a new strong-mode enrollment, when available. */
                         account?: {
                             maskedEmail: string;
@@ -3039,6 +3311,161 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             409: components["responses"]["Error"];
+        };
+    };
+    getDeviceApprovalRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending changes and their affected rule targets. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        changes: {
+                            /** Format: uuid */
+                            id: string;
+                            type: string;
+                            /** @description App label, package fallback, or * for the total time limit. */
+                            appLabel: string | null;
+                            summary: components["schemas"]["ApprovalSummary"];
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postDeviceApprovalChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    changeId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Challenge, QR URL and the change shown with it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        challenge: string;
+                        /** Format: uri */
+                        url: string;
+                        summary: components["schemas"]["ApprovalSummary"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    postDeviceTrustedInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite URL and expiry */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postDeviceSelfTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template URL */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    getDeviceSetupCompletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The time left, or zero when setup undo is unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupUndoWindow"];
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    postDeviceSetupCompletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Elapsed time since local setup completed, capped at seven days by the server. Null when unknown after a reboot. */
+                    elapsedMs: number | null;
+                    /**
+                     * @description Optional Self phone choice.
+                     * @enum {integer}
+                     */
+                    undoMinutes?: 0 | 5 | 10 | 30 | 60;
+                };
+            };
+        };
+        responses: {
+            /** @description The time left, or zero when setup undo is unavailable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupUndoWindow"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
         };
     };
     postDeviceUndoSetup: {
@@ -3954,6 +4381,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Optional rule template code for an unconnected Self phone. */
+                    template?: string;
                     name: string;
                     /**
                      * @default strong
@@ -4704,12 +5133,17 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Settings saved */
-            204: {
+            /** @description Contact settings immediately before and after the save */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        before: components["schemas"]["ChildContactSettings"];
+                        after: components["schemas"]["ChildContactSettings"];
+                    };
+                };
             };
             400: components["responses"]["Error"];
             /** @description Child phone not found */
@@ -5238,6 +5672,104 @@ export interface operations {
             };
         };
     };
+    getPhoneSetupUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Minutes, editability, and the deadline reported by the phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        minutes: 0 | 5 | 10 | 30 | 60;
+                        editable: boolean;
+                        /** Format: date-time */
+                        undoUntil: string | null;
+                    };
+                };
+            };
+        };
+    };
+    putPhoneSetupUndo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {integer} */
+                    minutes: 0 | 5 | 10 | 30 | 60;
+                };
+            };
+        };
+        responses: {
+            /** @description Minutes and editable flag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postPhoneTrustedInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invite URL and expiry */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    postPhoneSelfTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template URL */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+        };
+    };
     getPhonesKey: {
         parameters: {
             query?: never;
@@ -5341,6 +5873,24 @@ export interface operations {
             };
         };
     };
+    getPeopleIHelp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phones and owner emails */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getApprovals: {
         parameters: {
             query?: never;
@@ -5350,8 +5900,64 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description approvals: id, phoneName, requestedBy, op, appLabel (name of the app for app.set, or null), createdAt */
+            /** @description Pending approvals with the change shown to the helper. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        approvals: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            phoneId: string;
+                            phoneName: string;
+                            requestedBy: string | null;
+                            summary: components["schemas"]["ApprovalSummary"];
+                            revision: components["schemas"]["ApprovalRevision"];
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    postChangesApproveQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: components["parameters"]["changeId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge: string;
+                    revision: components["schemas"]["ApprovalRevision"];
+                };
+            };
+        };
+        responses: {
+            /** @description Applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not my request to decide */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid code or stale preview */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5368,7 +5974,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: components["schemas"]["ApprovalRevision"];
+                };
+            };
+        };
         responses: {
             /** @description Applied */
             204: {
@@ -5379,6 +5991,13 @@ export interface operations {
             };
             /** @description Not my request to decide */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Stale preview or request no longer pending */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

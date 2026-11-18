@@ -124,3 +124,18 @@ OpenStreetMap data). The tiles are loaded only on the location page, and that re
 OpenFreeMap the area and the parent's IP address. The server's CSP allows that one origin
 (`MAP_TILE_ORIGIN` in `server/src/app.ts`). "Drive there" links hand the coordinates to Google
 Maps or Apple Maps only when the parent taps them.
+
+## Trusted people and setup codes
+
+A trusted person can see which phone and account they help, pending changes and
+the names of the rules they can approve. The helper account receives no
+location, messages, contacts, browsing or usage history. A trusted invitation
+grants no household membership. Any data the owner explicitly shares through
+a separate feature follows that feature's access rules. The dashboard decodes
+QR codes in the browser. It sends the code needed for the selected action to
+Plainphone, and keeps camera images on the device.
+
+A **Set up like me** code contains a link to a 15-minute snapshot of time limits,
+schedules, app choices and web filter categories. It excludes contacts, domain
+exceptions, location, history and the key. Importing the snapshot creates no
+relationship between the two accounts.

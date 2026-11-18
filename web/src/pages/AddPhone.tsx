@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams, useParams } from "react-router";
+import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
@@ -39,12 +39,17 @@ interface Qr {
 /** /add: a new phone. */
 export function AddPhonePage() {
   const { t, locale } = useI18n();
+  const navigate = useNavigate();
+  const [template] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("template"));
+  useEffect(() => {
+    if (template) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [template]);
   const [params] = useSearchParams();
   const choice = params.get("mode");
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
-  const [profile, setProfile] = useState<Profile>("child");
+  const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
   async function makeQr(pin?: string) {
@@ -52,7 +57,11 @@ export function AddPhonePage() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(template ? { template } : {}) });
+    if (template) {
+      navigate(`/phones/${out.phone!.id}`, { replace: true });
+      return;
+    }
     setQr(buildQr(out, out.phone!, pinned, locale));
     setStep(3);
   }
@@ -62,15 +71,17 @@ export function AddPhonePage() {
       <p className="back">
         <Link to="/">{t("nav.phones")}</Link>
       </p>
+      {template && <p className="notice notice-info">{t("template.importHelp")}</p>}
       {!mode && <ModeStep onChoose={setMode} />}
-      {mode && step !== 3 && <Progress step={step} total={mode === "light" ? 2 : 3} />}
+      {mode && step !== 3 && <Progress step={step} total={mode === "light" || template ? 2 : 3} />}
       {mode && step === 1 && (
         <WhoStep
           name={name}
           profile={profile}
           onName={setName}
           onProfile={setProfile}
-          onNext={mode === "light" ? () => makeQr() : () => setStep(2)}
+          selfOnly={Boolean(template)}
+          onNext={mode === "light" || template ? () => makeQr() : () => setStep(2)}
           makeLink={mode === "light"}
           onBack={() => setMode(null)}
         />
@@ -194,6 +205,7 @@ function WhoStep(props: {
   profile: Profile;
   onName: (v: string) => void;
   onProfile: (v: Profile) => void;
+  selfOnly?: boolean;
   onNext: () => void | Promise<void>;
   makeLink: boolean;
   onBack: () => void;
@@ -225,7 +237,7 @@ function WhoStep(props: {
       <form onSubmit={submit} noValidate className="stack">
         <fieldset className="choices">
           <legend className="sr-only">{t("pair.profile")}</legend>
-          {(["child", "self"] as const).map((p) => (
+          {(props.selfOnly ? ["self"] as const : ["child", "self"] as const).map((p) => (
             <label key={p} className="choice">
               <input type="radio" name="profile" value={p} checked={props.profile === p} onChange={() => props.onProfile(p)} />
               <span>
@@ -479,7 +491,7 @@ function WifiForm({ wifi, onChange }: { wifi?: SetupWifi; onChange: (wifi?: Setu
 }
 
 /** Black on white with a quiet zone, also in dark mode, so every camera can read it. */
-function QrImage({ modules, label }: { modules: boolean[][]; label: string }) {
+export function QrImage({ modules, label }: { modules: boolean[][]; label: string }) {
   const size = modules.length;
   const path = useMemo(() => {
     let d = "";

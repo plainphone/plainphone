@@ -16,6 +16,11 @@ it("uses the Self key when coming from an always-restricted contact list", async
   for (const restricted of [true, false]) {
     const result = await owner.put(`/api/phones/${phoneId}/contact-schedule`, { restricted });
     expect(result.status).toBe(202);
+    const pending = await owner.get(`/api/phones/${phoneId}/changes`);
+    const change = pending.json.changes.find((row: { id: string }) => row.id === result.json.change.id);
+    expect(change.summary.en).toBe(
+      `Calls and texts during schedules: favourites only at all times → ${restricted ? "favourites only" : "anyone"}`,
+    );
   }
   const add = await device.post("/api/device/self/favourites", {
     name: "Alex", number: "+4512345678", favourite: true,

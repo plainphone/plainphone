@@ -17,6 +17,7 @@ import java.security.SecureRandom
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
+import org.plainphone.app.sync.SetupCompletion
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.Lock
 import org.plainphone.app.sync.SyncScheduler
@@ -139,13 +140,76 @@ object LightSetup {
         val edit = prefs(context).edit().putBoolean("complete", true)
         val sync = SyncStore(context)
         if (profile(context) != null && sync.isPaired && !sync.released && !sync.setupUndoPending) {
+            val chosenMinutes = if (profile(context) == "self") prefs(context).getInt("setupUndoMinutes", 10) else 10
+            val windowMs = (sync.setupUndoMinutes() ?: chosenMinutes) * 60_000L
             edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
-                .putLong("undoWindowMs", SETUP_UNDO_MS)
+                .putBoolean("completionReported", false)
+                .putLong("undoWindowMs", windowMs)
                 .putInt("completedBoot", bootCount(context))
                 .putString("completedPhoneId", sync.phoneId)
         }
         edit.commit()
         LightRelease.clear(context)
+        if (sync.phoneId != null && pendingCompletion(context, sync.phoneId) != null) {
+            SyncScheduler.now(context, "setup completed")
+        }
+    }
+
+    internal fun pendingCompletion(context: Context, phoneId: String?): SetupCompletion? {
+        val saved = prefs(context)
+        val completedElapsed = saved.getLong("completedElapsed", -1)
+        if (phoneId == null || phoneId != saved.getString("completedPhoneId", null) ||
+            completedElapsed < 0 || saved.getBoolean("completionReported", false)
+        ) return null
+
+        val boot = bootCount(context)
+        val elapsed = if (boot >= 0 && boot == saved.getInt("completedBoot", -1)) {
+            (SystemClock.elapsedRealtime() - completedElapsed).takeIf { it >= 0 }
+        } else {
+            null
+        }
+        return SetupCompletion(elapsed, (saved.getLong("undoWindowMs", 0) / 60_000).toInt())
+    }
+
+    @SuppressLint("ApplySharedPref") // Only clear the durable report after the server acknowledges it.
+    internal fun completionReported(context: Context) {
+        prefs(context).edit().putBoolean("completionReported", true).commit()
+    }
+
+    internal fun clearAfterRelease(context: Context, undoPending: Boolean) {
+        val saved = prefs(context)
+        val edit = saved.edit()
+        if (undoPending) {
+            // Undo clears setup locally before sync can deliver the completion and undo reports.
+            val completionKeys = setOf("completedPhoneId", "completedElapsed",
+                "completedBoot", "undoWindowMs", "completionReported")
+            for (key in saved.all.keys - completionKeys) edit.remove(key)
+        } else {
+            edit.clear()
+        }
+        edit.apply()
+    }
+
+    fun saveSelfKey(context: Context, waitHours: Int?, email: String, inviteByQr: Boolean) {
+        prefs(context).edit().putInt("selfKeyHours", waitHours ?: 0)
+            .putString("selfKeyEmail", email).putBoolean("selfKeyQr", inviteByQr).apply()
+    }
+
+    fun selfKey(context: Context): org.json.JSONObject? {
+        if (profile(context) != "self") return null
+        val saved = prefs(context)
+        if (saved.getBoolean("selfKeyQr", false)) return org.json.JSONObject().put("keyType", "trustedQr")
+        val hours = saved.getInt("selfKeyHours", 0)
+        if (hours in listOf(1, 6, 12, 24, 48, 72)) {
+            return org.json.JSONObject().put("keyType", "delay").put("delayHours", hours)
+        }
+        val email = saved.getString("selfKeyEmail", null)?.takeIf { it.isNotBlank() } ?: return null
+        return org.json.JSONObject().put("keyType", "trusted").put("trustedEmail", email)
+    }
+
+    fun saveUndoMinutes(context: Context, minutes: Int) {
+        require(minutes in SETUP_UNDO_CHOICES)
+        prefs(context).edit().putInt("setupUndoMinutes", minutes).apply()
     }
 
     fun localUndoDeadline(context: Context): Long {

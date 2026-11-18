@@ -218,7 +218,7 @@ function ChangeBar({
 
   let text: string | null = null;
   if (banner) {
-    const what = describeOp(banner.op, t, locale, appLabel);
+    const what = banner.summary?.[locale] ?? describeOp(banner.op, t, locale, appLabel);
     let when: string;
     if (banner.keyType === "trusted" || !banner.effectiveAt) when = t("pending.trustedBanner");
     else {

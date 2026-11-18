@@ -25,6 +25,14 @@ class SetupAudienceTest {
         assertEquals(0L, setupUndoRemaining(-1, completed, SETUP_UNDO_MS))
     }
 
+    @Test fun configurableUndoCountsElapsedTimeAndCapsItAtOneHour() {
+        val completed = 120_000L
+        assertEquals(0L, setupUndoRemaining(completed, completed, 0))
+        assertEquals(299_999L, setupUndoRemaining(completed, completed + 1, 300_000L))
+        assertEquals(1L, setupUndoRemaining(completed, completed + MAX_SETUP_UNDO_MS - 1, Long.MAX_VALUE))
+        assertEquals(0L, setupUndoRemaining(completed, completed + MAX_SETUP_UNDO_MS, Long.MAX_VALUE))
+    }
+
     @Test fun onlyMissingRolesAndGuardOnAndroid13OrLaterShowRestrictedSettingsHelp() {
         for (step in listOf(LightSetup.Step.PHONE, LightSetup.Step.SMS, LightSetup.Step.GUARD)) {
             assertTrue(needsRestrictedSettingsHelp(33, step, granted = false))

@@ -179,6 +179,8 @@ private fun PairingScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var deciding by remember { mutableStateOf(false) }
     var decisionFailed by remember { mutableStateOf(false) }
+    var invalidKey by rememberSaveable { mutableStateOf(false) }
+    var helperEmail by rememberSaveable { mutableStateOf("") }
     var confirmationStarted by rememberSaveable { mutableStateOf(false) }
     fun decide(confirm: Boolean) {
         if (deciding) return
@@ -196,6 +198,7 @@ private fun PairingScreen(onDone: () -> Unit) {
                                 PairPoll.Expired
                             } else when (val enrolled = controller.enroll()) {
                                 is EnrollResult.Paired -> PairPoll.Paired(enrolled.phoneId, enrolled.deviceToken)
+                                EnrollResult.InvalidKey -> PairPoll.InvalidKey
                                 EnrollResult.Rejected -> PairPoll.Expired
                                 null -> if (store.isPaired) PairPoll.Paired(checkNotNull(store.phoneId), checkNotNull(store.deviceToken()))
                                     else PairPoll.Expired
@@ -213,6 +216,11 @@ private fun PairingScreen(onDone: () -> Unit) {
                         SyncScheduler.now(context, "paired")
                         ui = PairingUi.Paired
                         onDone()
+                    }
+                    PairPoll.InvalidKey -> {
+                        invalidKey = true
+                        confirmationStarted = false
+                        helperEmail = LightSetup.selfKey(context)?.optString("trustedEmail").orEmpty()
                     }
                     PairPoll.Expired -> if (confirm) {
                         confirmationStarted = false
@@ -240,14 +248,20 @@ private fun PairingScreen(onDone: () -> Unit) {
             ui = PairingUi.Connecting
             try {
                 if (Mode.isStrong(context) || store.enrollmentConfirmed) {
-                    withContext(Dispatchers.IO) { controller.enroll() }
+                    val result = withContext(Dispatchers.IO) { controller.enroll() }
+                    if (result == EnrollResult.InvalidKey) {
+                        invalidKey = true
+                        confirmationStarted = false
+                        helperEmail = LightSetup.selfKey(context)?.optString("trustedEmail").orEmpty()
+                    }
                     if (store.isPaired) {
                         SyncScheduler.ensurePeriodic(context)
                         SyncScheduler.now(context, "paired")
                         onDone()
                         return@LaunchedEffect
                     }
-                } else {
+                }
+                if (store.enrollToken() == enrollmentToken) {
                     val (account, profile) = withContext(Dispatchers.IO) { api.reviewEnrollment(enrollmentToken, Mode.name(context)) }
                     val selectedProfile = LightSetup.profile(context)
                     ui = PairingUi.Confirm(
@@ -301,7 +315,7 @@ private fun PairingScreen(onDone: () -> Unit) {
                     ui = again.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: "") })
                 }
                 is PairPoll.Confirm -> ui = PairingUi.Confirm(r)
-                PairPoll.Waiting, null -> Unit // a network hiccup: keep showing the code and try again
+                PairPoll.InvalidKey, PairPoll.Waiting, null -> Unit // a network hiccup: keep showing the code and try again
             }
         }
         if (ui is PairingUi.Paired) {
@@ -342,7 +356,28 @@ private fun PairingScreen(onDone: () -> Unit) {
                     state.details.householdName?.let { Text(stringResource(R.string.setup_pair_household, it)) }
                     if (decisionFailed) Text(stringResource(R.string.pairing_failed), color = MaterialTheme.colorScheme.error)
                     if (state.matchesProfile) {
-                        Button(onClick = { decide(true) }, enabled = !deciding, modifier = Modifier.fillMaxWidth()) {
+                        if (invalidKey) {
+                            Text(stringResource(R.string.setup_key_invalid), color = MaterialTheme.colorScheme.error)
+                            androidx.compose.material3.OutlinedTextField(
+                                value = helperEmail,
+                                onValueChange = { helperEmail = it },
+                                enabled = !deciding,
+                                label = { Text(stringResource(R.string.setup_key_email)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            androidx.compose.material3.OutlinedButton(onClick = {
+                                LightSetup.saveSelfKey(context, null, "", true)
+                                decide(true)
+                            }, enabled = !deciding, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.setup_key_qr))
+                            }
+                        }
+                        val validEmail = android.util.Patterns.EMAIL_ADDRESS.matcher(helperEmail.trim()).matches()
+                        Button(onClick = {
+                            if (invalidKey) LightSetup.saveSelfKey(context, null, helperEmail.trim(), false)
+                            decide(true)
+                        }, enabled = !deciding && (!invalidKey || validEmail), modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.setup_connect))
                         }
                     } else {
@@ -368,7 +403,7 @@ private fun PairingScreen(onDone: () -> Unit) {
 
 /** Dark modules on white with a quiet zone, also in dark mode, so every camera can read it. */
 @Composable
-private fun QrCode(text: String, modifier: Modifier) {
+internal fun QrCode(text: String, modifier: Modifier) {
     val matrix = remember(text) { encodePairingQr(text) }
     val label = stringResource(R.string.pairing_qr_description)
     Box(modifier.background(Color.White).padding(12.dp).semantics { contentDescription = label }) {

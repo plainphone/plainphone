@@ -114,15 +114,18 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
    **Allow from this source** in Android settings.
 
-**Undo setup** is available without a PIN on the finish and Today screens for ten minutes after
+**Undo setup** is available without a PIN on the finish and Today screens for the chosen window (ten minutes by default) after
 light-mode setup completes. The phone saves the window length, the boot count and the elapsed
 time since boot at completion. Changing the clock has no effect. Rebooting closes the window.
 The maintenance PIN and dashboard release remain available.
 
 Tapping **Undo setup** switches off the app guard and DNS filter on the phone, even offline.
-The phone saves the accepted undo and retries the report after reconnecting. Once the server
-acknowledges it, Plainphone removes its device administrator so Android allows normal
-uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
+The phone saves completion and any accepted undo and retries the reports after reconnecting.
+The dashboard shows the reported end time when known. The server accepts light-mode undo
+reports whenever they arrive. If a report arrives more than 48 hours after the recorded
+window closed, the household notice says it arrived late. Plainphone keeps its device
+administrator until the server acknowledges the undo or confirms the phone is already gone.
+Android then allows normal uninstallation. Android still lets someone manually deactivate a light-mode device administrator.
 If you remove it yourself and uninstall before the phone reconnects, the report cannot be sent.
 
 When the server receives the report, it removes the phone from the dashboard and queues the
