@@ -321,13 +321,11 @@ function summaryStatus(phone: Phone, now: Date) {
     lateGoogleAccountNotice, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
-  const assessed = withAttestation(status, phone.attestation);
-  const failedPolicies = assessed.failedPolicies.filter((policy) => !isInstallOverrun(policy));
-  // Reserve the last slot for the notice only when the current report leaves room.
+  const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
+  // Reserve room based on the phone report before adding server-side attestation.
   if (showOverrun && failedPolicies.length < 50) failedPolicies.unshift(overrun.policy);
   return {
-    ...assessed,
-    failedPolicies,
+    ...withAttestation({ ...status, failedPolicies }, phone.attestation),
     parallelAppsRemoved: visibleNotice(parallelAppsRemovalFromStatus(phone.deviceStatus, phone.statusReportedAt), now),
     lateGoogleAccount: visibleNotice(lateGoogleAccountNotice, now),
     reportedAt: phone.statusReportedAt.toISOString(),

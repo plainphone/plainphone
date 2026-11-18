@@ -58,9 +58,10 @@ export function InvitePage() {
     <div className="narrow">
       <PageTitle>{t("invite.title")}</PageTitle>
       {!token ? (
-        <p className="notice notice-error" role="alert">
-          {t("invite.missing")}
-        </p>
+        <div className="stack">
+          <p className="notice notice-error" role="alert">{t("invite.missing")}</p>
+          <Link className="btn btn-secondary" to="/">{t("invite.back")}</Link>
+        </div>
       ) : result === null ? (
         <p role="status">
           <span className="spinner" aria-hidden="true" /> {t("invite.accepting")}

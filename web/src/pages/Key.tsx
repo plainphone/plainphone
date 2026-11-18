@@ -4,7 +4,6 @@ import { Navigate } from "react-router";
 import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type ChangeResult, type KeyInput, type SelfKey } from "../lib/api";
-import { formatMoney } from "../lib/format";
 import { useMe } from "../lib/session";
 import { usePhone } from "./Phone";
 
@@ -22,7 +21,7 @@ export function KeyPage() {
 }
 
 function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const me = useMe();
   const { phone, run } = usePhone();
   const [keyType, setKeyType] = useState(current.keyType);
@@ -98,33 +97,6 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
         <Field label={t("key.email")} help={t("key.emailHelp")} error={errors.email}>
           {(p) => <input {...p} type="email" inputMode="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />}
         </Field>
-      )}
-
-      {/* Pay to unlock only ever applies to the delay key (D13). */}
-      {keyType === "delay" && (
-      <fieldset className="panel pay" disabled aria-describedby="pay-note">
-        <legend>{t("key.payTitle")}</legend>
-        <p className="notice notice-info" id="pay-note">
-          {t("key.payNotYet")}
-        </p>
-        <p className="help">{t("key.payHelp")}</p>
-        <label className="check">
-          <input type="checkbox" checked={current.payUnlockEnabled} readOnly />
-          <span>{t("key.payEnabled")}</span>
-        </label>
-        <div className="pay-row">
-          <div className="field">
-            <label htmlFor="pay-amount">{t("key.payAmount")}</label>
-            <input id="pay-amount" readOnly value={formatMoney(current.payUnlockAmount, current.payUnlockCurrency, locale)} />
-          </div>
-          <div className="field">
-            <label htmlFor="pay-recipient">{t("key.payRecipient")}</label>
-            <select id="pay-recipient" value={current.payUnlockRecipient} onChange={() => undefined}>
-              <option value="plainphone">{t("key.recipient.plainphone")}</option>
-            </select>
-          </div>
-        </div>
-      </fieldset>
       )}
 
       <p className="help">{t("key.looseningNote")}</p>

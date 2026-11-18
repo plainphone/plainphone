@@ -47,3 +47,24 @@ describe("translate", () => {
     expect(pickLocale("fr", ["fr-FR"])).toBe("en");
   });
 });
+
+describe("dashboard rule and deletion copy", () => {
+  it.each([
+    [da, /prøver igen/, /gælder ikke endnu/, /^Strammere regler gælder, næste gang.*\. Løsere regler venter på din nøgle\.$/],
+    [en, /try again/, /aren’t active yet/, /^Stricter rules take effect the next time.*\. Looser rules wait for your key\.$/],
+  ] as const)("explains when filter updates and Self rules take effect", (catalogue, retry, inactive, selfTiming) => {
+    expect(catalogue["filter.notSynced"]).toMatch(retry);
+    expect(catalogue["filter.notSynced"]).toMatch(inactive);
+    expect(catalogue["profile.selfHelp"]).toMatch(selfTiming);
+  });
+
+  it.each([
+    [da, /[Hh]usstand.*telefondata.*slettes permanent/, /webfilter stopper/],
+    [en, /households.*phone data.*permanently deleted/, /web filter stops/],
+  ] as const)("states what is lost when deleting an account or removing a phone", (catalogue, deletion, filterStops) => {
+    expect(catalogue["settings.deletePhones"]).toMatch(deletion);
+    for (const key of ["settings.deletePhones", "phone.removeConfirm", "phone.removeSelfConfirm"] as const) {
+      expect(catalogue[key], key).toMatch(filterStops);
+    }
+  });
+});

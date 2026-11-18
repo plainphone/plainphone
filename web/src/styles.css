@@ -336,6 +336,10 @@ main {
   margin-bottom: 0.5rem;
 }
 
+.rules-section > h2 {
+  margin-bottom: 1.25rem;
+}
+
 .section > .help {
   margin-bottom: 0.75rem;
 }
@@ -533,10 +537,14 @@ main {
   padding: 0.625rem 1rem;
 }
 
-.status-updated,
 .status-dns,
+.status-updated,
 .status-release {
   margin-top: 0.5rem;
+}
+
+.lock-details {
+  overflow-wrap: anywhere;
 }
 
 /* Switches ----------------------------------------------------------------- */
@@ -1019,36 +1027,6 @@ input[type="radio"] {
 .sched-list .form-card {
   border: 0;
   box-shadow: none;
-}
-
-.pay:disabled,
-.pay {
-  padding: 1rem;
-}
-
-.pay legend {
-  float: left;
-  width: 100%;
-  margin-bottom: 0.75rem;
-}
-
-.pay > * + * {
-  margin-top: 0.75rem;
-}
-
-.pay-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
-  gap: 1rem;
-}
-
-.pay .check {
-  opacity: 0.75;
-}
-
-.pay input[readonly],
-.pay select:disabled {
-  background: var(--bg);
 }
 
 details.details {

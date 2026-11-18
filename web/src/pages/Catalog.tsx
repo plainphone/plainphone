@@ -51,7 +51,12 @@ export function CatalogPage() {
       <PageTitle sub={t("catalog.intro")}>{t("catalog.title")}</PageTitle>
       <LoadGate res={res}>
         {(cat) => {
-          if (!cat.country || cat.apps.length === 0) return <p className="empty-inline">{t("catalog.empty")}</p>;
+          if (!cat.country || cat.apps.length === 0) return (
+            <div className="stack-sm">
+              <p className="empty-inline">{t("catalog.empty")}</p>
+              <a href="https://github.com/plainphone/plainphone/discussions">{t("catalog.discussions")}</a>
+            </div>
+          );
           const needle = q.trim().toLocaleLowerCase(locale);
           const shown = needle ? cat.apps.filter((a) => a.name.toLocaleLowerCase(locale).includes(needle)) : cat.apps;
           const groups = cat.categories

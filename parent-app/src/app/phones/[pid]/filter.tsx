@@ -48,6 +48,9 @@ function FilterScreenBody() {
   return (
     <Screen testID="phone-filter" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
       <PageTitle sub={t("filter.intro")}>{t("filter.title")}</PageTitle>
+      <Disclosure title={t("filter.about")}>
+        <Text>{t("filter.limits")}</Text>
+      </Disclosure>
       <LoadGate res={res}>
         {(dns) => (
           <>
@@ -72,9 +75,7 @@ function FilterScreenBody() {
             <DomainList kind="allow" domains={dns.allowDomains} onChanged={() => void res.reload()} />
             <DomainList kind="block" domains={dns.blockDomains} onChanged={() => void res.reload()} />
             <Disclosure title={t("filter.technical")}>
-              <Text>
-                {t("filter.host")}
-              </Text>
+              <Text>{t("filter.host")}</Text>
               <Text variant="mono" selectable>
                 {dns.host}
               </Text>

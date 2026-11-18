@@ -119,7 +119,9 @@ After a sync the phone sends battery level and charging, app version, whether it
 Owner, whether a maintenance unlock is running, which lock steps failed, the ETag of the rules
 it applied and when, and the DNS host it actually uses. "Lock intact" means every lock step held
 and no maintenance unlock is running. The status goes out at once when anything about the lock
-changes, otherwise every 15 minutes. The dashboard shows it on the phone page.
+changes, otherwise every 15 minutes. The web dashboard shows when the phone last contacted
+the server at the top of its overview. The status section explains failed lock steps and puts
+raw step names and app installation overruns under **Show technical details**.
 
 ## Not done yet
 

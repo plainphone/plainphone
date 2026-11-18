@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -92,6 +92,25 @@ describe("overview", () => {
     expect(screen.queryByTestId("section-key")).toBeNull();
     // Child phones have nothing waiting.
     expect(screen.queryByText("Waiting changes")).toBeNull();
+  });
+
+  it("shows the installation warning even when the lock is intact", async () => {
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"] } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("App installation stayed open longer than planned during an update.")).toBeTruthy();
+    expect(screen.queryByText("42 seconds longer than planned.")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Show technical details" }));
+    expect(screen.getByText("42 seconds longer than planned.")).toBeTruthy();
+  });
+
+  it("shows the account warning on its own with an intact lock and closed technical details", async () => {
+    const failedPolicy = "restriction no_modify_accounts";
+    phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: [failedPolicy], lateGoogleAccount: true } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
+    expect(screen.queryByText("App installation stayed open longer than planned during an update.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show technical details" })).toBeTruthy();
+    expect(screen.queryByText(failedPolicy)).toBeNull();
   });
 
   it("lists waiting changes on a Self phone and cancels one", async () => {
@@ -203,6 +222,17 @@ describe("contacts", () => {
 });
 
 describe("web filter", () => {
+  it("keeps the filter limits available when the DNS settings fail to load", async () => {
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/dns`]: { status: 503, body: {} } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "filter") });
+    expect(await screen.findByText("Try again")).toBeTruthy();
+    const limits = "Useful sites can also be blocked. Helplines and selected health information sites are always available.";
+    expect(screen.queryByText(limits)).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "What the filter can and can’t do" }));
+    expect(screen.getByText(limits)).toBeTruthy();
+    expect(screen.queryByTestId("category-social")).toBeNull();
+  });
+
   it("switches a category and adds a website in its clean form", async () => {
     const dns = { host: "abc.dns.plainphone.org", synced: true, blockedCategories: ["social"], allowDomains: [], blockDomains: ["bad.example"] };
     const api = phoneApi(PHONE, {
@@ -339,7 +369,7 @@ describe("approvals", () => {
     await renderRouter(routes, { initialUrl: "/approvals" });
     expect(await screen.findByText("Show Instagram")).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Approve: Show Instagram"));
-    expect(await screen.findByText("Approved. The phone gets the change within a minute.")).toBeTruthy();
+    expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/changes/a1/approve")).toBe(true);
   });
 });
@@ -428,7 +458,7 @@ describe("invitations", () => {
     (Linking.useLinkingURL as jest.Mock).mockReturnValue("https://app.plainphone.org/auth/app#token=pp_m_loginlink123");
     const api = phoneApi();
     await renderRouter(routes, { initialUrl: "/invite" });
-    expect(await screen.findByText("This page needs an invitation link.")).toBeTruthy();
+    expect(await screen.findByText("Open the invitation link you were sent.")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/invites/accept")).toBe(false);
     (Linking.useLinkingURL as jest.Mock).mockReturnValue(null);
   });
