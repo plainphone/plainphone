@@ -25,7 +25,7 @@ it("keeps suggestions separate from rules until approved and remembers reviewed 
   expect((await device.get("/api/device/rules")).json.contacts).toEqual([]);
   expect((await parent.post(path, { action: "approve", id: alex.id })).status).toBe(204);
   expect((await parent.post(path, { action: "reject", id: sam.id })).status).toBe(204);
-  expect((await parent.post(path, { action: "approveAll" })).status).toBe(204);
+  expect((await parent.post(path, { action: "approveAll", suggestionIds: listed.map((s: { id: string }) => s.id) })).status).toBe(204);
   expect((await device.get("/api/device/rules")).json.contacts).toEqual([
     { name: "Alex", number: "+4512345678" },
     { name: "Alex", number: "+4512345679" },
@@ -34,6 +34,49 @@ it("keeps suggestions separate from rules until approved and remembers reviewed 
   ]);
   expect((await report([...contacts, { name: "New", numbers: ["+4545678901"] }])).status).toBe(204);
   expect((await parent.get(path)).json.suggestions.map((s: { name: string }) => s.name)).toEqual(["New"]);
+});
+
+it("only approves the groups and numbers shown in the review", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const path = `/api/phones/${phoneId}/contact-suggestions`;
+  const report = (contacts: { name: string; numbers: string[] }[]) =>
+    device.put("/api/device/contact-suggestions", { contacts });
+  const alex = { name: "Alex", numbers: ["+4512345678"] };
+  const jo = { name: "Jo", numbers: ["+4534567890"] };
+  const removed = { name: "Sam", numbers: ["+4523456789"] };
+  const incorrect = { name: "Pat", numbers: ["+4523456790"] };
+  expect((await report([alex, jo, removed, incorrect])).status).toBe(204);
+  const initial = (await parent.get(path)).json.suggestions;
+  const oldAlex = initial.find((s: { name: string }) => s.name === "Alex");
+  const updated = { name: "Alex", numbers: [...alex.numbers, "+4512345679"] };
+  const added = { name: "New", numbers: ["+4545678901"] };
+  const corrected = { name: "Pat", numbers: ["+4523456791"] };
+  expect((await report([updated, jo, added, corrected])).status).toBe(204);
+  expect((await parent.post(path, { action: "approve", id: oldAlex.id })).status).toBe(204);
+  expect((await device.get("/api/device/rules")).json.contacts).toEqual([]);
+  expect((await parent.post(path, { action: "approveAll", suggestionIds: initial.map((s: { id: string }) => s.id) })).status).toBe(204);
+  expect((await device.get("/api/device/rules")).json.contacts).toEqual([{ name: "Jo", number: jo.numbers[0] }]);
+  expect((await parent.get(path)).json.suggestions).toEqual([
+    { ...updated, id: expect.any(String) },
+    { ...added, id: expect.any(String) },
+    { ...corrected, id: expect.any(String) },
+  ]);
+  expect((await report([])).status).toBe(204);
+  expect((await parent.get(path)).json.suggestions).toEqual([]);
+});
+
+it("accepts a complete address book including contacts with more than 100 numbers", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const numbers = Array.from({ length: 101 }, (_, i) => `+451234${(1000 + i).toString()}`);
+  const ordinary = Array.from({ length: 101 }, (_, i) => ({ name: `Contact ${i}`, numbers: [`+452345${1000 + i}`] }));
+  expect((await device.put("/api/device/contact-suggestions", {
+    contacts: [{ name: "Many numbers", numbers }, ...ordinary],
+  })).status).toBe(204);
+  const suggestions = (await parent.get(`/api/phones/${phoneId}/contact-suggestions`)).json.suggestions;
+  expect(suggestions).toHaveLength(102);
+  expect(suggestions.find((s: { name: string }) => s.name === "Many numbers").numbers).toEqual(numbers);
 });
 
 it("accepts only names and numbers from a child phone", async () => {

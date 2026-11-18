@@ -5,6 +5,7 @@
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -749,7 +750,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ suggestions: await pendingContactSuggestions(ctx, phone.id) });
   });
 
-  app.post("/phones/:pid/contact-suggestions", async (c) => {
+  app.post("/phones/:pid/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = await requirePhone(c);
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     await reviewContactSuggestions(ctx, phone.id, await body(c, reviewContactSuggestionsInput));

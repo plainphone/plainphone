@@ -132,7 +132,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Suggest address book names and numbers from a child phone */
+        /**
+         * Replace pending suggestions with the current address book of a child phone
+         * @description Send one complete snapshot, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
+         */
         put: operations["putDeviceContactSuggestions"];
         post?: never;
         delete?: never;
@@ -1102,7 +1105,10 @@ export interface paths {
         /** List the child's contacts awaiting review */
         get: operations["getContactSuggestions"];
         put?: never;
-        /** Approve or dismiss a contact suggestion, or approve all pending suggestions */
+        /**
+         * Approve or dismiss a contact suggestion, or approve the suggestions shown together
+         * @description Each ID represents the displayed name and numbers. IDs that are no longer pending are ignored.
+         */
         post: operations["reviewContactSuggestions"];
         delete?: never;
         options?: never;
@@ -1951,8 +1957,8 @@ export interface components {
                 /** @description Only today's and tomorrow's (phone time zone, server clock). */
                 bonuses?: components["schemas"]["Bonus"][];
             };
-            /** @description When true, the Self phone allows favourites during active schedules. */
-            selfScheduleContacts?: boolean;
+            /** @description True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone. */
+            selfScheduleContacts?: boolean | null;
             /** @description Approved numbers on Child phones or favourites on Self phones. Emergency numbers always work. */
             contacts: {
                 name?: string;
@@ -2617,6 +2623,13 @@ export interface operations {
             400: components["responses"]["Error"];
             /** @description Available only for child phones */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot exceeds 4 MiB */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4287,6 +4300,7 @@ export interface operations {
                 } | {
                     /** @enum {string} */
                     action: "approveAll";
+                    suggestionIds: string[];
                 };
             };
         };
@@ -4301,6 +4315,13 @@ export interface operations {
             400: components["responses"]["Error"];
             /** @description Child phone not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Review exceeds 4 MiB */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -76,6 +76,13 @@ class PairingController(
          * the phone to an account of their own and open everything.
          */
         fun allowedWithoutPin(everPaired: Boolean, firstLockAtMs: Long?, nowMs: Long): Boolean =
-            !everPaired && firstLockAtMs != null && nowMs - firstLockAtMs in 0..FREE_PAIRING_MS
+            !everPaired && inSetupWindow(firstLockAtMs, nowMs)
+
+        /** Background enrollment may finish before setup opens its completion screen. */
+        fun canFinishSetup(isPaired: Boolean, firstLockAtMs: Long?, nowMs: Long): Boolean =
+            isPaired && inSetupWindow(firstLockAtMs, nowMs)
+
+        private fun inSetupWindow(firstLockAtMs: Long?, nowMs: Long): Boolean =
+            firstLockAtMs != null && nowMs - firstLockAtMs in 0..FREE_PAIRING_MS
     }
 }

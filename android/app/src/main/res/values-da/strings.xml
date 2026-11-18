@@ -84,8 +84,12 @@
     <string name="contacts_favourite_remove">Fjern</string>
     <string name="contacts_favourite_waiting">Ændringen venter på din nøgle.</string>
     <string name="contacts_favourite_failed">Favoritten kunne ikke ændres. Prøv igen.</string>
+    <string name="history_load_failed">Beskedhistorikken kunne ikke indlæses.</string>
+    <string name="history_retry">Prøv igen</string>
     <string name="history_read_only">Kan kun læses</string>
     <string name="history_load_older">Vis ældre</string>
+    <string name="message_new">Ny besked</string>
+    <string name="message_new_continue">Fortsæt</string>
     <string name="history_unknown">Ukendt nummer</string>
     <string name="history_mms">Billed- eller gruppesamtale</string>
     <string name="history_mms_placeholder">Billed- eller gruppebesked. Indholdet kan ikke vises.</string>

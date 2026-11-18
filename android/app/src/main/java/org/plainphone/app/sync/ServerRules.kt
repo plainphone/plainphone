@@ -57,7 +57,8 @@ data class ServerRules(
     val ring: RingRequest? = null,
     /** An open "Are you okay?"; null means close it. */
     val checkIn: CheckInRequest? = null,
-    val selfScheduleContacts: Boolean = false,
+    /** Null (also in cached rules without this field) keeps the previous contact policy. */
+    val selfScheduleContacts: Boolean? = null,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -83,7 +84,7 @@ data class ServerRules(
                 phoneId = j.getString("phoneId"),
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
-                selfScheduleContacts = if (j.has("selfScheduleContacts")) j.getBoolean("selfScheduleContacts") else false,
+                selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),
                 allowedApps = strings(apps.getJSONArray("allowed")),
                 hiddenApps = strings(apps.getJSONArray("hidden")),
                 contacts = objects(j.getJSONArray("contacts")).map {

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Contact } from "../../../api/models";
+import { ContactSuggestions, loadContactSuggestions } from "../../../components/ContactSuggestions";
 import { ItemRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LoadGate, Notice, PageTitle, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
@@ -12,13 +13,16 @@ import { cleanNumber, NUMBER_RE } from "../../../lib/validate";
 function ContactsList() {
   const { t } = useI18n();
   const { phone, run, pending, notify } = usePhone();
+  const self = phone.profile === "self";
   const res = useLoad(
-    () =>
-      unwrap<{ contacts: Contact[] }>(client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } })).then(
-        (r) => r.contacts,
-      ),
+    () => unwrap<{ contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
+      client.GET("/phones/{pid}/contacts", { params: { path: { pid: phone.id } } }),
+    ),
     [phone.id],
   );
+  const suggestions = useLoad(() => self ? Promise.resolve([]) : loadContactSuggestions(phone.id), [phone.id, self]);
+  const addLabel = t(self ? "contacts.addFavourite" : "contacts.add");
+  const selfIntro = res.data && t(res.data.selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro");
   const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [errors, setErrors] = useState<{ name?: string; number?: string }>({});
@@ -65,7 +69,9 @@ function ContactsList() {
           unwrap<ChangeResult>(client.DELETE("/phones/{pid}/contacts/{cid}", { params: { path: { pid: phone.id, cid: c.id } } })),
         t("contacts.removed"),
       );
-      if (r?.status === "applied") res.setData((list) => list?.filter((x) => x.id !== c.id));
+      if (r?.status === "applied") {
+        res.setData((data) => data && { ...data, contacts: data.contacts.filter((x) => x.id !== c.id) });
+      }
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
@@ -74,14 +80,18 @@ function ContactsList() {
   }
 
   return (
-    <Screen testID="phone-contacts" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
-      <PageTitle sub={t("contacts.intro")}>{t("contacts.title")}</PageTitle>
-      <Notice tone="info" text={t("contacts.otherApps")} />
+    <Screen
+      testID="phone-contacts"
+      onRefresh={() => void Promise.all([res.reload(), suggestions.reload()])}
+      refreshing={(res.loading && res.data !== undefined) || (!self && suggestions.loading && suggestions.data !== undefined)}
+    >
+      <PageTitle sub={self ? selfIntro : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
+      {!self && <Notice tone="info" text={t("contacts.otherApps")} />}
 
       <LoadGate res={res}>
-        {(list) =>
+        {({ contacts: list }) =>
           list.length === 0 && waitingAdds.length === 0 ? (
-            <Text variant="muted">{t("contacts.empty")}</Text>
+            <Text variant="muted">{t(self ? "contacts.noFavourites" : "contacts.empty")}</Text>
           ) : (
             <VStack gap={space.sm}>
               {list.map((c) => (
@@ -103,8 +113,10 @@ function ContactsList() {
         }
       </LoadGate>
 
+      {!self && <ContactSuggestions pid={phone.id} result={suggestions} onApproved={res.reload} />}
+
       <Card>
-        <Text variant="heading">{t("contacts.add")}</Text>
+        <Text variant="heading">{addLabel}</Text>
         <Field
           testID="contact-name"
           label={t("contacts.name")}
@@ -125,7 +137,7 @@ function ContactsList() {
           autoComplete="off"
           placeholder="+45"
         />
-        <Button testID="contact-add" title={saving ? t("app.saving") : t("contacts.add")} busy={saving} onPress={() => void add()} />
+        <Button testID="contact-add" title={saving ? t("app.saving") : addLabel} busy={saving} onPress={() => void add()} />
       </Card>
     </Screen>
   );

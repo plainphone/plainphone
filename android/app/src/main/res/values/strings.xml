@@ -87,8 +87,12 @@
     <string name="contacts_favourite_remove">Remove</string>
     <string name="contacts_favourite_waiting">This change is waiting for your key.</string>
     <string name="contacts_favourite_failed">Could not change the favourite. Try again.</string>
+    <string name="history_load_failed">Message history could not be loaded.</string>
+    <string name="history_retry">Try again</string>
     <string name="history_read_only">Read-only</string>
     <string name="history_load_older">Load older</string>
+    <string name="message_new">New message</string>
+    <string name="message_new_continue">Continue</string>
     <string name="history_unknown">Unknown number</string>
     <string name="history_mms">Picture or group conversation</string>
     <string name="history_mms_placeholder">Picture or group message. The contents cannot be displayed.</string>

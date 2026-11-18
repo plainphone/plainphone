@@ -263,6 +263,8 @@ export const da: Messages = {
   "contacts.suggestionsError": "Kontaktforslagene kunne ikke opdateres. Prøv igen.",
   "contacts.favourites": "Favoritter",
   "contacts.selfIntro": "Som udgangspunkt kan du ringe og skrive til alle. Hvis du begrænser opkald og sms i dine skemaperioder, kan du stadig kontakte dine favoritter, og de kan kontakte dig.",
+  "contacts.selfLegacyIntro": "Kun favoritter kan ringe og skrive, uanset tidspunktet. Din Self-nøgle kræves for at ændre begrænsningen.",
+  "contacts.allowEveryone": "Tillad opkald og sms fra alle",
   "contacts.restrictScheduled": "Begræns opkald og sms til favoritter i skemaperioder",
   "contacts.restrictOn": "Opkald og sms begrænset i skemaperioder",
   "contacts.restrictOff": "Opkald og sms tilladt i skemaperioder",

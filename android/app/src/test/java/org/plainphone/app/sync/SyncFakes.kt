@@ -5,6 +5,7 @@ package org.plainphone.app.sync
 import java.io.IOException
 import java.util.Base64
 import org.plainphone.app.StepResult
+import org.plainphone.app.contacts.DeviceContact
 
 /** Reversible stand-in for the Android Keystore, which Robolectric does not have. */
 class FakeSecretBox : SecretBox {
@@ -81,6 +82,10 @@ class FakeSyncApi : SyncApi {
     val etagsSent = mutableListOf<String?>()
     var onReportApps: (() -> Unit)? = null
     val appsReported = mutableListOf<List<InstalledApp>>()
+    val contactSnapshots = mutableListOf<List<DeviceContact>>()
+    override fun reportContactSuggestions(token: String, contacts: List<DeviceContact>) {
+        contactSnapshots += contacts
+    }
     val locations = mutableListOf<LocationFix>()
     val statuses = mutableListOf<DeviceStatus>()
     val safetyEvents = mutableListOf<SafetyEvent>()

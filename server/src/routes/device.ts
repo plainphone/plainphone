@@ -4,6 +4,7 @@
 
 import { and, eq, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { contacts, householdMembers, pairings, phoneApps, phones, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
@@ -142,7 +143,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
 
-  app.put("/contact-suggestions", async (c) => {
+  app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
     await suggestContacts(ctx, phone.id, await body(c, suggestedContactsInput));

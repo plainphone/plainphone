@@ -27,7 +27,6 @@ import org.plainphone.app.contacts.Decision
 import org.plainphone.app.contacts.Direction
 import org.plainphone.app.contacts.TelephonyLog
 import org.plainphone.app.contacts.contactPolicy
-import org.plainphone.app.contacts.PhoneNumbers
 
 private const val TAG = "Plainphone"
 
@@ -39,48 +38,21 @@ data class SmsMessage(
     val outgoing: Boolean,
     val failed: Boolean,
     val read: Boolean,
-    val sent: Boolean = false,
 )
 
 enum class SmsThreadKind { CONTACT, HELP, LEGACY, MMS }
 
-data class SmsThread(val number: String, val kind: SmsThreadKind = SmsThreadKind.CONTACT) {
+data class SmsThread(
+    val number: String,
+    val kind: SmsThreadKind = SmsThreadKind.CONTACT,
+    val systemId: Long? = null,
+    val participants: List<String> = emptyList(),
+) {
     fun contact(rules: ContactRules): ApprovedContact? = when (kind) {
         SmsThreadKind.CONTACT -> rules.contactFor(number)
         SmsThreadKind.HELP -> rules.helpContact(number, Channel.SMS)
         SmsThreadKind.LEGACY -> rules.replyHelpContact(number, Channel.SMS)?.let { ApprovedContact(it.number, it.number) }
         SmsThreadKind.MMS -> null
-    }
-}
-
-internal fun smsThreads(
-    messages: List<SmsMessage>, rules: ContactRules, helpReplyIds: Set<String>, legacyThrough: Long,
-    ordinaryOutgoingIds: Set<String> = emptySet(),
-    includeHistory: Boolean = false,
-): List<Pair<SmsThread, SmsMessage>> {
-    val firstLegacySend = messages.asSequence()
-        .filter { it.sent && it.id <= legacyThrough }
-        .mapNotNull { message -> rules.replyHelpContact(message.number, Channel.SMS)?.number?.let { it to message.id } }
-        .groupingBy { it.first }
-        .fold(Long.MAX_VALUE) { first, entry -> minOf(first, entry.second) }
-
-    return messages.mapNotNull { message ->
-        val help = rules.helpContact(message.number, Channel.SMS)
-        val ordinary = rules.contactFor(message.number)
-        val thread = when {
-            help != null && ((message.outgoing && message.id.toString() !in ordinaryOutgoingIds) ||
-                message.id.toString() in helpReplyIds) ->
-                SmsThread(help.number, SmsThreadKind.HELP)
-            ordinary != null -> SmsThread(ordinary.number)
-            help != null && message.id <= legacyThrough &&
-                message.id > (firstLegacySend[help.number] ?: Long.MAX_VALUE) ->
-                SmsThread(help.number, SmsThreadKind.LEGACY)
-            includeHistory -> SmsThread(
-                PhoneNumbers.normalize(message.number, rules.country) ?: message.number,
-            )
-            else -> null
-        }
-        thread?.let { it to message }
     }
 }
 
@@ -113,92 +85,50 @@ object SmsStore {
         if (prefs.contains(LEGACY_THROUGH)) return prefs.getLong(LEGACY_THROUGH, 0)
         val lastId = runCatching {
             context.contentResolver.query(
-                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID), null, null, "${Telephony.Sms._ID} DESC LIMIT 1",
+                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID), null, null, "${Telephony.Sms._ID} DESC",
             )?.use { if (it.moveToFirst()) it.getLong(0) else 0L }
-        }.getOrNull() ?: 0L
+        }.getOrNull() ?: return 0L
         // Persist the boundary before this version inserts any new messages.
         return if (prefs.edit().putLong(LEGACY_THROUGH, lastId).commit()) lastId else 0L
     }
 
-    /** Index sender and date without reading bodies until a page is displayed. */
-    fun history(context: Context): Map<SmsThread, List<SmsMessage>> {
-        val rules = ContactPolicySources.get(context).rules()
-        val messages = readSms(context)
-        val threads = smsThreads(
-            messages, rules, helpReplyIds(context), legacyThrough(context),
-            preferences(context).getStringSet(ORDINARY_OUTGOING_IDS, emptySet()).orEmpty(),
-            includeHistory = true,
-        )
-        return (threads + readMms(context))
-            .sortedWith(compareByDescending<Pair<SmsThread, SmsMessage>> { it.second.atMs }.thenByDescending { it.second.id })
-            .groupBy({ it.first }, { it.second })
-    }
+    internal fun threadPage(context: Context, after: ThreadCursor?, pageSize: Int): ThreadPage =
+        SmsHistory(context).threads(after, pageSize)
 
-    /** Load only the bodies wanted on screen. MMS rows carry no SMS provider IDs. */
-    fun bodies(context: Context, messages: List<SmsMessage>): List<SmsMessage> {
-        val ids = messages.filter { it.id > 0 }.map { it.id.toString() }
-        if (ids.isEmpty()) return messages
-        val bodies = mutableMapOf<Long, String>()
-        runCatching {
+    internal fun messagePage(context: Context, thread: SmsThread, after: SmsMessage?, pageSize: Int): List<SmsMessage> =
+        SmsHistory(context).messages(thread, after, pageSize)
+
+    internal fun partitions(
+        context: Context, id: Long, number: String, rules: ContactRules,
+    ): Map<SmsThreadKind, String> {
+        if (rules.helpContact(number, Channel.SMS) == null) return mapOf(SmsThreadKind.CONTACT to "1")
+
+        fun membership(ids: Set<String>): String {
+            val numeric = ids.mapNotNull(String::toLongOrNull)
+            return if (numeric.isEmpty()) "0" else "_id IN (${numeric.joinToString()})"
+        }
+
+        val ordinary = membership(preferences(context).getStringSet(ORDINARY_OUTGOING_IDS, emptySet()).orEmpty())
+        val replies = membership(helpReplyIds(context))
+        val help = "((type != ${Telephony.Sms.MESSAGE_TYPE_INBOX} AND NOT ($ordinary)) OR ($replies))"
+        val boundary = legacyThrough(context)
+        val first = if (rules.contactFor(number) == null && rules.replyHelpContact(number, Channel.SMS) != null) {
             context.contentResolver.query(
-                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY),
-                "${Telephony.Sms._ID} IN (${ids.joinToString(",") { "?" }})", ids.toTypedArray(), null,
-            )?.use { cursor ->
-                while (cursor.moveToNext()) bodies[cursor.getLong(0)] = cursor.getString(1).orEmpty()
-            }
-        }.onFailure { Log.w(TAG, "cannot read SMS bodies") }
-        return messages.map { message -> message.copy(body = bodies[message.id] ?: message.body) }
-    }
-
-    private fun readSms(context: Context): List<SmsMessage> {
-        val out = mutableListOf<SmsMessage>()
-        val projection = arrayOf(
-            Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.TYPE, Telephony.Sms.READ,
-        )
-        runCatching {
-            context.contentResolver.query(Telephony.Sms.CONTENT_URI, projection, null, null, null)?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    val type = cursor.getInt(3)
-                    out += SmsMessage(
-                        id = cursor.getLong(0),
-                        number = cursor.getString(1).orEmpty(),
-                        body = "",
-                        atMs = cursor.getLong(2),
-                        outgoing = type != Telephony.Sms.MESSAGE_TYPE_INBOX,
-                        failed = type == Telephony.Sms.MESSAGE_TYPE_FAILED,
-                        read = cursor.getInt(4) != 0,
-                        sent = type == Telephony.Sms.MESSAGE_TYPE_SENT,
-                    )
-                }
-            }
-        }.onFailure { Log.w(TAG, "cannot read SMS history") }
-        return out
-    }
-
-    private fun readMms(context: Context): List<Pair<SmsThread, SmsMessage>> {
-        val projection = arrayOf(Telephony.Mms._ID, Telephony.Mms.THREAD_ID, Telephony.Mms.DATE, Telephony.Mms.MESSAGE_BOX)
-        val out = mutableListOf<Pair<SmsThread, SmsMessage>>()
-        runCatching {
-            context.contentResolver.query(Telephony.Mms.CONTENT_URI, projection, null, null, null)?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    val thread = SmsThread(cursor.getLong(1).toString(), SmsThreadKind.MMS)
-                    out += thread to SmsMessage(
-                        id = -cursor.getLong(0),
-                        number = "",
-                        body = "",
-                        atMs = cursor.getLong(2) * 1000,
-                        outgoing = cursor.getInt(3) != Telephony.Mms.MESSAGE_BOX_INBOX,
-                        failed = cursor.getInt(3) == Telephony.Mms.MESSAGE_BOX_FAILED,
-                        read = true,
-                    )
-                }
-            }
-        }.onFailure { Log.w(TAG, "cannot read MMS history") }
-        return out
+                Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms._ID),
+                "thread_id = ? AND type = ? AND _id <= ?",
+                arrayOf(id.toString(), Telephony.Sms.MESSAGE_TYPE_SENT.toString(), boundary.toString()), "_id ASC",
+            )?.use { if (it.moveToFirst()) it.getLong(0) else null }
+        } else null
+        val legacy = first?.let { "(_id > $it AND _id <= $boundary AND NOT $help)" }
+        return buildMap {
+            put(SmsThreadKind.CONTACT, "NOT $help" + if (legacy == null) "" else " AND NOT $legacy")
+            put(SmsThreadKind.HELP, help)
+            if (legacy != null) put(SmsThreadKind.LEGACY, legacy)
+        }
     }
 
     fun markRead(context: Context, messages: List<SmsMessage>) {
-        val unread = messages.filter { !it.outgoing && !it.read }
+        val unread = messages.filter { it.id > 0 && !it.outgoing && !it.read }
         if (unread.isEmpty()) return
         val values = ContentValues().apply {
             put(Telephony.Sms.READ, 1)
@@ -209,7 +139,6 @@ object SmsStore {
                 context.contentResolver.update(Uri.withAppendedPath(Telephony.Sms.CONTENT_URI, m.id.toString()), values, null, null)
             }
         }
-        notifyChanged()
     }
 
     fun insertIncoming(

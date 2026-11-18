@@ -14,7 +14,7 @@ internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 /** The phone-side effects a sync needs. The Android version is [AndroidSyncDevice]; tests use a fake. */
 interface SyncDevice {
     fun nowMs(): Long
-    fun contactSuggestions(): List<DeviceContact> = emptyList()
+    fun contactSuggestions(): List<DeviceContact>? = null
     fun appVersion(): String
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
@@ -158,12 +158,16 @@ class SyncRunner(
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
         if (rules?.profile == "child") guarded("report contact suggestions") {
-            val contacts = device.contactSuggestions()
-            val fingerprint = sha256(JSONArray().apply {
-                contacts.forEach { put(JSONArray(listOf(it.name, JSONArray(it.numbers)))) }
-            }.toString())
-            if (contacts.isNotEmpty() && store.contactSuggestionsFingerprint != fingerprint) {
-                contacts.chunked(100).forEach { api.reportContactSuggestions(token, it) }
+            val contacts = device.contactSuggestions() ?: return@guarded
+            val canonical = contacts.map { it.copy(numbers = it.numbers.distinct().sorted()) }
+                .distinct()
+                .sortedWith(compareBy({ it.name }, { it.numbers.joinToString(",") }))
+            val snapshot = JSONArray().apply {
+                canonical.forEach { put(JSONArray(listOf(it.name, JSONArray(it.numbers)))) }
+            }
+            val fingerprint = sha256("snapshot:$snapshot")
+            if (store.contactSuggestionsFingerprint != fingerprint) {
+                api.reportContactSuggestions(token, canonical)
                 store.contactSuggestionsFingerprint = fingerprint
             }
         }

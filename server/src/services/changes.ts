@@ -125,7 +125,7 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "contact.remove":
       return false;
     case "contact.schedule":
-      return !op.restricted;
+      return phone.selfScheduleContacts === null || !op.restricted;
     case "dns.category":
       return !op.blocked;
     case "dns.allowDomain":
@@ -496,7 +496,7 @@ export async function submitChange(
       const [known] = await tx.select({ id: contacts.id }).from(contacts)
         .where(and(eq(contacts.phoneId, phone.id), eq(contacts.number, op.number)));
       if (known) return { status: "applied" as const, op, dns: false };
-      unrestrictedFavourite = !current.selfScheduleContacts;
+      unrestrictedFavourite = current.selfScheduleContacts === false;
       const [queued] = await tx.select().from(pendingChanges).where(and(
         eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
         sql`${pendingChanges.op}->>'type' = 'contact.add' and ${pendingChanges.op}->>'number' = ${op.number}`,

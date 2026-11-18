@@ -187,7 +187,8 @@ export const phones = pgTable(
       .references(() => households.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     profile: text("profile", { enum: ["child", "self"] }).notNull(),
-    selfScheduleContacts: boolean("self_schedule_contacts").notNull().default(false),
+    /** Null preserves the always-on contact restriction on previously paired Strong Self phones. */
+    selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),

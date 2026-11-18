@@ -9,6 +9,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.SyncedContactPolicySource
 import org.robolectric.RobolectricTestRunner
@@ -98,6 +99,30 @@ class SyncRunnerTest {
         val calls = api.tokensUsed.size
         assertThat(runner.run("later")).isEqualTo(SyncRunner.Outcome.Removed)
         assertThat(api.tokensUsed).hasSize(calls)
+    }
+
+    @Test
+    fun `suggestions use one complete snapshot and ignore same-name contact reordering`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        val first = DeviceContact("Alex", List(101) { "+451234${1000 + it}" })
+        val second = DeviceContact("Alex", listOf("+4523456789"))
+        val complete = listOf(first, second) + List(101) { DeviceContact("Contact $it", listOf("+453456${1000 + it}")) }
+        var addressBook = complete
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions() = addressBook
+        }
+        val sync = SyncRunner(store, api, source)
+        sync.run("initial")
+        assertThat(api.contactSnapshots.single()).containsExactlyElementsIn(complete)
+        api.rules = RulesResult.Unchanged
+        addressBook = complete.reversed()
+        sync.run("reordered")
+        assertThat(api.contactSnapshots).hasSize(1)
+        addressBook = emptyList()
+        sync.run("deleted")
+        assertThat(api.contactSnapshots).hasSize(2)
+        assertThat(api.contactSnapshots.last()).isEmpty()
     }
 
     @Test

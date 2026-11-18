@@ -1,8 +1,8 @@
 # Approved contacts (phase 2)
 
 Plainphone is the phone's default **phone app** and **SMS app**. Child phones
-limit calls and text messages to approved numbers. Self phones allow everyone
-by default and can limit calls and texts to favourites during schedules.
+limit calls and text messages to approved numbers. New Self phones allow
+everyone by default and can limit calls and texts to favourites during schedules.
 Emergency numbers always work.
 
 This page describes how that is built, where Android sets the limits, and what is not covered yet.
@@ -12,7 +12,9 @@ This page describes how that is built, where Android sets the limits, and what i
 The Calls and Messages tabs read the Android system providers on the phone. Calls
 and SMS can be browsed in pages, including entries from previous default apps
 that still exist in the providers. Opening an SMS conversation loads its newest
-messages first. Existing MMS and group MMS are listed as read-only placeholders.
+messages first. An MMS in a one-to-one conversation appears as a placeholder
+alongside the SMS messages from that conversation. Group MMS conversations are
+read-only, with placeholders for the attachments.
 Conversations and call entries for numbers the child cannot contact are read-only.
 The history is limited to the Android providers. Chats stored only in an app,
 including private RCS conversations, cannot be imported.
@@ -23,9 +25,11 @@ When a paired Child phone grants contacts access, Plainphone reads phone entries
 from the Android address book, including synced accounts, and groups each
 contact's international numbers in a single suggestion. The dashboard offers **Approve**,
 **Dismiss** and **Approve all**. Only approved numbers can be called and texted.
-Suggestions refresh with phone sync. A reviewed number does not come back, even if
-the name changes or the phone reports the same address book again. The child
-can see what is shared on the Contacts tab. See [Privacy](privacy.md).
+Suggestions refresh with phone sync, including edits and deletions. Approval
+covers the suggestions shown on the web dashboard or in the parent app. If a
+suggestion changes before review, the updated suggestion stays pending. A reviewed
+number does not come back, even if the name changes or the phone reports the
+same address book again. The child can see what is shared on the Contacts tab. See [Privacy](privacy.md).
 
 ## Self favourites
 
@@ -35,11 +39,16 @@ be reachable. On the dashboard, **Favourites** lets you turn on the optional
 restriction for active schedules. When it is on, favourites can still call and
 text in both directions, alongside emergency and helpline exceptions. Adding a
 favourite after enabling the restriction, or turning the restriction off, waits
-for the Self key. Removing a favourite applies at once.
+for the Self key. Removing a favourite applies at once. Strong Self phones
+already paired before this update keep their always-on list restriction.
+Switching to scheduled restrictions or allowing everyone requires the Self key.
 
-App time limits keep telephony available as a core function. The favourites
-restriction applies only during an active schedule, including while app time
-limits are also in effect.
+On an unrestricted Self phone, choose **New message** in Messages to text a
+number you have not saved.
+
+App time limits keep telephony available as a core function. A scheduled
+favourites restriction applies during the active schedule, including while
+app time limits are in effect.
 
 ## How it works
 

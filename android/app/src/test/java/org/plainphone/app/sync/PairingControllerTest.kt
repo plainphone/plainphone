@@ -57,6 +57,20 @@ class PairingControllerTest {
     }
 
     @Test
+    fun `setup can finish after background enrollment without reopening pairing`() {
+        val setup = now - 60_000
+        store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
+        api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")
+        controller.enroll()
+
+        assertThat(PairingController.allowedWithoutPin(store.everPaired, setup, now)).isFalse()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now)).isTrue()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now + PairingController.FREE_PAIRING_MS)).isFalse()
+        store.markRemoved()
+        assertThat(PairingController.canFinishSetup(store.isPaired, setup, now)).isFalse()
+    }
+
+    @Test
     fun `the setup QR code's token pairs the phone without a code, once`() {
         store.saveEnrollToken("pp_e_3q2-7wEvR1q8aZ0sLx9Ywg")
         api.enrollResult = EnrollResult.Paired("phone-9", "pp_d_from_qr")

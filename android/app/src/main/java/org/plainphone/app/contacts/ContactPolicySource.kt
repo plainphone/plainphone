@@ -187,7 +187,10 @@ class SyncedContactPolicySource(
             !LightRelease.isReleased(app) && !Lock.isInMaintenanceWindow(app))
         val synced = base.copy(enforced = controlled, contacts = fromServer, childProfile = server?.profile == "child")
         return if (server?.profile == "self") {
-            selfTelephonyRules(synced, server.selfScheduleContacts, server.schedules, server.timezone, Instant.now())
+            val restriction = server.selfScheduleContacts
+            // Before this setting existed, only a locked Device Owner enforced the list.
+            val self = if (restriction == null) synced.copy(enforced = base.enforced) else synced
+            selfTelephonyRules(self, restriction, server.schedules, server.timezone, Instant.now())
         } else synced
     }
 

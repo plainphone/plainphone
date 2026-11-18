@@ -58,7 +58,7 @@ class PhoneHistoryScreenshotTest {
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                 PlainphoneTheme {
                     Surface {
-                        ConversationsScreen(rules, history, history.size, rememberLazyListState(), {}, {})
+                        ConversationsScreen(rules, history, rememberLazyListState(), false, false, false, {}, {})
                     }
                 }
             }

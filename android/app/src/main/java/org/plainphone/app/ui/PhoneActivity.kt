@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -47,6 +48,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -89,6 +91,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,6 +125,8 @@ import org.plainphone.app.telephony.SmsSender
 import org.plainphone.app.telephony.SmsStore
 import org.plainphone.app.telephony.SmsThread
 import org.plainphone.app.telephony.SmsThreadKind
+import org.plainphone.app.telephony.ThreadCursor
+import org.plainphone.app.telephony.ThreadPage
 
 enum class Tab { CONTACTS, RECENTS, MESSAGES, KEYPAD }
 
@@ -227,7 +232,6 @@ fun placeCall(context: Context, number: String): String? {
 private fun PhoneApp(route: Route, resumed: Int) {
     val context = LocalContext.current
     var tab by remember(route) { mutableStateOf(route.tab) }
-    var visibleThreads by remember { mutableIntStateOf(HISTORY_PAGE_SIZE) }
     val threadListState = rememberLazyListState()
     var conversationWith by remember(route) {
         mutableStateOf(
@@ -249,10 +253,26 @@ private fun PhoneApp(route: Route, resumed: Int) {
     }
 
     val open = conversationWith
-    val showHistory = tab == Tab.MESSAGES || open != null
     val changes by SmsStore.changes.collectAsState()
-    val history by produceState<Map<SmsThread, List<SmsMessage>>?>(null, showHistory, resumed, changes) {
-        if (showHistory) value = withContext(Dispatchers.IO) { SmsStore.history(context) }
+    var threadPage by remember { mutableStateOf<ThreadPage?>(null) }
+    var historyFailed by remember { mutableStateOf(false) }
+    var threadRequest by remember { mutableIntStateOf(0) }
+    var threadAfter by remember(tab, open, resumed, changes) { mutableStateOf<ThreadCursor?>(null) }
+    var historyLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(threadRequest, tab, open, resumed, changes) {
+        if (tab != Tab.MESSAGES || open != null) return@LaunchedEffect
+        val after = threadAfter
+        historyLoading = true
+        historyFailed = false
+        try {
+            val next = withContext(Dispatchers.IO) { SmsStore.threadPage(context, after, HISTORY_PAGE_SIZE) }
+            threadPage = if (after == null) next else next.copy(threads = threadPage?.threads.orEmpty() + next.threads)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            historyFailed = true
+        } finally {
+            historyLoading = false
+        }
     }
     if (open != null) {
         BackHandler { conversationWith = null }
@@ -269,7 +289,8 @@ private fun PhoneApp(route: Route, resumed: Int) {
         key(thread) {
             ConversationScreen(
                 contact = contact,
-                history = history?.get(thread).orEmpty(),
+                refresh = changes,
+                resumed = resumed,
                 thread = thread,
                 initialDraft = route.body.takeIf { route.number == open.number }.orEmpty(),
                 onBack = { conversationWith = null },
@@ -280,7 +301,14 @@ private fun PhoneApp(route: Route, resumed: Int) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(tab.title()), fontWeight = FontWeight.SemiBold) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(tab.title()), fontWeight = FontWeight.SemiBold) },
+                actions = {
+                    if (tab == Tab.MESSAGES) NewMessageAction(rules) { conversationWith = it }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar {
@@ -307,13 +335,56 @@ private fun PhoneApp(route: Route, resumed: Int) {
                 )
                 Tab.RECENTS -> RecentsScreen(rules, resumed, onCall = call)
                 Tab.MESSAGES -> ConversationsScreen(
-                    rules, history, visibleThreads, threadListState,
-                    onMore = { visibleThreads += HISTORY_PAGE_SIZE }, onOpen = { conversationWith = it },
+                    rules, threadPage?.threads, threadListState,
+                    hasMore = threadPage?.next != null,
+                    failed = historyFailed,
+                    loading = historyLoading,
+                    onMore = {
+                        if (!historyFailed) threadAfter = threadPage?.next
+                        threadRequest++
+                    },
+                    onOpen = { conversationWith = it },
                 )
                 Tab.KEYPAD -> KeypadScreen(initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(), onCall = call)
             }
         }
     }
+}
+
+@Composable
+internal fun NewMessageAction(rules: ContactRules, onOpen: (SmsThread) -> Unit) {
+    if (!rules.selfProfile || rules.enforced) return
+    var open by remember { mutableStateOf(false) }
+    val title = stringResource(R.string.message_new)
+    TextButton(onClick = { open = true }) { Text(title) }
+    if (!open) return
+    var number by remember { mutableStateOf("") }
+    val destination = SmsThread(PhoneNumbers.normalize(number, rules.country) ?: number.trim())
+    AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = number,
+                onValueChange = { number = it },
+                label = { Text(stringResource(R.string.contacts_admin_number)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = destination.canCompose(rules),
+                onClick = {
+                    open = false
+                    onOpen(destination)
+                },
+            ) { Text(stringResource(R.string.message_new_continue)) }
+        },
+        dismissButton = {
+            TextButton(onClick = { open = false }) { Text(stringResource(android.R.string.cancel)) }
+        },
+    )
 }
 
 private fun Tab.title() = when (this) {
@@ -537,9 +608,10 @@ private fun readRecentCalls(context: Context): List<RecentCall> {
 private const val HISTORY_PAGE_SIZE = 50
 
 @Composable
-private fun MoreHistory(onClick: () -> Unit) {
+private fun MoreHistory(retry: Boolean = false, onClick: () -> Unit) {
+    if (retry) Footnote(stringResource(R.string.history_load_failed))
     TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.history_load_older))
+        Text(stringResource(if (retry) R.string.history_retry else R.string.history_load_older))
     }
 }
 
@@ -549,6 +621,7 @@ private fun SmsThread.canCompose(rules: ContactRules): Boolean =
 
 @Composable
 private fun historyTitle(thread: SmsThread, contact: ApprovedContact?): String = when {
+    thread.participants.isNotEmpty() -> thread.participants.joinToString()
     thread.kind == SmsThreadKind.MMS -> stringResource(R.string.history_mms)
     contact != null -> contact.name
     else -> thread.number.ifBlank { stringResource(R.string.history_unknown) }
@@ -558,18 +631,20 @@ private fun historyTitle(thread: SmsThread, contact: ApprovedContact?): String =
 internal fun ConversationsScreen(
     rules: ContactRules,
     history: Map<SmsThread, List<SmsMessage>>?,
-    visible: Int,
     state: LazyListState,
+    hasMore: Boolean,
+    failed: Boolean,
+    loading: Boolean,
     onMore: () -> Unit,
     onOpen: (SmsThread) -> Unit,
 ) {
-    val index = history ?: return
-    if (index.isEmpty()) {
+    val index = history.orEmpty()
+    if (history != null && index.isEmpty() && !failed && !loading) {
         EmptyState(stringResource(R.string.messages_empty))
         return
     }
     LazyColumn(state = state, contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(index.entries.take(visible), key = { "${it.key.kind}:${it.key.number}" }) { (thread, messages) ->
+        items(index.entries.toList(), key = { "${it.key.kind}:${it.key.systemId ?: it.key.number}" }) { (thread, messages) ->
             val contact = thread.contact(rules)
             val title = historyTitle(thread, contact)
             val last = messages.first()
@@ -595,7 +670,7 @@ internal fun ConversationsScreen(
                 }
             }
         }
-        if (visible < index.size) item { MoreHistory(onMore) }
+        if (!loading && (failed || hasMore)) item { MoreHistory(failed, onMore) }
         item { Footnote(stringResource(R.string.messages_footnote)) }
     }
 }
@@ -604,7 +679,8 @@ internal fun ConversationsScreen(
 @Composable
 private fun ConversationScreen(
     contact: ApprovedContact?,
-    history: List<SmsMessage>,
+    refresh: Int,
+    resumed: Int,
     thread: SmsThread,
     initialDraft: String,
     onBack: () -> Unit,
@@ -615,20 +691,34 @@ private fun ConversationScreen(
     var draft by remember(thread) { mutableStateOf(initialDraft) }
     var error by remember { mutableStateOf<String?>(null) }
     val sendFailed = stringResource(R.string.message_send_failed)
-    var visible by remember(thread) { mutableIntStateOf(HISTORY_PAGE_SIZE) }
     var messages by remember(thread) { mutableStateOf(emptyList<SmsMessage>()) }
-    LaunchedEffect(history, visible) {
-        val shown = history.take(visible)
-        val loaded = messages.associateBy { it.id }
-        val next = withContext(Dispatchers.IO) {
-            shown.filterNot { it.id in loaded }.chunked(HISTORY_PAGE_SIZE)
-                .flatMap { SmsStore.bodies(context, it) }
-        }
-        val bodies = loaded + next.associateBy { it.id }
-        messages = shown.map { it.copy(body = bodies[it.id]?.body.orEmpty()) }
-        if (thread.kind != SmsThreadKind.MMS && next.isNotEmpty()) withContext(Dispatchers.IO) {
-            SmsStore.markRead(context, next)
-            if (thread.kind != SmsThreadKind.LEGACY) CallNotifications.cancelMessage(context, thread)
+    var after by remember(thread, refresh, resumed) { mutableStateOf<SmsMessage?>(null) }
+    var request by remember(thread) { mutableIntStateOf(0) }
+    var hasMore by remember(thread) { mutableStateOf(false) }
+    var failed by remember(thread) { mutableStateOf(false) }
+    var loading by remember(thread) { mutableStateOf(false) }
+    LaunchedEffect(refresh, resumed, request) {
+        val start = after
+        loading = true
+        failed = false
+        try {
+            val next = withContext(Dispatchers.IO) {
+                SmsStore.messagePage(context, thread, start, HISTORY_PAGE_SIZE + 1)
+            }
+            val shown = next.take(HISTORY_PAGE_SIZE)
+            messages = if (start == null) shown else messages + shown
+            hasMore = next.size > HISTORY_PAGE_SIZE
+            if (shown.isNotEmpty()) withContext(Dispatchers.IO) {
+                SmsStore.markRead(context, shown)
+                if (thread.kind != SmsThreadKind.LEGACY && thread.kind != SmsThreadKind.MMS) {
+                    CallNotifications.cancelMessage(context, thread)
+                }
+            }
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            failed = true
+        } finally {
+            loading = false
         }
     }
 
@@ -659,7 +749,12 @@ private fun ConversationScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(messages, key = { it.id }) { Bubble(it) }
-                if (visible < history.size) item { MoreHistory { visible += HISTORY_PAGE_SIZE } }
+                if (!loading && (hasMore || failed)) item {
+                    MoreHistory(failed) {
+                        if (!failed) after = messages.lastOrNull()
+                        request++
+                    }
+                }
             }
             if (contact == null || thread.kind == SmsThreadKind.LEGACY) {
                 Footnote(stringResource(R.string.history_read_only))

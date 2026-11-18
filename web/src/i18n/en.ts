@@ -264,6 +264,8 @@ export const en = {
   "contacts.suggestionsError": "Could not update contact suggestions. Try again.",
   "contacts.favourites": "Favourites",
   "contacts.selfIntro": "You can call and text anyone by default. If you limit calls and texts during schedules, favourites can still reach you, and you can reach them.",
+  "contacts.selfLegacyIntro": "Only favourites can call and text at any time. Changing this restriction requires your Self key.",
+  "contacts.allowEveryone": "Allow calls and texts from everyone",
   "contacts.restrictScheduled": "Limit calls and texts to favourites during schedules",
   "contacts.restrictOn": "Calls and texts limited during schedules",
   "contacts.restrictOff": "Calls and texts allowed during schedules",

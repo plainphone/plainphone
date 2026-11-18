@@ -17,7 +17,9 @@ Messages tabs show history from Android once the required roles and permissions
 are granted. Child phones can grant address book access on the Contacts tab to
 suggest names and numbers to the dashboard. Self phones can grant the same
 permission to see local contacts and choose favourites when finishing setup or
-later from Contacts. See [Contacts](contacts.md) and [Privacy](privacy.md).
+later from Contacts. In Messages, an unrestricted Self phone can also start a
+text to a number outside the address book. See [Contacts](contacts.md) and
+[Privacy](privacy.md).
 A Play build later will
 be a flavor that leaves out what Play does not accept in a consumer app (see the table below);
 the code is already split so that is a build setting, not a rewrite.

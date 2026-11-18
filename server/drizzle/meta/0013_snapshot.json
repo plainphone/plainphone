@@ -1454,7 +1454,7 @@
           "name": "self_schedule_contacts",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "default": false
         },
         "mode": {

@@ -91,7 +91,6 @@ components:
         numbers:
           type: array
           minItems: 1
-          maxItems: 100
           items: { $ref: "#/components/schemas/E164" }
     PhoneRequest:
       type: object
@@ -479,8 +478,8 @@ components:
               description: Only today's and tomorrow's (phone time zone, server clock).
               items: { $ref: "#/components/schemas/Bonus" }
         selfScheduleContacts:
-          type: boolean
-          description: When true, the Self phone allows favourites during active schedules.
+          type: [boolean, "null"]
+          description: True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone.
         contacts:
           type: array
           description: Approved numbers on Child phones or favourites on Self phones. Emergency numbers always work.
@@ -998,7 +997,8 @@ paths:
     put:
       operationId: putDeviceContactSuggestions
       tags: [device]
-      summary: Suggest address book names and numbers from a child phone
+      summary: Replace pending suggestions with the current address book of a child phone
+      description: Send one complete snapshot, including an empty list after the last contact is deleted. Reviewed numbers stay excluded from future suggestions.
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -1011,12 +1011,12 @@ paths:
               properties:
                 contacts:
                   type: array
-                  maxItems: 100
                   items: { $ref: "#/components/schemas/SuggestedContactInput" }
       responses:
         "204": { description: "Received" }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: "Available only for child phones" }
+        "413": { description: "Snapshot exceeds 4 MiB" }
 
   /device/apps:
     put:
@@ -2178,7 +2178,8 @@ paths:
     post:
       operationId: reviewContactSuggestions
       tags: [rules]
-      summary: Approve or dismiss a contact suggestion, or approve all pending suggestions
+      summary: Approve or dismiss a contact suggestion, or approve the suggestions shown together
+      description: Each ID represents the displayed name and numbers. IDs that are no longer pending are ignored.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         required: true
@@ -2192,13 +2193,18 @@ paths:
                     action: { type: string, enum: [approve, reject] }
                     id: { type: string, format: uuid }
                 - type: object
-                  required: [action]
+                  required: [action, suggestionIds]
                   properties:
                     action: { type: string, enum: [approveAll] }
+                    suggestionIds:
+                      type: array
+                      minItems: 1
+                      items: { type: string, format: uuid }
       responses:
         "204": { description: "Reviewed" }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: "Child phone not found" }
+        "413": { description: "Review exceeds 4 MiB" }
 
   /phones/{pid}/contact-schedule:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

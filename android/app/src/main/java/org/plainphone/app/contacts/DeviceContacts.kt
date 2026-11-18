@@ -14,8 +14,12 @@ object DeviceContacts {
     fun canRead(context: Context): Boolean =
         context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    fun read(context: Context, country: PhoneNumbers.Country?): List<DeviceContact> {
-        if (!canRead(context)) return emptyList()
+    fun read(context: Context, country: PhoneNumbers.Country?): List<DeviceContact> =
+        readSnapshot(context, country).orEmpty()
+
+    /** A null snapshot means the provider could not be read. */
+    fun readSnapshot(context: Context, country: PhoneNumbers.Country?): List<DeviceContact>? {
+        if (!canRead(context)) return null
         val projection = arrayOf(Phone.CONTACT_ID, Phone.DISPLAY_NAME_PRIMARY, Phone.NUMBER, Phone.NORMALIZED_NUMBER)
         val groups = linkedMapOf<Long, Pair<String, MutableSet<String>>>()
         try {
@@ -29,9 +33,9 @@ object DeviceContacts {
                     val group = groups.getOrPut(cursor.getLong(0)) { name to linkedSetOf() }
                     group.second.add(number)
                 }
-            }
+            } ?: return null
         } catch (_: SecurityException) {
-            return emptyList()
+            return null
         }
         return groups.values.map { (name, numbers) -> DeviceContact(name, numbers.sorted()) }
     }

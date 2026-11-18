@@ -8,8 +8,12 @@ import org.plainphone.app.sync.Schedule
 import org.plainphone.app.sync.Schedules
 
 internal fun selfTelephonyRules(
-    base: ContactRules, restricted: Boolean, schedules: List<Schedule>, zone: ZoneId, now: Instant,
+    base: ContactRules, restricted: Boolean?, schedules: List<Schedule>, zone: ZoneId, now: Instant,
 ): ContactRules = base.copy(
-    enforced = base.enforced && restricted && Schedules.active(schedules, now, zone).isNotEmpty(),
+    enforced = base.enforced && when (restricted) {
+        null -> true
+        true -> Schedules.active(schedules, now, zone).isNotEmpty()
+        false -> false
+    },
     selfProfile = true,
 )

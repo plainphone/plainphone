@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         column.addView(status)
         pairButton = Button(this).apply {
             text = getString(R.string.pair_button)
-            setOnClickListener { startActivity(PairingActivity.intent(this@MainActivity, authorized = false)) }
+            setOnClickListener { startActivity(PairingActivity.setupIntent(this@MainActivity)) }
         }
         column.addView(pairButton)
         todayButton = Button(this).apply {
@@ -140,9 +140,11 @@ class MainActivity : Activity() {
                     // Android 10 to 13: the phone app (and the call screening and redirection roles) can only be set with the system dialog.
                     if (askForRole()) return@runOnUiThread
                     // Straight after setup: pair with the parent's dashboard (once).
-                    if (justProvisioned && PairingActivity.canPairWithoutPin(this)) {
+                    if (justProvisioned && started &&
+                        (PairingActivity.canPairWithoutPin(this) || PairingActivity.canFinishSetup(this))
+                    ) {
                         intent = Intent(this, MainActivity::class.java)
-                        startActivity(PairingActivity.intent(this, authorized = false))
+                        startActivity(PairingActivity.setupIntent(this))
                     }
                 }
             }

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.ui
 
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -75,32 +76,51 @@ class PairingActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val authorized = intent.getBooleanExtra(EXTRA_AUTHORIZED, false)
         if (!authorized && !canPairWithoutPin(this)) {
-            finish()
+            if (intent.getBooleanExtra(EXTRA_SETUP, false) && canFinishSetup(this)) finishSetup()
+            else finish()
             return
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
         setContent {
             PlainphoneTheme {
-                PairingScreen(onDone = {
-                    if (authorized) finish()
-                    else lifecycleScope.launch {
-                        val self = withContext(Dispatchers.IO) {
-                            val store = SyncStore(this@PairingActivity)
-                            if (store.rules() == null) Sync.runner(this@PairingActivity).run("setup finished")
-                            store.rules()?.profile == "self"
-                        }
-                        if (self) startActivity(PhoneActivity.favouritesIntent(this@PairingActivity))
-                        finish()
-                    }
-                })
+                PairingScreen(onDone = { if (authorized) finish() else finishSetup() })
             }
+        }
+    }
+
+    private fun finishSetup() {
+        lifecycleScope.launch {
+            val self = withContext(Dispatchers.IO) {
+                val store = SyncStore(this@PairingActivity)
+                if (!store.isPaired) return@withContext false
+                if (store.rules()?.phoneId != store.phoneId) {
+                    Sync.runner(this@PairingActivity).run("setup finished")
+                }
+                store.isPaired && store.rules()?.let {
+                    it.phoneId == store.phoneId && it.profile == "self"
+                } == true
+            }
+            if (self) startActivity(PhoneActivity.favouritesIntent(this@PairingActivity))
+            finish()
         }
     }
 
     companion object {
         /** Set only by the PIN-checked maintenance screen. */
         const val EXTRA_AUTHORIZED = "org.plainphone.app.PAIRING_AUTHORIZED"
+
+        private const val EXTRA_SETUP = "org.plainphone.app.PAIRING_SETUP"
+
+        fun canFinishSetup(context: Context): Boolean {
+            val owner = context.getSystemService(DevicePolicyManager::class.java)
+            if (owner?.isDeviceOwnerApp(context.packageName) != true) return false
+            return PairingController.canFinishSetup(
+                SyncStore(context).isPaired, Lock.firstAppliedAtMs(context), System.currentTimeMillis(),
+            )
+        }
+
+        fun setupIntent(context: Context): Intent = intent(context, authorized = false).putExtra(EXTRA_SETUP, true)
 
         fun canPairWithoutPin(context: Context): Boolean {
             val store = SyncStore(context)
@@ -148,6 +168,11 @@ private fun PairingScreen(onDone: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(attempt) {
+        if (withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
+            ui = PairingUi.Paired
+            onDone()
+            return@LaunchedEffect
+        }
         // A QR code made in the dashboard carries a one-time token: pair without a code.
         if (attempt == 0 && withContext(Dispatchers.IO) { SyncStore(context).enrollToken() } != null) {
             ui = PairingUi.Connecting
@@ -178,6 +203,11 @@ private fun PairingScreen(onDone: () -> Unit) {
         }
         ui = PairingUi.Loading
         val started = withContext(Dispatchers.IO) { runCatching { controller.start() } }
+        if (started.isFailure && withContext(Dispatchers.IO) { SyncStore(context).isPaired }) {
+            ui = PairingUi.Paired
+            onDone()
+            return@LaunchedEffect
+        }
         ui = started.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: it.javaClass.simpleName) })
         while (ui is PairingUi.Showing) {
             delay(POLL_MS)

@@ -16,7 +16,7 @@ export function ContactsPage() {
   const { t } = useI18n();
   const { phone, run, pending } = usePhone();
   const self = phone.profile === "self";
-  const res = useLoad(() => api.get<{ contacts: Contact[]; selfScheduleContacts?: boolean }>(
+  const res = useLoad(() => api.get<{ contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
     `/phones/${phone.id}/contacts`,
   ), [phone.id]);
   const [name, setName] = useState("");
@@ -79,18 +79,30 @@ export function ContactsPage() {
 
   return (
     <>
-      <PageTitle sub={t(self ? "contacts.selfIntro" : "contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
+      <PageTitle sub={self ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
       {!self && <p className="help">{t("contacts.otherApps")}</p>}
 
       <LoadGate res={res}>
         {({ contacts: list, selfScheduleContacts }) => (
           <>
             {self && (
-              <label className="item">
-                <span>{t("contacts.restrictScheduled")}</span>
-                <input type="checkbox" checked={selfScheduleContacts ?? false} disabled={savingSchedule || waitingSchedule}
-                  onChange={(event) => void changeSchedule(event.currentTarget.checked)} />
-              </label>
+              <>
+                <p className="help">{t(selfScheduleContacts === null ? "contacts.selfLegacyIntro" : "contacts.selfIntro")}</p>
+                {selfScheduleContacts === null ? (
+                  <div className="actions">
+                    <button type="button" className="btn btn-secondary" disabled={savingSchedule || waitingSchedule}
+                      onClick={() => void changeSchedule(true)}>{t("contacts.restrictScheduled")}</button>
+                    <button type="button" className="btn btn-secondary" disabled={savingSchedule || waitingSchedule}
+                      onClick={() => void changeSchedule(false)}>{t("contacts.allowEveryone")}</button>
+                  </div>
+                ) : (
+                  <label className="item">
+                    <span>{t("contacts.restrictScheduled")}</span>
+                    <input type="checkbox" checked={selfScheduleContacts === true} disabled={savingSchedule || waitingSchedule}
+                      onChange={(event) => void changeSchedule(event.currentTarget.checked)} />
+                  </label>
+                )}
+              </>
             )}
             {waitingSchedule && <p className="help" role="status">{t("pending.waitingTag")}</p>}
             {list.length === 0 && waitingAdds.length === 0 ? (

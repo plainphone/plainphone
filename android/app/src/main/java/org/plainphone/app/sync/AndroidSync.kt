@@ -63,10 +63,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun dynamicCorePackages() = AndroidDeviceControls(context).dynamicCorePackages()
 
-    override fun contactSuggestions(): List<DeviceContact> {
+    override fun contactSuggestions(): List<DeviceContact>? {
         val country = ContactPolicySources.get(context).rules().country
-        return DeviceContacts.read(context, country)
-            .mapNotNull { contact ->
+        return DeviceContacts.readSnapshot(context, country)
+            ?.mapNotNull { contact ->
                 val numbers = contact.numbers.filter(DeviceContacts.internationalNumber::matches)
                 numbers.takeIf { it.isNotEmpty() }?.let { contact.copy(numbers = it) }
             }
