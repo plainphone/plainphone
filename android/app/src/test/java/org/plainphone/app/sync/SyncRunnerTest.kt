@@ -620,6 +620,31 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `setup undo retries the report without reapplying protection`() {
+        pair()
+        assertThat(store.markSetupUndoPending(checkNotNull(store.phoneId))).isTrue()
+        store.markReleased()
+        var attempts = 0
+        val reporting = object : SyncApi by api {
+            override fun reportSetupUndo(token: String) {
+                assertThat(token).isEqualTo("pp_d_token")
+                if (++attempts <= 4) throw IOException("offline")
+            }
+        }
+        repeat(4) {
+            val reopened = SyncStore(context, FakeSecretBox())
+            assertThat(SyncRunner(reopened, reporting, device).run("undo setup"))
+                .isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+            assertThat(reopened.setupUndoPending).isTrue()
+        }
+        assertThat(SyncRunner(store, reporting, device).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(SyncRunner(store, reporting, device).run("undo setup")).isEqualTo(SyncRunner.Outcome.Removed)
+        assertThat(attempts).isEqualTo(5)
+        assertThat(device.releases).isEqualTo(0)
+        assertThat(api.tokensUsed).isEmpty()
+    }
+
+    @Test
     fun `a release that did not hold is not acknowledged and is tried again, also offline`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson(release = true))

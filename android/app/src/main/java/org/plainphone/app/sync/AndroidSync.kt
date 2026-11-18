@@ -380,7 +380,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
                 else org.plainphone.app.safety.Safety.scheduleIdlePoll(applicationContext)
                 Result.success()
             }
-            is SyncRunner.Outcome.Failed -> if (runAttemptCount < 3) Result.retry() else Result.success()
+            is SyncRunner.Outcome.Failed ->
+                if (runAttemptCount < 3 || SyncStore(applicationContext).setupUndoPending) Result.retry()
+                else Result.success()
             SyncRunner.Outcome.NotPaired, SyncRunner.Outcome.Removed -> Result.success()
         }
     }
@@ -446,7 +448,7 @@ object SyncScheduler {
 
     private fun enqueueNow(context: Context, reason: String, workName: String) {
         if (!SyncStore(context).hasStoredPairing) return
-        org.plainphone.app.update.UpdateRequestListener.start(context)
+        if (workName == NOW) org.plainphone.app.update.UpdateRequestListener.start(context)
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

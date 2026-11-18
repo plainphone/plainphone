@@ -39,9 +39,8 @@ interface SyncApi {
      * the server deleted the phone (204) or no longer knows it (401); false when nobody asked for a
      * release (409). Other answers and network errors throw.
      */
-    fun authorizeSetupUndo(token: String): Boolean = false
-    fun ackSetupUndo(token: String): Boolean = false
     fun ackReleased(token: String): Boolean
+    fun reportSetupUndo(token: String): Unit = throw IOException("setup undo reporting unavailable")
     /**
      * Tells the server what happened to a ring or an "Are you okay?" (`shown`, `here`, `ok`, `call`).
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
@@ -325,40 +324,9 @@ class PlainphoneApi private constructor(
 
     data class PollAccount(val maskedEmail: String, val householdName: String?)
 
-    fun setupUndoRemaining(token: String, elapsedMs: Long?, completedAtMs: Long? = null): Long {
-        val body = when {
-            elapsedMs != null -> JSONObject().put("elapsedMs", elapsedMs)
-            completedAtMs != null -> JSONObject().put("completedAtMs", completedAtMs)
-            else -> null
-        }
-        val r = call(if (body == null) "GET" else "POST", "/device/setup-completion", token, body)
-        if (r.status != 200) throw HttpError(r.status, r.body)
-        return JSONObject(r.body).getLong("undoRemainingMs")
-    }
-
-    override fun authorizeSetupUndo(token: String): Boolean = authorizeSetupUndo(token, 0)
-
-    fun authorizeSetupUndo(token: String, tapAgeMs: Long, tapRemainingMs: Long? = null): Boolean {
-        val body = JSONObject().put("tapAgeMs", tapAgeMs).put("tapRemainingMs", tapRemainingMs)
-        val r = call("POST", "/device/undo-setup/authorize", token, body)
-        return when (r.status) {
-            204 -> true
-            401, 409 -> false
-            else -> throw HttpError(r.status, r.body)
-        }
-    }
-
-    fun recoverSetupUndo(token: String): Boolean {
-        val r = call("GET", "/device/setup-completion", token)
-        if (r.status == 401) return false
-        if (r.status != 200) throw HttpError(r.status, r.body)
-        return JSONObject(r.body).optBoolean("undoAuthorized")
-    }
-
-    override fun ackSetupUndo(token: String): Boolean {
+    override fun reportSetupUndo(token: String) {
         val r = call("POST", "/device/undo-setup", token, JSONObject(), replayable = true)
-        if (r.status !in setOf(204, 401)) throw HttpError(r.status, r.body)
-        return true
+        if (r.status != 204 && r.status != 401) throw HttpError(r.status, r.body)
     }
 
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {

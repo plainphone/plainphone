@@ -25,15 +25,6 @@ import { createRequest, phoneRequestList, RequestError, requestJson } from "../s
 import type { UpdateWake } from "../services/update-wake.js";
 
 export const PAIRING_MINUTES = 15;
-const SETUP_UNDO_MS = 10 * 60_000;
-const SETUP_UNDO_RETRY_MS = 2 * 60_000;
-const SETUP_COMPLETION_CLOCK_SKEW_MS = 5 * 60_000;
-const SETUP_COMPLETION_LIMIT_MS = 24 * 60 * 60_000;
-
-function setupUndoRemaining(phone: Phone, now: Date): number {
-  if (phone.mode !== "light" || !phone.setupCompletedAt || phone.setupUndoAuthorizedAt) return 0;
-  return Math.max(0, phone.setupCompletedAt.getTime() + SETUP_UNDO_MS - now.getTime());
-}
 export const DEVICE_PREFIX = "pp_d_";
 
 type Phone = typeof phones.$inferSelect;
@@ -279,106 +270,31 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
   });
 
-  // The phone has switched Plainphone off after a release request. The phone is deleted, so
-  // its token is unknown from now on (401), which the phone reads as "removed".
-  app.post("/released", async (c) => {
-    const phone = c.get("phone");
-    const result = await ctx.db.transaction(async (tx) => {
-      // Locked, so two acknowledgements (a retry after a timeout) cannot both delete.
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh) return { status: 401 as const };
-      if (!fresh.releaseRequestedAt) return { status: 409 as const };
-      return { status: 204 as const, clientId: await deletePhone(tx, phone.id) };
-    });
-    if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
-    if (result.status === 409) return c.json({ error: "this phone has not been asked to release" }, 409);
-    // Failures stay queued in dns_deletions and the sweeper retries them.
-    if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
-    return c.body(null, 204);
-  });
-
-  app.get("/setup-completion", (c) => {
-    c.header("Cache-Control", "no-store");
-    const phone = c.get("phone");
-    if (phone.mode === "light" && phone.setupUndoAuthorizedAt) {
-      return c.json({ undoRemainingMs: 0, undoAuthorized: true });
-    }
-    return c.json({ undoRemainingMs: setupUndoRemaining(phone, ctx.now()) });
-  });
-
-  app.post("/setup-completion", async (c) => {
-    const completion = await body(c, z.union([
-      z.object({ completedAtMs: z.number().int().positive() }),
-      z.object({ elapsedMs: z.number().int().min(0).max(SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) }),
-    ]));
-    const phone = c.get("phone");
-    const remaining = await ctx.db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh || fresh.mode !== "light" || !fresh.pairedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return 0;
-      const now = ctx.now();
-      if (fresh.setupCompletedAt) return setupUndoRemaining(fresh, now);
-      const pairedAtMs = fresh.pairedAt.getTime();
-      const nowMs = now.getTime();
-      if ("completedAtMs" in completion && completion.completedAtMs > nowMs + SETUP_COMPLETION_CLOCK_SKEW_MS) return 0;
-      const completedAtMs = "completedAtMs" in completion
-        ? Math.min(nowMs, completion.completedAtMs) : Math.max(pairedAtMs, nowMs - completion.elapsedMs);
-      if (completedAtMs < pairedAtMs || completedAtMs - pairedAtMs >= SETUP_COMPLETION_LIMIT_MS ||
-        nowMs - completedAtMs > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0;
-      const completedAt = new Date(completedAtMs);
-      await tx.update(phones).set({ setupCompletedAt: completedAt }).where(eq(phones.id, phone.id));
-      return setupUndoRemaining({ ...fresh, setupCompletedAt: completedAt }, now);
-    });
-    c.header("Cache-Control", "no-store");
-    return c.json({ undoRemainingMs: remaining });
-  });
-
-  app.post("/undo-setup/authorize", async (c) => {
-    const receivedAtMs = ctx.now().getTime();
-    const { tapAgeMs, tapRemainingMs } = await body(c, z.object({
-      tapAgeMs: z.number().int().min(0).max(SETUP_UNDO_RETRY_MS).default(0),
-      tapRemainingMs: z.number().int().min(1).max(SETUP_UNDO_MS).optional(),
-    }));
-    const phone = c.get("phone");
-    const authorized = await ctx.db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh || fresh.mode !== "light" || fresh.deviceTokenHash !== phone.deviceTokenHash) return false;
-      if (fresh.setupUndoAuthorizedAt) return true;
-      const completedAtMs = fresh.setupCompletedAt?.getTime();
-      if (completedAtMs === undefined) return false;
-      const tappedAtMs = receivedAtMs - tapAgeMs;
-      const deadlineMs = completedAtMs + SETUP_UNDO_MS;
-      if (receivedAtMs >= deadlineMs + SETUP_UNDO_RETRY_MS) return false;
-      if (tapRemainingMs === undefined) {
-        if (tappedAtMs < completedAtMs || tappedAtMs >= deadlineMs) return false;
-      } else {
-        // Registration and authorization have separate network delays. Compare the phone's
-        // position in the window with the server's estimate, bounded in both directions.
-        const expectedTapMs = deadlineMs - tapRemainingMs;
-        if (Math.abs(tappedAtMs - expectedTapMs) > SETUP_UNDO_RETRY_MS) return false;
+  for (const path of ["/released", "/undo-setup"] as const) {
+    app.post(path, async (c) => {
+      const phone = c.get("phone");
+      const undo = path === "/undo-setup";
+      const result = await ctx.db.transaction(async (tx) => {
+        // Only the request that deletes the authenticated pairing may send the notice.
+        const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+        if (!fresh || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 401 as const };
+        if (undo ? fresh.mode !== "light" : !fresh.releaseRequestedAt) return { status: 409 as const };
+        const members = undo ? await phoneAlertRecipients(tx, phone.id, fresh.householdId) : null;
+        return { status: 204 as const, clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
+      });
+      if (result.status === 401) throw new HTTPException(401, { message: "unknown device; pair again" });
+      if (result.status === 409) {
+        return c.json({ error: undo ? "setup undo is only available in light mode" : "this phone has not been asked to release" }, 409);
       }
-      await tx.update(phones).set({ setupUndoAuthorizedAt: ctx.now() }).where(eq(phones.id, phone.id));
-      return true;
+      if (result.members) {
+        await notifyHouseholdMembers(ctx, result.members, {
+          type: "protection", phoneId: phone.id, phoneName: result.name, reason: "setup-undo",
+        });
+      }
+      if (result.clientId) await retryDnsDeletions(ctx, [result.clientId]);
+      return c.body(null, 204);
     });
-    if (!authorized) return c.json({ error: "setup undo window closed" }, 409);
-    return c.body(null, 204);
-  });
-
-  app.post("/undo-setup", async (c) => {
-    const phone = c.get("phone");
-    const removed = await ctx.db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
-      if (!fresh) return { status: 204 as const };
-      if (fresh.mode !== "light" || !fresh.setupUndoAuthorizedAt || fresh.deviceTokenHash !== phone.deviceTokenHash) return { status: 409 as const };
-      const members = await phoneAlertRecipients(tx, phone.id, fresh.householdId);
-      return { status: 204 as const, clientId: await deletePhone(tx, phone.id), members, name: fresh.name };
-    });
-    if (removed.status === 409) return c.json({ error: "setup undo not authorized" }, 409);
-    if (removed.members) {
-      await notifyHouseholdMembers(ctx, removed.members, { type: "protection", phoneId: phone.id, phoneName: removed.name, reason: "lock" });
-    }
-    if (removed.clientId) await retryDnsDeletions(ctx, [removed.clientId]);
-    return c.body(null, 204);
-  });
+  }
 
   app.put("/apps", async (c) => {
     const phone = c.get("phone");

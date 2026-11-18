@@ -82,12 +82,6 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
-    SetupUndoWindow:
-      type: object
-      required: [undoRemainingMs]
-      properties:
-        undoRemainingMs: { type: integer, minimum: 0, maximum: 600000 }
-        undoAuthorized: { type: boolean, description: Present and true on GET once the server has accepted undo. }
     PhoneRequest:
       type: object
       required: [id, kind, status, createdAt]
@@ -1179,74 +1173,12 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
-  /device/setup-completion:
-    get:
-      operationId: getDeviceSetupCompletion
-      tags: [device]
-      summary: Read the remaining setup undo window (phone)
-      security: [{ device: [] }]
-      responses:
-        "200":
-          description: The time left and any existing authorization. The remaining time is zero when setup undo is unavailable.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
-        "401": { $ref: "#/components/responses/Error" }
-    post:
-      operationId: postDeviceSetupCompletion
-      tags: [device]
-      summary: Record completion once for a light-mode phone that finished setup within 24 hours of pairing
-      security: [{ device: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              oneOf:
-                - type: object
-                  required: [elapsedMs]
-                  properties:
-                    elapsedMs: { type: integer, minimum: 0, maximum: 720000, description: "Age of completion, monotonic on the original boot and calculated from the phone clock after reboot." }
-                - type: object
-                  required: [completedAtMs]
-                  properties:
-                    completedAtMs: { type: integer, minimum: 1, description: Original Unix timestamp of completion. Up to five minutes of positive clock skew is accepted and clamped to server receipt. }
-      responses:
-        "200":
-          description: The time left, or zero when setup undo is unavailable.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/SetupUndoWindow" }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-
-  /device/undo-setup/authorize:
-    post:
-      operationId: postDeviceAuthorizeUndoSetup
-      tags: [device]
-      summary: Authorize local release for a tap within the setup undo window (phone)
-      security: [{ device: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                tapAgeMs: { type: integer, minimum: 0, maximum: 120000, default: 0, description: Monotonic age of the original tap at send time. }
-                tapRemainingMs: { type: integer, minimum: 1, maximum: 600000, description: Window remaining at the tap. Used to accommodate separate network delays within the bounded two-minute grace period. }
-      responses:
-        "204": { description: "Release authorized. Safe to retry." }
-        "400": { $ref: "#/components/responses/Error" }
-        "401": { $ref: "#/components/responses/Error" }
-        "409": { $ref: "#/components/responses/Error" }
-
   /device/undo-setup:
     post:
       operationId: postDeviceUndoSetup
       tags: [device]
-      summary: Acknowledge local undo of a new light-mode setup (phone)
-      description: The phone sends this after an authorized local release. It retries the acknowledgement if offline.
+      summary: Report local undo of light-mode setup (phone)
+      description: The phone decides the window and switches off locally. It retries this report until the phone is removed (204 or 401).
       security: [{ device: [] }]
       responses:
         "204": { description: "The phone was removed" }

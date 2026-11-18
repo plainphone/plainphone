@@ -18,7 +18,8 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncStore
-import org.plainphone.app.sync.PlainphoneApi
+import org.plainphone.app.Lock
+import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.time.TimeGuard
 
 /**
@@ -139,7 +140,7 @@ object LightSetup {
         val sync = SyncStore(context)
         if (profile(context) != null && sync.isPaired && !sync.released && !sync.setupUndoPending) {
             edit.putLong("completedElapsed", SystemClock.elapsedRealtime())
-                .putLong("completedAtMs", System.currentTimeMillis())
+                .putLong("undoWindowMs", SETUP_UNDO_MS)
                 .putInt("completedBoot", bootCount(context))
                 .putString("completedPhoneId", sync.phoneId)
         }
@@ -147,104 +148,34 @@ object LightSetup {
         LightRelease.clear(context)
     }
 
-    private fun canUndo(context: Context): Boolean {
-        val sync = SyncStore(context)
-        return Mode.isLight(context) && isComplete(context) && prefs(context).contains("completedElapsed") &&
-            sync.isPaired && sync.phoneId == prefs(context).getString("completedPhoneId", null) &&
-            !sync.released && !sync.setupUndoPending
-    }
-
     fun localUndoDeadline(context: Context): Long {
-        if (!canUndo(context)) return 0
         val saved = prefs(context)
+        val sync = SyncStore(context)
+        if (!Mode.isLight(context) || !isComplete(context) || LightRelease.isReleased(context) ||
+            !sync.isPaired || sync.phoneId != saved.getString("completedPhoneId", null) ||
+            sync.released || sync.setupUndoPending
+        ) return 0
+
+        val boot = bootCount(context)
+        if (boot < 0 || boot != saved.getInt("completedBoot", -1)) return 0
         val now = SystemClock.elapsedRealtime()
-        val remaining = completionElapsed(context, now)?.let { (SETUP_UNDO_MS - it).coerceAtLeast(0) }
-            ?: setupUndoRemaining(saved.getLong("completedAtMs", -1), System.currentTimeMillis())
+        val remaining = setupUndoRemaining(saved.getLong("completedElapsed", -1), now, saved.getLong("undoWindowMs", 0))
         return if (remaining > 0) now + remaining else 0
     }
 
-    /** Retry an unacknowledged completion when setup or Home opens, including after a reboot. */
-    fun undoDeadline(context: Context): Long {
-        if (!canUndo(context)) return 0
-        val token = SyncStore(context).deviceToken() ?: return 0
-        val now = SystemClock.elapsedRealtime()
-        if (completionElapsed(context, now)?.let { it >= SETUP_UNDO_MS } == true) return 0
-        val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
-        val remaining = registerCompletion(context, api, token, now)
-            .coerceIn(0, completionElapsed(context, now)?.let { (SETUP_UNDO_MS - it).coerceAtLeast(0) } ?: SETUP_UNDO_MS)
-        return if (remaining > 0) now + remaining else 0
-    }
-
-    private fun completionElapsed(context: Context, now: Long): Long? {
-        val saved = prefs(context)
-        val boot = bootCount(context)
-        val completed = saved.getLong("completedElapsed", -1)
-        return if (boot >= 0 && boot == saved.getInt("completedBoot", -1) && completed in 0..now) {
-            now - completed
-        } else null
-    }
-
-    private fun registerCompletion(context: Context, api: PlainphoneApi, token: String, now: Long): Long {
-        val saved = prefs(context)
-        if (saved.getBoolean("completionRegistered", false)) return api.setupUndoRemaining(token, null)
-        val completedAt = saved.getLong("completedAtMs", -1).takeIf { it > 0 }
-        val elapsed = completionElapsed(context, now)
-            ?: completedAt?.let { (System.currentTimeMillis() - it).takeIf { age -> age >= 0 } }
-        if (elapsed != null && elapsed > SETUP_UNDO_MS + SETUP_UNDO_RETRY_MS) return 0
-        val remaining = api.setupUndoRemaining(token, elapsed, completedAt)
-        if (remaining > 0) saved.edit().putBoolean("completionRegistered", true).apply()
-        return remaining
-    }
-
-    data class UndoTap(val elapsed: Long, val remaining: Long, val boot: Int)
-
-    fun undoTap(context: Context): UndoTap? {
-        if (!canUndo(context)) return null
-        val saved = prefs(context)
-        val tappedAt = saved.getLong("undoTapElapsed", -1)
-        val remaining = saved.getLong("undoTapRemaining", 0)
-        if (tappedAt < 0 || remaining !in 1..SETUP_UNDO_MS) return null
-        return UndoTap(tappedAt, remaining, saved.getInt("undoTapBoot", -1))
-    }
-
-    @SuppressLint("ApplySharedPref") // Keep the original tap if the response is lost or the screen is recreated.
-    fun recordUndoTap(context: Context, deadline: Long): UndoTap? {
-        undoTap(context)?.let { return it }
-        val tappedAt = SystemClock.elapsedRealtime()
-        val remaining = deadline - tappedAt
-        if (!canUndo(context) || remaining !in 1..SETUP_UNDO_MS) return null
-        val boot = bootCount(context)
-        prefs(context).edit()
-            .putLong("undoTapElapsed", tappedAt)
-            .putLong("undoTapRemaining", remaining)
-            .putInt("undoTapBoot", boot)
-            .commit()
-        return UndoTap(tappedAt, remaining, boot)
-    }
-
-    fun clearUndoTap(context: Context) {
-        prefs(context).edit().remove("undoTapElapsed").remove("undoTapRemaining").remove("undoTapBoot").apply()
-    }
-
-    fun requestUndo(context: Context, tap: UndoTap): Boolean {
-        if (!canUndo(context)) return false
+    @Synchronized
+    internal fun undo(context: Context): Boolean {
         val store = SyncStore(context)
-        val token = store.deviceToken() ?: return false
-        val api = PlainphoneApi(ConfigStore(context).load().serverUrl, context.applicationContext)
-        if (tapAge(context, tap) != null && !prefs(context).getBoolean("completionRegistered", false)) {
-            registerCompletion(context, api, token, SystemClock.elapsedRealtime())
+        val phoneId = store.phoneId ?: return false
+        if (localUndoDeadline(context) == 0L || !store.markSetupUndoPending(phoneId)) return false
+        // Persist the accepted tap before switching off, so sync can finish the release after a crash.
+        val app = context.applicationContext
+        Lock.releaseAsync(app) { results ->
+            if (results.all { it.ok }) store.markReleased()
+            SyncScheduler.finishSetupUndo(app)
         }
-        val age = tapAge(context, tap)
-        val authorized = if (age == null) api.recoverSetupUndo(token)
-            else api.authorizeSetupUndo(token, age, tap.remaining)
-        if (!authorized) return false
-        if (!store.saveSetupUndoAccepted(token)) throw java.io.IOException("could not save setup undo authorization")
         return true
     }
-
-    private fun tapAge(context: Context, tap: UndoTap): Long? =
-        if (tap.boot >= 0 && tap.boot == bootCount(context)) setupUndoTapAge(tap.elapsed, SystemClock.elapsedRealtime())
-        else null
 
     private fun bootCount(context: Context) = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 

@@ -15,12 +15,7 @@ internal fun needsRestrictedSettingsHelp(sdk: Int, step: LightSetup.Step?, grant
 
 internal const val SETUP_UNDO_MS = 10 * 60_000L
 
-internal fun setupUndoRemaining(completedElapsed: Long, nowElapsed: Long): Long {
+internal fun setupUndoRemaining(completedElapsed: Long, nowElapsed: Long, windowMs: Long): Long {
     if (completedElapsed < 0 || nowElapsed < completedElapsed) return 0
-    return (SETUP_UNDO_MS - (nowElapsed - completedElapsed)).coerceAtLeast(0)
+    return (windowMs - (nowElapsed - completedElapsed)).coerceAtLeast(0)
 }
-
-internal const val SETUP_UNDO_RETRY_MS = 2 * 60_000L
-
-internal fun setupUndoTapAge(tappedAt: Long, now: Long): Long? =
-    if (tappedAt < 0 || tappedAt > now) null else (now - tappedAt).takeIf { it <= SETUP_UNDO_RETRY_MS }

@@ -246,41 +246,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/device/setup-completion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read the remaining setup undo window (phone) */
-        get: operations["getDeviceSetupCompletion"];
-        put?: never;
-        /** Record completion once for a light-mode phone that finished setup within 24 hours of pairing */
-        post: operations["postDeviceSetupCompletion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/device/undo-setup/authorize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Authorize local release for a tap within the setup undo window (phone) */
-        post: operations["postDeviceAuthorizeUndoSetup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/device/undo-setup": {
         parameters: {
             query?: never;
@@ -291,8 +256,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Acknowledge local undo of a new light-mode setup (phone)
-         * @description The phone sends this after an authorized local release. It retries the acknowledgement if offline.
+         * Report local undo of light-mode setup (phone)
+         * @description The phone decides the window and switches off locally. It retries this report until the phone is removed (204 or 401).
          */
         post: operations["postDeviceUndoSetup"];
         delete?: never;
@@ -1625,11 +1590,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        SetupUndoWindow: {
-            undoRemainingMs: number;
-            /** @description Present and true on GET once the server has accepted undo. */
-            undoAuthorized?: boolean;
-        };
         PhoneRequest: {
             /** Format: uuid */
             id: string;
@@ -2868,92 +2828,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            401: components["responses"]["Error"];
-            409: components["responses"]["Error"];
-        };
-    };
-    getDeviceSetupCompletion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The time left and any existing authorization. The remaining time is zero when setup undo is unavailable. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupUndoWindow"];
-                };
-            };
-            401: components["responses"]["Error"];
-        };
-    };
-    postDeviceSetupCompletion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description Age of completion, monotonic on the original boot and calculated from the phone clock after reboot. */
-                    elapsedMs: number;
-                } | {
-                    /** @description Original Unix timestamp of completion. Up to five minutes of positive clock skew is accepted and clamped to server receipt. */
-                    completedAtMs: number;
-                };
-            };
-        };
-        responses: {
-            /** @description The time left, or zero when setup undo is unavailable. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupUndoWindow"];
-                };
-            };
-            400: components["responses"]["Error"];
-            401: components["responses"]["Error"];
-        };
-    };
-    postDeviceAuthorizeUndoSetup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /**
-                     * @description Monotonic age of the original tap at send time.
-                     * @default 0
-                     */
-                    tapAgeMs?: number;
-                    /** @description Window remaining at the tap. Used to accommodate separate network delays within the bounded two-minute grace period. */
-                    tapRemainingMs?: number;
-                };
-            };
-        };
-        responses: {
-            /** @description Release authorized. Safe to retry. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             409: components["responses"]["Error"];
         };

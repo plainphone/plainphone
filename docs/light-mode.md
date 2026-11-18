@@ -105,15 +105,22 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's
    **Allow from this source** in Android settings.
 
-**Undo setup** is available without a PIN on the finish and Today screens for the first ten
-minutes after completing light-mode setup. If you reboot during the window, Plainphone sends
-the age of the saved completion on the next start if the server has yet to receive it. The phone
-sends the undo request when you tap. If the connection fails, use **Try again** within two minutes
-of the original tap on the same boot. After a restart or once that time passes, **Try again** can
-still recover an undo the server already accepted. Once authorized, undo uses the existing release path for the guard,
-VPN and device admin, and retries updating the dashboard if the connection drops. The server
-removes the phone and sends the household its normal protection-loss notice. Android keeps
-its default Phone and SMS apps selected until you change them in Settings or uninstall Plainphone.
+**Undo setup** is available without a PIN on the finish and Today screens for ten minutes after
+light-mode setup completes. The phone saves the window length, the boot count and the elapsed
+time since boot at completion. Changing the clock has no effect. Rebooting closes the window.
+The maintenance PIN and dashboard release remain available.
+
+Tapping **Undo setup** immediately switches off the guard, VPN and device admin through the same
+local release as the maintenance screen, even offline. The phone saves the accepted undo and
+retries the report after reconnecting. The dashboard removes the phone and sends the household
+the standard protection-removed notice, which says that set-up was undone on the phone. Android
+keeps its default Phone and SMS apps selected until you change them in Settings or uninstall
+Plainphone. Keep Plainphone installed until the phone has disappeared from the dashboard so the
+pending report can reach the server.
+
+In light mode, the phone already enforces protection locally. A time-boxed window measured by
+the phone's monotonic clock is as trustworthy as the rest of light mode. The server uses the
+report to remove the phone and tell the parent.
 
 Device Owner mode starts through the Android welcome screen on a new or reset phone. Android
 grants Device Owner during provisioning. Plainphone waits for the Child or Myself confirmation

@@ -6,10 +6,10 @@ import { Client, signIn, useHarness } from "./harness.js";
 describe("onboarding safety", () => {
   const h = useHarness();
 
-  async function start(account?: Client) {
+  async function start(account?: Client, mode: "light" | "strong" = "light") {
     const parent = account ?? await signIn(h, "claimer@example.org");
     const device = new Client(h);
-    const result = await device.post("/api/device/pairings", { mode: "light", profile: "self", confirmOnPhone: true });
+    const result = await device.post("/api/device/pairings", { mode, profile: "self", confirmOnPhone: true });
     expect(result.status).toBe(201);
     const { code, pairingId, pollSecret } = result.json;
     const path = `/api/device/pairings/${pairingId}`;
@@ -41,14 +41,33 @@ describe("onboarding safety", () => {
     expect((await poll()).json.deviceToken).toBe(confirmed.json.deviceToken);
     device.token = confirmed.json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 600_000 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
-    h.clock.advance(600_000);
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(204);
+  });
+
+  it("removes a light phone and sends one notice even after a delayed or duplicate report", async () => {
+    const { parent, device, decide, claim } = await start();
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    h.clock.advance(3 * 24 * 60 * 60_000);
+    const before = h.mail.outbox.length;
+    const path = "/api/device/undo-setup";
+    const reports = await Promise.all([device.post(path), device.post(path)]);
+    expect(reports.map(({ status }) => status)).toContain(204);
+    expect((await device.post(path)).status).toBe(401);
     expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(404);
-    expect(h.mail.outbox.at(-1)?.to).toBe("claimer@example.org");
+    const notices = h.mail.outbox.slice(before);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.to).toBe("claimer@example.org");
+    expect(notices[0]?.text).toContain("Set-up was undone on the phone");
+  });
+
+  it("keeps Device Owner paired when it reports a setup undo", async () => {
+    const { parent, device, decide, claim } = await start(undefined, "strong");
+    const claimed = await claim();
+    device.token = (await decide("confirm")).json.deviceToken;
+    const before = h.mail.outbox.length;
+    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
+    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);
+    expect(h.mail.outbox).toHaveLength(before);
   });
 
   it("recovers a lost confirmation response across the original code expiry", async () => {
@@ -61,121 +80,6 @@ describe("onboarding safety", () => {
     expect((await poll()).json.deviceToken).toBe(confirmed.json.deviceToken);
     device.token = confirmed.json.deviceToken;
     expect((await device.get("/api/device/rules")).status).toBe(200);
-  });
-
-  it("does not reopen the undo window for an older or already completed Self phone", async () => {
-    const { parent, device, decide, claim } = await start();
-    const claimed = await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    h.clock.advance(120_000);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 120_000 })).json).toEqual({ undoRemainingMs: 480_000 });
-    h.clock.advance(480_000);
-    expect((await device.get("/api/device/setup-completion")).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    h.clock.advance(60 * 60_000);
-    expect((await device.post("/api/device/undo-setup")).status).toBe(409);
-    expect((await parent.get(`/api/phones/${claimed.json.id}`)).status).toBe(200);
-  });
-
-  it("recovers unregistered completion after restart and after a pause in setup", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    h.clock.advance(70 * 60_000);
-    const completedAtMs = h.clock.now.getTime();
-    h.clock.advance(120_000);
-    for (const invalid of [completedAtMs - 71 * 60_000, h.clock.now.getTime() + 300_001, completedAtMs - 11 * 60_000]) {
-      expect((await device.post("/api/device/setup-completion", { completedAtMs: invalid })).json).toEqual({ undoRemainingMs: 0 });
-    }
-    expect((await device.post("/api/device/setup-completion", { completedAtMs })).json).toEqual({ undoRemainingMs: 480_000 });
-    h.clock.advance(60_000);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 420_000 });
-  });
-
-  it.each([
-    { arrival: 601_000, age: 2_000, status: 204 },
-    { arrival: 601_000, age: 1_000, status: 409 },
-    { arrival: 721_000, age: 120_000, status: 409 },
-    { arrival: 601_000, age: 120_001, status: 400 },
-    { arrival: 601_000, age: -1, status: 400 },
-  ])("bounds a delayed undo tap (arrival $arrival, age $age)", async ({ arrival, age, status }) => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 600_000 });
-    h.clock.advance(arrival);
-    expect((await device.post("/api/device/undo-setup/authorize", { tapAgeMs: age })).status).toBe(status);
-  });
-
-  it("accepts a completion timestamp from a phone slightly ahead of the server", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
-    h.clock.advance(60_000);
-    const completedAtMs = h.clock.now.getTime() + 120_000;
-    expect((await device.post("/api/device/setup-completion", { completedAtMs })).json).toEqual({ undoRemainingMs: 600_000 });
-  });
-
-  it("uses completion rather than receipt for the pairing limit", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
-    h.clock.advance(24 * 60 * 60_000 - 60_000);
-    const completedAtMs = h.clock.now.getTime();
-    h.clock.advance(120_000);
-    expect((await device.post("/api/device/setup-completion", { completedAtMs })).json).toEqual({ undoRemainingMs: 480_000 });
-  });
-
-  it("accepts an early tap when registration took longer to arrive than authorization", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
-    h.clock.advance(900);
-    await device.post("/api/device/setup-completion", { elapsedMs: 0 });
-    h.clock.advance(50);
-    expect((await device.post("/api/device/undo-setup/authorize", { tapAgeMs: 800, tapRemainingMs: 599_900 })).status).toBe(204);
-  });
-
-  it("accepts an in-time tap within the retry period including network delay", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
-    await device.post("/api/device/setup-completion", { elapsedMs: 0 });
-    h.clock.advance(607_000);
-    expect((await device.post("/api/device/undo-setup/authorize", { tapAgeMs: 0, tapRemainingMs: 600_000 })).status).toBe(409);
-    expect((await device.post("/api/device/undo-setup/authorize", { tapAgeMs: 0, tapRemainingMs: 1_000 })).status).toBe(204);
-  });
-
-  it("reports an existing authorization after expiry without starting a new one", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    await device.get("/api/device/rules");
-    await device.post("/api/device/setup-completion", { elapsedMs: 0 });
-    const path = "/api/device/setup-completion";
-    expect((await device.get(path)).json).toEqual({ undoRemainingMs: 600_000 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(204);
-    h.clock.advance(900_000);
-    expect((await device.get(path)).json).toEqual({ undoRemainingMs: 0, undoAuthorized: true });
-  });
-
-  it("refuses to start the undo window for an old phone that never registered completion", async () => {
-    const { device, decide, claim } = await start();
-    await claim();
-    device.token = (await decide("confirm")).json.deviceToken;
-    expect((await device.get("/api/device/rules")).status).toBe(200);
-    h.clock.advance(24 * 60 * 60_000);
-    expect((await device.post("/api/device/setup-completion", { elapsedMs: 0 })).json).toEqual({ undoRemainingMs: 0 });
-    expect((await device.post("/api/device/undo-setup/authorize")).status).toBe(409);
   });
 
   it("removes the pending phone and code when the phone cancels", async () => {

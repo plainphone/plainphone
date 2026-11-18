@@ -176,19 +176,12 @@ parent (PWA)                                server                          phon
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).
 
-**Undo light-mode setup.** The phone registers completion once with
-`POST /device/setup-completion`. It sends the age since completion, measured on the current
-boot or calculated from the saved phone time after a restart. The server also accepts the
-original Unix timestamp, clamping up to five minutes of positive clock skew to receipt time.
-Setup must have finished within 24 hours of pairing. A delayed registration can still record
-a recent completion that met that limit. The ten-minute window runs from completion.
-A tap sends `POST /device/undo-setup/authorize` immediately with its monotonic age and the
-time left at the tap. The server allows for different registration and authorization network
-delays and closes new authorizations two minutes after the deadline. If the original tap's age
-can no longer be trusted, the phone checks `GET /device/setup-completion` for an existing
-authorization. The check can recover a lost response, including after reboot, without granting
-a new authorization. After local release succeeds, `POST /device/undo-setup` removes the phone
-and sends the standard protection-loss notice.
+**Undo light-mode setup.** The phone decides whether the window is open using elapsed time
+on the boot when setup completed. After switching off locally, it sends an authenticated
+`POST /device/undo-setup`. The server removes the light-mode phone and sends the standard
+protection-removed notice with the reason that set-up was undone on the phone. The phone
+retries the report until it gets `204` (removed) or `401` (pairing already gone). Only the
+request that deletes the phone sends a notice.
 
 **Stable download address.** `downloadUrl` is `<PUBLIC_URL>/download/android`, outside `/api`. It
 answers `302` to the newest published (pre-)release APK on GitHub (`APK_RELEASES_REPO`), looked up

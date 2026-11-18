@@ -213,8 +213,6 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
-    setupCompletedAt: timestamp("setup_completed_at", { withTimezone: true }),
-    setupUndoAuthorizedAt: timestamp("setup_undo_authorized_at", { withTimezone: true }),
     /**
      * Set when the parents asked to release the phone: it switches Plainphone off on its own
      * and then calls `POST /device/released`, which deletes this row. Until then the rules
