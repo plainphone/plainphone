@@ -6,7 +6,11 @@ Official releases through v0.1.9 used the test key. Starting with v0.1.10, they
 use the [production signing certificate](../README.md#signing). Android cannot
 update the app in place across these keys.
 
-- **Light mode:** Uninstall Plainphone, install the current release and pair it again.
+- **Light mode:** Choose **Release the phone** in the dashboard and wait for the
+  phone to sync and switch Plainphone off. A Self phone with a delay key waits
+  for the key first. Alternatively, enter the parent PIN in the phone's
+  maintenance menu and choose **Switch off Plainphone**. Once Plainphone is off,
+  uninstall it, install the current release and pair it again.
 - **Strong mode (Device Owner):** Back up any data you want to keep and
   [release Device Owner](setup-test-phone.md#5-getting-out-again) so that Settings
   allows a factory reset. Then reset the phone and set it up again with a fresh

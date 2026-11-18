@@ -79,6 +79,8 @@ function renderPhone(data: Phone) {
 
 it.each([
   { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again", latest: undefined },
+  { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again",
+    latest: { versionCode: 10, versionName: "0.1.9" } },
   { mode: "strong", state: "refused", errorCode: "signature_mismatch", guidance: "release Device Owner", latest: undefined },
   { mode: "light", state: "upToDate", errorCode: undefined, guidance: "pair it again",
     latest: { versionCode: 11, versionName: "0.1.10" } },

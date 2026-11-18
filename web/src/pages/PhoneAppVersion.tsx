@@ -62,7 +62,7 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
   const reportedOffer = update?.state === "prompted" || update?.state === "available"
     || update?.errorCode === "signature_mismatch" ? update.latestVersion : undefined;
   const signingKeyChange = usesProductionKey(status.appVersion) === false
-    && usesProductionKey(latest?.versionName ?? reportedOffer) === true;
+    && (usesProductionKey(latest?.versionName) === true || usesProductionKey(reportedOffer) === true);
   const signingKeyMessage = status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight";
   const checkedAt = update?.checkedAt;
   const requestPending = request && request.previousCheck === checkedAt;
