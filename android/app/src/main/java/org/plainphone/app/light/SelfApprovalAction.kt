@@ -104,14 +104,11 @@ internal fun SelfApprovalAction() {
                     error -> Text(stringResource(R.string.pairing_failed))
                     url != null -> {
                         Text(stringResource(when { template -> R.string.self_template_help; invite -> R.string.self_invite_scan; else -> R.string.self_approval_scan }))
-                        qrSummary?.let { Text(it) }
-                        QrCode(url, Modifier.size(200.dp))
+                        SelfApprovalQr(url, qrSummary)
                     }
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
-                    else -> rows.forEach { request ->
-                        TextButton(onClick = { selected = request.id }) { Text(request.summary) }
-                    }
+                    else -> SelfApprovalChoices(rows) { selected = it }
                 }
             }
         },
@@ -119,6 +116,23 @@ internal fun SelfApprovalAction() {
             TextButton(onClick = close) { Text(stringResource(android.R.string.cancel)) }
         },
     )
+}
+
+
+@Composable
+internal fun SelfApprovalChoices(
+    requests: List<PlainphoneApi.ApprovalRequest>,
+    onSelect: (String) -> Unit,
+) {
+    requests.forEach { request ->
+        TextButton(onClick = { onSelect(request.id) }) { Text(request.summary) }
+    }
+}
+
+@Composable
+internal fun SelfApprovalQr(url: String, summary: String?) {
+    summary?.let { Text(it) }
+    QrCode(url, Modifier.size(200.dp))
 }
 
 

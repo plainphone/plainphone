@@ -9,9 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.work.ListenableWorker
@@ -33,7 +34,8 @@ import org.plainphone.app.light.LightAdminReceiver
 import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
-import org.plainphone.app.light.SelfApprovalAction
+import org.plainphone.app.light.SelfApprovalChoices
+import org.plainphone.app.light.SelfApprovalQr
 import org.plainphone.app.light.UndoSetupAction
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -95,9 +97,7 @@ class PlainphoneApiReleaseTest {
     }
 
     @Test
-    @Config(shadows = [PairedStore::class], instrumentedPackages = ["org.plainphone.app.sync"])
     fun `approval choices and QR show the requested limit`() {
-        val context = completeSetup()
         val shorter = "Instagram: 15 → 30 min a day"
         val longer = "Instagram: 15 → 60 min a day"
         responseBody = """{"changes":[
@@ -105,17 +105,25 @@ class PlainphoneApiReleaseTest {
             {"id":"long","summary":{"en":"$longer","da":"$longer"}}
         ]}"""
         answer = 200
-        compose.setContent { SelfApprovalAction() }
-        compose.onNodeWithText(context.getString(R.string.self_approval_title)).performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(longer).fetchSemanticsNodes().isNotEmpty() }
+        val requests = api().approvalRequests("test-token", "en")
+        val qrUrl = "http://127.0.0.1/approvals#code=phone.long.expiry.nonce"
+        responseBody = """{"url":"$qrUrl","summary":{"en":"$longer","da":"$longer"}}"""
+
+        var selectedId: String? = null
+        val shownQr = mutableStateOf<PlainphoneApi.ApprovalQr?>(null)
+        compose.setContent {
+            Column {
+                val qr = shownQr.value
+                if (qr == null) SelfApprovalChoices(requests) { selectedId = it }
+                else SelfApprovalQr(qr.url, qr.summary)
+            }
+        }
         compose.onNodeWithText(shorter).assertIsDisplayed()
         compose.onNodeWithText(longer).assertIsDisplayed()
-
-        val qr = "http://127.0.0.1/approvals#code=phone.long.expiry.nonce"
-        responseBody = """{"url":"$qr","summary":{"en":"$longer","da":"$longer"}}"""
         compose.onNodeWithText(longer).performClick()
-        val scan = context.getString(R.string.self_approval_scan)
-        compose.waitUntil(5_000) { compose.onAllNodesWithText(scan).fetchSemanticsNodes().isNotEmpty() }
+        assertThat(selectedId).isEqualTo("long")
+        val qr = api().approvalQr("test-token", checkNotNull(selectedId), "en")
+        compose.runOnIdle { shownQr.value = qr }
         compose.onNodeWithText(longer).assertIsDisplayed()
         compose.onNodeWithText(shorter).assertDoesNotExist()
         assertThat(seen.map { it.first }).containsExactly("GET", "POST").inOrder()
