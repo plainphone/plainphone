@@ -29,6 +29,7 @@ class FakeSyncDevice(
     /** How old the fix is (a last-known position when no fresh one comes). */
     var fixAgeMs = 0L
     var locationDelayMs = 0L
+    var beforeLocation: (() -> Unit)? = null
     /** What the next [release] reports; make a step fail to play a release that did not hold. */
     var releaseResults: List<StepResult> = listOf(StepResult("give up Device Owner", true))
     var releases = 0
@@ -44,6 +45,7 @@ class FakeSyncDevice(
     }
     override fun battery(): Pair<Int?, Boolean?> = 64 to false
     override fun location(precise: Boolean, notBeforeMs: Long?, fresh: Boolean): LocationFix? {
+        beforeLocation?.invoke()
         locationRequests += precise
         freshLocationRequests += fresh
         now += locationDelayMs

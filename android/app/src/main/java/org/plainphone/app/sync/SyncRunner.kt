@@ -216,8 +216,16 @@ class SyncRunner(
         val requested = rules.locateRequestedAt?.toEpochMilli()?.takeIf {
             it != store.answeredLocateMs && now - it in -CLOCK_SLACK_MS until (FIND_RETRY_MS + CLOCK_SLACK_MS)
         }
-        fun findNearExpiry(at: Long, start: Long) = at - start >= FIND_RETRY_MS - LOCATION_LOOKUP_BUDGET_MS
-        val findFirst = requested != null && findNearExpiry(now, requested)
+        // Use the sync's start time so Find cannot expire a check-in before its turn.
+        val checkIn = rules.checkIn?.takeIf {
+            val age = now - it.deadline.toEpochMilli()
+            it.sendLocation && it.locationDue != false && age in 0 until FIND_RETRY_MS &&
+                it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
+        }
+        val findNearExpiry = requested != null && now - requested >= FIND_RETRY_MS - LOCATION_LOOKUP_BUDGET_MS
+        val cachedFind = if (requested != null && (checkIn != null || findNearExpiry)) device.lastKnownLocation() else null
+        val savedFind = requested != null && checkIn != null && store.pendingLocation()?.purpose == "find:$requested"
+        val findFirst = cachedFind != null || savedFind || findNearExpiry
         var attemptedFind = false
         fun reportFind() {
             if (requested == null) {
@@ -226,29 +234,19 @@ class SyncRunner(
             }
             guarded("report Find location") {
                 attemptedFind = true
-                val findNow = device.nowMs()
-                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, findNow) {
-                    // Near expiry, send the cached position before spending the remaining time on GPS.
-                    (if (findNearExpiry(findNow, requested)) device.lastKnownLocation() else null)
-                        ?: device.location(precise = true, notBeforeMs = requested)
-                        ?: device.lastKnownLocation()
+                attemptedFind = reportRequestedLocation(token, "find:$requested", requested, device.nowMs()) {
+                    cachedFind ?: device.location(precise = true, notBeforeMs = requested) ?: device.lastKnownLocation()
                 }
             }
         }
         if (findFirst) reportFind()
 
-        val checkInNow = device.nowMs()
-        val checkIn = rules.checkIn?.takeIf {
-            val age = checkInNow - it.deadline.toEpochMilli()
-            it.sendLocation && it.locationDue != false && age in 0 until FIND_RETRY_MS &&
-                it.id != store.locatedCheckInId && !device.checkInAnswered(it.id)
-        }
         if (checkIn == null) {
             store.clearPendingLocation(checkIn = true)
         } else {
             guarded("report check-in location") {
                 reportRequestedLocation(
-                    token, "checkin:${checkIn.id}", checkIn.deadline.toEpochMilli(), checkInNow, checkInId = checkIn.id,
+                    token, "checkin:${checkIn.id}", checkIn.deadline.toEpochMilli(), now, checkInId = checkIn.id,
                 ) {
                     val createdAt = checkIn.createdAt?.toEpochMilli()
                     device.location(precise = true, fresh = true)?.takeIf {

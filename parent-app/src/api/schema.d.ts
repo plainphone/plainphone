@@ -2288,7 +2288,7 @@ export interface operations {
                     accuracyM?: number;
                     /** Format: date-time */
                     recordedAt: string;
-                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. If an older client omits the purpose, one fix can answer both an active Find and a due check-in. To answer Find, the fix must be recorded at or after the Find request. To answer a check-in, the server and fix times must be at or after the deadline minus two minutes, and the fix must follow check-in creation. If Find or always also authorizes the upload, the fix time must reach the check-in deadline to count for the check-in. */
+                    /** @description Use always, find:<requestedAt in epoch milliseconds>, or checkin:<id>. Each tag serves only its matching request. Without a purpose, one fix can serve Find, always and check-in together. Untagged check-in uploads are accepted up to two minutes before the reply deadline, based on server time. A fix clears Find only if recorded at or after the Find request. */
                     purpose?: string;
                 };
             };

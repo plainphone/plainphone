@@ -56,11 +56,10 @@ phone                                      server                         parent
    Retry a saved upload only for its original request. Any unrequested position gets `409`,
    as does every position when location is off. Each tag answers only its matching request.
 
-   If an older client omits the purpose, one fix can answer both an active Find and a due
-   check-in. To answer Find, the fix must be recorded at or after the Find request. To answer a
-   check-in, the server and fix times must be at or after the deadline minus two minutes, and
-   the fix must follow check-in creation. If Find or always also authorizes the upload, the fix
-   time must reach the check-in deadline to count for the check-in.
+   An upload without a purpose uses the older routing rules. One fix can serve an
+   active Find, an active always session, and an unanswered check-in. The check-in
+   accepts uploads from two minutes before its deadline, based on server time.
+   A fix clears Find only if recorded at or after the Find request.
 
    The server holds check-in fixes privately until at least one second after both the reply
    deadline and receipt of the fix. The next sweeper pass publishes the fix if the check-in

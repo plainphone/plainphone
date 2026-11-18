@@ -18,7 +18,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, protectionLost } from "../services/notifications.js";
 import { respondWithRules } from "../services/phones.js";
-import { checkinLocationDue, FIND_WINDOW_MS, legacyCheckinLocationDue, notifySafety, storeLatestLocation } from "../services/safety.js";
+import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 export const PAIRING_MINUTES = 15;
@@ -255,32 +255,33 @@ export function deviceRoutes(ctx: Ctx) {
         return { status: 409, error: "location is off for this phone" } as const;
       }
       const requestedAt = phone.locateRequestedAt;
-      const forFind =
-        requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS &&
-        (purpose === undefined || purpose === `find:${requestedAt.getTime()}`);
-      const always =
-        phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now &&
-        (purpose === undefined || purpose === "always");
       const [checkin] = purpose === undefined || purpose.startsWith("checkin:")
         ? await tx.select().from(safetyRequests).where(and(
             eq(safetyRequests.phoneId, phone.id),
             eq(safetyRequests.kind, "checkin"),
           ))
         : [];
-      const forCheckin = checkin !== undefined && (purpose === undefined
-        ? legacyCheckinLocationDue(checkin, phone.locationMode, now, recordedAt) &&
-          ((!always && !forFind) || recordedAt >= checkin.endsAt)
-        : purpose === `checkin:${checkin.id}` && checkinLocationDue(checkin, phone.locationMode, now));
+      const taggedFind = requestedAt !== null && purpose === `find:${requestedAt.getTime()}` &&
+        now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS;
+      const { forFind, forCheckin, always, clearFind } = purpose === undefined
+        ? legacyUntaggedTargets(phone, checkin, now, recordedAt)
+        : {
+            forFind: taggedFind,
+            forCheckin: checkin !== undefined && purpose === `checkin:${checkin.id}` &&
+              checkinLocationDue(checkin, phone.locationMode, now),
+            always: purpose === "always" && phone.locationMode === "always" &&
+              phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now,
+            clearFind: taggedFind && recordedAt >= requestedAt,
+          };
       if (!always && !forFind && !forCheckin) return { status: 409 } as const;
       if (recordedAt.getTime() > now.getTime() + 5 * 60_000) {
         return { status: 400, error: "recordedAt is in the future" } as const;
       }
-      if (forCheckin && recordedAt <= checkin.createdAt && !always && !forFind) {
+      if (purpose !== undefined && forCheckin && checkin && recordedAt <= checkin.createdAt) {
         return { status: 400, error: "recordedAt must be after check-in creation" } as const;
       }
       let staged = false;
-      if (forCheckin && recordedAt > checkin.createdAt &&
-          (purpose === undefined || recordedAt >= checkin.endsAt)) {
+      if (forCheckin && checkin && (purpose === undefined || recordedAt >= checkin.endsAt)) {
         // An answer or cancellation can still discard this fix before it becomes visible.
         const claimed = await tx
           .update(safetyRequests)
@@ -296,7 +297,7 @@ export function deviceRoutes(ctx: Ctx) {
         staged = claimed.length > 0;
       }
       if (!always && !forFind && !staged) return { status: 409 } as const;
-      if (forFind && recordedAt >= requestedAt) {
+      if (clearFind && requestedAt !== null) {
         await tx
           .update(phones)
           .set({ locateRequestedAt: null })

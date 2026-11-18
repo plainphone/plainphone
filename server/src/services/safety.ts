@@ -92,10 +92,15 @@ export function checkinLocationDue(r: SafetyRequest | undefined, mode: LocationM
   return t >= r.endsAt.getTime() - slackMs && t < r.endsAt.getTime() + CHECKIN_LOCATE_WINDOW_MS;
 }
 
-/** Older phones omit a purpose and can reach the deadline ahead of the server. */
-export function legacyCheckinLocationDue(r: SafetyRequest, mode: LocationMode, now: Date, recordedAt: Date): boolean {
-  return checkinLocationDue(r, mode, now, CLOCK_SLACK_MS) &&
-    recordedAt.getTime() >= r.endsAt.getTime() - CLOCK_SLACK_MS;
+// Remove when all clients include a location purpose.
+export function legacyUntaggedTargets(phone: Phone, checkin: SafetyRequest | undefined, now: Date, recordedAt: Date) {
+  const requestedAt = phone.locateRequestedAt;
+  return {
+    forFind: requestedAt !== null && now.getTime() - requestedAt.getTime() < FIND_WINDOW_MS,
+    forCheckin: checkinLocationDue(checkin, phone.locationMode, now, CLOCK_SLACK_MS),
+    always: phone.locationMode === "always" && phone.locationAlwaysUntil !== null && phone.locationAlwaysUntil > now,
+    clearFind: requestedAt !== null && recordedAt >= requestedAt,
+  };
 }
 
 export async function loadSafety(ctx: Ctx, phoneId: string) {
@@ -299,15 +304,8 @@ export async function alertUnansweredCheckins(ctx: Ctx): Promise<number> {
       ))
       .returning({ id: safetyRequests.id, locatedAt: safetyRequests.locatedAt });
     if (!claimed.length) continue;
-    // Already located (the phone was quicker than the sweeper): that push said it all.
-    const { locatedAt } = claimed[0]!;
-    if (locatedAt && locatedAt >= req.endsAt) continue;
-    if (locatedAt) {
-      // A legacy upload was accepted early because the phone clock was ahead.
-      await notifySafety(ctx, phone, "located");
-      sent++;
-      continue;
-    }
+    // Already located: the position notification covers the unanswered check-in.
+    if (claimed[0]!.locatedAt) continue;
     await notifySafety(ctx, phone, checkinSendsLocation(phone.locationMode) ? "noReplyLocating" : "noReplyNoLocation");
     sent++;
   }

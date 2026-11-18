@@ -221,7 +221,6 @@ describe("are you okay?", () => {
     expect(before.json.checkIn.locationDue).toBe(false);
     h.clock.advance(5 * 60_000);
 
-    expect((await device.put("/api/device/location", stale)).status).toBe(409);
     const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json.checkin;
     expect((await status()).locatedAt).toBeNull();
     expect((await device.put("/api/device/location", {
@@ -282,24 +281,26 @@ describe("are you okay?", () => {
     expect(after.checkIn).toBeNull();
   });
 
-  it("completes only Find for a legacy fix taken outside the clock slack", async () => {
+  it("accepts an untagged fix recorded before check-in creation", async () => {
     const { parent, phoneId, device } = await setup();
+    const oldFix = fix(h.clock.now);
+    h.clock.advance(60_000);
     await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 5 });
-    h.clock.advance(2 * 60_000);
-    await parent.post(`/api/phones/${phoneId}/locate`);
-    const earlyFix = fix(h.clock.now);
-    h.clock.advance(4 * 60_000);
+    h.clock.advance(3 * 60_000 - 1);
+    expect((await device.put("/api/device/location", oldFix)).status).toBe(409);
+    h.clock.advance(1);
+    expect((await device.put("/api/device/location", oldFix)).status).toBe(204);
+    await publishCheckin();
+    expect((await parent.get(`/api/phones/${phoneId}/location`)).json.location).toBeNull();
 
-    expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
-    expect((await device.put("/api/device/location", earlyFix)).status).toBe(409);
-    const rules = (await device.get("/api/device/rules")).json;
-    expect(rules.location.requestedAt).toBeNull();
-    expect(rules.checkIn.locationDue).toBe(true);
+    h.clock.advance(2 * 60_000);
+    await sweep(h.ctx);
     const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
-    expect(seen.checkin.locatedAt).toBeNull();
+    expect(seen.checkin.locatedAt).not.toBeNull();
+    expect(seen.location.recordedAt).toBe(oldFix.recordedAt);
   });
 
-  it.each(["find", "always"])("keeps a pre-deadline legacy %s fix out of the check-in", async (mode) => {
+  it.each(["find", "always"])("accepts an early untagged fix for %s and check-in", async (mode) => {
     const { parent, phoneId, device } = await setup();
     if (mode === "always") {
       await parent.put(`/api/phones/${phoneId}/location/mode`, { mode, alwaysFor: "hour" });
@@ -309,12 +310,12 @@ describe("are you okay?", () => {
     h.clock.advance(5_000);
     const earlyFix = fix(h.clock.now);
     expect((await device.put("/api/device/location", earlyFix)).status).toBe(204);
+    const status = async () => (await parent.get(`/api/phones/${phoneId}/location`)).json;
+    expect((await status()).location.recordedAt).toBe(earlyFix.recordedAt);
+    expect((await status()).checkin.locatedAt).toBeNull();
     h.clock.advance(56_000);
     await sweep(h.ctx);
-    const seen = (await parent.get(`/api/phones/${phoneId}/location`)).json;
-    expect(seen.location.recordedAt).toBe(earlyFix.recordedAt);
-    expect(seen.checkin.locatedAt).toBeNull();
-    expect((await device.get("/api/device/rules")).json.checkIn.locationDue).toBe(true);
+    expect((await status()).checkin.locatedAt).toBe(earlyFix.recordedAt);
   });
 
   it("lets the answer win when a location upload commits first in the same second", async () => {
@@ -367,6 +368,18 @@ describe("are you okay?", () => {
     expect(seen.location).toBeNull();
   });
 
+  it.each([true, false])("rejects a check-in fix after an answer (tagged: %s)", async (tagged) => {
+    const { parent, phoneId, device } = await setup();
+    const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
+    h.clock.advance(60_000);
+    expect((await device.post(`/api/device/safety/${checkin.id}`, { event: "ok" })).status).toBe(204);
+    expect((await device.put("/api/device/location", {
+      ...fix(h.clock.now), ...(tagged ? { purpose: `checkin:${checkin.id}` } : {}),
+    })).status).toBe(409);
+    await publishCheckin();
+    expect((await parent.get(`/api/phones/${phoneId}/location`)).json.location).toBeNull();
+  });
+
   it("lets an answer at the deadline win over a concurrent location upload", async () => {
     const { parent, phoneId, device } = await setup();
     const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
@@ -383,7 +396,7 @@ describe("are you okay?", () => {
     expect(seen.location).toBeNull();
   });
 
-  it("lets a reply waiting on the upload's row lock discard its pending fix", async () => {
+  it.each([true, false])("lets a reply waiting on the upload's row lock discard its pending fix (tagged: %s)", async (tagged) => {
     const { parent, phoneId, device } = await setup();
     const { checkin } = (await parent.post(`/api/phones/${phoneId}/checkin`, { minutes: 1 })).json;
     h.clock.advance(60_000);
@@ -398,7 +411,9 @@ describe("are you okay?", () => {
         return result;
       }, config),
     );
-    const upload = device.put("/api/device/location", { ...fix(h.clock.now), purpose: `checkin:${checkin.id}` });
+    const upload = device.put("/api/device/location", {
+      ...fix(h.clock.now), ...(tagged ? { purpose: `checkin:${checkin.id}` } : {}),
+    });
     let answer: ReturnType<typeof device.post> | undefined;
     try {
       await Promise.race([staged.promise, upload]);
