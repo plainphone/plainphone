@@ -30,6 +30,7 @@ import {
 import { DEFAULT_PUSH_HOSTS, parentPushEnabled, pushHostAllowed } from "../providers/parent-push.js";
 import { registerNativeSubscription, removePushSubscription } from "../services/push-subscriptions.js";
 import { notifyUsers } from "../services/notifications.js";
+import { explainDecision } from "../services/approval-outcome.js";
 import { approveRequest, openRequests, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
@@ -1135,7 +1136,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const change = await requireTrusted(c);
     const approval = await body(c, z.object({ challenge: z.string().max(240), revision }));
     const r = await applyPending(ctx, change.id, c.get("user").id, approval);
-    if (r === "gone") return c.json({ error: "the approval code or preview is no longer valid" }, 409);
+    if (r === "gone") {
+      const d = await explainDecision(ctx, change.id, c.get("user").id, "approve", approval.challenge);
+      if (!d.ok) return c.json({ error: "the approval code or preview is no longer valid", outcome: d.outcome }, 409);
+    }
     return c.body(null, 204);
   });
 
@@ -1143,14 +1147,18 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const change = await requireTrusted(c);
     const approval = await body(c, z.object({ revision }));
     const r = await applyPending(ctx, change.id, c.get("user").id, approval);
-    if (r === "gone") return c.json({ error: "the approval preview is no longer valid" }, 409);
+    if (r === "gone") {
+      const d = await explainDecision(ctx, change.id, c.get("user").id, "approve");
+      if (!d.ok) return c.json({ error: "the approval preview is no longer valid", outcome: d.outcome }, 409);
+    }
     return c.body(null, 204);
   });
 
   app.post("/changes/:cid/reject", async (c) => {
     const change = await requireTrusted(c);
     if (!(await rejectTrustedChange(ctx, change.id, change.phoneId, c.get("user").id))) {
-      return c.json({ error: "this change is no longer pending" }, 409);
+      const d = await explainDecision(ctx, change.id, c.get("user").id, "reject");
+      if (!d.ok) return c.json({ error: "this change is no longer pending", outcome: d.outcome }, 409);
     }
     return c.body(null, 204);
   });

@@ -14,6 +14,7 @@ import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
+import { phoneApprovalState } from "../services/approval-outcome.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
@@ -451,6 +452,15 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       id, type: op.type, appLabel,
       summary: formatApprovalSummary(state, phone.id, op, { id, owner: true, bonusDate }),
     })) });
+  });
+
+  app.get("/approval-challenge/:changeId", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    const state = await phoneApprovalState(ctx, phone.id, c.req.param("changeId"));
+    if (!state) throw new HTTPException(404, { message: "not found" });
+    c.header("Cache-Control", "no-store");
+    return c.json({ state });
   });
 
   app.post("/approval-challenge", async (c) => {

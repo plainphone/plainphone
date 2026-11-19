@@ -328,8 +328,15 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const [[row], current] = await Promise.all([
+    ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id)),
+    respondWithRules(ctx, phone, []),
+  ]);
+  return {
+    ...summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false),
+    /** Whether the phone has confirmed the rules the server holds now; null while it has confirmed none. */
+    rulesCurrent: phone.deviceStatus?.rulesEtag ? phone.deviceStatus.rulesEtag === current.etag : null,
+  };
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
