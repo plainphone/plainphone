@@ -96,9 +96,11 @@ See [Operations](docs/operations.md) for encrypted off-site backups, monitoring 
 
 ## Help and support
 
-See [Help and support](https://plainphone.org/help/) in English or
-[Danish](https://plainphone.org/da/help/). The dashboard and the phone’s
-PIN-protected Maintenance screen can copy technical diagnostics for support.
+See [Help and support](https://plainphone.org/help/) in English, Danish, Swedish,
+Norwegian Bokmål or German via the language switcher. Before a recovery reset,
+check the phone’s reported reset-protection status in the dashboard. The
+dashboard and the phone’s PIN-protected Maintenance screen can copy technical
+diagnostics for support.
 See [support tools and release troubleshooting](docs/support.md).
 
 ## Privacy and security

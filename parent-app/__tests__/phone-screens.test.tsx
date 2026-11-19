@@ -103,7 +103,7 @@ describe("overview", () => {
     expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
   });
 
-  it("returns to the phone list without claiming release when the pending phone disappears", async () => {
+  it.each([false, true])("shows the notice when the pending phone disappears (opened from list: %s)", async (fromList) => {
     jest.useFakeTimers();
     const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
     try {
@@ -112,14 +112,19 @@ describe("overview", () => {
         [`GET /phones/${PHONE.id}`]: () => removed
           ? { status: 404, body: { error: "phone not found" } }
           : { body: { ...PHONE, releaseRequestedAt: "2026-11-18T19:26:00Z" } },
-        "GET /phones": { body: { phones: [] } },
+        "GET /phones": () => ({ body: { phones: removed ? [] : [PHONE] } }),
       });
-      await renderRouter(routes, { initialUrl: at(PHONE) });
+      await renderRouter(routes, { initialUrl: fromList ? "/" : at(PHONE) });
+      if (fromList) await fireEvent.press(await screen.findByTestId(`phone-${PHONE.id}`));
       await screen.findByTestId("section-apps");
       removed = true;
       await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
       expect(screen).toHavePathname("/");
-      expect(announce).toHaveBeenCalledWith("This phone is no longer in your list. Check on the phone whether Plainphone is still on.");
+      const notice = "This phone is no longer in your list. Check on the phone whether Plainphone is still on.";
+      expect(screen.getByText(notice)).toBeVisible();
+      expect(announce).toHaveBeenCalledWith(notice);
+      await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByText(notice)).toBeNull();
     } finally {
       announce.mockRestore();
       jest.useRealTimers();

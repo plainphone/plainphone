@@ -231,13 +231,12 @@ function Overview() {
         .then((latest) => { if (active) setPhone(latest); })
         .catch((error) => {
           if (active && releasing && error instanceof ApiError && error.status === 404) {
-            AccessibilityInfo.announceForAccessibility(t("support.phoneUnavailable"));
-            router.dismissTo("/");
+            router.dismissTo({ pathname: "/", params: { notice: "phone-unavailable" } });
           }
         });
     }, 60_000);
     return () => { active = false; clearInterval(timer); };
-  }, [phone.id, phone.pairedAt, releasing, router, setPhone, t]));
+  }, [phone.id, phone.pairedAt, releasing, router, setPhone]));
 
   async function refresh() {
     setRefreshing(true);

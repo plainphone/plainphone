@@ -426,4 +426,4 @@ writeFileSync(
   Cache-Control: public, max-age=604800
 `,
 );
-console.log(`Built ${pages.length * 4} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 5} pages + 404 into dist/ (css ${css.length} bytes)`);

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo, useRef } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, LinkRow, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
+import { Button, LinkRow, LiveStatus, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { formatRelative } from "../shared/lib/format";
 import { space } from "../lib/theme";
@@ -18,6 +18,10 @@ interface Row {
 function PhonesList() {
   const { t, locale } = useI18n();
   const router = useRouter();
+  const { notice } = useLocalSearchParams<{ notice?: string }>();
+  const feedback = useMemo(() => notice === "phone-unavailable"
+    ? { tone: "warn" as const, text: t("support.phoneUnavailable") }
+    : null, [notice, t]);
   const now = useNow(60_000);
   const res = useLoad(async (): Promise<Row[]> => {
     const { phones } = await unwrap<{ phones: Phone[] }>(client.GET("/phones"));
@@ -56,6 +60,7 @@ function PhonesList() {
         }}
       />
       <PageTitle>{t("phones.title")}</PageTitle>
+      <LiveStatus notice={feedback} onClose={() => router.setParams({ notice: undefined })} />
       <LoadGate res={res}>
         {(rows) =>
           rows.length === 0 ? (

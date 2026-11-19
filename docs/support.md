@@ -1,11 +1,12 @@
 # Help, diagnostics and release troubleshooting
 
-The public [English](https://plainphone.org/help/) and
-[Danish](https://plainphone.org/da/help/) help pages explain recovery reset,
-Play Protect, restricted settings and VPN conflicts. The reset guide explains
-which parent Google account may be required before a family wipes a phone.
-Both pages link to support@plainphone.org. See the launch setup below for
-mail delivery and Play listing verification.
+The public [help pages](https://plainphone.org/help/) cover recovery reset,
+Play Protect, restricted settings and VPN conflicts in English, Danish, Swedish,
+Norwegian Bokmål and German. Before a recovery reset, check access to an eligible
+Google account and confirm that the latest report under Phone status in the web
+dashboard shows reset protection is on. All five help pages link to
+support@plainphone.org. See the launch setup below for mail delivery and Play
+listing verification.
 
 Support tools are on by default. A parent can turn them off for each phone
 in the dashboard or parent app. This controls the diagnostics in the parent
@@ -32,8 +33,9 @@ phone before resetting it. For current or unknown versions, after three
 authenticated rule fetches, including conditional fetches, the warning says
 that the phone has yet to confirm the release and shows the last status
 report time when available. A rules fetch confirms contact with the server.
-The phone acknowledges successful release separately. A missing phone
-in the parent app can also mean it was removed from the list.
+The phone acknowledges successful release separately. If a pending phone
+disappears, the parent app returns to the phone list and shows a notice asking
+the parent to check on the phone whether Plainphone is still on.
 
 ## Launch setup
 
