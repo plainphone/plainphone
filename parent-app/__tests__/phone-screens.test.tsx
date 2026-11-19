@@ -30,6 +30,7 @@ function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string
     [`GET /phones/${phone.id}`]: { body: phone },
     [`GET /phones/${phone.id}/changes`]: { body: { changes: [] } },
     [`GET /phones/${phone.id}/apps`]: { body: { apps: APPS } },
+    [`GET /phones/${phone.id}/sos`]: { body: { events: [], callbackNumber: null } },
     ...extra,
   });
 }
@@ -37,6 +38,33 @@ const at = (phone: { id: string }, section = "") => `/phones/${phone.id}${sectio
 
 beforeEach(async () => {
   await SecureStore.setItemAsync("pp.session", "pp_s_saved");
+});
+
+it("shows an urgent SOS, then moves it to history after acknowledgment", async () => {
+  const event = {
+    id: "3b276ba0-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z",
+    seenAt: null, location: { lat: 55.6, lon: 12.5 }, battery: 43, deliveredVia: "push",
+  };
+  const path = `/phones/${PHONE.id}/sos`;
+  const seen = { ...event, seenAt: "2026-11-19T14:33:00Z" };
+  let acknowledged = false;
+  const api = phoneApi(PHONE, {
+    [`GET ${path}`]: () => ({ body: { events: [acknowledged ? seen : event], callbackNumber: "+4512345678" } }),
+    [`POST ${path}/${event.id}/seen`]: () => {
+      acknowledged = true;
+      return { body: seen };
+    },
+  });
+  await renderRouter(routes, { initialUrl: at(PHONE) });
+  expect(await screen.findByTestId("sos-banner")).toBeTruthy();
+  expect(screen.getByText("Urgent SOS")).toBeTruthy();
+  expect(screen.getByText("View on map")).toBeTruthy();
+  expect(screen.getByText("Call back")).toBeTruthy();
+  await fireEvent.press(screen.getByText("I’ve seen it"));
+  await waitFor(() => expect(screen.queryByTestId("sos-banner")).toBeNull());
+  expect(api.calls.some((call) => call.path === `${path}/${event.id}/seen`)).toBe(true);
+  await fireEvent.press(screen.getByText("SOS history"));
+  expect(await screen.findByTestId("sos-history-event")).toBeTruthy();
 });
 
 describe("pairing", () => {

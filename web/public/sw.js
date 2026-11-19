@@ -99,6 +99,7 @@ self.addEventListener("push", (event) => {
       // Same tag: a newer message about the same thing replaces the older one.
       tag: msg.tag || undefined,
       renotify: Boolean(msg.tag),
+      requireInteraction: msg.data?.type === "sos-urgent",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: typeof msg.url === "string" && msg.url.startsWith("/") ? msg.url : "/" },

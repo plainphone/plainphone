@@ -12,10 +12,11 @@ export interface PushMessage {
   url: string;
   /** Same tag = the newer notification replaces the older one on the device. */
   tag: string;
+  data?: { type: string; phoneId: string };
 }
 
 export interface PushTarget {
-  platform: "web" | "apns" | "fcm";
+  platform: "web" | "apns" | "fcm" | "expo";
   endpoint: string;
   p256dh: string | null;
   auth: string | null;
@@ -94,5 +95,38 @@ export class MemoryParentPushProvider implements ParentPushProvider {
     if (this.gone.has(t.endpoint)) return "gone";
     this.sent.push({ endpoint: t.endpoint, msg, urgent: Boolean(opts.urgent) });
     return "sent";
+  }
+}
+
+/** Expo relays native SOS to FCM/APNs. Send only the alert and its dashboard route. */
+export class NativeSosPushProvider implements ParentPushProvider {
+  constructor(private readonly web: ParentPushProvider, private readonly accessToken?: string) {}
+  get name() { return `${this.web.name}+expo`; }
+  get webPublicKey() { return this.web.webPublicKey; }
+
+  async send(target: PushTarget, msg: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
+    if (target.platform !== "expo") return this.web.send(target, msg, opts);
+    if (!msg.data?.type.startsWith("sos-")) return "unsupported";
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      signal: AbortSignal.timeout(8_000),
+      headers: {
+        "content-type": "application/json",
+        ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        to: target.endpoint,
+        title: msg.title, body: msg.body, data: msg.data,
+        priority: opts?.urgent ? "high" : "normal",
+        channelId: msg.data.type,
+        sound: opts?.urgent ? "sos-alarm.wav" : "default",
+        interruptionLevel: opts?.urgent ? "time-sensitive" : "active",
+        ttl: 3600,
+      }),
+    });
+    if (!response.ok) return "failed";
+    const { data } = await response.json() as { data?: { status: string; details?: { error?: string } } };
+    if (data?.status === "ok") return "sent";
+    return data?.details?.error === "DeviceNotRegistered" ? "gone" : "failed";
   }
 }

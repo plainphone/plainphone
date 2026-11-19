@@ -20,6 +20,7 @@ export type NotifyEvent =
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
+  | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" };
 
 /** What a parent hears about a ring or an "Are you okay?" (docs/location.md). */
@@ -87,6 +88,9 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           noReplyNoLocation: { title: `No answer from ${e.phoneName}`, body: "\"Are you okay?\" was not answered in time." },
           located: { title: `Position of ${e.phoneName}`, body: "\"Are you okay?\" was not answered. Open the app to see where the phone is." },
         }[e.what];
+      case "sos":
+        return { title: `${e.kind === "urgent" ? "Urgent SOS" : "SOS"} from ${e.phoneName}`,
+          body: e.kind === "urgent" ? "I need help now." : "I need help." };
       case "test":
         return { title: "Notifications work", body: "This device will get Plainphone notifications." };
     }
@@ -124,6 +128,9 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           noReplyNoLocation: { title: `Intet svar fra ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret i tide." },
           located: { title: `Placering af ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret. Åbn appen for at se, hvor telefonen er." },
         }[e.what];
+      case "sos":
+        return { title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`,
+          body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." };
       case "test":
         return { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." };
     }
@@ -143,6 +150,9 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
+    case "sos":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: e.id.replaceAll("-", ""),
+        data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
     case "test":
       return { ...t, url: "/settings", tag: "test" };
   }
@@ -155,7 +165,7 @@ export async function notifyUsers(
   e: NotifyEvent,
   opts: { subscriptionId?: string } = {},
 ): Promise<number> {
-  if (userIds.length === 0 || !ctx.parentPush.webPublicKey) return 0;
+  if (userIds.length === 0) return 0;
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -167,7 +177,7 @@ export async function notifyUsers(
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
         ),
       );
-    const urgent = e.type === "protection";
+    const urgent = e.type === "protection" || (e.type === "sos" && e.kind === "urgent");
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;

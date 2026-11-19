@@ -2207,3 +2207,13 @@ main {
 .check > span {
   min-width: 0;
 }
+
+.sos-alert {
+  border-inline-start: 4px solid currentColor;
+  padding: 1rem;
+}
+
+.sos-alert .actions {
+  flex-wrap: wrap;
+  align-items: center;
+}

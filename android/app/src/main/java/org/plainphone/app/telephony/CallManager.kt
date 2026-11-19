@@ -96,6 +96,10 @@ object CallManager {
     fun answer() = primary()?.answer(VideoProfile.STATE_AUDIO_ONLY)
     fun decline() = primary()?.reject(false, null)
     fun hangUp() = primary()?.disconnect()
+    @Synchronized
+    fun disconnect(id: Int) {
+        calls.firstOrNull { System.identityHashCode(it) == id }?.disconnect()
+    }
     fun playDtmf(digit: Char) = primary()?.let { it.playDtmfTone(digit); it.stopDtmfTone() }
 
     fun setMuted(muted: Boolean) = service?.setMuted(muted)

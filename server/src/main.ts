@@ -5,7 +5,7 @@ import { loadConfig } from "./config.js";
 import { createDb, runMigrations } from "./db/client.js";
 import { HttpDnsProvider, MockDnsProvider } from "./providers/dns.js";
 import { LogMailProvider, NoMailProvider, SmtpMailProvider } from "./providers/mail.js";
-import { NoParentPushProvider, WebPushProvider } from "./providers/parent-push.js";
+import { NativeSosPushProvider, NoParentPushProvider, WebPushProvider } from "./providers/parent-push.js";
 import { NoPushProvider } from "./providers/push.js";
 import { validVapidKeys } from "./lib/webpush.js";
 import type { Ctx } from "./services/context.js";
@@ -33,7 +33,7 @@ const ctx: Ctx = {
         : new NoMailProvider(),
   dns: cfg.DNS_PROVIDER === "http" ? new HttpDnsProvider(cfg.DNS_API_URL!, cfg.DNS_API_TOKEN!) : new MockDnsProvider(),
   push: new NoPushProvider(),
-  parentPush: vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(),
+  parentPush: new NativeSosPushProvider(vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(), process.env.EXPO_ACCESS_TOKEN),
   now: () => new Date(),
 };
 

@@ -938,4 +938,22 @@ export const da: Messages = {
 
   "notif.serverOff": "Push-notifikationer er ikke sat op på denne server. Advarsler kommer stadig på mail.",
   "notif.neverDefault": "Aldrig (standard)",
+  "sos.yourName": "Dit navn, som barnet kender det (valgfrit)",
+  "sos.seenBy": "Set af {name}",
+  "sos.title": "SOS-historik",
+  "sos.urgent": "Akut SOS",
+  "sos.help": "Har brug for hjælp",
+  "sos.map": "Se på kort",
+  "sos.call": "Ring op",
+  "sos.seen": "Jeg har set den",
+  "sos.acknowledged": "Set",
+  "sos.error": "Kunne ikke gemme. Prøv igen.",
+  "sos.unavailable": "Kunne ikke hente SOS.",
+  "sos.callback": "Barnets nummer til SOS-opkald",
+  "sos.mark": "Brug til SOS-opkald og SMS",
+  "sos.unmark": "Fjern fra SOS-opkald og SMS",
+  "sos.dnd": "Tillad Akut SOS under Forstyr ikke eller Fokus i systemindstillingerne, hvis din telefon giver mulighed for det.",
+  "sos.enable": "Slå SOS-notifikationer til",
+  "sos.enabled": "SOS-notifikationer slået til",
+
 };

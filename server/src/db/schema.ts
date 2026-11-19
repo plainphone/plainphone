@@ -228,6 +228,7 @@ export const phones = pgTable(
      * document carries `release: true`.
      */
     releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
+    sosCallbackNumber: text("sos_callback_number"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
@@ -336,6 +337,7 @@ export const contacts = pgTable(
     name: text("name").notNull(),
     /** E.164, e.g. +4512345678. */
     number: text("number").notNull(),
+    sosParent: boolean("sos_parent").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("contacts_phone_number_uq").on(t.phoneId, t.number)],
@@ -544,7 +546,7 @@ export const pushSubscriptions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    platform: text("platform", { enum: ["web", "apns", "fcm"] }).notNull(),
+    platform: text("platform", { enum: ["web", "apns", "fcm", "expo"] }).notNull(),
     /** Web Push: the push service URL. APNs/FCM: the device token. */
     endpoint: text("endpoint").notNull().unique(),
     /** Web Push only: the browser's public key and auth secret (base64url). */
@@ -656,3 +658,23 @@ export const selfRuleTemplates = pgTable("self_rule_templates", {
   rules: jsonb("rules").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+export const sosEvents = pgTable("sos_events", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  id: uuid("id").notNull(),
+  kind: text("kind", { enum: ["urgent", "help"] }).notNull(),
+  createdAt: createdAt(),
+  lat: doublePrecision("lat"),
+  lon: doublePrecision("lon"),
+  battery: smallint("battery"),
+  deliveredVia: text("delivered_via", { enum: ["push", "sms"] }),
+  seenBy: uuid("seen_by").references(() => users.id, { onDelete: "set null" }),
+  seenByName: text("seen_by_name"),
+  seenAt: timestamp("seen_at", { withTimezone: true }),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  notificationClaimedAt: timestamp("notification_claimed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.phoneId, t.id] }),
+  index("sos_phone_created_idx").on(t.phoneId, t.createdAt),
+  index("sos_created_idx").on(t.createdAt),
+]);

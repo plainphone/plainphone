@@ -939,6 +939,24 @@ export const en = {
 
   "notif.serverOff": "Push notifications are not set up on this server. Alerts still come by email.",
   "notif.neverDefault": "Never (standard)",
+  "sos.yourName": "Your name for the child (optional)",
+  "sos.seenBy": "Seen by {name}",
+  "sos.title": "SOS history",
+  "sos.urgent": "Urgent SOS",
+  "sos.help": "Needs help",
+  "sos.map": "View on map",
+  "sos.call": "Call back",
+  "sos.seen": "I’ve seen it",
+  "sos.acknowledged": "Seen",
+  "sos.error": "Could not save. Try again.",
+  "sos.unavailable": "Could not load SOS.",
+  "sos.callback": "Child’s number for SOS callbacks",
+  "sos.mark": "Use for SOS calls and SMS",
+  "sos.unmark": "Remove from SOS calls and SMS",
+  "sos.dnd": "In system settings, allow Urgent SOS through Do Not Disturb or Focus if your phone offers it.",
+  "sos.enable": "Enable SOS notifications",
+  "sos.enabled": "SOS notifications enabled",
+
 } as const;
 
 export type MessageKey = keyof typeof en;

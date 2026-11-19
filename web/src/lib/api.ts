@@ -172,6 +172,7 @@ export interface PhoneCatalog {
   apps: CatalogApp[];
 }
 export interface Contact {
+  sosParent?: boolean;
   id: string;
   name: string;
   number: string;
@@ -420,6 +421,9 @@ export const api = {
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
+
+export const acknowledgeSos = <T>(pid: string, id: string, name: string) =>
+  api.post<T>(`/phones/${pid}/sos/${id}/seen`, { name: name.trim() || undefined });
 
 export const getPhoneSettings = (pid: string) =>
   api.get<{ settings: PhoneSettings }>(`/phones/${pid}/settings`).then((r) => r.settings);

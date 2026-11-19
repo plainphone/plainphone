@@ -3,6 +3,7 @@
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { clearSosPushRegistration } from "./notifications";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
@@ -151,6 +152,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      await clearSosPushRegistration().catch(() => undefined);
       await unwrap(client.POST("/auth/logout"));
     } catch {
       // signed out locally either way

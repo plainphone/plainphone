@@ -118,6 +118,18 @@ class PhoneSyncContractTest {
         assertThat(status.getBoolean("lockIntact")).isTrue()
         assertThat(status.getInt("batteryPct")).isEqualTo(64)
 
+        val sosId = java.util.UUID.randomUUID().toString()
+        val payload = JSONObject().put("id", sosId).put("kind", "urgent").put("battery", 64)
+            .put("location", JSONObject().put("lat", 55.6).put("lon", 12.5))
+        val token = store.deviceToken()!!
+        assertThat(api.reportSos(token, payload).getString("id")).isEqualTo(sosId)
+        assertThat(api.reportSos(token, payload).getString("id")).isEqualTo(sosId)
+        val (_, sosHistory) = parent("GET", "/phones/$phoneId/sos")
+        assertThat(sosHistory!!.getJSONArray("events").length()).isEqualTo(1)
+        assertThat(api.sosStatus(token, sosId).isNull("seenAt")).isTrue()
+        assertThat(parent("POST", "/phones/$phoneId/sos/$sosId/seen", JSONObject()).first).isEqualTo(200)
+        assertThat(api.sosStatus(token, sosId).isNull("seenAt")).isFalse()
+
         val batteryPolicy = "battery exemption missing: self-update cannot run"
         val appliedLock = device.lock
         device.lock = appliedLock.copy(failedPolicies = listOf(batteryPolicy))

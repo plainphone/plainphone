@@ -190,6 +190,7 @@ Things to know:
 - **Calls and chats inside messenger apps** (WhatsApp, Signal and similar) cannot be limited to approved contacts. Those apps are hidden unless a parent allows them. See [contacts.md](contacts.md).
 - **Apps the system will not hide.** Some system packages refuse `setApplicationHidden`. The status screen lists them under "hide apps ... failed".
 - **Emergency calls** can never be blocked, and that is on purpose.
+  The home screen opens [SOS](sos.md), where a three-second hold on **Call 112** opens Android’s emergency dialer. The regular keypad and lock-screen emergency control use their existing paths.
 - **Clone profiles** use a hidden constant. If a maker ignores it, Dual Messenger and similar may still work. This must be tested.
 
 ## Maintenance screen

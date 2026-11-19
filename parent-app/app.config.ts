@@ -29,6 +29,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     appleTeamId: APPLE_TEAM_ID,
     buildNumber: "1",
     supportsTablet: true,
+    entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
     associatedDomains: [`applinks:${HOST}`],
     infoPlist: {
       CFBundleAllowMixedLocalizations: true,
@@ -53,6 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     // Only what the app uses: the camera for the pairing QR code and notifications.
     permissions: ["android.permission.CAMERA", "android.permission.POST_NOTIFICATIONS"],
+    googleServicesFile: process.env.PLAINPHONE_GOOGLE_SERVICES_FILE,
     // Pulled in by libraries, not used by the app.
     blockedPermissions: [
       "android.permission.RECORD_AUDIO",
@@ -104,9 +106,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         color: "#24604a",
         defaultChannel: "approval",
+        sounds: ["./assets/sos-alarm.wav"],
       },
     ],
   ],
   experiments: { typedRoutes: true },
-  extra: { serverUrl: SERVER_URL },
+  extra: {
+    serverUrl: SERVER_URL,
+    ...(process.env.PLAINPHONE_EXPO_PROJECT_ID ? { eas: { projectId: process.env.PLAINPHONE_EXPO_PROJECT_ID } } : {}),
+  },
 });

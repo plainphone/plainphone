@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { SosPanel } from "../../../components/SosPanel";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo } from "react-native";
@@ -255,6 +256,7 @@ function Overview() {
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
+      {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}

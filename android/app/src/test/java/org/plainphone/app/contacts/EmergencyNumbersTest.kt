@@ -5,6 +5,7 @@ package org.plainphone.app.contacts
 import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.telecom.TelecomManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -33,6 +34,14 @@ class EmergencyNumbersTest {
 
         assertThat(placeCall(context, "112")).isNull()
         assertThat(telecom.onlyOutgoingCall.address.toString()).isEqualTo("tel:112")
+    }
+
+    @Test
+    fun `the emergency dialer fallback opens the emergency number in the keypad`() {
+        val intent = org.plainphone.app.sos.emergencyKeypadIntent()
+        assertThat(intent.action).isEqualTo(Intent.ACTION_DIAL)
+        assertThat(intent.data?.schemeSpecificPart).isEqualTo("112")
+        assertThat(EmergencyNumbers.forContext(context).isEmergency(intent.data!!.schemeSpecificPart)).isTrue()
     }
 
     @Test

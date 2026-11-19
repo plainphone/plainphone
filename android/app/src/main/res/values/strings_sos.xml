@@ -1,0 +1,21 @@
+<resources>
+    <string name="sos_title">SOS</string>
+    <string name="sos_back">Back</string>
+    <string name="sos_intro">Hold a button for 3 seconds.</string>
+    <string name="sos_urgent">Urgent: I need help now</string>
+    <string name="sos_help">I need help</string>
+    <string name="sos_emergency">Call 112</string>
+    <string name="sos_hold">Hold to send an SOS.</string>
+    <string name="sos_hold_emergency">Hold to call 112.</string>
+    <string name="sos_undo">Undo</string>
+    <string name="sos_sending_in">Sending in %1$d s</string>
+    <string name="sos_stop_call">Stop calling</string>
+    <string name="sos_sent">SOS sent at %1$s</string>
+    <string name="sos_seen">Seen by a parent</string>
+    <string name="sos_pending">Trying to send SOS…</string>
+    <string name="sos_failed">SOS could not be sent.</string>
+    <string name="sos_no_parents">Your parents can add numbers for calls and SMS in their dashboard.</string>
+    <string name="sos_sent_to">Sent to %1$s at %2$s</string>
+    <string name="sos_seen_by">Seen by %1$s</string>
+    <string name="sos_location">Your position can be included.</string>
+</resources>

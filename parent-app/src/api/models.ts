@@ -44,6 +44,7 @@ export interface App {
   core: boolean;
 }
 export interface Contact {
+  sosParent?: boolean;
   id: string;
   name: string;
   number: string;

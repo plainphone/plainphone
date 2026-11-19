@@ -65,7 +65,7 @@ class HomeActions(
     val open: (HomeApp) -> Unit = {},
     val phone: () -> Unit = {},
     val messages: () -> Unit = {},
-    val emergency: () -> Unit = {},
+    val sos: () -> Unit = {},
     val makeDefault: () -> Unit = {},
     val help: () -> Unit = {},
     val selfTools: (() -> Unit)? = null,
@@ -275,7 +275,7 @@ private fun Dock(actions: HomeActions) {
             DockButton(stringResource(R.string.home_messages), c.surface, c.ink, Modifier.weight(1f), onClick = actions.messages)
         }
         DockTextButton(stringResource(R.string.help_lines_title), actions.help)
-        DockTextButton(stringResource(R.string.home_emergency), actions.emergency)
+        DockTextButton(stringResource(R.string.sos_title), actions.sos)
     }
 }
 

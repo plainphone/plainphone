@@ -33,13 +33,14 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 ## Push notifications
 
-The app is ready for two notifications: a change waiting for your approval, and a position that is ready after Find. It asks for permission in Settings, creates the Android channels `approval` and `location`, and reads the native device token (APNs or FCM). It does not use the Expo push service.
+Enable **SOS notifications** in Settings on each parent device. The app registers
+an Expo push token with the server. Both SOS kinds open the child phone's
+overview. Android creates separate channels for help and urgent SOS. See
+[SOS push configuration](sos.md#push-configuration) for credentials and
+the system controls for Do Not Disturb and Focus.
 
-Still missing before notifications arrive:
-
-1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
-3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
+The app also understands approval and Find routes. The native SOS provider
+only sends SOS notifications.
 
 ## Location screen
 
@@ -95,9 +96,9 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
+Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
-EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
+EAS Build is optional for compiling and signing. Native SOS push uses an Expo project.
 
 ## Your own server
 

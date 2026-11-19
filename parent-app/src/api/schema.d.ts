@@ -4,6 +4,94 @@
  */
 
 export interface paths {
+    "/device/sos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a child SOS once per client ID */
+        post: operations["reportSos"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/sos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check whether a parent acknowledged this SOS */
+        get: operations["getDeviceSos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/sos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** Get the last 30 days of SOS events */
+        get: operations["listPhoneSos"];
+        /** Set or clear the number parents can call back */
+        put: operations["setSosCallbackNumber"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/sos/{id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge an SOS */
+        post: operations["acknowledgeSos"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/contacts/{cid}/sos-parent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Choose an approved parent number for SOS SMS and calls */
+        put: operations["markSosParent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1853,6 +1941,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SosPosition: {
+            lat: number;
+            lon: number;
+        };
+        SosEvent: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            kind: "urgent" | "help";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            seenAt: string | null;
+            seenByName: string | null;
+            /** @enum {unknown} */
+            deliveredVia: "push" | "sms" | null;
+            battery: number | null;
+            location: components["schemas"]["SosPosition"] | null;
+        };
         ChildContactSettings: {
             suggestDeviceContacts: boolean;
             lightContactRestriction: boolean;
@@ -1885,7 +1992,7 @@ export interface components {
             /** Format: uuid */
             id?: string;
             /** @enum {unknown} */
-            platform?: "web" | "apns" | "fcm";
+            platform?: "web" | "apns" | "fcm" | "expo";
             label?: string | null;
             /** @description SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned. */
             endpointHash?: string;
@@ -2181,6 +2288,13 @@ export interface components {
         Rules: {
             /** Format: uuid */
             phoneId: string;
+            sos?: {
+                name: string;
+                parents: {
+                    name: string;
+                    number: components["schemas"]["E164"];
+                }[];
+            };
             /** @enum {unknown} */
             profile: "child" | "self";
             /** @enum {unknown} */
@@ -2617,6 +2731,218 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    reportSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    /** @enum {unknown} */
+                    kind: "urgent" | "help";
+                    battery?: number;
+                    location?: components["schemas"]["SosPosition"];
+                    smsSubmitted?: boolean;
+                    /** Format: date-time */
+                    sentAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SosEvent"];
+                };
+            };
+            /** @description SOS unavailable */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SOS expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many help requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Acknowledgment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        seenAt: string | null;
+                        seenBy: boolean;
+                        seenByName: string | null;
+                    };
+                };
+            };
+            /** @description SOS not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPhoneSos: {
+        parameters: {
+            query?: {
+                unseen?: "1";
+            };
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SOS history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        events: components["schemas"]["SosEvent"][];
+                        callbackNumber: string | null;
+                    };
+                };
+            };
+        };
+    };
+    setSosCallbackNumber: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    callbackNumber: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    acknowledgeSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description SOS with its original acknowledgment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SosEvent"];
+                };
+            };
+            /** @description SOS not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markSosParent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Contact not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -3918,7 +4244,7 @@ export interface operations {
                     replaces?: string;
                 } | {
                     /** @enum {unknown} */
-                    platform: "apns" | "fcm";
+                    platform: "apns" | "fcm" | "expo";
                     token: string;
                     label?: string;
                 };
@@ -5081,6 +5407,7 @@ export interface operations {
                             id: string;
                             name: string;
                             number: components["schemas"]["E164"];
+                            sosParent?: boolean;
                         }[];
                         selfScheduleContacts?: boolean | null;
                         suggestDeviceContacts?: boolean;

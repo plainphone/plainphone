@@ -16,6 +16,8 @@ function Settings() {
   const me = useMe();
   const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
+  const [pushSaved, setPushSaved] = useState(false);
+  const [pushError, setPushError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -39,20 +41,22 @@ function Settings() {
       {push && push !== "unsupported" ? (
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
-          <Text variant="muted">{t("native.notificationsHelp")}</Text>
-          {push === "granted" ? (
-            <Notice tone="success" text={`${t("native.notificationsOn")} ${t("native.notificationsLater")}`} />
-          ) : push === "denied" ? (
+          <Text variant="muted">{t("sos.dnd")}</Text>
+          {pushError && <Notice tone="warn" text={t("sos.error")} />}
+          {pushSaved && <Notice tone="success" text={t("sos.enabled")} />}
+          {push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (
             <Button
               kind="secondary"
-              title={t("native.notificationsAsk")}
+              title={t("sos.enable")}
               busy={busy}
               onPress={() => {
                 setBusy(true);
+                setPushError(false);
                 void enablePush(locale)
-                  .then((r) => setPush(r.state))
+                  .then((r) => { setPush(r.state); setPushSaved(Boolean(r.token)); })
+                  .catch(() => setPushError(true))
                   .finally(() => setBusy(false));
               }}
             />
