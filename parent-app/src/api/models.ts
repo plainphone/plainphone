@@ -30,6 +30,11 @@ export interface Phone {
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
+  supportEnabled?: boolean;
+  releaseWarningsEnabled?: boolean;
+  releaseSyncCount?: number;
+  androidVersion?: string | null;
+  releaseRequestedAt?: string | null;
   lastSeenAt: string | null;
   dnsHost: string;
   dnsSynced: boolean;

@@ -121,6 +121,7 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val androidVersion: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -148,6 +149,7 @@ data class DeviceStatus(
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             appVersionCode?.let { put("appVersionCode", it) }
+            androidVersion?.let { put("androidVersion", it) }
             update?.let { put("update", it.toJson()) }
         }
 }

@@ -134,6 +134,13 @@
       "when": 1795017866226,
       "tag": "0018_setup_undo_notice_lateness",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795086185291,
+      "tag": "0024_launch_support",
+      "breakpoints": true
     }
   ]
 }

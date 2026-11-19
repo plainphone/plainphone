@@ -82,6 +82,10 @@ export interface Phone {
   setupQrAvailable?: boolean;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
+  supportEnabled?: boolean;
+  releaseWarningsEnabled?: boolean;
+  releaseSyncCount?: number;
+  androidVersion?: string | null;
   lastSeenAt: string | null;
   dnsHost: string;
   dnsSynced: boolean;

@@ -92,6 +92,13 @@ See [Operations](docs/operations.md) for encrypted off-site backups, monitoring 
 
 **On a spare test phone:** [docs/setup-test-phone.md](docs/setup-test-phone.md) walks through it step by step, including how to get out again. [docs/bypass-checklist.md](docs/bypass-checklist.md) lists every bypass attempt to try, with the expected result.
 
+## Help and support
+
+See [Help and support](https://plainphone.org/help/) in English or
+[Danish](https://plainphone.org/da/help/). The dashboard and the phone’s
+PIN-protected Maintenance screen can copy technical diagnostics for support.
+See [support tools and release troubleshooting](docs/support.md).
+
 ## Privacy and security
 
 - [docs/privacy.md](docs/privacy.md) says what is stored, for how long and why.

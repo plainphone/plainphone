@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import en from "./content/en.mjs";
 import da from "./content/da.mjs";
+import { help } from "./content/help.mjs";
 import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -94,6 +95,7 @@ function footer(t) {
 <p>${t.footer.maintained}</p>
 <p>${t.footer.setup}</p>
 <p><a href="${t.why.path}">${t.why.h1}</a></p>
+<p><a href="${help[t.lang].path}">${help[t.lang].title}</a></p>
 <p>${t.footer.privacy}</p>
 <p>${t.footer.license}</p>
 </footer>`;
@@ -230,6 +232,40 @@ ${footer(t)}
 `;
 }
 
+function helpPage(t) {
+  const p = help[t.lang];
+  const alternatives = pages.map(({ lang }) => ({ lang, path: help[lang].path }));
+  const section = ({ id, title, body }) => `<section id="${id}" aria-labelledby="${id}-title">
+<h2 id="${id}-title">${esc(title)}</h2>
+${body.map((block) => typeof block === "string"
+    ? `<p>${block}</p>`
+    : `<ol>${block.steps.map((step) => `<li>${step}</li>`).join("")}</ol>`).join("\n")}
+</section>`;
+  return `${head(t, {
+    path: p.path, title: `${p.title} | Plainphone`, description: p.lead, ogTitle: p.title,
+    alternates: alternatives, xDefault: help.en.path,
+  })}
+<body>
+${header(t, help[t.nav.switchLang].path)}
+<main id="main" class="doc">
+<h1>${esc(p.title)}</h1>
+<p class="lead">${esc(p.lead)}</p>
+<nav class="toc" aria-label="${esc(p.topics)}">
+<ul>${[...p.sections, { id: "contact", title: p.contact }].map(({ id, title }) =>
+    `<li><a href="#${id}">${esc(title)}</a></li>`).join("")}</ul>
+</nav>
+${p.sections.map(section).join("\n")}
+<section id="contact" aria-labelledby="contact-title">
+<h2 id="contact-title">${esc(p.contact)}</h2>
+<p>${esc(p.contactText)}</p>
+<p><a href="mailto:support@plainphone.org">support@plainphone.org</a></p>
+</section>
+</main>
+${footer(t)}
+</body>
+</html>`;
+}
+
 // The privacy policy: long-form text in content/*.mjs under `privacy`.
 // A block is a string (paragraph), { list: [...] } or { table: { caption, cols, rows } }.
 function privacyPage(t) {
@@ -332,6 +368,8 @@ mkdirSync(join(dist, "da"), { recursive: true });
 writeFileSync(join(dist, "index.html"), page(en));
 writeFileSync(join(dist, "da", "index.html"), page(da));
 for (const t of pages) {
+  mkdirSync(join(dist, help[t.lang].path), { recursive: true });
+  writeFileSync(join(dist, help[t.lang].path, "index.html"), helpPage(t));
   mkdirSync(join(dist, t.why.path), { recursive: true });
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
@@ -351,7 +389,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => help[p.lang].path]
   .flatMap((route) =>
     pages.map(
       (p) =>

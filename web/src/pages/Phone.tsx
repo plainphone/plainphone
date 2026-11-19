@@ -21,6 +21,8 @@ import { lockStepLabel } from "../lib/lock-steps";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
+import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
+import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 
 interface PhoneCtx {
@@ -411,7 +413,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
 
 export function PhoneOverview() {
   const { t, locale } = useI18n();
-  const { phone, pending, setPhone } = usePhone();
+  const { phone, pending, setPhone, notify } = usePhone();
   const navigate = useNavigate();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
@@ -492,7 +494,7 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
-      {releasing && <p className="notice notice-info status-release">{t("phone.releasing")}</p>}
+      <ReleaseNotice phone={phone} />
       {!phone.pairedAt && (
         <section className="section panel" aria-labelledby="setup-h">
           <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
@@ -545,6 +547,7 @@ export function PhoneOverview() {
       {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
+      <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
     </>
   );
@@ -769,7 +772,7 @@ function ManagePhone() {
                 confirming === "release"
                   ? self
                     ? "phone.releaseSelfConfirm"
-                    : "phone.releaseConfirm"
+                    : isRemoteReleaseTooOld(phone) ? "support.releaseOld" : "phone.releaseConfirm"
                   : self
                     ? "phone.removeSelfConfirm"
                     : "phone.removeConfirm",

@@ -5,6 +5,7 @@ import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from ".
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
 import { formatRelative } from "../lib/format";
+import { helpUrl, releaseState } from "../lib/phoneSupport";
 
 interface Row {
   phone: Phone;
@@ -73,7 +74,6 @@ export function PhonesPage() {
                         <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
-                        {phone.releaseRequestedAt && <span className="tag tag-waiting">{t("phone.releasingTag")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
                         {phone.pairedAt && (
                           <span>
@@ -83,6 +83,7 @@ export function PhonesPage() {
                           </span>
                         )}
                       </span>
+                      <PhoneReleaseLabel phone={phone} />
                       {pending > 0 && (
                         <span className="row-pending">
                           {t(pending === 1 ? "phones.pendingCount" : "phones.pendingCountMany", { n: pending })}
@@ -105,6 +106,7 @@ export function PhonesPage() {
           )
         }
       </LoadGate>
+      <p className="muted"><a href={helpUrl(locale)}>{t("support.openHelp")}</a></p>
     </>
   );
 }
@@ -115,6 +117,14 @@ export function Chevron() {
       <path d="M9 5l7 7-7 7" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+function PhoneReleaseLabel({ phone }: { phone: Phone }) {
+  const { t } = useI18n();
+  const state = releaseState(phone);
+  if (!state) return null;
+  if (state === "requested") return <span className="row-pending">{t("phone.releasingTag")}</span>;
+  return <span className="row-pending">{t(state === "old" ? "support.releaseOld" : "support.releaseStalled")}</span>;
 }
 
 function PhoneDrawing() {

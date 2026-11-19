@@ -79,7 +79,7 @@ if (external) {
   for (const url of externalLinks) {
     try {
       let res = await fetch(url, { method: "HEAD", redirect: "follow" });
-      if (res.status === 405 || res.status === 403) res = await fetch(url, { redirect: "follow" });
+      if ([403, 404, 405].includes(res.status)) res = await fetch(url, { redirect: "follow" });
       if (!res.ok) errors.push(`external ${url}: ${res.status}`);
     } catch (e) {
       errors.push(`external ${url}: ${e.message}`);

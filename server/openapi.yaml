@@ -620,6 +620,8 @@ components:
             accountIds:
               type: array
               items: { type: string, pattern: "^[0-9]{1,30}$" }
+        supportEnabled: { type: boolean, default: true }
+        releaseWarningsEnabled: { type: boolean, default: true }
         release:
           type: boolean
           description: |
@@ -704,6 +706,10 @@ components:
         setupQrAvailable:
           type: boolean
           description: Whether the dashboard can issue a new setup QR code for this phone.
+        supportEnabled: { type: boolean, default: true }
+        releaseWarningsEnabled: { type: boolean, default: true }
+        releaseSyncCount: { type: integer, minimum: 0, maximum: 3 }
+        androidVersion: { type: [string, "null"] }
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -755,6 +761,7 @@ components:
       required: [appVersion, batteryPct, charging, deviceOwner, lockIntact, maintenance, failedPolicies, rulesEtag, rulesAppliedAt, dnsHost]
       properties:
         appVersion: { type: string, minLength: 1, maxLength: 40, examples: ["0.4.0"] }
+        androidVersion: { type: string, maxLength: 23 }
         appVersionCode: { type: integer, minimum: 1 }
         update:
           type: object
@@ -2152,6 +2159,8 @@ paths:
               type: object
               properties:
                 name: { type: string }
+                supportEnabled: { type: boolean }
+                releaseWarningsEnabled: { type: boolean }
                 locationEnabled: { type: boolean }
                 offlineAlertHours:
                   type: [integer, "null"]

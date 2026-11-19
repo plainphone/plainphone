@@ -4,7 +4,7 @@
 // change that tightens the rules, it applies at once. On a Self phone a change
 // that loosens the rules waits for the key: a delay, or a trusted person (D12).
 
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   contacts,
   dnsSettings,
@@ -420,7 +420,8 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
     case "phone.release":
       // The phone is woken by the caller (see submitChange). It switches Plainphone off and
       // then calls POST /device/released, which deletes the phone (see deletePhone).
-      await db.update(phones).set({ releaseRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
+      await db.update(phones).set({ releaseRequestedAt: ctx.now() })
+        .where(and(eq(phones.id, phone.id), isNull(phones.releaseRequestedAt)));
       return { dns: false };
     case "timeLimit.set": {
       const where = and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName));

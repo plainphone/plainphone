@@ -7,6 +7,7 @@ import * as Linking from "expo-linking";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
+import type { Phone } from "../src/api/models";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -24,7 +25,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi<T extends Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: Partial<NonNullable<Phone["status"]>> }>(phone: T | typeof PHONE = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -72,6 +73,32 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("shows the recovery guide when a pending release targets an old app", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      status: { appVersion: "0.1.3", deviceOwner: true, lockIntact: true, failedPolicies: [] },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("This phone’s app is too old to be released remotely.")).toBeTruthy();
+    expect(screen.getByText("Open the recovery reset guide")).toBeTruthy();
+  });
+
+  it("shows the last report after three pending release syncs", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      releaseSyncCount: 3,
+      status: {
+        appVersion: "0.1.8", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("The phone has not carried out the release.")).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+  });
+
   it("shows the system check's own date even after a newer phone sync", async () => {
     phoneApi({
       ...PHONE,

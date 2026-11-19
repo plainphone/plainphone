@@ -319,4 +319,8 @@
     <string name="self_template_share">Set up like me</string>
     <string name="self_template_help">Share your time limits, schedules, app choices and web filter categories. The code expires after 15 minutes.</string>
     <string name="self_tools">Help each other</string>
+    <string name="support_open_help">Open help</string>
+    <string name="support_help_fallback">Open %1$s on another device.</string>
+    <string name="support_copy_diagnostics">Copy diagnostics</string>
+    <string name="support_copied">Diagnostics copied.</string>
 </resources>

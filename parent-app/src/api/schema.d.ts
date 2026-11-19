@@ -2320,6 +2320,10 @@ export interface components {
             resetProtection?: {
                 accountIds?: string[];
             };
+            /** @default true */
+            supportEnabled: boolean;
+            /** @default true */
+            releaseWarningsEnabled: boolean;
             /**
              * @description True once the parents have released the phone. The phone then switches Plainphone off
              *     (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
@@ -2420,6 +2424,12 @@ export interface components {
             pairedAt?: string | null;
             /** @description Whether the dashboard can issue a new setup QR code for this phone. */
             setupQrAvailable?: boolean;
+            /** @default true */
+            supportEnabled: boolean;
+            /** @default true */
+            releaseWarningsEnabled: boolean;
+            releaseSyncCount?: number;
+            androidVersion?: string | null;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -2470,6 +2480,7 @@ export interface components {
         DeviceStatusInput: {
             /** @example 0.4.0 */
             appVersion: string;
+            androidVersion?: string;
             appVersionCode?: number;
             update?: {
                 /** @enum {unknown} */
@@ -4504,6 +4515,8 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
+                    supportEnabled?: boolean;
+                    releaseWarningsEnabled?: boolean;
                     locationEnabled?: boolean;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;

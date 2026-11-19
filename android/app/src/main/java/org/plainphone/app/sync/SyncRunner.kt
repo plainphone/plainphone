@@ -18,6 +18,7 @@ interface SyncDevice {
     fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
     fun appVersion(): String
+    fun androidVersion(): String? = null
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
     /** Launchable apps, including the ones Plainphone hid. */
@@ -234,6 +235,9 @@ class SyncRunner(
         val failed = results.filterNot { it.ok }
         if (failed.isNotEmpty()) {
             Log.w(TAG, "release did not hold, trying again at the next sync: ${failed.joinToString()}")
+            if (store.releaseAsked && store.rules()?.releaseWarningsEnabled != false) {
+                guarded("report release failure") { reportStatus(token, releaseFailed = true) }
+            }
             return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
         }
         store.markReleased()
@@ -461,23 +465,28 @@ class SyncRunner(
         return true
     }
 
-    private fun reportStatus(token: String) {
+    private fun reportStatus(token: String, releaseFailed: Boolean = false) {
         val lock = device.lockState()
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
+        val failedPolicies = buildList {
+            if (releaseFailed) add("remote release")
+            if (overrun != null) add("install window overran: ${overrun.seconds}s")
+            addAll(lock.failedPolicies)
+        }
         val notices = store.statusNotices
         val parallelAppsRemoved = notices.pending(StatusNotices.PARALLEL_APPS_REMOVED)
         val lateGoogleAccount = notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
+            androidVersion = device.androidVersion().takeIf { store.rules()?.supportEnabled != false },
             batteryPct = battery,
             charging = charging,
             deviceOwner = lock.deviceOwner,
             lockIntact = lock.intact,
             maintenance = lock.maintenance,
-            failedPolicies = if (overrun == null) lock.failedPolicies
-                else listOf("install window overran: ${overrun.seconds}s") + lock.failedPolicies,
+            failedPolicies = failedPolicies,
             rulesEtag = store.etag,
             rulesAppliedAtMs = lock.appliedAtMs,
             dnsHost = lock.dnsHost,

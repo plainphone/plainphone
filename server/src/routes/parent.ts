@@ -653,12 +653,16 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
+        supportEnabled: z.boolean().optional(),
+        releaseWarningsEnabled: z.boolean().optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
     const fields = {
       ...(input.name ? { name: input.name } : {}),
+      ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
+      ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
     if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));

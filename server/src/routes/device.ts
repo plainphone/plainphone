@@ -324,6 +324,19 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
     const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
+    // Count requests that actually serve release rules, including conditional fetches.
+    // Tie each increment to this request so concurrent syncs cannot lose counts or update a new release.
+    if (phone.releaseWarningsEnabled && phone.releaseRequestedAt && phone.releaseSyncCount < 3) {
+      await ctx.db.update(phones)
+        .set({ releaseSyncCount: sql`${phones.releaseSyncCount} + 1` })
+        .where(and(
+          eq(phones.id, phone.id),
+          eq(phones.releaseRequestedAt, phone.releaseRequestedAt),
+          eq(phones.releaseWarningsEnabled, true),
+          eq(phones.deviceTokenHash, phone.deviceTokenHash!),
+          lt(phones.releaseSyncCount, 3),
+        ));
+    }
     c.header("ETag", etag);
     c.header("Cache-Control", "no-cache");
     if (rules === null) return c.body(null, 304);
@@ -653,6 +666,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       c,
       z.object({
         appVersion: z.string().min(1).max(40),
+        androidVersion: z.string().regex(/^\d{1,5}(?:\.\d{1,5}){0,3}$/).optional(),
         appVersionCode: z.number().int().positive().optional(),
         update: z.object({
           state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),

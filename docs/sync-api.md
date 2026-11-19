@@ -304,3 +304,14 @@ the same work on every poll. `PUT /api/device/status` reports `appVersion`,
 `appVersionCode` and the optional latest outcome in `update`.
 `GET /download/android/latest.json` describes the release before the phone downloads
 the binary. See [Android updates](android-updates.md).
+
+### Support tools
+
+`PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`
+(both default to `true`). They sync via `GET /device/rules`. The support
+setting controls help and diagnostics in Android Maintenance. The warning
+setting controls extra status reports after failed remote release attempts.
+Phones can include a numeric `androidVersion` string in `PUT /device/status`.
+Phone summaries include that version when available and `releaseSyncCount`,
+a counter capped at three for rules fetches during a pending release. See
+[support tools and release troubleshooting](support.md).

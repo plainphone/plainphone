@@ -67,6 +67,8 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun appVersion(): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 
+    override fun androidVersion(): String? = org.plainphone.app.SupportDiagnostics.version(android.os.Build.VERSION.RELEASE)
+
     override fun dynamicCorePackages() = AndroidDeviceControls(context).dynamicCorePackages()
 
     override fun canReadContactSuggestions() = DeviceContacts.canRead(context)

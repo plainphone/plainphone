@@ -181,6 +181,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       locateRequestedAt: phone.locateRequestedAt,
       updateRequestedAt: phone.updateRequestedAt,
       releaseRequestedAt: phone.releaseRequestedAt,
+      supportEnabled: phone.supportEnabled,
+      releaseWarningsEnabled: phone.releaseWarningsEnabled,
     },
     allApps,
     contactRows,
@@ -259,6 +261,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     // True once the parents have released the phone: it switches Plainphone off and then
     // calls POST /device/released. Older phones ignore the field.
     release: phone.releaseRequestedAt !== null,
+    supportEnabled: phone.supportEnabled,
+    releaseWarningsEnabled: phone.releaseWarningsEnabled,
     pollSeconds: safety.fast ? FAST_POLL_SECONDS : POLL_SECONDS,
   };
   const body = JSON.stringify(doc);
@@ -355,6 +359,10 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim,
     /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
     releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
+    releaseSyncCount: phone.releaseSyncCount,
+    supportEnabled: phone.supportEnabled,
+    releaseWarningsEnabled: phone.releaseWarningsEnabled,
+    androidVersion: phone.supportEnabled ? phone.deviceStatus?.androidVersion ?? phone.deviceInfo?.android ?? null : null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
     dnsSynced: !phone.dnsDirty,
