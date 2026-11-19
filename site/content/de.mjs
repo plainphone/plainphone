@@ -53,7 +53,8 @@ export default {
     title: "Offener Quellcode",
     body: "Der Quellcode von Plainphone ist unter der Apache-2.0-Lizenz öffentlich zugänglich.",
     github: "Quellcode auf GitHub ansehen",
-    issues: "Fehler melden oder Änderungen vorschlagen",
+    issues: "Einen Fehler öffentlich melden oder eine Änderung vorschlagen",
+    privateReport: "Ein Sicherheits- oder Datenschutzproblem vertraulich melden",
     contribute: "Anleitung zum Mitmachen lesen",
   },
   hosting: {
@@ -308,7 +309,7 @@ export default {
                 ],
                 [
                   "Änderungen, die auf den Schlüssel auf dem eigenen Telefon eines Erwachsenen warteten",
-                  "Während sie warten und 30 Tage nach Antragstellung, Stornierung oder Ablehnung",
+                  "Solange die Änderungen ausstehen und 30 Tage nachdem sie umgesetzt, abgebrochen oder abgelehnt wurden",
                 ],
                 [
                   "Anfragen von einem Telefon (einer App oder einem Kontakt)",
@@ -430,6 +431,10 @@ export default {
           "Unter Android 14 und neuer geschieht dies von selbst.",
         ],
         fig: "dialog",
+      },
+      {
+        title: "Plainphone im Hintergrund ausführen lassen",
+        body: ["Tippen Sie auf <strong>Continue</strong> und erteilen Sie dann die Berechtigung in Android, damit Plainphone sich sicher selbst aktualisieren kann. Wenn Sie diesen Schritt überspringen, öffnen Sie Plainphone erneut, um die Abfrage wieder anzuzeigen."],
       },
     ],
     figs: {

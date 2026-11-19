@@ -53,7 +53,8 @@ export default {
     title: "Åben kildekode",
     body: "Plainphones kildekode er offentlig under Apache-2.0-licensen.",
     github: "Se kildekoden på GitHub",
-    issues: "Meld en fejl eller foreslå en ændring",
+    issues: "Meld en fejl offentligt eller foreslå en ændring",
+    privateReport: "Meld en sikkerheds- eller privatlivsfejl privat",
     contribute: "Læs, hvordan du bidrager",
   },
   hosting: {

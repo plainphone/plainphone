@@ -161,6 +161,7 @@ function page(t) {
 <ul>
 <li><a href="${GITHUB}">${o.github}</a></li>
 <li><a href="${GITHUB}/issues">${o.issues}</a></li>
+<li><a href="${GITHUB}/blob/main/SECURITY.md">${o.privateReport}</a></li>
 <li><a href="${GITHUB}/blob/main/CONTRIBUTING.md">${o.contribute}</a></li>
 </ul>`,
   );

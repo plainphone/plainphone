@@ -14,7 +14,7 @@ client-side JavaScript. No cookies, no analytics, no external fonts or requests.
 ```sh
 cd site
 node build.mjs                    # writes dist/
-node scripts/check.mjs            # pages, internal links, anchors, no scripts, no third-party loads
+node scripts/check.mjs            # pages, internal links, language counterparts, anchors, no scripts, no third-party loads
 node scripts/check.mjs --external # also fetches external links
 ```
 

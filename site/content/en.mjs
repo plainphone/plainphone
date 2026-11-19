@@ -53,7 +53,8 @@ export default {
     title: "Open source",
     body: "Plainphone’s source code is public under the Apache-2.0 licence.",
     github: "View the code on GitHub",
-    issues: "Report a problem or suggest a change",
+    issues: "Report a bug publicly or suggest a change",
+    privateReport: "Report a security or privacy flaw privately",
     contribute: "Read the contribution guide",
   },
   hosting: {

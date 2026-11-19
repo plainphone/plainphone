@@ -53,7 +53,8 @@ export default {
     title: "Åpen kildekode",
     body: "Plainphones kildekode er offentlig under Apache-2.0-lisensen.",
     github: "Se kildekoden på GitHub",
-    issues: "Meld fra om en feil eller foreslå en endring",
+    issues: "Meld fra om en feil offentlig eller foreslå en endring",
+    privateReport: "Meld fra privat om en sikkerhets- eller personvernfeil",
     contribute: "Les hvordan du kan bidra",
   },
   hosting: {
@@ -111,7 +112,7 @@ export default {
     h1: "Hvorfor Plainphone fungerer slik den gjør",
     lead: "Plainphone er for familier som vil at barnet deres skal ha en telefon mens de venter på å gi dem en full smarttelefon. Forskning hjelper oss å velge hva vi skal bygge.",
     sections: [
-      ["Sengetid", "Å ha en telefon på soverommet er knyttet til dårligere søvn hos barn og tenåringer. Plainphones sengetidsplan begrenser hvilke apper som er tilgjengelige. Helsetilsynet anbefaler å la telefonen ligge utenfor soverommet."],
+      ["Sengetid", "Å ha en telefon på soverommet er knyttet til dårligere søvn hos barn og tenåringer. Plainphones sengetidsplan begrenser hvilke apper som er tilgjengelige. Den danske Sundhedsstyrelsen anbefaler å la telefonen ligge utenfor soverommet."],
       ["Hva forskningen kan fortelle oss", "Store studier finner små gjennomsnittlige sammenhenger mellom teknologibruk og velvære. En gjennomgang fra National Academies fant for lite bevis til å fastslå en årsakseffekt av sosiale medier på ungdomshelse i hele befolkningen. Vi vet ikke om en begrenset telefon som Plainphone forbedrer velvære. Den danske trivselskommisjonen anbefaler å vente til barnet fyller 13 år før det får egen smarttelefon eller eget nettbrett."],
       ["Skoletid", "Du velger selv når tidsplanen skal kjøres og hvilke apper som er tilgjengelige. Forskning på skoletelefonregler er blandet, og vi vet ikke om en timeplan som dette forbedrer trivselen."],
       ["Nettfiltrering", "Når det er konfigurert, blokkerer filteret forespørsler til nettadresser i kategoriene du velger. Det kan redusere noe eksponering, og studier har funnet lite bevis for at filtre endrer hvor ofte tenåringer møter seksuelt materiale. Filtre kan også blokkere nyttig helseinformasjon. Snakk med barnet ditt om hva de kan komme over."],
@@ -121,7 +122,7 @@ export default {
     sourcesTitle: "Kilder",
     sources: [
       ["Carter et al. på enheter og søvn", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
-      ["Helsetilsynets råd om bruk av skjermer", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Råd om skjermbruk fra den danske Sundhedsstyrelsen", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
       ["Den danske velværekommisjonens anbefalinger", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
       ["National Academies gjennomgang av sosiale medier og ungdomshelse", "https://www.nationalacademies.org/read/27396/chapter/2"],
       ["Orben og Przybylski om digital teknologi og trivsel", "https://www.nature.com/articles/s41562-018-0506-1"],
@@ -308,7 +309,7 @@ export default {
                 ],
                 [
                   "Endringer som ventet på nøkkelen på en voksens egen telefon",
-                  "Mens de venter, og 30 dager etter at de ble søkt, kansellert eller avvist",
+                  "Mens endringene venter, og i 30 dager etter at de er gjennomført, avbrutt eller avvist",
                 ],
                 [
                   "Forespørsler fra en telefon (en app eller en kontakt)",
@@ -430,6 +431,10 @@ export default {
           "På Android 14 og nyere skjer dette av seg selv.",
         ],
         fig: "dialog",
+      },
+      {
+        title: "Tillat at Plainphone kjører i bakgrunnen",
+        body: ["Trykk på <strong>Continue</strong> og gi deretter tillatelse i Android, slik at Plainphone kan oppdatere seg selv på en trygg måte. Hvis du hopper over trinnet, kan du åpne Plainphone igjen for å få spørsmålet på nytt."],
       },
     ],
     figs: {

@@ -53,7 +53,8 @@ export default {
     title: "Öppen källkod",
     body: "Plainphones källkod är offentlig under Apache-2.0-licensen.",
     github: "Se källkoden på GitHub",
-    issues: "Rapportera ett fel eller föreslå en ändring",
+    issues: "Rapportera ett fel offentligt eller föreslå en ändring",
+    privateReport: "Rapportera en säkerhetsbrist eller ett integritetsproblem privat",
     contribute: "Läs hur du kan bidra",
   },
   hosting: {
@@ -308,7 +309,7 @@ export default {
                 ],
                 [
                   "Ändringar som väntade på nyckeln på en vuxens egen telefon",
-                  "Medan de väntar, och 30 dagar efter att de ansökts, avbröts eller avvisades",
+                  "Medan ändringarna väntar och i 30 dagar efter att de har genomförts, avbrutits eller avvisats",
                 ],
                 [
                   "Förfrågningar från en telefon (en app eller en kontakt)",
@@ -431,6 +432,10 @@ export default {
         ],
         fig: "dialog",
       },
+      {
+        title: "Tillåt att Plainphone körs i bakgrunden",
+        body: ["Tryck på <strong>Continue</strong> och ge sedan tillåtelse i Android så att Plainphone kan uppdatera sig själv på ett säkert sätt. Om du hoppar över steget kan du öppna Plainphone igen för att få frågan på nytt."],
+      },
     ],
     figs: {
       lightScan: "En telefonkamera som ramar in en inställningskod.",
@@ -466,7 +471,7 @@ export default {
     tested: {
       caption: "Telefoner som Plainphone har konfigurerats på",
       cols: ["Telefon", "Android", "Resultat"],
-      rows: [["OnePlus 5T (A5010)", "Android 10", "Fabrik"]],
+      rows: [["OnePlus 5T (A5010)", "Android 10", "Fungerar"]],
       body: [
         "Fungerar innebär att inställning, lås och anslutning till kontrollpanelen bekräftas på den här telefonen. Den har inte gått igenom hela bypass-checklistan ännu.",
         "Android 14 eller senare rekommenderas. Den gör allt själv och låser telefonappen i Inställningar.",
