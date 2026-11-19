@@ -49,7 +49,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
-A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off.
+A hidden maintenance screen protected by a parent PIN can lift the lock for a while, re-apply it, or release Device Owner completely, so a test phone never has to be thrown away. A parent can also release a phone from the dashboard (**Release the phone**): the phone switches Plainphone off by itself the next time it is online. The dashboard shows the release as pending until the phone confirms it has switched off. If confirmation is delayed, check the last phone report and verify the phone’s state before considering a reset.
 
 Adding a Play account during an approved app install needs the parent PIN. Plainphone requests Google sign-in directly while Android keeps user account changes blocked. If sign-in fails, the parent can retry with account changes allowed briefly within the same [installation window](docs/app-catalog.md). The retry option expires when that window ends. Once tapped, it allows account changes for at most three minutes. The dashboard warns if Plainphone detects an unexpected account change. Reset protection and hardware system checks are described in [docs/policies.md](docs/policies.md).
 
@@ -118,6 +118,15 @@ See [Self keys](docs/self-keys.md).
 See [Operations](docs/operations.md) for encrypted off-site backups, monitoring and restore drills.
 
 **On a spare test phone:** [docs/setup-test-phone.md](docs/setup-test-phone.md) walks through it step by step, including how to get out again. [docs/bypass-checklist.md](docs/bypass-checklist.md) lists every bypass attempt to try, with the expected result.
+
+## Help and support
+
+See [Help and support](https://plainphone.org/help/) in English, Danish, Swedish,
+Norwegian Bokmål or German via the language switcher. Before a recovery reset,
+check the phone’s reported reset-protection status in the dashboard. The
+dashboard and the phone’s PIN-protected Maintenance screen can copy technical
+diagnostics for support.
+See [support tools and release troubleshooting](docs/support.md).
 
 ## Privacy and security
 
