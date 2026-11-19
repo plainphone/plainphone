@@ -62,8 +62,8 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 | Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Done: direction C share images with the hero switch panel |
 | Site | `site/build.mjs` `theme-color` | Done: C paper, `#f5f5f3` / `#0f0f0f` |
 | Site | `site/src/style.css`, `site/src/fonts/` | Done: C palette, Schibsted Grotesk and IBM Plex Mono (OFL) |
-| Mail | `web/public/mail/lockup@2x.png`, `lockup-dark@2x.png` (from `web/scripts/make-icons.mjs`), served by each instance at `<PUBLIC_URL>/mail/` | Done: direction C lockup (outlined wordmark), 130 × 32 shown, 2× PNG. The site's old `site/src/mail/logo*.png` are no longer used by the server |
-| Mail | `server/src/lib/mail-templates.ts` | Done: C palette light and dark, ink card edge, pill button (signal green in dark), Schibsted Grotesk with system fallback |
+| Mail | `web/public/mail/lockup@2x.png`, `lockup-dark@2x.png` (from `web/scripts/make-icons.mjs`), served by each instance at `<PUBLIC_URL>/mail/` | Done: direction C lockup (outlined wordmark), 130 × 32 shown, 2× PNG. The site's old `site/src/mail/logo*.png` are no longer used by the server, but keep them: mails already sent load `https://plainphone.org/mail/logo@2x.png` |
+| Mail | `server/src/lib/mail-templates.ts` | Done: C palette light and dark, ink card edge, pill button (signal green in dark, ink on the SOS mail), Schibsted Grotesk with system fallback |
 | Web dashboard | `web/public/icon.svg`, `web/public/icons/{favicon-16,favicon-32,icon-192,icon-512,maskable-192,maskable-512,apple-touch-icon,badge-96}.png` (from `web/scripts/make-icons.mjs`) | Done: C favicon (16 px drawing below 24 px), app icon, maskable icon and a white push badge |
 | Web dashboard | `web/public/manifest.webmanifest`, `web/index.html` | Done: `theme-color` and background are C paper, `#f5f5f3` / `#0f0f0f` |
 | Web dashboard | `web/src/styles.css`, `web/src/fonts/`, `components/Mark.tsx` | Done: C tokens incl. `--brand`, Schibsted Grotesk and IBM Plex Mono (OFL), the C mark in the header |

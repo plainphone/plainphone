@@ -2240,7 +2240,8 @@ main {
 .sos-alert {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-inline-start: 4px solid var(--accent);
+  /* Ink, not --accent: in dark --accent is the signal green, which only means "on". */
+  border-inline-start: 4px solid var(--ink);
   border-radius: var(--radius-sm);
   padding: 1rem;
 }

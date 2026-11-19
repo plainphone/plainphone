@@ -37,17 +37,21 @@ interface LayoutInput {
   button: { label: string; url: string };
   afterButton: string[];
   footer: string;
+  /** Ink instead of signal green in dark (SOS): green only means "on", never alarm. */
+  neutral?: boolean;
 }
 
 /**
  * The one layout every Plainphone mail uses: tables and inline styles for old
  * clients, a hosted 2x PNG logo, a bulletproof button, a preheader and dark mode.
  * Colours are the common tokens of brand direction C (docs/design-tokens.md): graphite
- * on paper in light, and in dark the signal green as the action colour, like the dashboard.
+ * on paper in light, and in dark the signal green as the action colour, like the dashboard
+ * (except `neutral` mails such as SOS, which keep an ink button).
  */
 export function layout(input: LayoutInput): string {
   const logo = logoUrl(input.publicUrl, false);
   const logoDark = logoUrl(input.publicUrl, true);
+  const n = input.neutral ? " pp-neutral" : "";
   const p = (text: string) =>
     `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#141414;" class="pp-text">${esc(text)}</p>`;
   const small = (text: string) =>
@@ -70,6 +74,8 @@ export function layout(input: LayoutInput): string {
     .pp-button { background:#c5f04a !important; }
     .pp-button a { color:#141414 !important; }
     .pp-link { color:#c5f04a !important; }
+    .pp-button.pp-neutral { background:#f2f2ef !important; }
+    .pp-link.pp-neutral { color:#f2f2ef !important; }
     .pp-logo-light { display:none !important; }
     .pp-logo-dark { display:block !important; max-height:none !important; overflow:visible !important; }
   }
@@ -89,17 +95,17 @@ export function layout(input: LayoutInput): string {
     <h1 class="pp-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#141414;">${esc(input.heading)}</h1>
     ${input.paragraphs.map(p).join("\n    ")}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
-    <tr><td class="pp-button" bgcolor="#141414" style="border-radius:24px;background:#141414;">
+    <tr><td class="pp-button${n}" bgcolor="#141414" style="border-radius:24px;background:#141414;">
       <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="50%" fillcolor="#141414" stroke="f"><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
       <!--[if !mso]><!--><a href="${esc(input.button.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;line-height:20px;color:#ffffff;text-decoration:none;border-radius:24px;font-family:${FONT};">${esc(input.button.label)}</a><!--<![endif]-->
     </td></tr>
     </table>
     ${input.afterButton.map(small).join("\n    ")}
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#525252;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link" style="color:#141414;">${esc(input.button.url)}</a></p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#525252;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link${n}" style="color:#141414;">${esc(input.button.url)}</a></p>
   </td></tr>
   <tr><td style="padding:20px 4px 0;font-family:${FONT};">
     <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted">${esc(input.footer)}</p>
-    <p style="margin:0;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link" style="color:#141414;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link" style="color:#141414;">plainphone.org</a></p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link${n}" style="color:#141414;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link${n}" style="color:#141414;">plainphone.org</a></p>
   </td></tr>
   </table>
 </td></tr>
@@ -319,6 +325,7 @@ export function sosMail(to: string, locale: Locale, publicUrl: string, phoneId: 
     paragraphs: [message],
     button: { label: locale === "da" ? "Åbn SOS i Plainphone" : "Open SOS in Plainphone", url: new URL(`/phones/${phoneId}`, publicUrl).href },
     afterButton: [],
+    neutral: true,
     footer: footer[locale],
   });
 }

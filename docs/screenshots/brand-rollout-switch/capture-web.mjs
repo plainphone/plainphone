@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Dev-only: captures the web dashboard with synthetic fixtures (no server, no real data).
-//   NODE_PATH=<dir with playwright> node capture-web.mjs <checkout> <out-dir> <label>
+//   NODE_PATH=<dir with playwright> node capture-web.mjs <checkout> <out-dir> <label> [page-name]
 // Starts the dashboard with Vite; the API is answered by fixtures through request interception.
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
-const [checkout, out, label] = process.argv.slice(2);
+const [checkout, out, label, only] = process.argv.slice(2);
 mkdirSync(out, { recursive: true });
 
 const WEB_PORT = 5300 + Math.floor(Math.random() * 400);
@@ -39,12 +39,13 @@ const settings = Object.fromEntries(KEYS.map((k) => [k, { mode: "free" }]));
 settings.camera = { mode: "locked", value: false };
 settings.roaming = { mode: "locked", value: false };
 
-async function openPage(browser, scheme) {
+async function openPage(browser, scheme, signedIn = true) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme, locale: "da-DK", timezoneId: "Europe/Copenhagen" });
   await ctx.addInitScript(() => localStorage.setItem("pp.locale", "da"));
   await ctx.route("**/api/**", async (route) => {
     const p = new URL(route.request().url()).pathname;
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (p === "/api/me" && !signedIn) return json({ error: "unauthorized" }, 401);
     if (p === "/api/me") return json({ user: { id: "u1", email: "parent@example.org", locale: "da" }, households: [{ id: "h1", name: "Demo", role: "owner" }], mailEnabled: true });
     if (p === "/api/phones") return json({ phones: [PHONE] });
     if (p === "/api/notifications") return json({ webPushEnabled: false, webPushPublicKey: null, offlineAlertHours: 24, subscriptions: [], mutedPhoneIds: [] });
@@ -64,15 +65,16 @@ const PAGES = [
   ["web-phone", `/phones/${PHONE.id}`],
   ["web-phone-settings", `/phones/${PHONE.id}/settings`],
   ["web-settings", "/settings"],
-  ["web-login", "/login"],
+  ["web-login", "/login", false],
 ];
 
 try {
   await waitFor(`http://localhost:${WEB_PORT}/`);
   const browser = await chromium.launch();
   for (const scheme of ["light", "dark"]) {
-    for (const [name, path] of PAGES) {
-      const { ctx, page } = await openPage(browser, scheme);
+    for (const [name, path, signedIn] of PAGES) {
+      if (only && name !== only) continue;
+      const { ctx, page } = await openPage(browser, scheme, signedIn);
       page.on("pageerror", (e) => console.error(name, e.stack.split("\n").slice(0,4).join(" / ")));
       await page.goto(`http://localhost:${WEB_PORT}${path}`);
       await page.waitForSelector("h1", { timeout: 8000 }).catch(() => console.error(name, "no h1"));
