@@ -90,7 +90,7 @@ class PhoneSyncContractTest {
         assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
         val (claimStatus, claimed) = parent(
             "POST", "/phones/claim",
-            JSONObject().put("code", code).put("name", "Alma").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+            JSONObject().put("code", code).put("name", "Alma").put("profile", "child").put("timezone", "Europe/Copenhagen").put("language", "sv"),
         )
         assertThat(claimStatus).isEqualTo(201)
         val phoneId = claimed!!.getString("id")
@@ -107,6 +107,7 @@ class PhoneSyncContractTest {
         // The apps were reported before the rules, so they are already in them.
         var rules = store.rules()!!
         assertThat(rules.phoneId).isEqualTo(phoneId)
+        assertThat(rules.language).isEqualTo("sv")
         assertThat(rules.allowedApps).containsAtLeast("com.android.dialer", "com.spotify.music") // Danish starter pack
         assertThat(rules.hiddenApps).contains("com.example.game")
         assertThat(rules.dnsReady).isTrue()
@@ -119,6 +120,18 @@ class PhoneSyncContractTest {
         assertThat(status.getString("appVersion")).isEqualTo("0.1.2")
         assertThat(status.getBoolean("lockIntact")).isTrue()
         assertThat(status.getInt("batteryPct")).isEqualTo(64)
+
+        val sosId = java.util.UUID.randomUUID().toString()
+        val payload = JSONObject().put("id", sosId).put("kind", "urgent").put("battery", 64)
+            .put("location", JSONObject().put("lat", 55.6).put("lon", 12.5))
+        val token = store.deviceToken()!!
+        assertThat(api.reportSos(token, payload).getString("id")).isEqualTo(sosId)
+        assertThat(api.reportSos(token, payload).getString("id")).isEqualTo(sosId)
+        val (_, sosHistory) = parent("GET", "/phones/$phoneId/sos")
+        assertThat(sosHistory!!.getJSONArray("events").length()).isEqualTo(1)
+        assertThat(api.sosStatus(token, sosId).isNull("seenAt")).isTrue()
+        assertThat(parent("POST", "/phones/$phoneId/sos/$sosId/seen", JSONObject()).first).isEqualTo(200)
+        assertThat(api.sosStatus(token, sosId).isNull("seenAt")).isFalse()
 
         val batteryPolicy = "battery exemption missing: self-update cannot run"
         val appliedLock = device.lock

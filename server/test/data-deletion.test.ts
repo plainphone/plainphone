@@ -20,6 +20,7 @@ async function invite(from: Client, email: string) {
 
 async function selfPhone(me: Client) {
   const { phoneId, device } = await pairPhone(h, me, { name: "My phone", profile: "self" });
+  await h.ctx.db.update(phones).set({ openMode: false }).where(eq(phones.id, phoneId));
   await device.put("/api/device/apps", { apps: [{ packageName: "com.instagram.android", label: "Instagram" }] });
   return { phoneId, device };
 }

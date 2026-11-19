@@ -54,11 +54,18 @@ object HomeModel {
         val windowAllowed = Schedules.allowedDuringWindows(windows)
         // Only what the rules allow: an app installed since the last sync is in neither list yet,
         // and stays off the home screen until the parent allows it. Catalog picks count as allowed.
+        // Open mode (without a window): every app shows except the block list, also new ones.
+        val open = rules != null && rules.openApps && windowAllowed == null
         val allowed = rules?.let { r -> r.allowedApps + r.toInstall.map { it.packageName } }
         val visible = apps
             .asSequence()
             .filter { it.component !in fixed }
-            .filter { allowed == null || it.packageName in core || it.packageName in allowed }
+            .filter {
+                when {
+                    open -> it.packageName in core || it.packageName !in rules!!.blockedApps
+                    else -> allowed == null || it.packageName in core || it.packageName in allowed
+                }
+            }
             .filter { windowAllowed == null || it.packageName in core || it.packageName in windowAllowed }
             .map { HomeApp(it.packageName, it.label, it.component, minutesLeft[it.packageName]) }
             .distinctBy { it.component }

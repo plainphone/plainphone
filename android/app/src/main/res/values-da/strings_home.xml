@@ -4,7 +4,6 @@
     <string name="home_label">Plainphone-hjem</string>
     <string name="home_phone">Telefon</string>
     <string name="home_messages">Beskeder</string>
-    <string name="home_emergency">Nødopkald</string>
     <string name="home_all_apps">Alle apps</string>
     <string name="home_back">Tilbage</string>
     <string name="home_no_apps">Ingen andre apps lige nu.</string>

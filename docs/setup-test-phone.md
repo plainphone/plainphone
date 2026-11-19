@@ -6,7 +6,7 @@ You need:
 
 - an Android 10 or newer phone (Settings → About phone → Android version). Android 14 or newer gives the full lock; on Android 10 to 13 a few things work differently, see the table below and [android-versions.md](android-versions.md);
 - Wi-Fi without a login page (hotel and school portals do not work during setup), or a SIM card with mobile data;
-- the QR code: in the dashboard (app.plainphone.org or your own server) choose *Add phone*, pick a maintenance PIN, and keep the page with the QR code open on another screen. Or make one with `scripts/provisioning-qr.py` and show it on another screen or printed;
+- the QR code: in the dashboard (app.plainphone.org or your own server) choose *Add phone*, choose a language and the household time zone, pick a maintenance PIN, and keep the page with the QR code open on another screen. Or make one with `scripts/provisioning-qr.py` and show it on another screen or printed;
 - the maintenance PIN that belongs to that QR code;
 - for phase 2: a SIM card, and a second phone to call and text from.
 
@@ -49,6 +49,19 @@ Settings → System → Reset options → Erase all data (factory reset). On Sam
 If the phone says "Can't set up device" or "The app couldn't be downloaded", see the troubleshooting section below.
 
 ## 4. Check that the lock is on
+
+For a strong-mode Child phone, start Android setup in one language and make a QR
+code with a different language and the household time zone. Check that Android
+uses the QR language and time zone after setup, and that changing the system
+language in Settings is blocked. In the dashboard, switch **Plainphone language**
+and wait for sync. Check the launcher, calls, messages, contacts and Maintenance.
+Android Settings should still use the setup language. Select **Use phone language**
+and verify Plainphone returns to the system language. Turn off **Lock Android
+language**, wait for sync, and change the system language in Android Settings.
+Turn the lock back on and check that Android blocks changes again. Check on
+Android 10–12 and Android 13 or newer. Repeat for Light and Myself and check
+that Android Settings still lets the user change the system language. After
+releasing the strong-mode Child phone, check that the language can be changed again.
 
 1. Open the **Plainphone** app. It should say "Locked: Plainphone is Device Owner".
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.

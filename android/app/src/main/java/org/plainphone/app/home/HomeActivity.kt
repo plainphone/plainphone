@@ -7,7 +7,6 @@ import android.app.role.RoleManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -78,6 +77,7 @@ class HomeActivity : ComponentActivity() {
         setContent {
             // Runs after the first frame was composed without crashing.
             LaunchedEffect(Unit) { HomeGuard.drawn(this@HomeActivity) }
+            var showSos by rememberSaveable { mutableStateOf(false) }
             var showAll by rememberSaveable { mutableStateOf(false) }
             var ui by remember { mutableStateOf<HomeUi?>(null) }
             val tick = resumed
@@ -93,8 +93,8 @@ class HomeActivity : ComponentActivity() {
                     delay(60_000L - System.currentTimeMillis() % 60_000L + 200L)
                 }
             }
-            BackHandler(enabled = showAll) { showAll = false }
-            BackHandler(enabled = !showAll) { /* Home has nowhere to go back to. */ }
+            BackHandler(enabled = !showSos && showAll) { showAll = false }
+            BackHandler(enabled = !showSos && !showAll) { /* Home has nowhere to go back to. */ }
             val current = ui
             val prefs = current?.state?.prefs ?: HomePrefs.DEFAULT
             val dark = when (prefs.theme) {
@@ -103,7 +103,12 @@ class HomeActivity : ComponentActivity() {
                 HomeTheme.DARK -> true
             }
             HomeTheme(homeColors(prefs.palette, dark)) {
-                HomeScreen(
+                if (showSos) {
+                    BackHandler { showSos = false }
+                    org.plainphone.app.ui.PlainphoneTheme {
+                        org.plainphone.app.sos.SosScreen(onBack = { showSos = false }, emergency = ::openEmergency)
+                    }
+                } else HomeScreen(
                     current ?: HomeUi(HomeState(prefs, emptyList(), emptyList(), null), "", ""),
                     showAll,
                     onShowAll = { showAll = it },
@@ -111,7 +116,7 @@ class HomeActivity : ComponentActivity() {
                         open = ::openApp,
                         phone = ::openPhone,
                         messages = ::openMessages,
-                        emergency = ::openEmergency,
+                        sos = { showSos = true },
                         help = { startActivity(Intent(this@HomeActivity, HelpActivity::class.java)) },
                         makeDefault = ::askToBeHome,
                         selfTools = if (org.plainphone.app.light.LightSetup.profile(this@HomeActivity) == "self") {
@@ -197,9 +202,7 @@ class HomeActivity : ComponentActivity() {
      * works whatever the contact rules say. Fallback: the keypad with 112, which Plainphone always lets through.
      */
     private fun openEmergency() {
-        val system = Intent(EMERGENCY_DIALER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { startActivity(system) }.isSuccess) return
-        runCatching { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        org.plainphone.app.sos.openEmergencyDialer(this)
     }
 
     /** Light mode: Android's own "choose home app" dialog. */
@@ -212,8 +215,6 @@ class HomeActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "Plainphone"
-        /** The platform's emergency dialer action (packages/services/Telephony, exported on AOSP and maker builds). */
-        private const val EMERGENCY_DIALER = "com.android.phone.EmergencyDialer.DIAL"
         private const val PHONE = "org.plainphone.app.ui.PhoneActivity"
         private const val MESSAGES = "org.plainphone.app.ui.MessagesLauncher"
 
@@ -244,7 +245,7 @@ class HomeActivity : ComponentActivity() {
             return HomeUi(
                 state = state,
                 time = timeText(context, at.toLocalTime()),
-                date = dateText(at, Locale.getDefault()),
+                date = dateText(at, context.resources.configuration.locales[0]),
                 noticeUntil = state.notice?.let { timeText(context, it.until) },
                 offerDefaultHome = !isOwner && !isHome,
             )

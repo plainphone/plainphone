@@ -129,7 +129,13 @@ private fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
                         Toggle(stringResource(R.string.call_speaker), speaker) { CallManager.setSpeaker(!speaker) }
                     }
                     Spacer(Modifier.height(28.dp))
-                    RoundAction(stringResource(R.string.call_hang_up), EndCallRed, rotate = true) { CallManager.hangUp() }
+                    if (org.plainphone.app.sos.SosCalls.callId == call.id) {
+                        androidx.compose.material3.Button(onClick = org.plainphone.app.sos.SosCalls::stop) {
+                            Text(stringResource(R.string.sos_stop_call))
+                        }
+                    } else {
+                        RoundAction(stringResource(R.string.call_hang_up), EndCallRed, rotate = true) { CallManager.hangUp() }
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

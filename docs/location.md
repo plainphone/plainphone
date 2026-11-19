@@ -1,7 +1,7 @@
 # Location, "Ring the phone" and "Are you okay?"
 
-Plainphone keeps one position per phone and no history (decision D7). This page describes when a
-phone sends its position, how a parent finds a phone, and what the child sees.
+The ordinary location feature keeps one position per phone and no history (decision D7).
+Each [SOS event](sos.md#privacy) can separately keep one position for up to 30 days.
 
 ## Location modes
 

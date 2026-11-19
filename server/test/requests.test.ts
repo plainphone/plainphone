@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { phones } from "../src/db/schema.js";
 import { sweep } from "../src/services/sweeper.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -14,6 +16,8 @@ async function setup(profile: "child" | "self" = "child") {
     keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) },
   });
   const { phoneId, device } = await pairPhone(h, mum, { name: "Alma", profile });
+  // App requests are about the allow-list; open mode (the Self default) has its own tests.
+  await h.ctx.db.update(phones).set({ openMode: false }).where(eq(phones.id, phoneId));
   await device.put("/api/device/apps", {
     apps: [
       { packageName: "com.android.dialer", label: "Phone", core: true },

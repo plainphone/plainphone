@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.plainphone.app.sos
+
+import android.app.role.RoleManager
+import android.content.Context
+import android.telecom.Call
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import org.plainphone.app.contacts.ApprovedContact
+import org.plainphone.app.contacts.ContactPolicySources
+import org.plainphone.app.contacts.PhoneNumbers
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.telephony.CallManager
+import org.plainphone.app.telephony.CallUi
+import org.plainphone.app.ui.placeCall
+
+internal object SosCalls {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var stopped = false
+    val active = MutableStateFlow(false)
+    var callId by mutableStateOf<Int?>(null)
+        private set
+
+    /**
+     * Starts calling the parents and returns once the first call has actually been placed (true), or
+     * once it is clear none can be (false: already in a call, no permission, number not allowed).
+     * [onPlaced] runs right after a call has started, so the caller can take its claim only then.
+     */
+    suspend fun start(context: Context, phoneId: String, parents: List<ApprovedContact>, onPlaced: () -> Unit = {}): Boolean {
+        if (parents.isEmpty() || active.value || CallManager.state.value.isNotEmpty()) return false
+        val placed = CompletableDeferred<Boolean>()
+        val role = context.getSystemService(RoleManager::class.java)
+        val canTrackCall = role?.isRoleHeld(RoleManager.ROLE_DIALER) == true
+        stopped = false
+        active.value = true
+        scope.launch {
+            try {
+                callSosParents(parents.distinctBy { it.number }) { parent ->
+                    val sync = SyncStore(context)
+                    if (stopped || sync.phoneId != phoneId || CallManager.state.value.isNotEmpty()) {
+                        return@callSosParents SosCallOutcome.STOPPED
+                    }
+                    if (sync.rules()?.sos?.parents?.none { it.number == parent.number } != false) {
+                        return@callSosParents SosCallOutcome.UNANSWERED
+                    }
+                    if (placeCall(context, parent.number) != null) return@callSosParents SosCallOutcome.UNANSWERED
+                    if (placed.complete(true)) onPlaced()
+                    if (!canTrackCall) return@callSosParents SosCallOutcome.STOPPED
+                    // The in-call service is the authoritative source for the ID and connection state.
+                    val country = ContactPolicySources.get(context).rules().country
+                    fun isParentCall(call: CallUi) =
+                        !call.incoming && PhoneNumbers.normalize(call.number, country) == parent.number
+                    val call = withTimeoutOrNull(5_000) {
+                        CallManager.state.first { calls -> calls.any(::isParentCall) }.first(::isParentCall)
+                    } ?: return@callSosParents SosCallOutcome.STOPPED
+                    callId = call.id
+                    if (stopped) {
+                        CallManager.disconnect(call.id)
+                        return@callSosParents SosCallOutcome.STOPPED
+                    }
+                    awaitSosAnswer(call.id, CallManager.state, CallManager::disconnect).also { callId = null }
+                }
+            } finally {
+                placed.complete(false)
+                callId = null
+                active.value = false
+            }
+        }
+        return placed.await()
+    }
+
+    fun stop() {
+        stopped = true
+        callId?.let(CallManager::disconnect)
+    }
+}
+
+
+internal suspend fun awaitSosAnswer(
+    id: Int,
+    state: StateFlow<List<CallUi>>,
+    disconnect: (Int) -> Unit,
+    ringMs: Long = 30_000,
+): SosCallOutcome {
+    fun CallUi.answered() = connectedAtMs != null || this.state == Call.STATE_ACTIVE
+    val answered = withTimeoutOrNull(ringMs) {
+        state.first { calls -> calls.find { it.id == id }?.answered() != false }.any { it.id == id }
+    }
+    if (answered == true || (answered == null && state.value.find { it.id == id }?.answered() == true)) {
+        return SosCallOutcome.ANSWERED
+    }
+    if (answered == null) {
+        disconnect(id)
+        val ended = withTimeoutOrNull(5_000) { state.first { calls -> calls.none { it.id == id } } }
+        if (ended == null) return SosCallOutcome.STOPPED
+    }
+    return SosCallOutcome.UNANSWERED
+}
