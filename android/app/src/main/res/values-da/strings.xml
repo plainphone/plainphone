@@ -139,6 +139,8 @@
     <string name="blocked_sms_out">Udgående besked</string>
     <string name="pair_button">Par med en forælder</string>
     <string name="pairing_connecting">Forbinder til dashboardet…</string>
+    <string name="pairing_outdated_qr_strong">Bed din forælder om en ny QR-kode til opsætning. Nulstil telefonen til fabriksindstillingerne, og scan den nye kode under Android-opsætningen.</string>
+    <string name="pairing_outdated_qr_light">Linket til opsætning er forældet. Lav et nyt i betjeningspanelet, og åbn det på denne telefon.</string>
     <string name="pairing_loading">Henter en parringskode …</string>
     <string name="pairing_instructions">Scan koden med kameraet på forælderens telefon. Eller åbn app.plainphone.org, vælg Tilføj telefon og derefter Indtast koden.</string>
     <string name="pairing_waiting">Venter på dashboardet. Koden gælder i 15 minutter.</string>
@@ -321,6 +323,7 @@
     <string name="self_template_share">Sæt op som mig</string>
     <string name="self_template_help">Del dine tidsgrænser, tidsrum, appvalg og webfilterets kategorier. Koden udløber efter 15 minutter.</string>
     <string name="self_tools">Hjælp hinanden</string>
+    <string name="maintenance_language">Plainphones sprog: %1$s</string>
     <string name="server_current">Server: %1$s</string>
     <string name="server_custom">Brug egen server</string>
     <string name="server_address">Serveradresse</string>

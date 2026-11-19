@@ -13,6 +13,8 @@ const h = useHarness();
 async function selfPhone() {
   const me = await signIn(h, "adult@example.org");
   const { phoneId, device } = await pairPhone(h, me, { name: "My phone", profile: "self" });
+  // These tests are about the key, with the app allow-list as the example. Open mode has its own tests.
+  await h.ctx.db.update(phones).set({ openMode: false }).where(eq(phones.id, phoneId));
   await device.put("/api/device/apps", {
     apps: [
       { packageName: "com.instagram.android", label: "Instagram" },

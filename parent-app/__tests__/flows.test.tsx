@@ -6,6 +6,7 @@ import * as Notifications from "expo-notifications";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
+import { getSessionToken } from "../src/api/client";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {

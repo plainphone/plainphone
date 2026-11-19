@@ -3,7 +3,9 @@
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
 // so the app never sees or stores a token.
 
-export type Locale = "en" | "da";
+import type { Language, PhoneLanguage } from "./phone-language";
+
+export type Locale = Language;
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
@@ -82,11 +84,16 @@ export interface Phone {
   name: string;
   profile: Profile;
   mode: "strong" | "light";
+  /** Every app is allowed except the block list. Missing on old servers. */
+  openMode?: boolean;
   timezone: string;
+  language?: PhoneLanguage;
+  lockSystemLanguage?: boolean;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
   setupQrAvailable?: boolean;
+  setupEnrollmentId?: string | null;
   allowServerMove?: boolean;
   awaitingServerMove?: boolean;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
@@ -151,7 +158,18 @@ export interface App {
   packageName: string;
   label: string;
   allowed: boolean;
+  /** Open mode: on the block list, one by one or with a category. */
+  blocked?: boolean;
+  /** Set when only a blocked category blocks the app. */
+  blockedBy?: OpenCategory;
   core: boolean;
+}
+/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
+export type OpenCategory = "social" | "gambling" | "adult";
+export interface OpenModeState {
+  enabled: boolean;
+  categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
+  blockedApps: { packageName: string; label: string }[];
 }
 /** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
 export interface Limit {
@@ -183,6 +201,7 @@ export interface PhoneCatalog {
   apps: CatalogApp[];
 }
 export interface Contact {
+  sosParent?: boolean;
   id: string;
   name: string;
   number: string;
@@ -307,6 +326,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: FilterMethod }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -324,7 +345,7 @@ export type Op =
   | { type: "catalog.add"; packageName: string; label: string }
   | { type: "catalog.remove"; packageName: string };
 
-export type ApprovalSummary = Record<Locale, string>;
+export type ApprovalSummary = Record<"en" | "da", string>;
 
 export interface PendingChange {
   summary?: ApprovalSummary;
@@ -435,6 +456,9 @@ export const api = {
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
+
+export const acknowledgeSos = <T>(pid: string, id: string, name: string) =>
+  api.post<T>(`/phones/${pid}/sos/${id}/seen`, { name: name.trim() || undefined });
 
 export const getPhoneSettings = (pid: string) =>
   api.get<{ settings: PhoneSettings }>(`/phones/${pid}/settings`).then((r) => r.settings);

@@ -33,7 +33,6 @@ describe("the settings the page offers", () => {
         "bluetooth",
         "brightness",
         "camera",
-        "language",
         "location",
         "mobileNetworks",
         "nfc",
@@ -49,13 +48,12 @@ describe("the settings the page offers", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("groups them as Connections, Screen and sound, Privacy and Language", () => {
-    expect(SETTING_GROUPS).toEqual(["connections", "screen", "privacy", "language"]);
+  it("groups them as Connections, Screen and sound, and Privacy", () => {
+    expect(SETTING_GROUPS).toEqual(["connections", "screen", "privacy"]);
     const group = (g: string) => SETTING_SPECS.filter((s) => s.group === g).map((s) => s.key);
     expect(group("connections")).toEqual(["bluetooth", "wifi", "mobileNetworks", "roaming", "tethering", "nfc", "airplaneMode"]);
     expect(group("screen")).toEqual(["screenTimeout", "brightness", "volume", "wallpaper"]);
     expect(group("privacy")).toEqual(["location", "camera", "screenCapture"]);
-    expect(group("language")).toEqual(["language"]);
   });
 
   it("only offers the modes each setting supports", () => {

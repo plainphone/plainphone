@@ -101,6 +101,8 @@ class AndroidDeviceControls(private val context: Context) : DeviceControls {
     internal fun corePackages(dynamicCore: Set<String>): Set<String> {
         val intents = listOf(
             Intent(Intent.ACTION_DIAL),
+            // The SOS screen opens this; it must stay reachable under every restriction.
+            Intent(org.plainphone.app.sos.EMERGENCY_DIALER_ACTION),
             Intent(MediaStore.ACTION_IMAGE_CAPTURE),
             Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA),
             Intent(AlarmClock.ACTION_SHOW_ALARMS),

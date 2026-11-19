@@ -26,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Renders the home screen with Robolectric's native graphics and writes PNGs to
  * `app/build/screenshots/` (light, dark, grid, large text, Danish). The checks make sure the
- * phone and emergency call are always on screen, also with large text.
+ * phone and SOS are always on screen, also with large text.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -70,7 +70,7 @@ class HomeScreenshotTest {
                 }
             }
         }
-        compose.onNodeWithText(if (showAll) "All apps" else "Emergency call", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText(if (showAll) "All apps" else "SOS", useUnmergedTree = true).assertIsDisplayed()
         if (!showAll) compose.onNodeWithText("Phone", useUnmergedTree = true).assertIsDisplayed()
         save(name, compose.onRoot().captureToImage().asAndroidBitmap())
     }
@@ -99,7 +99,7 @@ class HomeScreenshotTest {
     fun `dark, grid, grey`() = shoot("home-dark-grid-grey", ui(HomePrefs(layout = HomeLayout.GRID, palette = HomePalette.GREY)), HomePalette.GREY, dark = true)
 
     @Test
-    fun `large text keeps phone and emergency call on screen`() =
+    fun `large text keeps phone and SOS on screen`() =
         shoot("home-light-large-text", ui(), HomePalette.SAGE, dark = false, fontScale = 1.6f)
 
     @Test
@@ -128,13 +128,13 @@ class HomeScreenshotTest {
                 )
             }
         }
-        compose.onNodeWithText("Nødopkald", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithText("SOS", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("Sengetid til 07:00", useUnmergedTree = true).assertIsDisplayed()
         save("home-da-bedtime", compose.onRoot().captureToImage().asAndroidBitmap())
     }
 
     @Test
-    fun `tapping an app, the phone and emergency call reaches the actions`() {
+    fun `tapping an app, the phone and SOS reaches the actions`() {
         val opened = mutableListOf<String>()
         compose.setContent {
             HomeTheme(homeColors(HomePalette.SAGE, dark = false)) {
@@ -145,14 +145,14 @@ class HomeScreenshotTest {
                     actions = HomeActions(
                         open = { opened += it.label },
                         phone = { opened += "phone" },
-                        emergency = { opened += "emergency" },
+                        sos = { opened += "sos" },
                     ),
                 )
             }
         }
         compose.onNodeWithText("Spotify").performClick()
         compose.onNodeWithText("Phone").performClick()
-        compose.onNodeWithText("Emergency call").performClick()
-        assertThat(opened).containsExactly("Spotify", "phone", "emergency").inOrder()
+        compose.onNodeWithText("SOS").performClick()
+        assertThat(opened).containsExactly("Spotify", "phone", "sos").inOrder()
     }
 }

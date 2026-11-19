@@ -9,6 +9,8 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -26,6 +28,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Before
 import org.junit.Test
 import org.junit.Rule
@@ -73,6 +76,27 @@ class HelplinesTest {
     @Before
     fun configureCountry() {
         ConfigStore(context).save(PolicyConfig(countryCallingCode = "45"))
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `helpline fallback follows the system locale when the app locale differs`() {
+        val original = Locale.getDefault()
+        val system = Resources.getSystem()
+        val originalConfig = Configuration(system.configuration)
+        try {
+            system.updateConfiguration(
+                Configuration(originalConfig).apply { setLocale(Locale.forLanguageTag("da-DK")) },
+                null,
+            )
+            Locale.setDefault(Locale.GERMAN)
+            val country = Helplines.country(null)
+            assertThat(country).isEqualTo(PhoneNumbers.countryForIso("DK"))
+            assertThat(Helplines.forCountry(context, country).lines).isNotEmpty()
+        } finally {
+            system.updateConfiguration(originalConfig, null)
+            Locale.setDefault(original)
+        }
     }
 
     @Test

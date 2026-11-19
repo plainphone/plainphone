@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { isLanguage } from "./phone-language";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Locale, type Me, setUnauthorizedHandler } from "./api";
@@ -57,7 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const me = await api.get<Me>("/me");
       setState({ status: "in", me });
-      if (me.user.locale === "en" || me.user.locale === "da") setLocale(me.user.locale);
+      if (isLanguage(me.user.locale)) setLocale(me.user.locale);
       return me;
     } catch (err) {
       setState({ status: "anon", error: err instanceof ApiError && err.status === 401 ? undefined : err });

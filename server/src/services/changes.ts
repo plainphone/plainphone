@@ -38,6 +38,7 @@ import { approvalBonusDate, approvalRevision, loadApprovalSummaries } from "./ap
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
+import { categoryPackages, isAppCategory, type OpenCategory } from "../lib/open-mode.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { activateMove, MoveError } from "./server-move.js";
@@ -50,6 +51,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: Phone["filterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -124,6 +127,16 @@ async function showsHiddenApp(db: DbLike, phoneId: string, packages: string[]): 
   return visible.length < new Set(packages).size;
 }
 
+/** Whether falling back to the allow-list would show an app that open mode blocks. */
+async function allowListShowsBlocked(db: DbLike, phone: Phone): Promise<boolean> {
+  const rows = await db
+    .select({ p: phoneApps.packageName, blocked: phoneApps.explicitlyBlocked })
+    .from(phoneApps)
+    .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true), eq(phoneApps.allowed, true)));
+  const byCategory = new Set(categoryPackages(phone.blockedAppCategories));
+  return rows.some((r) => r.blocked || byCategory.has(r.p));
+}
+
 /** Whether an op makes the rules less strict, judged against the current state. */
 export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boolean> {
   switch (op.type) {
@@ -140,6 +153,14 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "dns.method":
       return phone.filterMethod !== op.method;
     case "dns.category":
+      return !op.blocked;
+    case "openMode.set":
+      // Open mode lets every app in, so turning it on goes through the key. Turning it off
+      // goes back to the allow-list. That only tightens, unless an app that open mode blocks
+      // (a blocked category, or one blocked app) still has allowed=true there.
+      if (op.enabled) return !phone.openMode;
+      return phone.openMode && (await allowListShowsBlocked(db, phone));
+    case "openMode.category":
       return !op.blocked;
     case "dns.allowDomain":
       return op.present;
@@ -351,6 +372,25 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
         })
         .where(eq(dnsSettings.phoneId, phone.id));
       return { dns: true };
+    }
+    case "openMode.set":
+      await db.update(phones).set({ openMode: op.enabled }).where(eq(phones.id, phone.id));
+      return { dns: false };
+    case "openMode.category": {
+      // One action: the category's known apps go on (or off) the block list and the DNS
+      // category follows, so the two never disagree.
+      if (isAppCategory(op.category)) {
+        const col = phones.blockedAppCategories;
+        await db
+          .update(phones)
+          .set({
+            blockedAppCategories: op.blocked
+              ? sql`array_append(array_remove(${col}, ${op.category}::text), ${op.category}::text)`
+              : sql`array_remove(${col}, ${op.category}::text)`,
+          })
+          .where(eq(phones.id, phone.id));
+      }
+      return applyOp(ctx, db, phone, { type: "dns.category", category: op.category, blocked: op.blocked });
     }
     case "dns.allowDomain":
     case "dns.blockDomain": {

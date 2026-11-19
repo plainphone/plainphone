@@ -9,6 +9,7 @@ import { useI18n } from "../i18n/I18n";
 import { radius, space, useColors } from "../lib/theme";
 import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "../shared/lib/approval-state";
 import { formatDateTime } from "../shared/lib/format";
+import { messageLanguage } from "../shared/lib/phone-language";
 import { ItemRow } from "./parts";
 import { Button, Row, Stack as VStack, Text } from "./ui";
 
@@ -39,7 +40,7 @@ export function ApprovalQueue({ open, done, busy, approveOnly, focusId, onDecide
     <VStack gap={space.sm}>
       {summary ? <Text variant="label" testID="queue-summary">{t(summary.key, { n: summary.n })}</Text> : null}
       {open.map((a) => {
-        const what = a.summary[locale];
+        const what = a.summary[messageLanguage(locale)];
         return (
           <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={meta(a)}>
             <Row>
@@ -68,10 +69,10 @@ export function ApprovalQueue({ open, done, busy, approveOnly, focusId, onDecide
           ref={a.id === focusId ? answered : undefined}
           testID={`answered-${a.id}`}
           accessible
-          accessibilityLabel={`${a.summary[locale]}. ${t(outcomeKey(outcome, decision))}`}
+          accessibilityLabel={`${a.summary[messageLanguage(locale)]}. ${t(outcomeKey(outcome, decision))}`}
           style={{ backgroundColor: c.tint, borderRadius: radius, padding: space.md, gap: 2 }}
         >
-          <Text variant="label">{a.summary[locale]}</Text>
+          <Text variant="label">{a.summary[messageLanguage(locale)]}</Text>
           <Text variant="small">{meta(a)}</Text>
           <Text variant="label" style={{ marginTop: space.xs }}>{t(outcomeKey(outcome, decision))}</Text>
         </View>

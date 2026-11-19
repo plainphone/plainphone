@@ -4,6 +4,7 @@ import { useI18n } from "../i18n/I18n";
 import type { Approval } from "../lib/api";
 import { type Decision, outcomeKey, type Processed, queueSummaryKey } from "../lib/approval-state";
 import { formatDateTime } from "../lib/format";
+import { messageLanguage } from "../lib/phone-language";
 import "./status.css";
 
 export interface ApprovalQueueProps {
@@ -41,14 +42,14 @@ export function ApprovalQueue({ open, done, showOwner, busy, approveOnly, focusI
           {open.map((a) => (
             <li key={a.id} className="item item-stack">
               <div>
-                <p className="row-title">{a.summary[locale]}</p>
+                <p className="row-title">{a.summary[messageLanguage(locale)]}</p>
                 {meta(a)}
               </div>
               <div className="actions">
-                <button type="button" className="btn btn-primary" onClick={() => onDecide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[locale]}`} disabled={busy !== null}>
+                <button type="button" className="btn btn-primary" onClick={() => onDecide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[messageLanguage(locale)]}`} disabled={busy !== null}>
                   {t("appr.approve")}
                 </button>
-                {!approveOnly && <button type="button" className="btn btn-secondary" onClick={() => onDecide(a, "reject")} aria-label={`${t("appr.reject")}: ${a.summary[locale]}`} disabled={busy !== null}>
+                {!approveOnly && <button type="button" className="btn btn-secondary" onClick={() => onDecide(a, "reject")} aria-label={`${t("appr.reject")}: ${a.summary[messageLanguage(locale)]}`} disabled={busy !== null}>
                   {t("appr.reject")}
                 </button>}
               </div>
@@ -61,7 +62,7 @@ export function ApprovalQueue({ open, done, showOwner, busy, approveOnly, focusI
           {done.map(({ approval: a, outcome, decision }) => (
             <li key={a.id} className="item item-stack item-answered" data-outcome={outcome}>
               <div>
-                <p className="row-title" id={`answered-${a.id}`} tabIndex={-1}>{a.summary[locale]}</p>
+                <p className="row-title" id={`answered-${a.id}`} tabIndex={-1}>{a.summary[messageLanguage(locale)]}</p>
                 {meta(a)}
                 <p className="answered-outcome">{t(outcomeKey(outcome, decision))}</p>
               </div>

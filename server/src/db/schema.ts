@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  foreignKey,
   primaryKey,
   smallint,
   text,
@@ -16,6 +17,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ProvisioningInfo } from "../lib/provisioning.js";
 import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -207,7 +209,13 @@ export const phones = pgTable(
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
+    language: text("language", { enum: ["da", "en", "sv", "nb", "de"] }),
+    lockSystemLanguage: boolean("lock_system_language").notNull().default(true),
     filterMethod: text("filter_method", { enum: FILTER_METHODS }).notNull().default("vpn"),
+    /** Open mode (docs/open-mode.md): all apps allowed except the block list. */
+    openMode: boolean("open_mode").notNull().default(false),
+    /** App categories ("social", "gambling") whose known apps are on the block list in open mode. */
+    blockedAppCategories: text("blocked_app_categories").array().notNull().default(sql`'{}'::text[]`),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
     /** Opaque id used as the DNS-over-TLS ClientID (`<dnsClientId>.dns.plainphone.org`). */
@@ -246,6 +254,7 @@ export const phones = pgTable(
      * document carries `release: true`.
      */
     releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
+    sosCallbackNumber: text("sos_callback_number"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
     deviceStatus: jsonb("device_status").$type<DeviceStatus & {
@@ -354,6 +363,7 @@ export const contacts = pgTable(
     name: text("name").notNull(),
     /** E.164, e.g. +4512345678. */
     number: text("number").notNull(),
+    sosParent: boolean("sos_parent").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("contacts_phone_number_uq").on(t.phoneId, t.number)],
@@ -647,6 +657,8 @@ export const enrollments = pgTable(
       .references(() => phones.id, { onDelete: "cascade" }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    provisioning: jsonb("provisioning").$type<ProvisioningInfo>(),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
     usedAt: timestamp("used_at", { withTimezone: true }),
     /** SHA-256 of the phone's install id, so a lost answer can be retried by the same phone. */
     installIdHash: text("install_id_hash"),
@@ -681,6 +693,42 @@ export const selfRuleTemplates = pgTable("self_rule_templates", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+export const sosEvents = pgTable("sos_events", {
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  id: uuid("id").notNull(),
+  kind: text("kind", { enum: ["urgent", "help"] }).notNull(),
+  createdAt: createdAt(),
+  lat: doublePrecision("lat"),
+  lon: doublePrecision("lon"),
+  battery: smallint("battery"),
+  deliveredVia: text("delivered_via", { enum: ["push", "sms"] }),
+  seenBy: uuid("seen_by").references(() => users.id, { onDelete: "set null" }),
+  seenByName: text("seen_by_name"),
+  seenAt: timestamp("seen_at", { withTimezone: true }),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
+  notificationClaimedAt: timestamp("notification_claimed_at", { withTimezone: true }),
+  notificationLeaseUntil: timestamp("notification_lease_until", { withTimezone: true }),
+  /** Set when delivery to every parent was still incomplete at the final timeout. */
+  deliveryFailedAt: timestamp("delivery_failed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.phoneId, t.id] }),
+  index("sos_phone_created_idx").on(t.phoneId, t.createdAt),
+  index("sos_created_idx").on(t.createdAt),
+]);
+
+/** What each parent has been sent for one SOS, so a retry only repeats what failed. */
+export const sosDeliveries = pgTable("sos_deliveries", {
+  phoneId: uuid("phone_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  mailedAt: timestamp("mailed_at", { withTimezone: true }),
+  /** Reached, or nothing could reach them (no push registration and no mail): no more retries. */
+  doneAt: timestamp("done_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.phoneId, t.eventId, t.userId] }),
+  foreignKey({ columns: [t.phoneId, t.eventId], foreignColumns: [sosEvents.phoneId, sosEvents.id] }).onDelete("cascade"),
+]);
 /** Transfer signing identity. The private key stays on the server. */
 export const moveIdentity = pgTable("move_identity", {
   id: integer("id").primaryKey(),

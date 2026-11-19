@@ -306,3 +306,13 @@ export function phoneAlertMail(
     footer: footer[locale],
   });
 }
+
+export function sosMail(to: string, locale: Locale, publicUrl: string, phoneId: string, heading: string, message: string): Mail {
+  return build(to, heading, {
+    publicUrl, locale, preheader: message, heading,
+    paragraphs: [message],
+    button: { label: locale === "da" ? "Åbn SOS i Plainphone" : "Open SOS in Plainphone", url: new URL(`/phones/${phoneId}`, publicUrl).href },
+    afterButton: [],
+    footer: footer[locale],
+  });
+}
