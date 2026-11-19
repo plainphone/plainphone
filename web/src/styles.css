@@ -2209,8 +2209,22 @@ main {
 }
 
 .sos-alert {
-  border-inline-start: 4px solid currentColor;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
   padding: 1rem;
+}
+
+.sos-alert[data-kind="urgent"] {
+  border-inline-start-color: var(--danger);
+}
+
+.sos-event-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
 }
 
 .sos-alert .actions {

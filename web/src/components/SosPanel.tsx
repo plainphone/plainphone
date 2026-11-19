@@ -62,12 +62,16 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
 
   function eventRow(event: SosEvent, active: boolean) {
     return (
-      <article key={event.id} className={active ? "card sos-alert stack" : "item stack"}>
-        {phoneName !== undefined && <Link to={`/phones/${pid}`}>{phoneName}</Link>}
-        <strong>{t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}</strong>
-        <time dateTime={event.createdAt}>{new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}</time>
+      <article key={event.id} data-kind={event.kind} className={active ? "sos-alert stack" : "item stack"}>
+        <div className="sos-event-heading">
+          {phoneName !== undefined && <Link to={`/phones/${pid}`}>{phoneName}</Link>}
+          <strong>{t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}</strong>
+          <time className="row-meta" dateTime={event.createdAt}>
+            {new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}
+          </time>
+        </div>
         <div className="actions">
-          {event.location && <a href={`https://maps.google.com/?q=${event.location.lat},${event.location.lon}`}>{t("sos.map")}</a>}
+          {event.location && <a className="btn btn-secondary" href={`https://maps.google.com/?q=${event.location.lat},${event.location.lon}`}>{t("sos.map")}</a>}
           {res.data?.callbackNumber && <a className="btn btn-secondary" href={`tel:${res.data.callbackNumber}`}>{t("sos.call")}</a>}
           {event.seenAt ? <span>{event.seenByName ? t("sos.seenBy", { name: event.seenByName }) : t("sos.acknowledged")}</span> : (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void ack(event.id)}>{t("sos.seen")}</button>
