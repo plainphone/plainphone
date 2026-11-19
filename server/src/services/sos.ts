@@ -101,7 +101,7 @@ export async function deliverSos(ctx: Ctx, id: string, phoneId: string, opts: { 
     return done;
   }));
   const allDone = finished.every(Boolean);
-  const gaveUp = !allDone && ctx.now().getTime() - row.createdAt.getTime() >= SOS_GIVE_UP_MS;
+  const gaveUp = !allDone && ctx.now().getTime() - row.receivedAt.getTime() >= SOS_GIVE_UP_MS;
   await ctx.db.update(sosEvents).set({
     notificationClaimedAt: allDone || gaveUp ? ctx.now() : null,
     // While retrying, the lease doubles as the earliest time of the next attempt.

@@ -71,7 +71,7 @@ already got the alert does not get it again. Each push and mail send is bounded
 the moment it succeeds. A parent counts as done when any channel reached them,
 or when nothing could reach them (no push registration and no mail). The
 incident closes when every parent is done, or when a parent has acknowledged it.
-If a parent is still unreached after six hours, the server stops, records
+If a parent is still unreached six hours after the server received the report, the server stops, records
 `delivery_failed_at`, and the dashboard shows that the alert did not reach
 every parent. Temporary push errors during these retries never count toward a
 subscription's failure limit; only a permanent error (an invalid or unregistered

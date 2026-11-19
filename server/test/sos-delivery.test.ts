@@ -147,6 +147,33 @@ it("bounds a hung mail provider and never repeats a push that already went out",
   }
 });
 
+it("counts the final timeout from when the server received the report, not the phone's own clock", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const { user } = (await parent.get("/api/me")).json;
+  await h.ctx.db.insert(pushSubscriptions).values({ userId: user.id, platform: "web", endpoint: "https://example.test/late" });
+  const push = vi.spyOn(h.parentPush, "send").mockResolvedValue("failed");
+  const mailOff = vi.spyOn(h.mail, "canSend", "get").mockReturnValue(false as never);
+  try {
+    const id = randomUUID();
+    // The phone was offline for seven hours and reports the SOS late.
+    const sentAt = new Date(h.clock.now.getTime() - 7 * 3_600_000).toISOString();
+    expect((await device.post("/api/device/sos", { id, kind: "urgent", sentAt })).status).toBe(200);
+    await vi.waitFor(async () => {
+      const [open] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+      expect(open!.notificationLeaseUntil).not.toBeNull();
+    });
+    expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events[0].deliveryFailedAt).toBeNull();
+    h.clock.advance(60_000);
+    await sweep(h.ctx);
+    expect(push).toHaveBeenCalledTimes(2);
+    expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events[0].deliveryFailedAt).toBeNull();
+  } finally {
+    push.mockRestore();
+    mailOff.mockRestore();
+  }
+});
+
 it("closes an undeliverable incident at the final timeout and shows it as not delivered", async () => {
   const parent = await signIn(h, "parent@example.org");
   const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
