@@ -7,7 +7,10 @@ import org.plainphone.app.settings.PhoneSettings
 import org.plainphone.app.settings.SettingsApplier
 
 /** One line in the status report: what was attempted and whether it held. */
-data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false) {
+data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false,
+    /** Not a failure, but not in force yet either: no acknowledgment until a later run succeeds. */
+    val waiting: Boolean = false,
+) {
     override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
 }
 

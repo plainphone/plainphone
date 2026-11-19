@@ -70,6 +70,9 @@ class LightRuleReceiptTest {
             val start = shadowOf(context).nextStartedService
             assertThat(start.component?.className).isEqualTo(PlainphoneVpnService::class.java.name)
             assertThat(api.statuses.last().rulesEtag).isNull()
+            // Waiting for the tunnel is not a lost protection: no failed policy, no "lock broken" alarm.
+            assertThat(api.statuses.last().lockIntact).isTrue()
+            assertThat(api.statuses.last().failedPolicies).isEmpty()
             assertThat(api.statuses.last().protections).containsEntry("usageAccessGranted", false)
             assertThat(api.statuses.last().protections).containsEntry("usageAccess", true)
 

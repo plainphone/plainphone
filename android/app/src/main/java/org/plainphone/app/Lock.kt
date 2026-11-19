@@ -193,7 +193,8 @@ object Lock {
             p.getString("receipt_attempt_etag", null) != etag
         val config = effectiveConfig(context)
         val vpnRecovered = Mode.isLight(context) && LightLock.vpnUses(config.dnsHost) &&
-            p.getString("applied_failed", null)?.lineSequence()?.any { it == LightLock.DNS_STEP } == true
+            (p.getBoolean("vpn_waiting", false) ||
+                p.getString("applied_failed", null)?.lineSequence()?.any { it == LightLock.DNS_STEP } == true)
         if (fresh && !receiptPending && !vpnRecovered &&
             p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(config)
         ) {
@@ -269,10 +270,11 @@ object Lock {
             return
         }
         edit.putString("receipt_attempt_etag", receiptEtag)
+        edit.putBoolean("vpn_waiting", results.any { it.waiting })
         if (receiptEtag == null) {
             edit.remove("receipt_etag").remove("receipt_applied_at")
         } else if (receiptEtag != prefs(context).getString("receipt_etag", null) &&
-            results.all { it.ok || it.name == UpdateBatteryExemption.FAILED_POLICY }
+            results.all { (it.ok && !it.waiting) || it.name == UpdateBatteryExemption.FAILED_POLICY }
         ) {
             edit.putString("receipt_etag", receiptEtag).putLong("receipt_applied_at", now)
         }
@@ -280,7 +282,7 @@ object Lock {
             .putLong("applied_at", now)
             .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
         // Android keeps the old host when the new one does not answer, so only a success changes it.
-        if (results.any { (it.name == "private DNS" || it.name == LightLock.DNS_STEP) && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        if (results.any { (it.name == "private DNS" || it.name == LightLock.DNS_STEP) && it.ok && !it.waiting }) edit.putString("dns_in_use", config.dnsHost)
         Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
         Hardening.accountTypes(results)?.let { edit.putStringSet("account_types", it.toSet()) }
         val wasOwner = results.none { it.name == "device owner" && !it.ok }

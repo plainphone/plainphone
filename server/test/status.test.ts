@@ -114,6 +114,30 @@ describe("rule confirmations", () => {
     expect((await parent.get(path)).json).toMatchObject({ dnsSynced: true, ruleReceipt: receipt });
   });
 
+  it("wakes a phone that confirmed the waiting state when the resolver retry succeeds", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    await device.put("/api/device/push-token", { fcmToken: "dns-wake" });
+    h.dns.failNext = 1;
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    const waiting = (await device.get("/api/device/rules")).headers.get("etag")!;
+    await device.put("/api/device/status", report({
+      rulesEtag: waiting, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    h.push.sent.length = 0;
+    await sweep(h.ctx);
+    expect(h.push.sent).toEqual([{ token: "dns-wake", reason: "rules" }]);
+    // The retry changed the ETag, and the phone has not confirmed the new one yet.
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: true, ruleReceipt: { appliedAt: null } });
+    const final = (await device.get("/api/device/rules", { "if-none-match": waiting })).headers.get("etag")!;
+    expect(final).not.toBe(waiting);
+    await device.put("/api/device/status", report({
+      rulesEtag: final, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+  });
+
   it("syncs both per-phone preferences without changing the other phone", async () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);

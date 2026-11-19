@@ -88,7 +88,8 @@ object LightLock {
             val started = PlainphoneVpnService.start(context, host)
             when {
                 vpnUses(host) -> StepResult(DNS_STEP, true, host)
-                started -> StepResult(DNS_STEP, false, "waiting for the VPN to use the requested resolver")
+                // A start Android accepted is not a lost protection: no failure, no alarm, but no receipt yet.
+                started -> StepResult(DNS_STEP, true, "waiting for the VPN to use the requested resolver", waiting = true)
                 else -> StepResult(DNS_STEP, false, "Android did not start it (Plainphone in the background?)")
             }
         } catch (e: Exception) {
