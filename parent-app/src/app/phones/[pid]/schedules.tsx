@@ -3,6 +3,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { App, ChangeResult, Schedule, ScheduleInput, ScheduleKind } from "../../../api/models";
+import { PhoneSwitch, SleepOutsideTip } from "../../../components/BedtimeSettings";
 import { Chip, CheckRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, Field, LoadGate, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
@@ -49,6 +50,10 @@ function SchedulesList() {
   return (
     <Screen testID="phone-schedules" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
       <PageTitle sub={t("sched.intro")}>{t("sched.title")}</PageTitle>
+      <SleepOutsideTip />
+      <Card>
+        <PhoneSwitch field="silentBedtime" label={t("bedtime.silent")} help={t("bedtime.silentHelp")} />
+      </Card>
       <LoadGate res={res}>
         {({ schedules, apps }) => (
           <>

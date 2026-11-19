@@ -8,6 +8,7 @@ import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
+import { PhoneSwitch } from "../../../components/BedtimeSettings";
 import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -601,6 +602,11 @@ function Overview() {
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
         <PhoneDisplayPreferences />
+        {phone.profile === "child" && phone.pairedAt ? (
+          <Card>
+            <PhoneSwitch field="pinApprovalEnabled" label={t("pin.toggle")} help={t("pin.help")} />
+          </Card>
+        ) : null}
         <RenamePhone />
         <PhoneLanguageSettings />
         <RemovePhone />
