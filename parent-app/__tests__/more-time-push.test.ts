@@ -46,7 +46,7 @@ describe("category", () => {
     expect(actions.map((a) => a.identifier)).toEqual(["15", "60", "day", "no"]);
     expect(actions.map((a) => a.buttonTitle)).toEqual(TITLES[locale]);
     // The answer is sent from the notification; the app does not have to open.
-    expect(actions.every((a) => a.options?.opensAppToForeground === false)).toBe(true); // jest runs as ios
+    expect(actions.every((a) => a.options?.opensAppToForeground === true)).toBe(true); // the answer is sent from the app, so it has to open
   });
 
   it("is registered after login and again when the language changes", async () => {

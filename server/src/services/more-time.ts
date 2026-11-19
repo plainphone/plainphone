@@ -180,7 +180,12 @@ export async function answerMoreTimeRequest(
     }
     const minutes = minutesFor(answer, fresh.timezone, now);
     if (minutes !== null) {
-      if (!(await hasLimit(tx, phone.id, row.packageName))) throw new MoreTimeError(409, "the time limit was removed; there is nothing to extend");
+      // Nothing to grant any more: close the request instead of leaving it open all day.
+      // A phone that is no longer a child's has to go through the Self key, not through here.
+      if (fresh.profile !== "child" || !(await hasLimit(tx, phone.id, row.packageName))) {
+        const [expired] = await tx.update(moreTimeRequests).set({ status: "expired" }).where(eq(moreTimeRequests.id, row.id)).returning();
+        return { request: expired!, won: false };
+      }
       // The day is the one asked about, so the bonus never spills into tomorrow.
       await applyOp(ctx, tx, fresh, { type: "timeLimit.bonus", packageName: row.packageName, date: row.day, minutes }, row.day);
     }

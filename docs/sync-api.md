@@ -302,8 +302,10 @@ Full description: [more-time.md](more-time.md).
   applies it from the next rules sync (the server wakes the phone when it is answered) even if the
   request call was lost. Show the new end time from your own evaluation of the limits, not from
   the answer. `answer: "day"` means the rest of the day.
-- Keep a request that could not be sent and send it when you are online again; the server records
-  what happened and never rejects a report of something that already happened.
+- A request is a question, not a report of something that happened, so the server may refuse it
+  (`403`, `409`, `429` above). Do not queue a refused request and resend it; show the refusal and
+  let the child try again later. A request that failed only because the phone was offline can be
+  sent when it is back online.
 
 ### Push wakeups
 

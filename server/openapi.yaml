@@ -2940,10 +2940,9 @@ paths:
                   - type: object
                     required: [won, answeredByYou]
                     properties:
-                      won: { type: boolean, description: "True when this call decided it" }
+                      won: { type: boolean, description: "True when this call decided it. False when it was already answered, or closed as expired because the limit was removed or the phone is no longer a child's" }
                       answeredByYou: { type: boolean }
         "404": { description: "No such request" }
-        "409": { description: "The time limit was removed, so there is nothing to extend" }
 
   /catalog:
     get:

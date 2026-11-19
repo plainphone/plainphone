@@ -74,12 +74,12 @@ request itself is only a question, so it can be refused (switched off, no such l
 |---|---|
 | Dashboard (Web Push) | The notification has action buttons. A tap sends the answer from the service worker with the browser's session, without opening the page. If that fails, the phone's page opens. |
 | Parent app, Android (FCM) | A data message that the app turns into a notification with the same four buttons. |
-| Parent app, iOS (APNs) | The push has the category `more-time`; the app registers the four actions for it. |
+| Parent app, iOS (APNs) | The push has the category `more-time`; the app registers the four actions for it. A button opens the app briefly to send the answer, as on Android. |
 
 Browsers show a limited number of action buttons (`Notification.maxActions`). A browser that
 shows fewer than four keeps **15 min** and **No**; tapping the notification itself opens the
 phone's page, where all four choices are.
-On Android the button opens the app briefly to send the answer (Android cannot run the app's code in the background without extra packages). Action buttons on native pushes need the parent app to have been opened once since it was
+On Android and iOS the button opens the app briefly to send the answer (the app has no background task for it, and a closed iOS app would otherwise drop the answer). Action buttons on native pushes need the parent app to have been opened once since it was
 installed (it registers the notification category then).
 
 ## API

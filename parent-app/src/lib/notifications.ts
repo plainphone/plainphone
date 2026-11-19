@@ -58,7 +58,7 @@ async function ensureChannels(locale: Locale) {
 
 /**
  * The four answer buttons under a request for more time. The action identifiers are the answers
- * the API takes. The buttons answer without opening the app, so the titles come from the app's language.
+ * the API takes. The titles come from the app's language. The buttons open the app on both platforms: the answer is sent from the React tree, and without a background task a closed iOS app would drop it.
  */
 export async function ensureCategories(locale: Locale) {
   if (Platform.OS === "web") return;
@@ -69,7 +69,7 @@ export async function ensureCategories(locale: Locale) {
       MORE_TIME_ANSWERS.map((answer) => ({
         identifier: answer,
         buttonTitle: t(ANSWER_KEY[answer]),
-        options: { opensAppToForeground: Platform.OS === "android" },
+        options: { opensAppToForeground: true },
       })),
     );
   } catch {

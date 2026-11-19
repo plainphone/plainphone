@@ -161,9 +161,11 @@ describe("ask for more time", () => {
     expect((await device.post("/api/device/more-time-requests", { packageName: "not a package" })).status).toBe(400);
     expect((await device.post("/api/device/more-time-requests", { packageName: SPOTIFY, reason: "x".repeat(141) })).status).toBe(400);
     const r = await device.post("/api/device/more-time-requests", { packageName: SPOTIFY });
-    // The parent removes the limit meanwhile: there is nothing to extend.
+    // The parent removes the limit meanwhile: there is nothing to extend, so the request closes
+    // instead of staying open all day.
     await mum.del(`/api/phones/${phoneId}/time-limits/apps/${SPOTIFY}`);
-    expect((await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "15" })).status).toBe(409);
+    const late = await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "15" });
+    expect(late.json).toMatchObject({ status: "expired", won: false });
     expect((await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "maybe" })).status).toBe(400);
   });
 
