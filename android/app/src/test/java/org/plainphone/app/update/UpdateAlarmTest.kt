@@ -61,6 +61,7 @@ class UpdateAlarmTest {
         // Lock's recovery executor and InstallLease's counters are process-wide: leave them clean.
         awaitRecovery()
         InstallLease.resetStateForTests()
+        AndroidLeaseEnv.wallClock = System::currentTimeMillis
     }
 
     private fun <T> startInstall(block: () -> T): java.util.concurrent.Future<T> {
@@ -397,6 +398,9 @@ class UpdateAlarmTest {
         hasWallDeadline: Boolean = true,
     ) {
         ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
+        // Pin wall time too, or the reported overrun drifts with machine load.
+        val wall = System.currentTimeMillis()
+        AndroidLeaseEnv.wallClock = { wall }
         val env = AndroidLeaseEnv(context)
         // Simulate recovery after Android delayed delivery, with no watchdog or alarm queued.
         val elapsedDeadline = if (previousBoot) env.nowMs() + 60_000L else env.nowMs() - overrunMs

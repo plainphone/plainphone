@@ -382,9 +382,9 @@ class InstallLease(
         // Android creates a new InstallLease for each recovery entry point.
         private val pendingClosures = mutableMapOf<Pair<String, Lease>, Lease>()
 
-        /** Tests share this process-wide state across Robolectric sandboxes; call only when nothing is running. */
+        /** Robolectric tests in one sandbox share this process-wide state; call only when nothing is running. */
         internal fun resetStateForTests(): Unit = synchronized(LOCK) {
-            clearsInFlight = 0
+            check(clearsInFlight == 0) { "a clear is still in flight" }
             pendingClosures.clear()
         }
 
@@ -517,9 +517,13 @@ internal class AndroidLeaseEnv(private val context: Context) : InstallLease.Env 
         Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, 0)
     }.getOrDefault(0)
     override fun versionCode(): Long = 0
+    override fun wallNowMs() = wallClock()
 
     companion object {
         private val process = UUID.randomUUID().toString()
+
+        /** Tests pin this; Robolectric does not freeze System.currentTimeMillis. */
+        @Volatile internal var wallClock: () -> Long = System::currentTimeMillis
     }
 
     override fun prepareExpiry(holder: String, atMs: Long) {
