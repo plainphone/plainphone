@@ -152,10 +152,12 @@ class HomeActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.free_promise),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            if (rules?.home?.showFreePromise != false) {
+                Text(
+                    stringResource(R.string.free_promise),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             Text(
                 stringResource(R.string.version_line, versionName()),
                 fontSize = 13.sp,

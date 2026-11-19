@@ -81,7 +81,7 @@ fun HomeScreen(ui: HomeUi, showAll: Boolean, onShowAll: (Boolean) -> Unit, actio
     val c = LocalHomeColors.current
     Box(Modifier.fillMaxSize().background(c.paper)) {
         if (showAll) {
-            AllApps(ui.state.all, onBack = { onShowAll(false) }, open = actions.open)
+            AllApps(ui.state.all, ui.state.prefs.showFreePromise, onBack = { onShowAll(false) }, open = actions.open)
         } else {
             FrontPage(ui, onShowAll = { onShowAll(true) }, actions)
         }
@@ -321,7 +321,7 @@ private fun DockButton(label: String, bg: Color, fg: Color, modifier: Modifier, 
 }
 
 @Composable
-private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> Unit) {
+private fun AllApps(apps: List<HomeApp>, showFreePromise: Boolean, onBack: () -> Unit, open: (HomeApp) -> Unit) {
     val c = LocalHomeColors.current
     val back = stringResource(R.string.home_back)
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -363,13 +363,15 @@ private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> 
                 }
                 items(group, key = { it.component }) { ListRow(it, big = false, open = open) }
             }
-            item {
-                Text(
-                    stringResource(R.string.free_promise),
-                    color = c.ink,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(vertical = 24.dp),
-                )
+            if (showFreePromise) {
+                item {
+                    Text(
+                        stringResource(R.string.free_promise),
+                        color = c.ink,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
             }
         }
     }

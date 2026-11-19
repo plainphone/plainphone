@@ -110,7 +110,7 @@ See [Operations](docs/operations.md) for encrypted off-site backups, monitoring 
 | [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
-| [`site/`](site) | plainphone.org (static, no JavaScript) |
+| [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |
 | [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
 | [`docs/`](docs) | Design, evidence, policies and how-tos |

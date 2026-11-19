@@ -677,6 +677,8 @@ export const en = {
   "home.previewPhone": "Phone",
   "home.previewMessages": "Messages",
   "home.previewEmergency": "Emergency call",
+  "home.freePromise": "Show the free promise",
+  "home.freePromiseHelp": "Show a short note on this phone about pricing and voluntary donations.",
   "home.layout": "Layout",
   "home.layout.list": "List",
   "home.layout.grid": "Grid",

@@ -56,6 +56,10 @@ None of these work in light mode: they need Device Owner. The dashboard says so 
 | `theme` | `"system"`, `"light"` or `"dark"` | `"system"` |
 | `palette` | `"grey"`, `"sage"` or `"sand"` | `"sage"` |
 | `apps` | ordered package names on the front page, at most 8 | `[]` (the phone shows phone and messages) |
+| `showFreePromise` | `true` or `false` | `true` |
+
+Choose **Show the free promise** under Home screen in the web dashboard or under Manage in the
+parent app. It controls the note on the phone in both strong and light mode.
 
 The front page shows the clock, the date, today's school time or bedtime if one applies, the
 chosen apps in the chosen order and a quiet "All apps" link. Phone and the emergency call are
@@ -73,7 +77,7 @@ are on the front-page list.
     "screenTimeout": { "mode": "preset", "value": 60 },
     "wifi": { "mode": "locked" }
   },
-  "home": { "layout": "list", "theme": "system", "palette": "sage", "apps": ["com.spotify.music"] }
+  "home": { "layout": "list", "theme": "system", "palette": "sage", "apps": ["com.spotify.music"], "showFreePromise": true }
 }
 ```
 
@@ -86,7 +90,8 @@ are on the front-page list.
 | `GET /api/phones/{pid}/settings` | | `{ "settings": { "<key>": { "mode": "free" } ... } }` with every key, `free` filled in |
 | `PUT /api/phones/{pid}/settings/{key}` | `{ "mode": "locked", "value": "off" }` | 200 applied or 202 pending (same change format as the other rule endpoints) |
 | `GET /api/phones/{pid}/home` | | the home object, defaults filled in |
-| `PUT /api/phones/{pid}/home` | the full home object | 200 applied (never waits for the key) |
+| `PUT /api/phones/{pid}/home` | layout, theme, palette and apps | 200 applied (never waits for the key) |
+| `PATCH /api/phones/{pid}/home` | `{ "showFreePromise": false }` | 200 applied (never waits for the key) |
 
 The server rejects modes and values a setting does not support with 400.
 
@@ -98,4 +103,4 @@ Loosening a setting goes through the key (delay or trusted person), like every o
 - changing the value of a `locked` setting loosens, except `bluetooth` from `noNewDevices` to `off`;
 - everything else (`free` to `locked`, any `preset` change, `preset` to `free`) applies at once, since the user could change a `preset` value on the phone anyway.
 
-Home screen changes never loosen anything: they only arrange apps the rules already allow.
+Home screen changes apply immediately. They arrange allowed apps or change the display of the free promise.

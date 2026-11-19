@@ -676,6 +676,8 @@ export const da: Messages = {
   "home.previewPhone": "Telefon",
   "home.previewMessages": "Beskeder",
   "home.previewEmergency": "Nødopkald",
+  "home.freePromise": "Vis gratisløftet",
+  "home.freePromiseHelp": "Vis en kort tekst på denne telefon om pris og frivillige donationer.",
   "home.layout": "Visning",
   "home.layout.list": "Liste",
   "home.layout.grid": "Gitter",

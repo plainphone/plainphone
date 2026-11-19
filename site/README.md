@@ -54,7 +54,7 @@ redirect to it with a 301.
 
 **Automatic.** A push to `main` that touches `site/` or the country catalog runs
 [`.github/workflows/site-deploy.yml`](../.github/workflows/site-deploy.yml): build, run
-`scripts/check.mjs`, then `wrangler pages deploy`. Pull requests are built and checked by
+`npm run check`, then `wrangler pages deploy`. Pull requests are built and checked by
 `ci.yml` but never deployed. The workflow can also be started by hand from the Actions
 tab (`workflow_dispatch`), but only on `main`, and it only runs in the
 `plainphone/plainphone` repository, so forks do not try to deploy.
