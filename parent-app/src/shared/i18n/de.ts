@@ -5,6 +5,8 @@ import { statusEn } from "./status";
 
 export const de: Messages = {
   ...statusEn, // English until translated
+  "status.never.title": "Noch keine Verbindung",
+  "status.stale.title": "Zuletzt online {when}",
   "app.name": "Plainphone",
   "app.skip": "Zum Inhalt springen",
   "app.loading": "Laden…",

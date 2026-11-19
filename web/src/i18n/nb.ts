@@ -5,6 +5,8 @@ import { statusEn } from "./status";
 
 export const nb: Messages = {
   ...statusEn, // English until translated
+  "status.never.title": "Ikke tilkoblet ennå",
+  "status.stale.title": "Sist online {when}",
   "app.name": "Plainphone",
   "app.skip": "Gå til innhold",
   "app.loading": "Laster inn …",

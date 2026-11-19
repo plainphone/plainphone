@@ -312,7 +312,7 @@
     <string name="self_approval_outcome_declined">Afvist. Intet er ændret.</string>
     <string name="self_approval_outcome_cancelled">Anmodningen er trukket tilbage. Intet er ændret.</string>
     <string name="self_approval_outcome_failed">Ændringen kunne ikke gennemføres. Lav en ny anmodning.</string>
-    <string name="self_approval_outcome_expired">Koden er udløbet. Vælg anmodningen igen for at få en ny kode.</string>
+    <string name="self_approval_outcome_expired">Koden er udløbet. Luk dette, og vælg anmodningen igen for at få en ny kode.</string>
     <string name="setup_key_invalid">Brug en anden mailadresse. Din hjælper skal have sin egen husstand.</string>
     <string name="setup_key_qr">Invitér med QR-kode</string>
     <string name="setup_key_qr_help">Du kan vise invitationskoden, så snart din telefon er forbundet.</string>

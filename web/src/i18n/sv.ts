@@ -5,6 +5,8 @@ import { statusEn } from "./status";
 
 export const sv: Messages = {
   ...statusEn, // English until translated
+  "status.never.title": "Ännu inte ansluten",
+  "status.stale.title": "Senast online {when}",
   "app.name": "Plainphone",
   "app.skip": "Hoppa till innehållet",
   "app.loading": "Laddar…",

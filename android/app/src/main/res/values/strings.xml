@@ -316,7 +316,7 @@
     <string name="self_approval_outcome_declined">Declined. Nothing changed.</string>
     <string name="self_approval_outcome_cancelled">This request was withdrawn. Nothing changed.</string>
     <string name="self_approval_outcome_failed">The change could not be applied. Ask for a new request.</string>
-    <string name="self_approval_outcome_expired">The code has expired. Choose the request again to get a new code.</string>
+    <string name="self_approval_outcome_expired">The code has expired. Close this and choose the request again to get a new code.</string>
     <string name="setup_key_invalid">Use another email address. Your helper needs a separate household.</string>
     <string name="setup_key_qr">Invite by QR code</string>
     <string name="setup_key_qr_help">You can show the invite code as soon as your phone connects.</string>

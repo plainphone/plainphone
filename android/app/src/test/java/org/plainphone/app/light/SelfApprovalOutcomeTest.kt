@@ -135,6 +135,6 @@ class SelfApprovalOutcomeTest {
     fun `says expired in Danish`() {
         qualifiers(night = false, danish = true)
         compose.setContent { PlainphoneTheme { SelfApprovalBody(null, summary, ApprovalState.Expired) } }
-        compose.onNodeWithText("Koden er udløbet. Vælg anmodningen igen for at få en ny kode.").assertIsDisplayed()
+        compose.onNodeWithText("Koden er udløbet. Luk dette, og vælg anmodningen igen for at få en ny kode.").assertIsDisplayed()
     }
 }
