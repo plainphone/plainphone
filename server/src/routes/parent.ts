@@ -779,9 +779,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       enabled: phone.openMode,
       categories: OPEN_CATEGORIES.map((category) => ({
         category,
-        // A category is blocked when its DNS category is, and its apps too where it has apps.
-        blocked: (dns?.blockedCategories ?? []).includes(category) &&
-          (!isAppCategory(category) || phone.blockedAppCategories.includes(category)),
+        // Blocked when either half is: the DNS category or the apps (the apps half also marks
+        // the app list). Turning it off clears both, so the switch never hides a block.
+        blocked: (dns?.blockedCategories ?? []).includes(category) ||
+          (isAppCategory(category) && phone.blockedAppCategories.includes(category)),
         hasApps: isAppCategory(category),
       })),
       blockedApps: apps,

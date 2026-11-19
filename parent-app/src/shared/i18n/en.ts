@@ -264,7 +264,6 @@ export const en = {
   "apps.blockedOne": "{app} is blocked.",
   "apps.unblockedOne": "{app} is allowed.",
   "apps.viaCategory": "Blocked with {category}",
-  "apps.blockSwitch": "Allowed",
 
   "open.title": "Open mode",
   "open.toggle": "Allow every app",
@@ -282,8 +281,6 @@ export const en = {
   "open.catHelp.adult": "Adult websites. There are no apps to close, so this is the web filter only.",
   "open.catBlocked": "{category} is blocked.",
   "open.catAllowed": "{category} is allowed.",
-  "open.blockedApps": "Blocked one by one",
-  "open.blockedAppsHelp": "Switch an app off in the list below to block it. Switch it on again to allow it.",
   "open.looseningHelp": "Blocking applies at once. Allowing something again goes through your key.",
   "open.onSaved": "Open mode is on.",
   "open.offSaved": "Open mode is off. Only allowed apps open.",

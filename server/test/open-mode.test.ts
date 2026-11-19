@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
+import { and, eq } from "drizzle-orm";
+import { phoneApps } from "../src/db/schema.js";
 import { categoryPackages } from "../src/lib/open-mode.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -118,6 +120,17 @@ describe("open mode", () => {
     await sweep(h.ctx);
     expect((await apps(device)).open).toBe(true);
     expect((await apps(device)).allowed).toContain("com.example.notes");
+  });
+
+  it("waits for the key to turn off when the allow-list would show a category-blocked app", async () => {
+    const { me, phoneId, device, base } = await phone("self");
+    // Instagram was allowed in allow-list mode earlier and is now blocked only by its category.
+    await h.ctx.db.update(phoneApps).set({ allowed: true })
+      .where(and(eq(phoneApps.phoneId, phoneId), eq(phoneApps.packageName, "com.instagram.android")));
+    const off = await me.put(`${base}/open-mode`, { enabled: false });
+    expect(off.status).toBe(202);
+    expect((await apps(device)).open).toBe(true);
+    expect((await apps(device)).hidden).toContain("com.instagram.android");
   });
 
   it("applies every change at once on a child phone", async () => {

@@ -263,12 +263,12 @@ export function formatApprovalSummary(
         : copy("Turn off open mode: only allowed apps open", "Slå åben tilstand fra: kun tilladte apps åbner");
     case "openMode.category": {
       const names: Record<string, ReturnType<typeof copy>> = {
-        social: copy("social media", "sociale medier"), gambling: copy("gambling", "pengespil"),
+        social: copy("social media", "sociale medier"), gambling: copy("gambling", "spil om penge"),
         adult: copy("adult content", "voksenindhold"),
       };
       const category = names[op.category] ?? copy(op.category, op.category);
       return op.blocked
-        ? copy(`Block ${category.en} (apps and websites)`, `Blokér ${category.da} (apps og hjemmesider)`)
+        ? copy(`Block ${category.en} (apps and websites)`, `Bloker ${category.da} (apps og hjemmesider)`)
         : copy(`Allow ${category.en} (apps and websites)`, `Tillad ${category.da} (apps og hjemmesider)`);
     }
     case "contact.schedule": {

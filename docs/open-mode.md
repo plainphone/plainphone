@@ -29,7 +29,7 @@ and 112 and the parents' reachability do not depend on any of this.
 | Change | Child phone | Myself phone |
 |---|---|---|
 | Block an app or a category | at once | at once |
-| Turn open mode off (back to the allow-list) | at once | at once |
+| Turn open mode off (back to the allow-list) | at once | at once, but through the key if the allow-list would show an app that open mode blocks |
 | Unblock an app or allow a category | at once | through the key (delay, buddy or QR approval) |
 | Turn open mode on | at once | through the key |
 

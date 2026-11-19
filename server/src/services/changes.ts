@@ -37,7 +37,7 @@ import { approvalBonusDate, approvalRevision, loadApprovalSummaries } from "./ap
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
-import { isAppCategory, type OpenCategory } from "../lib/open-mode.js";
+import { categoryPackages, isAppCategory, type OpenCategory } from "../lib/open-mode.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { wakePhone } from "./phones.js";
@@ -123,6 +123,16 @@ async function showsHiddenApp(db: DbLike, phoneId: string, packages: string[]): 
   return visible.length < new Set(packages).size;
 }
 
+/** Whether falling back to the allow-list would show an app that open mode blocks. */
+async function allowListShowsBlocked(db: DbLike, phone: Phone): Promise<boolean> {
+  const rows = await db
+    .select({ p: phoneApps.packageName, blocked: phoneApps.explicitlyBlocked })
+    .from(phoneApps)
+    .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true), eq(phoneApps.allowed, true)));
+  const byCategory = new Set(categoryPackages(phone.blockedAppCategories));
+  return rows.some((r) => r.blocked || byCategory.has(r.p));
+}
+
 /** Whether an op makes the rules less strict, judged against the current state. */
 export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boolean> {
   switch (op.type) {
@@ -140,8 +150,10 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
       return !op.blocked;
     case "openMode.set":
       // Open mode lets every app in, so turning it on goes through the key. Turning it off
-      // goes back to the allow-list, which only ever tightens.
-      return op.enabled && !phone.openMode;
+      // goes back to the allow-list. That only tightens, unless an app that open mode blocks
+      // (a blocked category, or one blocked app) still has allowed=true there.
+      if (op.enabled) return !phone.openMode;
+      return phone.openMode && (await allowListShowsBlocked(db, phone));
     case "openMode.category":
       return !op.blocked;
     case "dns.allowDomain":

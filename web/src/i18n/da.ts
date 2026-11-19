@@ -263,7 +263,6 @@ export const da: Messages = {
   "apps.blockedOne": "{app} er blokeret.",
   "apps.unblockedOne": "{app} er tilladt.",
   "apps.viaCategory": "Blokeret sammen med {category}",
-  "apps.blockSwitch": "Tilladt",
 
   "open.title": "Åben tilstand",
   "open.toggle": "Tillad alle apps",
@@ -281,8 +280,6 @@ export const da: Messages = {
   "open.catHelp.adult": "Hjemmesider med voksenindhold. Der er ingen apps at lukke, så det er kun webfilteret.",
   "open.catBlocked": "{category} er blokeret.",
   "open.catAllowed": "{category} er tilladt.",
-  "open.blockedApps": "Blokeret enkeltvis",
-  "open.blockedAppsHelp": "Slå en app fra på listen nedenfor for at blokere den. Slå den til igen for at tillade den.",
   "open.looseningHelp": "Blokering virker med det samme. Tillader du noget igen, går det gennem din nøgle.",
   "open.onSaved": "Åben tilstand er slået til.",
   "open.offSaved": "Åben tilstand er slået fra. Kun tilladte apps kan åbnes.",

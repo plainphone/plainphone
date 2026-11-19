@@ -75,9 +75,11 @@ export function OpenModePanel({ onChanged }: { onChanged: () => void }) {
       <h2 id="open-mode-title">
         {t("open.title")}
       </h2>
-      <p className="notice notice-info" role="status">
-        {state || !phone.openMode ? summary : t("open.summaryNone")}
-      </p>
+      {(state || !phone.openMode) && (
+        <p className="notice notice-info" role="status">
+          {summary}
+        </p>
+      )}
       <ul className="list switch-list">
         <li>
           <Switch
