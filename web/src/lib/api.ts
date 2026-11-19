@@ -19,7 +19,11 @@ export interface Me {
   mailEnabled: boolean;
 }
 /** What the phone last reported about itself (`PUT /device/status`). */
+export type FilterMethod = "vpn" | "privateDns";
 export interface PhoneStatus {
+  filterMethod?: FilterMethod;
+  filterWorking?: boolean;
+  filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
   appVersion: string;
   appVersionCode?: number;
   update?: {
@@ -178,6 +182,7 @@ export interface Contact {
   number: string;
 }
 export interface DnsState {
+  filterMethod?: FilterMethod;
   host: string | null;
   synced: boolean;
   blockedCategories: DnsCategory[];
@@ -294,6 +299,7 @@ export type Op =
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
   | { type: "contact.schedule"; restricted: boolean }
+  | { type: "dns.method"; method: FilterMethod }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
@@ -430,7 +436,9 @@ export const getPhoneSettings = (pid: string) =>
 /** A loosening change on a Self phone answers `pending`; everything else is `applied` at once. */
 export const putPhoneSetting = (pid: string, key: SettingKey, setting: PhoneSetting) =>
   api.put<ChangeResult>(`/phones/${pid}/settings/${key}`, setting);
-export const getHome = (pid: string) => api.get<Home>(`/phones/${pid}/home`);
+export const getHome = (pid: string) => api.get<Home & { showFreePromise?: boolean }>(`/phones/${pid}/home`);
+export const setHomeFreePromise = (pid: string, showFreePromise: boolean) =>
+  api.patch<ChangeResult>(`/phones/${pid}/home`, { showFreePromise });
 /** Never waits for the key. Send the whole object. */
 export const putHome = (pid: string, home: Home) => api.put<ChangeResult>(`/phones/${pid}/home`, home);
 

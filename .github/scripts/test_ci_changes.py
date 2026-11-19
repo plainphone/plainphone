@@ -26,7 +26,7 @@ class ChangeDetectionTests(unittest.TestCase):
             "web/src/lib/settings.ts": {"server", "parent"},
             "web/src/lib/failedPolicies.ts": {"server", "parent"},
             "web/test-fixtures/light-setup-intent.txt": {"android", "server"},
-            "server/catalog/dk.json": {"server", "e2e"},
+            "server/catalog/dk.json": {"server", "e2e", "site"},
             "server/catalog/helplines/dk.json": {"android", "server", "e2e", "dns"},
             "dns/ppdns/profiles.py": {"dns"},
             "server/src/db/schema.ts": {"server", "e2e", "dns"},

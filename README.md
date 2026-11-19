@@ -11,7 +11,11 @@ Plainphone turns an ordinary Android phone into a calm phone: calls, messages, m
 
 It is meant for a parent setting up a child's first phone, and for adults who want to hold themselves to their own rules. The rules work the same way in both cases. What changes is who holds the key.
 
-[plainphone.org](https://plainphone.org) · [Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Releases](https://github.com/plainphone/plainphone/releases)
+[English](https://plainphone.org/) · [Dansk](https://plainphone.org/da/) · [Svenska](https://plainphone.org/sv/) · [Norsk bokmål](https://plainphone.org/nb/) · [Deutsch](https://plainphone.org/de/)
+
+[Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [App and website lookup](https://plainphone.org/apps/) · [Self-hosting](docs/self-hosting.md) · [Translations](docs/translations.md) · [Releases](https://github.com/plainphone/plainphone/releases)
+
+Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.
 
 > **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
 
@@ -52,7 +56,7 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the default web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes by default after finishing permissions. The dashboard shows the reported deadline. Rebooting closes the window. Undo switches off protection
@@ -60,6 +64,16 @@ even offline. The phone reports Undo when it reconnects, even before its first r
 The server removes the phone and notifies current household members whenever the report arrives.
 If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
 [docs/light-mode.md](docs/light-mode.md).
+
+### Tailscale and work VPNs
+
+Use **Private DNS** as the web filter on a light-mode phone if you need the Android
+VPN slot for Tailscale or a work VPN. In Tailscale, turn off **Use Tailscale DNS settings**.
+MagicDNS names will no longer resolve. Work VPN compatibility depends on its DNS
+policy. Follow the [Private DNS setup](docs/light-mode.md#tailscale-and-work-vpns)
+to clear Plainphone’s always-on VPN setting if enabled and get the address once
+your DoT resolver confirms it. Check filter status with your VPN connected. Myself phones use their key
+when you switch filter methods after pairing.
 
 ### Myself keys and QR codes
 
@@ -106,10 +120,10 @@ See [Operations](docs/operations.md) for encrypted off-site backups, monitoring 
 |---|---|
 | [`android/`](android) | The phone app (Kotlin, Jetpack Compose) for strong and light mode |
 | [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
-| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
+| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) and [cross-surface UX research](docs/research/ux-premium.md) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
-| [`site/`](site) | plainphone.org (static, no JavaScript) |
+| [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |
 | [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
 | [`docs/`](docs) | Design, evidence, policies and how-tos |

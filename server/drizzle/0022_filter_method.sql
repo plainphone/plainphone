@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "filter_method" text DEFAULT 'vpn' NOT NULL;

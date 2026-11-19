@@ -51,11 +51,15 @@ data class Protections(
      * false, so the parent sees it. Always-on VPN, notifications and battery are recommended
      * but not required (some phones do not offer them).
      */
-    fun missingForLight(): List<String> = buildList {
+    fun missingForLight(method: FilterMethod = FilterMethod.VPN, dnsIssue: String? = null): List<String> = buildList {
         if (!deviceAdmin) add("device admin")
         if (!accessibility) add("accessibility service")
-        if (!vpn) add("DNS filter (VPN)")
-        if (!privateDnsOk) add("private DNS points elsewhere")
+        if (method == FilterMethod.PRIVATE_DNS) {
+            if (dnsIssue != null) add("DNS filter (Private DNS)")
+        } else {
+            if (!vpn) add("DNS filter (VPN)")
+            if (!privateDnsOk) add("private DNS points elsewhere")
+        }
         if (!phoneRole) add("default phone app")
         if (!smsRole) add("default SMS app")
     }
@@ -77,11 +81,16 @@ data class Protections(
                 notifications = context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true,
                 batteryUnrestricted = context.getSystemService(PowerManager::class.java)
                     ?.isIgnoringBatteryOptimizations(context.packageName) == true,
-                privateDnsOk = privateDnsOk(privateDnsServer(context), filterHost),
+                privateDnsOk = if (Mode.isLight(context)) {
+                    LightFilter.vpnPrivateDnsOk(
+                        Settings.Global.getString(context.contentResolver, "private_dns_mode"),
+                        privateDnsServer(context),
+                    )
+                } else privateDnsOk(privateDnsServer(context), filterHost),
             )
         }
 
-        /** Private DNS in "hostname" mode sends every lookup to that host, past the VPN. Only our own host is fine. */
+        /** Strong mode expects its own strict Private DNS hostname. */
         fun privateDnsOk(serverName: String?, filterHost: String?): Boolean =
             serverName.isNullOrBlank() || serverName.equals(filterHost, ignoreCase = true)
 

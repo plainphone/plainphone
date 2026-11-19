@@ -183,7 +183,7 @@ describe("stored settings and home screen", () => {
   });
 
   it("fills in the home defaults", () => {
-    expect(DEFAULT_HOME).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [] });
+    expect(DEFAULT_HOME).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [], showFreePromise: true });
     expect(fullHome({})).toEqual(DEFAULT_HOME);
     expect(fullHome(null)).toEqual(DEFAULT_HOME);
     expect(fullHome({ palette: "sand" })).toEqual({ ...DEFAULT_HOME, palette: "sand" });

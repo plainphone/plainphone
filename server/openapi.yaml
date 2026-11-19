@@ -191,6 +191,9 @@ components:
       pattern: "^\\+[1-9]\\d{6,14}$"
       examples: ["+4512345678"]
 
+    FilterMethod:
+      type: string
+      enum: [vpn, privateDns]
     DnsCategory:
       type: string
       enum: [social, adult, gambling, games, dating, video]
@@ -217,6 +220,11 @@ components:
             type: { const: contact.schedule }
             restricted: { type: boolean }
         - type: object
+          required: [type, method]
+          properties:
+            type: { const: dns.method }
+            method: { $ref: "#/components/schemas/FilterMethod" }
+        - type: object
           properties:
             type: { const: dns.category }
             category: { $ref: "#/components/schemas/DnsCategory" }
@@ -239,7 +247,10 @@ components:
         - type: object
           properties:
             type: { const: home.set }
-            home: { $ref: "#/components/schemas/Home" }
+            home:
+              oneOf:
+                - $ref: "#/components/schemas/HomeLayoutSettings"
+                - $ref: "#/components/schemas/HomeFreePromise"
         - type: object
           properties:
             type: { const: key.set }
@@ -409,6 +420,20 @@ components:
         - { mode: locked }
 
     Home:
+      allOf:
+        - $ref: "#/components/schemas/HomeLayoutSettings"
+        - $ref: "#/components/schemas/HomeFreePromise"
+
+    HomeFreePromise:
+      type: object
+      required: [showFreePromise]
+      properties:
+        showFreePromise:
+          type: boolean
+          default: true
+          description: Show the free promise on the phone.
+
+    HomeLayoutSettings:
       type: object
       required: [layout, theme, palette, apps]
       description: How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed.
@@ -578,6 +603,10 @@ components:
             ready:
               type: boolean
               description: The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone uses the private DNS host from its setup profile.
+            privateDnsReady:
+              type: boolean
+              description: The current DNS-over-TLS provider has confirmed the phone’s ClientID. Required before offering Android Private DNS setup.
+            filterMethod: { $ref: "#/components/schemas/FilterMethod" }
             blockedCategories:
               type: array
               description: Informational; filtering happens in the DNS service.
@@ -856,6 +885,9 @@ components:
         mode:
           enum: [strong, light]
           description: Optional; missing means strong. The phone's mode is decided at pairing; this field does not change it.
+        filterMethod: { $ref: "#/components/schemas/FilterMethod" }
+        filterWorking: { type: boolean }
+        filterIssue: { type: string, enum: ["off", automatic, wrongHost, waiting, unverified, alwaysOn, strictDns] }
         protections: { $ref: "#/components/schemas/Protections" }
         timeUsed: { $ref: "#/components/schemas/TimeUsed" }
 
@@ -1153,6 +1185,7 @@ paths:
               required: [action]
               properties:
                 action: { enum: [confirm, cancel] }
+                filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 key: { $ref: "#/components/schemas/InitialSelfKey" }
       responses:
         "200":
@@ -1265,6 +1298,7 @@ paths:
               required: [token, installId]
               properties:
                 token: { type: string, pattern: "^pp_e_", maxLength: 100 }
+                filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 key: { $ref: "#/components/schemas/InitialSelfKey" }
                 installId:
                   type: string
@@ -2208,6 +2242,7 @@ paths:
                 type: object
                 properties:
                   profile: { enum: [child, self, null] }
+                  mode: { enum: [strong, light] }
         "404": { description: "Code not found or expired" }
         "429": { $ref: "#/components/responses/Error" }
 
@@ -2229,6 +2264,7 @@ paths:
                 code: { type: string }
                 name: { type: string, maxLength: 40 }
                 profile: { enum: [child, self] }
+                filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 householdId: { type: string, format: uuid }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
@@ -2262,6 +2298,7 @@ paths:
                 template: { type: string, description: Optional rule template code for an unconnected Self phone. }
                 name: { type: string, maxLength: 40 }
                 mode: { type: string, enum: [strong, light], default: strong }
+                filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 profile: { enum: [child, self] }
                 householdId: { type: string, format: uuid }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
@@ -2641,17 +2678,31 @@ paths:
     put:
       operationId: putPhonesHome
       summary: Change the home screen
-      description: Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+      description: Send the layout settings. The free promise is updated separately. Never waits for the key.
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Home" }
+            schema: { $ref: "#/components/schemas/HomeLayoutSettings" }
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "400": { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: patchPhonesHome
+      summary: Show or hide the free promise on this phone
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HomeFreePromise" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: Unknown phone }
 
   /phones/{pid}/contact-suggestions:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
@@ -2834,6 +2885,26 @@ paths:
       parameters: [{ $ref: "#/components/parameters/phoneId" }]
       responses:
         "200": { description: "host (null in mock mode or before provisioning), synced, blockedCategories, allowDomains, blockDomains" }
+  /phones/{pid}/dns/method:
+    put:
+      operationId: setPhoneFilterMethod
+      summary: Switch the filter method of a light phone
+      tags: [rules]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method: { $ref: "#/components/schemas/FilterMethod" }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "409": { description: The phone uses strong mode }
   /phones/{pid}/dns/categories/{category}:
     put:
       operationId: putPhonesDnsCategories

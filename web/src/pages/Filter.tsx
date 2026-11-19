@@ -30,10 +30,22 @@ export function FilterPage() {
 function PhoneFilter() {
   const { t } = useI18n();
   const { phone, run, pending } = usePhone();
-  const res = useLoad(() => api.get<DnsState>(`/phones/${phone.id}/dns`), [phone.id]);
+  const methodPending = pending.some((c) => c.op.type === "dns.method");
+  const res = useLoad(() => api.get<DnsState>(`/phones/${phone.id}/dns`), [phone.id, methodPending]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const waitingCats = new Set(pending.flatMap((c) => (c.op.type === "dns.category" ? [c.op.category] : [])));
+
+  async function setMethod(privateDns: boolean) {
+    const method = privateDns ? "privateDns" : "vpn";
+    setBusy("method");
+    try {
+      const result = await run(() => api.put<ChangeResult>(`/phones/${phone.id}/dns/method`, { method }));
+      if (result?.status === "applied") await res.reload();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function setCategory(cat: DnsCategory, blocked: boolean) {
     setBusy(cat);
@@ -63,6 +75,12 @@ function PhoneFilter() {
               <p className="notice notice-info">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "filter.waitingDns")}</p>
             ) : (
               !dns.synced && <p className="notice notice-info">{t("filter.notSynced")}</p>
+            )}
+            {phone.mode === "light" && (
+              <Switch label={t("filter.privateDns")} checked={dns.filterMethod === "privateDns"}
+                busy={busy === "method"} disabled={methodPending}
+                description={methodPending ? t("pending.waitingTag") : t("filter.methodHelp")}
+                onChange={(value) => void setMethod(value)} />
             )}
             <section className="section" aria-labelledby="cat-h">
               <h2 id="cat-h">{t("filter.categories")}</h2>

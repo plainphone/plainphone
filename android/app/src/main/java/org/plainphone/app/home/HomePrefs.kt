@@ -21,6 +21,7 @@ data class HomePrefs(
     val palette: HomePalette = HomePalette.SAGE,
     /** Packages on the front page, in order. */
     val apps: List<String> = emptyList(),
+    val showFreePromise: Boolean = true,
 ) {
     companion object {
         const val MAX_APPS = 8
@@ -38,6 +39,7 @@ data class HomePrefs(
                 theme = enumOr(json.optString("theme"), DEFAULT.theme),
                 palette = enumOr(json.optString("palette"), DEFAULT.palette),
                 apps = apps,
+                showFreePromise = json.optBoolean("showFreePromise", DEFAULT.showFreePromise),
             )
         }
 

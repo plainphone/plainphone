@@ -50,6 +50,7 @@ export interface Contact {
   number: string;
 }
 export interface DnsState {
+  filterMethod?: components["schemas"]["FilterMethod"];
   host: string | null;
   synced: boolean;
   blockedCategories: DnsCategory[];
@@ -166,6 +167,7 @@ export type Op =
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
   | { type: "contact.schedule"; restricted: boolean }
+  | { type: "dns.method"; method: components["schemas"]["FilterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }

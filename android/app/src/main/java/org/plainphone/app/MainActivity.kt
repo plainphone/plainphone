@@ -21,6 +21,7 @@ import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.LocalContactPolicySource
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.light.HomeActivity
+import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.provisioning.BootloaderWarning
@@ -35,6 +36,7 @@ import org.plainphone.app.update.UpdateBatteryExemption
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var report: TextView
+    private lateinit var freePromise: TextView
     private lateinit var pairButton: Button
     private lateinit var todayButton: Button
     private lateinit var sharingLine: TextView
@@ -59,13 +61,16 @@ class MainActivity : Activity() {
         askedBattery = batterySettingsOpen
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
         if (!isDeviceOwner()) {
-            val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
+            val destination = if (LightSetup.isComplete(this) || LightRelease.needsPrivateDnsReset(this)) {
+                HomeActivity.intent(this)
+            } else {
                 LightSetupActivity.intent(this).apply {
                     if (intent?.action == Intent.ACTION_VIEW) {
                         data = intent.data
                         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     }
                 }
+            }
             startActivity(destination)
             finish()
             return
@@ -111,6 +116,11 @@ class MainActivity : Activity() {
             setTextIsSelectable(true)
         }
         column.addView(report)
+        freePromise = TextView(this).apply {
+            text = getString(R.string.free_promise)
+            textSize = 14f
+        }
+        column.addView(freePromise)
         column.addView(TextView(this).apply {
             text = getString(R.string.version_line, BuildConfigInfo.versionName(this@MainActivity))
             textSize = 13f
@@ -251,11 +261,13 @@ class MainActivity : Activity() {
 
     private fun refresh() {
         val config = ConfigStore(this).load()
+        val sync = SyncStore(this)
+        val rules = sync.rules()
+        freePromise.visibility = if (rules?.home?.showFreePromise == false) View.GONE else View.VISIBLE
         status.text = buildString {
             appendLine(if (isDeviceOwner()) getString(R.string.status_owner) else getString(R.string.status_not_owner))
             if (Lock.isInMaintenanceWindow(this@MainActivity)) appendLine(getString(R.string.status_maintenance))
             appendLine(getString(R.string.status_dns, Lock.lockState(this@MainActivity).dnsHost ?: config.dnsHost))
-            val sync = SyncStore(this@MainActivity)
             appendLine(
                 when {
                     sync.released -> getString(R.string.status_sync_released)
@@ -266,7 +278,7 @@ class MainActivity : Activity() {
                     else -> getString(R.string.status_sync_unpaired)
                 },
             )
-            if (sync.isPaired && sync.rules() == null) appendLine(getString(R.string.status_sync_no_rules))
+            if (sync.isPaired && rules == null) appendLine(getString(R.string.status_sync_no_rules))
             val roles = getSystemService(RoleManager::class.java)
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true) R.string.status_phone_role_ok else R.string.status_phone_role_missing))
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))

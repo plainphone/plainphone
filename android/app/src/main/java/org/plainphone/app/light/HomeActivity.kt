@@ -99,11 +99,28 @@ class HomeActivity : ComponentActivity() {
     @Composable
     private fun Today(openSos: () -> Unit) {
         val context = LocalContext.current
+        if (Mode.isLight(context) && LightRelease.needsPrivateDnsReset(context)) {
+            CalmScreen(
+                eyebrow = null,
+                title = stringResource(R.string.light_private_dns_title),
+                body = stringResource(R.string.light_private_dns_reset),
+                primary = stringResource(R.string.light_private_dns_settings),
+                onPrimary = {
+                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)) }
+                        .onFailure { startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+                },
+            )
+            return
+        }
         val snapshot = TimeGuard.snapshot(context)
         val rules = SyncStore(context).rules()
         val light = Mode.isLight(context)
+        val privateDnsNeedsSetup = light && LightFilter.method(context) == FilterMethod.PRIVATE_DNS &&
+            LightFilter.privateDnsSetupIssue(context) != null
+        val vpnNeedsSetup = light && LightFilter.method(context) == FilterMethod.VPN &&
+            !LightSetup.isDone(context, LightSetup.Step.FILTER)
         val missing = if (light) {
-            Protections.read(context, ConfigStore(context).load().dnsHost, snapshot != null).missingForLight()
+            Protections.read(context, ConfigStore(context).load().dnsHost, snapshot != null).missingForLight(LightFilter.method(context), LightFilter.privateDnsSetupIssue(context))
         } else emptyList()
         // Strong mode: everything else is set by Device Owner; usage access only by the user.
         val needsUsage = !light && snapshot != null && !TimeGuard.hasUsageAccess(context)
@@ -130,7 +147,7 @@ class HomeActivity : ComponentActivity() {
                     runCatching { startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                 } else if (offerHome) {
                     askToBeHome()
-                } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context)) {
+                } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context) && !privateDnsNeedsSetup && !vpnNeedsSetup) {
                     // Repairing is the parent's job, and the guard closes those screens outside the PIN window.
                     startActivity(Intent(context, org.plainphone.app.MaintenanceActivity::class.java))
                 } else {
@@ -164,6 +181,12 @@ class HomeActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(24.dp))
+            if (rules?.home?.showFreePromise != false) {
+                Text(
+                    stringResource(R.string.free_promise),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             Text(
                 stringResource(R.string.version_line, versionName()),
                 fontSize = 13.sp,

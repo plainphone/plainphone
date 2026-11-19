@@ -13,10 +13,26 @@ import { categoryLabel } from "../../../shared/lib/ops";
 function FilterScreenBody() {
   const { t } = useI18n();
   const { phone, run, pending, notify } = usePhone();
-  const res = useLoad(() => unwrap<DnsState>(client.GET("/phones/{pid}/dns", { params: { path: { pid: phone.id } } })), [phone.id]);
+  const methodPending = pending.some((c) => c.op.type === "dns.method");
+  const res = useLoad(() => unwrap<DnsState>(client.GET("/phones/{pid}/dns", { params: { path: { pid: phone.id } } })), [phone.id, methodPending]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const waitingCats = new Set(pending.flatMap((c) => (c.op.type === "dns.category" ? [c.op.category] : [])));
+
+  async function setMethod(privateDns: boolean) {
+    setBusy("method");
+    try {
+      const result = await run(() => unwrap<ChangeResult>(client.PUT("/phones/{pid}/dns/method", {
+        params: { path: { pid: phone.id } },
+        body: { method: privateDns ? "privateDns" : "vpn" },
+      })));
+      if (result?.status === "applied") await res.reload();
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function setCategory(cat: DnsCategory, blocked: boolean) {
     setBusy(cat);
@@ -55,6 +71,12 @@ function FilterScreenBody() {
         {(dns) => (
           <>
             {!dns.synced ? <Notice tone="info" text={t("filter.notSynced")} /> : null}
+            {phone.mode === "light" ? (
+              <Switch testID="filter-method" label={t("filter.privateDns")} value={dns.filterMethod === "privateDns"}
+                disabled={busy === "method" || methodPending}
+                help={methodPending ? t("pending.waitingTag") : t("filter.methodHelp")}
+                onValueChange={(value) => void setMethod(value)} />
+            ) : null}
             <VStack>
               <Text variant="heading">{t("filter.categories")}</Text>
               <Text variant="small">{t("filter.categoriesHelp")}</Text>
