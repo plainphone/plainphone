@@ -73,11 +73,13 @@ on the old server to stop offering a pending move.
   original one if the new server has none. It is never the phone's own per-phone host, which stops
   answering if the phone is removed on the new server. Set `PROVISIONING_DNS_HOST` on the new server.
 - **Abandoned moves.** If a phone redeems its move but never finishes (the old server changed the
-  rules or stopped offering the move meanwhile), the imported copy is freed when the invitation
+  rules or stopped offering the move meanwhile), the imported copy is freed once the invitation
   expires: the background sweep clears its pending state and a normal setup QR code works again.
+  A phone that has redeemed gets a further full window (7 days) to make its first sync with the new
+  server, so one that loses the network right after redeeming is not locked out.
 - **Last-moment switch-off.** The phone checks that the old server still offers the move just before
   it commits. A switch-off in the few milliseconds after that check cannot stop the move, but
-  the phone only moves into rules verified identical to the old ones, so it is no less protected.
+  the phone only moves into protection rules verified identical to the old ones, so it is no less protected.
 - **Import limits.** An imported file is validated with the same rules as the dashboard (name length,
   phone numbers, package names, domains, key delay and pay-to-unlock values). The signature only
   proves which server sent it, not that its values are sensible.

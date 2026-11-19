@@ -43,7 +43,8 @@ internal class ServerMove(
         checkDns(requireNotNull(rules.dnsHost))
         // Last check before the commit. A parent who turns moving off on the old server in the few
         // milliseconds after this still sees the move complete. That is accepted: the phone only
-        // moves into rules verified identical above (including the filter method), so it is no less
+        // moves into protection rules verified identical above (including the filter method; the
+        // fallback DNS host and the move switch itself are not compared), so it is no less
         // protected, and it stays on the old server until this call returns. See docs/self-hosting.md.
         if (!sourceStillOffersMove()) return false
         return store.saveMoved(oldToken, instruction.serverUrl, token, response, now)

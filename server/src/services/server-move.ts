@@ -231,7 +231,12 @@ export async function redeemMove(ctx: Ctx, input: z.infer<typeof redeemMoveInput
     }
     await tx.update(phones).set({ deviceTokenHash: sha256(input.deviceToken) })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
-    await tx.update(phoneMoves).set({ tokenHash: null }).where(eq(phoneMoves.id, move.id));
+    // The phone only becomes active on its first sync with the new token. Keep the incoming row (and so the
+    // sweeper's hands off the token) for a full window after redeeming, so a phone that redeems just before the
+    // invitation ends and then loses the network is not locked out.
+    const keepUntil = new Date(ctx.now().getTime() + lifetimeMs);
+    await tx.update(phoneMoves).set({ tokenHash: null, expiresAt: keepUntil > move.expiresAt ? keepUntil : move.expiresAt })
+      .where(eq(phoneMoves.id, move.id));
   });
 }
 

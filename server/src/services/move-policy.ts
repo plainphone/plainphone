@@ -8,7 +8,7 @@ import {
 import { sha256 } from "../lib/crypto.js";
 import { fullHome, homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
 import { domain, keyInput, packageName, phoneNumber, scheduleInput } from "../lib/validation.js";
-import { limitInput, limitTarget, localDate } from "./limits.js";
+import { bonusMinutes, limitInput, limitTarget, localDate } from "./limits.js";
 import type { Ctx } from "./context.js";
 
 export type MoveDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -18,7 +18,6 @@ export function allowsServerMove(phone: Pick<MovePhone, "allowServerMove" | "pro
   return phone.allowServerMove ?? phone.profile === "child";
 }
 
-const strings = z.array(z.string());
 const setting = z.object({ mode: z.enum(["preset", "locked"]), value: z.union([z.string(), z.number()]).optional() });
 // Every imported field goes through the same validators as the normal endpoints:
 // the bundle signature only proves which server sent it, not that its values are sane.
@@ -43,7 +42,7 @@ export const portablePolicy = z.object({
   contacts: z.array(z.object({ name: z.string().trim().min(1).max(60), number: phoneNumber })).max(1000),
   schedules: z.array(scheduleInput).max(200),
   limits: z.array(limitInput.extend({ packageName: limitTarget })).max(1000),
-  bonuses: z.array(z.object({ packageName: limitTarget, day: z.iso.date(), minutes: z.int().min(1).max(1440) })).max(1000),
+  bonuses: z.array(z.object({ packageName: limitTarget, day: z.iso.date(), minutes: bonusMinutes })).max(1000),
   dns: z.object({
     blockedCategories: z.array(z.enum(DNS_CATEGORIES)), allowDomains: z.array(domain).max(5000), blockDomains: z.array(domain).max(5000),
   }),
@@ -90,7 +89,13 @@ export async function readMovePolicy(db: MoveDb, phone: MovePhone, now: Date): P
     apps, contacts: numbers, schedules: windows, limits, bonuses, dns,
     settings: own?.settings ?? {},
     home: fullHome(own?.home),
-    key: key ? { ...key.key, trustedEmail: key.email ?? key.key.trustedEmail } : null,
+    // A trusted key with no helper yet is the pending QR invitation (keyInput's `qrInvite`); the DB row only
+    // lacks an email and user, so say so explicitly.
+    key: key ? {
+      ...key.key,
+      trustedEmail: key.email ?? key.key.trustedEmail,
+      qrInvite: key.key.keyType === "trusted" && !key.email && !key.key.trustedEmail,
+    } : null,
   });
 }
 

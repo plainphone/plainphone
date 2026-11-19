@@ -11,7 +11,7 @@ import { body } from "../lib/http.js";
 import { packageName } from "../lib/validation.js";
 import type { Op } from "../services/changes.js";
 import type { Ctx } from "../services/context.js";
-import { appLabels, limitInput, limitTarget, loadTimeLimits, localDate, TOTAL } from "../services/limits.js";
+import { appLabels, bonusMinutes, limitInput, limitTarget, loadTimeLimits, localDate, TOTAL } from "../services/limits.js";
 
 type Phone = typeof phones.$inferSelect;
 
@@ -72,7 +72,7 @@ export function limitRoutes<E extends Env>(app: Hono<E>, ctx: Ctx, { requirePhon
 
   app.post("/phones/:pid/time-limits/bonus", async (c) => {
     const phone = await requirePhone(c);
-    const input = await body(c, z.object({ packageName: limitTarget, minutes: z.number().int().min(5).max(240) }));
+    const input = await body(c, z.object({ packageName: limitTarget, minutes: bonusMinutes }));
     return change(c, phone, {
       type: "timeLimit.bonus",
       packageName: input.packageName,

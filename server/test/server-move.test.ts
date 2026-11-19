@@ -229,6 +229,7 @@ it("refuses imported values the normal endpoints would reject", async () => {
     { ...policy, apps: [{ packageName: "bad package", label: "x", allowed: true, core: false, explicitlyBlocked: false, installed: true, requested: false }] },
     { ...policy, dns: { ...policy.dns, blockDomains: ["not a domain"] } },
     { ...policy, filterMethod: "other" },
+    { ...policy, bonuses: [{ packageName: "*", day: "2030-01-01", minutes: 1440 }] },
   ];
   for (const candidate of bad) expect(portablePolicy.safeParse(candidate).success).toBe(false);
 });
@@ -247,4 +248,66 @@ it("frees a phone whose move was redeemed but never activated", async () => {
   const summary = (await s.newParent.get(`/api/phones/${importedId}`)).json;
   expect(summary.setupQrAvailable).toBe(true);
   expect((await s.newParent.post(`/api/phones/${importedId}/enrollment`)).status).toBe(201);
+});
+
+it("moves a Myself phone whose trusted key is still a pending QR invitation", async () => {
+  const s = await servers();
+  const { device, phoneId } = await pairPhone(h, s.parent, { profile: "self", name: "Mine" });
+  await device.get("/api/device/rules");
+  await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedEmail: null, trustedUserId: null })
+    .where(eq(selfKeys.phoneId, phoneId));
+  const [row] = await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId));
+  const policy = await readMovePolicy(h.ctx.db, row!, h.ctx.now());
+  expect(policy.key).toMatchObject({ keyType: "trusted", trustedEmail: null, qrInvite: true });
+  const transfer = await exportPhone(s, phoneId);
+  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
+  expect(imported.status).toBe(201);
+  const [key] = await h.ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, imported.json.phoneIds[0]));
+  expect(key).toMatchObject({ keyType: "trusted", trustedEmail: null, trustedUserId: null });
+});
+
+it("keeps a redeemed phone that syncs just after the move expired, and frees one that never does", async () => {
+  const s = await servers();
+  const { device, phoneId } = await pairPhone(h, s.parent);
+  await device.get("/api/device/rules");
+  const transfer = await exportPhone(s, phoneId);
+  expect((await s.parent.post(`/api/phones/${phoneId}/server-move/start`, { exportId: transfer.exportId })).status).toBe(200);
+  const instruction = (await device.get("/api/device/rules")).json.move;
+  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
+  const importedId = imported.json.phoneIds[0] as string;
+  // Redeem a minute before the invitation expires, then lose the network until after it.
+  h.clock.advance(7 * 24 * 60 * 60_000 - 60_000);
+  const moved = new Client(s.destination);
+  moved.token = randomToken("pp_d_");
+  expect((await moved.post("/api/device/move", { token: instruction.token, deviceToken: moved.token })).status).toBe(204);
+  h.clock.advance(60 * 60_000);
+  await sweep(h.ctx);
+  expect((await moved.get("/api/device/rules")).status).toBe(200);
+  expect((await h.ctx.db.select().from(phones).where(eq(phones.id, importedId)))[0]?.pairedAt).not.toBeNull();
+
+  const second = await pairPhone(h, s.parent);
+  const again = await exportPhone(s, second.phoneId);
+  const secondImport = await s.newParent.post(s.destinationPath + "/import", again);
+  const secondId = secondImport.json.phoneIds[0] as string;
+  await h.ctx.db.update(phones).set({ deviceTokenHash: "b".repeat(64) }).where(eq(phones.id, secondId));
+  h.clock.advance(8 * 24 * 60 * 60_000);
+  await sweep(h.ctx);
+  expect((await h.ctx.db.select().from(phones).where(eq(phones.id, secondId)))[0]).toMatchObject({ awaitingServerMove: false, deviceTokenHash: null });
+});
+
+it("gives a moved phone no fallback host when the destination has no provisioning host", async () => {
+  const s = await servers();
+  const { device, phoneId } = await pairPhone(h, s.parent);
+  const transfer = await exportPhone(s, phoneId);
+  expect((await s.parent.post(`/api/phones/${phoneId}/server-move/start`, { exportId: transfer.exportId })).status).toBe(200);
+  const instruction = (await device.get("/api/device/rules")).json.move;
+  const bare = { ...s.destination.ctx, cfg: { ...s.destination.ctx.cfg, PROVISIONING_DNS_HOST: undefined } };
+  const destination = { ...h, ctx: bare, app: createApp(bare) };
+  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
+  expect(imported.status).toBe(201);
+  const moved = new Client(destination);
+  moved.token = randomToken("pp_d_");
+  expect((await moved.post("/api/device/move", { token: instruction.token, deviceToken: moved.token })).status).toBe(204);
+  // null tells the phone to keep the fallback host it already had.
+  expect((await moved.get("/api/device/move-rules")).json.fallbackDnsHost).toBeNull();
 });
