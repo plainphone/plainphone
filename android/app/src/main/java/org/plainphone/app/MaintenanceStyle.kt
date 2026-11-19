@@ -37,7 +37,7 @@ class MaintenanceStyle(private val context: Context) {
     private val danger get() = tokens.danger.toArgb()
     private val outline get() = tokens.outline.toArgb()
 
-    /** 16 dp inset, 24 dp from the top so the title clears the status bar. */
+    /** 16 dp inset, 32 dp from the top so the title clears the status bar. */
     fun screen(column: LinearLayout) {
         column.setBackgroundColor(paper)
         column.setPadding(dp(16), dp(32), dp(16), dp(24))
@@ -58,8 +58,14 @@ class MaintenanceStyle(private val context: Context) {
         setPadding(0, dp(4), 0, dp(8))
     }
 
-    /** Messages under the PIN field: every one of them is something the parent has to fix. */
+    /** Messages under the PIN field are errors (danger red) unless [tone] says they are just a status. */
     fun message(view: TextView) = body(view).apply { setTextColor(danger) }
+
+    /** Red for something the parent has to fix, ink for a neutral status such as "in progress". */
+    fun tone(view: TextView, error: Boolean) = view.setTextColor(if (error) danger else ink)
+
+    /** Token colour for a dialog button that is not the destructive one. */
+    val actionColor get() = action
 
     fun log(view: TextView) = view.apply {
         typeface = Typeface.MONOSPACE

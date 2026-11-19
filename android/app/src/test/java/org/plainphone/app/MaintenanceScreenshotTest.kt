@@ -15,6 +15,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import androidx.compose.ui.graphics.toArgb
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.io.File
@@ -164,7 +165,9 @@ class MaintenanceScreenshotTest {
     fun `release confirmation, light`() {
         val activity = open(1f)
         unlock(activity)
-        shootDialog("maintenance-release-light", releaseDialog(activity))
+        val dialog = releaseDialog(activity)
+        assertReleaseDialog(dialog)
+        shootDialog("maintenance-release-light", dialog)
     }
 
     @Test
@@ -172,6 +175,36 @@ class MaintenanceScreenshotTest {
     fun `release confirmation, dark`() {
         val activity = open(1f)
         unlock(activity)
-        shootDialog("maintenance-release-dark", releaseDialog(activity))
+        val dialog = releaseDialog(activity)
+        assertReleaseDialog(dialog)
+        shootDialog("maintenance-release-dark", dialog)
+    }
+
+    @Test
+    @Config(sdk = [35], qualifiers = "w393dp-h852dp-notnight-xxhdpi")
+    fun `wrong PIN keeps focus in the PIN field`() {
+        val activity = open(1f)
+        val fields = column(activity)
+        val field = fields.getChildAt(1) as EditText
+        val message = fields.getChildAt(3) as android.widget.TextView
+        field.setText("000000")
+        (fields.getChildAt(2) as Button).performClick()
+        val deadline = SystemClock.elapsedRealtime() + 10_000
+        while (SystemClock.elapsedRealtime() < deadline && message.text.isEmpty()) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        assertThat(message.text.toString()).isEqualTo(context.getString(R.string.maintenance_wrong_pin))
+        assertThat(field.isFocused).isTrue()
+    }
+
+    private fun assertReleaseDialog(dialog: AlertDialog) {
+        val go = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        val keep = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+        assertThat(go.text.toString()).isEqualTo(context.getString(R.string.maintenance_release_light_go))
+        assertThat(keep.text.toString()).isEqualTo(context.getString(R.string.maintenance_release_keep))
+        val tokens = MaintenanceStyle(context).tokens
+        assertThat(go.currentTextColor).isEqualTo(tokens.danger.toArgb())
+        assertThat(keep.currentTextColor).isEqualTo(tokens.action.toArgb())
     }
 }

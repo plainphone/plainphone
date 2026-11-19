@@ -31,4 +31,4 @@ One set of colour roles, light and dark, is used on every surface. The proposal 
 
 ## Maintenance screen
 
-The Maintenance screen is plain Android views (it has to work when nothing else does) styled by `MaintenanceStyle.kt`: 16 sp text that wraps, 48 dp buttons, a 3 dp focus and pressed outline, and a red outline on the release button. A wrong PIN keeps focus in the PIN field and the message is announced. The release dialog names the action ("Release the phone" or "Switch off", Danish "Frigiv telefonen" and "Slå fra"), shows it in red, and puts focus on the safe answer ("Keep it on"/"Behold den").
+The Maintenance screen is plain Android views (it has to work when nothing else does) styled by `MaintenanceStyle.kt`: 16 sp text that wraps, 48 dp buttons, a 3 dp focus and pressed outline, and a red outline on the release button. A wrong PIN keeps focus in the PIN field and the message is announced. The release dialog names the action ("Release the phone" or "Switch off", Danish "Frigiv telefonen" and "Slå fra"), shows it in red, and starts keyboard/D-pad focus on the safe answer ("Keep it on"/"Behold den"; in touch mode buttons take no focus).

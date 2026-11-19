@@ -92,9 +92,11 @@ class MaintenanceActivity : Activity() {
         button.setOnClickListener {
             val waitSeconds = ((throttle.remainingMs() + 999) / 1000).toInt()
             if (waitSeconds > 0) {
+                style.tone(message, error = false)
                 message.text = resources.getQuantityString(R.plurals.maintenance_wait, waitSeconds, waitSeconds)
                 return@setOnClickListener
             }
+            style.tone(message, error = true)
             val entered = pin.text.toString()
             fallback.visibility = View.GONE
             cancelFallbackExpiry()
@@ -187,6 +189,7 @@ class MaintenanceActivity : Activity() {
                 cancelFallbackExpiry()
                 fallback.visibility = View.GONE
                 button.isEnabled = false
+                style.tone(message, error = true)
                 message.text = ""
                 Thread {
                     val lease = InstallLease.android(app)
@@ -215,6 +218,7 @@ class MaintenanceActivity : Activity() {
         }
         if (request == null) {
             fallbackId?.let { InstallLease.android(app).finishCatalogAccounts(it) }
+            style.tone(message, error = false)
             message.setText(R.string.maintenance_install_account_pending)
             button.isEnabled = true
             return
@@ -315,10 +319,14 @@ class MaintenanceActivity : Activity() {
                         Lock.releaseAsync(this@MaintenanceActivity, ::show)
                     }
                     .create()
-                // The safe answer has focus, the destructive one is named for what it does and is red.
+                // The destructive answer is named for what it does and is red; the safe one is on the tokens too.
+                // Keyboard/D-pad focus starts on the safe one (in touch mode a button cannot take focus).
                 dialog.setOnShowListener {
                     dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(style.tokens.danger.toArgb())
-                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus()
+                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).apply {
+                        setTextColor(style.actionColor)
+                        requestFocus()
+                    }
                 }
                 dialog.show()
             }
