@@ -13,7 +13,7 @@
     <string name="maintenance_title">Vedligehold</string>
     <string name="maintenance_pin_hint">Forælder-PIN</string>
     <string name="maintenance_unlock">Åbn</string>
-    <string name="maintenance_wrong_pin">Forkert PIN.</string>
+    <string name="maintenance_wrong_pin">PIN-koden passer ikke. Prøv igen.</string>
     <string name="maintenance_install_limit">Dagens installationsvinduer er brugt. Prøv igen i morgen.</string>
     <string name="maintenance_install_unavailable">Denne app venter ikke længere på at blive installeret.</string>
     <string name="maintenance_install_battery">Tillad, at Plainphone kører uden batteribegrænsninger, og prøv igen.</string>
@@ -97,7 +97,7 @@
     <string name="history_mms_placeholder">Billed- eller gruppebesked. Indholdet kan ikke vises.</string>
     <string name="message_hint">Besked</string>
     <string name="message_failed">Ikke sendt</string>
-    <string name="message_send_failed">Beskeden kunne ikke sendes.</string>
+    <string name="message_send_failed">Beskeden kunne ikke sendes. Din tekst står stadig her.</string>
     <string name="message_not_approved">%1$s er ikke en godkendt kontakt, så der kan ikke sendes beskeder.</string>
     <string name="keypad_hint">Kun godkendte kontakter og nødnumre (112).</string>
     <string name="call_not_allowed">Der kan kun ringes til godkendte kontakter. Nødnumre virker altid.</string>
@@ -232,7 +232,17 @@
     <string name="blocked_time_body">Den åbner igen i morgen. Opkald og beskeder virker som altid.</string>
     <string name="blocked_protection_title">Denne indstilling er låst</string>
     <string name="blocked_protection_body">Brug din forælders PIN for at ændre denne indstilling.</string>
-    <string name="blocked_ok">OK</string>
+    <string name="blocked_ok">Tilbage til start</string>
+    <string name="blocked_reach_parent">Ring eller skriv til en forælder</string>
+    <string name="blocked_other_title">Det er ikke tilgængeligt lige nu</string>
+    <string name="blocked_other_body">Gå tilbage til start. Du kan altid ringe eller skrive til en forælder.</string>
+    <string name="dialer_call_parent">Ring til en forælder</string>
+    <string name="action_call_plain">Ring op</string>
+    <string name="action_delete_digit">Slet sidste ciffer</string>
+    <string name="message_retry">Skriv den igen</string>
+    <string name="maintenance_state_locked">Telefonen er låst.</string>
+    <string name="maintenance_state_lifted">Låsen er løftet indtil %1$s.</string>
+    <string name="maintenance_lock_now">Lås telefonen nu</string>
     <string name="blocked_enter_pin">Indtast PIN</string>
     <string name="today_title">I dag</string>
     <string name="today_no_limits">Ingen tidsgrænser i dag.</string>

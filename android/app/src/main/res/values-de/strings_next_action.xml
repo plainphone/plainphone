@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="action_call_plain">Anrufen</string>
+    <string name="action_delete_digit">Letzte Ziffer löschen</string>
+    <string name="blocked_other_body">Geh zurück zum Startbildschirm. Du kannst jederzeit einen Elternteil anrufen oder ihm schreiben.</string>
+    <string name="blocked_other_title">Das ist gerade nicht verfügbar</string>
+    <string name="blocked_reach_parent">Elternteil anrufen oder ihm schreiben</string>
+    <string name="dialer_call_parent">Elternteil anrufen</string>
+    <string name="maintenance_lock_now">Telefon jetzt sperren</string>
+    <string name="maintenance_state_lifted">Die Sperre ist bis %1$s aufgehoben.</string>
+    <string name="maintenance_state_locked">Das Telefon ist gesperrt.</string>
+    <string name="message_retry">Noch einmal schreiben</string>
+</resources>

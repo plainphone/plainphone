@@ -9,15 +9,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.Compat
 import org.plainphone.app.MaintenanceActivity
-import org.plainphone.app.R
+import org.plainphone.app.ui.PhoneActivity
 import org.plainphone.app.ui.PlainphoneTheme
 
 /** The calm screen shown instead of a blocked app or a locked setting (light mode and time limits). */
 class BlockedActivity : ComponentActivity() {
-    enum class Reason { NOT_ALLOWED, TIME_USED_UP, PROTECTION }
+    /** [OTHER] is the neutral fallback when the reason is missing or unknown. */
+    enum class Reason { NOT_ALLOWED, TIME_USED_UP, PROTECTION, OTHER }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,44 +36,35 @@ class BlockedActivity : ComponentActivity() {
     }
 
     private fun render(intent: Intent) {
-        val reason = runCatching { Reason.valueOf(intent.getStringExtra(EXTRA_REASON) ?: "") }.getOrDefault(Reason.NOT_ALLOWED)
+        val reason = runCatching { Reason.valueOf(intent.getStringExtra(EXTRA_REASON) ?: "") }.getOrDefault(Reason.OTHER)
         val label = label(intent.getStringExtra(EXTRA_PACKAGE))
         setContent {
+            val showParent by produceState(true) {
+                value = withContext(Dispatchers.IO) { !ContactPolicySources.get(this@BlockedActivity).rules().selfProfile }
+            }
             PlainphoneTheme {
-                when (reason) {
-                    Reason.NOT_ALLOWED -> CalmScreen(
-                        eyebrow = label,
-                        title = stringResource(R.string.blocked_not_allowed_title),
-                        body = stringResource(R.string.blocked_not_allowed_body),
-                        primary = stringResource(R.string.blocked_ok),
-                        onPrimary = ::goHome,
-                    )
-                    Reason.TIME_USED_UP -> CalmScreen(
-                        eyebrow = label,
-                        title = stringResource(R.string.blocked_time_title),
-                        body = stringResource(R.string.blocked_time_body),
-                        primary = stringResource(R.string.blocked_ok),
-                        onPrimary = ::goHome,
-                    )
-                    Reason.PROTECTION -> CalmScreen(
-                        eyebrow = null,
-                        title = stringResource(R.string.blocked_protection_title),
-                        body = stringResource(R.string.blocked_protection_body),
-                        primary = stringResource(R.string.blocked_ok),
-                        onPrimary = ::goHome,
-                        secondary = stringResource(R.string.blocked_enter_pin),
-                        onSecondary = {
-                            startActivity(Intent(this, MaintenanceActivity::class.java))
-                            finish()
-                        },
-                    )
-                }
+                BlockedScreen(
+                    showParent = showParent,
+                    reason = reason,
+                    appLabel = label,
+                    onHome = ::goHome,
+                    onReachParent = ::reachParent,
+                    onEnterPin = {
+                        startActivity(Intent(this, MaintenanceActivity::class.java))
+                        finish()
+                    },
+                )
             }
         }
     }
 
     private fun goHome() {
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        finish()
+    }
+
+    private fun reachParent() {
+        startActivity(PhoneActivity.favouritesIntent(this).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         finish()
     }
 

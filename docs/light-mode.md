@@ -45,6 +45,15 @@ Every protection is a step in the lock. A missing one is a failed policy, so `lo
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
 
+## What the child sees when an app is closed
+
+The guard's calm screen (`BlockedScreen`) says why the app is closed and what the child can do
+next, in the same shape for every reason: the reason as a title, one sentence with the next
+available step, **Call or message a parent** above the main action, **Back to start**.
+The parent route cannot be switched off. A missing or unknown reason gets the neutral "This is not
+available right now" instead of blaming the child. The screen is static: no animation, countdown
+or vibration. Daily time limits reset at local midnight, so the screen says "tomorrow".
+
 ## Releasing from the dashboard
 
 A parent can switch light mode off from the dashboard with **Release the phone**. The next sync

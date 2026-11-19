@@ -431,17 +431,35 @@ function Overview() {
     setRefreshing(false);
   }
 
-  type Section = "apps" | "contacts" | "filter" | "schedules" | "location" | "key";
-  const items: { to: Section; label: string; hint?: string }[] = [
-    { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
-    phone.profile === "self"
-      ? { to: "contacts", label: t("contacts.favourites") }
-      : { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
-    { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
-    { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
-    { to: "location", label: t("phone.location"), hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff") },
+  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "location" | "key";
+  type Item = { to: Section; label: string; hint?: string };
+  // The same groups, in the same order, as the web dashboard's rule list.
+  const groups: { title: string; items: Item[] }[] = [
+    {
+      title: t("phone.rulesPeople"),
+      items: [
+        { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
+        phone.profile === "self"
+          ? { to: "contacts", label: t("contacts.favourites") }
+          : { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
+        { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
+      ],
+    },
+    {
+      title: t("phone.rulesWhen"),
+      items: [
+        { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
+        { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+      ],
+    },
+    {
+      title: t("phone.rulesDevice"),
+      items: [
+        { to: "location", label: t("phone.location"), hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff") },
+        ...(phone.profile === "self" ? [{ to: "key" as const, label: t("phone.key"), hint: t("phone.keyHint") }] : []),
+      ],
+    },
   ];
-  if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
   const filterStatus = filterStatusKey(phone.status);
   const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
@@ -511,17 +529,20 @@ function Overview() {
 
       <VStack>
         <Text variant="heading">{t("phone.rules")}</Text>
-        <VStack gap={space.sm}>
-          {items.map((i) => (
-            <LinkRow
-              key={i.to}
-              testID={`section-${i.to}`}
-              title={i.label}
-              meta={i.hint}
-              onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
-            />
-          ))}
-        </VStack>
+        {groups.map((g) => (
+          <VStack key={g.title} gap={space.sm}>
+            <Text variant="label">{g.title}</Text>
+            {g.items.map((i) => (
+              <LinkRow
+                key={i.to}
+                testID={`section-${i.to}`}
+                title={i.label}
+                meta={i.hint}
+                onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
+              />
+            ))}
+          </VStack>
+        ))}
       </VStack>
 
       <VStack>
