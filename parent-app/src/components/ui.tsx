@@ -31,7 +31,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { type TFn, useI18n } from "../i18n/I18n";
-import { type Colors, radius, space, touch, useColors } from "../lib/theme";
+import { type Colors, radius, radiusControl, space, touch, useColors } from "../lib/theme";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: TFn): string {
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
     minHeight: touch,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
-    borderRadius: radius,
+    borderRadius: radiusControl,
     borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "center",
@@ -547,12 +547,12 @@ const styles = StyleSheet.create({
     borderRadius: radius,
     borderWidth: 1,
   },
-  input: { minHeight: touch, borderWidth: 1.5, borderRadius: radius, paddingHorizontal: space.md, fontSize: 16 },
+  input: { minHeight: touch, borderWidth: 1.5, borderRadius: radiusControl, paddingHorizontal: space.md, fontSize: 16 },
   switchRow: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.xs },
-  choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius, borderWidth: 1.5 },
+  choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radiusControl, borderWidth: 1.5 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   segmented: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radius, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radiusControl, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   state: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.lg },
 });

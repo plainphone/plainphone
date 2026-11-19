@@ -82,8 +82,8 @@ r = 30
 bw, bh = r * 2 * 0.56, r * 2 * 0.16
 favicon = (
     f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {m} {m}">'
-    f'<circle cx="32" cy="32" r="{r}" fill="#1d2a30" stroke="#f3f5f2" stroke-width="2"/>'
-    f'<rect fill="#f3f5f2" x="{32 - bw / 2:.1f}" y="{32 - bh / 2:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="1.5"/></svg>\n'
+    f'<circle cx="32" cy="32" r="{r}" fill="#1c2321" stroke="#f2f3ef" stroke-width="2"/>'
+    f'<rect fill="#f2f3ef" x="{32 - bw / 2:.1f}" y="{32 - bh / 2:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="1.5"/></svg>\n'
 )
 (out_dir / "favicon.svg").write_text(favicon)
 print(f"wordmark {width:.0f}x{height:.0f} units, upm {upm}")

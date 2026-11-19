@@ -37,6 +37,9 @@
     <string name="maintenance_reapply">Apply the lock now</string>
     <string name="maintenance_release">Release Device Owner (test phones)</string>
     <string name="maintenance_release_confirm">This removes every restriction and gives up Device Owner. Plainphone can then be uninstalled and the phone reset normally. Continue?</string>
+    <string name="maintenance_release_go">Release the phone</string>
+    <string name="maintenance_release_light_go">Switch off</string>
+    <string name="maintenance_release_keep">Keep it on</string>
     <string name="maintenance_contacts">Approved contacts and blocked log</string>
     <string name="status_phone_role_ok">Phone app: Plainphone.</string>
     <string name="status_phone_role_missing">Phone app: not Plainphone. Calls are not filtered.</string>

@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Applicera låset nu</string>
     <string name="maintenance_release">Släpp enhetsägare (testtelefoner)</string>
     <string name="maintenance_release_confirm">Detta tar bort alla begränsningar och ger upp enhetsägaren. Plainphone kan sedan avinstalleras och telefonen återställas normalt. Fortsätta?</string>
+    <string name="maintenance_release_go">Släpp telefonen</string>
+    <string name="maintenance_release_light_go">Stäng av</string>
+    <string name="maintenance_release_keep">Behåll den</string>
     <string name="maintenance_contacts">Godkända kontakter och blockerad logg</string>
     <string name="status_phone_role_ok">Telefonapp: Plainphone.</string>
     <string name="status_phone_role_missing">Telefonapp: inte Plainphone. Samtal filtreras inte.</string>
