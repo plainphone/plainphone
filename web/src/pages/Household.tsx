@@ -2,6 +2,7 @@
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router";
 import { ResetProtectionSection } from "../components/ResetProtection";
+import { HouseholdMove } from "../components/HouseholdMove";
 import { errorMessage, Field, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type InviteResult, type Members } from "../lib/api";
@@ -170,6 +171,7 @@ export function HouseholdPage() {
       </LoadGate>
 
       <ResetProtectionSection householdId={hid} />
+      {isOwner && <HouseholdMove householdId={hid} />}
 
       <section className="section" aria-labelledby="invite-h">
         <h2 id="invite-h">{t("house.inviteTitle")}</h2>

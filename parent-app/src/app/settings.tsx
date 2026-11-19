@@ -5,7 +5,7 @@ import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { SERVER_HOST } from "../lib/config";
+import { ServerChoice } from "../components/ServerChoice";
 import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
@@ -63,7 +63,7 @@ function Settings() {
       ) : null}
       <Card>
         <Text variant="heading">{t("native.server")}</Text>
-        <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
+        <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
       <Card>

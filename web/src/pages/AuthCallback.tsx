@@ -47,7 +47,7 @@ export function AuthCallbackPage() {
       <div className="narrow">
         <PageTitle sub={t("callback.appBody")}>{t("callback.appTitle")}</PageTitle>
         <div className="stack">
-          <a className="btn btn-primary" href={`${APP_SCHEME}://auth/app#token=${encodeURIComponent(token)}`}>
+          <a className="btn btn-primary" href={`${APP_SCHEME}://auth/app#token=${encodeURIComponent(token)}&server=${encodeURIComponent(window.location.origin)}`}>
             {t("callback.openApp")}
           </a>
           <button type="button" className="btn btn-secondary" onClick={() => setChoosing(false)}>

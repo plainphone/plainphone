@@ -87,6 +87,8 @@ export interface Phone {
   locationMode?: LocationMode;
   pairedAt: string | null;
   setupQrAvailable?: boolean;
+  allowServerMove?: boolean;
+  awaitingServerMove?: boolean;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
   lastSeenAt: string | null;
@@ -313,6 +315,8 @@ export type Op =
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
+  | { type: "move.allow"; allowed: boolean }
+  | { type: "move.start"; exportId: string; serverUrl: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }

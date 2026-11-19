@@ -2,6 +2,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { enrollments } from "../src/db/schema.js";
+import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { downloadRoutes, newestApk } from "../src/routes/download.js";
 import { Client, PUBLIC_URL, pairPhone, signIn, useHarness } from "./harness.js";
@@ -46,6 +47,17 @@ describe("setup from the dashboard (enrollment)", () => {
     expect(h.dns.clients.size).toBe(1);
     // No device token yet: the rules API refuses everything.
     expect((await new Client(h).get("/api/device/rules")).status).toBe(401);
+  });
+
+  it("puts the configured self-hosted address and port in Light provisioning", async () => {
+    const origin = "https://my-plainphone.example.test:8443";
+    h.ctx.cfg.PUBLIC_URL = origin + "/";
+    h.app = createApp(h.ctx);
+    const parent = await signIn(h, "parent@example.org");
+    const response = await parent.post("/api/phones/enroll", { name: "Test phone", profile: "child", mode: "light" });
+    expect(response.status).toBe(201);
+    expect(response.json.provisioning.serverUrl).toBe(origin);
+    expect(response.json.provisioning.downloadUrl).toBe(origin + "/download/android");
   });
 
   it("pairs the phone with its token, once, and the phone then gets its rules", async () => {

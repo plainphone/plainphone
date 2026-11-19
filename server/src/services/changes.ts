@@ -14,6 +14,7 @@ import {
   pendingChanges,
   phoneApps,
   phoneSettings,
+  phoneMoves,
   phones,
   schedules,
   selfKeys,
@@ -39,6 +40,7 @@ import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
+import { activateMove, MoveError } from "./server-move.js";
 import { wakePhone } from "./phones.js";
 
 export type Op =
@@ -58,6 +60,8 @@ export type Op =
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
+  | { type: "move.allow"; allowed: boolean }
+  | { type: "move.start"; exportId: string; serverUrl: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }
@@ -123,6 +127,8 @@ async function showsHiddenApp(db: DbLike, phoneId: string, packages: string[]): 
 /** Whether an op makes the rules less strict, judged against the current state. */
 export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boolean> {
   switch (op.type) {
+    case "move.allow": return op.allowed;
+    case "move.start": return true;
     case "app.set":
       return op.allowed;
     case "contact.add":
@@ -295,6 +301,24 @@ export async function deletePhone(db: DbLike, phoneId: string): Promise<string |
 /** Applies an op. Idempotent where it can be, since a delayed op may meet a changed state. */
 export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusDate?: string): Promise<{ dns: boolean }> {
   switch (op.type) {
+    case "move.allow":
+      await db.update(phones).set({ allowServerMove: op.allowed }).where(eq(phones.id, phone.id));
+      if (!op.allowed) {
+        await db.update(phoneMoves).set({ active: false }).where(and(eq(phoneMoves.phoneId, phone.id), eq(phoneMoves.direction, "outgoing")));
+        await db.update(pendingChanges).set({ status: "cancelled", decidedAt: ctx.now() }).where(and(
+          eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
+          sql`${pendingChanges.op}->>'type' in ('move.allow', 'move.start')`,
+        ));
+      }
+      return { dns: false };
+    case "move.start":
+      try { await activateMove(ctx, db, phone, op.exportId); }
+      catch (err) {
+        if (err instanceof MoveError) throw new ChangeError(409, err.message);
+        throw err;
+      }
+      return { dns: false };
+
     case "app.set":
       await db
         .update(phoneApps)

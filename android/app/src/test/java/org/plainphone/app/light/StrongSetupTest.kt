@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Looper
 import android.os.PersistableBundle
+import android.os.PowerManager
 import android.os.UserManager
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
@@ -116,10 +117,16 @@ class StrongSetupTest {
     }
 
     @Test fun enrollmentFinishingAfterLaunchShowsTheAccountOnce() {
+        shadowOf(context.getSystemService(PowerManager::class.java))
+            .setIgnoringBatteryOptimizations(context.packageName, true)
         Robolectric.buildActivity(MainActivity::class.java).setup().use {
             val store = SyncStore(context, FakeSecretBox())
             store.savePaired("new", "pp_d_test", PlainphoneApi.PollAccount("p***@example.org", "Family"))
-            shadowOf(Looper.getMainLooper()).idle()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (ShadowAlertDialog.getLatestAlertDialog()?.isShowing != true && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
 
             val dialog = checkNotNull(ShadowAlertDialog.getLatestAlertDialog())
             assertTrue(dialog.isShowing)

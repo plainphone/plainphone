@@ -6,9 +6,9 @@
 import * as Linking from "expo-linking";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
-import { inviteTokenFromUrl } from "./links";
+import { inviteTokenFromUrl, matchesServerLink } from "./links";
 
-export function useLaunchToken(): { token: string | null; ready: boolean } {
+export function useLaunchToken(server: string): { token: string | null; ready: boolean } {
   const linking = Linking.useLinkingURL();
   const [initial, setInitial] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -17,5 +17,9 @@ export function useLaunchToken(): { token: string | null; ready: boolean } {
       .catch(() => setInitial(null));
   }, []);
   const current = Platform.OS === "web" && typeof window !== "undefined" ? window.location.href : linking;
-  return { token: inviteTokenFromUrl(current) ?? inviteTokenFromUrl(initial), ready: initial !== undefined };
+  const token = [current, initial]
+    .filter((url) => matchesServerLink(url, server, "/invite"))
+    .map(inviteTokenFromUrl)
+    .find(Boolean) ?? null;
+  return { token, ready: initial !== undefined };
 }
