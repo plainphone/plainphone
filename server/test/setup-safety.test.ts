@@ -19,15 +19,35 @@ describe("onboarding safety", () => {
     return {
       parent, device, code,
       poll: () => device.get(path, headers),
-      decide: (action: string, key?: object) => device.call("POST", path, { action, key }, headers),
-      claim: (choice = profile) => parent.post("/api/phones/claim", { code, profile: choice, name: "My phone" }),
+      decide: (action: string, key?: object, filterMethod?: string) => device.call("POST", path, { action, key, filterMethod }, headers),
+      claim: (choice = profile, filterMethod?: string) => parent.post("/api/phones/claim", { code, profile: choice, name: "My phone", filterMethod }),
     };
   }
+
+  it("saves the phone's initial Myself filter choice at confirmation", async () => {
+    const { device, claim, decide } = await start();
+    expect((await claim()).status).toBe(201);
+    const paired = await decide("confirm", undefined, "privateDns");
+    expect(paired.status).toBe(200);
+    device.token = paired.json.deviceToken;
+    expect((await device.get("/api/device/rules")).json.dns.filterMethod).toBe("privateDns");
+    await decide("confirm", undefined, "vpn");
+    expect((await device.get("/api/device/rules")).json.dns.filterMethod).toBe("privateDns");
+  });
+
+  it("honors the phone's VPN choice when the dashboard draft selected Private DNS", async () => {
+    const { device, claim, decide } = await start();
+    expect((await claim("self", "privateDns")).status).toBe(201);
+    const paired = await decide("confirm", undefined, "vpn");
+    expect(paired.status).toBe(200);
+    device.token = paired.json.deviceToken;
+    expect((await device.get("/api/device/rules")).json.dns.filterMethod).toBe("vpn");
+  });
 
   it("requires matching dashboard choice and shows only the masked account before releasing the token", async () => {
     const { parent, device, code, poll, decide, claim } = await start();
     expect((await poll()).json).toEqual({ status: "waiting" });
-    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self" });
+    expect((await parent.post("/api/phones/pairing-profile", { code })).json).toEqual({ profile: "self", mode: "light" });
     expect((await claim("child")).status).toBe(409);
     const claimed = await claim();
     expect(claimed.status).toBe(201);

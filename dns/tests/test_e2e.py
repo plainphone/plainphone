@@ -155,6 +155,11 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(GOOGLE_SAFE in answer.cname or bool(SAFE_IPS & set(answer.a)), on, (client, answer))
 
     # everyone ---------------------------------------------------------------
+    def test_filter_canary_answers_only_on_a_registered_dot_connection(self):
+        for client in (self.child, self.selfp):
+            answer = ask(client, "probe-01.plainphone-filter.test")
+            self.assertEqual(answer.a, ["192.0.2.42"])
+
     def test_allowed_domain_resolves_for_every_profile(self):
         for client in (self.child, self.selfp, self.self_adult):
             self.assertTrue(resolves(ask(client, "example.com")), client)

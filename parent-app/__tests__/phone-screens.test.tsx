@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; filterMethod?: "privateDns"; filterWorking?: boolean; filterIssue?: "wrongHost" } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -291,6 +291,28 @@ describe("contacts", () => {
 });
 
 describe("web filter", () => {
+  it("switches a light phone to Private DNS", async () => {
+    const phone = { ...PHONE, mode: "light" as const, status: {
+      lockIntact: false, failedPolicies: [], filterMethod: "privateDns" as const,
+      filterWorking: false, filterIssue: "wrongHost" as const,
+    } };
+    const api = phoneApi(phone, {
+      [`GET /phones/${PHONE.id}/dns`]: { body: { host: null, synced: true, filterMethod: "vpn", blockedCategories: [], allowDomains: [], blockDomains: [] } },
+      [`PUT /phones/${PHONE.id}/dns/method`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "filter") });
+    await fireEvent.press(await screen.findByTestId("filter-method"));
+    await waitFor(() => expect(api.calls.find((c) => c.method === "PUT")?.body).toEqual({ method: "privateDns" }));
+  });
+
+  it("shows the Private DNS host repair on the phone overview", async () => {
+    phoneApi({ ...PHONE, mode: "light", status: { lockIntact: false, failedPolicies: [],
+      filterMethod: "privateDns", filterWorking: false, filterIssue: "wrongHost" } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/different Private DNS host/)).toBeTruthy();
+  });
+
+
   it("keeps the filter limits available when the DNS settings fail to load", async () => {
     phoneApi(PHONE, { [`GET /phones/${PHONE.id}/dns`]: { status: 503, body: {} } });
     await renderRouter(routes, { initialUrl: at(PHONE, "filter") });
