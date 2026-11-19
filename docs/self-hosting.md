@@ -69,8 +69,8 @@ on the old server to stop offering a pending move.
 - **Filter method.** A Light phone's choice between the VPN filter and Private DNS travels with
   the move and is part of the checked rules, so a Private DNS phone moves like any other.
 - **Emergency fallback.** After a move the phone's fallback DNS host is the new server's
-  provisioning host (`PROVISIONING_DNS_HOST`, sent as `fallbackDnsHost` in the rules), or the
-  original one if the new server has none. It is never the phone's own per-phone host, which stops
+  provisioning host (`PROVISIONING_DNS_HOST`, which defaults to a public family DNS host and is sent
+  as `fallbackDnsHost` in the rules). Older servers send none, and then the phone keeps its original one. It is never the phone's own per-phone host, which stops
   answering if the phone is removed on the new server. Set `PROVISIONING_DNS_HOST` on the new server.
 - **Abandoned moves.** If a phone redeems its move but never finishes (the old server changed the
   rules or stopped offering the move meanwhile), the imported copy is freed once the invitation

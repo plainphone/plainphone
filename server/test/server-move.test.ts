@@ -294,20 +294,3 @@ it("keeps a redeemed phone that syncs just after the move expired, and frees one
   await sweep(h.ctx);
   expect((await h.ctx.db.select().from(phones).where(eq(phones.id, secondId)))[0]).toMatchObject({ awaitingServerMove: false, deviceTokenHash: null });
 });
-
-it("gives a moved phone no fallback host when the destination has no provisioning host", async () => {
-  const s = await servers();
-  const { device, phoneId } = await pairPhone(h, s.parent);
-  const transfer = await exportPhone(s, phoneId);
-  expect((await s.parent.post(`/api/phones/${phoneId}/server-move/start`, { exportId: transfer.exportId })).status).toBe(200);
-  const instruction = (await device.get("/api/device/rules")).json.move;
-  const bare = { ...s.destination.ctx, cfg: { ...s.destination.ctx.cfg, PROVISIONING_DNS_HOST: undefined } };
-  const destination = { ...h, ctx: bare, app: createApp(bare) };
-  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
-  expect(imported.status).toBe(201);
-  const moved = new Client(destination);
-  moved.token = randomToken("pp_d_");
-  expect((await moved.post("/api/device/move", { token: instruction.token, deviceToken: moved.token })).status).toBe(204);
-  // null tells the phone to keep the fallback host it already had.
-  expect((await moved.get("/api/device/move-rules")).json.fallbackDnsHost).toBeNull();
-});
