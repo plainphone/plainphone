@@ -9,6 +9,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.Compat
 import org.plainphone.app.MaintenanceActivity
 import org.plainphone.app.ui.PhoneActivity
@@ -34,8 +39,12 @@ class BlockedActivity : ComponentActivity() {
         val reason = runCatching { Reason.valueOf(intent.getStringExtra(EXTRA_REASON) ?: "") }.getOrDefault(Reason.OTHER)
         val label = label(intent.getStringExtra(EXTRA_PACKAGE))
         setContent {
+            val showParent by produceState(true) {
+                value = withContext(Dispatchers.IO) { !ContactPolicySources.get(this@BlockedActivity).rules().selfProfile }
+            }
             PlainphoneTheme {
                 BlockedScreen(
+                    showParent = showParent,
                     reason = reason,
                     appLabel = label,
                     onHome = ::goHome,

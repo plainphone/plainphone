@@ -13,8 +13,8 @@ cd android && ./gradlew --no-daemon testDebugUnitTest \
 Changed surfaces: `guard-*` (the calm screen for a used-up or unlisted app, also at 1.6x text),
 `dialer-*` (keypad, also at 1.6x text), `maintenance-*` (locked and lifted). The `home-*`,
 `history-*`, `ring-*`, `sharing-*`, `checkin-*`, `badge-*` and `setup-*` files come from the
-existing harness and are unchanged on purpose: the launcher dock already keeps the phone,
-messages, help and the emergency call outside the scrolling area.
+existing harness and are not changed by this branch. `before/` was taken on an older main, so
+the `home-*` pairs also differ by main's SOS dock; that difference is not part of this PR.
 
 Maintenance is drawn without the system status bar, so its title is partly clipped in both sets.
 

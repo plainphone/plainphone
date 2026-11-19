@@ -26,6 +26,7 @@ fun BlockedScreen(
     onHome: () -> Unit,
     onReachParent: () -> Unit,
     onEnterPin: () -> Unit,
+    showParent: Boolean = true,
 ) {
     val title: Int
     val body: Int
@@ -45,7 +46,8 @@ fun BlockedScreen(
         secondary = if (pin) stringResource(R.string.blocked_enter_pin) else null,
         onSecondary = onEnterPin,
     ) {
-        OutlinedButton(
+        // Not for the Self profile: there is no parent, and the button would open the user's own favourites.
+        if (showParent) OutlinedButton(
             onClick = onReachParent,
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = RoundedCornerShape(16.dp),

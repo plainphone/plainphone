@@ -13,7 +13,7 @@
     <string name="maintenance_title">Vedlikehold</string>
     <string name="maintenance_pin_hint">PIN-kode for foreldre</string>
     <string name="maintenance_unlock">Åpne</string>
-    <string name="maintenance_wrong_pin">Feil PIN-kode.</string>
+    <string name="maintenance_wrong_pin">PIN-koden stemmer ikke. Prøv igjen.</string>
     <string name="maintenance_install_limit">Alle installasjonsvinduer for i dag er brukt. Prøv igjen i morgen.</string>
     <string name="maintenance_install_unavailable">Denne appen venter ikke lenger på å bli installert.</string>
     <string name="maintenance_install_battery">La Plainphone kjøre uten batteribegrensninger, og prøv på nytt.</string>
@@ -98,7 +98,7 @@
     <string name="history_mms_placeholder">Bilde- eller gruppemelding. Innholdet kan ikke vises.</string>
     <string name="message_hint">Beskjed</string>
     <string name="message_failed">Ikke sendt</string>
-    <string name="message_send_failed">Meldingen kunne ikke sendes.</string>
+    <string name="message_send_failed">Meldingen kunne ikke sendes. Teksten din står her fortsatt.</string>
     <string name="message_not_approved">%1$s er ikke en godkjent kontakt, så meldinger kan ikke sendes.</string>
     <string name="keypad_hint">Kun godkjente kontakter og nødnumre (112).</string>
     <string name="call_not_allowed">Kun godkjente kontakter kan ringes opp. Nødnumre fungerer alltid.</string>
@@ -234,7 +234,7 @@
     <string name="blocked_time_body">Den åpner igjen i morgen. Samtaler og meldinger fungerer som alltid.</string>
     <string name="blocked_protection_title">Denne innstillingen er låst</string>
     <string name="blocked_protection_body">Bruk foreldrenes PIN-kode for å endre denne innstillingen.</string>
-    <string name="blocked_ok">OK</string>
+    <string name="blocked_ok">Tilbake til start</string>
     <string name="blocked_enter_pin">Skriv inn PIN</string>
     <string name="today_title">I dag</string>
     <string name="today_no_limits">Ingen tidsbegrensninger i dag.</string>

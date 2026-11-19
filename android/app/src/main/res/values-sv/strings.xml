@@ -13,7 +13,7 @@
     <string name="maintenance_title">Underhåll</string>
     <string name="maintenance_pin_hint">Förälders PIN-kod</string>
     <string name="maintenance_unlock">Öppna</string>
-    <string name="maintenance_wrong_pin">Fel PIN-kod.</string>
+    <string name="maintenance_wrong_pin">PIN-koden stämmer inte. Försök igen.</string>
     <string name="maintenance_install_limit">Alla installationsfönster för idag är använda. Försök igen imorgon.</string>
     <string name="maintenance_install_unavailable">Denna app väntar inte längre på att bli installerad.</string>
     <string name="maintenance_install_battery">Låt Plainphone köras utan batteribegränsningar och försök sedan igen.</string>
@@ -98,7 +98,7 @@
     <string name="history_mms_placeholder">Bild- eller gruppmeddelande. Innehållet kan inte visas.</string>
     <string name="message_hint">Meddelande</string>
     <string name="message_failed">Ej skickat</string>
-    <string name="message_send_failed">Meddelandet kunde inte skickas.</string>
+    <string name="message_send_failed">Meddelandet kunde inte skickas. Din text finns kvar här.</string>
     <string name="message_not_approved">%1$s är inte en godkänd kontakt, så meddelanden kan inte skickas.</string>
     <string name="keypad_hint">Endast godkända kontakter och larmnummer (112).</string>
     <string name="call_not_allowed">Endast godkända kontakter kan ringas. Nödnummer fungerar alltid.</string>
@@ -234,7 +234,7 @@
     <string name="blocked_time_body">Den öppnar imorgon igen. Samtal och meddelanden fungerar som alltid.</string>
     <string name="blocked_protection_title">Den här inställningen är låst</string>
     <string name="blocked_protection_body">Använd förälderns PIN-kod för att ändra denna inställning.</string>
-    <string name="blocked_ok">OK</string>
+    <string name="blocked_ok">Tillbaka till start</string>
     <string name="blocked_enter_pin">Ange PIN-kod</string>
     <string name="today_title">I dag</string>
     <string name="today_no_limits">Inga tidsgränser idag.</string>
