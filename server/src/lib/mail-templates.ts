@@ -17,10 +17,14 @@ function esc(s: string): string {
 }
 
 /**
- * Logo and mark live on the project site, so every instance (also self-hosted ones)
- * shows the same wordmark: ink on paper, like plainphone.org.
+ * The logo is the brand direction C lockup (docs/brand/README.md), rendered by
+ * web/scripts/make-icons.mjs into web/public/mail/. Every instance serves it from its own
+ * dashboard, so a self-hosted server shows the same logo without depending on plainphone.org.
  */
-const BRAND_ASSETS = "https://plainphone.org/mail";
+const logoUrl = (publicUrl: string, dark: boolean) =>
+  `${publicUrl.replace(/\/+$/, "")}/mail/lockup${dark ? "-dark" : ""}@2x.png`;
+/** Schibsted Grotesk where the reader has it, otherwise the system font. */
+const FONT = "'Schibsted Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const privacyUrl = { en: "https://plainphone.org/privacy/", da: "https://plainphone.org/da/privacy/" } as const;
 const privacyLabel = { en: "Privacy", da: "Privatliv" } as const;
 
@@ -33,19 +37,25 @@ interface LayoutInput {
   button: { label: string; url: string };
   afterButton: string[];
   footer: string;
+  /** Ink instead of signal green in dark (SOS): green only means "on", never alarm. */
+  neutral?: boolean;
 }
 
 /**
  * The one layout every Plainphone mail uses: tables and inline styles for old
  * clients, a hosted 2x PNG logo, a bulletproof button, a preheader and dark mode.
+ * Colours are the common tokens of brand direction C (docs/design-tokens.md): graphite
+ * on paper in light, and in dark the signal green as the action colour, like the dashboard
+ * (except `neutral` mails such as SOS, which keep an ink button).
  */
 export function layout(input: LayoutInput): string {
-  const logo = `${BRAND_ASSETS}/logo@2x.png`;
-  const logoDark = `${BRAND_ASSETS}/logo-dark@2x.png`;
+  const logo = logoUrl(input.publicUrl, false);
+  const logoDark = logoUrl(input.publicUrl, true);
+  const n = input.neutral ? " pp-neutral" : "";
   const p = (text: string) =>
-    `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1d2a30;" class="pp-text">${esc(text)}</p>`;
+    `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#141414;" class="pp-text">${esc(text)}</p>`;
   const small = (text: string) =>
-    `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#4c5a60;" class="pp-muted">${esc(text)}</p>`;
+    `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#525252;" class="pp-muted">${esc(text)}</p>`;
   return `<!doctype html>
 <html lang="${input.locale}" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -57,43 +67,45 @@ export function layout(input: LayoutInput): string {
 <style>
   :root { color-scheme: light dark; }
   @media (prefers-color-scheme: dark) {
-    .pp-body, .pp-outer { background:#121a1e !important; }
-    .pp-card { background:#172025 !important; border-color:#34433f !important; }
-    .pp-text, .pp-heading { color:#e3e8e4 !important; }
-    .pp-muted { color:#a5b1b3 !important; }
-    .pp-button { background:#e3e8e4 !important; }
-    .pp-button a { color:#172025 !important; }
-    .pp-link { color:#93c9de !important; }
+    .pp-body, .pp-outer { background:#0f0f0f !important; }
+    .pp-card { background:#1b1b1b !important; border-color:#7c7c78 !important; }
+    .pp-text, .pp-heading { color:#f2f2ef !important; }
+    .pp-muted { color:#b3b3ae !important; }
+    .pp-button { background:#c5f04a !important; }
+    .pp-button a { color:#141414 !important; }
+    .pp-link { color:#c5f04a !important; }
+    .pp-button.pp-neutral { background:#f2f2ef !important; }
+    .pp-link.pp-neutral { color:#f2f2ef !important; }
     .pp-logo-light { display:none !important; }
     .pp-logo-dark { display:block !important; max-height:none !important; overflow:visible !important; }
   }
   @media (max-width:600px) { .pp-card { padding:28px 20px !important; } }
 </style>
 </head>
-<body class="pp-body" style="margin:0;padding:0;background:#e8ece8;">
+<body class="pp-body" style="margin:0;padding:0;background:#f5f5f3;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${esc(input.preheader)}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="pp-outer" style="background:#e8ece8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="pp-outer" style="background:#f5f5f3;">
 <tr><td align="center" style="padding:32px 12px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
   <tr><td style="padding:0 4px 20px;">
-    <img src="${logo}" width="158" height="24" alt="Plainphone" class="pp-logo-light" style="display:block;border:0;outline:none;text-decoration:none;height:24px;width:158px;">
-    <!--[if !mso]><!--><div class="pp-logo-dark" style="display:none;max-height:0;overflow:hidden;"><img src="${logoDark}" width="158" height="24" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:24px;width:158px;"></div><!--<![endif]-->
+    <img src="${esc(logo)}" width="130" height="32" alt="Plainphone" class="pp-logo-light" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:130px;">
+    <!--[if !mso]><!--><div class="pp-logo-dark" style="display:none;max-height:0;overflow:hidden;"><img src="${esc(logoDark)}" width="130" height="32" alt="Plainphone" style="display:block;border:0;outline:none;text-decoration:none;height:32px;width:130px;"></div><!--<![endif]-->
   </td></tr>
-  <tr><td class="pp-card" style="background:#f8f9f7;border:1px solid #c3cbc7;border-radius:6px;padding:36px 32px;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <h1 class="pp-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#1d2a30;">${esc(input.heading)}</h1>
+  <tr><td class="pp-card" style="background:#ffffff;border:1.5px solid #141414;border-radius:6px;padding:36px 32px;font-family:${FONT};">
+    <h1 class="pp-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#141414;">${esc(input.heading)}</h1>
     ${input.paragraphs.map(p).join("\n    ")}
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
-    <tr><td class="pp-button" bgcolor="#1d2a30" style="border-radius:6px;background:#1d2a30;">
-      <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="12%" fillcolor="#1d2a30" stroke="f"><center style="color:#f3f5f2;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
-      <!--[if !mso]><!--><a href="${esc(input.button.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:600;line-height:20px;color:#f3f5f2;text-decoration:none;border-radius:6px;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${esc(input.button.label)}</a><!--<![endif]-->
+    <tr><td class="pp-button${n}" bgcolor="#141414" style="border-radius:24px;background:#141414;">
+      <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(input.button.url)}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="50%" fillcolor="#141414" stroke="f"><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${esc(input.button.label)}</center></v:roundrect><![endif]-->
+      <!--[if !mso]><!--><a href="${esc(input.button.url)}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;line-height:20px;color:#ffffff;text-decoration:none;border-radius:24px;font-family:${FONT};">${esc(input.button.label)}</a><!--<![endif]-->
     </td></tr>
     </table>
     ${input.afterButton.map(small).join("\n    ")}
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#4c5a60;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link" style="color:#1d5870;">${esc(input.button.url)}</a></p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#525252;word-break:break-all;" class="pp-muted"><a href="${esc(input.button.url)}" class="pp-link${n}" style="color:#141414;">${esc(input.button.url)}</a></p>
   </td></tr>
-  <tr><td style="padding:20px 4px 0;font-family:'Atkinson Hyperlegible Next',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#4c5a60;" class="pp-muted">${esc(input.footer)}</p>
-    <p style="margin:0;font-size:12px;line-height:1.6;color:#4c5a60;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link" style="color:#1d5870;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link" style="color:#1d5870;">plainphone.org</a></p>
+  <tr><td style="padding:20px 4px 0;font-family:${FONT};">
+    <p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted">${esc(input.footer)}</p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:#525252;" class="pp-muted"><a href="${privacyUrl[input.locale]}" class="pp-link${n}" style="color:#141414;">${privacyLabel[input.locale]}</a> &middot; <a href="https://plainphone.org${input.locale === "da" ? "/da/" : "/"}" class="pp-link${n}" style="color:#141414;">plainphone.org</a></p>
   </td></tr>
   </table>
 </td></tr>
@@ -303,6 +315,17 @@ export function phoneAlertMail(
         ? "Du kan slå disse beskeder fra for telefonen under Indstillinger i Plainphone."
         : "You can turn these messages off for this phone under Settings in Plainphone.",
     ],
+    footer: footer[locale],
+  });
+}
+
+export function sosMail(to: string, locale: Locale, publicUrl: string, phoneId: string, heading: string, message: string): Mail {
+  return build(to, heading, {
+    publicUrl, locale, preheader: message, heading,
+    paragraphs: [message],
+    button: { label: locale === "da" ? "Åbn SOS i Plainphone" : "Open SOS in Plainphone", url: new URL(`/phones/${phoneId}`, publicUrl).href },
+    afterButton: [],
+    neutral: true,
     footer: footer[locale],
   });
 }

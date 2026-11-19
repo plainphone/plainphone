@@ -29,8 +29,26 @@ function ContactsList() {
   const [number, setNumber] = useState("");
   const [errors, setErrors] = useState<{ name?: string; number?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [sosError, setSosError] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const waitingAdds = pending.flatMap((c) => (c.op.type === "contact.add" ? [c.op] : []));
+
+  async function markParent(contact: Contact) {
+    setMarking(true);
+    setSosError(false);
+    try {
+      await unwrap(client.PUT("/phones/{pid}/contacts/{cid}/sos-parent", {
+        params: { path: { pid: phone.id, cid: contact.id } },
+        body: { enabled: !contact.sosParent },
+      }));
+      await res.reload();
+    } catch {
+      setSosError(true);
+    } finally {
+      setMarking(false);
+    }
+  }
 
   async function add() {
     const n = cleanNumber(number);
@@ -94,6 +112,7 @@ function ContactsList() {
         <Notice tone="info" text={t("contacts.lightEmptyWarning")} />
       )}
 
+      {sosError && <Notice tone="warn" text={t("sos.error")} />}
       <LoadGate res={res}>
         {({ contacts: list }) =>
           list.length === 0 && waitingAdds.length === 0 ? (
@@ -102,6 +121,10 @@ function ContactsList() {
             <VStack gap={space.sm}>
               {list.map((c) => (
                 <ItemRow key={c.id} testID={`contact-${c.id}`} title={c.name} meta={c.number} mono>
+                  {!self && <Button kind="plain"
+                    title={t(c.sosParent ? "sos.unmark" : "sos.mark")}
+                    disabled={marking}
+                    onPress={() => void markParent(c)} />}
                   <Button
                     kind="secondary"
                     title={t("app.remove")}

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { MessageKey, T } from "../i18n/translate";
+import type { Locale } from "./api";
 import { formatRelative } from "./format";
 import { filterStatusKey } from "./filter-status";
+import { phoneState, type PhoneStateInput } from "./phone-state";
 
 const PHONE_STATUS_STALE_MS = 20 * 60_000;
 
-type PhoneHealth = {
+type PhoneHealth = PhoneStateInput & {
   mode: "strong" | "light";
-  lastSeenAt: string | null;
   dnsConfigured?: boolean;
   dnsReady?: boolean;
   status?: {
@@ -29,10 +30,15 @@ function recent(when: string | null | undefined, now: number): boolean {
   return !!when && now - Date.parse(when) < PHONE_STATUS_STALE_MS;
 }
 
-export function receiptText(receipt: RuleReceipt, lastSeenAt: string | null, now: number, locale: "da" | "en", t: T): string {
+/** The exact time is the only part that is not in the shared status copy (phone-state.ts). */
+export function receiptText(receipt: RuleReceipt, phone: PhoneStateInput, now: number, locale: Locale, t: T): string {
   if (!receipt.appliedAt) {
-    if (!recent(lastSeenAt, now)) return t("receipt.offline");
-    return t(receipt.needsUpdate ? "receipt.updatePhone" : "receipt.waiting");
+    const state = phoneState(phone, now);
+    // Offline or never connected: say it the same way as everywhere else.
+    if (state.state === "stale" || state.state === "neverConnected") {
+      return t(state.hint, { when: state.at ? formatRelative(state.at, now, locale) : "" });
+    }
+    return t(receipt.needsUpdate ? "receipt.updatePhone" : "status.waiting.hint");
   }
   const appliedAt = Date.parse(receipt.appliedAt);
   const confirmation = receipt.confirmedAt ? Date.parse(receipt.confirmedAt) : now;
@@ -56,7 +62,7 @@ const LIGHT_CHECKS = [
 
 type HealthRow = { key: string; label: string; detail: string; action?: boolean };
 
-export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en", t: T): HealthRow[] {
+export function healthRows(phone: PhoneHealth, now: number, locale: Locale, t: T): HealthRow[] {
   const seen = recent(phone.lastSeenAt, now);
   // A recent rules poll can arrive without a new status report. Use each timestamp separately.
   const status = seen && recent(phone.status?.reportedAt, now) ? phone.status : undefined;
@@ -90,9 +96,7 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
     },
     {
       key: "lastSeen", label: t("health.lastSeen"),
-      detail: phone.lastSeenAt
-        ? t(seen ? "health.seen" : "health.seenOffline", { when: formatRelative(phone.lastSeenAt, now, locale) })
-        : t("health.neverSeen"),
+      detail: lastContact(phone, seen, now, locale, t),
     },
   ];
   if (phone.mode === "light") {
@@ -112,4 +116,13 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
     }
   }
   return rows;
+}
+
+/** The shared status title; when the phone is quiet or has never connected, its hint says what to do. */
+function lastContact(phone: PhoneHealth, seen: boolean, now: number, locale: Locale, t: T): string {
+  const state = phoneState(phone, now);
+  const when = state.at ? formatRelative(state.at, now, locale) : "";
+  const title = t(state.title, { when });
+  if (state.state === "stale" || state.state === "neverConnected") return `${title}. ${t(state.hint, { when })}`;
+  return seen ? title : `${title}. ${t("health.reconnect")}`;
 }

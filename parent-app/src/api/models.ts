@@ -6,10 +6,19 @@
 
 import type { components } from "./schema";
 
-export type Locale = "en" | "da";
+import type { Language, PhoneLanguage } from "../shared/lib/phone-language";
+
+export type Locale = Language;
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
+/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
+export type OpenCategory = "social" | "gambling" | "adult";
+export interface OpenModeState {
+  enabled: boolean;
+  categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
+  blockedApps: { packageName: string; label: string }[];
+}
 
 export interface User {
   id: string;
@@ -22,15 +31,33 @@ export interface Me {
   mailEnabled: boolean;
 }
 export interface Phone {
+  pushWakeups?: boolean;
+  preferUnifiedPush?: boolean;
   id: string;
   name: string;
   profile: Profile;
   mode: "strong" | "light";
+  /** Every app is allowed except the block list. Missing on old servers. */
+  openMode?: boolean;
   timezone: string;
+  language?: PhoneLanguage;
+  lockSystemLanguage?: boolean;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
+  supportEnabled?: boolean;
+  releaseWarningsEnabled?: boolean;
+  releaseSyncCount?: number;
+  androidVersion?: string | null;
+  releaseRequestedAt?: string | null;
+  setupQrAvailable?: boolean;
+  allowServerMove?: boolean;
+  awaitingServerMove?: boolean;
   lastSeenAt: string | null;
+  /** Only on a single phone: whether it has confirmed the rules the server holds now. */
+  rulesCurrent?: boolean | null;
+  offlineAlertHours?: number | null;
+  offlineAlertHoursDefault?: number;
   dnsHost: string;
   dnsSynced: boolean;
   hasLocation: boolean;
@@ -46,9 +73,14 @@ export interface App {
   packageName: string;
   label: string;
   allowed: boolean;
+  /** Open mode: on the block list, one by one or with a category. */
+  blocked?: boolean;
+  /** Set when a blocked category blocks the app. */
+  blockedBy?: OpenCategory;
   core: boolean;
 }
 export interface Contact {
+  sosParent?: boolean;
   id: string;
   name: string;
   number: string;
@@ -173,6 +205,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: components["schemas"]["FilterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -183,6 +217,8 @@ export type Op =
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
+  | { type: "move.allow"; allowed: boolean }
+  | { type: "move.start"; exportId: string; serverUrl: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }
@@ -194,7 +230,7 @@ export interface Limit {
   days: Partial<Record<string, number>>;
 }
 
-export type ApprovalSummary = Record<Locale, string>;
+export type ApprovalSummary = Record<"en" | "da", string>;
 
 export interface PendingChange {
   summary?: ApprovalSummary;

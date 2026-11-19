@@ -69,18 +69,20 @@ describe("phone health", () => {
 
 describe("rule confirmations", () => {
   const waiting = { appliedAt: null, confirmedAt: null };
-  it("distinguishes waiting for a connected phone from a likely offline one", () => {
-    expect(receiptText(waiting, at(10), now, "en", t)).toBe(t("receipt.waiting"));
-    expect(receiptText({ ...waiting, needsUpdate: true }, at(10), now, "en", t)).toBe(t("receipt.updatePhone"));
-    expect(receiptText(waiting, at(21), now, "en", t)).toBe(t("receipt.offline"));
+  it("uses the shared status copy for waiting, offline and never connected", () => {
+    const hours = (h: number) => at(h * 60);
+    expect(receiptText(waiting, { lastSeenAt: at(10) }, now, "en", t)).toBe(t("status.waiting.hint"));
+    expect(receiptText({ ...waiting, needsUpdate: true }, { lastSeenAt: at(10) }, now, "en", t)).toBe(t("receipt.updatePhone"));
+    expect(receiptText(waiting, { lastSeenAt: hours(25) }, now, "en", t)).toBe(t("status.stale.hint"));
+    expect(receiptText(waiting, { lastSeenAt: null }, now, "en", t)).toBe(t("status.never.hint"));
   });
 
   it("keeps the confirmation time visible while offline and handles an ahead phone clock", () => {
     const time = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
       .format(new Date(at(1)));
-    expect(receiptText({ appliedAt: at(1), confirmedAt: at(0) }, at(30), now, "en", t))
+    expect(receiptText({ appliedAt: at(1), confirmedAt: at(0) }, { lastSeenAt: at(30) }, now, "en", t))
       .toBe(t("receipt.appliedAt", { time }));
-    expect(receiptText({ appliedAt: at(-15), confirmedAt: at(1) }, at(0), now, "en", t))
+    expect(receiptText({ appliedAt: at(-15), confirmedAt: at(1) }, { lastSeenAt: at(0) }, now, "en", t))
       .toBe(t("receipt.confirmedAt", { time }));
   });
 });

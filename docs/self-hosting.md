@@ -21,6 +21,78 @@ it. Then set `TRUST_PROXY=true` and stop publishing port 8080 to the internet, s
 see each client's own address. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
 pairing QR code.
 
+## Connect the apps
+
+In the native parent app, select **Use your own server** at sign-in or in Settings.
+Enter the same HTTPS origin you set as `PUBLIC_URL`. The server must return
+`ok: true` and `compatibility: 1` from `/api/health`. Sign in again after changing servers.
+If your server cannot send sign-in mail, you can still select **Use plainphone.org**
+from the same sign-in screen.
+
+For a new Light setup without a dashboard QR, choose **Use your own server** on
+the pairing step before generating the pairing code. When you use a setup link or
+QR from your dashboard, the address is already included. Strong uses the address
+from its provisioning QR. On Android, the address is shown under Maintenance
+after the parent PIN is entered.
+
+## Move to your own server
+
+A household owner can copy one phone or a whole household's phone list and rules, then
+switch the paired phones without resetting them. Both servers need the move feature and a
+valid HTTPS address. Update the phone app before starting. The destination needs a working
+[filter DNS service](self-hosting-dns.md) with `DNS_PROVIDER=http`. If a Strong phone has
+factory reset protection, connect the same Google accounts on the new server first. If a
+Myself phone uses a trusted helper, ask the helper to sign in on the new server in a separate
+household before importing.
+
+1. On the current server, open **Household → Move to another server**. Enable **Allow moving
+   this phone to another server** on the overview of each phone you want to switch. It is on
+   by default for Child phones. A Myself phone needs its key when enabling moving and again
+   when starting the move.
+2. Open **Household → Move to another server** on the new server in another tab. Copy the old
+   server's code from the first tab into the second, then create an invitation.
+3. Paste the invitation into the old server's tab. Select one phone or the entire household
+   and download the encrypted file. Keep both tabs open.
+4. In the new server's tab, select the file and import it. The invitation and file expire
+   after seven days. Each invitation accepts one import. Make a fresh invitation if the
+   export expires or the rules change before the phone switches.
+5. Back on the old server, start the move for each phone you want to switch. Keep the old
+   server and DNS service running until the phone checks in on the new server and shows the
+   new server address in Android's **Maintenance** screen. You can then remove the old copy.
+
+The phone keeps its Device Owner or Light setup, maintenance PIN, and lock. If the new
+server or filter is unavailable, the phone keeps its current protection and retries while
+its old server still offers the move. It verifies the new rules and tests the new DNS host
+before committing the new connection. Turn off **Allow moving this phone to another server**
+on the old server to stop offering a pending move.
+
+- **Filter method.** A Light phone's choice between the VPN filter and Private DNS travels with
+  the move and is part of the checked rules, so a Private DNS phone moves like any other.
+- **Emergency fallback.** After a move the phone's fallback DNS host is the new server's
+  provisioning host (`PROVISIONING_DNS_HOST`, which defaults to a public family DNS host and is sent
+  as `fallbackDnsHost` in the rules). Older servers send none, and then the phone keeps its original one. It is never the phone's own per-phone host, which stops
+  answering if the phone is removed on the new server. Set `PROVISIONING_DNS_HOST` on the new server.
+- **Abandoned moves.** If a phone redeems its move but never finishes (the old server changed the
+  rules or stopped offering the move meanwhile), the imported copy is freed once the invitation
+  expires: the background sweep clears its pending state and a normal setup QR code works again.
+  A phone that has redeemed gets a further full window (7 days) to make its first sync with the new
+  server, so one that loses the network right after redeeming is not locked out.
+- **Last-moment switch-off.** The phone checks that the old server still offers the move just before
+  it commits. A switch-off in the few milliseconds after that check cannot stop the move, but
+  the phone only moves into protection rules verified identical to the old ones, so it is no less protected.
+- **Import limits.** An imported file is validated with the same rules as the dashboard (name length,
+  phone numbers, package names, domains, key delay and pay-to-unlock values). The signature only
+  proves which server sent it, not that its values are sensible.
+
+The file contains phone profiles, contacts, app rules, schedules, time limits, DNS preferences,
+and phone settings. It excludes login credentials, locations, status and activity history.
+Household members sign in and can be invited separately on the new server. The old server
+signs the export with Ed25519. Only the invitation's new server can decrypt it using JWE
+(ECDH-ES and AES-256-GCM), and that server verifies the signature against the old server's code.
+
+To relocate a self-hosted instance while keeping its existing URL, use a full
+[database backup](#backups) and follow the [DNS backup and restore guide](self-hosting-dns.md).
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -28,7 +100,7 @@ pairing QR code.
 | `DATABASE_URL` | (set by compose) | PostgreSQL connection string |
 | `PUBLIC_URL` | | Public address of the parent app |
 | `MAIL_PROVIDER` | `none` | `none` sends nothing (nobody can sign in until you configure mail), `smtp` uses `SMTP_URL`. `log` prints mails to stdout and is refused in production |
-| `SMTP_URL` | | e.g. `smtps://user:pass@smtp.example.org:465` |
+| `SMTP_URL` | | e.g. `smtps://user:pass@smtp.example.org:465`. Missing or invalid: mail is switched off and `/api/health` says so |
 | `MAIL_FROM` | `Plainphone <no-reply@plainphone.org>` | Sender |
 | `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`) |
 | `DNS_HOST_SUFFIX` | `dns.plainphone.org` | Phones use `<clientId>.<suffix>` as private DNS |
@@ -84,3 +156,22 @@ pnpm dev:web                              # Vite on :5173, proxies /api to :8080
 
 Schema changes: edit `server/src/db/schema.ts`, then `pnpm --filter @plainphone/server db:generate`
 and commit the new file in `server/drizzle/`.
+
+## Native parent push and faster rule updates
+
+Follow [push setup](push-setup.md) for Firebase and Apple credentials. Configure server secrets in the app container environment. To use the service-account file variant in Docker, add a read-only mount in a Compose override and set `FCM_SERVICE_ACCOUNT_FILE` to the container path. For example, mount a file from the host's secret directory at `/run/secrets/plainphone-fcm.json:ro`. The APK and parent app need their own Firebase client configuration only when building with FCM.
+
+`PUSH_PROVIDER=none` (the default) keeps phone sync on polling. `fcm` prefers FCM if the server has credentials and the APK can acquire a token, with UnifiedPush as a fallback when allowed. `unifiedpush` uses UnifiedPush only. The phone must also opt in via **Faster rule updates**. To skip FCM for just one phone, enable **Wakeups without Google** for that phone and keep the server on `fcm` with UnifiedPush configured. The server can send native parent alerts with any of these settings.
+
+## UnifiedPush with ntfy
+
+1. On the push host, run [the ntfy Compose stack](../deploy/ntfy-compose.yaml) with `NTFY_BASE_URL=https://push.example.org`. For the project's hosted instance, use the planned push host and attach the service to the HTTPS reverse proxy so it can reach `ntfy:80`. Proxy streaming and WebSocket connections, and keep the ntfy data volume.
+2. On the Plainphone server set `PUSH_EXTRA_HOSTS=push.example.org`. Allow only hosts you operate or explicitly trust to receive wake hints. Use a dedicated hostname. Set `PUSH_PROVIDER=unifiedpush` to skip FCM, or `fcm` to use ntfy as the fallback.
+3. On the child phone install the [ntfy Android app](https://docs.ntfy.sh/subscribe/phone/) and configure the HTTPS base URL in its UnifiedPush distributor settings. For Google-free delivery use the F-Droid build and ntfy instant delivery. In the parent interface, enable **Faster rule updates** for the phone. If several distributors are installed, Plainphone keeps the one already registered, or prefers ntfy for a new registration.
+4. Keep endpoint URLs private. They are capabilities. The example stack permits anonymous access for the distributor-generated topics and should run as a dedicated instance with normal proxy and ntfy rate limits. For the child wake channel, only a short reason goes through ntfy. Plainphone does not send names, rules or locations.
+
+See [ntfy configuration](https://docs.ntfy.sh/config/) and the [UnifiedPush Android protocol](https://unifiedpush.org/developers/spec/android/).
+
+## Optional settings degrade, they do not crash
+
+Only required settings (such as `DATABASE_URL`, and `DNS_API_URL` and `DNS_API_TOKEN` when `DNS_PROVIDER=http`) stop the server at startup. Invalid settings for FCM, APNs, Web Push (VAPID) or SMTP switch that integration off, log one line without the secret, and show up in `GET /api/health` as `push.errors` and `errors`. See [push setup](push-setup.md#invalid-settings-switch-a-provider-off-they-do-not-stop-the-server) for the accepted formats and messages.

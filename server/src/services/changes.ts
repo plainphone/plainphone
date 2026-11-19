@@ -4,7 +4,7 @@
 // change that tightens the rules, it applies at once. On a Self phone a change
 // that loosens the rules waits for the key: a delay, or a trusted person (D12).
 
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   contacts,
   dnsSettings,
@@ -14,6 +14,7 @@ import {
   pendingChanges,
   phoneApps,
   phoneSettings,
+  phoneMoves,
   phones,
   schedules,
   selfKeys,
@@ -37,8 +38,10 @@ import { approvalBonusDate, approvalRevision, loadApprovalSummaries } from "./ap
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
+import { categoryPackages, isAppCategory, type OpenCategory } from "../lib/open-mode.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
+import { activateMove, MoveError } from "./server-move.js";
 import { nextRulesRevision, wakePhone } from "./phones.js";
 
 export type Op =
@@ -48,6 +51,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: Phone["filterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -58,6 +63,8 @@ export type Op =
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
+  | { type: "move.allow"; allowed: boolean }
+  | { type: "move.start"; exportId: string; serverUrl: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }
@@ -120,9 +127,21 @@ async function showsHiddenApp(db: DbLike, phoneId: string, packages: string[]): 
   return visible.length < new Set(packages).size;
 }
 
+/** Whether falling back to the allow-list would show an app that open mode blocks. */
+async function allowListShowsBlocked(db: DbLike, phone: Phone): Promise<boolean> {
+  const rows = await db
+    .select({ p: phoneApps.packageName, blocked: phoneApps.explicitlyBlocked })
+    .from(phoneApps)
+    .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true), eq(phoneApps.allowed, true)));
+  const byCategory = new Set(categoryPackages(phone.blockedAppCategories));
+  return rows.some((r) => r.blocked || byCategory.has(r.p));
+}
+
 /** Whether an op makes the rules less strict, judged against the current state. */
 export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boolean> {
   switch (op.type) {
+    case "move.allow": return op.allowed;
+    case "move.start": return true;
     case "app.set":
       return op.allowed;
     case "contact.add":
@@ -134,6 +153,14 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "dns.method":
       return phone.filterMethod !== op.method;
     case "dns.category":
+      return !op.blocked;
+    case "openMode.set":
+      // Open mode lets every app in, so turning it on goes through the key. Turning it off
+      // goes back to the allow-list. That only tightens, unless an app that open mode blocks
+      // (a blocked category, or one blocked app) still has allowed=true there.
+      if (op.enabled) return !phone.openMode;
+      return phone.openMode && (await allowListShowsBlocked(db, phone));
+    case "openMode.category":
       return !op.blocked;
     case "dns.allowDomain":
       return op.present;
@@ -295,6 +322,24 @@ export async function deletePhone(db: DbLike, phoneId: string): Promise<string |
 /** Applies an op. Idempotent where it can be, since a delayed op may meet a changed state. */
 export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusDate?: string): Promise<{ dns: boolean }> {
   switch (op.type) {
+    case "move.allow":
+      await db.update(phones).set({ allowServerMove: op.allowed }).where(eq(phones.id, phone.id));
+      if (!op.allowed) {
+        await db.update(phoneMoves).set({ active: false }).where(and(eq(phoneMoves.phoneId, phone.id), eq(phoneMoves.direction, "outgoing")));
+        await db.update(pendingChanges).set({ status: "cancelled", decidedAt: ctx.now() }).where(and(
+          eq(pendingChanges.phoneId, phone.id), eq(pendingChanges.status, "pending"),
+          sql`${pendingChanges.op}->>'type' in ('move.allow', 'move.start')`,
+        ));
+      }
+      return { dns: false };
+    case "move.start":
+      try { await activateMove(ctx, db, phone, op.exportId); }
+      catch (err) {
+        if (err instanceof MoveError) throw new ChangeError(409, err.message);
+        throw err;
+      }
+      return { dns: false };
+
     case "app.set":
       await db
         .update(phoneApps)
@@ -327,6 +372,25 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
         })
         .where(eq(dnsSettings.phoneId, phone.id));
       return { dns: true };
+    }
+    case "openMode.set":
+      await db.update(phones).set({ openMode: op.enabled }).where(eq(phones.id, phone.id));
+      return { dns: false };
+    case "openMode.category": {
+      // One action: the category's known apps go on (or off) the block list and the DNS
+      // category follows, so the two never disagree.
+      if (isAppCategory(op.category)) {
+        const col = phones.blockedAppCategories;
+        await db
+          .update(phones)
+          .set({
+            blockedAppCategories: op.blocked
+              ? sql`array_append(array_remove(${col}, ${op.category}::text), ${op.category}::text)`
+              : sql`array_remove(${col}, ${op.category}::text)`,
+          })
+          .where(eq(phones.id, phone.id));
+      }
+      return applyOp(ctx, db, phone, { type: "dns.category", category: op.category, blocked: op.blocked });
     }
     case "dns.allowDomain":
     case "dns.blockDomain": {
@@ -429,7 +493,8 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
     case "phone.release":
       // The phone is woken by the caller (see submitChange). It switches Plainphone off and
       // then calls POST /device/released, which deletes the phone (see deletePhone).
-      await db.update(phones).set({ releaseRequestedAt: ctx.now() }).where(eq(phones.id, phone.id));
+      await db.update(phones).set({ releaseRequestedAt: ctx.now() })
+        .where(and(eq(phones.id, phone.id), isNull(phones.releaseRequestedAt)));
       return { dns: false };
     case "timeLimit.set": {
       const where = and(eq(timeLimits.phoneId, phone.id), eq(timeLimits.packageName, op.packageName));
@@ -576,7 +641,7 @@ export async function submitChange(
   const { notify, ...pending } = result;
   if (notify) {
     await mailTrustedPerson(ctx, notify, phone.name);
-    await notifyUsers(ctx, [notify], { type: "approval", phoneName: phone.name });
+    await notifyUsers(ctx, [notify], { type: "approval", phoneName: phone.name }, { respectMuteFor: phone.id });
   }
   return pending;
 }

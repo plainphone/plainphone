@@ -13,6 +13,8 @@ const h = useHarness();
 async function selfPhone() {
   const me = await signIn(h, "adult@example.org");
   const { phoneId, device } = await pairPhone(h, me, { name: "My phone", profile: "self" });
+  // These tests are about the key, with the app allow-list as the example. Open mode has its own tests.
+  await h.ctx.db.update(phones).set({ openMode: false }).where(eq(phones.id, phoneId));
   await device.put("/api/device/apps", {
     apps: [
       { packageName: "com.instagram.android", label: "Instagram" },
@@ -301,7 +303,8 @@ describe("Self profile with a trusted person", () => {
     expect((await approve(me, first, fresh)).status).toBe(404);
     expect((await approve(helper, second, fresh)).status).toBe(409);
     expect((await approve(helper, first, fresh)).status).toBe(204);
-    expect((await approve(helper, first, fresh)).status).toBe(409);
+    // Repeating the same answer is safe and changes nothing.
+    expect((await approve(helper, first, fresh)).status).toBe(204);
     expect((await helper.get("/api/approvals")).json.approvals.map((a: { id: string }) => a.id)).toEqual([second]);
   });
 

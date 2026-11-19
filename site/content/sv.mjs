@@ -5,9 +5,8 @@ export default {
   path: "/sv/",
   title: "Plainphone | Föräldrakontroll för barnets första Android-mobil",
   description: "Gör en Android till barnets första mobil eller en enkel telefon för dig själv. Behåll samtal och viktiga appar och välj vilka appar och webbplatser du vill begränsa.",
-  ogAlt: "Plainphone: din telefon, minus bruset.",
+  ogAlt: "Plainphone: Din telefon utan allt brus. Samtal, sms och kamera är på, sociala medier och appbutiken är av.",
   landing: {
-    product: "Produkt",
     setup: "Installation",
     faq: "Frågor",
     menu: "Meny",
@@ -19,9 +18,8 @@ export default {
     project: "Projekt",
     languages: "Språk",
     day: ["Första dagen med Plainphone", "Välj starkt eller lätt läge i föräldrapanelen.", "Välj vem som ska använda telefonen.", "Följ guiden och anslut telefonen.", "Kom överens om reglerna och testa samtal och de appar ni behöver."],
-    child: ["Det här ser ditt barn", "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats."],
-    visual: ["Plainphones installationsskärm med val av starkt eller lätt läge", "Installationen i föräldrapanelen (visas på danska).", "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part."],
-    diagram: "Android 10 eller senare",
+    childSees: "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats.",
+    privacyNote: "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part.",
     groups: {
       gettingStarted: "Kom igång",
       safety: "Säkerhet",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Din telefon utan allt brus.",
     lead: "Plainphone gör en Android-telefon till en telefon med samtal, sms och de appar du väljer.",
-    staysLabel: "Det som är kvar",
-    stays: ["Samtal", "Meddelanden", "Kamera"],
-    goesLabel: "Det du kan välja bort",
-    goes: ["Sociala medier och spel som du väljer bort", "Utvalda webbplatser, med webbfiltret", "Appbutiker, om du inte tillåter dem"],
   },
   who: {
     title: "Vem är det till för?",
@@ -109,7 +103,7 @@ export default {
     ],
     guide: "Öppna installationsguiden",
     available: "Du kan redan välja godkända kontakter, filtrera webbplatser efter kategori och aktivera historik för sms, samtal och kontakter. Telefonens filteradress går också att använda på en router eller med en VPN. Telefonen kan uppdatera sig själv och servern kan ta säkerhetskopior.",
-    note: "Kommer snart: SOS och möjlighet för föräldrar att välja språk på telefonen.",
+    note: "SOS: ditt barn kan hålla in en knapp för att skicka ett brådskande SOS eller en hjälpförfrågan. Föräldrarna får positionen om platsdelning är på, och om telefonen är offline kan ett sms skickas i stället. 112 finns på samma skärm.",
   },
   open: {
     title: "Öppen källkod",
@@ -261,6 +255,7 @@ export default {
           {
             list: [
               "namnet den vuxne ger telefonen, om det är ett barns eller en vuxens egen telefon, dess tidszon och när den senast kontaktade servern",
+              "språket i Plainphone på telefonen, om den vuxna har valt ett",
               "några korta fakta som telefonen rapporterar när den kopplas ihop, som dess modell och Android-version, och dess senaste status: batterinivå, appversion, om dess lås är intakt och vilken webbfilteradress den använder. Varje rapport ersätter den tidigare",
               "om du aktiverar skydd mot återställning behåller ditt hushåll ditt numeriska Google-konto-ID och när det länkades. Koppla bort den i hushållsinställningarna för att radera den, eller ta bort ditt Plainphone-konto. Vi lagrar inte din Google-e-postadress eller inloggningstokens för den här funktionen",
               "för en telefon i starkt läge, den senaste systemkontrollen, inklusive om bootloadern är låst, säkerhetskorrigeringsnivån och kontrolltiden. Varje kontroll ersätter den föregående, och om du tar bort telefonen raderas den. Vi behåller inte dess certifikatkedja",
@@ -388,6 +383,10 @@ export default {
                   "Inbjudningar",
                   "Raderad när den accepteras. Annars slutar de fungera efter 7 dagar och raderas en dag senare. Du kan när som helst dra tillbaka en öppen inbjudan",
                 ],
+                [
+                  "Hashvärden för installationskoder och sparade installationsinställningar",
+                  "Kan rensas bort 30 dagar efter att koden har gått ut. De raderas när telefonen tas bort",
+                ],
                 ["Webbfilterräknare", "24 timmar"],
                 [
                   "Säkerhetskopiering av databasen",
@@ -445,13 +444,13 @@ export default {
     question: "Är telefonen ny eller används redan?",
     strong: "Den är ny eller återställd",
     strongHelp: "Rekommenderad. Plainphone kan skydda fler inställningar på en ny telefon.",
+    strongLanguage: "Välj telefonens språk innan du visar QR-koden. Android använder språket under installationen. Du kan ändra språket i Plainphone senare i telefonens inställningar på kontrollpanelen.",
     light: "Den är redan i bruk",
     lightHelp: "Behåll telefonens data och aktivera skyddet i Android-inställningarna.",
     startStrong: "Starta installationen för en ny eller återställd telefon",
     startLight: "Starta konfigurationen för en telefon som används",
+    stepsLink: "Se stegen",
     start: "I kontrollpanelen, säg vem telefonen är till för och skapa en inställningslänk.",
-    strongTitle: "Ny eller återställd telefon",
-    lightTitle: "Telefonen används redan",
     lightSteps: [
       ["Öppna nedladdningen på telefonen", "Skanna koden från kontrollpanelen med telefonens kamera eller öppna den privata länken i Chrome på den telefonen.", "lightScan"],
       ["Installera Plainphone", "Ladda ner appen och öppna filen. Om Android blockerar det trycker du på Inställningar, aktiverar Tillåt från den här källan, går tillbaka och trycker på Installera.", "download"],
@@ -548,7 +547,7 @@ export default {
     maintained: "Plainphone underhålls av <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
     setup: "Guide: <a href=\"/sv/setup/\">Konfigurera en telefon</a>.",
     privacy: "Den här webbplatsen lägger inga cookies och kör inga analyser. <a href=\"/sv/privacy/\">Integritetspolicy</a>.",
-    license: "Kod under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Teckensnitt: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Kod under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Teckensnitt: Schibsted Grotesk och IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Sidan hittades inte",

@@ -191,9 +191,13 @@ parent (PWA)                                server                          phon
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
   24 hours and is bound to the phone entry. `POST /phones/{pid}/enrollment` makes a new one for a
   phone that is not set up yet; older tokens for it stop working.
-- `404` (unknown) and `410` (used, expired, or the entry is already paired) are final: the phone
-  drops the token. Strong setup falls back to code pairing. A phone using the light setup link asks the parent for a new link. If the `200` answer is lost, the same
-  phone (same `installId`) may ask again for 60 minutes and gets a new device token.
+- Superseded tokens return `410` with `code: outdated_qr`. When redemption first detects
+  a configuration mismatch it invalidates the token and returns `409`. Enrollment cleanup
+  can remove token hashes and their snapshots starting 30 days after expiry.
+- If a strong provisioning token receives `404`, `409` or `410`, the phone saves the rejection
+  and asks for a factory reset and a new QR code. A superseded light setup link asks for a
+  new link. If the `200` answer is lost, the same phone (same `installId`) may ask again
+  for 60 minutes and gets a new device token.
 - Code pairing keeps working, for QR codes made with the script and for self-hosters.
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).
@@ -219,9 +223,11 @@ releases signed with the same key.
 | Field | What the phone does |
 |---|---|
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
+| `apps.open` / `apps.blocked` | Open mode ([open-mode.md](open-mode.md)). With `open: true`, allow every app that is not in `blocked`, also apps installed after the last sync. `blocked` includes the known apps of blocked categories that are not installed yet. A school time or bedtime window wins. Missing from older servers: the allow-list applies |
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
+| `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` stays `true` for previously confirmed phones during upgrades and retries. A confirmation from the mock provider requires a fresh sync when switching to HTTP DNS |
 | `dns.privateDnsReady` | Required before offering manual Private DNS setup. True only when the currently configured DoT service has accepted this phone’s ClientID. Mock confirmations and older rules without this field leave setup waiting |
@@ -295,12 +301,13 @@ decline. The phone UI for this is not built yet; the server side is.
   trusted person). Poll it when the request screen is open; the rules poll already brings the
   effect of an approval. After 30 days answered requests are deleted.
 
-### Push (later)
+### Push wakeups
 
-The server has a push abstraction. FCM is the planned layer: the phone registers its token with
-`PUT /device/push-token`, and the server sends a data message (`rules` or `locate`) that makes
-the phone poll at once. Polling stays the guarantee, so a phone without Google Play Services
-works, just slower. No Firebase project exists yet.
+`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. **Wakeups without Google** limits the phone to UnifiedPush or polling. Older servers imply polling.
+
+The phone sends `PUT /device/push-token` with `{ "fcmToken": "…" }` for FCM, `{ "unifiedPushEndpoint": "https://…" }` for UnifiedPush or `{ "fcmToken": null }` to clear both. The server validates a new FCM token before replacing the active registration. Previously stored tokens are validated again after upgrade or a Firebase project change. The optional `fcmValidationKey` in the rules invalidates the Android registration cache when the project or validation version changes. On a definitive rejection (422) or temporary validation failure (503), Android tries a configured UnifiedPush endpoint when available. UnifiedPush endpoints must use HTTPS and a configured service host. The phone reports the registered transport as `pushProvider` in `PUT /device/status`. The dashboard shows that report, and a disabled setting immediately clears the stored registration.
+
+FCM uses high-priority data messages. UnifiedPush uses a POST with the same JSON fields. The only payload is `{"wake":"rules"}` (or `locate`, `update`, `sos-ack`). A wake schedules the ordinary authenticated sync. It cannot apply a rule, request a fresh fix, or acknowledge an SOS by itself. The SOS branch can pass `{ urgent: true }` to `notifyHousehold` for parent delivery and use the reserved `sos-ack` reason after it stores the acknowledgement. Existing periodic and interactive polling remain active.
 
 ## The phone's implementation
 
@@ -323,3 +330,28 @@ the same work on every poll. `PUT /api/device/status` reports `appVersion`,
 `appVersionCode` and the optional latest outcome in `update`.
 `GET /download/android/latest.json` describes the release before the phone downloads
 the binary. See [Android updates](android-updates.md).
+
+### Support tools
+
+`PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`
+(both default to `true`). They sync via `GET /device/rules`. The support
+setting controls help and diagnostics in Android Maintenance. The warning
+setting controls extra status reports after failed remote release attempts.
+Phones can include a numeric `androidVersion` string in `PUT /device/status`.
+Phone summaries include that version when available and `releaseSyncCount`,
+a counter capped at three for rules fetches during a pending release. See
+[support tools and release troubleshooting](support.md).
+
+### Moving between servers
+
+`GET /device/rules` carries `allowServerMove` and, during an approved move, a
+`move` instruction with an HTTPS `serverUrl` and one-time `token`. The phone
+must obey the switch and keep syncing the old server until the move succeeds.
+
+The phone sends the token and a new, phone-generated device credential to
+`POST /device/move` on the destination. The server consumes the token once.
+The phone can recover from a lost response using that same credential with
+`GET /device/move-rules`. It compares protection, verifies the filter over
+DNS-over-TLS, then stores the server, credential, and rules together. The
+first ordinary `GET /device/rules` confirms the new connection. See the
+[household move guide](self-hosting.md#move-to-your-own-server).

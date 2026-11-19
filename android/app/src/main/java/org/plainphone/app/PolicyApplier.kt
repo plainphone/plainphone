@@ -73,7 +73,12 @@ class PolicyApplier(
         results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
-        for (key in LockPolicy.restrictions(sdkInt)) {
+        if (!config.lockSystemLanguage) {
+            results += step("clear ${UserManager.DISALLOW_CONFIG_LOCALE}") {
+                device.clearRestriction(UserManager.DISALLOW_CONFIG_LOCALE)
+            }
+        }
+        for (key in LockPolicy.restrictions(sdkInt, config.lockSystemLanguage)) {
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
             else step("restriction $key") {
                 if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
@@ -221,9 +226,10 @@ class PolicyApplier(
         ) - parentAllowed
         // During school time and bedtime config.allowedPackages is already narrowed to the window's
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
-        val keep = protectedCallPackages() + device.corePackages() + config.allowedPackages - telephony +
+        val launchable = device.launchablePackages() + previously
+        val keep = protectedCallPackages() + device.corePackages() + config.visibleAmong(launchable) - telephony +
             listOfNotNull(config.installing?.let { PolicyConfig.PLAY_STORE })
-        val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
+        val plan = LockPolicy.hidePlan(launchable, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()
         for (pkg in plan.unhide) {

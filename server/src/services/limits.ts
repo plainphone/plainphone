@@ -15,6 +15,9 @@ export const TOTAL = "*";
 const WEEKDAYS = ["1", "2", "3", "4", "5", "6", "7"] as const;
 const minutes = z.number().int().min(0).max(1440);
 
+/** Extra minutes a parent can add for one day. Shared by the endpoint and the server-move import. */
+export const bonusMinutes = z.number().int().min(5).max(240);
+
 export const limitInput = z.object({
   minutes,
   days: z.partialRecord(z.enum(WEEKDAYS), minutes).default({}),

@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
+import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
+import { SosPanel } from "../../../components/SosPanel";
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
+import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
+import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
+import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { Button, Card, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { phoneStateText } from "../../../lib/phoneStateText";
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
@@ -42,7 +47,7 @@ function PendingList() {
   return (
     <VStack gap={space.sm}>
       {pending.map((c) => {
-        const what = c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel);
+        const what = c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel);
         return (
           <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
             <Button
@@ -56,6 +61,102 @@ function PendingList() {
         );
       })}
     </VStack>
+  );
+}
+
+function ServerMoveToggle() {
+  const { t } = useI18n();
+  const { phone, pending, run, setPhone } = usePhone();
+  const [working, setWorking] = useState(false);
+  const waiting = pending.some((change) => change.op.type === "move.allow");
+
+  async function update(allowed: boolean) {
+    setWorking(true);
+    try {
+      const result = await run(() => unwrap(client.PUT("/phones/{pid}/server-move/allow", {
+        params: { path: { pid: phone.id } },
+        body: { allowed },
+      })), t("move.allowed"));
+      if (result?.status === "applied") setPhone({ ...phone, allowServerMove: allowed });
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Switch label={t("move.allow")} value={phone.allowServerMove ?? phone.profile === "child"}
+        disabled={working || waiting} onValueChange={(allowed) => void update(allowed)} />
+      <Text variant="muted">{t("move.help")}</Text>
+    </Card>
+  );
+}
+
+function PushPreferences() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [alerts, setAlerts] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    let current = true;
+    void unwrap<{ mutedPhoneIds: string[] }>(client.GET("/notifications")).then((settings) => {
+      if (current) setAlerts(!settings.mutedPhoneIds.includes(phone.id));
+    }).catch(() => undefined);
+    return () => { current = false; };
+  }, [phone.id]));
+
+  async function save(field: "alerts" | "wakeups" | "googleFree", enabled: boolean) {
+    setBusy(true);
+    const params = { path: { pid: phone.id } };
+    try {
+      if (field === "alerts") {
+        await unwrap(client.PUT("/phones/{pid}/notifications", { params, body: { enabled } }));
+        setAlerts(enabled);
+      } else {
+        setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", { params, body: field === "wakeups" ? { pushWakeups: enabled } : { preferUnifiedPush: enabled } })));
+      }
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (alerts === null && phone.pushWakeups === undefined) return null;
+  return (
+    <Card>
+      {phone.pushWakeups !== undefined ? (
+        <>
+          <Row>
+            <Text variant="label" style={{ flex: 1 }}>{t("phone.pushWakeups")}</Text>
+            <NativeSwitch accessibilityLabel={t("phone.pushWakeups")} accessibilityHint={t("phone.pushWakeupsHelp")}
+              disabled={busy} value={phone.pushWakeups} onValueChange={(value) => void save("wakeups", value)} />
+          </Row>
+          <Text variant="muted">{t("phone.pushWakeupsHelp")}</Text>
+          {phone.pushWakeups && phone.preferUnifiedPush !== undefined ? (
+            <>
+              <Row>
+                <Text variant="label" style={{ flex: 1 }}>{t("phone.pushGoogleFree")}</Text>
+                <NativeSwitch accessibilityLabel={t("phone.pushGoogleFree")} accessibilityHint={t("phone.pushGoogleFreeHelp")}
+                  disabled={busy} value={phone.preferUnifiedPush} onValueChange={(value) => void save("googleFree", value)} />
+              </Row>
+              <Text variant="muted">{t("phone.pushGoogleFreeHelp")}</Text>
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {alerts !== null ? (
+        <>
+          <Row>
+            <Text variant="label" style={{ flex: 1 }}>{t("phone.pushAlerts")}</Text>
+            <NativeSwitch accessibilityLabel={t("phone.pushAlerts")} accessibilityHint={t("phone.pushAlertsHelp")}
+              disabled={busy} value={alerts} onValueChange={(value) => void save("alerts", value)} />
+          </Row>
+          <Text variant="muted">{t("phone.pushAlertsHelp")}</Text>
+        </>
+      ) : null}
+    </Card>
   );
 }
 
@@ -141,6 +242,55 @@ function FreePromiseSetting() {
           />
         )}
       </LoadGate>
+    </Card>
+  );
+}
+
+function PhoneLanguageSettings() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [busy, setBusy] = useState(false);
+
+  async function save(fields: { language: PhoneLanguage } | { lockSystemLanguage: boolean }) {
+    setBusy(true);
+    try {
+      const updated = await unwrap<Phone>(client.PATCH("/phones/{pid}", {
+        params: { path: { pid: phone.id } }, body: fields,
+      }));
+      setPhone(updated);
+      if ("language" in fields && updated.setupQrAvailable) {
+        notify({ tone: "info", text: t("add.setupChanged") });
+      }
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Disclosure title={`${t("phoneLanguage.label")} (${phone.language ? languageNames[phone.language] : t("phoneLanguage.system")})`}>
+        <PhoneLanguagePicker value={phone.language ?? null} onChange={(value) => {
+          if (value !== (phone.language ?? null)) void save({ language: value });
+        }} disabled={busy} />
+      </Disclosure>
+      {phone.mode === "strong" && phone.profile === "child" && (
+        <Switch
+          label={t("phoneLanguage.lockSystem")}
+          help={t("phoneLanguage.lockSystemHelp")}
+          value={phone.lockSystemLanguage ?? true}
+          disabled={busy}
+          onValueChange={(lockSystemLanguage) => void save({ lockSystemLanguage })}
+        />
+      )}
+      {phone.setupQrAvailable && (
+        <Button kind="secondary" title={t("phoneLanguage.browser")} onPress={() => {
+          void Linking.openURL(`${SERVER_URL}/phones/${phone.id}/setup`).catch((err) => {
+            notify({ tone: "error", text: errorMessage(err, t) });
+          });
+        }} />
+      )}
     </Card>
   );
 }
@@ -251,7 +401,7 @@ function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNull
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const { phone, pending, reloadPhone, reloadPending } = usePhone();
+  const { phone, pending, reloadPhone, reloadPending, setPhone } = usePhone();
   const now = useNow(60_000);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -259,11 +409,24 @@ function Overview() {
   useFocusEffect(
     useCallback(() => {
       void reloadPending();
-      void reloadPhone();
-      const timer = setInterval(() => void reloadPhone(), 30_000);
-      return () => clearInterval(timer);
-    }, [reloadPending, reloadPhone]),
+    }, [reloadPending]),
   );
+
+  const releasing = Boolean(phone.releaseRequestedAt);
+  useFocusEffect(useCallback(() => {
+    if (!phone.pairedAt) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void unwrap<Phone>(client.GET("/phones/{pid}", { params: { path: { pid: phone.id } } }))
+        .then((latest) => { if (active) setPhone(latest); })
+        .catch((error) => {
+          if (active && releasing && error instanceof ApiError && error.status === 404) {
+            router.dismissTo({ pathname: "/", params: { notice: "phone-unavailable" } });
+          }
+        });
+    }, 60_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [phone.id, phone.pairedAt, releasing, router, setPhone]));
 
   async function refresh() {
     setRefreshing(true);
@@ -271,104 +434,75 @@ function Overview() {
     setRefreshing(false);
   }
 
-  type Section = "apps" | "contacts" | "filter" | "schedules" | "location" | "key";
-  const items: { to: Section; label: string; hint?: string }[] = [
-    { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
-    phone.profile === "self"
-      ? { to: "contacts", label: t("contacts.favourites") }
-      : { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
-    { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
-    { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
-    { to: "location", label: t("phone.location"), hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff") },
+  type Section = "apps" | "contacts" | "filter" | "time" | "schedules" | "location" | "key";
+  type Item = { to: Section; label: string; hint?: string };
+  // The same groups, in the same order, as the web dashboard's rule list.
+  const groups: { title: string; items: Item[] }[] = [
+    {
+      title: t("phone.rulesPeople"),
+      items: [
+        { to: "apps", label: t("phone.apps"), hint: t("phone.appsHint") },
+        phone.profile === "self"
+          ? { to: "contacts", label: t("contacts.favourites") }
+          : { to: "contacts", label: t("phone.contacts"), hint: t("phone.contactsHint") },
+        { to: "filter", label: t("phone.filter"), hint: t("phone.filterHint") },
+      ],
+    },
+    {
+      title: t("phone.rulesWhen"),
+      items: [
+        { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
+        { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+      ],
+    },
+    {
+      title: t("phone.rulesDevice"),
+      items: [
+        { to: "location", label: t("phone.location"), hint: t(phone.locationEnabled ? "phone.locationHintOn" : "phone.locationHintOff") },
+        ...(phone.profile === "self" ? [{ to: "key" as const, label: t("phone.key"), hint: t("phone.keyHint") }] : []),
+      ],
+    },
   ];
-  if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
+  const state = phoneStateText(phone, now, t, locale);
+  const showHealth = phone.healthBoardEnabled !== false;
+  const filterStatus = filterStatusKey(phone.status);
+  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
+    state.title,
   ].join(", ");
+
+  const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
+  const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
+  const reset = phone.status?.resetProtection;
+  const system = phone.attestation?.state;
+  const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
 
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
-      <Card>
-        <Text variant="heading">{t(phone.healthBoardEnabled !== false ? "health.title" : "phone.status")}</Text>
-        {phone.healthBoardEnabled !== false && (
-          <>
-            {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
-              <VStack key={key} gap={space.xs}>
-                <Text variant="label">{label}</Text>
-                <Text variant={action ? "error" : "muted"}>{detail}</Text>
-              </VStack>
-            ))}
-            {phone.mode === "light" && <Text variant="small">{t("mode.lightNote")}</Text>}
-          </>
-        )}
-        <StatusDetails />
-      </Card>
-
-      {phone.profile === "self" || pending.length > 0 ? (
-        <VStack>
-          <Text variant="heading">{t("phone.pendingTitle")}</Text>
-          <PendingList />
-        </VStack>
-      ) : null}
-
-      <VStack>
-        <Text variant="heading">{t("phone.rules")}</Text>
-        {phone.changeReceiptsEnabled !== false && phone.ruleReceipt && (
-          <Card>
-            <Text variant="label">{t("receipt.title")}</Text>
-            <Text accessibilityLiveRegion="polite">{receiptText(phone.ruleReceipt, phone.lastSeenAt, now, locale, t)}</Text>
-          </Card>
-        )}
-        <VStack gap={space.sm}>
-          {items.map((i) => (
-            <LinkRow
-              key={i.to}
-              testID={`section-${i.to}`}
-              title={i.label}
-              meta={i.hint}
-              onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
-            />
+      {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
+      <Notice tone={state.attention ? "warn" : "info"} text={state.hint} />
+      {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
+      {showHealth ? (
+        <Card>
+          <Text variant="heading">{t("health.title")}</Text>
+          {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
+            <VStack key={key} gap={space.xs}>
+              <Text variant="label">{label}</Text>
+              <Text variant={action ? "error" : "muted"}>{detail}</Text>
+            </VStack>
           ))}
-        </VStack>
-      </VStack>
-
-      <VStack>
-        <Text variant="heading">{t("native.manage")}</Text>
-        <FreePromiseSetting key={phone.id} />
-        <PhoneDisplayPreferences />
-        <RenamePhone />
-        <RemovePhone />
-      </VStack>
-    </Screen>
-  );
-}
-
-function StatusDetails() {
-  const { phone } = usePhone();
-  const { t, locale } = useI18n();
-  const now = useNow(60_000);
-  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
-  const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
-  const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
-  const filterStatus = filterStatusKey(phone.status);
-  const reset = phone.status?.resetProtection;
-  const system = phone.attestation?.state;
-  const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
-  return (
-    <>
-      {phone.healthBoardEnabled === false && phone.status?.callRoleActionNeeded
-        ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} />
-        : null}
-      {phone.healthBoardEnabled === false && filterStatus
-        ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} />
-        : null}
+        </Card>
+      ) : filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
+      {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
+      {!showHealth && phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
-      {failedPolicies.length > 0 ? (
-        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(failedPolicies.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
+      {technicalSteps.length > 0 ? (
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(technicalSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
       ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>
@@ -392,9 +526,8 @@ function StatusDetails() {
           ) : null}
         </VStack>
       ) : null}
-      {phone.status?.appVersion
-        ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} />
-        : <Text variant="muted">{t("health.versionUnknown")}</Text>}
+      <ReleaseNotice />
+      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
       {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>
@@ -403,7 +536,49 @@ function StatusDetails() {
         </Disclosure>
       ) : null}
 
-    </>
+      {phone.profile === "self" || pending.length > 0 ? (
+        <VStack>
+          <Text variant="heading">{t("phone.pendingTitle")}</Text>
+          <PendingList />
+        </VStack>
+      ) : null}
+
+      <VStack>
+        <Text variant="heading">{t("phone.rules")}</Text>
+        {phone.changeReceiptsEnabled !== false && phone.ruleReceipt && (
+          <Card>
+            <Text variant="label">{t("receipt.title")}</Text>
+            <Text accessibilityLiveRegion="polite">{receiptText(phone.ruleReceipt, phone, now, locale, t)}</Text>
+          </Card>
+        )}
+        {groups.map((g) => (
+          <VStack key={g.title} gap={space.sm}>
+            <Text variant="label">{g.title}</Text>
+            {g.items.map((i) => (
+              <LinkRow
+                key={i.to}
+                testID={`section-${i.to}`}
+                title={i.label}
+                meta={i.hint}
+                onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
+              />
+            ))}
+          </VStack>
+        ))}
+      </VStack>
+
+      <VStack>
+        <Text variant="heading">{t("native.manage")}</Text>
+        <PhoneSupport />
+        <PushPreferences />
+        {phone.pairedAt ? <ServerMoveToggle /> : null}
+        <FreePromiseSetting key={phone.id} />
+        <PhoneDisplayPreferences />
+        <RenamePhone />
+        <PhoneLanguageSettings />
+        <RemovePhone />
+      </VStack>
+    </Screen>
   );
 }
 

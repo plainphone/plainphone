@@ -143,10 +143,59 @@
       "breakpoints": true
     },
     {
-      "idx": 23,
+      "idx": 32,
       "version": "7",
-      "when": 1795100000000,
-      "tag": "0026_receipts_health",
+      "when": 1795086294578,
+      "tag": "0032_push_wakeups",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795087902565,
+      "tag": "0033_phone_wake_transport",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795093813019,
+      "tag": "0034_server_move",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795093873019,
+      "tag": "0035_phone_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795093933019,
+      "tag": "0036_sos",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795093993019,
+      "tag": "0037_open_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795097786050,
+      "tag": "0038_launch_support",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795113314476,
+      "tag": "0039_receipts_health",
       "breakpoints": true
     }
   ]

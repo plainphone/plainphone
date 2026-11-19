@@ -12,6 +12,7 @@ const BUNDLE_ID = process.env.PLAINPHONE_BUNDLE_ID ?? "org.plainphone.parent";
 const APPLE_TEAM_ID = process.env.PLAINPHONE_APPLE_TEAM_ID ?? "P7698GU4AV";
 /** Paths the app opens. Keep in sync with APP_LINK_PATHS in server/src/app.ts. */
 const LINK_PATHS = ["/auth/app", "/pair", "/invite"];
+const FONTS = "assets/fonts";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -22,12 +23,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
-  backgroundColor: "#f2f3ef",
-  locales: { en: "./locales/en.json", da: "./locales/da.json" },
+  backgroundColor: "#f5f5f3",
+  locales: { en: "./locales/en.json", da: "./locales/da.json", sv: "./locales/sv.json", nb: "./locales/nb.json", de: "./locales/de.json" },
   ios: {
     bundleIdentifier: BUNDLE_ID,
     appleTeamId: APPLE_TEAM_ID,
     buildNumber: "1",
+    entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
     supportsTablet: true,
     associatedDomains: [`applinks:${HOST}`],
     infoPlist: {
@@ -44,9 +46,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: BUNDLE_ID,
+    googleServicesFile: process.env.PLAINPHONE_PARENT_GOOGLE_SERVICES_FILE,
     versionCode: 1,
     adaptiveIcon: {
-      backgroundColor: "#24604a",
+      backgroundColor: "#141414",
       foregroundImage: "./assets/android-icon-foreground.png",
       backgroundImage: "./assets/android-icon-background.png",
       monochromeImage: "./assets/android-icon-monochrome.png",
@@ -80,14 +83,33 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-localization",
     "expo-secure-store",
-    "expo-font",
+    // Brand type, built into the app (no loading at start-up). OFL, see assets/fonts/OFL-*.txt.
+    // In code: fonts in src/lib/theme.ts. iOS takes the family from the file; Android gets the same names.
+    [
+      "expo-font",
+      {
+        ios: { fonts: [`./${FONTS}/SchibstedGrotesk-Regular.ttf`, `./${FONTS}/SchibstedGrotesk-Bold.ttf`, `./${FONTS}/IBMPlexMono-Medium.ttf`] },
+        android: {
+          fonts: [
+            {
+              fontFamily: "Schibsted Grotesk",
+              fontDefinitions: [
+                { path: `./${FONTS}/SchibstedGrotesk-Regular.ttf`, weight: 400 },
+                { path: `./${FONTS}/SchibstedGrotesk-Bold.ttf`, weight: 700 },
+              ],
+            },
+            { fontFamily: "IBMPlexMono-Medium", fontDefinitions: [{ path: `./${FONTS}/IBMPlexMono-Medium.ttf`, weight: 500 }] },
+          ],
+        },
+      },
+    ],
     [
       "expo-splash-screen",
       {
         image: "./assets/splash-icon.png",
         imageWidth: 120,
-        backgroundColor: "#f2f3ef",
-        dark: { image: "./assets/splash-icon.png", backgroundColor: "#121816" },
+        backgroundColor: "#f5f5f3",
+        dark: { image: "./assets/splash-icon-dark.png", backgroundColor: "#0f0f0f" },
       },
     ],
     [
@@ -102,8 +124,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-notifications",
       {
-        color: "#24604a",
-        defaultChannel: "approval",
+        // White-on-transparent status bar icon; Android tints it with the colour below.
+        icon: "./assets/notification-icon.png",
+        color: "#141414",
+        defaultChannel: "normal",
+        mode: process.env.PLAINPHONE_APNS_ENVIRONMENT === "production" ? "production" : "development",
       },
     ],
   ],

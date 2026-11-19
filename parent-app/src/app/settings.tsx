@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
+import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
-import { SERVER_HOST } from "../lib/config";
-import { enablePush, pushState, type PushState } from "../lib/notifications";
+import { ServerChoice } from "../components/ServerChoice";
+import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
 function Settings() {
   const { t, locale } = useI18n();
   const { saveLocale, logout } = useSession();
   const me = useMe();
-  const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void pushState().then(setPush).catch(() => setPush("unsupported"));
-  }, []);
+    let active = true;
+    void syncNativePush(locale).then((state) => { if (active) setPush(state); });
+    return () => { active = false; };
+  }, [locale]);
 
   return (
     <Screen testID="settings">
@@ -30,18 +31,18 @@ function Settings() {
           label={t("nav.language")}
           value={locale}
           onChange={saveLocale}
-          options={[
-            { value: "en", label: "English" },
-            { value: "da", label: "Dansk" },
-          ]}
+          options={languages.map((value) => ({ value, label: languageNames[value] }))}
         />
       </Card>
       {push && push !== "unsupported" ? (
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
+          <Text variant="muted">{t("sos.dnd")}</Text>
           {push === "granted" ? (
-            <Notice tone="success" text={`${t("native.notificationsOn")} ${t("native.notificationsLater")}`} />
+            <Notice tone="success" text={t("native.notificationsOn")} />
+          ) : push === "unavailable" ? (
+            <Notice tone="warn" text={t("native.notificationsUnavailable")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (
@@ -51,8 +52,8 @@ function Settings() {
               busy={busy}
               onPress={() => {
                 setBusy(true);
-                void enablePush(locale)
-                  .then((r) => setPush(r.state))
+                void syncNativePush(locale, true)
+                  .then(setPush)
                   .finally(() => setBusy(false));
               }}
             />
@@ -61,7 +62,7 @@ function Settings() {
       ) : null}
       <Card>
         <Text variant="heading">{t("native.server")}</Text>
-        <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
+        <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
       <Card>
@@ -72,7 +73,7 @@ function Settings() {
         kind="secondary"
         title={t("nav.logout")}
         testID="logout"
-        onPress={() => void logout().then(() => router.replace("/login"))}
+        onPress={() => void logout()}
       />
     </Screen>
   );

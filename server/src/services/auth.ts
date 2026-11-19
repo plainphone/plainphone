@@ -38,7 +38,7 @@ export async function requestMagicLink(
 }
 
 /** Exchanges a magic-link token for a session. Creates the user and a household on first login. */
-export async function verifyMagicLink(ctx: Ctx, token: string, locale: Locale) {
+export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
     const [link] = await tx
@@ -69,16 +69,17 @@ export async function verifyMagicLink(ctx: Ctx, token: string, locale: Locale) {
   });
 }
 
-export async function userForSession(ctx: Ctx, token: string) {
+export async function resolveSession(ctx: Ctx, token: string) {
   if (!token.startsWith(SESSION_PREFIX)) return null;
   const [row] = await ctx.db
-    .select({ user: users })
+    .select({ user: users, id: sessions.id })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.tokenHash, sha256(token)), gt(sessions.expiresAt, ctx.now())));
-  return row?.user ?? null;
+  return row ?? null;
 }
 
-export async function endSession(ctx: Ctx, token: string) {
-  await ctx.db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
+export async function endSession(ctx: Ctx, sessionId: string) {
+  // Native push registrations reference this session with ON DELETE CASCADE.
+  await ctx.db.delete(sessions).where(eq(sessions.id, sessionId));
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// The Plainphone mark: a phone with one calm wave. Same drawing as public/icon.svg.
+// The Plainphone mark: an upright switch that is also a phone with one round button.
+// Same drawing as docs/brand/directions/c/mark.svg (light) and mark-dark.svg (dark, no edge).
 
 export function Mark({ className = "mark" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-      <rect className="mark-bg" width="64" height="64" rx="16" />
-      <rect className="mark-line" x="19" y="10" width="26" height="44" rx="7" fill="none" strokeWidth="4" />
-      <path className="mark-line" d="M24.5 33c2.5-2.6 5-2.6 7.5 0s5 2.6 7.5 0" fill="none" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect className="mark-body" x="19" y="5" width="26" height="54" rx="13" strokeWidth="4" />
+      <circle className="mark-knob" cx="32" cy="45" r="7.5" />
     </svg>
   );
 }

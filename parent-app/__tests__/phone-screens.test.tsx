@@ -4,9 +4,10 @@
 // approvals) through the real router, against a fake API.
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
-import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { Share } from "react-native";
+import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { AccessibilityInfo, Linking as NativeLinking, Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
+import type { Phone } from "../src/api/models";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -24,12 +25,13 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; healthBoardEnabled?: boolean; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; callRoleActionNeeded?: boolean; filterMethod?: "privateDns"; filterWorking?: boolean; filterIssue?: "wrongHost"; reportedAt?: string } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi<T extends Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; healthBoardEnabled?: boolean; status?: Partial<NonNullable<Phone["status"]>> }>(phone: T | typeof PHONE = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
     [`GET /phones/${phone.id}/changes`]: { body: { changes: [] } },
     [`GET /phones/${phone.id}/apps`]: { body: { apps: APPS } },
+    [`GET /phones/${phone.id}/sos`]: { body: { events: [], callbackNumber: null } },
     ...extra,
   });
 }
@@ -39,7 +41,49 @@ beforeEach(async () => {
   await SecureStore.setItemAsync("pp.session", "pp_s_saved");
 });
 
+it("shows an urgent SOS, then moves it to history after acknowledgment", async () => {
+  const event = {
+    id: "3b276ba0-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z",
+    seenAt: null, location: { lat: 55.6, lon: 12.5 }, battery: 43, deliveredVia: "push",
+  };
+  const path = `/phones/${PHONE.id}/sos`;
+  const seen = { ...event, seenAt: "2026-11-19T14:33:00Z" };
+  let acknowledged = false;
+  const api = phoneApi(PHONE, {
+    [`GET ${path}`]: () => ({ body: { events: [acknowledged ? seen : event], callbackNumber: "+4512345678" } }),
+    [`POST ${path}/${event.id}/seen`]: () => {
+      acknowledged = true;
+      return { body: seen };
+    },
+  });
+  await renderRouter(routes, { initialUrl: at(PHONE) });
+  expect(await screen.findByTestId("sos-banner")).toBeTruthy();
+  expect(screen.getByText("Urgent SOS")).toBeTruthy();
+  expect(screen.getByText("View on map")).toBeTruthy();
+  expect(screen.getByText("Call back")).toBeTruthy();
+  await fireEvent.press(screen.getByText("I’ve seen it"));
+  await waitFor(() => expect(screen.queryByTestId("sos-banner")).toBeNull());
+  expect(api.calls.some((call) => call.path === `${path}/${event.id}/seen`)).toBe(true);
+  await fireEvent.press(screen.getByText("SOS history"));
+  expect(await screen.findByTestId("sos-history-event")).toBeTruthy();
+});
+
 describe("pairing", () => {
+  it("saves the strong setup language before opening the QR flow in the browser", async () => {
+    const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
+    try {
+      const api = phoneApi(PHONE, { "POST /phones/enroll": { status: 201, body: { phone: PHONE } } });
+      await renderRouter(routes, { initialUrl: "/strong-setup" });
+      await fireEvent.changeText(await screen.findByLabelText("Name"), "Test phone");
+      await fireEvent.press(screen.getByRole("radio", { name: "Svenska" }));
+      await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
+      await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
+      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it("fills the code from a pairing link and adds the phone", async () => {
     const api = phoneApi(PHONE, { "POST /phones/claim": { status: 201, body: PHONE } });
     await renderRouter(routes, { initialUrl: "/pair?code=k7mp4qxr" });
@@ -93,6 +137,107 @@ describe("overview", () => {
     }));
   });
 
+  it("shows the recovery guide when a pending release targets an old app", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      status: {
+        appVersion: "0.1.3", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/^The last reported app version is too old/)).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+    expect(screen.getByText("Open the recovery reset guide")).toBeTruthy();
+  });
+
+  it("shows the last report after three pending release syncs", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      releaseSyncCount: 3,
+      status: {
+        appVersion: "0.1.8", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("The phone has not confirmed the release.")).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+  });
+
+  it.each([false, true])("shows the notice when the pending phone disappears (opened from list: %s)", async (fromList) => {
+    jest.useFakeTimers();
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    try {
+      let removed = false;
+      phoneApi(PHONE, {
+        [`GET /phones/${PHONE.id}`]: () => removed
+          ? { status: 404, body: { error: "phone not found" } }
+          : { body: { ...PHONE, releaseRequestedAt: "2026-11-18T19:26:00Z" } },
+        "GET /phones": () => ({ body: { phones: removed ? [] : [PHONE] } }),
+      });
+      await renderRouter(routes, { initialUrl: fromList ? "/" : at(PHONE) });
+      if (fromList) await fireEvent.press(await screen.findByTestId(`phone-${PHONE.id}`));
+      await screen.findByTestId("section-apps");
+      removed = true;
+      await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+      expect(screen).toHavePathname("/");
+      const notice = "This phone is no longer in your list. Check on the phone whether Plainphone is still on.";
+      expect(screen.getByText(notice)).toBeVisible();
+      expect(announce).toHaveBeenCalledWith(notice);
+      await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByText(notice)).toBeNull();
+    } finally {
+      announce.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  it("saves and shows the selected Plainphone language", async () => {
+    const api = phoneApi(PHONE, {
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, language: "de" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.press(await screen.findByRole("button", { name: /Plainphone language/ }));
+    await fireEvent.press(screen.getByRole("radio", { name: "Deutsch" }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Deutsch" })).toBeChecked());
+    expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ language: "de" });
+  });
+
+  it.each(["strong", "light"] as const)("opens replacement setup in the browser for an unpaired %s phone", async (mode) => {
+    const draft = { ...PHONE, mode, pairedAt: null, setupQrAvailable: true };
+    phoneApi(draft, {
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...draft, language: "de", setupEnrollmentId: null } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.press(await screen.findByRole("button", { name: /Plainphone language/ }));
+    await fireEvent.press(screen.getByRole("radio", { name: "Deutsch" }));
+    expect(await screen.findByText("Setup settings changed. If you already made a QR code, make a new one.")).toBeTruthy();
+    const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
+    try {
+      await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
+      expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`));
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  it("turns off the Android language lock on a strong Child phone", async () => {
+    const child = { ...PHONE, mode: "strong" as const, profile: "child" as const, lockSystemLanguage: true };
+    const api = phoneApi(child, {
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...child, lockSystemLanguage: false } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    const lock = () => screen.getByRole("switch", { name: "Lock Android language" });
+    await screen.findByRole("switch", { name: "Lock Android language" });
+    expect(lock()).toBeChecked();
+    await fireEvent.press(lock());
+    await waitFor(() => expect(lock()).not.toBeChecked());
+    expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ lockSystemLanguage: false });
+  });
+
   it("shows the system check's own date even after a newer phone sync", async () => {
     phoneApi({
       ...PHONE,
@@ -105,11 +250,27 @@ describe("overview", () => {
     expect(await screen.findByText("System checked 1 hour ago")).toBeTruthy();
   });
 
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const reported = { lockIntact: true, failedPolicies: [], rulesAppliedAt: ago(60) };
+  it.each([
+    ["never connected", { lastSeenAt: null }, "Finish setting up the phone, and it will show here when it connects."],
+    ["online with no report", { lastSeenAt: ago(2) }, "The phone has been online. It has not yet confirmed which rules apply."],
+    ["waiting for the phone", { lastSeenAt: ago(2), rulesCurrent: false, status: reported }, "Your latest change has not reached the phone yet. It applies the next time the phone is online."],
+    ["confirmed", { lastSeenAt: ago(2), rulesCurrent: true, status: reported }, "The phone confirmed the current rules 1 hour ago."],
+  ])("says whether the phone has the rules: %s", async (_name, patch, sentence) => {
+    phoneApi({ ...PHONE, ...patch } as Parameters<typeof phoneApi>[0]);
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(sentence)).toBeTruthy();
+  });
+
   it("shows the sections, with the key only on Self phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByTestId("section-apps")).toBeTruthy();
     expect(screen.getByTestId("section-location")).toBeTruthy();
+    // The same availability rules as the web dashboard: screen time and school time / bedtime.
+    expect(screen.getByTestId("section-time")).toBeTruthy();
+    expect(screen.getByTestId("section-schedules")).toBeTruthy();
     expect(screen.queryByTestId("section-key")).toBeNull();
     // Child phones have nothing waiting.
     expect(screen.queryByText("Waiting changes")).toBeNull();
@@ -245,6 +406,44 @@ describe("apps", () => {
     await fireEvent.press(screen.getByLabelText("Cancel change"));
     expect(await screen.findByText("The change was cancelled.")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/changes/c3/cancel")).toBe(true);
+  });
+});
+
+describe("open mode", () => {
+  const OPEN_SELF = { ...SELF, openMode: true };
+  const state = (blocked: boolean) => ({
+    enabled: true,
+    categories: [
+      { category: "social", blocked, hasApps: true },
+      { category: "gambling", blocked: true, hasApps: true },
+      { category: "adult", blocked: true, hasApps: false },
+    ],
+    blockedApps: [],
+  });
+
+  it("summarises what is blocked and blocks a category at once", async () => {
+    const api = phoneApi(OPEN_SELF, {
+      [`GET /phones/${SELF_ID}/open-mode`]: { body: state(false) },
+      [`PUT /phones/${SELF_ID}/open-mode/categories/social`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "apps") });
+    expect(await screen.findByText("Open: everything is allowed except gambling and adult content.")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("open-category-social"));
+    expect(await screen.findByText("Social media is blocked.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ blocked: true });
+  });
+
+  it("explains that allowing a category again waits for the key", async () => {
+    phoneApi(OPEN_SELF, {
+      [`GET /phones/${SELF_ID}/open-mode`]: { body: state(true) },
+      [`PUT /phones/${SELF_ID}/open-mode/categories/social`]: {
+        status: 202,
+        body: { status: "pending", change: { id: "c9", op: { type: "openMode.category", category: "social", blocked: false }, keyType: "delay", effectiveAt: FUTURE } },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "apps") });
+    await fireEvent.press(await screen.findByTestId("open-category-social"));
+    expect(await screen.findByText(/Allow social media \(apps and websites\)\. This takes effect/)).toBeTruthy();
   });
 });
 
@@ -426,6 +625,46 @@ describe("school time and bedtime", () => {
   });
 });
 
+describe("screen time", () => {
+  const empty = { total: null, apps: [], bonuses: [], used: null };
+
+  it("sets a daily limit for all apps", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: { body: empty },
+      [`PUT /phones/${PHONE.id}/time-limits/total`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    await fireEvent(await screen.findByTestId("time-total-switch"), "valueChange", true);
+    await fireEvent.press(await screen.findByLabelText("1 h"));
+    await fireEvent.press(screen.getByTestId("time-total-save"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ minutes: 60, days: {} });
+  });
+
+  it("shows the weekday overrides of a limit, like the web page", async () => {
+    phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: {
+        body: { ...empty, apps: [{ packageName: "com.example.insta", label: "Instagram", limit: { minutes: 60, days: { "6": 180 } } }] },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    expect(await screen.findByText(/Sat 3 h/)).toBeTruthy();
+  });
+
+  it("gives 15 extra minutes for today on a single app", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: {
+        body: { ...empty, apps: [{ packageName: "com.example.insta", label: "Instagram", limit: { minutes: 30, days: {} } }] },
+      },
+      [`POST /phones/${PHONE.id}/time-limits/bonus`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    await fireEvent.press(await screen.findByLabelText("+15 min today: Instagram"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toMatchObject({ packageName: "com.example.insta", minutes: 15 });
+  });
+});
+
 describe("key", () => {
   const key = {
     keyType: "delay",
@@ -461,6 +700,20 @@ describe("key", () => {
     });
   });
 
+  it("shows a QR-invited helper as pending, needs no email and keeps the invite on save", async () => {
+    const api = phoneApi(SELF, {
+      [`GET /phones/${SELF_ID}/key`]: { body: { ...key, keyType: "trusted", trustedEmail: null } },
+      [`PUT /phones/${SELF_ID}/key`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "key") });
+    expect(await screen.findByText(/Waiting for your helper to scan the invite/)).toBeTruthy();
+    expect(screen.queryByTestId("key-email")).toBeNull();
+    expect(screen.getByTestId("key-share-invite")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("key-save"));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toMatchObject({ keyType: "trusted", trustedEmail: null, qrInvite: true });
+  });
+
   it("is not for Child phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE, "key") });
@@ -494,6 +747,40 @@ describe("approvals", () => {
     expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/changes/a1/approve")?.body)
       .toEqual({ revision: "30".padStart(64, "0") });
+    // The answered request stays in place without buttons, and cannot be answered again.
+    expect(screen.queryByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeNull();
+    expect(screen.getByTestId("answered-a1")).toBeTruthy();
+    expect(screen.getByText("1 request waits for you")).toBeTruthy();
+  });
+
+  it("says plainly when the request was already answered the other way", async () => {
+    const approval = {
+      id: "a1", phoneName: "Mine", requestedBy: null, createdAt: new Date().toISOString(),
+      summary: { en: "Instagram: 15 → 30 min a day", da: "Instagram: 15 → 30 min om dagen" }, revision: "0".repeat(64),
+    };
+    phoneApi(PHONE, {
+      "GET /approvals": { body: { approvals: [approval] } },
+      "POST /changes/a1/approve": { status: 409, body: { error: "no longer valid", outcome: "declinedByYou" } },
+    });
+    await renderRouter(routes, { initialUrl: "/approvals" });
+    await fireEvent.press(await screen.findByLabelText("Approve: Instagram: 15 → 30 min a day"));
+    expect(await screen.findByText("You already declined this request, so it stays declined.")).toBeTruthy();
+    expect(screen.queryByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeNull();
+  });
+
+  it("keeps an expired code open for a fresh one", async () => {
+    const approval = {
+      id: "a1", phoneName: "Mine", requestedBy: null, createdAt: new Date().toISOString(),
+      summary: { en: "Instagram: 15 → 30 min a day", da: "Instagram: 15 → 30 min om dagen" }, revision: "0".repeat(64),
+    };
+    phoneApi(PHONE, {
+      "GET /approvals": { body: { approvals: [approval] } },
+      "POST /changes/a1/approve": { status: 409, body: { error: "expired", outcome: "codeExpired" } },
+    });
+    await renderRouter(routes, { initialUrl: "/approvals" });
+    await fireEvent.press(await screen.findByLabelText("Approve: Instagram: 15 → 30 min a day"));
+    expect(await screen.findByText("This code has expired. Ask the phone for a new one.")).toBeTruthy();
+    expect(screen.getByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeTruthy();
   });
 });
 

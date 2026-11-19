@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import { messageLanguage } from "../lib/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
-import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
+import { SosPanel } from "../components/SosPanel";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import {
@@ -13,6 +15,8 @@ import {
   type PendingChange,
   type Phone,
   type PhoneRequest,
+  PROTECTIONS,
+  type Protection,
 } from "../lib/api";
 import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { lockStepLabel } from "../lib/lock-steps";
@@ -20,6 +24,10 @@ import { filterStatusKey } from "../lib/filter-status";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
+import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
+import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
+import { ServerMoveToggle } from "../components/ServerMoveToggle";
+import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 import { healthRows, receiptText } from "../lib/phone-health";
 
@@ -79,8 +87,11 @@ export function PhoneLayout() {
     void reloadPhone();
   }, [reloadPhone, setPhoneData]);
   const releasing = Boolean(phoneRes.data?.releaseRequestedAt);
-  const releasedText = t("phone.released");
+  const releasedText = t("support.phoneUnavailable");
+  const atOverview = loc.pathname.replace(/\/$/, "") === `/phones/${pid}`;
+  // The overview refreshes itself; the other pages poll here so the rule receipt stays current.
   useEffect(() => {
+    if (atOverview) return;
     let active = true;
     const refresh = () => {
       void api.get<Phone>(`/phones/${pid}`).then((phone) => {
@@ -96,7 +107,7 @@ export function PhoneLayout() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [pid, releasing, releasedText, navigate, setPhoneData]);
+  }, [pid, atOverview, releasing, releasedText, navigate, setPhoneData]);
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -183,13 +194,13 @@ export function PhoneLayout() {
     return <Loading />;
   }
 
-  const atOverview = loc.pathname.replace(/\/$/, "") === `/phones/${pid}`;
   return (
     <Ctx.Provider value={value}>
       <p className="back">
         {atOverview ? <Link to="/">{t("nav.phones")}</Link> : <Link to={`/phones/${pid}`}>{value.phone.name}</Link>}
       </p>
       {!atOverview && <RuleReceipt phone={value.phone} />}
+      {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar
         banner={banner}
@@ -231,7 +242,7 @@ function ChangeBar({
   const [busy, setBusy] = useState(false);
   let text: string | null = null;
   if (banner) {
-    const what = banner.summary?.[locale] ?? describeOp(banner.op, t, locale, appLabel);
+    const what = banner.summary?.[messageLanguage(locale)] ?? describeOp(banner.op, t, locale, appLabel);
     let when: string;
     if (banner.keyType === "trusted" || !banner.effectiveAt) when = t("pending.trustedBanner");
     else {
@@ -315,7 +326,7 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
       {pending.map((c) => (
         <li key={c.id} className="pending-item">
           <div>
-            <p className="row-title">{c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel)}</p>
+            <p className="row-title">{c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel)}</p>
             <p className="row-meta">{pendingWhen(c, now, t, locale)}</p>
           </div>
           <button
@@ -355,7 +366,7 @@ function RuleReceipt({ phone }: { phone: Phone }) {
   return (
     <p className="rule-receipt" role="status" aria-atomic="true">
       <strong>{t("receipt.title")}</strong>
-      <span>{receiptText(phone.ruleReceipt, phone.lastSeenAt, now, locale, t)}</span>
+      <span>{receiptText(phone.ruleReceipt, phone, now, locale, t)}</span>
     </p>
   );
 }
@@ -379,6 +390,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   return (
     <section className={showHealth ? "section panel phone-health" : "section panel"} aria-labelledby="status-h">
       <h2 id="status-h">{t(showHealth ? "health.title" : "phone.status")}</h2>
+      <PhoneStateHint phone={phone} now={now} />
       {showHealth && (
         <dl className="health-rows">
           {rows.map(({ key, label, detail, action }) => (
@@ -449,7 +461,6 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         </>
       ) : (
         <>
-          <p className="muted">{t(showHealth ? "health.versionUnknown" : "phone.statusNone")}</p>
           {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
             <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
           )}
@@ -461,29 +472,44 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
       {phone.attestation?.checkedAt && (
         <p className="help status-updated">{t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}
-      {phone.mode === "light" && (
-        <details className="details">
-          <summary>{t("light.weakerTitle")}</summary>
-          <p>{t("light.intro")}</p>
-          <ul className="weaker">
-            {(["1", "2", "3", "4", "5", "6", "7"] as const).map((n) => (
-              <li key={n}>{t(`light.weaker${n}` as MessageKey)}</li>
-            ))}
-          </ul>
-        </details>
-      )}
     </section>
   );
 }
 
 export function PhoneOverview() {
   const { t } = useI18n();
-  const { phone, pending } = usePhone();
+  const { phone, pending, setPhone, notify } = usePhone();
+  const navigate = useNavigate();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
   const rulesHeading = useRef<HTMLHeadingElement>(null);
 
+  // The phone reports in the background: fetch it again while this page is open, so the
+  // battery and the lock state are not as old as the moment the parent opened the app.
+  const setPhoneRef = useRef(setPhone);
+  setPhoneRef.current = setPhone;
   const releasing = Boolean(phone.releaseRequestedAt);
+  const unavailableText = t("support.phoneUnavailable");
+  useEffect(() => {
+    let active = true;
+    const refresh = () =>
+      api
+        .get<Phone>(`/phones/${phone.id}`)
+        .then((p) => {
+          if (active) setPhoneRef.current(p);
+        })
+        .catch((err) => {
+          if (active && err instanceof ApiError && err.status === 404) {
+            navigate("/", { replace: true, state: releasing ? { notice: unavailableText } : null });
+          }
+        });
+    void refresh();
+    const id = window.setInterval(() => void refresh(), 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(id);
+    };
+  }, [phone.id, releasing, unavailableText, navigate]);
   const groups = [
     {
       title: t("phone.rulesPeople"),
@@ -522,13 +548,15 @@ export function PhoneOverview() {
           <span className="row-meta">
             <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
             <span className="tag">{t(phone.mode === "light" ? "mode.light" : "mode.strong")}</span>
+            <PhoneStateTitle phone={phone} now={now} />
           </span>
         }
       >
         {phone.name}
       </PageTitle>
-      {releasing && <p className="notice notice-info status-release">{t("phone.releasing")}</p>}
-      {!phone.pairedAt && (
+      <ReleaseNotice phone={phone} />
+      {phone.awaitingServerMove && <p className="notice notice-info">{t("move.waiting")}</p>}
+      {!phone.pairedAt && !phone.awaitingServerMove && (
         <section className="section panel" aria-labelledby="setup-h">
           <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
           <p className="muted">{t(phone.setupQrAvailable === false ? "setup.codePendingBody" : "setup.pendingBody")}</p>
@@ -542,9 +570,10 @@ export function PhoneOverview() {
         </section>
       )}
 
+      {phone.pairedAt && <ServerMoveToggle />}
       {phone.openRequests > 0 && <RequestsSection />}
 
-      <PhoneStatusBlock phone={phone} now={now} />
+      {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">
@@ -578,7 +607,11 @@ export function PhoneOverview() {
         </div>
       </section>
 
+      {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
+
       <PhoneDisplayPreferences />
+      {phone.mode === "light" && <LightModeSection phone={phone} />}
+      <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
     </>
   );
@@ -665,6 +698,61 @@ function RequestsSection() {
   );
 }
 
+/** Protections that must be on for light mode to hold. The others are shown only when off. */
+const LIGHT_REQUIRED: Protection[] = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"];
+
+/** Light mode, honestly: what is live right now, and what is weaker than strong mode. */
+function LightModeSection({ phone }: { phone: Phone }) {
+  const { t, locale } = useI18n();
+  const p = phone.status?.protections;
+  const rows = p
+    ? PROTECTIONS.filter((k) => k !== "deviceOwner" &&
+        !(phone.status?.filterMethod === "privateDns" && (k === "vpn" || k === "alwaysOnVpn" || k === "privateDnsOk")) && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
+        (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
+      )
+    : [];
+  const missing = rows.filter((r) => !r.ok).sort((a, b) => Number(b.required) - Number(a.required));
+  const on = rows.filter((r) => r.ok);
+  return (
+    <section className="section light-mode" aria-labelledby="light-h">
+      <h2 id="light-h">{t("mode.light")}</h2>
+      <p className="help">{t("light.intro")}</p>
+      {p ? (
+        <>
+          <h3 className="h3 light-sub">{t("light.protections")}</h3>
+          {missing.length === 0 && <p className="light-allok">{t("light.allOk")}</p>}
+          {missing.length > 0 && (
+            <ul className="list protection-list">
+              {missing.map((r) => (
+                <li key={r.key} className={r.required ? "prot prot-missing" : "prot prot-optional"}>
+                  <div className="prot-main">
+                    <p className="row-title">{t(`prot.${r.key}` as MessageKey)}</p>
+                    <p className="prot-why">{t(`prot.${r.key}.missing` as MessageKey)}</p>
+                  </div>
+                  <span className={r.required ? "tag tag-alert" : "tag tag-waiting"}>{t("light.missing")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {on.length > 0 && missing.length > 0 && (
+            <p className="help light-on">
+              {t("light.onList", { list: formatList(on.map((r) => t(`prot.${r.key}` as MessageKey)), locale) })}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="muted">{t("light.noReport")}</p>
+      )}
+      <h3 className="h3 light-sub">{t("light.weakerTitle")}</h3>
+      <ul className="weaker">
+        {(["1", "2", "3", "4", "5", "6", "7"] as const).map((n) => (
+          <li key={n}>{t(`light.weaker${n}` as MessageKey)}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * Rename the phone, release it, or remove it. Releasing switches Plainphone off on the phone;
  * removing only deletes it here. On a Self phone both wait for the key.
@@ -675,6 +763,7 @@ function ManagePhone() {
   const navigate = useNavigate();
   const [name, setName] = useState(phone.name);
   const [saving, setSaving] = useState(false);
+  const [changingWakeups, setChangingWakeups] = useState(false);
   const [confirming, setConfirming] = useState<"release" | "remove" | null>(null);
   const [working, setWorking] = useState(false);
   const trimmed = name.trim();
@@ -701,6 +790,17 @@ function ManagePhone() {
     }
   }
 
+  async function changeWakeups(settings: { pushWakeups: boolean } | { preferUnifiedPush: boolean }) {
+    setChangingWakeups(true);
+    try {
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, settings));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setChangingWakeups(false);
+    }
+  }
+
   async function remove() {
     setWorking(true);
     const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}`), t("phone.removed"));
@@ -714,12 +814,11 @@ function ManagePhone() {
     const r = await run(() => api.post<ChangeResult>(`/phones/${phone.id}/release`), t("phone.releaseDone"));
     setConfirming(null);
     if (r?.status === "applied") {
-      // The phone stays in the list until it has switched Plainphone off.
       try {
         setPhone(await api.get<Phone>(`/phones/${phone.id}`));
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          navigate("/", { replace: true, state: { notice: t("phone.released") } });
+          navigate("/", { replace: true, state: { notice: t("support.phoneUnavailable") } });
         }
         // Other failures are retried by the overview refresh.
       }
@@ -740,6 +839,21 @@ function ManagePhone() {
           {saving ? t("app.saving") : t("phone.rename")}
         </button>
       </form>
+      {phone.pushWakeups !== undefined && !phone.releaseRequestedAt ? (
+        <div className="stack-sm">
+          <Switch checked={phone.pushWakeups} busy={changingWakeups}
+            label={t("phone.pushWakeups")} description={t("phone.pushWakeupsHelp")}
+            onChange={(enabled) => void changeWakeups({ pushWakeups: enabled })} />
+          {phone.pushWakeups && phone.preferUnifiedPush !== undefined ? (
+            <Switch checked={phone.preferUnifiedPush} busy={changingWakeups}
+              label={t("phone.pushGoogleFree")} description={t("phone.pushGoogleFreeHelp")}
+              onChange={(enabled) => void changeWakeups({ preferUnifiedPush: enabled })} />
+          ) : null}
+          <p className="muted">{t(!phone.pushWakeups ? "phone.pushPolling" : phone.status?.pushProvider === "fcm"
+            ? "phone.pushFcm" : phone.status?.pushProvider === "unifiedpush" ? "phone.pushUnified"
+            : phone.status?.pushProvider === "none" ? "phone.pushPolling" : "phone.pushWaiting")}</p>
+        </div>
+      ) : null}
       <div className="danger-zone">
         {confirming ? (
           <div className="stack-sm" role="group" aria-labelledby="danger-q">
@@ -749,7 +863,7 @@ function ManagePhone() {
                 confirming === "release"
                   ? self
                     ? "phone.releaseSelfConfirm"
-                    : "phone.releaseConfirm"
+                    : isRemoteReleaseTooOld(phone) ? "support.releaseOld" : "phone.releaseConfirm"
                   : self
                     ? "phone.removeSelfConfirm"
                     : "phone.removeConfirm",

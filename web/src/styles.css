@@ -1,52 +1,80 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Plainphone parent app. One accent, light and dark, AA contrast (ratios noted on each pair).
+ * Plainphone parent dashboard. Brand direction C, Switch (docs/brand/README.md): graphite and
+ * white with one signal green, light and dark, AA contrast (ratios noted on each pair).
  * The server's mails use the same palette.
  */
 
+/* Schibsted Grotesk (text and headings) and IBM Plex Mono (times and codes), both OFL, see
+   fonts/OFL-*.txt. They are build assets, so the shell caches them; until they load, or offline,
+   the system fonts below are used. */
+@font-face {
+  font-family: "Schibsted Grotesk";
+  src: url("./fonts/schibsted-grotesk.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("./fonts/ibm-plex-mono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Signal green (--brand) only ever means "on": switches, the mark and active states. Never
+   decoration, never call or danger buttons. On light it always gets an ink edge (--brand-edge). */
 :root {
   color-scheme: light dark;
-  --bg: #f2f3ef;
+  --bg: #f5f5f3;
   --surface: #ffffff;
-  --ink: #1c2321; /* 14.4:1 on bg, 16.0:1 on surface */
-  --muted: #4d5753; /* 6.7:1 on bg, 7.5:1 on surface */
-  --line: #dfe3df; /* dividers only, not a control boundary */
-  --border-strong: #7a8580; /* 3.8:1 on surface: inputs, switches */
-  --accent: #24604a; /* 7.4:1 on surface, 6.6:1 on bg */
-  --accent-hover: #1c4d3b;
-  --on-accent: #ffffff; /* 7.4:1 on accent */
-  --tint: #e3efe8; /* ink 13.6:1, accent 6.2:1 */
-  --warn-bg: #fbf1d9;
+  --ink: #141414; /* 16.9:1 on bg, 18.4:1 on surface */
+  --muted: #525252; /* 7.2:1 on bg, 7.8:1 on surface */
+  --line: #e3e3e0; /* dividers only, not a control boundary */
+  --border-strong: #767676; /* 4.5:1 on surface: inputs, switches */
+  --accent: #141414; /* graphite: links, primary buttons; 18.4:1 on surface */
+  --accent-hover: #383838;
+  --on-accent: #ffffff; /* 18.4:1 on accent */
+  --tint: #eef8cf; /* ink 16.6:1, accent 16.6:1 */
+  --warn-bg: #fff2c2;
   --warn-line: #a57a10;
-  --danger: #a3261d; /* 7.4:1 on surface */
+  --danger: #b3261e; /* 6.5:1 on surface */
   --on-danger: #ffffff;
-  --danger-bg: #fbe9e7;
-  --focus: #24604a;
-  --radius: 12px;
-  --radius-sm: 10px;
-  --shadow: 0 1px 2px rgb(28 35 33 / 0.06);
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --danger-bg: #fde8e6;
+  --brand: #c5f04a; /* 1.2:1 on bg: a fill, never text */
+  --on-brand: #141414; /* 14.0:1 on brand */
+  --brand-edge: #141414;
+  --focus: #141414;
+  --radius: 6px;
+  --radius-sm: 6px;
+  --shadow: none;
+  --font: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121816;
-    --surface: #1b2320;
-    --ink: #e8ece9; /* 15.1:1 on bg, 13.5:1 on surface */
-    --muted: #a9b3ae; /* 8.3:1 on bg, 7.5:1 on surface */
-    --line: #2c3833;
-    --border-strong: #6b7873; /* 3.5:1 on surface */
-    --accent: #7fc4a2; /* 7.9:1 on surface */
-    --accent-hover: #96d2b4;
-    --on-accent: #0d1a14; /* 8.8:1 on accent */
-    --tint: #22322b; /* ink 11.3:1, accent 6.6:1 */
-    --warn-bg: #33301f;
+    --bg: #0f0f0f;
+    --surface: #1b1b1b;
+    --ink: #f2f2ef; /* 17.1:1 on bg, 15.4:1 on surface */
+    --muted: #b3b3ae; /* 9.1:1 on bg, 8.2:1 on surface */
+    --line: #2d2d2b;
+    --border-strong: #7c7c78; /* 4.1:1 on surface */
+    --accent: #c5f04a; /* 13.1:1 on surface */
+    --accent-hover: #d6f57f;
+    --on-accent: #141414; /* 14.0:1 on accent */
+    --tint: #27301a; /* ink 12.3:1, accent 10.5:1 */
+    --warn-bg: #393217;
     --warn-line: #d6b45a;
-    --danger: #f08a80; /* 6.6:1 on surface */
+    --danger: #ff8a80; /* 7.6:1 on surface */
     --on-danger: #1b0d0b;
-    --danger-bg: #3a2321;
-    --focus: #7fc4a2;
+    --danger-bg: #3e1f1d;
+    --brand: #c5f04a;
+    --on-brand: #141414;
+    --brand-edge: #c5f04a;
+    --focus: #c5f04a;
     --shadow: none;
   }
 }
@@ -193,16 +221,13 @@ h1:focus {
   flex: none;
 }
 
-.mark-bg {
-  fill: var(--accent);
+.mark-body {
+  fill: var(--brand);
+  stroke: var(--brand-edge);
 }
 
-.mark-line {
-  stroke: var(--on-accent);
-}
-
-.mark-dot {
-  fill: var(--on-accent);
+.mark-knob {
+  fill: var(--on-brand);
 }
 
 .header-tools {
@@ -616,13 +641,13 @@ main {
 }
 
 .switch[aria-checked="true"]::before {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--brand);
+  border-color: var(--brand-edge);
 }
 
 .switch[aria-checked="true"] .switch-thumb {
   transform: translateX(20px);
-  background: var(--on-accent);
+  background: var(--on-brand);
 }
 
 .switch:disabled {
@@ -655,7 +680,7 @@ main {
   min-height: 44px;
   padding: 0.5rem 1.125rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   font: inherit;
   font-weight: 600;
   line-height: 1.25;
@@ -767,6 +792,10 @@ select {
   color: var(--ink);
   font: inherit;
   font-size: 1rem;
+}
+
+.header-tools .lang-switch {
+  width: auto;
 }
 
 input[type="time"] {
@@ -1421,10 +1450,10 @@ details.details-lead[open] summary::after {
 /* Colours of the three palettes, for the preview and the swatches in the picker. */
 .hp[data-palette="grey"],
 .swatch[data-palette="grey"] {
-  --hp-bg-l: #eceeef;
-  --hp-bg-d: #1c1f22;
-  --hp-ac-l: #4a525c;
-  --hp-ac-d: #aab2bb;
+  --hp-bg-l: #f5f5f3;
+  --hp-bg-d: #0f0f0f;
+  --hp-ac-l: #141414;
+  --hp-ac-d: #f2f2ef;
 }
 
 .hp[data-palette="sage"],
@@ -2208,13 +2237,39 @@ main {
   min-width: 0;
 }
 
+.sos-alert {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  /* Ink, not --accent: in dark --accent is the signal green, which only means "on". */
+  border-inline-start: 4px solid var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.sos-alert[data-kind="urgent"] {
+  border-inline-start-color: var(--danger);
+}
+
+.sos-event-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+.sos-alert .actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 /* Per-phone health and rule confirmations. */
 .rule-receipt {
   display: grid;
   gap: 0.2rem;
   margin-block: 0.75rem 1rem;
   padding: 0.625rem 0.875rem;
-  border-inline-start: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--tint);
 }
 
 .health-rows {

@@ -84,6 +84,24 @@ class PairingControllerTest {
     }
 
     @Test
+    fun `background rejection of an outdated QR prevents manual pairing after reopening`() {
+        store.saveEnrollToken("pp_e_old")
+        api.enrollResult = EnrollResult.OutdatedQr
+        assertThat(controller.enroll()).isEqualTo(EnrollResult.OutdatedQr)
+
+        val reopened = SyncStore(context, FakeSecretBox())
+        val next = PairingController(reopened, api, emptyMap())
+        assertThat(reopened.enrollToken()).isNull()
+        assertThat(next.enroll()).isEqualTo(EnrollResult.OutdatedQr)
+        assertThat(api.enrollCalls).hasSize(1)
+        assertThrows(IllegalStateException::class.java) { next.start() }
+
+        reopened.saveEnrollToken("pp_e_new")
+        api.enrollResult = EnrollResult.Paired("phone", "pp_d_connected")
+        assertThat(next.enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+    }
+
+    @Test
     fun `a refused key preserves the setup link for correcting the choice`() {
         store.saveEnrollToken("pp_e_retry")
         store.confirmEnrollment()
@@ -132,7 +150,8 @@ class PairingControllerTest {
     }
 
     @Test
-    fun `a refused token is dropped so the phone shows a code instead`() {
+    fun `a refused Light token is dropped so the phone shows a code instead`() {
+        val controller = PairingController(store, api, emptyMap(), mode = "light")
         store.saveEnrollToken("pp_e_used")
         api.enrollResult = EnrollResult.Rejected
         assertThat(controller.enroll()).isEqualTo(EnrollResult.Rejected)

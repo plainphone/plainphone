@@ -33,13 +33,14 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 ## Push notifications
 
-The app is ready for two notifications: a change waiting for your approval, and a position that is ready after Find. It asks for permission in Settings, creates the Android channels `approval` and `location`, and reads the native device token (APNs or FCM). It does not use the Expo push service.
+The app registers directly with the Plainphone server for APNs on iOS or FCM on Android. Enable permission under **Settings → Notifications**. The app sends a granted token on sign-in and refresh, and registers a replacement when the OS rotates it. Android uses the **Notifications** and **Urgent SOS** channels. Tapping an alert can open a phone, its location, approvals or settings.
 
-Still missing before notifications arrive:
+Per-phone alert preferences are shared with the web dashboard. See [push setup](push-setup.md) for the Firebase and Apple configuration.
 
-1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
-3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
+SOS alerts use the same registration. An urgent SOS is sent as a high-priority alert on the
+**Urgent SOS** channel (Android) or as a time-sensitive notification (iOS), and both SOS kinds
+open the child phone's overview. In system settings, allow Urgent SOS through Do Not Disturb or
+Focus if your phone offers it. See [SOS](sos.md#push-configuration).
 
 ## Location screen
 
@@ -95,13 +96,32 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
+Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
-EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
+EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
 
 ## Your own server
 
-Build the app with your server and ids:
+Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin
+(e.g. `https://plainphone.example.org`), and select **Connect**. The app checks
+`/api/health` for `ok: true` and `compatibility: 1` before saving the address.
+Changing servers clears the session and you sign in again. Select **Use plainphone.org**
+to return to the hosted service. If the sign-in link opens your browser, choose **Open in the app**
+from the page served by your server.
+
+For an existing phone, **Allow moving this phone to another server** is on the phone overview.
+Enable it before exporting the phone. A Myself phone needs its key. Use the web dashboard on
+both servers to download and import the encrypted file and start the
+[move](self-hosting.md#move-to-your-own-server).
+
+Native notification registration goes to the selected server when you enable notifications
+in Settings. When you reopen Settings, the app checks whether this device's APNs or FCM
+token is still registered for your account on that server. Older servers without the status
+endpoint may ask you to enable notifications again. The built-in server provider delivers
+Web Push to the dashboard and stores native tokens for future delivery.
+
+To set a custom default and have the OS open your domain's links directly, build with
+your own address and app identifiers:
 
 ```sh
 PLAINPHONE_SERVER_URL=https://plainphone.example.org \

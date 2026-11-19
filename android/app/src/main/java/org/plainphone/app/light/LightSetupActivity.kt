@@ -42,6 +42,7 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
 import org.plainphone.app.R
+import org.plainphone.app.sync.ServerAddress
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.Sync
@@ -57,6 +58,7 @@ import org.plainphone.app.ui.PlainphoneTheme
 class LightSetupActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
     private var pendingLink by mutableStateOf<LightEnrollment.Link?>(null)
+    private var manualServerOpen by mutableStateOf(false)
     private var batteryPromptOpened by mutableStateOf(false)
 
     private var requestedStep: LightSetup.Step? = null
@@ -71,8 +73,28 @@ class LightSetupActivity : ComponentActivity() {
         requestedStep = null
         if (step != null && needsRestrictedSettingsHelp(Build.VERSION.SDK_INT, step, LightSetup.isDone(this, step))) {
             restrictedStep = step
+            PermissionRecovery.markRestricted(this, step)
         }
         refresh++
+    }
+
+    /** Remember a refused runtime permission, so the help below survives leaving the app. */
+    internal fun recordPermissionResult(granted: Map<String, Boolean>) {
+        val step = when {
+            Manifest.permission.POST_NOTIFICATIONS in granted -> LightSetup.Step.RUNNING
+            Manifest.permission.ACCESS_FINE_LOCATION in granted ||
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION in granted -> LightSetup.Step.LOCATION
+            else -> return
+        }
+        val refused = granted.filterValues { !it }.keys.firstOrNull()
+        if (refused == null) {
+            PermissionRecovery.clear(this, step)
+            return
+        }
+        PermissionRecovery.recordDenial(this, step)
+        if (PermissionRecovery.needsSettings(PermissionRecovery.denials(this, step), shouldShowRequestPermissionRationale(refused))) {
+            PermissionRecovery.markBlocked(this, step)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -81,6 +103,7 @@ class LightSetupActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        recordPermissionResult(granted)
         if (granted[Manifest.permission.POST_NOTIFICATIONS] == true &&
             !LightSetup.isDone(this, LightSetup.Step.RUNNING)
         ) requestBatteryAccess()
@@ -95,7 +118,9 @@ class LightSetupActivity : ComponentActivity() {
             return
         }
         requestedStep = savedInstanceState?.getString("requestedStep")?.let(LightSetup.Step::valueOf)
+        PermissionRecovery.clearDone(this)
         restrictedStep = savedInstanceState?.getString("restrictedStep")?.let(LightSetup.Step::valueOf)
+            ?: LightSetup.Step.entries.firstOrNull { PermissionRecovery.restricted(this, it) }
         receiveLink(intent)
         val store = SyncStore(this)
         if (pendingLink == null && LightEnrollment.canImport(this, store) && !LightSetup.linkReviewed(this)) {
@@ -129,22 +154,19 @@ class LightSetupActivity : ComponentActivity() {
     @Composable
     private fun AudienceScreen() {
         var audience by rememberSaveable { mutableStateOf<SetupAudience?>(null) }
+        val light = Mode.isLight(this)
+        var stageIndex by rememberSaveable { mutableIntStateOf(MyselfStage.first(light).ordinal) }
         var otherVpn by rememberSaveable { mutableStateOf<Boolean?>(null) }
         var undoMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
-        var keyChosen by rememberSaveable { mutableStateOf(false) }
         var waitHours by rememberSaveable { mutableStateOf<Int?>(null) }
         var trusted by rememberSaveable { mutableStateOf(false) }
         var inviteByQr by rememberSaveable { mutableStateOf(false) }
         var email by rememberSaveable { mutableStateOf("") }
+        val stage = MyselfStage.entries[stageIndex]
+        // One step back; every choice made so far stays, so going back never costs a decision.
         val back = {
-            audience = null
-            otherVpn = null
-            undoMinutes = null
-            keyChosen = false
-            waitHours = null
-            trusted = false
-            inviteByQr = false
-            email = ""
+            val previous = if (audience == SetupAudience.MYSELF) stage.previous(light) else null
+            if (previous != null) stageIndex = previous.ordinal else audience = null
         }
         BackHandler(audience != null, onBack = back)
         when (audience) {
@@ -181,19 +203,24 @@ class LightSetupActivity : ComponentActivity() {
             }
             else -> {
                 val choice = checkNotNull(audience)
-                if (choice == SetupAudience.MYSELF && Mode.isLight(this) && otherVpn == null) {
+                val myself = choice == SetupAudience.MYSELF
+                if (myself && stage == MyselfStage.VPN) {
                     CalmScreen(
                         eyebrow = null,
                         title = stringResource(R.string.light_other_vpn),
                         body = stringResource(R.string.light_other_vpn_tip),
                         primary = stringResource(R.string.light_other_vpn_yes),
-                        onPrimary = { otherVpn = true },
+                        onPrimary = { otherVpn = true; stageIndex = MyselfStage.UNDO.ordinal },
                         secondary = stringResource(R.string.light_other_vpn_no),
-                        onSecondary = { otherVpn = false },
-                    )
+                        onSecondary = { otherVpn = false; stageIndex = MyselfStage.UNDO.ordinal },
+                    ) {
+                        OutlinedButton(onClick = back, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.setup_back))
+                        }
+                    }
                     return
                 }
-                if (choice == SetupAudience.MYSELF && Mode.isLight(this) && undoMinutes == null) {
+                if (myself && stage == MyselfStage.UNDO) {
                     CalmScreen(
                         eyebrow = null,
                         title = stringResource(R.string.setup_undo_choice_title),
@@ -205,21 +232,19 @@ class LightSetupActivity : ComponentActivity() {
                     ) {
                         ScanPlainphoneCode(R.string.self_template_import, pendingLink)
                         for (minutes in SETUP_UNDO_CHOICES) {
-                            OutlinedButton(
-                                onClick = { undoMinutes = minutes },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(when (minutes) {
+                            ChoiceButton(
+                                label = when (minutes) {
                                     0 -> stringResource(R.string.setup_undo_choice_off)
                                     10 -> stringResource(R.string.setup_undo_choice_default)
                                     else -> stringResource(R.string.setup_undo_choice_minutes, minutes)
-                                })
-                            }
+                                },
+                                selected = undoMinutes == minutes,
+                            ) { undoMinutes = minutes; stageIndex = MyselfStage.KEY.ordinal }
                         }
                     }
                     return
                 }
-                if (choice == SetupAudience.MYSELF && !keyChosen) {
+                if (myself && stage == MyselfStage.KEY) {
                     val ready = if (trusted) inviteByQr || android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() else waitHours != null
                     CalmScreen(
                         eyebrow = null,
@@ -227,16 +252,12 @@ class LightSetupActivity : ComponentActivity() {
                         body = stringResource(R.string.setup_key_body) + "\n" +
                             stringResource(R.string.setup_key_overrides_dashboard),
                         primary = if (ready) stringResource(R.string.setup_continue) else null,
-                        onPrimary = { keyChosen = true },
+                        onPrimary = { stageIndex = MyselfStage.CONFIRM.ordinal },
                         secondary = stringResource(R.string.setup_back),
                         onSecondary = back,
                     ) {
-                        OutlinedButton(onClick = { trusted = false; waitHours = null }, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.setup_key_wait))
-                        }
-                        OutlinedButton(onClick = { trusted = true; waitHours = null }, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.setup_key_trusted))
-                        }
+                        ChoiceButton(stringResource(R.string.setup_key_wait), !trusted) { trusted = false }
+                        ChoiceButton(stringResource(R.string.setup_key_trusted), trusted) { trusted = true }
                         if (trusted) {
                             OutlinedButton(onClick = { inviteByQr = !inviteByQr }, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(if (inviteByQr) R.string.setup_key_email else R.string.setup_key_qr))
@@ -249,12 +270,10 @@ class LightSetupActivity : ComponentActivity() {
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            Text(stringResource(R.string.setup_key_trusted_preview))
+                            Text(stringResource(R.string.setup_key_trusted_preview, PENDING_KEY_FALLBACK_HOURS))
                         } else {
                             for (hours in listOf(1, 6, 12, 24, 48, 72)) {
-                                OutlinedButton(onClick = { waitHours = hours }, modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.setup_key_hours, hours))
-                                }
+                                ChoiceButton(stringResource(R.string.setup_key_hours, hours), waitHours == hours) { waitHours = hours }
                             }
                             waitHours?.let { Text(stringResource(R.string.setup_key_wait_preview, it)) }
                         }
@@ -263,21 +282,23 @@ class LightSetupActivity : ComponentActivity() {
                 }
                 CalmScreen(
                     eyebrow = null,
-                    title = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self else R.string.setup_confirm_child),
-                    body = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self_body else R.string.setup_confirm_child_body),
+                    title = stringResource(if (myself) R.string.setup_confirm_self else R.string.setup_confirm_child),
+                    body = stringResource(if (myself) R.string.setup_confirm_self_body else R.string.setup_confirm_child_body),
                     primary = stringResource(R.string.setup_continue),
                     onPrimary = {
-                        LightSetup.saveInitialFilterMethod(this, otherVpn)
-                        undoMinutes?.let { LightSetup.saveUndoMinutes(this, it) }
-                        if (choice == SetupAudience.MYSELF) {
-                            LightSetup.saveSelfKey(this, waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
+                        if (myself) {
+                            LightSetup.saveInitialFilterMethod(this, otherVpn)
+                            undoMinutes?.let { LightSetup.saveUndoMinutes(this, it) }
+                            LightSetup.saveSelfKey(this, if (trusted) null else waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
                         }
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
                         refresh++
                     },
                     secondary = stringResource(R.string.setup_back),
                     onSecondary = back,
-                )
+                ) {
+                    if (myself) MyselfSummary(undoMinutes ?: 10, waitHours, trusted, inviteByQr, email)
+                }
             }
         }
     }
@@ -416,6 +437,7 @@ class LightSetupActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (isFinishing) return
+        PermissionRecovery.clearDone(this)
         refresh++
         if (LightSetup.profile(this) == null && !LightSetup.isComplete(this)) return
         if (LightSetup.next(this) == null && !LightRelease.isReleased(this)) LightSetup.markComplete(this)
@@ -431,15 +453,35 @@ class LightSetupActivity : ComponentActivity() {
 
     @Composable
     private fun StepScreen(step: LightSetup.Step) {
-        if (restrictedStep == step) {
-            CalmScreen(
-                eyebrow = null,
+        val restricted = restrictedStep == step
+        if (restricted || (PermissionRecovery.blocked(this, step) && runtimePermissionMissing(step))) {
+            val skippable = step.optional && !restricted
+            PermissionRecoveryScreen(
                 title = stringResource(step.title),
-                body = stringResource(R.string.setup_restricted_body),
-                primary = stringResource(R.string.light_app_info),
-                onPrimary = { open(LightSetup.appDetails(this)) },
-                secondary = stringResource(R.string.pairing_retry),
-                onSecondary = { restrictedStep = null; act(step) },
+                intro = stringResource(when {
+                    restricted -> R.string.setup_restricted_body
+                    step == LightSetup.Step.RUNNING -> R.string.setup_recovery_denied_notifications
+                    else -> R.string.setup_recovery_denied_location
+                }),
+                steps = buildList {
+                    add(stringResource(R.string.setup_recovery_step_open))
+                    if (restricted) {
+                        add(stringResource(R.string.setup_recovery_step_menu))
+                        add(stringResource(R.string.setup_recovery_step_restricted))
+                    } else {
+                        add(stringResource(if (step == LightSetup.Step.RUNNING) R.string.setup_recovery_step_notifications else R.string.setup_recovery_step_location))
+                    }
+                    add(stringResource(R.string.setup_recovery_step_return))
+                },
+                onOpenSettings = { open(LightSetup.appDetails(this)) },
+                onRetry = {
+                    restrictedStep = null
+                    PermissionRecovery.clear(this, step)
+                    act(step)
+                    refresh++
+                },
+                onSkip = if (skippable) ({ LightSetup.skip(this, step); refresh++ }) else null,
+                skipEffect = PermissionRecovery.skipEffect(step)?.let { stringResource(it) },
             )
             return
         }
@@ -485,7 +527,7 @@ class LightSetupActivity : ComponentActivity() {
                 step == LightSetup.Step.ADMIN && LightSetup.profile(this) == "self" -> R.string.setup_admin_self
                 else -> step.body
             }),
-            primary = stringResource(when {
+            primary = if (step == LightSetup.Step.PAIR && manualServerOpen) null else stringResource(when {
                 batteryHelp != null -> R.string.light_battery_settings
                 backgroundLocationSettings -> R.string.light_app_info
                 else -> step.action
@@ -511,12 +553,85 @@ class LightSetupActivity : ComponentActivity() {
             },
             progress = (index + 1f) / total,
         ) {
+            if (step == LightSetup.Step.PAIR && canChooseSetupServer()) {
+                ManualServer()
+            }
             if (step == LightSetup.Step.PAIR && !SyncStore(this@LightSetupActivity).everPaired) {
                 OutlinedButton(onClick = ::changeAudience, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.setup_back))
                 }
             }
+            if (PermissionRecovery.denials(this@LightSetupActivity, step) > 0 && runtimePermissionMissing(step)) Text(stringResource(R.string.setup_denied_once))
+            PermissionRecovery.skipEffect(step)?.let { Text(stringResource(it)) }
             PermissionIllustration(step)
+        }
+    }
+
+    private fun canChooseSetupServer(): Boolean {
+        val store = SyncStore(this)
+        return Mode.isLight(this) && !LightSetup.isComplete(this) && !store.everPaired &&
+            store.enrollToken() == null && pendingLink == null
+    }
+
+    @Composable
+    private fun ManualServer() {
+        var current by remember { mutableStateOf(ConfigStore(this).load().serverUrl) }
+        var address by rememberSaveable { mutableStateOf(current) }
+        var busy by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        Text(stringResource(R.string.server_current, current))
+        if (!manualServerOpen) {
+            OutlinedButton(onClick = { manualServerOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.server_custom))
+            }
+            return
+        }
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it; failed = false },
+            label = { Text(stringResource(R.string.server_address)) },
+            enabled = !busy,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (failed) Text(stringResource(R.string.server_error))
+        OutlinedButton(
+            enabled = !busy && address.isNotBlank(),
+            onClick = {
+                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                val server = ServerAddress.normalize(address, debug)
+                if (server == null) {
+                    failed = true
+                } else {
+                    busy = true
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { ServerAddress.check(server) }
+                            if (canChooseSetupServer()) {
+                                val config = ConfigStore(this@LightSetupActivity)
+                                SyncStore(this@LightSetupActivity).savePairing(null)
+                                config.save(config.load().copy(serverUrl = server))
+                                current = server
+                                manualServerOpen = false
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            failed = true
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(if (busy) R.string.server_checking else R.string.server_connect))
+        }
+        OutlinedButton(enabled = !busy, onClick = { manualServerOpen = false }, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(android.R.string.cancel))
         }
     }
 
@@ -601,6 +716,13 @@ class LightSetupActivity : ComponentActivity() {
     private fun requestBatteryAccess() {
         batteryPromptOpened = true
         open(LightSetup.intent(this, LightSetup.Step.RUNNING), LightSetup.appDetails(this))
+    }
+
+    /** Only the runtime permission steps can be denied; the rest are Settings screens. */
+    private fun runtimePermissionMissing(step: LightSetup.Step) = when (step) {
+        LightSetup.Step.RUNNING -> !LightSetup.notificationsAllowed(this)
+        LightSetup.Step.LOCATION -> !fineLocationAllowed() || (Build.VERSION.SDK_INT < 30 && !LightSetup.isDone(this, step))
+        else -> false
     }
 
     private fun fineLocationAllowed() =

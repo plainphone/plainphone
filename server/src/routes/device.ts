@@ -7,17 +7,19 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { fcmValidationKey, WAKE_PROVIDERS } from "../providers/push.js";
 import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
-import { body, clientIp, RateLimiter } from "../lib/http.js";
+import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
+import { phoneApprovalState } from "../services/approval-outcome.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
-import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
+import { ENROLLMENT_PREFIX, enrollmentMatches, lockEnrollment, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
 import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -27,11 +29,13 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, notifyAlertRecipients, protectionLost } from "../services/notifications.js";
 import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
+import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../services/server-move.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
+import { deviceSosRoutes } from "./sos.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -185,10 +189,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       cancel: z.boolean().optional(),
     }));
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || (!input.cancel && e.expiresAt <= ctx.now())) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== input.mode || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || (!input.cancel && e.expiresAt <= ctx.now())) return null;
+      if (phone.mode !== input.mode || phone.deviceTokenHash) return null;
       if (input.cancel) return { clientId: await deletePhone(tx, phone.id) };
       const [account] = e.createdBy
         ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, e.createdBy))
@@ -215,10 +220,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }));
     const now = ctx.now();
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || e.expiresAt <= now) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || e.expiresAt <= now) return null;
+      if (phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
       const rules = await readSelfTemplate(tx, input.template, now);
       if (!rules) return null;
       const skippedCoreBlocks = await replaceDraftTemplate(tx, phone.id, rules, now);
@@ -244,9 +250,21 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
-    if (r.status !== 200) return c.json({ error: r.error }, r.status);
+    if (r.status !== 200) return c.json({ error: r.error, ...(r.code && { code: r.code }) }, r.status);
     const { phoneId, deviceToken, account, setupUndoMinutes } = r;
     return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
+  });
+
+  const moveLimit = new RateLimiter(60, 15 * 60_000);
+  app.post("/move", bodyLimit({ maxSize: 1024 }), async (c) => {
+    if (!moveLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many moves" });
+    try {
+      await redeemMove(ctx, await body(c, redeemMoveInput));
+      return c.body(null, 204);
+    } catch (err) {
+      if (err instanceof MoveError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
   });
 
   // --- Everything below needs the device token ------------------------------
@@ -263,6 +281,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
+  deviceSosRoutes(app, ctx);
 
   app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");
@@ -291,6 +310,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.body(null, result.status === "applied" ? 204 : 202);
   });
 
+  app.get("/move-rules", async (c) => {
+    const phone = c.get("phone");
+    if (!await canPreviewMove(ctx, phone)) return c.body(null, 409);
+    const { body: rules, etag } = await respondWithRules(ctx, phone, []);
+    c.header("Cache-Control", "no-store");
+    c.header("ETag", etag);
+    c.header("Content-Type", "application/json");
+    return c.body(rules ?? "");
+  });
+
   app.get("/rules", async (c) => {
     let phone = c.get("phone");
     if (await applyDueChanges(ctx, phone.id)) {
@@ -304,7 +333,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const deviceTokenHash = phone.deviceTokenHash;
       if (!deviceTokenHash) throw new HTTPException(401, { message: "unknown device; pair again" });
       const [activated] = await ctx.db.update(phones)
-        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)` })
+        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)`, awaitingServerMove: false })
         .where(and(eq(phones.id, phone.id), eq(phones.deviceTokenHash, deviceTokenHash)))
         .returning();
       if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
@@ -331,9 +360,22 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       );
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
-    const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
+    const { body: rules, etag, hasMove } = await respondWithRules(ctx, phone, candidates);
+    // Count requests that actually serve release rules, including conditional fetches.
+    // Tie each increment to this request so concurrent syncs cannot lose counts or update a new release.
+    if (phone.releaseWarningsEnabled && phone.releaseRequestedAt && phone.releaseSyncCount < 3) {
+      await ctx.db.update(phones)
+        .set({ releaseSyncCount: sql`${phones.releaseSyncCount} + 1` })
+        .where(and(
+          eq(phones.id, phone.id),
+          eq(phones.releaseRequestedAt, phone.releaseRequestedAt),
+          eq(phones.releaseWarningsEnabled, true),
+          eq(phones.deviceTokenHash, phone.deviceTokenHash!),
+          lt(phones.releaseSyncCount, 3),
+        ));
+    }
     c.header("ETag", etag);
-    c.header("Cache-Control", "no-cache");
+    c.header("Cache-Control", hasMove ? "no-store" : "private, no-cache");
     if (rules === null) return c.body(null, 304);
     c.header("Content-Type", "application/json");
     return c.body(rules);
@@ -427,6 +469,15 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       id, type: op.type, appLabel,
       summary: formatApprovalSummary(state, phone.id, op, { id, owner: true, bonusDate }),
     })) });
+  });
+
+  app.get("/approval-challenge/:changeId", async (c) => {
+    const phone = c.get("phone");
+    if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
+    const state = await phoneApprovalState(ctx, phone.id, param(c, "changeId"));
+    if (!state) throw new HTTPException(404, { message: "not found" });
+    c.header("Cache-Control", "no-store");
+    return c.json({ state });
   });
 
   app.post("/approval-challenge", async (c) => {
@@ -661,6 +712,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       c,
       z.object({
         appVersion: z.string().min(1).max(40),
+        androidVersion: z.string().regex(/^\d{1,5}(?:\.\d{1,5}){0,3}$/).optional(),
         appVersionCode: z.number().int().positive().optional(),
         update: z.object({
           state: z.enum(["upToDate", "available", "installing", "prompted", "refused", "failed"]),
@@ -674,6 +726,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceOwner: z.boolean(),
         lockIntact: z.boolean(),
         maintenance: z.boolean(),
+        pushProvider: z.enum(WAKE_PROVIDERS).optional(),
         failedPolicies: z.array(z.string().min(1).max(200)).max(50),
         installOverrunSequence: z.number().int().positive().optional(),
         rulesEtag: z.string().max(100).nullable(),
@@ -820,8 +873,42 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/requests", async (c) => c.json({ requests: await phoneRequestList(ctx, c.get("phone").id) }));
 
   app.put("/push-token", async (c) => {
-    const input = await body(c, z.object({ fcmToken: z.string().min(1).max(4096).nullable() }));
-    await ctx.db.update(phones).set({ fcmToken: input.fcmToken }).where(eq(phones.id, c.get("phone").id));
+    const { fcmToken = null, unifiedPushEndpoint = null } = await body(c, z.object({
+      fcmToken: z.string().min(1).max(4096).nullable().optional(),
+      unifiedPushEndpoint: z.string().min(1).max(2048).nullable().optional(),
+    }));
+    const phone = c.get("phone");
+    if (fcmToken && (!ctx.push.fcmAvailable || phone.preferUnifiedPush)) {
+      return c.json({ error: "FCM wakeups unavailable" }, 409);
+    }
+    if (unifiedPushEndpoint && (fcmToken || !ctx.push.acceptsEndpoint?.(unifiedPushEndpoint))) {
+      return c.json({ error: "unsupported wakeup endpoint" }, 400);
+    }
+    if ((fcmToken || unifiedPushEndpoint) && !phone.pushWakeups) {
+      return c.json({ error: "wakeups disabled" }, 409);
+    }
+    const validationKey = fcmToken ? fcmValidationKey(ctx.push) : null;
+    const sameToken = fcmToken === phone.fcmToken;
+    if (sameToken && validationKey === phone.fcmValidationKey &&
+        unifiedPushEndpoint === phone.unifiedPushEndpoint) return c.body(null, 204);
+    const unchanged = and(eq(phones.id, phone.id), eq(phones.pushWakeups, phone.pushWakeups),
+      eq(phones.preferUnifiedPush, phone.preferUnifiedPush),
+      phone.fcmToken === null ? isNull(phones.fcmToken) : eq(phones.fcmToken, phone.fcmToken),
+      phone.fcmValidationKey === null ? isNull(phones.fcmValidationKey) : eq(phones.fcmValidationKey, phone.fcmValidationKey),
+      phone.unifiedPushEndpoint === null ? isNull(phones.unifiedPushEndpoint) : eq(phones.unifiedPushEndpoint, phone.unifiedPushEndpoint));
+    if (fcmToken && ctx.push.validateFcmToken) {
+      const outcome = await ctx.push.validateFcmToken(fcmToken);
+      if (outcome === "gone") {
+        if (sameToken) await ctx.db.update(phones).set({ fcmToken: null, fcmValidationKey: null }).where(unchanged);
+        return c.json({ error: "FCM token rejected" }, 422);
+      }
+      if (outcome !== "sent") return c.json({ error: "FCM validation unavailable" }, 503);
+    }
+    const updated = await ctx.db.update(phones)
+      .set({ fcmToken, fcmValidationKey: validationKey, unifiedPushEndpoint })
+      .where(unchanged)
+      .returning({ id: phones.id });
+    if (!updated.length) return c.json({ error: "wakeups changed" }, 409);
     return c.body(null, 204);
   });
 

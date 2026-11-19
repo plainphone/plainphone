@@ -3,7 +3,9 @@
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
 // so the app never sees or stores a token.
 
-export type Locale = "en" | "da";
+import type { Language, PhoneLanguage } from "./phone-language";
+
+export type Locale = Language;
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
@@ -21,6 +23,7 @@ export interface Me {
 /** What the phone last reported about itself (`PUT /device/status`). */
 export type FilterMethod = "vpn" | "privateDns";
 export interface PhoneStatus {
+  pushProvider?: "none" | "fcm" | "unifiedpush";
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
   filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
@@ -77,18 +80,33 @@ export const PROTECTIONS = [
 ] as const;
 export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
+  pushWakeups?: boolean;
+  preferUnifiedPush?: boolean;
   id: string;
   name: string;
   profile: Profile;
   mode: "strong" | "light";
+  /** Every app is allowed except the block list. Missing on old servers. */
+  openMode?: boolean;
   timezone: string;
+  language?: PhoneLanguage;
+  lockSystemLanguage?: boolean;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
   setupQrAvailable?: boolean;
+  setupEnrollmentId?: string | null;
+  allowServerMove?: boolean;
+  awaitingServerMove?: boolean;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
+  supportEnabled?: boolean;
+  releaseWarningsEnabled?: boolean;
+  releaseSyncCount?: number;
+  androidVersion?: string | null;
   lastSeenAt: string | null;
+  /** Only on a single phone: whether it has confirmed the rules the server holds now. Null while it has confirmed none. */
+  rulesCurrent?: boolean | null;
   dnsHost: string;
   dnsSynced: boolean;
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
@@ -149,7 +167,18 @@ export interface App {
   packageName: string;
   label: string;
   allowed: boolean;
+  /** Open mode: on the block list, one by one or with a category. */
+  blocked?: boolean;
+  /** Set when only a blocked category blocks the app. */
+  blockedBy?: OpenCategory;
   core: boolean;
+}
+/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
+export type OpenCategory = "social" | "gambling" | "adult";
+export interface OpenModeState {
+  enabled: boolean;
+  categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
+  blockedApps: { packageName: string; label: string }[];
 }
 /** Minutes a day, with optional overrides per ISO weekday ("1" = Monday). */
 export interface Limit {
@@ -181,6 +210,7 @@ export interface PhoneCatalog {
   apps: CatalogApp[];
 }
 export interface Contact {
+  sosParent?: boolean;
   id: string;
   name: string;
   number: string;
@@ -305,6 +335,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: FilterMethod }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -315,12 +347,14 @@ export type Op =
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
+  | { type: "move.allow"; allowed: boolean }
+  | { type: "move.start"; exportId: string; serverUrl: string }
   | { type: "timeLimit.set"; packageName: string; limit: Limit | null }
   | { type: "timeLimit.bonus"; packageName: string; date: string; minutes: number }
   | { type: "catalog.add"; packageName: string; label: string }
   | { type: "catalog.remove"; packageName: string };
 
-export type ApprovalSummary = Record<Locale, string>;
+export type ApprovalSummary = Record<"en" | "da", string>;
 
 export interface PendingChange {
   summary?: ApprovalSummary;
@@ -369,7 +403,7 @@ export class ApiError extends Error {
     message: string,
     readonly issues: Issue[] = [],
     /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
-    readonly data: { selfPhoneIds?: string[] } = {},
+    readonly data: { selfPhoneIds?: string[]; outcome?: string } = {},
   ) {
     super(message);
   }
@@ -413,7 +447,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[] };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
     throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }
@@ -431,6 +465,9 @@ export const api = {
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
+
+export const acknowledgeSos = <T>(pid: string, id: string, name: string) =>
+  api.post<T>(`/phones/${pid}/sos/${id}/seen`, { name: name.trim() || undefined });
 
 export const getPhoneSettings = (pid: string) =>
   api.get<{ settings: PhoneSettings }>(`/phones/${pid}/settings`).then((r) => r.settings);

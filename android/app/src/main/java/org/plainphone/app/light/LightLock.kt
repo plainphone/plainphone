@@ -65,10 +65,11 @@ object LightLock {
             roles?.isRoleHeld(android.app.role.RoleManager.ROLE_SMS) == true,
             Build.VERSION.SDK_INT,
         )
+        val launchable = device.launchablePackages()
         val plan = LightPlan.build(
-            launchable = device.launchablePackages(),
+            launchable = launchable,
             core = device.corePackages(),
-            allowed = config.allowedPackages,
+            allowed = config.visibleAmong(launchable),
             ownPackage = context.packageName,
             telephony = telephony,
             timeBlocked = config.timeBlocked,

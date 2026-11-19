@@ -5,9 +5,8 @@ export default {
   path: "/",
   title: "Plainphone | Android parental controls and a simpler phone",
   description: "Set up an Android as your child’s first phone or a simpler phone for yourself. Keep calls and essential apps, and choose which apps and websites to limit.",
-  ogAlt: "Plainphone: your phone, minus the noise.",
+  ogAlt: "Plainphone: Your phone, minus the noise. Calls, messages and camera are switched on; social media and the app store are off.",
   landing: {
-    product: "Product",
     setup: "Setup",
     faq: "FAQ",
     menu: "Menu",
@@ -19,9 +18,8 @@ export default {
     project: "Project",
     languages: "Languages",
     day: ["Day one with Plainphone", "Pick Strong or Light mode in the parent dashboard.", "Choose who will use the phone.", "Follow the setup guide and connect the phone.", "Agree on the rules together and try a call and the apps you need."],
-    child: ["What your child sees", "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location."],
-    visual: ["Plainphone setup screen for choosing between Strong and Light mode", "Setup in the parent dashboard (shown in Danish).", "No cookies, analytics, tracking or third-party requests on this website."],
-    diagram: "Android 10 or later",
+    childSees: "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location.",
+    privacyNote: "No cookies, analytics, tracking or third-party requests on this website.",
     groups: {
       gettingStarted: "Getting started",
       safety: "Safety",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Your phone, minus the noise.",
     lead: "Plainphone turns an Android phone into a phone with calls, texts and the apps you choose.",
-    staysLabel: "What stays",
-    stays: ["Calls", "Messages", "Camera"],
-    goesLabel: "What goes",
-    goes: ["Social media apps and games you leave off the list", "Selected websites, with the web filter", "App stores, unless you allow them"],
   },
   who: {
     title: "Who it’s for",
@@ -109,7 +103,7 @@ export default {
     ],
     guide: "Open the setup guide",
     available: "Available now: approved contacts, a web filter with categories, and optional text, call and contact history. You can also use the phone’s filter address on a router or VPN. Phone updates and server backups are supported.",
-    note: "Coming soon: SOS and a phone language parents can choose.",
+    note: "SOS: your child can hold a button to send an urgent SOS or a help request. Parents get the position when location sharing is on, and if the phone is offline it can send an SMS instead. 112 is on the same screen.",
   },
   open: {
     title: "Open source",
@@ -261,6 +255,7 @@ export default {
           {
             list: [
               "the name the adult gives the phone, whether it is a child’s or an adult’s own phone, its time zone and when it last contacted the server",
+              "the language chosen for Plainphone on the phone, if the adult picks one",
               "a few short facts the phone reports when it pairs, such as its model and Android version, and its latest status: battery level, app version, whether its lock is intact and which web filter address it uses. Each report replaces the one before",
               "if you turn on protection against reset, your household keeps your numeric Google account ID and when it was linked. Disconnect it in Household settings to delete it, or delete your Plainphone account. We do not store your Google email address or sign-in tokens for this feature",
               "for a phone in strong mode, the latest system check, including whether the bootloader is locked, the security patch level and the check time. Each check replaces the previous one, and removing the phone deletes it. We do not keep its certificate chain",
@@ -290,6 +285,7 @@ export default {
           "Location is a setting for each phone, with four choices: off; only when a parent presses Find; on Find and when an “Are you okay?” goes unanswered; or always on, every five minutes, for a time the parent picks (an hour, today or a week), after which it goes back to Find and “Are you okay?” by itself. A child’s phone starts with Find and “Are you okay?”, not always on. An adult’s own phone starts with location off, and turning it on is the owner’s choice. A parent can change it at any time.",
           "The phone is open about it. Each time it sends a single position (Find, or an unanswered “Are you okay?”), it shows a short notice saying so. When location is always on, the phone shows that the whole time, in a notification and on Plainphone’s own screen. The child can open “What can my parents see?” on the phone: it explains the current setting and lists each time the position was sent in the last 30 days. That list stays on the phone.",
           "“Are you okay?” asks the child to answer within a time the parent picks. If the child answers, no position is sent. If nobody answers in time, the phone sends one position. “Ring the phone” plays an alarm sound and vibrates for at most five minutes; it sends no position. The server keeps a ring or a question (times and the answer, and the approved number for “Call me”) for a day after it ends, then deletes it.",
+          "A child can send an SOS with a time, battery level and one location when location is enabled. Parents can acknowledge it. The SOS history, including acknowledgment and location, is deleted after 30 days or when the phone is removed. When the server is unreachable, a fallback text can include a map link. Native notifications are relayed through Expo and Apple or Google. Map coordinates are sent to Google Maps only when a parent opens the link.",
           "The server keeps only the latest position: coordinates, accuracy and time. Each new position replaces the old one, and no history is kept. Switching location off, or removing the phone, deletes the stored position.",
           "The dashboard shows the position on a map. The map tiles come from OpenFreeMap (tiles.openfreemap.org, OpenStreetMap data), so loading them tells OpenFreeMap roughly which area is being looked at, along with the parent’s IP address. The map is only loaded on the location page. The parent app on a phone uses OpenStreetMap’s tile servers, and only after the parent taps Show map. If a parent chooses “Drive there” with Google Maps or Apple Maps, or copies the position, the coordinates go to that app, and its own policy applies from there.",
         ],
@@ -388,6 +384,10 @@ export default {
                   "Invitations",
                   "Deleted when accepted. Otherwise they stop working after 7 days and are deleted a day later. You can withdraw an open invitation at any time",
                 ],
+                [
+                  "Setup code hashes and saved setup settings",
+                  "Eligible for cleanup 30 days after the code expires. Removing the phone deletes them",
+                ],
                 ["Web filter counters", "24 hours"],
                 [
                   "Backups of the database",
@@ -445,13 +445,13 @@ export default {
     question: "Is the phone new or already in use?",
     strong: "It is new or reset",
     strongHelp: "Recommended. Plainphone can protect more settings on a fresh phone.",
+    strongLanguage: "Before showing the QR code, choose the phone language. Android uses it during setup. You can change the language in Plainphone later from the phone settings in the dashboard.",
     light: "It is already in use",
     lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
     startStrong: "Start setup for a new or reset phone",
     startLight: "Start setup for a phone in use",
+    stepsLink: "See the steps",
     start: "In the dashboard, say who the phone is for and create a setup link.",
-    strongTitle: "New or reset phone",
-    lightTitle: "Phone already in use",
     lightSteps: [
       ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
       ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],
@@ -549,7 +549,7 @@ export default {
     maintained: "Plainphone is maintained by <a href=\"https://mahoje.dk\">Mahoje</a> in Denmark.",
     setup: "Guide: <a href=\"/setup/\">Set up a phone</a>.",
     privacy: "This site sets no cookies and runs no analytics. <a href=\"/privacy/\">Privacy policy</a>.",
-    license: "Code under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Font: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Code under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Fonts: Schibsted Grotesk and IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Page not found",

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Android adaptive icon, 108 dp canvas. The artwork stays inside the 66 dp safe circle. -->
+  <rect x="41.5" y="32.5" width="25" height="43" rx="8" fill="none" stroke="#ffffff" stroke-width="5"/>
+  <rect x="47.5" y="51.5" width="13" height="5" rx="2.5" fill="#ffffff"/>
+</svg>

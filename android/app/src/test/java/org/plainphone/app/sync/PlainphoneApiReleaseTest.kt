@@ -62,24 +62,37 @@ class PlainphoneApiReleaseTest {
     private lateinit var server: HttpServer
     @Volatile private var answer = 204
     @Volatile private var responseBody = """{"error":"x"}"""
-    private val seen = mutableListOf<Triple<String, String, String?>>()
-    private val completionReports = mutableListOf<JSONObject>()
-
+    // The server answers on its own threads; the test reads these on the test thread.
+    private val seen = java.util.Collections.synchronizedList(mutableListOf<Triple<String, String, String?>>())
+    private val completionReports = java.util.Collections.synchronizedList(mutableListOf<JSONObject>())
+    private lateinit var serverThreads: java.util.concurrent.ExecutorService
 
     @Before
     fun start() {
-        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server = HttpServer.create(InetSocketAddress(0), 0)
+        serverThreads = java.util.concurrent.Executors.newCachedThreadPool()
+        server.executor = serverThreads
         server.createContext("/") { ex ->
-            seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
-            val request = ex.requestBody.readBytes()
-            val status = if (ex.requestURI.path == "/api/device/setup-completion") {
-                completionReports += JSONObject(request.decodeToString())
-                if (answer == 204) 200 else answer
-            } else answer
-            val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
-            ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
-            if (status != 204) ex.responseBody.use { it.write(body) }
-            ex.close()
+            try {
+                seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
+                val request = ex.requestBody.readBytes()
+                val status = if (ex.requestURI.path == "/api/device/setup-completion") {
+                    completionReports += JSONObject(request.decodeToString())
+                    if (answer == 204) 200 else answer
+                } else answer
+                val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
+                // Every answer ends its connection, so no client can pick up a socket the server has dropped.
+                ex.responseHeaders.set("Connection", "close")
+                ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
+                if (status != 204) ex.responseBody.use { it.write(body) }
+            } catch (e: Throwable) {
+                // A handler that dies drops the connection and the client only sees a SocketException.
+                // Say what went wrong here instead.
+                System.err.println("test server failed: $e")
+                runCatching { ex.sendResponseHeaders(500, -1) }
+            } finally {
+                ex.close()
+            }
         }
         server.start()
     }
@@ -87,9 +100,14 @@ class PlainphoneApiReleaseTest {
     @After
     fun stop() {
         server.stop(0)
+        serverThreads.shutdownNow()
     }
 
-    private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}")
+    // HttpURLConnection pools keep-alive sockets for the whole JVM, keyed by host and port. Other test
+    // classes use 127.0.0.1 and leave pooled sockets behind for a few seconds, so this class addresses
+    // its server as "localhost" (a different pool key). The server also ends every connection
+    // (Connection: close in the handler), so nothing from this class is ever pooled.
+    private fun api() = PlainphoneApi("http://localhost:${server.address.port}")
 
     @Test
     fun `an invalid setup key is distinct from a rejected enrollment token`() {
@@ -100,6 +118,33 @@ class PlainphoneApiReleaseTest {
         assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.InvalidKey)
         answer = 410
         assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+    }
+
+    @Test
+    fun `an outdated QR code is distinct from a rejected token`() {
+        answer = 409
+        responseBody = """{"error":"This QR code is out of date. Make a new one."}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.OutdatedQr)
+        answer = 410
+        responseBody = """{"error":"This QR code is out of date. Make a new one.","code":"outdated_qr"}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.OutdatedQr)
+    }
+
+    @Test
+    fun `rejected Strong provisioning tokens block manual pairing across controller restarts`() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        for (status in listOf(404, 409, 410)) {
+            answer = status
+            val store = SyncStore(context, FakeSecretBox())
+            store.saveEnrollToken("pp_e_provisioning_$status")
+            val controller = PairingController(store, api(), emptyMap(), mode = "strong")
+            assertThat(controller.enroll()).isEqualTo(EnrollResult.OutdatedQr)
+            val reopened = SyncStore(context, FakeSecretBox())
+            assertThat(reopened.enrollToken()).isNull()
+            val next = PairingController(reopened, api(), emptyMap(), mode = "strong")
+            assertThrows(IllegalStateException::class.java) { next.start() }
+        }
+        assertThat(seen.map { it.second }).containsExactlyElementsIn(List(3) { "/api/device/enroll" })
     }
 
     @Test
@@ -250,7 +295,7 @@ class PlainphoneApiReleaseTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         Settings.Global.putInt(context.contentResolver, Settings.Global.BOOT_COUNT, 1)
         val config = ConfigStore(context)
-        config.save(config.load().copy(serverUrl = "http://127.0.0.1:${server.address.port}"))
+        config.save(config.load().copy(serverUrl = "http://localhost:${server.address.port}"))
         LightSetup.saveProfile(context, "self")
         LightSetup.saveUndoMinutes(context, 30)
         LightSetup.markComplete(context)

@@ -30,7 +30,7 @@ the code is already split so that is a build setting, not a rewrite.
 | Protection | How | Without it |
 |---|---|---|
 | Web filter | The default Plainphone VPN carries only DNS and intercepts well-known public resolvers. Private DNS uses Android’s system resolver and keeps the VPN slot free. Both use the phone’s own DNS-over-TLS address ([light-mode-vpn.md](light-mode-vpn.md)) | Missing or unverified filter. The dashboard shows the phone’s report |
-| App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead | Apps open freely. The parent is told |
+| App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead. In [open mode](open-mode.md) only the apps on the block list are sent home | Apps open freely. The parent is told |
 | Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog (not the update dialog, so new Plainphone APKs install), and the VPN disconnect dialog. It matches actions (uninstall, deactivate, always-on…) next to Plainphone's name, not page titles, so Network & internet and the Apps list stay usable. The maintenance PIN opens a 30-minute window; repairing a protection (Today > Fix it) asks for it first | Plainphone can be switched off from Settings |
 | Uninstall | A device admin receiver (`LightAdminReceiver`). Android will not uninstall an active device admin, so it has to be switched off first, and that screen is guarded | Plainphone can be uninstalled from the launcher |
 | Approved contacts | The phone and SMS roles via Android's own `RoleManager` dialogs, like strong mode on Android 10-13. Child phones block other numbers if the dashboard setting is on. It starts on for new light pairings and off for already paired light phones. Self phones can limit calls and SMS to favourites during schedules. Emergency numbers always work | Calls and SMS are unfiltered. The parent is told |
@@ -44,6 +44,15 @@ The guard closes the VPN disconnect dialog only when the active window belongs t
 Every protection is a step in the lock. A missing one is a failed policy, so `lockIntact` is
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
+
+## What the child sees when an app is closed
+
+The guard's calm screen (`BlockedScreen`) says why the app is closed and what the child can do
+next, in the same shape for every reason: the reason as a title, one sentence with the next
+available step, **Call or message a parent** above the main action, **Back to start**.
+The parent route cannot be switched off. A missing or unknown reason gets the neutral "This is not
+available right now" instead of blaming the child. The screen is static: no animation, countdown
+or vibration. Daily time limits reset at local midnight, so the screen says "tomorrow".
 
 ## Releasing from the dashboard
 
@@ -110,6 +119,15 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    setting, open **App info** from Plainphone, tap **⋮ (top right) → Allow restricted settings**,
    return to Plainphone and retry the step. The menu depends on the Android version and manufacturer.
    See [Android's restricted settings help](https://support.google.com/android/answer/12623953).
+   The help is a short numbered list and is kept on the phone, so it is still there if Plainphone
+   is closed and reopened. If a runtime permission (notifications or location) was declined, the
+   screen says so; once Android stops asking (a second decline, or "don't ask again"), the step
+   becomes a list that leads through **App info → Permissions**, with **Try again** and, for
+   optional steps, **Not now** with one line on what skipping costs. A step that Android reports
+   as done clears its own help.
+   On **Myself**, **Back** goes one screen at a time and keeps every choice (other VPN, undo
+   time, key). The last screen summarises the undo time and the key: the wait in hours or, for a
+   trusted person, that changes wait 24 hours until they accept.
 6. Background operation, location and always-on VPN are optional. For always-on VPN, leave
    **Block connections without VPN** off. The filter only carries DNS lookups
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's

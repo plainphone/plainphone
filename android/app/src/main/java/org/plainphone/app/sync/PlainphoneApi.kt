@@ -37,6 +37,7 @@ interface SyncApi {
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
     fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean
+    fun registerWakeup(token: String, fcm: String?, endpoint: String?): Boolean = false
     fun reportStatus(token: String, status: DeviceStatus)
     /**
      * Tells the server Plainphone is switched off after a release (POST /device/released). True when
@@ -84,6 +85,7 @@ sealed interface EnrollResult {
     ) : EnrollResult
     /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
     data object InvalidKey : EnrollResult
+    data object OutdatedQr : EnrollResult
     data object Rejected : EnrollResult
 }
 
@@ -123,6 +125,8 @@ data class DeviceStatus(
     val lateGoogleAccountId: String? = null,
     val rulesReceiptConfirmed: Boolean? = null,
     val webFilterActive: Boolean? = null,
+    val androidVersion: String? = null,
+    val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
@@ -157,7 +161,9 @@ data class DeviceStatus(
             }
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
             installOverrunSequence?.let { put("installOverrunSequence", it) }
+            pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }
+            androidVersion?.let { put("androidVersion", it) }
             update?.let { put("update", it.toJson()) }
         }
 }
@@ -177,7 +183,7 @@ class PlainphoneApi private constructor(
     private val openFreshConnection: (URL) -> HttpURLConnection,
     private val setupKey: () -> JSONObject? = { null },
     private val initialFilterMethod: () -> String? = { null },
-) : SyncApi {
+) : SyncApi, MoveApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
     internal constructor(baseUrl: String, openConnection: (URL) -> HttpURLConnection) :
@@ -250,7 +256,7 @@ class PlainphoneApi private constructor(
         try {
             cancellation?.throwIfCanceled()
             conn.requestMethod = method
-            conn.connectTimeout = 15_000
+            conn.connectTimeout = minOf(15_000, readTimeoutMs)
             conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             conn.instanceFollowRedirects = false // never send the token somewhere else
@@ -407,6 +413,17 @@ class PlainphoneApi private constructor(
         }
     }
 
+    /**
+     * What became of the request behind a QR code: waiting, approved, declined, cancelled or failed.
+     * Null from a server that does not know the question yet, so the phone keeps showing the code.
+     */
+    fun approvalState(token: String, changeId: String): String? {
+        val r = call("GET", "/device/approval-challenge/$changeId", token)
+        if (r.status == 404) return null
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readApprovalResponse { JSONObject(r.body).getString("state") }
+    }
+
     private fun approvalSummary(response: JSONObject, language: String): String =
         response.getJSONObject("summary").getString(if (language == "da") "da" else "en")
 
@@ -446,7 +463,11 @@ class PlainphoneApi private constructor(
                 EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it), readSetupUndoMinutes(it))
             }
             400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
-            404, 410 -> EnrollResult.Rejected
+            409 -> EnrollResult.OutdatedQr
+            410 -> if (runCatching { JSONObject(r.body).optString("code") }.getOrNull() == "outdated_qr") {
+                EnrollResult.OutdatedQr
+            } else EnrollResult.Rejected
+            404 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }
@@ -459,6 +480,20 @@ class PlainphoneApi private constructor(
         val email = account.optString("maskedEmail")
         val household = if (account.isNull("householdName")) null else account.optString("householdName")
         return email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
+    }
+
+    override fun redeemMove(token: String, deviceToken: String) {
+        val body = JSONObject().put("token", token).put("deviceToken", deviceToken)
+        val response = call("POST", "/device/move", body = body, readTimeoutMs = 8_000)
+        // A response might have been lost after redemption. Only the same credential
+        // can fetch move rules in that case; no token can create a second pairing.
+        if (response.status != 204 && response.status != 410) throw HttpError(response.status, response.body)
+    }
+
+    override fun moveRules(deviceToken: String): RulesResult.Changed {
+        val response = call("GET", "/device/move-rules", deviceToken, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return RulesResult.Changed(response.etag ?: throw IOException("missing move rules ETag"), response.body)
     }
 
     override fun fetchRules(token: String, etag: String?): RulesResult {
@@ -507,6 +542,17 @@ class PlainphoneApi private constructor(
         }
     }
 
+    override fun registerWakeup(token: String, fcm: String?, endpoint: String?): Boolean {
+        val body = JSONObject().put("fcmToken", fcm ?: JSONObject.NULL)
+            .put("unifiedPushEndpoint", endpoint ?: JSONObject.NULL)
+        val response = call("PUT", "/device/push-token", token, body)
+        return when (response.status) {
+            204 -> true
+            422 -> false
+            else -> throw HttpError(response.status, response.body)
+        }
+    }
+
     override fun reportStatus(token: String, status: DeviceStatus) {
         val r = call("PUT", "/device/status", token, status.toJson())
         if (r.status != 204) throw HttpError(r.status, r.body)
@@ -519,6 +565,22 @@ class PlainphoneApi private constructor(
             409 -> false
             else -> throw HttpError(r.status, r.body)
         }
+    }
+
+    fun reportSos(token: String, payload: JSONObject): JSONObject {
+        val response = call("POST", "/device/sos", token, payload, readTimeoutMs = 4_000, replayable = false)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return try {
+            JSONObject(response.body)
+        } catch (err: org.json.JSONException) {
+            throw IOException("Invalid SOS response", err)
+        }
+    }
+
+    fun sosStatus(token: String, id: String): JSONObject {
+        val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return JSONObject(response.body)
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

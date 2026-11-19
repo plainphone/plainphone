@@ -53,7 +53,12 @@ export class SmtpMailProvider implements MailProvider {
     smtpUrl: string,
     private readonly from: string,
   ) {
-    this.transport = nodemailer.createTransport(smtpUrl);
+    // Bounded, so a stalled server cannot hold up an urgent SOS retry past its lease.
+    const url = new URL(smtpUrl);
+    for (const [name, ms] of [["connectionTimeout", 10_000], ["greetingTimeout", 10_000], ["socketTimeout", 15_000]] as const) {
+      if (!url.searchParams.has(name)) url.searchParams.set(name, String(ms));
+    }
+    this.transport = nodemailer.createTransport(url.toString());
   }
 
   async send(mail: Mail) {

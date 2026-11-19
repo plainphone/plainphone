@@ -125,6 +125,18 @@ class SyncWorkBudgetTest {
         assertThat(invalidated).containsExactlyElementsIn(broadcasts.map { it.action })
     }
 
+    @Test
+    fun `a second push queues a sync after the first`() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        val manager = WorkManager.getInstance(context)
+        SyncStore(context, FakeSecretBox()).savePaired("phone", "test-token")
+        SyncScheduler.pushWake(context, "rules")
+        SyncScheduler.pushWake(context, "rules")
+        val jobs = manager.getWorkInfosForUniqueWork("plainphone-push-wake").get(5, TimeUnit.SECONDS)
+        assertThat(jobs.map { it.state }).containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED)
+    }
+
     private fun recordCleanInventory(store: SyncStore, now: Long) {
         store.appScanGeneration(now, emptySet())?.let { store.finishAppScan(it, "test-inventory", now, emptySet()) }
         assertThat(store.appScanGeneration(now, emptySet())).isNull()

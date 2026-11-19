@@ -5,9 +5,8 @@ export default {
   path: "/da/",
   title: "Plainphone | Forældrekontrol til barnets første Android-telefon",
   description: "Gør en Android til barnets første mobil eller en enkel telefon til dig selv. Behold opkald og de nødvendige apps, og vælg, hvilke apps og sider du vil begrænse.",
-  ogAlt: "Plainphone: din telefon, uden støjen.",
+  ogAlt: "Plainphone: Din telefon, uden støjen. Opkald, sms og kamera er slået til, sociale medier og app-butikken er slået fra.",
   landing: {
-    product: "Produkt",
     setup: "Opsætning",
     faq: "Spørgsmål",
     menu: "Menu",
@@ -19,9 +18,8 @@ export default {
     project: "Projekt",
     languages: "Sprog",
     day: ["Den første dag med Plainphone", "Vælg stærk eller let tilstand i forældrepanelet.", "Vælg, hvem der skal bruge telefonen.", "Følg vejledningen, og forbind telefonen.", "Aftal reglerne sammen, og prøv et opkald og de apps, I har brug for."],
-    child: ["Det ser dit barn", "På telefonen kan barnet se, hvilke apps der er tilgængelige, og hvor meget tid der er tilbage til apps med en tidsgrænse. Telefonen siger til, når tiden er brugt, og viser en besked, når den sender sin placering."],
-    visual: ["Plainphones opsætning med valget mellem stærk og let tilstand", "Opsætningen i forældrepanelet.", "Dette websted har ingen cookies, besøgsmåling, sporing eller forespørgsler til tredjeparter."],
-    diagram: "Android 10 eller nyere",
+    childSees: "På telefonen kan barnet se, hvilke apps der er tilgængelige, og hvor meget tid der er tilbage til apps med en tidsgrænse. Telefonen siger til, når tiden er brugt, og viser en besked, når den sender sin placering.",
+    privacyNote: "Dette websted har ingen cookies, besøgsmåling, sporing eller forespørgsler til tredjeparter.",
     groups: {
       gettingStarted: "Kom godt i gang",
       safety: "Sikkerhed",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Din telefon, uden støjen.",
     lead: "Plainphone gør en Android-telefon til en telefon med opkald, sms og de apps, du selv vælger.",
-    staysLabel: "Det beholder du",
-    stays: ["Opkald", "Sms", "Kamera"],
-    goesLabel: "Det ryger",
-    goes: ["Sociale medier og spil, du ikke giver adgang til", "Udvalgte hjemmesider, med webfilteret", "App-butikker, medmindre du giver adgang"],
   },
   who: {
     title: "Hvem er det til?",
@@ -109,7 +103,7 @@ export default {
     ],
     guide: "Åbn opsætningsvejledningen",
     available: "Du kan allerede vælge godkendte kontakter, filtrere hjemmesider efter kategori og slå historik for sms, opkald og kontakter til. Telefonens filteradresse kan også bruges på en router eller med en VPN. Telefonen kan opdatere sig selv, og serveren kan tage sikkerhedskopier.",
-    note: "Kommer snart: SOS og mulighed for at vælge telefonens sprog som forælder.",
+    note: "SOS: dit barn kan holde en knap inde for at sende en hastende SOS eller en anmodning om hjælp. Forældrene får positionen, hvis deling af placering er slået til, og er telefonen offline, kan der sendes en sms i stedet. 112 ligger på samme skærm.",
   },
   open: {
     title: "Åben kildekode",
@@ -261,6 +255,7 @@ export default {
           {
             list: [
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
+              "sproget i Plainphone på telefonen, hvis den voksne har valgt et",
               "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
               "hvis du slår beskyttelse mod nulstilling til, gemmer husstanden dit numeriske Google-konto-id og tidspunktet, hvor kontoen blev tilknyttet. Du kan slette id'et ved at fjerne tilknytningen i husstandens indstillinger eller slette din Plainphone-konto. Vi gemmer hverken din Google-mailadresse eller dine login-tokens til funktionen",
               "for en telefon i stærk tilstand gemmer vi det seneste systemtjek, herunder om bootloaderen er låst, sikkerhedsopdateringens niveau og tidspunktet for tjekket. Hvert tjek erstatter det forrige. Når telefonen fjernes, slettes tjekket. Vi gemmer ikke dens certifikatkæde",
@@ -290,6 +285,7 @@ export default {
           "Placering er en indstilling for hver telefon med fire valg: fra; kun når en forælder trykker Find; ved Find og når et »Er du okay?« ikke bliver besvaret; eller altid tændt, hvert femte minut, i en tid forælderen vælger (en time, i dag eller en uge), hvorefter den selv går tilbage til Find og »Er du okay?«. Et barns telefon starter med Find og »Er du okay?«, ikke altid tændt. En voksens egen telefon starter med placering slået fra, og det er ejerens eget valg at slå den til. En forælder kan ændre det når som helst.",
           "Telefonen er åben om det. Hver gang den sender en enkelt position (Find eller et ubesvaret »Er du okay?«), viser den en kort besked om det. Når placering er altid tændt, viser telefonen det hele tiden, i en notifikation og på Plainphones egen skærm. Barnet kan åbne »Hvad kan mine forældre se?« på telefonen: Den forklarer den nuværende indstilling og viser, hver gang placeringen er sendt de sidste 30 dage. Listen bliver på telefonen.",
           "»Er du okay?« beder barnet svare inden for en tid, forælderen vælger. Svarer barnet, sendes der ingen position. Svarer ingen i tide, sender telefonen én position. »Ring telefonen« spiller en alarmlyd og vibrerer i højst fem minutter; den sender ingen position. Serveren gemmer en ringning eller et spørgsmål (tidspunkter og svaret og det godkendte nummer til »Ring til mig«) i et døgn efter, at det er slut, og sletter det så.",
+          "Et barn kan sende SOS med tidspunkt, batteriniveau og én position, når placering er slået til. Forældre kan markere beskeden som set. SOS-historikken slettes efter 30 dage, eller når telefonen fjernes. Hvis serveren ikke svarer, kan en SMS indeholde et kortlink. Appens notifikationer leveres gennem Expo og Apple eller Google. Koordinaterne sendes til Google Maps, når en forælder åbner linket.",
           "Serveren gemmer kun den seneste position: koordinater, nøjagtighed og tidspunkt. Hver ny position erstatter den gamle, og der gemmes ingen historik. Slår du placering fra, eller fjerner du telefonen, bliver den gemte position slettet.",
           "Dashboardet viser positionen på et kort. Kortfliserne kommer fra OpenFreeMap (tiles.openfreemap.org, data fra OpenStreetMap), så når de hentes, får OpenFreeMap at vide, cirka hvilket område der kigges på, og forælderens IP-adresse. Kortet hentes kun på placeringssiden. Forældreappen på en telefon bruger OpenStreetMaps egne fliseservere og først, når forælderen trykker Vis kort. Vælger en forælder »Kør derhen« med Google Maps eller Apple Kort, eller kopierer positionen, går koordinaterne til den app, og så gælder dens egen politik.",
         ],
@@ -388,6 +384,10 @@ export default {
                   "Invitationer",
                   "Slettes, når de tages imod. Ellers holder de op med at virke efter 7 dage og slettes et døgn senere. Du kan altid trække en åben invitation tilbage",
                 ],
+                [
+                  "Hashværdier for opsætningskoder og gemte opsætningsindstillinger",
+                  "Kan ryddes op 30 dage efter kodens udløb. De slettes, når telefonen fjernes",
+                ],
                 ["Webfilterets tællere", "24 timer"],
                 [
                   "Sikkerhedskopier af databasen",
@@ -445,13 +445,13 @@ export default {
     question: "Er telefonen ny eller allerede i brug?",
     strong: "Den er ny eller nulstillet",
     strongHelp: "Anbefalet. Plainphone kan beskytte flere indstillinger på en ny eller nulstillet telefon.",
+    strongLanguage: "Vælg telefonens sprog, før du viser QR-koden. Android bruger sproget under opsætningen. Du kan senere ændre sproget i Plainphone under telefonens indstillinger i kontrolpanelet.",
     light: "Den er allerede i brug",
     lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
     startStrong: "Start opsætning af en ny eller nulstillet telefon",
     startLight: "Start opsætning af en telefon i brug",
+    stepsLink: "Se trinnene",
     start: "Vælg i dashboardet, hvem telefonen er til, og lav et opsætningslink.",
-    strongTitle: "Ny eller nulstillet telefon",
-    lightTitle: "Telefonen er allerede i brug",
     lightSteps: [
       ["Åbn linket på telefonen", "Scan koden fra dashboardet med telefonens kamera, eller åbn det private link i Chrome på telefonen.", "lightScan"],
       ["Installer Plainphone", "Hent appen, og åbn filen. Hvis Android blokerer, så tryk på Indstillinger, slå Tillad fra denne kilde til, gå tilbage, og tryk på Installer.", "download"],
@@ -549,7 +549,7 @@ export default {
     maintained: "Plainphone vedligeholdes af <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
     setup: "Guide: <a href=\"/da/setup/\">Sæt en telefon op</a>.",
     privacy: "Siden sætter ingen cookies og bruger ingen statistik. <a href=\"/da/privacy/\">Privatlivspolitik</a>.",
-    license: "Koden er under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrift: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Koden er under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrifter: Schibsted Grotesk og IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Siden findes ikke",

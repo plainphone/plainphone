@@ -19,7 +19,9 @@ interface SyncDevice {
     fun nowMs(): Long
     fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
+    fun registerWakeup(api: SyncApi, token: String, reason: String): String? = null
     fun appVersion(): String
+    fun androidVersion(): String? = null
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
     /** Launchable apps, including the ones Plainphone hid. */
@@ -57,6 +59,8 @@ interface SyncDevice {
     // "Ring the phone", "Are you okay?" and the location notices (docs/location.md).
     // Defaults do nothing, so a device without a screen (tests) needs none of it.
 
+    /** Apply the last saved app locale, or the system default after release. */
+    fun refreshPhoneLanguage() {}
     /** Starts or stops the ring, shows or closes the question, and keeps the location notices current. */
     fun onSafetyRules(rules: ServerRules) {}
     /** Answers and "shown" events the server has not heard yet, oldest first. */
@@ -113,6 +117,8 @@ class SyncRunner(
     private val store: SyncStore,
     private val api: SyncApi,
     private val device: SyncDevice,
+    private val connectedServer: String? = null,
+    private val serverMove: ((String, ServerMoveInstruction) -> Boolean)? = null,
 ) {
     private data class PendingContactSuggestions(val token: String, val contacts: List<DeviceContact>)
 
@@ -127,6 +133,12 @@ class SyncRunner(
     fun run(reason: String): Outcome = synchronized(LOCK) { runLocked(reason) }
 
     private fun runLocked(reason: String): Outcome {
+        val movedServer = store.movedServer()
+        if (connectedServer != null && movedServer != null && movedServer != connectedServer) {
+            // A worker created before the move may only start its sync after the move commits.
+            // Sending the new token to the old server would fail and mark the pairing removed.
+            return Outcome.Synced(false, ServerRules.MIN_POLL_SECONDS)
+        }
         val token = if (store.removed) null else store.deviceToken()
         if (pendingContactSuggestions?.token != token || store.released) pendingContactSuggestions = null
         if (store.removed) return Outcome.Removed
@@ -179,12 +191,13 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
+        guarded("phone language") { device.refreshPhoneLanguage() }
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
-        guarded("report status") { reportStatus(token, rules) }
+        guarded("report status") { reportStatus(token, rules, reason) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
         } else {
@@ -192,6 +205,17 @@ class SyncRunner(
             if (store.contactSuggestionsReadAt != null) store.contactSuggestionsReadAt = null
         }
         guarded("report setup completion") { reportSetupCompletion(token) }
+        val instruction = rules?.serverMove
+        val attemptMove = serverMove
+        if (rules?.allowServerMove == true && instruction != null && attemptMove != null) {
+            // Require a current response from the old server on each attempt. Its rules have
+            // already been enforced, and only a successful handoff can replace the connection.
+            val moved = runCatching { attemptMove(token, instruction) }.getOrDefault(false)
+            if (moved) {
+                device.applyLockIfNeeded("server move", 0)
+                return Outcome.Synced(true, ServerRules.MIN_POLL_SECONDS)
+            }
+        }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
 
@@ -241,9 +265,13 @@ class SyncRunner(
         val failed = results.filterNot { it.ok }
         if (failed.isNotEmpty()) {
             Log.w(TAG, "release did not hold, trying again at the next sync: ${failed.joinToString()}")
+            if (store.releaseAsked && store.rules()?.releaseWarningsEnabled != false) {
+                guarded("report release failure") { reportStatus(token, null, "release", releaseFailed = true) }
+            }
             return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
         }
         store.markReleased()
+        guarded("reset phone language") { device.refreshPhoneLanguage() }
         return acknowledgeRelease(token) ?: Outcome.Failed("the server says nobody asked for a release")
     }
 
@@ -483,7 +511,7 @@ class SyncRunner(
         return method != FilterMethod.PRIVATE_DNS || store.filterVerified
     }
 
-    private fun reportStatus(token: String, rules: ServerRules?) {
+    private fun reportStatus(token: String, rules: ServerRules?, reason: String, releaseFailed: Boolean = false) {
         val lock = device.lockState()
         val awaitingFilter = rules != null && lock.mode == "light" && !filterVerified(rules, lock.filter)
         val receipt = lock.receipt?.takeIf {
@@ -491,19 +519,24 @@ class SyncRunner(
         }
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
+        val failedPolicies = buildList {
+            if (releaseFailed) add("remote release")
+            if (overrun != null) add("install window overran: ${overrun.seconds}s")
+            addAll(lock.failedPolicies)
+        }
         val notices = store.statusNotices
         val parallelAppsRemoved = notices.pending(StatusNotices.PARALLEL_APPS_REMOVED)
         val lateGoogleAccount = notices.pending(StatusNotices.LATE_GOOGLE_ACCOUNT)
         val (battery, charging) = device.battery()
         val status = DeviceStatus(
             appVersion = device.appVersion(),
+            androidVersion = device.androidVersion().takeIf { store.rules()?.supportEnabled != false },
             batteryPct = battery,
             charging = charging,
             deviceOwner = lock.deviceOwner,
             lockIntact = lock.intact,
             maintenance = lock.maintenance,
-            failedPolicies = if (overrun == null) lock.failedPolicies
-                else listOf("install window overran: ${overrun.seconds}s") + lock.failedPolicies,
+            failedPolicies = failedPolicies,
             rulesEtag = receipt?.etag,
             rulesAppliedAtMs = receipt?.atMs,
             rulesReceiptConfirmed = (receipt != null).takeIf { rules?.changeReceiptsEnabled == true },
@@ -523,6 +556,7 @@ class SyncRunner(
             filter = lock.filter,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
+            pushProvider = runCatching { device.registerWakeup(api, token, reason) }.getOrNull(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.

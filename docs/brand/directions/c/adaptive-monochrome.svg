@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Themed icon layer (Android 13+): one colour with the knob cut out, the system tints it. -->
+  <path fill="#000000" fill-rule="evenodd" d="M54 25a12 12 0 0 1 12 12v34a12 12 0 0 1-24 0v-34a12 12 0 0 1 12-12zM54 63a7 7 0 1 0 0 14a7 7 0 1 0 0-14z"/>
+</svg>

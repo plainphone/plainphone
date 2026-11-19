@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRouter } from "expo-router";
 import { Linking } from "react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApiError, client, unwrap } from "../api/client";
 import type { Approval } from "../api/models";
 import { ScanCode } from "../components/ScanCode";
-import { ItemRow } from "../components/parts";
+import { ApprovalQueue } from "../components/ApprovalQueue";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../components/ui";
+import { Button, errorMessage, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { savePendingInvite } from "../lib/pendingInvite";
-import { space } from "../lib/theme";
-import { formatDateTime } from "../shared/lib/format";
+import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../shared/lib/approval-state";
 
 function selfCode(raw: string) {
   try {
@@ -29,13 +28,16 @@ function selfCode(raw: string) {
 }
 
 function ApprovalsList() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
   const selected = code?.split(".")[1];
   const res = useLoad(() => unwrap<{ approvals: Approval[] }>(client.GET("/approvals")).then((r) => r.approvals), []);
   const [busy, setBusy] = useState<string | null>(null);
+  const sending = useRef(false);
   const [notice, setNotice] = useState<NoticeValue | null>(null);
+  const [processed, setProcessed] = useState<Record<string, Processed<Approval>>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   async function scan(value: string) {
     const url = new URL(value);
@@ -56,22 +58,38 @@ function ApprovalsList() {
     }
   }
 
-  async function decide(a: Approval, action: "approve" | "reject") {
+  async function decide(a: Approval, action: Decision) {
+    // One answer at a time: a double tap must not send it twice.
+    if (sending.current) return;
+    sending.current = true;
     setBusy(a.id);
     setNotice(null);
+    let outcome: ApprovalOutcome | null = null;
     try {
       const path = { params: { path: { cid: a.id } } };
       if (code && action === "approve") {
         await unwrap(client.POST("/changes/{cid}/approve-qr", { ...path, body: { challenge: code, revision: a.revision } }));
         setCode(null);
       } else await unwrap(action === "approve" ? client.POST("/changes/{cid}/approve", { ...path, body: { revision: a.revision } }) : client.POST("/changes/{cid}/reject", path));
-      setNotice({ tone: "success", text: t(action === "approve" ? "appr.approved" : "appr.rejected") });
+      outcome = decisionOutcome(action);
     } catch (err) {
-      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
+      outcome = err instanceof ApiError && err.status === 409 ? outcomeOf(err.data) : null;
+      if (!outcome) setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
     } finally {
+      sending.current = false;
       setBusy(null);
-      await res.reload();
     }
+    if (outcome) {
+      const final = isFinal(outcome);
+      const answered = outcome;
+      const text = t(outcomeKey(outcome, action));
+      if (final) {
+        setProcessed((all) => (all[a.id] ? all : { ...all, [a.id]: { approval: a, outcome: answered, decision: action } }));
+        setFocusId(a.id);
+        // The answered row takes focus and its label carries the result, so the screen reader hears it once.
+      } else setNotice({ tone: "error", text });
+    }
+    await res.reload();
   }
 
   return (
@@ -83,36 +101,13 @@ function ApprovalsList() {
       <LoadGate res={res}>
         {(all) => {
           const list = code ? all.filter((a) => a.id === selected) : all;
-          return list.length === 0 ? (
+          const queue = queueOf(list, processed);
+          const open = queue.open;
+          const done = code ? queue.done.filter((d) => d.approval.id === selected) : queue.done;
+          return open.length === 0 && done.length === 0 ? (
             <Text variant="muted">{t(code ? "appr.codeUnavailable" : "appr.empty")}</Text>
           ) : (
-            <VStack gap={space.sm}>
-              {list.map((a) => {
-                const what = a.summary[locale];
-                const from = a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : t("appr.fromPhone", { phone: a.phoneName });
-                return (
-                  <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={`${from}\n${t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}`}>
-                    <Row>
-                      <Button
-                        kind="primary"
-                        title={t("appr.approve")}
-                        accessibilityLabel={`${t("appr.approve")}: ${what}`}
-                        disabled={busy === a.id}
-                        busy={busy === a.id}
-                        onPress={() => void decide(a, "approve")}
-                      />
-                      {!code && <Button
-                        kind="secondary"
-                        title={t("appr.reject")}
-                        accessibilityLabel={`${t("appr.reject")}: ${what}`}
-                        disabled={busy === a.id}
-                        onPress={() => void decide(a, "reject")}
-                      />}
-                    </Row>
-                  </ItemRow>
-                );
-              })}
-            </VStack>
+            <ApprovalQueue open={open} done={done} busy={busy} approveOnly={code !== null} focusId={focusId} onDecide={(a, action) => void decide(a, action)} />
           );
         }}
       </LoadGate>

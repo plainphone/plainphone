@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Plainphone",
+    "NSCameraUsageDescription": "Plainphone använder kameran för att läsa parkopplingskoden som visas på telefonen."
+  }
+}

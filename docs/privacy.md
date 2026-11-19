@@ -23,6 +23,9 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Reset protection (numeric Google account ID per parent and household, and when it was linked) | until the parent disconnects it in Household settings, deletes their Plainphone account, or the household is deleted. A former member's ID is excluded from rules as soon as they leave. Google email addresses and OAuth tokens are not stored for this feature | `frp_accounts`, `DELETE /api/households/{hid}/reset-protection/mine` |
 | Latest system check (verdict, hardware key security level, boot state, lock state, patch level and check time) | A negative finding and its timestamp survive an inconclusive check, whose timestamp is recorded separately, including when the server’s certificate verifier is temporarily unavailable. Removing the phone deletes the result and timestamps. An older positive result expires in the dashboard after 48 hours | `PUT /api/device/attestation`. Certificate chains are used in memory for verification and never stored in the database or logs |
 | Latest position (one row per phone, no history) | until location is switched off or the phone is removed | `locations` |
+| SOS kind, time, battery, delivery channel, acknowledgment and optional position | 30 days or until the phone is removed | `sos_events` |
+| Which parent an SOS was sent to by push or mail (no content) | with the SOS event: 30 days or until the phone is removed | `sos_deliveries` |
+| Approved SOS parent numbers and the child's SOS callback number | until removed or when the phone is removed | `contacts.sos_parent`, `phones.sos_callback_number` |
 | Location mode (off, find, checkin, always) and the end of "always" | until the phone is removed; the end is cleared when "always" ends | `phones.location_mode`, `phones.location_always_until` |
 | "Ring the phone" and "Are you okay?" (times, the answer, and for "Call me" an approved contact's number; one of each kind per phone) | replaced by the next one; deleted a day after it ended | `safety_requests`, sweeper |
 | Pending changes on a Self phone | while pending, then 30 days | sweeper, `CHANGE_HISTORY_DAYS` |
@@ -111,6 +114,16 @@ ppdns allows the verified help and information sites through the web filter and
 excludes the allowed domains from DNS statistics. Third-party chat services
 are matched by exact hostname. As with other lookups, ppdns does not keep a
 query log.
+
+## SOS
+
+A Child phone can send an SOS with its battery and, when location is enabled,
+one position. It goes to household parents. Emails and push alert parents to
+open Plainphone. Native push goes through Apple's or Google's push service, which carries the alert text and route
+to the parent's device. If the server is unreachable, the
+phone can send an SMS with the location link to selected parent numbers.
+Parents' mail, notifications and SMS are stored by their own apps. Opening
+the map link shares the coordinates with Google Maps. See [SOS](sos.md).
 
 ## Location on the phone and on the map
 

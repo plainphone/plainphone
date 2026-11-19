@@ -4,7 +4,7 @@
 // (`pnpm gen:api` writes src/api/schema.d.ts). Native apps authenticate with
 // `Authorization: Bearer pp_s_…` and never send cookies.
 import createClient, { type Middleware } from "openapi-fetch";
-import { API_URL } from "../lib/config";
+import { SERVER_URL } from "../lib/config";
 import type { paths } from "./schema";
 
 export interface Issue {
@@ -17,6 +17,8 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly issues: Issue[] = [],
+    /** The error body's other fields, e.g. the `outcome` of a request that was answered already. */
+    readonly data: { outcome?: string } = {},
   ) {
     super(message);
   }
@@ -61,10 +63,11 @@ const auth: Middleware = {
   },
 };
 
-export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
+export function makeClient(baseUrl = `${SERVER_URL}/api`, fetchImpl?: typeof fetch) {
   const c = createClient<paths>({
     baseUrl,
     credentials: "omit",
+    redirect: "error",
     // Late-bound, so tests can swap globalThis.fetch.
     fetch: fetchImpl ?? ((req: Request) => globalThis.fetch(req)),
   });
@@ -72,7 +75,11 @@ export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
   return c;
 }
 
-export const client = makeClient();
+export let client = makeClient();
+
+export function configureApiServer() {
+  client = makeClient();
+}
 
 type Result = { data?: unknown; error?: unknown; response: Response };
 
@@ -91,8 +98,8 @@ export async function unwrap<D = unknown>(p: Promise<Result>): Promise<D> {
     throw new ApiError(0, "network");
   }
   if (!r.response.ok) {
-    const e = (r.error ?? {}) as { error?: string; issues?: Issue[] };
-    throw new ApiError(r.response.status, e.error ?? r.response.statusText ?? "error", e.issues ?? []);
+    const e = (r.error ?? {}) as { error?: string; issues?: Issue[]; outcome?: string };
+    throw new ApiError(r.response.status, e.error ?? r.response.statusText ?? "error", e.issues ?? [], e);
   }
   return r.data as D;
 }

@@ -31,7 +31,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "../api/client";
 import { type TFn, useI18n } from "../i18n/I18n";
-import { type Colors, radius, space, touch, useColors } from "../lib/theme";
+import { type Colors, fonts, radius, radiusControl, radiusPill, space, touch, useColors } from "../lib/theme";
 
 /** Turns any error into a sentence for the user. */
 export function errorMessage(err: unknown, t: TFn): string {
@@ -113,14 +113,14 @@ export function Text({ variant = "body", style, ...rest }: TextProps & { variant
 
 function textStyles(c: Colors) {
   return {
-    body: { color: c.ink, fontSize: 16, lineHeight: 24 },
-    muted: { color: c.muted, fontSize: 16, lineHeight: 24 },
-    small: { color: c.muted, fontSize: 14, lineHeight: 20 },
-    title: { color: c.ink, fontSize: 28, lineHeight: 34, fontWeight: "700" as const },
-    heading: { color: c.ink, fontSize: 20, lineHeight: 28, fontWeight: "600" as const },
-    label: { color: c.ink, fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
-    mono: { color: c.ink, fontSize: 18, lineHeight: 26, fontFamily: "monospace", letterSpacing: 1 },
-    error: { color: c.danger, fontSize: 14, lineHeight: 20 },
+    body: { color: c.ink, fontFamily: fonts.text, fontSize: 16, lineHeight: 24 },
+    muted: { color: c.muted, fontFamily: fonts.text, fontSize: 16, lineHeight: 24 },
+    small: { color: c.muted, fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
+    title: { color: c.ink, fontFamily: fonts.text, fontSize: 28, lineHeight: 34, fontWeight: "700" as const },
+    heading: { color: c.ink, fontFamily: fonts.text, fontSize: 20, lineHeight: 28, fontWeight: "700" as const },
+    label: { color: c.ink, fontFamily: fonts.text, fontSize: 16, lineHeight: 22, fontWeight: "700" as const },
+    mono: { color: c.ink, fontSize: 18, lineHeight: 26, fontFamily: fonts.mono, letterSpacing: 1 },
+    error: { color: c.danger, fontFamily: fonts.text, fontSize: 14, lineHeight: 20 },
   };
 }
 
@@ -228,7 +228,7 @@ export function Button({
       ]}
     >
       {busy ? <ActivityIndicator color={fg} style={{ marginRight: space.sm }} /> : null}
-      <RNText maxFontSizeMultiplier={3} style={{ color: fg, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+      <RNText maxFontSizeMultiplier={3} style={{ color: fg, fontFamily: fonts.text, fontSize: 16, fontWeight: "700", textAlign: "center" }}>
         {title}
       </RNText>
     </Pressable>
@@ -265,7 +265,7 @@ export function LinkRow({
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="label">{title}</Text>
         {meta ? <Text variant="small">{meta}</Text> : null}
-        {badge ? <Text style={{ color: c.accent, fontWeight: "600" }}>{badge}</Text> : null}
+        {badge ? <Text style={{ color: c.accent, fontWeight: "700" }}>{badge}</Text> : null}
       </View>
       <RNText style={{ color: c.muted, fontSize: 22 }} importantForAccessibility="no" accessibilityElementsHidden>
         ›
@@ -342,8 +342,8 @@ export function Switch({
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        trackColor={{ true: c.accent, false: c.borderStrong }}
-        thumbColor={c.surface}
+        trackColor={{ true: c.brand, false: c.borderStrong }}
+        thumbColor={value ? c.onBrand : c.surface}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
       />
@@ -444,7 +444,7 @@ export function Segmented<V extends string | number>({
               accessibilityState={{ checked: on }}
               style={[styles.segment, { borderColor: on ? c.accent : c.borderStrong, backgroundColor: on ? c.accent : c.surface }]}
             >
-              <RNText maxFontSizeMultiplier={3} style={{ color: on ? c.onAccent : c.ink, fontSize: 16, fontWeight: "600", textAlign: "center" }}>
+              <RNText maxFontSizeMultiplier={3} style={{ color: on ? c.onAccent : c.ink, fontFamily: fonts.text, fontSize: 16, fontWeight: "700", textAlign: "center" }}>
                 {o.label}
               </RNText>
             </Pressable>
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
     minHeight: touch,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
-    borderRadius: radius,
+    borderRadius: radiusPill,
     borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "center",
@@ -547,12 +547,12 @@ const styles = StyleSheet.create({
     borderRadius: radius,
     borderWidth: 1,
   },
-  input: { minHeight: touch, borderWidth: 1.5, borderRadius: radius, paddingHorizontal: space.md, fontSize: 16 },
+  input: { minHeight: touch, borderWidth: 1.5, borderRadius: radiusControl, paddingHorizontal: space.md, fontFamily: fonts.text, fontSize: 16 },
   switchRow: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.xs },
-  choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius, borderWidth: 1.5 },
+  choice: { minHeight: touch, flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radiusControl, borderWidth: 1.5 },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   segmented: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radius, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  segment: { flexGrow: 1, flexBasis: 72, minHeight: touch, paddingHorizontal: space.sm, borderRadius: radiusControl, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   state: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.lg },
 });

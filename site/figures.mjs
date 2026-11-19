@@ -30,7 +30,7 @@ function resetScreen() {
     const y = 52 + i * 46;
     const on = i === 3;
     const widths = [74, 58, 86, 72, 64];
-    return `${on ? `<rect class="f-mark" x="6" y="${y}" width="138" height="38" rx="10"/>` : ""}<circle class="${on ? "f-ink" : "f-bar-d"}" cx="24" cy="${y + 19}" r="7"/>${bar(42, y + 15, widths[i], on ? "f-ink" : "f-bar", 8)}`;
+    return `${on ? `<rect class="f-tint" x="6" y="${y}" width="138" height="38" rx="10"/>` : ""}<circle class="${on ? "f-ink" : "f-bar-d"}" cx="24" cy="${y + 19}" r="7"/>${bar(42, y + 15, widths[i], on ? "f-ink" : "f-bar", 8)}`;
   });
   return `${bar(14, 30, 64, "f-bar-d", 9)}${rows.join("")}`;
 }
@@ -41,10 +41,10 @@ function welcomeScreen(taps) {
 ${bar(33, 100, 84, "f-bar-d", 10)}${bar(24, 120, 102)}${bar(42, 134, 66)}
 <rect class="f-line thin" x="25" y="156" width="100" height="26" rx="13"/>
 <rect class="f-bar" x="20" y="250" width="110" height="26" rx="13"/>
-<circle class="f-mark" cx="75" cy="216" r="9"/>
+<circle class="f-ink" cx="75" cy="216" r="6"/>
 <circle class="f-line" cx="75" cy="216" r="16"/>
 <circle class="f-line thin" cx="75" cy="216" r="23"/>
-<rect class="f-mark" x="104" y="204" width="40" height="25" rx="12.5"/>
+<rect class="f-tint" x="104" y="204" width="40" height="25" rx="12.5"/>
 <text class="f-txt tap" x="124" y="222" text-anchor="middle">${esc(taps)}</text>`;
 }
 
@@ -63,7 +63,7 @@ function scanScreen() {
     .map(([cx, cy]) => `<rect class="f-ink" x="${ox + cx * 8 + 1}" y="${oy + cy * 8 + 1}" width="6" height="6"/>`)
     .join("");
   return `${corners}${finder(0, 0)}${finder(6, 0)}${finder(0, 6)}${modules}
-<rect class="f-mark" x="22" y="129" width="106" height="4" rx="2"/>
+<rect class="f-bar-d" x="22" y="129" width="106" height="4" rx="2"/>
 ${bar(46, 214, 58)}`;
 }
 
@@ -76,7 +76,7 @@ function wifiScreen() {
     const cx = 25;
     const cy = y + 25;
     const widths = [62, 78, 54, 70, 48];
-    return `${on ? `<rect class="f-mark" x="6" y="${y}" width="138" height="38" rx="10"/>` : ""}<g class="${on ? "f-ink-line" : "f-pencil-line"}"><path d="${arc(cx, cy, 6)} ${arc(cx, cy, 11)} ${arc(cx, cy, 16)}"/><circle cx="${cx}" cy="${cy}" r="1.8"/></g>${bar(48, y + 15, widths[i], on ? "f-ink" : "f-bar", 8)}`;
+    return `${on ? `<rect class="f-tint" x="6" y="${y}" width="138" height="38" rx="10"/>` : ""}<g class="${on ? "f-ink-line" : "f-pencil-line"}"><path d="${arc(cx, cy, 6)} ${arc(cx, cy, 11)} ${arc(cx, cy, 16)}"/><circle cx="${cx}" cy="${cy}" r="1.8"/></g>${bar(48, y + 15, widths[i], on ? "f-ink" : "f-bar", 8)}`;
   });
   return `${bar(14, 30, 56, "f-bar-d", 9)}${rows.join("")}`;
 }
@@ -100,7 +100,7 @@ export function figures({ taps, set, cancel, alt }) {
   return {
     download: svg(single, alt.download, phone(8, '<path class="f-line" d="M75 86v74m-24-24 24 24 24-24m-49 45h50"/>')),
     permissions: svg(single, alt.permissions, phone(8, [92, 160].map((y) =>
-      `${bar(16, y + 9, 62)}<rect class="f-mark" x="88" y="${y}" width="46" height="25" rx="13"/><circle class="f-ink" cx="121" cy="${y + 12.5}" r="8"/>`,
+      `${bar(16, y + 9, 62)}<rect class="f-on" x="88" y="${y}" width="46" height="25" rx="13"/><circle class="f-knob" cx="121" cy="${y + 12.5}" r="8"/>`,
     ).join(""))),
     reset: svg(single, alt.reset, phone(8, resetScreen())),
     welcome: svg(single, alt.welcome, phone(8, welcomeScreen(taps))),

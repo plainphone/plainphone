@@ -9,6 +9,7 @@ import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-or
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, phoneAlertMail, toLocale } from "../lib/mail-templates.js";
 import type { PushMessage } from "../providers/parent-push.js";
+import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 
 /** After this many failed sends in a row (not 404/410), a subscription is dropped. */
@@ -20,6 +21,7 @@ export type NotifyEvent =
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
+  | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" };
 
 /** What a parent hears about a ring or an "Are you okay?" (docs/location.md). */
@@ -87,6 +89,9 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           noReplyNoLocation: { title: `No answer from ${e.phoneName}`, body: "\"Are you okay?\" was not answered in time." },
           located: { title: `Position of ${e.phoneName}`, body: "\"Are you okay?\" was not answered. Open the app to see where the phone is." },
         }[e.what];
+      case "sos":
+        return { title: `${e.kind === "urgent" ? "Urgent SOS" : "SOS"} from ${e.phoneName}`,
+          body: e.kind === "urgent" ? "I need help now." : "I need help." };
       case "test":
         return { title: "Notifications work", body: "This device will get Plainphone notifications." };
     }
@@ -124,6 +129,9 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           noReplyNoLocation: { title: `Intet svar fra ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret i tide." },
           located: { title: `Placering af ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret. Åbn appen for at se, hvor telefonen er." },
         }[e.what];
+      case "sos":
+        return { title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`,
+          body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." };
       case "test":
         return { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." };
     }
@@ -143,6 +151,9 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
+    case "sos":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: e.id.replaceAll("-", ""),
+        data: { type: e.kind === "urgent" ? "sos-urgent" : "sos-help", phoneId: e.phoneId } };
     case "test":
       return { ...t, url: "/settings", tag: "test" };
   }
@@ -153,9 +164,9 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string } = {},
+  opts: { subscriptionId?: string; urgent?: boolean; respectMuteFor?: string; onFailure?: () => void; keepOnTransientFailure?: boolean } = {},
 ): Promise<number> {
-  if (userIds.length === 0 || !ctx.parentPush.webPublicKey) return 0;
+  if (userIds.length === 0) return 0;
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -164,15 +175,21 @@ export async function notifyUsers(
       .where(
         and(
           inArray(pushSubscriptions.userId, userIds),
+          deliverablePushSubscription(),
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
+          opts.respectMuteFor ? notInArray(pushSubscriptions.userId, ctx.db.select({ id: notificationMutes.userId })
+            .from(notificationMutes).where(eq(notificationMutes.phoneId, opts.respectMuteFor))) : undefined,
         ),
       );
-    const urgent = e.type === "protection";
+    const urgent = opts.urgent ?? (e.type === "protection" || (e.type === "sos" && e.kind === "urgent"));
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
+        const sameRegistration = samePushRegistration(sub);
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
-          outcome = await ctx.parentPush.send(sub, pushMessage(e, toLocale(locale)), { urgent });
+          const language = toLocale(locale);
+          const message = pushMessage(e, language);
+          outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
           console.error(`push send failed: ${(err as Error).message}`);
           outcome = "failed";
@@ -181,32 +198,36 @@ export async function notifyUsers(
           await ctx.db
             .update(pushSubscriptions)
             .set({ lastSuccessAt: ctx.now(), failures: 0 })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameRegistration);
           return 1;
         }
-        if (outcome === "gone" || (outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
-          await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+        if (outcome === "failed") opts.onFailure?.();
+        // A retried alert must not use up a subscription's allowance: only a permanent error deletes it.
+        if (outcome === "failed" && opts.keepOnTransientFailure) return 0;
+        if (outcome === "gone" || (outcome === "failed" && sub.platform === "web" && sub.failures + 1 >= MAX_FAILURES)) {
+          await discardGonePushSubscription(ctx, sub);
         } else if (outcome === "failed") {
           await ctx.db
             .update(pushSubscriptions)
             .set({ failures: sql`${pushSubscriptions.failures} + 1` })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameRegistration);
         }
         return 0;
       }),
     );
     return results.reduce<number>((a, b) => a + b, 0);
   } catch (err) {
+    opts.onFailure?.();
     console.error(`notification failed: ${(err as Error).message}`);
     return 0;
   }
 }
 
 /** Sends an event about a phone to the parents of its household who have not muted it. */
-export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
+export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
+  return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);
 }
 
 type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -227,6 +248,7 @@ export async function notifyAlertRecipients(
   ctx: Ctx,
   members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
   e: NotifyEvent,
+  opts: { urgent?: boolean } = {},
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
@@ -253,6 +275,7 @@ export async function notifyAlertRecipients(
     ctx,
     members.map((m) => m.id),
     e,
+    opts,
   );
 }
 

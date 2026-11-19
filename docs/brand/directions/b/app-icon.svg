@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Full bleed for apple-touch-icon (180) and the PWA/store icon (512). The system rounds the corners. -->
+  <rect width="64" height="64" fill="#1b2240"/>
+  <path d="M17 37a15 15 0 0 1 30 0z" fill="#f2b23a"/>
+  <rect x="17" y="40.5" width="30" height="4.5" rx="2.25" fill="#f2b23a"/>
+  <rect x="24" y="47.5" width="16" height="4.5" rx="2.25" fill="#f2b23a"/>
+</svg>
