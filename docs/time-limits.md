@@ -24,6 +24,11 @@ bedtime".
 The limit for a date is `days[isoWeekday] ?? minutes`, plus the sum of that date's bonuses for
 the same package. A day starts at local midnight in the phone's `timezone`.
 
+A bonus also comes from the child asking: an approved request for more time is a bonus for that
+app (or the daily cap) on the day of the request. The phone warns 5 minutes before time runs out
+and the stop screen has an **Ask for more time** button. Both can be switched off per phone. See
+[more-time.md](more-time.md).
+
 ## Where it is stored
 
 | Table | What |

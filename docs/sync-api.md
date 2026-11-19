@@ -226,6 +226,7 @@ releases signed with the same key.
 | `apps.open` / `apps.blocked` | Open mode ([open-mode.md](open-mode.md)). With `open: true`, allow every app that is not in `blocked`, also apps installed after the last sync. `blocked` includes the known apps of blocked categories that are not installed yet. A school time or bedtime window wins. Missing from older servers: the allow-list applies |
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
+| `askMoreTimeEnabled`, `limitWarningEnabled` | Per-phone switches for the stop screen's "Ask for more time" button and the 5-minute warning. Missing means `true`. See [more-time.md](more-time.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
@@ -301,6 +302,29 @@ decline. The phone UI for this is not built yet; the server side is.
   trusted person). Poll it when the request screen is open; the rules poll already brings the
   effect of an approval. After 30 days answered requests are deleted.
 
+### Asking for more time
+
+The stop screen of a child phone can ask for more time on a used-up app or on the daily cap.
+Full description: [more-time.md](more-time.md).
+
+- `POST /api/device/more-time-requests` with `{ "packageName": "*" | "com.spotify.music", "reason": "optional, up to 140 characters" }`.
+  `*` is the daily cap (use it when the total is used up, otherwise the app). `201` with the
+  request; asking again for the same target while it is open gives `200` and no second push.
+  `403` when the parents switched asking off (`askMoreTimeEnabled` in the rules), `409` on a Self
+  phone or when the target has no limit, `429` after 6 new requests in an hour.
+- `GET /api/device/more-time-requests` returns the last 24 hours, newest first: `{ id, packageName,
+  reason, day, status: pending|approved|declined|expired, answer: "15"|"60"|"day"|"no"|null,
+  grantedMinutes, createdAt, decidedAt }`. An unanswered request expires at the phone's local
+  midnight.
+- An approval is also a bonus in `timeLimits.bonuses` for the day of the request, so the phone
+  applies it from the next rules sync (the server wakes the phone when it is answered) even if the
+  request call was lost. Show the new end time from your own evaluation of the limits, not from
+  the answer. `answer: "day"` means the rest of the day.
+- A request is a question, not a report of something that happened, so the server may refuse it
+  (`403`, `409`, `429` above). Do not queue a refused request and resend it; show the refusal and
+  let the child try again later. A request that failed only because the phone was offline can be
+  sent when it is back online.
+
 ### Push wakeups
 
 `GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. **Wakeups without Google** limits the phone to UnifiedPush or polling. Older servers imply polling.
@@ -334,7 +358,10 @@ the binary. See [Android updates](android-updates.md).
 ### Support tools
 
 `PATCH /phones/{pid}` accepts `supportEnabled` and `releaseWarningsEnabled`
-(both default to `true`). They sync via `GET /device/rules`. The support
+(both default to `true`). They sync via `GET /device/rules`. It also accepts
+`askMoreTimeEnabled` and `limitWarningEnabled` (default `true`, missing means `true` on the
+phone), which switch the stop screen's "Ask for more time" button and the 5-minute warning
+([more-time.md](more-time.md)). The support
 setting controls help and diagnostics in Android Maintenance. The warning
 setting controls extra status reports after failed remote release attempts.
 Phones can include a numeric `androidVersion` string in `PUT /device/status`.

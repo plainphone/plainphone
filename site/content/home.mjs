@@ -29,7 +29,7 @@ export const home = {
       chooseBody: "Each one starts from a sensible default, and you can change it at any time.",
       choose: [
         ["Apps", "Pick apps from the catalog. Others stay hidden until you allow them."],
-        ["Time limits", "A daily time for games or a single app."],
+        ["Time limits", "A daily time for games or a single app. The phone gives a quiet warning 5 minutes before, and your child can ask for more."],
         ["School time and bedtime", "Choose which apps work, and when."],
         ["Web filter", "Blocks the categories you choose. It doesn’t catch everything."],
         ["Contacts", "Calls and texts with the people you approve."],
@@ -109,7 +109,7 @@ export const home = {
       chooseBody: "Hvert valg starter et fornuftigt sted, og du kan ændre det når som helst.",
       choose: [
         ["Apps", "Vælg apps fra kataloget. Resten er skjult, indtil du giver adgang."],
-        ["Tidsgrænser", "En daglig tid til spil eller til en enkelt app."],
+        ["Tidsgrænser", "En daglig tid til spil eller til en enkelt app. Telefonen advarer stille 5 minutter før, og dit barn kan bede om mere."],
         ["Skoletid og sengetid", "Vælg, hvilke apps der virker, og hvornår."],
         ["Webfilter", "Blokerer de kategorier, du vælger. Det fanger ikke alt."],
         ["Kontakter", "Opkald og sms med de personer, du godkender."],
@@ -189,7 +189,7 @@ export const home = {
       chooseBody: "Varje val börjar med en rimlig standard, och du kan ändra det när som helst.",
       choose: [
         ["Appar", "Välj appar ur katalogen. Andra är dolda tills du tillåter dem."],
-        ["Tidsgränser", "En daglig tid för spel eller för en enskild app."],
+        ["Tidsgränser", "En daglig tid för spel eller för en enskild app. Telefonen varnar tyst 5 minuter innan, och ditt barn kan be om mer."],
         ["Skoltid och läggdags", "Välj vilka appar som fungerar, och när."],
         ["Webbfilter", "Blockerar de kategorier du väljer. Det fångar inte allt."],
         ["Kontakter", "Samtal och sms med de personer du godkänner."],
@@ -269,7 +269,7 @@ export const home = {
       chooseBody: "Hvert valg starter med en fornuftig standard, og du kan endre det når som helst.",
       choose: [
         ["Apper", "Velg apper fra katalogen. Andre er skjult til du tillater dem."],
-        ["Tidsgrenser", "En daglig tid for spill eller én bestemt app."],
+        ["Tidsgrenser", "En daglig tid for spill eller én bestemt app. Telefonen varsler stille 5 minutter før, og barnet ditt kan be om mer."],
         ["Skoletid og leggetid", "Velg hvilke apper som virker, og når."],
         ["Nettfilter", "Blokkerer kategoriene du velger. Det fanger ikke alt."],
         ["Kontakter", "Samtaler og SMS med personene du godkjenner."],
@@ -349,7 +349,7 @@ export const home = {
       chooseBody: "Jede Einstellung beginnt mit einem sinnvollen Standard, und Sie können sie jederzeit ändern.",
       choose: [
         ["Apps", "Wählen Sie Apps aus dem Katalog. Andere bleiben verborgen, bis Sie sie erlauben."],
-        ["Zeitlimits", "Eine tägliche Zeit für Spiele oder eine einzelne App."],
+        ["Zeitlimits", "Eine tägliche Zeit für Spiele oder eine einzelne App. Das Handy warnt leise 5 Minuten vorher, und Ihr Kind kann um mehr Zeit bitten."],
         ["Schulzeit und Schlafenszeit", "Wählen Sie, welche Apps wann funktionieren."],
         ["Webfilter", "Sperrt die Kategorien, die Sie wählen. Er erkennt nicht alles."],
         ["Kontakte", "Anrufe und SMS mit den Personen, die Sie freigeben."],

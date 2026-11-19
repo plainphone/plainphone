@@ -1267,6 +1267,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/more-time-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The phone's requests for more time and their answers (phone)
+         * @description The last 24 hours, newest first. An approval also arrives as a bonus in `timeLimits.bonuses` of the rules.
+         */
+        get: operations["getDeviceMoreTimeRequests"];
+        put?: never;
+        /**
+         * Ask for more time on an app or the daily cap (phone)
+         * @description Sent from the stop screen when an app's time or the daily cap is used up. `packageName` is
+         *     the app, or `*` for the daily cap. The parents get a push notification with the choices.
+         *     Asking again while the request is open returns it (200). At most 6 new requests an hour
+         *     per phone. Only for child phones with `askMoreTimeEnabled`. See docs/more-time.md.
+         */
+        post: operations["postDeviceMoreTimeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/more-time-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open and recently answered requests for more time
+         * @description Open ones and those from the last 24 hours, newest first, so a second parent sees what the first decided.
+         */
+        get: operations["getPhonesMoreTimeRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/more-time-requests/{rid}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a request for more time
+         * @description `15` or `60` add that many minutes, `day` adds the time left until the phone's local midnight,
+         *     `no` declines. It is a bonus for that app (or the daily cap) on the day of the request only.
+         *     Idempotent: the first answer wins. A later answer, from another parent or a second tap, changes
+         *     nothing and returns the decided request with `won: false`. A request nobody answered before
+         *     local midnight comes back as `expired`.
+         */
+        post: operations["answerPhonesMoreTimeRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog": {
         parameters: {
             query?: never;
@@ -2215,6 +2286,35 @@ export interface components {
             /** Format: date-time */
             decidedAt?: string | null;
         };
+        /** @description A request for more time on one app or on the daily cap (docs/more-time.md). */
+        MoreTimeRequest: {
+            /** Format: uuid */
+            id: string;
+            packageName: components["schemas"]["LimitTarget"];
+            /** @description What the child wrote; optional */
+            reason?: string | null;
+            /**
+             * Format: date
+             * @description The phone's local date it was asked on; the bonus counts for this date only
+             */
+            day: string;
+            /**
+             * @description `expired` means nobody answered before the phone's local midnight
+             * @enum {unknown}
+             */
+            status: "pending" | "approved" | "declined" | "expired";
+            /**
+             * @description The parent's choice
+             * @enum {unknown}
+             */
+            answer?: "15" | "60" | "day" | "no" | null;
+            /** @description Minutes added. For `day` it is the time left until local midnight when it was answered. */
+            grantedMinutes?: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt?: string | null;
+        };
         PushSubscription: {
             /** Format: uuid */
             id?: string;
@@ -2773,6 +2873,16 @@ export interface components {
             /** @default true */
             releaseWarningsEnabled: boolean;
             /**
+             * @description Whether the stop screen offers "Ask for more time" (docs/more-time.md). Old servers do not send the field; treat missing as true.
+             * @default true
+             */
+            askMoreTimeEnabled: boolean;
+            /**
+             * @description Whether the phone shows a calm notice five minutes before an app or the daily cap runs out. Missing means true.
+             * @default true
+             */
+            limitWarningEnabled: boolean;
+            /**
              * @description True once the parents have released the phone. The phone then switches Plainphone off
              *     (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
              *     Plainphone off"), never locks again, and calls `POST /device/released`. An older
@@ -2892,6 +3002,16 @@ export interface components {
             supportEnabled: boolean;
             /** @default true */
             releaseWarningsEnabled: boolean;
+            /**
+             * @description The phone may ask for more time when a limit runs out
+             * @default true
+             */
+            askMoreTimeEnabled: boolean;
+            /**
+             * @description The phone warns five minutes before a limit runs out
+             * @default true
+             */
+            limitWarningEnabled: boolean;
             releaseSyncCount?: number;
             androidVersion?: string | null;
             /**
@@ -2919,6 +3039,8 @@ export interface components {
             attestation?: components["schemas"]["Attestation"] | null;
             /** @description Open requests from the phone (apps, contacts) */
             openRequests?: number;
+            /** @description Open requests for more time */
+            openMoreTimeRequests?: number;
             /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
             offlineAlertHours?: number | null;
             pushWakeups?: boolean;
@@ -5371,6 +5493,8 @@ export interface operations {
                     name?: string;
                     supportEnabled?: boolean;
                     releaseWarningsEnabled?: boolean;
+                    askMoreTimeEnabled?: boolean;
+                    limitWarningEnabled?: boolean;
                     locationEnabled?: boolean;
                     changeReceiptsEnabled?: boolean;
                     healthBoardEnabled?: boolean;
@@ -5690,6 +5814,157 @@ export interface operations {
             202: components["responses"]["ChangePending"];
             /** @description Core apps cannot have a limit, or the target has no limit */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceMoreTimeRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: components["schemas"]["MoreTimeRequest"][];
+                    };
+                };
+            };
+        };
+    };
+    postDeviceMoreTimeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    packageName: components["schemas"]["LimitTarget"];
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Already open; the open request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoreTimeRequest"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoreTimeRequest"];
+                };
+            };
+            /** @description Asking is switched off for this phone */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a child phone, or there is no limit on the target */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests; wait for an answer */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPhonesMoreTimeRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        requests: (components["schemas"]["MoreTimeRequest"] & {
+                            /** Format: uuid */
+                            phoneId?: string;
+                            /** @description Null for the daily cap */
+                            appLabel?: string | null;
+                            /** @description Null while open */
+                            answeredByYou?: boolean | null;
+                        })[];
+                    };
+                };
+            };
+        };
+    };
+    answerPhonesMoreTimeRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    answer: "15" | "60" | "day" | "no";
+                };
+            };
+        };
+        responses: {
+            /** @description The request as it stands now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoreTimeRequest"] & {
+                        /** @description True when this call decided it. False when it was already answered, or closed as expired because the limit was removed or the phone is no longer a child's */
+                        won: boolean;
+                        answeredByYou: boolean;
+                    };
+                };
+            };
+            /** @description No such request */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

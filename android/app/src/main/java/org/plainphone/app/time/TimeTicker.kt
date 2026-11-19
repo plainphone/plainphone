@@ -30,6 +30,7 @@ object TimeTicker {
             val context = app ?: return
             if (Mode.isStrong(context) && SyncStore(context).rules()?.timeLimits?.isEmpty == false) {
                 Lock.applyIfNeededAsync(context, "time limits") {}
+                LimitWarningNotifier.checkAsync(context)
             }
             main.postDelayed(this, EVERY_MS)
         }

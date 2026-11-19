@@ -6,6 +6,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../../../api/client";
 import type { App, ChangeResult, Limit, Locale } from "../../../api/models";
+import { MoreTimeSettings } from "../../../components/MoreTimeRequests";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, LoadGate, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
 import { useI18n, type TFn } from "../../../i18n/I18n";
@@ -259,6 +260,7 @@ function TimeScreen() {
             .sort((a, b) => a.label.localeCompare(b.label, locale));
           return (
             <>
+              {phone.profile === "child" ? <MoreTimeSettings /> : null}
               {/* Re-created when the saved limit changes, so the form shows what the phone will get. */}
               <TotalSection key={JSON.stringify(limits.total)} data={limits} reload={res.reload} />
               <VStack>

@@ -149,6 +149,22 @@ components:
         status: { enum: [pending, approved, rejected] }
         createdAt: { type: string, format: date-time }
         decidedAt: { type: [string, "null"], format: date-time }
+    MoreTimeRequest:
+      type: object
+      description: A request for more time on one app or on the daily cap (docs/more-time.md).
+      required: [id, packageName, day, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        packageName: { $ref: "#/components/schemas/LimitTarget" }
+        reason: { type: [string, "null"], maxLength: 140, description: "What the child wrote; optional" }
+        day: { type: string, format: date, description: "The phone's local date it was asked on; the bonus counts for this date only" }
+        status:
+          enum: [pending, approved, declined, expired]
+          description: "`expired` means nobody answered before the phone's local midnight"
+        answer: { enum: ["15", "60", "day", "no", null], description: "The parent's choice" }
+        grantedMinutes: { type: [integer, "null"], description: "Minutes added. For `day` it is the time left until local midnight when it was answered." }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: [string, "null"], format: date-time }
     PushSubscription:
       type: object
       properties:
@@ -788,6 +804,14 @@ components:
               items: { type: string, pattern: "^[0-9]{1,30}$" }
         supportEnabled: { type: boolean, default: true }
         releaseWarningsEnabled: { type: boolean, default: true }
+        askMoreTimeEnabled:
+          type: boolean
+          default: true
+          description: Whether the stop screen offers "Ask for more time" (docs/more-time.md). Old servers do not send the field; treat missing as true.
+        limitWarningEnabled:
+          type: boolean
+          default: true
+          description: Whether the phone shows a calm notice five minutes before an app or the daily cap runs out. Missing means true.
         release:
           type: boolean
           description: |
@@ -884,6 +908,8 @@ components:
           description: Whether the dashboard can issue a new setup QR code for this phone.
         supportEnabled: { type: boolean, default: true }
         releaseWarningsEnabled: { type: boolean, default: true }
+        askMoreTimeEnabled: { type: boolean, default: true, description: "The phone may ask for more time when a limit runs out" }
+        limitWarningEnabled: { type: boolean, default: true, description: "The phone warns five minutes before a limit runs out" }
         releaseSyncCount: { type: integer, minimum: 0, maximum: 3 }
         androidVersion: { type: [string, "null"] }
         setupEnrollmentId:
@@ -911,6 +937,7 @@ components:
             - $ref: "#/components/schemas/Attestation"
             - type: "null"
         openRequests: { type: integer, description: "Open requests from the phone (apps, contacts)" }
+        openMoreTimeRequests: { type: integer, description: "Open requests for more time" }
         offlineAlertHours:
           type: [integer, "null"]
           description: Hours of silence before the parents are told. Null means the server default, 0 never.
@@ -2583,6 +2610,8 @@ paths:
                 name: { type: string }
                 supportEnabled: { type: boolean }
                 releaseWarningsEnabled: { type: boolean }
+                askMoreTimeEnabled: { type: boolean }
+                limitWarningEnabled: { type: boolean }
                 locationEnabled: { type: boolean }
                 changeReceiptsEnabled: { type: boolean }
                 healthBoardEnabled: { type: boolean }
@@ -2835,6 +2864,124 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { description: "Core apps cannot have a limit, or the target has no limit" }
+  /device/more-time-requests:
+    post:
+      operationId: postDeviceMoreTimeRequest
+      tags: [device]
+      summary: Ask for more time on an app or the daily cap (phone)
+      description: |
+        Sent from the stop screen when an app's time or the daily cap is used up. `packageName` is
+        the app, or `*` for the daily cap. The parents get a push notification with the choices.
+        Asking again while the request is open returns it (200). At most 6 new requests an hour
+        per phone. Only for child phones with `askMoreTimeEnabled`. See docs/more-time.md.
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packageName]
+              properties:
+                packageName: { $ref: "#/components/schemas/LimitTarget" }
+                reason: { type: string, maxLength: 140 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoreTimeRequest" }
+        "200":
+          description: Already open; the open request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoreTimeRequest" }
+        "403": { description: "Asking is switched off for this phone" }
+        "409": { description: "Not a child phone, or there is no limit on the target" }
+        "429": { description: "Too many requests; wait for an answer" }
+    get:
+      operationId: getDeviceMoreTimeRequests
+      tags: [device]
+      summary: The phone's requests for more time and their answers (phone)
+      description: The last 24 hours, newest first. An approval also arrives as a bonus in `timeLimits.bonuses` of the rules.
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/MoreTimeRequest" }
+  /phones/{pid}/more-time-requests:
+    get:
+      operationId: getPhonesMoreTimeRequests
+      tags: [limits]
+      summary: Open and recently answered requests for more time
+      description: Open ones and those from the last 24 hours, newest first, so a second parent sees what the first decided.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/MoreTimeRequest"
+                        - type: object
+                          properties:
+                            phoneId: { type: string, format: uuid }
+                            appLabel: { type: [string, "null"], description: "Null for the daily cap" }
+                            answeredByYou: { type: [boolean, "null"], description: "Null while open" }
+  /phones/{pid}/more-time-requests/{rid}/answer:
+    post:
+      operationId: answerPhonesMoreTimeRequest
+      tags: [limits]
+      summary: Answer a request for more time
+      description: |
+        `15` or `60` add that many minutes, `day` adds the time left until the phone's local midnight,
+        `no` declines. It is a bonus for that app (or the daily cap) on the day of the request only.
+        Idempotent: the first answer wins. A later answer, from another parent or a second tap, changes
+        nothing and returns the decided request with `won: false`. A request nobody answered before
+        local midnight comes back as `expired`.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                answer: { enum: ["15", "60", "day", "no"] }
+      responses:
+        "200":
+          description: The request as it stands now
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/MoreTimeRequest"
+                  - type: object
+                    required: [won, answeredByYou]
+                    properties:
+                      won: { type: boolean, description: "True when this call decided it. False when it was already answered, or closed as expired because the limit was removed or the phone is no longer a child's" }
+                      answeredByYou: { type: boolean }
+        "404": { description: "No such request" }
 
   /catalog:
     get:
