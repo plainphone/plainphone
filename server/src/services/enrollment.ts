@@ -6,9 +6,11 @@
 // The maintenance PIN is hashed in the browser and never reaches the server.
 
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, lt, ne } from "drizzle-orm";
+import { isDeepStrictEqual } from "node:util";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { enrollments, households, phones, users, type FilterMethod } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
+import { provisioningInfo } from "../lib/provisioning.js";
 import { sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "./initial-self-key.js";
 import type { Ctx } from "./context.js";
 import { pairingAccount } from "./pairing-account.js";
@@ -16,41 +18,65 @@ import { pairingAccount } from "./pairing-account.js";
 export const ENROLLMENT_HOURS = 24;
 /** A phone whose answer got lost may ask again with the same token and install id this long. */
 export const ENROLLMENT_RETRY_MINUTES = 60;
+/** Keep expired rows as tombstones long enough to distinguish stale codes from unknown ones. */
+const ENROLLMENT_RETENTION_DAYS = 30;
 export const ENROLLMENT_PREFIX = "pp_e_";
-const ADMIN_COMPONENT = "org.plainphone.app/.PlainphoneAdminReceiver";
+const OUTDATED_QR = "This QR code is out of date. Make a new one.";
+type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 /** 128 random bits, short on purpose: every character makes the QR code denser. */
 export function enrollmentToken(): string {
   return ENROLLMENT_PREFIX + randomBytes(16).toString("base64url");
 }
 
-/** What the dashboard needs to build the provisioning QR code (besides the PIN hash it makes itself). */
-export function provisioningInfo(ctx: Ctx) {
-  return {
-    adminComponent: ADMIN_COMPONENT,
-    downloadUrl: `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/download/android`,
-    signatureChecksum: ctx.cfg.APK_SIGNATURE_CHECKSUM,
-    serverUrl: ctx.cfg.PUBLIC_URL.replace(/\/$/, ""),
-    dnsHost: ctx.cfg.PROVISIONING_DNS_HOST,
-  };
+export function enrollmentMatches(
+  ctx: Ctx,
+  e: Pick<typeof enrollments.$inferSelect, "provisioning" | "invalidatedAt">,
+  phone: typeof phones.$inferSelect,
+) {
+  return !e.invalidatedAt && isDeepStrictEqual(e.provisioning, provisioningInfo(ctx.cfg, phone));
 }
 
-/** Issues a fresh token for a phone that has not paired yet. Older tokens for it stop working. */
+export async function invalidateEnrollments(tx: Tx, phoneId: string, now: Date) {
+  await tx.update(enrollments).set({ invalidatedAt: now }).where(and(
+    eq(enrollments.phoneId, phoneId), isNull(enrollments.usedAt), isNull(enrollments.invalidatedAt),
+  ));
+}
+
+/** All enrollment operations lock the phone first, then read and lock the token. */
+export async function lockEnrollment(tx: Tx, token: string) {
+  const tokenHash = sha256(token);
+  const [phone] = await tx.select().from(phones).where(eq(phones.id,
+    tx.select({ id: enrollments.phoneId }).from(enrollments).where(eq(enrollments.tokenHash, tokenHash)),
+  )).for("update");
+  if (!phone) return null;
+  const [enrollment] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, tokenHash)).for("update");
+  return enrollment ? { phone, enrollment } : null;
+}
+
+/** Issues a fresh token and returns the exact server-controlled QR values bound to it. */
 export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string) {
   const token = enrollmentToken();
-  const expiresAt = new Date(ctx.now().getTime() + ENROLLMENT_HOURS * 3_600_000);
-  await ctx.db.transaction(async (tx) => {
-    // Keep as little as possible: tokens past their retry window have no use any more.
-    await tx.delete(enrollments).where(lt(enrollments.expiresAt, new Date(ctx.now().getTime() - 3_600_000)));
-    await tx.delete(enrollments).where(eq(enrollments.phoneId, phoneId));
-    await tx.insert(enrollments).values({ tokenHash: sha256(token), phoneId, createdBy: userId, expiresAt });
+  const now = ctx.now();
+  const expiresAt = new Date(now.getTime() + ENROLLMENT_HOURS * 3_600_000);
+  // Prune outside the phone transaction so cleanup never locks other phones' tokens under that lock.
+  const cutoff = new Date(now.getTime() - ENROLLMENT_RETENTION_DAYS * 24 * 3_600_000);
+  await ctx.db.delete(enrollments).where(lt(enrollments.expiresAt, cutoff));
+  return ctx.db.transaction(async (tx) => {
+    const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
+    if (!phone || phone.pairedAt || phone.deviceTokenHash) return null;
+    const provisioning = provisioningInfo(ctx.cfg, phone);
+    await invalidateEnrollments(tx, phoneId, now);
+    const [row] = await tx.insert(enrollments).values({
+      tokenHash: sha256(token), phoneId, createdBy: userId, expiresAt, provisioning,
+    }).returning({ id: enrollments.id });
+    return { enrollment: { id: row!.id, token, expiresAt: expiresAt.toISOString() }, provisioning };
   });
-  return { token, expiresAt: expiresAt.toISOString() };
 }
 
 export type EnrollResult =
   | { status: 200; phoneId: string; deviceToken: string; setupUndoMinutes: number | null; account: ReturnType<typeof pairingAccount> }
-  | { status: 400 | 404 | 410; error: string };
+  | { status: 400 | 404 | 409 | 410; error: string; code?: "outdated_qr" };
 
 /**
  * Redeems a token. One-time: the first phone wins. The same phone (same install id) may ask again
@@ -66,10 +92,9 @@ export async function redeemEnrollment(
   const installHash = sha256(input.installId);
   const now = ctx.now();
   const result = await ctx.db.transaction(async (tx): Promise<EnrollResult & { ownerId?: string | null }> => {
-    const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-    if (!e) return { status: 404, error: "unknown setup code" };
-    const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-    if (!phone) return { status: 404, error: "unknown setup code" };
+    const locked = await lockEnrollment(tx, input.token);
+    if (!locked) return { status: 404, error: "unknown setup code" };
+    const { enrollment: e, phone } = locked;
 
     const paired = async () => {
       const [user] = phone.mode === "strong" && e.createdBy
@@ -82,6 +107,7 @@ export async function redeemEnrollment(
       return { status: 200 as const, phoneId: phone.id, deviceToken, account, setupUndoMinutes: phone.mode === "light" ? phone.setupUndoMinutes : null };
     };
 
+    // Recover an accepted enrollment even if the parent changed the app language after pairing.
     if (e.usedAt) {
       const retry =
         e.installIdHash !== null &&
@@ -90,6 +116,12 @@ export async function redeemEnrollment(
       if (!retry) return { status: 410, error: "this setup code was already used" };
       await tx.update(phones).set({ deviceTokenHash: sha256(deviceToken) }).where(eq(phones.id, phone.id));
       return paired();
+    }
+    if (e.invalidatedAt) return { status: 410, error: OUTDATED_QR, code: "outdated_qr" };
+    if (!enrollmentMatches(ctx, e, phone)) {
+      await tx.update(enrollments).set({ invalidatedAt: now }).where(eq(enrollments.id, e.id));
+      // Same answer as for an already invalidated token, so a retry gives the same result.
+      return { status: 410, error: OUTDATED_QR, code: "outdated_qr" };
     }
     if (e.expiresAt <= now) return { status: 410, error: "this setup code has expired; make a new one in the dashboard" };
     // Paired some other way meanwhile (a pairing code): the entry is taken.
@@ -108,7 +140,7 @@ export async function redeemEnrollment(
       })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
-    await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phone.id), ne(enrollments.id, e.id)));
+    await invalidateEnrollments(tx, phone.id, now);
     return { ...(await paired()), ownerId: e.createdBy };
   });
   if ("ownerId" in result && result.ownerId) await sendInitialKeyInvite(ctx, input.key, result.ownerId);

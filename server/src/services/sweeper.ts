@@ -10,6 +10,7 @@ import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
+import { sweepSos } from "./sos.js";
 
 const DAY = 86_400_000;
 /** Expired invitations are kept this long, so "this invitation has expired" can still be shown. */
@@ -116,6 +117,7 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
     safety: await deleteOldSafetyRequests(ctx),
   };
   await deliverSetupUndoNotices(ctx);
+  await sweepSos(ctx);
   return { applied, dns, dnsDeleted, offlineAlerts, alwaysEnded: ended.length, deleted };
 }
 

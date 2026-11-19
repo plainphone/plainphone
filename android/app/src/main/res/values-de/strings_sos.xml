@@ -1,0 +1,25 @@
+<resources>
+    <string name="sos_title">SOS</string>
+    <string name="sos_back">Zurück</string>
+    <string name="sos_intro">Halte eine Taste 3 Sekunden gedrückt.</string>
+    <string name="sos_urgent">Dringend: Ich brauche jetzt Hilfe</string>
+    <string name="sos_help">Ich brauche Hilfe</string>
+    <string name="sos_emergency">112 anrufen</string>
+    <string name="sos_hold">Halte gedrückt, um einen SOS zu senden.</string>
+    <string name="sos_hold_emergency">Halte gedrückt, um 112 anzurufen.</string>
+    <string name="sos_undo">Rückgängig</string>
+    <string name="sos_sending_in">Wird in %1$d s gesendet</string>
+    <string name="sos_stop_call">Anruf beenden</string>
+    <string name="sos_sent">SOS um %1$s gesendet</string>
+    <string name="sos_seen">Von einem Elternteil gesehen</string>
+    <string name="sos_pending">SOS wird gesendet …</string>
+    <string name="sos_failed">SOS konnte nicht gesendet werden.</string>
+    <string name="sos_no_parents">Deine Eltern können in ihrem Dashboard Nummern für Anrufe und SMS hinzufügen.</string>
+    <string name="sos_sent_to">Gesendet an %1$s um %2$s</string>
+    <string name="sos_seen_by">Gesehen von %1$s</string>
+    <string name="sos_location">Deine Position kann mitgesendet werden.</string>
+    <string name="sos_confirm">Bestätigen</string>
+    <string name="sos_starting_in">Startet in %1$d s</string>
+    <string name="sos_report_received">SOS um %1$s an Plainphone gesendet</string>
+    <string name="sos_call_missed">Dein SOS wurde gesendet, aber der Anruf bei deinen Eltern konnte nicht starten. Ruf sie selbst an oder wähle 112.</string>
+</resources>

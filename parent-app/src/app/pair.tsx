@@ -152,6 +152,7 @@ function PairForm() {
           ]}
         />
       </Stack>
+      <Button kind="secondary" title={t("phoneLanguage.strong")} onPress={() => router.push("/strong-setup")} />
       {lookup.light && profile === "self" ? (
         <Switch label={t("filter.otherVpn")} value={privateDns} onValueChange={setPrivateDns}
           help={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />

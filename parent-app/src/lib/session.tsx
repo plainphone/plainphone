@@ -2,12 +2,13 @@
 //
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
+import { isLanguage } from "../shared/lib/phone-language";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap, configureApiServer } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { checkServer, HOSTED_SERVER, BUILD_SERVER, normalizeServerUrl, restoreServer, saveServer, SERVER_URL } from "./config";
-import { syncNativePush, watchNativePush } from "./notifications";
+import { clearLocalNotifications, syncNativePush, watchNativePush } from "./notifications";
 import { logoutNativeSession } from "./push-registration";
 import { clearPendingInvite, loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
@@ -97,6 +98,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionToken(null);
     await removeItem(SERVER_URL === BUILD_SERVER ? TOKEN_KEY : CUSTOM_TOKEN_KEY).catch(() => undefined);
     setState({ status: "anon" });
+    await clearLocalNotifications().catch(() => undefined);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -106,8 +108,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // A login link may have replaced the token while this was in flight.
       if (getSessionToken() !== used) return null;
       setState({ status: "in", me });
-      if (me.user.locale === "en" || me.user.locale === "da") setLocale(me.user.locale);
-      void syncNativePush(me.user.locale === "da" ? "da" : "en");
+      if (isLanguage(me.user.locale)) setLocale(me.user.locale);
+      void syncNativePush(isLanguage(me.user.locale) ? me.user.locale : "en");
       return me;
     } catch (err) {
       if (getSessionToken() !== used) return null;

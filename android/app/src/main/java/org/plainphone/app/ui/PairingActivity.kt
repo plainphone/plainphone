@@ -161,6 +161,7 @@ class PairingActivity : ComponentActivity() {
 private sealed interface PairingUi {
     /** Pairing by itself with the token from the setup QR code. */
     data object Connecting : PairingUi
+    data object OutdatedQr : PairingUi
     data object Loading : PairingUi
     data class Showing(val pairing: Pairing) : PairingUi
     data class Confirm(val details: PairPoll.Confirm, val enrollmentToken: String? = null, val matchesProfile: Boolean = true) : PairingUi
@@ -199,7 +200,7 @@ private fun PairingScreen(onDone: () -> Unit) {
                             } else when (val enrolled = controller.enroll()) {
                                 is EnrollResult.Paired -> PairPoll.Paired(enrolled.phoneId, enrolled.deviceToken)
                                 EnrollResult.InvalidKey -> PairPoll.InvalidKey
-                                EnrollResult.Rejected -> PairPoll.Expired
+                                EnrollResult.OutdatedQr, EnrollResult.Rejected -> PairPoll.Expired
                                 null -> if (store.isPaired) PairPoll.Paired(checkNotNull(store.phoneId), checkNotNull(store.deviceToken()))
                                     else PairPoll.Expired
                             }
@@ -249,6 +250,10 @@ private fun PairingScreen(onDone: () -> Unit) {
             try {
                 if (Mode.isStrong(context) || store.enrollmentConfirmed) {
                     val result = withContext(Dispatchers.IO) { controller.enroll() }
+                    if (result == EnrollResult.OutdatedQr) {
+                        ui = PairingUi.OutdatedQr
+                        return@LaunchedEffect
+                    }
                     if (result == EnrollResult.InvalidKey) {
                         invalidKey = true
                         confirmationStarted = false
@@ -293,7 +298,10 @@ private fun PairingScreen(onDone: () -> Unit) {
             onDone()
             return@LaunchedEffect
         }
-        ui = started.fold({ PairingUi.Showing(it) }, { PairingUi.Failed(it.message ?: it.javaClass.simpleName) })
+        ui = started.fold({ PairingUi.Showing(it) }, {
+            if (store.enrollmentOutdated) PairingUi.OutdatedQr
+            else PairingUi.Failed(it.message ?: it.javaClass.simpleName)
+        })
         while (ui is PairingUi.Showing) {
             delay(POLL_MS)
             // EnrollWorker may pair the phone with the QR code's token meanwhile: then stop showing
@@ -338,6 +346,10 @@ private fun PairingScreen(onDone: () -> Unit) {
             when (val state = ui) {
                 PairingUi.Connecting -> Text(stringResource(R.string.pairing_connecting), textAlign = TextAlign.Center)
                 PairingUi.Loading -> Text(stringResource(R.string.pairing_loading))
+                PairingUi.OutdatedQr -> Text(
+                    stringResource(if (Mode.isStrong(context)) R.string.pairing_outdated_qr_strong else R.string.pairing_outdated_qr_light),
+                    textAlign = TextAlign.Center,
+                )
                 is PairingUi.Showing -> {
                     Text(stringResource(if (Mode.isLight(context) && LightSetup.profile(context) == "self") R.string.setup_pair_self else R.string.pairing_instructions), textAlign = TextAlign.Center)
                     QrCode(state.pairing.qrUrl, Modifier.size(240.dp))

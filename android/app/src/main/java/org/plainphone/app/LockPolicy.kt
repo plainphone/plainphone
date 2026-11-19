@@ -17,7 +17,7 @@ object LockPolicy {
     /** User restrictions for strong mode, filtered to what [sdkInt] knows about. */
     @SuppressLint("InlinedApi") // API 34/35 constants are plain strings and only added when sdkInt is high enough.
     @Suppress("DEPRECATION") // DISALLOW_ADD_MANAGED_PROFILE is deprecated in API 37 but still enforced.
-    fun restrictions(sdkInt: Int): List<String> = buildList {
+    fun restrictions(sdkInt: Int, lockSystemLanguage: Boolean = true): List<String> = buildList {
         // Installing and removing software.
         add(UserManager.DISALLOW_INSTALL_APPS)
         add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
@@ -43,6 +43,7 @@ object LockPolicy {
         add(UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
         // Date/time tricks against schedules (phase 3) and certificate checks.
         add(UserManager.DISALLOW_CONFIG_DATE_TIME)
+        if (lockSystemLanguage && sdkInt >= 28) add(UserManager.DISALLOW_CONFIG_LOCALE)
         // Phase 2: the default phone and SMS app (Plainphone) cannot be changed in Settings (Android 14+).
         // Older phones: the maker's extra dialers and SMS apps are hidden, but the system dialer is not (emergency
         // fallback) and can be picked in Settings. Calls are then unfiltered until the role is back; the switch
