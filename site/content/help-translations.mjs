@@ -41,7 +41,7 @@ export const translations = {
         id: "vpn",
         title: "Webbfiltret slutar fungera med en annan VPN",
         body: [
-          "I lätt läge använder Plainphone Androids VPN-anslutning för webbfiltret. Android tillåter en aktiv VPN per profil. Koppla från den andra VPN-anslutningen, stäng av Alltid aktiv VPN för den om det är aktiverat och slå sedan på webbfiltret igen i Plainphone. Behöver du behålla den andra VPN-anslutningen kan Plainphone använda Androids privata DNS för webbfiltret i stället. Välj det när Plainphone frågar om en annan VPN.",
+          "I lätt läge använder Plainphone Androids VPN-anslutning för webbfiltret. Android tillåter en aktiv VPN per profil. Koppla från den andra VPN-anslutningen, stäng av Alltid aktiv VPN för den om det är aktiverat och slå sedan på webbfiltret igen i Plainphone. Behöver du behålla den andra VPN-anslutningen kan Plainphone använda Androids privata DNS för webbfiltret i stället. I dashboarden eller föräldraappen öppnar du telefonens Webbfilter och slår på Privat DNS. Vid första installationen väljer du det när Plainphone frågar om en annan VPN.",
           "I starkt läge använder Plainphone Androids privata DNS. En VPN kan använda sin egen DNS. Koppla från den och kontrollera om filtret fungerar igen.",
         ],
       },
@@ -90,7 +90,7 @@ export const translations = {
         id: "vpn",
         title: "Nettfilteret slutter å virke med et annet VPN",
         body: [
-          "I lett modus bruker Plainphone Androids VPN-tilkobling til nettfilteret. Android tillater én aktiv VPN-tilkobling per profil. Koble fra den andre VPN-tilkoblingen, slå av Alltid aktivt VPN for den hvis det er på, og slå på nettfilteret igjen i Plainphone. Hvis du må beholde det andre VPN-et på, kan Plainphone bruke Androids private DNS til nettfilteret i stedet. Velg det når Plainphone spør om et annet VPN.",
+          "I lett modus bruker Plainphone Androids VPN-tilkobling til nettfilteret. Android tillater én aktiv VPN-tilkobling per profil. Koble fra den andre VPN-tilkoblingen, slå av Alltid aktivt VPN for den hvis det er på, og slå på nettfilteret igjen i Plainphone. Hvis du må beholde det andre VPN-et på, kan Plainphone bruke Androids private DNS til nettfilteret i stedet. I dashbordet eller foreldreappen åpner du telefonens Nettfilter og slår på Privat DNS. Ved første oppsett velger du det når Plainphone spør om et annet VPN.",
           "I sterk modus bruker Plainphone Androids private DNS. En VPN-tjeneste kan bruke sin egen DNS. Koble fra VPN-tjenesten for å se om filteret fungerer igjen.",
         ],
       },
@@ -139,7 +139,7 @@ export const translations = {
         id: "vpn",
         title: "Der Webfilter funktioniert mit einem anderen VPN nicht mehr",
         body: [
-          "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trenne das andere VPN, deaktiviere dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalte den Webfilter in Plainphone wieder ein. Muss das andere VPN eingeschaltet bleiben, kann Plainphone stattdessen das private DNS von Android für den Webfilter verwenden. Wähle das, wenn Plainphone nach einem anderen VPN fragt.",
+          "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trenne das andere VPN, deaktiviere dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalte den Webfilter in Plainphone wieder ein. Muss das andere VPN eingeschaltet bleiben, kann Plainphone stattdessen das private DNS von Android für den Webfilter verwenden. Im Dashboard oder in der Eltern-App öffnest du den Webfilter des Telefons und schaltest Privates DNS ein. Bei der ersten Einrichtung wählst du es, wenn Plainphone nach einem anderen VPN fragt.",
           "Im starken Modus verwendet Plainphone die Funktion Privates DNS von Android. Ein VPN kann einen eigenen DNS-Dienst verwenden. Trenne es, um zu prüfen, ob der Filter wieder funktioniert.",
         ],
       },

@@ -16,6 +16,9 @@ const locales = Object.keys(ogLocales);
 const recoveryStatus = {
   en: "<strong>Phone status</strong> shows reset protection is on",
   da: "<strong>Telefonens status</strong>, at den seneste rapport viser, at beskyttelse mod nulstilling er slået til",
+  sv: "att telefonens senaste rapport visar att återställningsskyddet är på",
+  nb: "at den siste rapporten fra telefonen viser at tilbakestillingsbeskyttelsen er på",
+  de: "ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist",
 };
 const lookupRoute = "apps/";
 const routes = ["", "setup/", "privacy/", "why/", "help/", lookupRoute];
