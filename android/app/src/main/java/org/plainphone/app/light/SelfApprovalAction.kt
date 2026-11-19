@@ -57,7 +57,7 @@ internal fun SelfApprovalAction() {
     var state by remember { mutableStateOf(ApprovalState.Waiting) }
     var attempt by remember { mutableStateOf(0) }
     val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null; state = ApprovalState.Waiting }
-    val newCode = { state = ApprovalState.Waiting; qr = null; requests = null; attempt++ }
+    val newCode = { state = ApprovalState.Waiting; qr = null; requests = null; attempt += 1 }
     TextButton(onClick = { open = true }) { Text(stringResource(R.string.self_approval_title)) }
     TextButton(onClick = { invite = true; open = true }) { Text(stringResource(R.string.setup_key_qr)) }
     TextButton(onClick = { template = true; open = true }) { Text(stringResource(R.string.self_template_share)) }
