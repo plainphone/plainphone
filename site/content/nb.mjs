@@ -5,7 +5,7 @@ export default {
   path: "/nb/",
   title: "Plainphone | Foreldrekontroll for barnets første Android-mobil",
   description: "Gjør en Android til barnets første mobil eller en enkel telefon for deg selv. Behold samtaler og viktige apper, og velg hvilke apper og nettsteder du vil begrense.",
-  ogAlt: "Plainphone: telefonen din, minus støyen.",
+  ogAlt: "Plainphone: Telefonen din uten all støyen. Samtaler, SMS og kamera er på, sosiale medier og appbutikken er av.",
   landing: {
     product: "Produkt",
     setup: "Oppsett",

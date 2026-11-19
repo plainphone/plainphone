@@ -5,7 +5,7 @@ export default {
   path: "/de/",
   title: "Plainphone | Kindersicherung für das erste Android-Handy",
   description: "Richten Sie ein Android-Handy für Ihr Kind oder als einfaches Handy für sich selbst ein. Behalten Sie Anrufe und wichtige Apps und wählen Sie, welche Apps und Webseiten Sie begrenzen.",
-  ogAlt: "Plainphone: Ihr Telefon, ohne Lärm.",
+  ogAlt: "Plainphone: Ihr Telefon ohne Ablenkung. Anrufe, SMS und Kamera sind an, soziale Medien und der App-Store sind aus.",
   landing: {
     product: "Produkt",
     setup: "Einrichtung",

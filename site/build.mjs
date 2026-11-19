@@ -318,7 +318,7 @@ ${head2("who", t.who.title)}
   const m = hm.modes;
   const modes = `<section class="section wrap" id="modes" aria-labelledby="modes-title">
 ${head2("modes", m.title, t.how.lead)}
-<div class="table-wrap compare" role="region" aria-labelledby="modes-title" tabindex="0"><table>
+<div class="table-wrap compare" role="region" aria-label="${esc(m.caption)}" tabindex="0"><table>
 <caption class="sr">${m.caption}</caption>
 <thead><tr><td><span class="sr">${m.corner}</span></td>${t.how.steps.map((step) => `<th scope="col">${step.title}</th>`).join("")}</tr></thead>
 <tbody>${m.rows.map(([label, strong, light]) => `<tr><th scope="row">${label}</th><td>${strong}</td><td>${light}</td></tr>`).join("")}</tbody>
@@ -535,7 +535,7 @@ ${header(t, "privacy", route)}
 <h1>${p.h1}</h1>
 <p class="updated">${p.updated}</p>
 <p class="lead">${p.lead}</p>
-<p class="note">${p.status}</p>
+<p class="notice-box">${p.status}</p>
 <nav class="toc" aria-label="${p.tocLabel}"><ul>${p.sections.map((s) => `<li><a href="#${s.id}">${s.title}</a></li>`).join("")}</ul></nav>
 <section class="short" aria-labelledby="short"><h2 id="short">${p.short.title}</h2>${block({ list: p.short.list })}</section>
 ${p.sections.map(section).join("\n")}
@@ -589,7 +589,7 @@ ${p.lightSteps.map(([title, body, fig]) => `<li><h3>${title}</h3><p>${body}</p>$
 <section aria-labelledby="trouble"><h2 id="trouble">${p.troubleTitle}</h2><dl>${[...p.trouble, ...p.lightHelpItems]
     .map(([q, a]) => `<dt>${q}</dt><dd>${a}</dd>`)
     .join("")}</dl><p class="help">${p.help}</p></section>
-<section aria-labelledby="tested"><h2 id="tested">${p.testedTitle}</h2><div class="table-wrap" role="region" aria-labelledby="tested" tabindex="0"><table>
+<section aria-labelledby="tested"><h2 id="tested">${p.testedTitle}</h2><div class="table-wrap" role="region" aria-label="${esc(tb.caption)}" tabindex="0"><table>
 <caption class="sr">${tb.caption}</caption>
 <thead><tr>${tb.cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
 <tbody>${tb.rows.map(([phone, android, result]) => `<tr><th scope="row">${phone}</th><td>${android}</td><td>${result}</td></tr>`).join("")}</tbody></table></div>

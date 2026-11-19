@@ -490,7 +490,7 @@ details.qa:last-child { border-bottom: 0; }
 .doc ul, .doc ol { margin: 0 0 1rem; padding-left: 1.25rem; }
 .doc li { margin-bottom: 0.5rem; padding-left: 0.2rem; }
 .doc li::marker { color: var(--pencil); }
-.doc .note { background: var(--attention); color: var(--ink); padding: 0.9rem 1.1rem; border-radius: var(--radius); max-width: none; }
+.doc .notice-box { background: var(--attention); color: var(--ink); padding: 0.9rem 1.1rem; border-radius: var(--radius); max-width: none; }
 .toc { margin-top: 2rem; padding: 0.5rem 1.25rem; background: var(--sheet); border: 1.5px solid var(--edge); border-radius: var(--radius); font-size: 0.9375rem; }
 .doc .toc ul { list-style: none; margin: 0; padding: 0; max-width: none; columns: 1; column-gap: 2rem; }
 @media (min-width: 40rem) { .doc .toc ul { columns: 2; } }
@@ -524,7 +524,7 @@ details.qa:last-child { border-bottom: 0; }
 .setup .table-wrap table { max-width: 34rem; }
 .setup td { white-space: nowrap; }
 .setup .help { margin-top: 1.75rem; }
-.guide { list-style: none; counter-reset: guide; margin: 0; padding: 0; max-width: none; }
+.doc .guide { list-style: none; counter-reset: guide; margin: 0; padding: 0; max-width: none; }
 .guide > li { counter-increment: guide; padding: 1.75rem 0 2rem; border-top: 1.5px solid var(--ink); }
 .guide > li::before { content: "0" counter(guide); display: block; font-family: var(--mono); font-weight: 500; color: var(--pencil); margin-bottom: 0.6rem; }
 .guide h3 { font-size: 1.375rem; margin: 0 0 0.6rem; }
@@ -571,7 +571,7 @@ details.qa:last-child { border-bottom: 0; }
   font: inherit;
 }
 .compatibility-search input:focus-visible { border-color: var(--ink); }
-.compatibility-list { list-style: none; padding: 0; margin: 0; max-width: none; }
+.doc .compatibility-list { list-style: none; padding: 0; margin: 0; max-width: none; }
 .compatibility-list li { border-top: 1px solid var(--divider); margin: 0; padding: 0.75rem 0; overflow-wrap: anywhere; }
 .compatibility-list .note { font-family: var(--mono); font-size: 0.8125rem; }
 .compatibility-list span:last-child { display: block; color: var(--pencil); }

@@ -5,7 +5,7 @@ export default {
   path: "/",
   title: "Plainphone | Android parental controls and a simpler phone",
   description: "Set up an Android as your child’s first phone or a simpler phone for yourself. Keep calls and essential apps, and choose which apps and websites to limit.",
-  ogAlt: "Plainphone: your phone, minus the noise.",
+  ogAlt: "Plainphone: Your phone, minus the noise. Calls, messages and camera are switched on; social media and the app store are off.",
   landing: {
     product: "Product",
     setup: "Setup",
