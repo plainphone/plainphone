@@ -45,6 +45,15 @@ Every protection is a step in the lock. A missing one is a failed policy, so `lo
 false and the parent sees which one. The phone also reports `mode: "light"` and a
 `protections` object in `PUT /device/status` ([sync-api.md](sync-api.md)).
 
+## What the child sees when an app is closed
+
+The guard's calm screen (`BlockedScreen`) says why the app is closed and what the child can do
+next, in the same shape for every reason: the reason as a title, one sentence with the next
+available step, **Call or message a parent** above the main action, **Back to start**.
+The parent route cannot be switched off. A missing or unknown reason gets the neutral "This is not
+available right now" instead of blaming the child. The screen is static: no animation, countdown
+or vibration. Daily time limits reset at local midnight, so the screen says "tomorrow".
+
 ## Releasing from the dashboard
 
 A parent can switch light mode off from the dashboard with **Release the phone**. The next sync
@@ -110,6 +119,15 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    setting, open **App info** from Plainphone, tap **⋮ (top right) → Allow restricted settings**,
    return to Plainphone and retry the step. The menu depends on the Android version and manufacturer.
    See [Android's restricted settings help](https://support.google.com/android/answer/12623953).
+   The help is a short numbered list and is kept on the phone, so it is still there if Plainphone
+   is closed and reopened. If a runtime permission (notifications or location) was declined, the
+   screen says so; once Android stops asking (a second decline, or "don't ask again"), the step
+   becomes a list that leads through **App info → Permissions**, with **Try again** and, for
+   optional steps, **Not now** with one line on what skipping costs. A step that Android reports
+   as done clears its own help.
+   On **Myself**, **Back** goes one screen at a time and keeps every choice (other VPN, undo
+   time, key). The last screen summarises the undo time and the key: the wait in hours or, for a
+   trusted person, that changes wait 24 hours until they accept.
 6. Background operation, location and always-on VPN are optional. For always-on VPN, leave
    **Block connections without VPN** off. The filter only carries DNS lookups
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's

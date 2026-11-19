@@ -234,6 +234,9 @@ describe("overview", () => {
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByTestId("section-apps")).toBeTruthy();
     expect(screen.getByTestId("section-location")).toBeTruthy();
+    // The same availability rules as the web dashboard: screen time and school time / bedtime.
+    expect(screen.getByTestId("section-time")).toBeTruthy();
+    expect(screen.getByTestId("section-schedules")).toBeTruthy();
     expect(screen.queryByTestId("section-key")).toBeNull();
     // Child phones have nothing waiting.
     expect(screen.queryByText("Waiting changes")).toBeNull();
@@ -579,6 +582,46 @@ describe("school time and bedtime", () => {
   });
 });
 
+describe("screen time", () => {
+  const empty = { total: null, apps: [], bonuses: [], used: null };
+
+  it("sets a daily limit for all apps", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: { body: empty },
+      [`PUT /phones/${PHONE.id}/time-limits/total`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    await fireEvent(await screen.findByTestId("time-total-switch"), "valueChange", true);
+    await fireEvent.press(await screen.findByLabelText("1 h"));
+    await fireEvent.press(screen.getByTestId("time-total-save"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ minutes: 60, days: {} });
+  });
+
+  it("shows the weekday overrides of a limit, like the web page", async () => {
+    phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: {
+        body: { ...empty, apps: [{ packageName: "com.example.insta", label: "Instagram", limit: { minutes: 60, days: { "6": 180 } } }] },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    expect(await screen.findByText(/Sat 3 h/)).toBeTruthy();
+  });
+
+  it("gives 15 extra minutes for today on a single app", async () => {
+    const api = phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: {
+        body: { ...empty, apps: [{ packageName: "com.example.insta", label: "Instagram", limit: { minutes: 30, days: {} } }] },
+      },
+      [`POST /phones/${PHONE.id}/time-limits/bonus`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    await fireEvent.press(await screen.findByLabelText("+15 min today: Instagram"));
+    await waitFor(() => expect(api.calls.some((c) => c.method === "POST")).toBe(true));
+    expect(api.calls.find((c) => c.method === "POST")!.body).toMatchObject({ packageName: "com.example.insta", minutes: 15 });
+  });
+});
+
 describe("key", () => {
   const key = {
     keyType: "delay",
@@ -612,6 +655,20 @@ describe("key", () => {
       payUnlockAmount: 500,
       payUnlockRecipient: "plainphone",
     });
+  });
+
+  it("shows a QR-invited helper as pending, needs no email and keeps the invite on save", async () => {
+    const api = phoneApi(SELF, {
+      [`GET /phones/${SELF_ID}/key`]: { body: { ...key, keyType: "trusted", trustedEmail: null } },
+      [`PUT /phones/${SELF_ID}/key`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "key") });
+    expect(await screen.findByText(/Waiting for your helper to scan the invite/)).toBeTruthy();
+    expect(screen.queryByTestId("key-email")).toBeNull();
+    expect(screen.getByTestId("key-share-invite")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("key-save"));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toMatchObject({ keyType: "trusted", trustedEmail: null, qrInvite: true });
   });
 
   it("is not for Child phones", async () => {

@@ -9,7 +9,7 @@ The native parent app for iOS and Android. It does the same as the parent web ap
 
 - log in with a link from your mail (the link opens the app)
 - phones: add one by scanning its QR code or typing its code, rename, remove
-- apps, approved contacts, web filter, school time and bedtime
+- apps, approved contacts, web filter, school time, bedtime and daily screen time (one cap for all apps, caps for single apps, weekday overrides, 15 extra minutes today)
 - the phone's last position on a map, with Find, "Drive there", ringing the phone, "Are you okay?" and when the phone may send its position
 - the Self profile's key, changes waiting for the key, and approvals for a trusted person
 - household: other parents and invitations
