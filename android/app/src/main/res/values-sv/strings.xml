@@ -342,4 +342,26 @@
     <string name="server_connect">Anslut</string>
     <string name="server_move_allowed">Flytt till en annan server är tillåten i kontrollpanelen.</string>
     <string name="server_move_blocked">Flytt till en annan server är avstängd i kontrollpanelen.</string>
+    <string name="light_skip_effect_alwayson">Om du hoppar över detta kan webbfiltret stängas av i VPN-inställningarna.</string>
+    <string name="light_skip_effect_location">Om du hoppar över detta kan du inte hitta den här telefonen från kontrollpanelen.</string>
+    <string name="light_skip_effect_running">Om du hoppar över detta kan Android stoppa Plainphone i bakgrunden och skyddet kan stängas av.</string>
+    <string name="self_approval_expired">Koden har upphört. Inget godkändes. Be om en ny kod.</string>
+    <string name="self_approval_not_invite">Det här ber din vän granska en ändring. Att skanna är inte ett samtycke: de bestämmer efter att ha läst den.</string>
+    <string name="self_invite_expired">Inbjudan har upphört. Visa en ny.</string>
+    <string name="self_invite_new">Visa en ny kod</string>
+    <string name="self_invite_not_approval">Det här är en inbjudan, inte ett godkännande. Den gör din vän till din nyckel.</string>
+    <string name="setup_denied_once">Inte tillåtet den här gången. Tryck på knappen för att försöka igen, eller hoppa över det för nu.</string>
+    <string name="setup_recovery_denied_location">Plats nekades, så Android frågar inte längre. Den kan bara tillåtas i Appinformation.</string>
+    <string name="setup_recovery_denied_notifications">Aviseringar nekades, så Android frågar inte längre. De kan bara tillåtas i Appinformation.</string>
+    <string name="setup_recovery_step_location">Tryck på Behörigheter, sedan Plats, och välj Tillåt hela tiden.</string>
+    <string name="setup_recovery_step_menu">Tryck på ⋮ uppe till höger.</string>
+    <string name="setup_recovery_step_notifications">Tryck på Aviseringar och slå på dem.</string>
+    <string name="setup_recovery_step_open">Tryck på Öppna appinformation nedan.</string>
+    <string name="setup_recovery_step_restricted">Välj Tillåt begränsade inställningar.</string>
+    <string name="setup_recovery_step_return">Kom tillbaka hit och tryck på Försök igen.</string>
+    <string name="setup_summary_email">%1$s godkänner lösare regler. Tills de accepterar väntar ändringar %2$d h.</string>
+    <string name="setup_summary_qr">En person du bjuder in med QR-kod godkänner lösare regler. Tills de accepterar väntar ändringar %1$d h.</string>
+    <string name="setup_summary_undo">Du kan ångra installationen i %1$d minuter. Om du ångrar stängs Plainphone av utan din nyckel.</string>
+    <string name="setup_summary_undo_off">Ångra efter installation är avstängt. Att ta bort Plainphone kräver din nyckel.</string>
+    <string name="setup_summary_wait">Lösare regler och borttagning av Plainphone väntar %1$d h.</string>
 </resources>

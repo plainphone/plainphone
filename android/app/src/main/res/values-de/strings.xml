@@ -342,4 +342,26 @@
     <string name="server_connect">Verbinden</string>
     <string name="server_move_allowed">Der Umzug auf einen anderen Server ist im Dashboard erlaubt.</string>
     <string name="server_move_blocked">Der Umzug auf einen anderen Server ist im Dashboard ausgeschaltet.</string>
+    <string name="light_skip_effect_alwayson">Wenn du das überspringst, kann der Webfilter in den VPN-Einstellungen ausgeschaltet werden.</string>
+    <string name="light_skip_effect_location">Wenn du das überspringst, kannst du dieses Telefon nicht im Dashboard finden.</string>
+    <string name="light_skip_effect_running">Wenn du das überspringst, kann Android Plainphone im Hintergrund beenden und der Schutz sich ausschalten.</string>
+    <string name="self_approval_expired">Der Code ist abgelaufen. Es wurde nichts genehmigt. Frage erneut an, um einen neuen zu erhalten.</string>
+    <string name="self_approval_not_invite">Damit bittest du deine Freundin oder deinen Freund, eine Änderung zu prüfen. Scannen ist keine Zustimmung: Sie oder er entscheidet erst nach dem Lesen.</string>
+    <string name="self_invite_expired">Diese Einladung ist abgelaufen. Zeige eine neue an.</string>
+    <string name="self_invite_new">Neuen Code anzeigen</string>
+    <string name="self_invite_not_approval">Das ist eine Einladung, keine Genehmigung. Sie macht deine Vertrauensperson zu deinem Schlüssel.</string>
+    <string name="setup_denied_once">Diesmal nicht erlaubt. Tippe auf die Schaltfläche, um es erneut zu versuchen, oder überspringe es vorerst.</string>
+    <string name="setup_recovery_denied_location">Der Standort wurde abgelehnt, daher fragt Android nicht mehr. Er kann nur in der App-Info erlaubt werden.</string>
+    <string name="setup_recovery_denied_notifications">Benachrichtigungen wurden abgelehnt, daher fragt Android nicht mehr. Sie können nur in der App-Info erlaubt werden.</string>
+    <string name="setup_recovery_step_location">Tippe auf „Berechtigungen“, dann auf „Standort“ und wähle „Immer zulassen“.</string>
+    <string name="setup_recovery_step_menu">Tippe oben rechts auf ⋮.</string>
+    <string name="setup_recovery_step_notifications">Tippe auf „Benachrichtigungen“ und schalte sie ein.</string>
+    <string name="setup_recovery_step_open">Tippe unten auf „App-Info öffnen“.</string>
+    <string name="setup_recovery_step_restricted">Wähle „Eingeschränkte Einstellungen zulassen“.</string>
+    <string name="setup_recovery_step_return">Komm hierher zurück und tippe auf „Erneut versuchen“.</string>
+    <string name="setup_summary_email">%1$s genehmigt lockerere Regeln. Bis die Person annimmt, warten Änderungen %2$d Std.</string>
+    <string name="setup_summary_qr">Eine Person, die du per QR-Code einlädst, genehmigt lockerere Regeln. Bis sie annimmt, warten Änderungen %1$d Std.</string>
+    <string name="setup_summary_undo">Du kannst die Einrichtung %1$d Minuten lang rückgängig machen. Dabei schaltet sich Plainphone ohne deinen Schlüssel aus.</string>
+    <string name="setup_summary_undo_off">Rückgängig nach der Einrichtung ist aus. Zum Entfernen von Plainphone brauchst du deinen Schlüssel.</string>
+    <string name="setup_summary_wait">Lockerere Regeln und das Entfernen von Plainphone warten %1$d Std.</string>
 </resources>

@@ -1039,4 +1039,7 @@ export const sv: Messages = {
   "move.startPhone": "Flytta {name}",
   "move.invalid": "Kontrollera koden eller välj den krypterade filen igen.",
   "move.allowed": "Flyttillståndet är sparat.",
+  "key.qrWaiting": "Väntar på att din hjälpare skannar inbjudan. Tills de accepterar väntar ändringar {hours} timmar.",
+  "key.qrAccepted": "Din hjälpare har accepterat inbjudan och kan godkänna ändringar.",
+  "key.qrExpiredHint": "Inbjudningskoder upphör efter 15 minuter. Visa en ny om den har gått ut. En inbjudan är inte ett godkännande.",
 };
