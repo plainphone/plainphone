@@ -19,12 +19,14 @@ const provisioning = {
 
 it("puts the first instruction before the code and restarts an expired code for the same phone", async () => {
   const tokens = ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", "pp_e_9x8-AbCdEfGhIjKlMnOpQr"];
+  let current = "enr-1";
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
-    if (request.method === "GET") return Response.json(phone);
+    if (request.method === "GET") return Response.json({ ...phone, setupEnrollmentId: current });
     const first = url === "/api/phones/enroll";
+    current = first ? "enr-1" : "enr-2";
     // The first code is already about to run out.
     const expiresAt = new Date(Date.now() + (first ? 300 : 3_600_000)).toISOString();
-    return Response.json({ phone, enrollment: { id: "enr-1", token: tokens[first ? 0 : 1], expiresAt }, provisioning }, { status: 201 });
+    return Response.json({ phone, enrollment: { id: current, token: tokens[first ? 0 : 1], expiresAt }, provisioning }, { status: 201 });
   });
   vi.stubGlobal("fetch", fetch);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -61,6 +63,48 @@ it("puts the first instruction before the code and restarts an expired code for 
     expect(container.querySelector("[role=alert]")).toBeNull();
     const link = [...container.querySelectorAll("a")].find((el) => el.textContent === "Open setup link")!;
     expect(link.href).toContain("9x8-AbCdEfGhIjKlMnOpQr");
+    // The restarted code polls with its own enrollment id: no "outdated" notice appears.
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
+    expect(container.querySelector("[role=alert]")).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    localStorage.removeItem("pp.locale");
+    vi.unstubAllGlobals();
+  }
+});
+
+it("hides the restart button after a 409 while the phone waits for confirmation", async () => {
+  const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (request.method === "GET") return Response.json(phone);
+    if (url === "/api/phones/enroll") {
+      return Response.json({ phone, enrollment: { id: "enr-1", token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
+    }
+    return Response.json({ error: "conflict" }, { status: 409 });
+  });
+  vi.stubGlobal("fetch", fetch);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  localStorage.setItem("pp.locale", "en");
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(
+      <MemoryRouter initialEntries={["/add?mode=light"]}>
+        <I18nProvider><AddPhonePage /></I18nProvider>
+      </MemoryRouter>,
+    ));
+    const field = container.querySelector<HTMLInputElement>('input[name="name"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "Test phone");
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await act(async () => { await new Promise((r) => setTimeout(r, 500)); });
+    const restart = [...container.querySelectorAll("button")].find((b) => b.textContent === "Create a new setup link")!;
+    await act(async () => restart.click());
+    expect([...container.querySelectorAll("button")].some((b) => b.textContent === "Create a new setup link")).toBe(false);
+    expect(container.querySelector(".setup-gone a")).not.toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

@@ -566,7 +566,7 @@ function QrStep({ qr: first }: { qr: Qr }) {
               <p role="alert">{t(({ expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const)[gone])}</p>
               {restartError && <p>{restartError}</p>}
               {restartPending && <p><Link to={`/phones/${qr.phoneId}/setup`}>{t("setup.open", { name: qr.name })}</Link></p>}
-              {gone === "expired" && (
+              {gone === "expired" && !restartPending && (
                 <button ref={restartRef} type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
                   {t(restarting ? "add.making" : light ? "add.newLink" : "add.newCode")}
                 </button>
