@@ -322,6 +322,8 @@ export function formatApprovalSummary(
     }
     case "catalog.add": return copy(`Add ${app} to the app list`, `Tilføj ${app} til applisten`);
     case "catalog.remove": return copy(`Remove ${app} from the app list`, `Fjern ${app} fra applisten`);
+    case "move.allow": return copy("Allow moving this phone to another server", "Tillad at flytte telefonen til en anden server");
+    case "move.start": return copy(`Move this phone to ${op.serverUrl}`, `Flyt telefonen til ${op.serverUrl}`);
     case "phone.release": return copy("Release this phone", "Frigiv denne telefon");
     case "phone.remove": return copy("Remove this phone from Plainphone", "Fjern denne telefon fra Plainphone");
     case "home.set": return copy("Change the home screen", "Ændr hjemmeskærmen");

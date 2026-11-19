@@ -4,15 +4,29 @@
 // is sent as a Bearer token; the app never uses cookies.
 import { isLanguage } from "../shared/lib/phone-language";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
+import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap, configureApiServer } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
+import { checkServer, HOSTED_SERVER, BUILD_SERVER, normalizeServerUrl, restoreServer, saveServer, SERVER_URL } from "./config";
 import { clearLocalNotifications, syncNativePush, watchNativePush } from "./notifications";
 import { logoutNativeSession } from "./push-registration";
-import { loadPendingInvite } from "./pendingInvite";
+import { clearPendingInvite, loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
 const TOKEN_KEY = "pp.session";
+const CUSTOM_TOKEN_KEY = "pp.customSession";
+async function readSession() {
+  const raw = await getItem(SERVER_URL === BUILD_SERVER ? TOKEN_KEY : CUSTOM_TOKEN_KEY);
+  if (!raw || SERVER_URL === BUILD_SERVER) return raw;
+  const saved = JSON.parse(raw) as { server?: string; token?: string };
+  return saved.server === SERVER_URL && typeof saved.token === "string" ? saved.token : null;
+}
+
+function writeSession(server: string, token: string) {
+  return server === BUILD_SERVER ? setItem(TOKEN_KEY, token)
+    : setItem(CUSTOM_TOKEN_KEY, JSON.stringify({ server, token }));
+}
+
 const NEXT_KEY = "pp.next"; // where to go after login; survives the app being closed during the mail round trip
 
 /** Only paths inside the app. */
@@ -24,6 +38,9 @@ type State = { status: "loading" } | { status: "anon"; error?: unknown } | { sta
 
 interface SessionValue {
   state: State;
+  serverUrl: string;
+  serverChanging: boolean;
+  changeServer: (value: string | null) => Promise<void>;
   refresh: () => Promise<Me | null>;
   /** Exchanges a magic-link token for a session. Throws ApiError(400) for a used/expired link. */
   verify: (linkToken: string) => Promise<Me | null>;
@@ -44,6 +61,11 @@ const inflight = new Map<string, Promise<{ sessionToken?: string }>>();
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { setLocale, locale } = useI18n();
   const [state, setState] = useState<State>({ status: "loading" });
+  const [serverUrl, setServerUrl] = useState(SERVER_URL);
+  const [serverReady, setServerReady] = useState(false);
+  const [serverChanging, setServerChanging] = useState(false);
+  const switching = useRef(false);
+  const serverRevision = useRef(0);
   const [next, setNextState] = useState<string | null>(null);
   const setNext = useCallback((path: string | null) => {
     const p = safePath(path);
@@ -74,7 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOutLocally = useCallback(async () => {
     setSessionToken(null);
-    await removeItem(TOKEN_KEY).catch(() => undefined);
+    await removeItem(SERVER_URL === BUILD_SERVER ? TOKEN_KEY : CUSTOM_TOKEN_KEY).catch(() => undefined);
     setState({ status: "anon" });
     await clearLocalNotifications().catch(() => undefined);
   }, []);
@@ -101,9 +123,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const restore = useCallback(async () => {
     const remembered = safePath(await getItem(NEXT_KEY).catch(() => null));
     if (remembered) setNextState(remembered);
-    const saved = await getItem(TOKEN_KEY).catch(() => null);
+    const server = SERVER_URL;
+    const saved = await readSession().catch(() => null);
     // A login link may already be signing in while the keychain was read.
-    if (linkSignIn.current) return;
+    if (linkSignIn.current || switching.current || server !== SERVER_URL) return;
     if (!saved) {
       setSessionToken(null);
       setState({ status: "anon" });
@@ -118,13 +141,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (rejected === getSessionToken()) void signOutLocally();
     });
     // Reading the keychain at start-up is what this effect is for.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void restore();
+    void restoreServer().then(async () => {
+      configureApiServer();
+      setServerUrl(SERVER_URL);
+      setServerReady(true);
+      await restore();
+    }).catch((error: unknown) => {
+      setSessionToken(null);
+      setServerReady(true);
+      setState({ status: "anon", error });
+    });
     return () => setUnauthorizedHandler(null);
   }, [restore, signOutLocally]);
 
   const verify = useCallback(
     async (linkToken: string) => {
+      if (switching.current) return null;
+      const origin = SERVER_URL;
+      const revision = serverRevision.current;
       linkSignIn.current = true;
       // A new sign-in gets a fresh answer from takeNext(), also without passing through anon.
       taking.current = null;
@@ -135,20 +169,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         );
         inflight.set(linkToken, p);
         // A failed attempt (offline, say) can be retried with the same link.
-        p.catch(() => inflight.delete(linkToken));
+        p.catch(() => { if (inflight.get(linkToken) === p) inflight.delete(linkToken); });
       }
       let out: { sessionToken?: string };
       try {
         out = await p;
         if (!out.sessionToken) throw new ApiError(500, "no session token");
       } catch (err) {
+        if (revision !== serverRevision.current) return null;
         // A used or expired link: carry on with the saved session, if there is one.
         linkSignIn.current = false;
         if (!getSessionToken()) await restore();
         throw err;
       }
-      setSessionToken(out.sessionToken!);
-      await setItem(TOKEN_KEY, out.sessionToken);
+      if (switching.current || revision !== serverRevision.current) return null;
+      setSessionToken(out.sessionToken);
+      await writeSession(origin, out.sessionToken);
+      if (switching.current || revision !== serverRevision.current) return null;
       return refresh();
     },
     [refresh, restore],
@@ -169,6 +206,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [signOutLocally]);
 
+  const changeServer = useCallback(async (value: string | null) => {
+    if (switching.current) return;
+    const target = value === null ? HOSTED_SERVER : normalizeServerUrl(value);
+    if (target === SERVER_URL) return;
+    switching.current = true;
+    setServerChanging(true);
+    try {
+      if (value !== null) await checkServer(target);
+      serverRevision.current++;
+      setSessionToken(null);
+      setState({ status: "anon" });
+      await removeItem(TOKEN_KEY);
+      await removeItem(CUSTOM_TOKEN_KEY);
+      await removeItem(NEXT_KEY);
+      await clearPendingInvite();
+      await saveServer(target);
+      inflight.clear();
+      taking.current = null;
+      linkSignIn.current = false;
+      setNextState(null);
+      configureApiServer();
+      setServerUrl(target);
+    } finally {
+      switching.current = false;
+      setServerChanging(false);
+    }
+  }, []);
+
   const saveLocale = useCallback(
     (l: Locale) => {
       setLocale(l);
@@ -181,10 +246,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
-    [state, refresh, verify, logout, saveLocale, next, setNext, takeNext],
+    () => ({ state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
+    [state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext],
   );
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return <SessionContext.Provider value={value}>{serverReady ? children : null}</SessionContext.Provider>;
 }
 
 export function useSession(): SessionValue {

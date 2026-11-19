@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.light.FilterMethod
 
 import android.content.Context
@@ -154,9 +155,10 @@ data class PolicyConfig(
 class ConfigStore(context: Context) {
     private val prefs = context.getSharedPreferences("plainphone_config", Context.MODE_PRIVATE)
 
+    private val sync = context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE)
+
     fun load(): PolicyConfig {
-        if (!prefs.getBoolean("saved", false)) return PolicyConfig.DEFAULT
-        return PolicyConfig(
+        val base = if (!prefs.getBoolean("saved", false)) PolicyConfig.DEFAULT else PolicyConfig(
             dnsHost = prefs.getString("dns_host", null) ?: PolicyConfig.DEFAULT_DNS_HOST,
             allowedPackages = prefs.getStringSet("allowed", null) ?: PolicyConfig.DEFAULT_ALLOWED_PACKAGES,
             frpAccountIds = prefs.getStringSet("frp", null) ?: emptySet(),
@@ -166,6 +168,11 @@ class ConfigStore(context: Context) {
             countryCallingCode = prefs.getString("country_code", null),
             lockSystemLanguage = prefs.getBoolean("lock_system_language", true),
             serverUrl = prefs.getString("server_url", null) ?: PolicyConfig.DEFAULT_SERVER_URL,
+        )
+        return base.copy(
+            serverUrl = sync.getString(SyncStore.KEY_MOVED_SERVER, null) ?: base.serverUrl,
+            // The fallback only (the provisioning host), never the phone-specific ClientID host.
+            dnsHost = sync.getString(SyncStore.KEY_MOVED_FALLBACK_DNS, null) ?: base.dnsHost,
         )
     }
 
@@ -182,6 +189,9 @@ class ConfigStore(context: Context) {
             .putString("server_url", config.serverUrl)
             .putBoolean("lock_system_language", config.lockSystemLanguage)
             .apply()
+        // The saved config is now the truth (built from load() or a new enrolment), so a pin left by an
+        // earlier move must not override it.
+        sync.edit().remove(SyncStore.KEY_MOVED_SERVER).remove(SyncStore.KEY_MOVED_FALLBACK_DNS).apply()
     }
 }
 

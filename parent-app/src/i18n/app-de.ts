@@ -47,4 +47,11 @@ export const appDe: AppMessages = {
   "native.alwaysUntilDate": "Aktiv bis {date} um {time} Uhr",
   "native.alwaysUntilMidnight": "Aktiv bis Mitternacht",
   "native.notificationsUnavailable": "Push-Benachrichtigungen sind nicht verfügbar. Prüfe die Verbindung oder versuche es später erneut.",
+  "native.customServer": "Eigenen Server verwenden",
+  "native.serverAddress": "Serveradresse",
+  "native.connectServer": "Verbinden",
+  "native.hostedServer": "plainphone.org verwenden",
+  "native.serverSignsOut": "Nach dem Wechsel des Servers musst du dich neu anmelden.",
+  "native.serverError": "Prüfe die Adresse und ob auf dem Server eine kompatible Version von Plainphone läuft.",
+  "native.pushRegistrationError": "Benachrichtigungen konnten auf diesem Server nicht registriert werden.",
 };

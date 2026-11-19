@@ -204,6 +204,8 @@ export const phones = pgTable(
     profile: text("profile", { enum: ["child", "self"] }).notNull(),
     /** Null preserves the always-on contact restriction on previously paired Strong Self phones. */
     suggestDeviceContacts: boolean("suggest_device_contacts").notNull().default(false),
+    allowServerMove: boolean("allow_server_move"),
+    awaitingServerMove: boolean("awaiting_server_move").notNull().default(false),
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
@@ -727,3 +729,31 @@ export const sosDeliveries = pgTable("sos_deliveries", {
   primaryKey({ columns: [t.phoneId, t.eventId, t.userId] }),
   foreignKey({ columns: [t.phoneId, t.eventId], foreignColumns: [sosEvents.phoneId, sosEvents.id] }).onDelete("cascade"),
 ]);
+/** Transfer signing identity. The private key stays on the server. */
+export const moveIdentity = pgTable("move_identity", {
+  id: integer("id").primaryKey(),
+  privateKey: text("private_key").notNull(),
+});
+
+export const moveImports = pgTable("move_imports", {
+  id: id(),
+  householdId: uuid("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
+  sourceUrl: text("source_url").notNull(),
+  sourceKey: text("source_key").notNull(),
+  privateKey: text("private_key"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  importedAt: timestamp("imported_at", { withTimezone: true }),
+});
+
+export const phoneMoves = pgTable("phone_moves", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  direction: text("direction", { enum: ["incoming", "outgoing"] }).notNull(),
+  transferId: uuid("transfer_id").notNull(),
+  serverUrl: text("server_url").notNull(),
+  token: text("token"),
+  tokenHash: text("token_hash").unique(),
+  policyHash: text("policy_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  active: boolean("active").notNull().default(false),
+}, (t) => [index("phone_moves_phone_idx").on(t.phoneId)]);

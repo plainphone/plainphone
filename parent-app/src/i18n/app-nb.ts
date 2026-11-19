@@ -47,4 +47,11 @@ export const appNb: AppMessages = {
   "native.alwaysUntilDate": "På til {date} kl. {time}",
   "native.alwaysUntilMidnight": "På til midnatt",
   "native.notificationsUnavailable": "Pushvarsler er ikke tilgjengelige. Sjekk tilkoblingen eller prøv igjen senere.",
+  "native.customServer": "Bruk din egen server",
+  "native.serverAddress": "Serveradresse",
+  "native.connectServer": "Koble til",
+  "native.hostedServer": "Bruk plainphone.org",
+  "native.serverSignsOut": "Du må logge inn på nytt etter at du har byttet server.",
+  "native.serverError": "Sjekk adressen, og kontroller at serveren kjører en kompatibel versjon av Plainphone.",
+  "native.pushRegistrationError": "Kunne ikke registrere varsler på denne serveren.",
 };

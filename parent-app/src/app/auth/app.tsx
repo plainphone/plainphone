@@ -9,7 +9,7 @@ import { Platform } from "react-native";
 import { ApiError } from "../../api/client";
 import { Button, errorMessage, Loading, Notice, PageTitle, Screen } from "../../components/ui";
 import { useI18n } from "../../i18n/I18n";
-import { tokenFromUrl } from "../../lib/links";
+import { matchesServerLink, tokenFromUrl } from "../../lib/links";
 import { useSession } from "../../lib/session";
 
 function currentUrl(linking: string | null): string | null {
@@ -20,7 +20,7 @@ function currentUrl(linking: string | null): string | null {
 export default function AuthLinkScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { verify, takeNext } = useSession();
+  const { verify, takeNext, serverUrl } = useSession();
   const linking = Linking.useLinkingURL();
   const [initial, setInitial] = useState<string | null | undefined>(undefined);
   const [failure, setFailure] = useState<string | null>(null);
@@ -30,7 +30,10 @@ export default function AuthLinkScreen() {
     void Linking.getInitialURL().then((u) => setInitial(u ?? null));
   }, []);
 
-  const token = tokenFromUrl(currentUrl(linking)) ?? tokenFromUrl(initial);
+  const token = [currentUrl(linking), initial]
+    .filter((url) => matchesServerLink(url, serverUrl, "/auth/app"))
+    .map(tokenFromUrl)
+    .find(Boolean) ?? null;
 
   // Still reading the launch URL while `initial` is undefined.
   const missing = initial !== undefined && !token;

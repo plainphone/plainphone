@@ -102,7 +102,26 @@ EAS Build is optional for compiling and signing. Push does not need an Expo acco
 
 ## Your own server
 
-Build the app with your server and ids:
+Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin
+(e.g. `https://plainphone.example.org`), and select **Connect**. The app checks
+`/api/health` for `ok: true` and `compatibility: 1` before saving the address.
+Changing servers clears the session and you sign in again. Select **Use plainphone.org**
+to return to the hosted service. If the sign-in link opens your browser, choose **Open in the app**
+from the page served by your server.
+
+For an existing phone, **Allow moving this phone to another server** is on the phone overview.
+Enable it before exporting the phone. A Myself phone needs its key. Use the web dashboard on
+both servers to download and import the encrypted file and start the
+[move](self-hosting.md#move-to-your-own-server).
+
+Native notification registration goes to the selected server when you enable notifications
+in Settings. When you reopen Settings, the app checks whether this device's APNs or FCM
+token is still registered for your account on that server. Older servers without the status
+endpoint may ask you to enable notifications again. The built-in server provider delivers
+Web Push to the dashboard and stores native tokens for future delivery.
+
+To set a custom default and have the OS open your domain's links directly, build with
+your own address and app identifiers:
 
 ```sh
 PLAINPHONE_SERVER_URL=https://plainphone.example.org \

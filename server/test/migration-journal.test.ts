@@ -11,7 +11,7 @@ interface Entry { idx: number; tag: string; when: number }
  * newest one already applied. Renumbering or merging branches can leave an older timestamp
  * behind a newer one, so production would never run that migration.
  */
-export function journalProblems(entries: Entry[]): string[] {
+function journalProblems(entries: Entry[]): string[] {
   const problems: string[] = [];
   entries.forEach((entry, i) => {
     const prev = entries[i - 1];

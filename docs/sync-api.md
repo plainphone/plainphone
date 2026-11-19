@@ -312,3 +312,18 @@ the same work on every poll. `PUT /api/device/status` reports `appVersion`,
 `appVersionCode` and the optional latest outcome in `update`.
 `GET /download/android/latest.json` describes the release before the phone downloads
 the binary. See [Android updates](android-updates.md).
+
+
+### Moving between servers
+
+`GET /device/rules` carries `allowServerMove` and, during an approved move, a
+`move` instruction with an HTTPS `serverUrl` and one-time `token`. The phone
+must obey the switch and keep syncing the old server until the move succeeds.
+
+The phone sends the token and a new, phone-generated device credential to
+`POST /device/move` on the destination. The server consumes the token once.
+The phone can recover from a lost response using that same credential with
+`GET /device/move-rules`. It compares protection, verifies the filter over
+DNS-over-TLS, then stores the server, credential, and rules together. The
+first ordinary `GET /device/rules` confirms the new connection. See the
+[household move guide](self-hosting.md#move-to-your-own-server).

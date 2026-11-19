@@ -30,7 +30,10 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
     if (at < sosCutoff(now)) throw new HTTPException(410, { message: "SOS expired" });
     const { event, fresh } = await ctx.db.transaction(async (tx) => {
       const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
-      if (!phone || phone.profile !== "child" || phone.releaseRequestedAt) {
+      if (!phone) throw new HTTPException(404, { message: "phone not found" });
+      // The phone is the authority for what it has already done: an SMS that was sent is always
+      // recorded and the parents told, whatever the phone's state is on the server now.
+      if ((phone.profile !== "child" || phone.releaseRequestedAt) && !input.smsSubmitted) {
         throw new HTTPException(403, { message: "SOS unavailable" });
       }
       const key = and(eq(sosEvents.phoneId, phoneId), eq(sosEvents.id, input.id));
@@ -47,9 +50,7 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
         gt(sosEvents.receivedAt, new Date(now.getTime() - 600_000)),
       ));
       const limited = input.kind === "help" && (recent?.total ?? 0) >= 5;
-      if (limited && !input.smsSubmitted) {
-        throw new HTTPException(429, { message: "Too many help requests" });
-      }
+      // Over the limit the report is still stored, only the notification is skipped.
       const location = phone.locationEnabled && phone.locationMode !== "off" ? input.location : undefined;
       const [row] = await tx.insert(sosEvents).values({
         id: input.id, phoneId, kind: input.kind, receivedAt: now, createdAt: at > now ? now : at,

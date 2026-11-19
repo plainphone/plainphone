@@ -73,6 +73,13 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val allowServerMove: Boolean = false,
+    val serverMove: ServerMoveInstruction? = null,
+    /**
+     * This server's provisioning DNS host. It answers for every ClientID, so it is the safe fallback
+     * when the phone's own host stops answering. Null on old servers or when none is configured.
+     */
+    val fallbackDnsHost: String? = null,
     val pushProvider: String = "none",
     val unifiedPushAvailable: Boolean = false,
     val fcmValidationKey: String = "",
@@ -103,6 +110,11 @@ data class ServerRules(
                 phoneId = j.getString("phoneId"),
                 language = PhoneLanguage.supportedTag(j.optString("language", "")),
                 lockSystemLanguage = j.optBoolean("lockSystemLanguage", true),
+                allowServerMove = j.optBoolean("allowServerMove", false),
+                serverMove = j.optJSONObject("move")?.let {
+                    ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))
+                },
+                fallbackDnsHost = j.optString("fallbackDnsHost", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) },
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),

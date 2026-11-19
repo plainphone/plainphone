@@ -19,7 +19,10 @@ it("stores a retry once, limits help, and keeps urgent reports and acknowledgmen
   for (let i = 0; i < 4; i++) {
     expect((await device.post("/api/device/sos", { ...report, id: randomUUID() })).status).toBe(200);
   }
-  expect((await device.post("/api/device/sos", { ...report, id: randomUUID() })).status).toBe(429);
+  // Over the limit the report is stored (the phone already acted), it just does not notify again.
+  const limited = { ...report, id: randomUUID() };
+  expect((await device.post("/api/device/sos", limited)).status).toBe(200);
+  expect((await parent.get(path)).json.events.map((e: { id: string }) => e.id)).toContain(limited.id);
   const urgent = { id: randomUUID(), kind: "urgent" };
   expect((await device.post("/api/device/sos", urgent)).status).toBe(200);
   expect((await parent.post(`${path}/${urgent.id}/seen`, {})).status).toBe(200);

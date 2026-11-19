@@ -334,4 +334,12 @@
     <string name="light_private_dns_vpn_handoff">Öppna Plainphone under VPN i Androids inställningar. Stäng av Blockera anslutningar utan VPN och Always-on VPN. Gå sedan tillbaka hit för att ställa in Privat DNS.</string>
     <string name="light_vpn_restore_dns">Välj Automatiskt eller Av under Privat DNS i Nätverk och internet. Gå sedan tillbaka hit för att ansluta Plainphone VPN igen.</string>
     <string name="free_promise">Plainphone är gratis nu. Det kommer alltid att vara gratis att driva Plainphone på en egen server och att ha en telefon med fullt skydd på vår tjänst. Senare tar vi betalt för fler telefoner på vår tjänst. Tidiga användare får besked i god tid.</string>
+    <string name="server_current">Server: %1$s</string>
+    <string name="server_custom">Använd egen server</string>
+    <string name="server_address">Serveradress</string>
+    <string name="server_error">Kontrollera adressen och vilken version av Plainphone som körs på servern.</string>
+    <string name="server_checking">Kontrollerar servern…</string>
+    <string name="server_connect">Anslut</string>
+    <string name="server_move_allowed">Flytt till en annan server är tillåten i kontrollpanelen.</string>
+    <string name="server_move_blocked">Flytt till en annan server är avstängd i kontrollpanelen.</string>
 </resources>

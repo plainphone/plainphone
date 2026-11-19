@@ -28,6 +28,7 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, notifyAlertRecipients, protectionLost } from "../services/notifications.js";
 import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
+import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../services/server-move.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
@@ -253,6 +254,18 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
   });
 
+  const moveLimit = new RateLimiter(60, 15 * 60_000);
+  app.post("/move", bodyLimit({ maxSize: 1024 }), async (c) => {
+    if (!moveLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many moves" });
+    try {
+      await redeemMove(ctx, await body(c, redeemMoveInput));
+      return c.body(null, 204);
+    } catch (err) {
+      if (err instanceof MoveError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
+
   // --- Everything below needs the device token ------------------------------
 
   app.use("/*", async (c, next) => {
@@ -296,6 +309,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.body(null, result.status === "applied" ? 204 : 202);
   });
 
+  app.get("/move-rules", async (c) => {
+    const phone = c.get("phone");
+    if (!await canPreviewMove(ctx, phone)) return c.body(null, 409);
+    const { body: rules, etag } = await respondWithRules(ctx, phone, []);
+    c.header("Cache-Control", "no-store");
+    c.header("ETag", etag);
+    c.header("Content-Type", "application/json");
+    return c.body(rules ?? "");
+  });
+
   app.get("/rules", async (c) => {
     let phone = c.get("phone");
     if (await applyDueChanges(ctx, phone.id)) {
@@ -309,7 +332,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const deviceTokenHash = phone.deviceTokenHash;
       if (!deviceTokenHash) throw new HTTPException(401, { message: "unknown device; pair again" });
       const [activated] = await ctx.db.update(phones)
-        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)` })
+        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)`, awaitingServerMove: false })
         .where(and(eq(phones.id, phone.id), eq(phones.deviceTokenHash, deviceTokenHash)))
         .returning();
       if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
@@ -336,9 +359,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       );
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
-    const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
+    const { body: rules, etag, hasMove } = await respondWithRules(ctx, phone, candidates);
     c.header("ETag", etag);
-    c.header("Cache-Control", "no-cache");
+    c.header("Cache-Control", hasMove ? "no-store" : "private, no-cache");
     if (rules === null) return c.body(null, 304);
     c.header("Content-Type", "application/json");
     return c.body(rules);

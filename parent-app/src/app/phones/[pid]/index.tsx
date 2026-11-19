@@ -60,6 +60,34 @@ function PendingList() {
   );
 }
 
+function ServerMoveToggle() {
+  const { t } = useI18n();
+  const { phone, pending, run, setPhone } = usePhone();
+  const [working, setWorking] = useState(false);
+  const waiting = pending.some((change) => change.op.type === "move.allow");
+
+  async function update(allowed: boolean) {
+    setWorking(true);
+    try {
+      const result = await run(() => unwrap(client.PUT("/phones/{pid}/server-move/allow", {
+        params: { path: { pid: phone.id } },
+        body: { allowed },
+      })), t("move.allowed"));
+      if (result?.status === "applied") setPhone({ ...phone, allowServerMove: allowed });
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Switch label={t("move.allow")} value={phone.allowServerMove ?? phone.profile === "child"}
+        disabled={working || waiting} onValueChange={(allowed) => void update(allowed)} />
+      <Text variant="muted">{t("move.help")}</Text>
+    </Card>
+  );
+}
+
 function PushPreferences() {
   const { t } = useI18n();
   const { phone, setPhone, notify } = usePhone();
@@ -416,6 +444,7 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
+      {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
       {filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
@@ -480,6 +509,7 @@ function Overview() {
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
         <PushPreferences />
+        {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
         <RenamePhone />
         <PhoneLanguageSettings />

@@ -15,6 +15,18 @@ available. On a Myself phone the SOS screen offers 112 only. A trusted approver
 for rules is not necessarily an emergency contact, and Myself has no dedicated
 SOS recipients in this release.
 
+## Why SOS has no on/off switch
+
+Most Plainphone features can be turned on and off per phone. SOS is deliberately
+an exception, like 112 and the parents' own reachability: it is the child's way
+to reach their parents, and a parent switching it off would remove that. What a
+parent can set is who gets called and texted, and the callback number.
+
+The phone is the authority for what it has already done. The server records
+every report the phone sends, including one that says an SMS was sent, even if
+the phone has since been released or is over the help limit. Over the limit
+(5 help requests in 10 minutes) the report is stored but does not notify again.
+
 ## Set up recipients
 
 1. In the Child phone's **Contacts**, select **Use for SOS calls and SMS** on

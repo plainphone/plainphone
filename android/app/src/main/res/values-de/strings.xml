@@ -334,4 +334,12 @@
     <string name="light_private_dns_vpn_handoff">Öffne in den VPN-Einstellungen von Android Plainphone und schalte „Verbindungen ohne VPN blockieren“ und „Always-on VPN“ aus. Komm danach hierher zurück, um Privates DNS einzurichten.</string>
     <string name="light_vpn_restore_dns">Wähle unter Netzwerk &amp; Internet bei Privates DNS „Automatisch“ oder „Aus“. Komm danach hierher zurück, um Plainphone VPN wieder zu verbinden.</string>
     <string name="free_promise">Plainphone ist derzeit kostenlos. Der Betrieb auf dem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst bleiben immer kostenlos. Für weitere Handys bei unserem Dienst werden wir später eine Gebühr erheben. Wer früh dabei ist, wird rechtzeitig informiert.</string>
+    <string name="server_current">Server: %1$s</string>
+    <string name="server_custom">Eigenen Server verwenden</string>
+    <string name="server_address">Serveradresse</string>
+    <string name="server_error">Prüfe die Adresse und die Version von Plainphone, die auf dem Server läuft.</string>
+    <string name="server_checking">Server wird geprüft…</string>
+    <string name="server_connect">Verbinden</string>
+    <string name="server_move_allowed">Der Umzug auf einen anderen Server ist im Dashboard erlaubt.</string>
+    <string name="server_move_blocked">Der Umzug auf einen anderen Server ist im Dashboard ausgeschaltet.</string>
 </resources>

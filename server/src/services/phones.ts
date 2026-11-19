@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { allowsServerMove } from "./move-policy.js";
+import { moveInstruction } from "./server-move.js";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
@@ -168,7 +170,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       })
       .from(schedules)
       .where(eq(schedules.phoneId, phone.id))
-      .orderBy(schedules.createdAt),
+      .orderBy(schedules.createdAt, schedules.id),
     ctx.db
       .select({ blockedCategories: dnsSettings.blockedCategories })
       .from(dnsSettings)
@@ -192,6 +194,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
   return {
     phone: {
       id: phone.id,
+      allowServerMove: allowsServerMove(phone),
       profile: phone.profile,
       pushProvider: !phone.pushWakeups ? "none" : !phone.preferUnifiedPush && ctx.push.fcmAvailable ? "fcm"
         : ctx.push.unifiedPushAvailable ? "unifiedpush" : "none",
@@ -234,7 +237,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -247,6 +250,11 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
+    allowServerMove: phone.allowServerMove,
+    ...(move && { move }),
+    // This server's provisioning host, which answers for any ClientID. A phone falls back to it when its own
+    // filter host stops answering (removed, deleted, or not ready), also after moving here from another server.
+    fallbackDnsHost: fallbackDnsHost ?? null,
     pushProvider: phone.pushProvider,
     unifiedPushAvailable: phone.unifiedPushAvailable,
     ...(phone.fcmValidationKey ? { fcmValidationKey: phone.fcmValidationKey } : {}),
@@ -323,8 +331,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
 }
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
-  const { body, etag } = rulesDocument(await loadRulesInputs(ctx, phone));
-  return { etag, body: candidates.includes(etag) ? null : body };
+  const [inputs, move] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone)]);
+  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST);
+  return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 
 function summaryFields() {
@@ -428,7 +437,9 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
-    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim,
+    allowServerMove: allowsServerMove(phone),
+    awaitingServerMove: phone.awaitingServerMove,
+    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim && !phone.awaitingServerMove,
     /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
     releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,

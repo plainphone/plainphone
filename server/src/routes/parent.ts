@@ -58,6 +58,7 @@ import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
 import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
+import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
@@ -530,6 +531,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
   }
 
+  mountServerMoveRoutes(app, ctx, { requireMember, requirePhone, change });
+
   app.get("/phones", async (c) => {
     const hids = await myHouseholdIds(c.get("user").id);
     if (hids.length === 0) return c.json({ phones: [] });
@@ -660,7 +663,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
     const [pending] = await ctx.db.select({ id: pairings.id }).from(pairings)
       .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
-    if (pending || phone.deviceTokenHash !== null) return c.json({ error: "confirm the account on the phone" }, 409);
+    if (pending || phone.deviceTokenHash !== null || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
     const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
     if (!setup) return c.json({ error: "this phone is already set up" }, 409);
