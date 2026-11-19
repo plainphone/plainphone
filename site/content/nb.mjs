@@ -553,7 +553,7 @@ export default {
     maintained: "Plainphone vedlikeholdes av <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
     setup: "Veiledning: <a href=\"/nb/setup/\">Konfigurer en telefon</a>.",
     privacy: "Dette nettstedet setter ingen informasjonskapsler og kjører ingen analyser. <a href=\"/nb/privacy/\">Personvernerklæring</a>.",
-    license: "Kode under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Font: Atkinson Hyperlesible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Kode under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrifttyper: Schibsted Grotesk og IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Siden ikke funnet",

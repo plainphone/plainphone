@@ -555,7 +555,7 @@ export default {
     maintained: "Plainphone is maintained by <a href=\"https://mahoje.dk\">Mahoje</a> in Denmark.",
     setup: "Guide: <a href=\"/setup/\">Set up a phone</a>.",
     privacy: "This site sets no cookies and runs no analytics. <a href=\"/privacy/\">Privacy policy</a>.",
-    license: "Code under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Font: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Code under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Fonts: Schibsted Grotesk and IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Page not found",
