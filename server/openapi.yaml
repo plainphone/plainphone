@@ -488,7 +488,7 @@ components:
       properties:
         layout: { enum: [list, grid], default: list }
         theme: { enum: [system, light, dark], default: system }
-        palette: { enum: [grey, sage, sand], default: sage }
+        palette: { enum: [grey, sage, sand], default: grey }
         apps:
           type: array
           description: Package names on the front page, in order. At most 8, no duplicates.

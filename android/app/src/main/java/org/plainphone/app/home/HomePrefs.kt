@@ -18,7 +18,7 @@ enum class HomePalette { GREY, SAGE, SAND }
 data class HomePrefs(
     val layout: HomeLayout = HomeLayout.LIST,
     val theme: HomeTheme = HomeTheme.SYSTEM,
-    val palette: HomePalette = HomePalette.SAGE,
+    val palette: HomePalette = HomePalette.GREY,
     /** Packages on the front page, in order. */
     val apps: List<String> = emptyList(),
     val showFreePromise: Boolean = true,

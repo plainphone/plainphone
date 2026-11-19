@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * The home screen's own small palette: paper, a raised surface, ink, a quieter ink and one accent.
- * GREY uses the graphite of brand direction C (docs/brand/README.md); SAGE and SAND are softer choices.
+ * GREY (shown as "Graphite") is the default and uses the graphite of brand direction C (docs/brand/README.md); SAGE and SAND are softer choices.
  * Every pair used for text is at least 4.5:1 (WCAG AA), muted text included.
  */
 @Immutable
@@ -22,7 +22,7 @@ data class HomeColors(
     val dark: Boolean,
 )
 
-val LocalHomeColors = staticCompositionLocalOf { homeColors(HomePalette.SAGE, dark = false) }
+val LocalHomeColors = staticCompositionLocalOf { homeColors(HomePalette.GREY, dark = false) }
 
 fun homeColors(palette: HomePalette, dark: Boolean): HomeColors = when (palette) {
     HomePalette.GREY -> if (dark) {

@@ -6,12 +6,12 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
-import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
+import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
+import { Button, Card, Choice, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
@@ -19,6 +19,7 @@ import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, insta
 import { phoneStateText } from "../../../lib/phoneStateText";
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
+import { HOME_PALETTES } from "../../../shared/lib/settings";
 import { describeOp } from "../../../shared/lib/ops";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
@@ -210,7 +211,7 @@ function FreePromiseSetting() {
   const { t } = useI18n();
   const { phone, run, notify } = usePhone();
   const params = { path: { pid: phone.id } };
-  const res = useLoad(() => unwrap<{ showFreePromise?: boolean }>(client.GET("/phones/{pid}/home", { params })), [phone.id]);
+  const res = useLoad(() => unwrap<Home & { showFreePromise?: boolean }>(client.GET("/phones/{pid}/home", { params })), [phone.id]);
   const [busy, setBusy] = useState(false);
 
   async function save(showFreePromise: boolean) {
@@ -227,17 +228,43 @@ function FreePromiseSetting() {
     }
   }
 
+  async function savePalette(home: Home, palette: Home["palette"]) {
+    setBusy(true);
+    try {
+      const result = await run(() =>
+        unwrap<ChangeResult>(client.PUT("/phones/{pid}/home", {
+          params,
+          body: { layout: home.layout, theme: home.theme, palette, apps: home.apps },
+        })),
+      );
+      if (result?.status === "applied") res.setData((current) => current && { ...current, palette });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Card>
       <LoadGate res={res}>
         {(home) => (
-          <Switch
-            label={t("home.freePromise")}
-            help={t("home.freePromiseHelp")}
-            value={home.showFreePromise ?? true}
-            disabled={busy}
-            onValueChange={(value) => void save(value)}
-          />
+          <>
+            <Choice
+              label={t("home.palette")}
+              value={home.palette}
+              disabled={busy}
+              onChange={(palette) => void savePalette(home, palette)}
+              options={HOME_PALETTES.map((value) => ({ value, label: t(`home.palette.${value}` as const) }))}
+            />
+            <Switch
+              label={t("home.freePromise")}
+              help={t("home.freePromiseHelp")}
+              value={home.showFreePromise ?? true}
+              disabled={busy}
+              onValueChange={(value) => void save(value)}
+            />
+          </>
         )}
       </LoadGate>
     </Card>
