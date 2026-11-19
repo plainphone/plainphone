@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Linking } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
+import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
+import { SERVER_URL } from "../../../lib/config";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
@@ -36,7 +39,7 @@ function PendingList() {
   return (
     <VStack gap={space.sm}>
       {pending.map((c) => {
-        const what = c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel);
+        const what = c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel);
         return (
           <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
             <Button
@@ -97,6 +100,42 @@ function RenamePhone() {
         onSubmitEditing={() => void save()}
       />
       <Button testID="rename-save" kind="secondary" title={busy ? t("app.saving") : t("app.save")} busy={busy} onPress={() => void save()} />
+    </Card>
+  );
+}
+
+function PhoneLanguageSettings() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [busy, setBusy] = useState(false);
+
+  async function save(language: PhoneLanguage) {
+    setBusy(true);
+    try {
+      setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", {
+        params: { path: { pid: phone.id } }, body: { language },
+      })));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Disclosure title={`${t("phoneLanguage.label")} (${phone.language ? languageNames[phone.language] : t("phoneLanguage.system")})`}>
+        <PhoneLanguagePicker value={phone.language ?? null} onChange={(value) => {
+          if (value !== (phone.language ?? null)) void save(value);
+        }} disabled={busy} />
+      </Disclosure>
+      {phone.mode === "strong" && phone.setupQrAvailable && (
+        <Button kind="secondary" title={t("phoneLanguage.browser")} onPress={() => {
+          void Linking.openURL(`${SERVER_URL}/phones/${phone.id}/setup`).catch((err) => {
+            notify({ tone: "error", text: errorMessage(err, t) });
+          });
+        }} />
+      )}
     </Card>
   );
 }
@@ -268,6 +307,7 @@ function Overview() {
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
         <RenamePhone />
+        <PhoneLanguageSettings />
         <RemovePhone />
       </VStack>
     </Screen>

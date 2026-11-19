@@ -50,6 +50,24 @@ describe("provisioning QR", () => {
     expect(version).toBeLessThanOrEqual(18);
   });
 
+  it.each([["da", "da_DK"], ["en", "en_GB"], ["sv", "sv_SE"], ["nb", "nb_NO"], ["de", "de_DE"], [null, undefined]] as const)(
+    "provisions %s and the household time zone", (language, expected) => {
+      const payload = provisioningPayload(info, {
+        enrollmentToken: "pp_e_x", pinHash: "hash", pinSalt: "salt", language, timezone: "Europe/Oslo",
+      });
+      expect(payload["android.app.extra.PROVISIONING_LOCALE"]).toBe(expected);
+      expect(payload["android.app.extra.PROVISIONING_TIME_ZONE"]).toBe("Europe/Oslo");
+    },
+  );
+
+  it("keeps the system locale free on a Self phone", () => {
+    const payload = provisioningPayload(info, {
+      enrollmentToken: "pp_e_x", pinHash: "hash", pinSalt: "salt", language: "nb", profile: "self",
+    });
+    expect(payload["android.app.extra.PROVISIONING_LOCALE"]).toBeUndefined();
+    expect(payload["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]).toMatchObject({ "plainphone.self": "true" });
+  });
+
   it("adds Wi-Fi only to the provisioning payload", () => {
     const base = { enrollmentToken: "pp_e_x", pinHash: "a".repeat(64), pinSalt: "b".repeat(32) };
     const network = { ssid: "Test network", password: "example-passphrase" };
@@ -71,6 +89,8 @@ describe("provisioning QR", () => {
       pinHash: "a".repeat(64),
       pinSalt: "b".repeat(32),
       countryCode: "+45",
+      language: "sv",
+      timezone: "Europe/Copenhagen",
       wifi: { ssid: "s".repeat(32), password: "p".repeat(63) },
     });
     const qr = provisioningQr(payload);

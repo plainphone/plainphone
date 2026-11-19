@@ -88,7 +88,7 @@ class PhoneSyncContractTest {
         assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
         val (claimStatus, claimed) = parent(
             "POST", "/phones/claim",
-            JSONObject().put("code", code).put("name", "Alma").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+            JSONObject().put("code", code).put("name", "Alma").put("profile", "child").put("timezone", "Europe/Copenhagen").put("language", "sv"),
         )
         assertThat(claimStatus).isEqualTo(201)
         val phoneId = claimed!!.getString("id")
@@ -105,6 +105,7 @@ class PhoneSyncContractTest {
         // The apps were reported before the rules, so they are already in them.
         var rules = store.rules()!!
         assertThat(rules.phoneId).isEqualTo(phoneId)
+        assertThat(rules.language).isEqualTo("sv")
         assertThat(rules.allowedApps).containsAtLeast("com.android.dialer", "com.spotify.music") // Danish starter pack
         assertThat(rules.hiddenApps).contains("com.example.game")
         assertThat(rules.dnsReady).isTrue()

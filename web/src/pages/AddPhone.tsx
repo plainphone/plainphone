@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
+import { intlLocale } from "../lib/format";
 import { lightSetupLink } from "../lib/light-setup";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import {
@@ -17,6 +18,8 @@ import {
   provisioningPayload,
   provisioningQr,
 } from "../lib/provisioning";
+import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
+import type { PhoneLanguage } from "../lib/phone-language";
 import "./add-phone.css";
 
 interface EnrollmentOut {
@@ -49,6 +52,7 @@ export function AddPhonePage() {
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
+  const [language, setLanguage] = useState<PhoneLanguage>(null);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
@@ -57,7 +61,7 @@ export function AddPhonePage() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
@@ -86,7 +90,11 @@ export function AddPhonePage() {
           onBack={() => setMode(null)}
         />
       )}
-      {step === 2 && <PinStep onBack={() => setStep(1)} onDone={makeQr} />}
+      {step === 2 && (
+        <PinStep onBack={() => setStep(1)} onDone={makeQr}>
+          <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} />
+        </PinStep>
+      )}
       {step === 3 && qr && <QrStep qr={qr} />}
     </div>
   );
@@ -98,6 +106,7 @@ export function SetupPhonePage() {
   const { pid = "" } = useParams();
   const res = useLoad(() => api.get<Phone>(`/phones/${pid}`), [pid]);
   const [qr, setQr] = useState<Qr | null>(null);
+  const [chosenLanguage, setChosenLanguage] = useState<PhoneLanguage>();
 
   return (
     <div className={qr ? "setup" : "narrow"}>
@@ -122,10 +131,17 @@ export function SetupPhonePage() {
               light={phone.mode === "light"}
               onDone={async (pin) => {
                 const pinned = pin === undefined ? undefined : await hashForQr(pin);
+                const updated = chosenLanguage !== undefined && chosenLanguage !== phone.language
+                  ? await api.patch<Phone>(`/phones/${phone.id}`, { language: chosenLanguage })
+                  : phone;
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
-                setQr(buildQr(out, phone, pinned, locale));
+                setQr(buildQr(out, updated, pinned, locale));
               }}
-            />
+            >
+              {phone.mode === "strong" && (
+                <PhoneLanguagePicker value={chosenLanguage === undefined ? phone.language ?? null : chosenLanguage} onChange={setChosenLanguage} setup={phone.profile === "child"} />
+              )}
+            </PinStep>
           )
         }
       </LoadGate>
@@ -164,6 +180,9 @@ function buildQr(
         enrollmentToken,
         ...pinned!,
         countryCode: countryCodeForTimezone(phone.timezone),
+        language: phone.language,
+        profile: phone.profile,
+        timezone: phone.timezone,
         wifi,
       })).modules,
   };
@@ -275,7 +294,7 @@ function WhoStep(props: {
   );
 }
 
-function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void> }) {
+function PinStep({ light = false, onBack, onDone, children }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void>; children?: ReactNode }) {
   const { t } = useI18n();
   const [pin, setPin] = useState("");
   const [again, setAgain] = useState("");
@@ -308,6 +327,7 @@ function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: 
     <>
       <PageTitle sub={t(light ? "add.lightPinOnPhone" : "add.pinIntro")}>{t(light ? "add.newLink" : "add.pinTitle")}</PageTitle>
       <form onSubmit={submit} noValidate className="stack">
+        {children && <fieldset disabled={busy} className="choices">{children}</fieldset>}
         {!light && (
           <>
             <Field label={t("add.pin")} help={t("add.pinHelp")} error={errors.pin}>
@@ -392,7 +412,7 @@ function QrStep({ qr }: { qr: Qr }) {
     };
   }, [qr.phoneId, qr.expiresAt, paired, gone]);
 
-  const expires = new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
+  const expires = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
     hour: "2-digit",
     minute: "2-digit",

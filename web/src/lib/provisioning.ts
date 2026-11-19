@@ -6,6 +6,10 @@
 // PIN nor its hash is sent to the server.
 
 import { encode } from "uqr";
+import type { Profile } from "./api";
+import type { Language, PhoneLanguage } from "./phone-language";
+
+const provisioningLocales: Record<Language, string> = { da: "da_DK", en: "en_GB", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 
 export const PBKDF2_ITERATIONS = 120_000; // must match MaintenancePin.kt and provisioning-qr.py
 export const MIN_PIN_LENGTH = 6;
@@ -56,7 +60,7 @@ export interface SetupWifi {
 
 export function provisioningPayload(
   info: ProvisioningInfo,
-  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null; wifi?: SetupWifi },
+  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null; language?: PhoneLanguage; profile?: Profile; timezone?: string; wifi?: SetupWifi },
 ) {
   const extras: Record<string, string> = {
     "plainphone.pin_hash": opts.pinHash,
@@ -66,6 +70,7 @@ export function provisioningPayload(
   // The app's own defaults (PolicyConfig.kt) need not travel: every byte makes the code denser.
   if (info.dnsHost !== APP_DEFAULT_DNS_HOST) extras["plainphone.dns_host"] = info.dnsHost;
   if (info.serverUrl !== APP_DEFAULT_SERVER_URL) extras["plainphone.server_url"] = info.serverUrl;
+  if (opts.profile === "self") extras["plainphone.self"] = "true";
   if (opts.countryCode) extras["plainphone.country_code"] = opts.countryCode.replace(/^\+/, "");
   return {
     [PREFIX + "PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME"]: info.adminComponent,
@@ -74,6 +79,8 @@ export function provisioningPayload(
     // Keep the maker's dialer, messages, camera and clock installed; Plainphone hides the rest.
     [PREFIX + "PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED"]: true,
     [PREFIX + "PROVISIONING_ADMIN_EXTRAS_BUNDLE"]: extras,
+    ...(opts.language && opts.profile !== "self" && { [PREFIX + "PROVISIONING_LOCALE"]: provisioningLocales[opts.language] }),
+    ...(opts.timezone && { [PREFIX + "PROVISIONING_TIME_ZONE"]: opts.timezone }),
     ...(opts.wifi && {
       [PREFIX + "PROVISIONING_WIFI_SSID"]: opts.wifi.ssid,
       [PREFIX + "PROVISIONING_WIFI_SECURITY_TYPE"]: opts.wifi.password ? "WPA" : "NONE",

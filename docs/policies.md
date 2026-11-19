@@ -32,6 +32,7 @@ The lock is applied:
 | `DISALLOW_CONFIG_DEFAULT_APPS` (phase 2, Android 14+) | Changing the default phone and SMS app (Plainphone) in Settings. Not available on Android 10 to 13, see [android-versions.md](android-versions.md) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_DEFAULT_APPS) |
 | `DISALLOW_MODIFY_ACCOUNTS` | Adding or removing accounts (Google, the maker's). An account the child controls could otherwise become the owner of Android's own FRP or of "find and erase" services. The maintenance unlock lifts the restriction. For Play sign-in authorized by the parent PIN, Plainphone first requests a Google account as Device Owner with the restriction still set. If that fails, the parent can briefly lift it within the same installation window | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_MODIFY_ACCOUNTS) |
 | `DISALLOW_CONTENT_CAPTURE`, `DISALLOW_CONTENT_SUGGESTIONS`, `DISALLOW_ASSIST_CONTENT` (Android 15+) | Screen content handed to assistants and suggestion services (Circle to Search, Lens, screen context) | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_ASSIST_CONTENT) |
+| `DISALLOW_CONFIG_LOCALE` (strong-mode Child phones) | Changing Android’s system language after setup. Lifted in Maintenance and on release. | [link](https://developer.android.com/reference/android/os/UserManager#DISALLOW_CONFIG_LOCALE) |
 | `DISALLOW_CONFIG_DATE_TIME` + automatic time and time zone | Date and time tricks (matters for school time in phase 3) | [link](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#setAutoTimeEnabled(android.content.ComponentName,%20boolean)) |
 
 ## Phone and SMS (phase 2)
@@ -178,7 +179,11 @@ Android calls behind them is in [phone-settings.md](phone-settings.md). The code
 Things to know:
 
 - **Locking the volume mutes the phone.** That is how Android implements `DISALLOW_ADJUST_VOLUME`. The dashboard calls it "silent".
-- **Language** can only be locked as it is. A Device Owner cannot choose the system language after setup.
+- **Language.** The strong-mode Child QR can set Android’s initial language with
+  [`PROVISIONING_LOCALE`](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#EXTRA_PROVISIONING_LOCALE).
+  A Device Owner cannot change it after setup. Dashboard changes affect the Plainphone app only
+  in every mode and profile, and do not require a key. Light and Myself leave the Android
+  system language available in Settings.
 - **Location for "Find" wins.** When the parent has location on, location is on and locked whatever the location setting says.
 - **Self profile:** loosening a locked setting goes through the key, like every other loosening.
 

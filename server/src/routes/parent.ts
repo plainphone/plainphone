@@ -109,7 +109,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !loginEmailLimit.take(input.email)) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
-    await requestMagicLink(ctx, input.email, input.locale, input.client);
+    await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);
     // Same answer whether or not the address is known.
     return c.json({ ok: true, mailEnabled: ctx.mail.canSend }, 202);
   });
@@ -379,7 +379,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .values({ householdId: hid, email: input.email, tokenHash: sha256(token), invitedBy: c.get("user").id, expiresAt })
       .returning();
     const url = `${ctx.cfg.PUBLIC_URL}/invite#token=${encodeURIComponent(token)}`;
-    const locale = input.locale ?? toLocale(c.get("user").locale);
+    const locale = toLocale(input.locale ?? c.get("user").locale);
     if (ctx.mail.canSend) {
       await ctx.mail.send(inviteMail(input.email, locale, ctx.cfg.PUBLIC_URL, url, "parent", INVITE_DAYS));
     }
@@ -546,12 +546,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         profile: z.enum(["child", "self"]),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
+        language: v.phoneLanguage.optional(),
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
     const householdId = input.householdId ?? hids[0];
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
-    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+    if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
 
@@ -575,6 +576,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceTokenHash: p.requiresConfirmation ? null : sha256(deviceToken),
         deviceInfo: p.deviceInfo ?? null,
         timezone: input.timezone,
+        language: input.language,
       });
       await tx
         .update(pairings)
@@ -601,12 +603,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         template: templateCode.optional(),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
+        language: v.phoneLanguage.optional(),
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
     const householdId = input.householdId ?? hids[0];
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
-    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+    if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     if (input.template && input.profile !== "self") return c.json({ error: "only Self phones can copy rules" }, 400);
@@ -621,6 +624,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
+        language: input.language,
       });
       if (template) await applySelfTemplate(tx, created.id, template, ctx.now());
       return created;
@@ -653,12 +657,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
+        language: v.phoneLanguage.optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
     const fields = {
       ...(input.name ? { name: input.name } : {}),
+      ...(input.language !== undefined ? { language: input.language } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
     if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));

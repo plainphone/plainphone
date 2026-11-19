@@ -769,6 +769,10 @@ select {
   font-size: 1rem;
 }
 
+.header-tools .lang-switch {
+  width: auto;
+}
+
 input[type="time"] {
   font-variant-numeric: tabular-nums;
 }

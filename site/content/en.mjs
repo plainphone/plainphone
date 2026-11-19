@@ -8,7 +8,7 @@ export default {
     "Free, open-source software for an Android phone with calls, messages, a camera and the apps you choose.",
   ogAlt: "Plainphone: your phone, minus the noise.",
   skip: "Skip to content",
-  nav: { label: "Main", source: "Source code", switchLabel: "Dansk", switchLang: "da" },
+  nav: { label: "Main", source: "Source code", language: "Language" },
   status: "Early. Open source. Not ready for daily use yet.",
   hero: {
     title: "Your phone, minus the noise.",
@@ -146,7 +146,7 @@ export default {
     description:
       "What Plainphone stores about you and the phones you manage, for how long, who else is involved, and how to ask us to correct or delete it.",
     h1: "Privacy policy",
-    updated: "Last updated 17 November 2026",
+    updated: "Last updated 19 November 2026",
     lead:
       "Plainphone keeps as little as it can, for as short a time as it can. This page says what that means in practice. It is written to be read, not to hide things.",
     status:
@@ -201,6 +201,7 @@ export default {
           "A parent, or an adult for their own phone, adds a phone by entering the code it shows. Children get no account and are never asked for an email address. For each phone we store what the adult sets up:",
           {
             list: [
+              "the language chosen for Plainphone on the phone, if the adult picks one",
               "the name the adult gives the phone, whether it is a child’s or an adult’s own phone, its time zone and when it last contacted the server",
               "a few short facts the phone reports when it pairs, such as its model and Android version, and its latest status: battery level, app version, whether its lock is intact and which web filter address it uses. Each report replaces the one before",
               "if you turn on protection against reset, your household keeps your numeric Google account ID and when it was linked. Disconnect it in Household settings to delete it, or delete your Plainphone account. We do not store your Google email address or sign-in tokens for this feature",
@@ -388,6 +389,7 @@ export default {
     strongHelp: "Recommended. Plainphone can protect more settings on a fresh phone.",
     light: "It is already in use",
     lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
+    strongLanguage: "Before showing the QR code, choose the phone language. Android uses it during setup. You can change the language in Plainphone later from the phone settings in the dashboard.",
     startStrong: "Start setup for a new or reset phone",
     startLight: "Start setup for a phone in use",
     start: "In the dashboard, say who the phone is for and create a setup link.",

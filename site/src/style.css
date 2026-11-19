@@ -69,6 +69,10 @@ p { margin: 0 0 1rem; max-width: var(--measure); text-wrap: pretty; }
 .top nav { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.95em; }
 .top nav a { color: var(--ink); padding-block: 0.6rem; text-decoration-color: var(--rule); }
 
+.languages summary { cursor: pointer; padding-block: 0.6rem; }
+.languages ul { margin: 0; padding: 0; list-style: none; }
+.languages a { display: block; }
+
 /* Hero */
 .hero { padding-block: clamp(2rem, 7vw, 5rem) 0; }
 .status { margin-bottom: 1.75rem; font-weight: 600; }

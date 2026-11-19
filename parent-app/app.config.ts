@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
   backgroundColor: "#f2f3ef",
-  locales: { en: "./locales/en.json", da: "./locales/da.json" },
+  locales: { en: "./locales/en.json", da: "./locales/da.json", sv: "./locales/sv.json", nb: "./locales/nb.json", de: "./locales/de.json" },
   ios: {
     bundleIdentifier: BUNDLE_ID,
     appleTeamId: APPLE_TEAM_ID,

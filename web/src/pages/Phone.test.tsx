@@ -5,6 +5,8 @@ import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "../i18n/translate";
 import type { Phone } from "../lib/api";
+import { PhoneSettingsPage } from "./PhoneSettings";
+import { SetupPhonePage } from "./AddPhone";
 import { PhoneLayout, PhoneOverview } from "./Phone";
 
 const phoneId = "test-phone";
@@ -42,6 +44,7 @@ const phone: Phone & { status: NonNullable<Phone["status"]> } = {
 };
 
 let currentPhone: Phone;
+let requestedSection = "";
 let latestAndroid: { versionCode: number; versionName: string } | undefined;
 
 vi.mock("../components/ui", async (importOriginal) => {
@@ -50,23 +53,27 @@ vi.mock("../components/ui", async (importOriginal) => {
     ...ui,
     useLoad: (fn: () => Promise<unknown>, deps: readonly unknown[]) => {
       const result = ui.useLoad(fn, deps);
+      if (requestedSection === "/settings" && fn.toString().includes("getPhoneSettings")) return result;
       if (deps[0] === phoneId) return { ...result, data: currentPhone };
       return deps[0] === true ? { ...result, data: latestAndroid } : result;
     },
   };
 });
 
-function renderPhone(data: Phone) {
+function renderPhone(data: Phone, section = "") {
   currentPhone = data;
+  requestedSection = section;
   vi.stubGlobal("localStorage", { getItem: () => "en" });
   vi.stubGlobal("navigator", { languages: ["en"] });
   try {
     return renderToStaticMarkup(
       <I18nProvider>
-        <MemoryRouter initialEntries={[`/phones/${phoneId}`]}>
+        <MemoryRouter initialEntries={[`/phones/${phoneId}${section}`]}>
           <Routes>
             <Route path="/phones/:pid" element={<PhoneLayout />}>
               <Route index element={<PhoneOverview />} />
+              <Route path="settings" element={<PhoneSettingsPage />} />
+              <Route path="setup" element={<SetupPhonePage />} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -76,6 +83,13 @@ function renderPhone(data: Phone) {
     vi.unstubAllGlobals();
   }
 }
+
+it.each(["/settings", "/setup"])("offers a labeled language picker on %s", (section) => {
+  const html = renderPhone({ ...phone, language: "nb" }, section);
+  expect(html).toContain("Plainphone language");
+  expect(html).toContain('value="nb" lang="nb" selected="">Norsk bokmål');
+  expect(html).toContain("Use phone language");
+});
 
 it.each([
   { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again", latest: undefined },

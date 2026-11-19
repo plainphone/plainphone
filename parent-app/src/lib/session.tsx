@@ -2,6 +2,7 @@
 //
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
+import { isLanguage } from "../shared/lib/phone-language";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
@@ -82,7 +83,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // A login link may have replaced the token while this was in flight.
       if (getSessionToken() !== used) return null;
       setState({ status: "in", me });
-      if (me.user.locale === "en" || me.user.locale === "da") setLocale(me.user.locale);
+      if (isLanguage(me.user.locale)) setLocale(me.user.locale);
       return me;
     } catch (err) {
       if (getSessionToken() !== used) return null;

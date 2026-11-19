@@ -1,5 +1,10 @@
 # Plainphone parent app
 
+Choose each phone’s Plainphone language in its management settings. To set up
+a new or reset phone, choose strong mode and a language in the app, then continue
+in the browser to create the setup QR code. The app is available in English,
+Danish, Swedish, Norwegian Bokmål and German. See [translation review status](../docs/translations.md).
+
 The native parent app for iOS and Android. It does the same as the parent web app in [`../web`](../web), on the same API ([`../server/openapi.yaml`](../server/openapi.yaml)):
 
 - log in with a link from your mail (the link opens the app)

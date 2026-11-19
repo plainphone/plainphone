@@ -52,6 +52,7 @@ export async function createPhone(
     deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
+    language?: Phone["language"];
   },
 ): Promise<Phone> {
   // Runs inside the caller's transaction, together with the pairing it claims.
@@ -69,6 +70,7 @@ export async function createPhone(
       // "Are you okay?"; an adult's is off until its owner turns it on.
       locationEnabled: input.profile === "child",
       locationMode: input.profile === "child" ? "checkin" : "off",
+      language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
     })
@@ -173,6 +175,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
+      language: phone.language,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
       locationEnabled: phone.locationEnabled,
@@ -208,6 +211,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
+    language: phone.language,
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
@@ -349,6 +353,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     profile: phone.profile,
     mode: phone.mode,
     timezone: phone.timezone,
+    language: phone.language,
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,

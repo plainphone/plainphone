@@ -14,13 +14,14 @@ import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
+import type { Locale } from "../api/models";
 import { Platform } from "react-native";
 
 export type PushKind = "approval" | "location";
 
-export const CHANNELS: { id: PushKind; name: { en: string; da: string } }[] = [
-  { id: "approval", name: { en: "Changes waiting for approval", da: "Ændringer der venter på godkendelse" } },
-  { id: "location", name: { en: "Location ready", da: "Placering klar" } },
+export const CHANNELS: { id: PushKind; name: Record<Locale, string> }[] = [
+  { id: "approval", name: { en: "Changes waiting for approval", da: "Ændringer der venter på godkendelse", sv: "Ändringar som väntar på godkännande", nb: "Endringer som venter på godkjenning", de: "Änderungen, die auf Freigabe warten" } },
+  { id: "location", name: { en: "Location ready", da: "Placering klar", sv: "Plats tillgänglig", nb: "Posisjon tilgjengelig", de: "Standort verfügbar" } },
 ];
 
 if (Platform.OS !== "web") {
@@ -43,7 +44,7 @@ export function routeForPush(data: unknown): Href {
   return "/";
 }
 
-async function ensureChannels(locale: "en" | "da") {
+async function ensureChannels(locale: Locale) {
   if (Platform.OS !== "android") return;
   for (const ch of CHANNELS) {
     await Notifications.setNotificationChannelAsync(ch.id, {
@@ -65,7 +66,7 @@ export async function pushState(): Promise<PushState> {
  * Asks for permission and returns the native push token (APNs or FCM), or null when
  * push is not available in this build. The token is not sent anywhere yet.
  */
-export async function enablePush(locale: "en" | "da"): Promise<{ state: PushState; token: string | null }> {
+export async function enablePush(locale: Locale): Promise<{ state: PushState; token: string | null }> {
   if (Platform.OS === "web") return { state: "unsupported", token: null };
   await ensureChannels(locale);
   const p = await Notifications.requestPermissionsAsync();

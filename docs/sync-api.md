@@ -204,6 +204,7 @@ releases signed with the same key.
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
+| `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` stays `true` for previously confirmed phones during upgrades and retries. A confirmation from the mock provider requires a fresh sync when switching to HTTP DNS |
 | `location` | `enabled`, `mode`, `intervalMinutes`, `requestedAt`; see above |

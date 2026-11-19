@@ -9,7 +9,8 @@ export const email = z
   .transform((s) => s.toLowerCase())
   .pipe(z.email());
 
-export const locale = z.enum(["en", "da"]);
+export const locale = z.enum(["en", "da", "sv", "nb", "de"]);
+export const phoneLanguage = locale.nullable();
 
 /** Android package name, e.g. com.spotify.music */
 export const packageName = z

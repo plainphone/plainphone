@@ -38,7 +38,7 @@ export async function requestMagicLink(
 }
 
 /** Exchanges a magic-link token for a session. Creates the user and a household on first login. */
-export async function verifyMagicLink(ctx: Ctx, token: string, locale: Locale) {
+export async function verifyMagicLink(ctx: Ctx, token: string, locale: string) {
   const now = ctx.now();
   return ctx.db.transaction(async (tx) => {
     const [link] = await tx

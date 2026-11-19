@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Log
@@ -27,9 +28,28 @@ import org.plainphone.app.update.SelfUpdate
  */
 class PlainphoneApplication : Application() {
     private var lastNetworkKick = 0L
+    private val phoneLanguage by lazy { PhoneLanguage(this) }
+
+    private val syncStore by lazy { SyncStore(this) }
+
+    private fun applyStoredPhoneLanguage() {
+        runCatching {
+            phoneLanguage.apply(if (syncStore.released) null else syncStore.rules()?.language)
+        }.onFailure { Log.w("Plainphone", "could not apply phone language", it) }
+    }
+
+    internal fun refreshPhoneLanguage() {
+        mainExecutor.execute(::applyStoredPhoneLanguage)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        phoneLanguage.onConfigurationChanged()
+    }
 
     override fun onCreate() {
         super.onCreate()
+        applyStoredPhoneLanguage()
         runCatching {
             // Install window (catalog apps) and new apps: react the moment a package arrives.
             registerReceiver(

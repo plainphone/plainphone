@@ -20,9 +20,17 @@ Why some settings have no `preset`: Android gives a Device Owner restrictions fo
 value it can set and then hand back. Wi-Fi and Bluetooth radios cannot be switched by an
 ordinary app on Android 10+ (`WifiManager.setWifiEnabled` does nothing for apps targeting API 29+,
 and `BluetoothAdapter.disable` is restricted from Android 13), mobile networks, roaming,
-tethering, NFC Beam and language are `DISALLOW_*` switches, and camera and screen capture are
+tethering and NFC Beam are `DISALLOW_*` switches, and camera and screen capture are
 policies that are either on or off. A "set once" for these would either do nothing or be the
 same as `locked`, so the dashboard does not offer it.
+
+## Plainphone language
+
+The per-phone language is saved independently of the lockable settings. Change
+it in the web dashboard or parent app, or choose **Use phone language** to follow
+Android. The legacy `language` lock setting remains in the API for older phone
+builds. Current Android builds manage the system-language restriction through
+the strong-mode Child policy described in [policies.md](policies.md).
 
 ## The settings
 
@@ -41,7 +49,6 @@ same as `locked`, so the dashboard does not offer it.
 | `brightness` | free, preset, locked | `"auto"` or a percentage 10..100 (integer) | `setSystemSetting(SCREEN_BRIGHTNESS_MODE / SCREEN_BRIGHTNESS)` + `DISALLOW_CONFIG_BRIGHTNESS` when locked |
 | `volume` | free, preset, locked | preset: percentage 0..100 (integer). locked: `"muted"` | preset: `AudioManager.setStreamVolume` for ring, notifications and media. locked: `DISALLOW_ADJUST_VOLUME`, which Android implements by muting the phone. |
 | `wallpaper` | free, locked | `"plainphone"` | Sets Plainphone's calm wallpaper + `DISALLOW_SET_WALLPAPER` |
-| `language` | free, locked | no value | `DISALLOW_CONFIG_LOCALE`: the current language stays. The language itself can only be chosen during setup. |
 | `tethering` | free, locked | `"off"` | `DISALLOW_CONFIG_TETHERING`: no hotspot or USB tethering |
 | `nfc` | free, locked | `"off"` | `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` (Android 14+); `DISALLOW_OUTGOING_BEAM` below. Note: NFC is needed for MobilePay and Google Wallet. |
 | `airplaneMode` | free, locked | `"off"` | `DISALLOW_AIRPLANE_MODE`: airplane mode cannot be turned on (keeps the phone reachable and "Find" working) |

@@ -5,7 +5,7 @@
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { Share } from "react-native";
+import { Linking as NativeLinking, Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
@@ -40,6 +40,21 @@ beforeEach(async () => {
 });
 
 describe("pairing", () => {
+  it("saves the strong setup language before opening the QR flow in the browser", async () => {
+    const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
+    try {
+      const api = phoneApi(PHONE, { "POST /phones/enroll": { status: 201, body: { phone: PHONE } } });
+      await renderRouter(routes, { initialUrl: "/strong-setup" });
+      await fireEvent.changeText(await screen.findByLabelText("Name"), "Test phone");
+      await fireEvent.press(screen.getByRole("radio", { name: "Svenska" }));
+      await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
+      await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
+      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toMatchObject({ mode: "strong", language: "sv" });
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it("fills the code from a pairing link and adds the phone", async () => {
     const api = phoneApi(PHONE, { "POST /phones/claim": { status: 201, body: PHONE } });
     await renderRouter(routes, { initialUrl: "/pair?code=k7mp4qxr" });
@@ -72,6 +87,17 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("saves and shows the selected Plainphone language", async () => {
+    const api = phoneApi(PHONE, {
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, language: "de" } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.press(await screen.findByRole("button", { name: /Plainphone language/ }));
+    await fireEvent.press(screen.getByRole("radio", { name: "Deutsch" }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Deutsch" })).toBeChecked());
+    expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ language: "de" });
+  });
+
   it("shows the system check's own date even after a newer phone sync", async () => {
     phoneApi({
       ...PHONE,

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
+import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_HOST } from "../lib/config";
 import { enablePush, pushState, type PushState } from "../lib/notifications";
@@ -30,10 +31,7 @@ function Settings() {
           label={t("nav.language")}
           value={locale}
           onChange={saveLocale}
-          options={[
-            { value: "en", label: "English" },
-            { value: "da", label: "Dansk" },
-          ]}
+          options={languages.map((value) => ({ value, label: languageNames[value] }))}
         />
       </Card>
       {push && push !== "unsupported" ? (

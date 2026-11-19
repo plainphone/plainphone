@@ -39,6 +39,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - forces private DNS (DNS-over-TLS) to a filtering resolver and stops the user from changing private DNS, VPN, network reset and user certificates;
 - turns Chrome's own DNS-over-HTTPS and incognito mode off and forces SafeSearch;
 - hides every app that is not on the allowlist: phone, messages, camera, clock, contacts, settings, keyboard and launcher (found per device, so Samsung and Xiaomi keep their own apps), plus Chrome, Maps, calculator, calendar and gallery;
+- keeps the Android system language set during strong-mode Child setup;
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
@@ -125,7 +126,7 @@ The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web
 
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.
 
-The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
+The APK includes English, Danish, Swedish, Norwegian Bokmål and German resources. See [translation review status](docs/translations.md). The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
@@ -156,7 +157,11 @@ Android cannot update in place from the test key used through v0.1.9. In light m
 
 In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one
 already in use (light mode). Strong mode uses Android's welcome screen and can include Wi-Fi in
-the provisioning code. The browser hashes the maintenance PIN before adding it to the
+the provisioning code. Choose the phone's language before creating the QR code. For a
+Child phone in strong mode, Android uses that language at setup and Plainphone locks it.
+The code also carries the time zone used for household schedules. Later, use **Plainphone
+language** in either parent app to change the app language or return to the phone's language.
+Light and Myself phones only apply the app language. The browser hashes the maintenance PIN before adding it to the
 code. Light mode keeps the phone's existing data. Chrome installs the app and opens the setup
 link, then the phone asks who will use it and hashes the PIN locally. In both modes, check the
 masked dashboard account on the phone before it redeems the one-time token. The server receives

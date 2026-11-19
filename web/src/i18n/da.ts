@@ -937,4 +937,11 @@ export const da: Messages = {
 
   "notif.serverOff": "Push-notifikationer er ikke sat op på denne server. Advarsler kommer stadig på mail.",
   "notif.neverDefault": "Aldrig (standard)",
+  "phoneLanguage.label": "Plainphones sprog",
+  "phoneLanguage.system": "Følg telefonens sprog",
+  "phoneLanguage.help": "Sproget skifter i Plainphone, næste gang telefonen henter sine regler.",
+  "phoneLanguage.setup": "I stærk tilstand for et barn vælger du også Androids sprog under opsætningen.",
+  "phoneLanguage.strong": "Sæt op i stærk tilstand",
+  "phoneLanguage.browser": "Fortsæt i browseren",
+  "phoneLanguage.browserHelp": "Log ind på betjeningspanelet i browseren for at oprette QR-koden til opsætningen.",
 };

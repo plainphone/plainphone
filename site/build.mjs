@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import en from "./content/en.mjs";
 import da from "./content/da.mjs";
+import sv from "./content/sv.mjs";
+import nb from "./content/nb.mjs";
+import de from "./content/de.mjs";
 import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -13,7 +16,9 @@ const src = join(root, "src");
 const dist = join(root, "dist");
 const ORIGIN = "https://plainphone.org";
 const GITHUB = "https://github.com/plainphone/plainphone";
-const pages = [en, da];
+const pages = [en, da, sv, nb, de];
+const languageNames = { en: "English", da: "Dansk", sv: "Svenska", nb: "Norsk bokmål", de: "Deutsch" };
+const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 
 const css = readFileSync(join(src, "style.css"), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -46,6 +51,11 @@ function head(
   const alt = alternates
     .map((a) => `<link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${a.path}">`)
     .join("");
+  const share = t.lang === "da" ? da : en;
+  const ogAlternates = alternates
+    .filter((a) => a.lang !== t.lang)
+    .map((a) => `<meta property="og:locale:alternate" content="${ogLocales[a.lang]}">`)
+    .join("\n");
   return `<!doctype html>
 <html lang="${t.lang}">
 <head>
@@ -66,24 +76,30 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <meta property="og:title" content="${esc(ogTitle)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${ORIGIN}${path}">
-<meta property="og:image" content="${ORIGIN}/og-${t.lang}.png">
+<meta property="og:image" content="${ORIGIN}/og-${share.lang}.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${esc(t.ogAlt)}">
-<meta property="og:locale" content="${t.lang === "da" ? "da_DK" : "en_GB"}">
-<meta property="og:locale:alternate" content="${t.lang === "da" ? "en_GB" : "da_DK"}">
+<meta property="og:image:alt" content="${esc(share.ogAlt)}">
+<meta property="og:locale" content="${ogLocales[t.lang]}">
+${ogAlternates}
 <meta name="twitter:card" content="summary_large_image">
 <style>${css}</style>
 </head>`;
 }
 
-function header(t, switchHref) {
-  const other = pages.find((p) => p.lang === t.nav.switchLang);
+function header(t, route = (p) => p.path) {
+  const languages = pages
+    .filter((p) => p.lang !== t.lang)
+    .map((p) => `<li><a href="${route(p)}" hreflang="${p.lang}" lang="${p.lang}">${languageNames[p.lang]}</a></li>`)
+    .join("");
   return `<a class="skip" href="#main">${t.skip}</a>
 <header class="top">
 <a class="brand" href="${t.path}">${wordmark}<span class="sr">Plainphone</span></a>
 <nav aria-label="${t.nav.label}">
-<a href="${switchHref ?? other.path}" hreflang="${other.lang}" lang="${other.lang}">${t.nav.switchLabel}</a>
+<details class="languages">
+<summary>${t.nav.language}</summary>
+<ul>${languages}</ul>
+</details>
 <a href="${GITHUB}">${t.nav.source}</a>
 </nav>
 </header>`;
@@ -204,7 +220,6 @@ ${footer(t)}
 
 function whyPage(t) {
   const p = t.why;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   return `${head(t, {
     path: p.path,
     title: p.h1,
@@ -214,7 +229,7 @@ function whyPage(t) {
     xDefault: pages[0].why.path,
   })}
 <body>
-${header(t, other.why.path)}
+${header(t, (p) => p.why.path)}
 <main id="main" class="doc">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
@@ -234,7 +249,6 @@ ${footer(t)}
 // A block is a string (paragraph), { list: [...] } or { table: { caption, cols, rows } }.
 function privacyPage(t) {
   const p = t.privacy;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   const block = (b) => {
     if (typeof b === "string") return `<p>${b}</p>`;
     if (b.list) return `<ul>${b.list.map((li) => `<li>${li}</li>`).join("")}</ul>`;
@@ -255,7 +269,7 @@ function privacyPage(t) {
     xDefault: pages[0].privacy.path,
   })}
 <body>
-${header(t, other.privacy.path)}
+${header(t, (p) => p.privacy.path)}
 <main id="main" class="doc">
 <h1>${p.h1}</h1>
 <p class="updated">${p.updated}</p>
@@ -273,7 +287,6 @@ ${footer(t)}
 
 function setupPage(t) {
   const p = t.setup;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   const drawings = figures({ ...p.drawing, alt: p.figs });
   const figure = (key) => drawings[key] ? `<figure class="shot">${drawings[key]}</figure>` : "";
   const tb = p.tested;
@@ -286,7 +299,7 @@ function setupPage(t) {
     xDefault: pages[0].setup.path,
   })}
 <body>
-${header(t, other.setup.path)}
+${header(t, (p) => p.setup.path)}
 <main id="main" class="doc setup">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
@@ -299,6 +312,7 @@ ${header(t, other.setup.path)}
 </section>
 <section aria-labelledby="strong"><h2 id="strong">${p.strongTitle}</h2>
 <p>${p.start}</p>
+<p>${p.strongLanguage}</p>
 <p><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a></p>
 <ol class="guide">
 ${p.steps
@@ -328,10 +342,9 @@ ${footer(t)}
 }
 
 rmSync(dist, { recursive: true, force: true });
-mkdirSync(join(dist, "da"), { recursive: true });
-writeFileSync(join(dist, "index.html"), page(en));
-writeFileSync(join(dist, "da", "index.html"), page(da));
 for (const t of pages) {
+  mkdirSync(join(dist, t.path), { recursive: true });
+  writeFileSync(join(dist, t.path, "index.html"), page(t));
   mkdirSync(join(dist, t.why.path), { recursive: true });
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });

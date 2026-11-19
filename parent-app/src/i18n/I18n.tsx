@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// English and Danish. The phone's language decides until the user picks one; the
+// The phone's language decides until the user picks one; the
 // choice is kept on the device and in the account (PATCH /me).
 import { getLocales } from "expo-localization";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Locale } from "../api/models";
 import { catalogs, pickLocale, translate, type MessageKey, type Params } from "../shared/i18n/translate";
+import { isLanguage } from "../shared/lib/phone-language";
+import { appSv } from "./app-sv";
+import { appNb } from "./app-nb";
+import { appDe } from "./app-de";
 import { appDa } from "./app-da";
 import { appEn, type AppMessageKey, type AppMessages } from "./app-en";
 import { getItem, setItem } from "../lib/storage";
@@ -14,7 +18,7 @@ export type Key = MessageKey | AppMessageKey;
 export type TFn = (key: Key, params?: Params) => string;
 
 const STORAGE_KEY = "pp.locale";
-const appCatalogs: Record<Locale, AppMessages> = { en: appEn, da: appDa };
+const appCatalogs: Record<Locale, AppMessages> = { en: appEn, da: appDa, sv: appSv, nb: appNb, de: appDe };
 
 export function makeAppT(locale: Locale): TFn {
   return (key, params) => {
@@ -49,7 +53,7 @@ export function I18nProvider({ children, initial }: { children: ReactNode; initi
   useEffect(() => {
     if (initial) return;
     void getItem(STORAGE_KEY).then((saved) => {
-      if (saved === "en" || saved === "da") setLocaleState(saved);
+      if (isLanguage(saved)) setLocaleState(saved);
     });
   }, [initial]);
   const setLocale = useCallback((l: Locale) => {

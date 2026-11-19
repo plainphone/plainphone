@@ -60,7 +60,13 @@ android {
     sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
 
     androidResources {
-        localeFilters += listOf("en", "da")
+        localeFilters += listOf("en", "da", "sv", "nb", "de")
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
     }
 
     dependenciesInfo {

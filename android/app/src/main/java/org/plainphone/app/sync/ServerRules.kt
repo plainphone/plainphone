@@ -2,6 +2,8 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import org.plainphone.app.PhoneLanguage
+
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -61,6 +63,7 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val language: String? = null,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -84,6 +87,7 @@ data class ServerRules(
             val host = dns.optString("host", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) }
             return ServerRules(
                 phoneId = j.getString("phoneId"),
+                language = PhoneLanguage.supportedTag(j.optString("language", "")),
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),

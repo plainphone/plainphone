@@ -6,7 +6,9 @@
 
 import type { components } from "./schema";
 
-export type Locale = "en" | "da";
+import type { Language, PhoneLanguage } from "../shared/lib/phone-language";
+
+export type Locale = Language;
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
@@ -27,9 +29,11 @@ export interface Phone {
   profile: Profile;
   mode: "strong" | "light";
   timezone: string;
+  language?: PhoneLanguage;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
+  setupQrAvailable?: boolean;
   lastSeenAt: string | null;
   dnsHost: string;
   dnsSynced: boolean;
@@ -187,7 +191,7 @@ export interface Limit {
   days: Partial<Record<string, number>>;
 }
 
-export type ApprovalSummary = Record<Locale, string>;
+export type ApprovalSummary = Record<"en" | "da", string>;
 
 export interface PendingChange {
   summary?: ApprovalSummary;

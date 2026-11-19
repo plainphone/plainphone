@@ -50,6 +50,7 @@ object EffectivePolicy {
                 locationRequired = rules.locationEnabled,
                 settings = rules.settings,
             ),
+            lockSystemLanguage = rules.profile != "self",
             timeBlocked = timeBlocked,
             installing = install,
         )
@@ -66,6 +67,7 @@ object EffectivePolicy {
             config.server?.settings?.canonical().orEmpty(),
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
+            config.lockSystemLanguage.toString(),
         ).joinToString("|")
         return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
     }

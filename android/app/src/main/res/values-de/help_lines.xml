@@ -1,0 +1,9 @@
+<resources>
+    <string name="help_lines_title">Brauchst du jemanden zum Reden?</string>
+    <string name="help_lines_intro">Diese Stellen helfen dir. Du kannst sie auch ohne Erlaubnis kontaktieren.</string>
+    <string name="help_lines_call">Anrufen</string>
+    <string name="help_lines_sms">SMS schreiben</string>
+    <string name="help_lines_web">Website öffnen</string>
+    <string name="help_lines_back">Zurück</string>
+    <string name="help_lines_empty">Für dieses Land sind noch keine Hilfsangebote hinterlegt.</string>
+</resources>

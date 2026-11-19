@@ -2177,6 +2177,11 @@ export interface components {
             status: "pending";
             change: components["schemas"]["PendingChange"];
         };
+        /**
+         * @description Plainphone UI language. Null follows the system.
+         * @enum {unknown}
+         */
+        PhoneLanguage: "da" | "en" | "sv" | "nb" | "de" | null;
         /** @description Everything the phone enforces. Compare the ETag, not the content. */
         Rules: {
             /** Format: uuid */
@@ -2185,6 +2190,7 @@ export interface components {
             profile: "child" | "self";
             /** @enum {unknown} */
             mode: "strong" | "light";
+            language: components["schemas"]["PhoneLanguage"];
             /**
              * @description IANA time zone that schedule times are in.
              * @example Europe/Copenhagen
@@ -2413,6 +2419,7 @@ export interface components {
             profile?: "child" | "self";
             /** @enum {unknown} */
             mode?: "strong" | "light";
+            language?: components["schemas"]["PhoneLanguage"];
             timezone?: string;
             locationEnabled?: boolean;
             locationMode?: components["schemas"]["LocationMode"];
@@ -3693,7 +3700,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description `native` mails a link to /auth/app, which the native parent app opens (universal/app link).
                      * @default web
@@ -3726,7 +3733,7 @@ export interface operations {
                 "application/json": {
                     token: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
                      * @default web
@@ -3852,7 +3859,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4205,7 +4212,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4340,6 +4347,7 @@ export interface operations {
                     profile: "child" | "self";
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4393,6 +4401,7 @@ export interface operations {
                     profile: "child" | "self";
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4505,6 +4514,7 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     locationEnabled?: boolean;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };

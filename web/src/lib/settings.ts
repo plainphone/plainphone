@@ -8,7 +8,7 @@ import type { MessageKey, T } from "../i18n/translate";
 import type { Home, PhoneSetting, SettingKey, SettingMode, SettingValue } from "./api";
 
 export type ValueMode = Exclude<SettingMode, "free">;
-export type SettingGroup = "connections" | "screen" | "privacy" | "language";
+export type SettingGroup = "connections" | "screen" | "privacy";
 
 /** The values a mode can take. A single option is sent without asking; a mode without a spec takes no value. */
 export interface ValueSpec {
@@ -63,10 +63,9 @@ export const SETTING_SPECS: readonly SettingSpec[] = [
   { key: "camera", group: "privacy", modes: ["locked"], values: { locked: fixed("off") } },
   { key: "screenCapture", group: "privacy", modes: ["locked"], values: { locked: fixed("off") } },
   // Language
-  { key: "language", group: "language", modes: ["locked"], values: {} },
 ];
 
-export const SETTING_GROUPS: readonly SettingGroup[] = ["connections", "screen", "privacy", "language"];
+export const SETTING_GROUPS: readonly SettingGroup[] = ["connections", "screen", "privacy"];
 
 export function specFor(key: SettingKey): SettingSpec {
   const spec = SETTING_SPECS.find((s) => s.key === key);

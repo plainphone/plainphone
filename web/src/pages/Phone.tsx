@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { messageLanguage } from "../lib/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
@@ -199,7 +200,7 @@ function ChangeBar({
   const [busy, setBusy] = useState(false);
   let text: string | null = null;
   if (banner) {
-    const what = banner.summary?.[locale] ?? describeOp(banner.op, t, locale, appLabel);
+    const what = banner.summary?.[messageLanguage(locale)] ?? describeOp(banner.op, t, locale, appLabel);
     let when: string;
     if (banner.keyType === "trusted" || !banner.effectiveAt) when = t("pending.trustedBanner");
     else {
@@ -283,7 +284,7 @@ function PendingList({ onCancelFocus }: { onCancelFocus: () => void }) {
       {pending.map((c) => (
         <li key={c.id} className="pending-item">
           <div>
-            <p className="row-title">{c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel)}</p>
+            <p className="row-title">{c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel)}</p>
             <p className="row-meta">{pendingWhen(c, now, t, locale)}</p>
           </div>
           <button

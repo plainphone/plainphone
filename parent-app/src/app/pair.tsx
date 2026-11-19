@@ -149,6 +149,7 @@ function PairForm() {
           ]}
         />
       </Stack>
+      <Button kind="secondary" title={t("phoneLanguage.strong")} onPress={() => router.push("/strong-setup")} />
       <Button testID="pair-submit" title={busy ? t("pair.adding") : t("pair.submit")} busy={busy} disabled={lookupPending} onPress={() => void submit()} />
     </Screen>
   );

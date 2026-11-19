@@ -48,6 +48,8 @@ data class PolicyConfig(
      * the app is installed or the install window ends (docs/app-catalog.md, R2).
      */
     val installing: String? = null,
+    /** Strong Child phones keep the system language chosen during provisioning. */
+    val lockSystemLanguage: Boolean = true,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
 
@@ -89,6 +91,7 @@ data class PolicyConfig(
         const val KEY_COUNTRY = "plainphone.country_code"
         const val KEY_CONTACTS = "plainphone.contacts"
         const val KEY_SERVER_URL = "plainphone.server_url"
+        const val KEY_SELF = "plainphone.self"
         const val KEY_ENROLL = "plainphone.enroll"
         private val ENROLL_TOKEN = Regex("^pp_e_[A-Za-z0-9_-]{10,95}$")
 
@@ -110,6 +113,7 @@ data class PolicyConfig(
                 seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
                 serverUrl = str(KEY_SERVER_URL)?.let(::normalizeServerUrl) ?: DEFAULT_SERVER_URL,
                 enrollToken = str(KEY_ENROLL)?.takeIf(ENROLL_TOKEN::matches),
+                lockSystemLanguage = str(KEY_SELF) != "true",
             )
         }
 
@@ -147,6 +151,7 @@ class ConfigStore(context: Context) {
             pinSaltHex = prefs.getString("pin_salt", null),
             relockMinutes = prefs.getInt("relock_minutes", PolicyConfig.DEFAULT_RELOCK_MINUTES),
             countryCallingCode = prefs.getString("country_code", null),
+            lockSystemLanguage = prefs.getBoolean("lock_system_language", true),
             serverUrl = prefs.getString("server_url", null) ?: PolicyConfig.DEFAULT_SERVER_URL,
         )
     }
@@ -162,6 +167,7 @@ class ConfigStore(context: Context) {
             .putInt("relock_minutes", config.relockMinutes)
             .putString("country_code", config.countryCallingCode)
             .putString("server_url", config.serverUrl)
+            .putBoolean("lock_system_language", config.lockSystemLanguage)
             .apply()
     }
 }

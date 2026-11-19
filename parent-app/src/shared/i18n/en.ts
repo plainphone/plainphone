@@ -923,6 +923,13 @@ export const en = {
 
   "notif.serverOff": "Push notifications are not set up on this server. Alerts still come by email.",
   "notif.neverDefault": "Never (standard)",
+  "phoneLanguage.label": "Plainphone language",
+  "phoneLanguage.system": "Use phone language",
+  "phoneLanguage.help": "This changes the language of Plainphone after the phone syncs.",
+  "phoneLanguage.setup": "In strong mode for a child, this also sets the Android language during setup.",
+  "phoneLanguage.strong": "Set up in strong mode",
+  "phoneLanguage.browser": "Continue in the browser",
+  "phoneLanguage.browserHelp": "Sign in to the dashboard in your browser to create the setup QR code.",
 } as const;
 
 export type MessageKey = keyof typeof en;

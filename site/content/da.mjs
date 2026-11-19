@@ -8,7 +8,7 @@ export default {
     "Gratis open source-software til en Android-telefon med opkald, sms, kamera og de apps, du vælger.",
   ogAlt: "Plainphone: din telefon, uden støjen.",
   skip: "Gå til indholdet",
-  nav: { label: "Hovedmenu", source: "Kildekode", switchLabel: "English", switchLang: "en" },
+  nav: { label: "Hovedmenu", source: "Kildekode", language: "Sprog" },
   status: "Tidlig udgave. Open source. Endnu ikke klar til daglig brug.",
   hero: {
     title: "Din telefon, uden støjen.",
@@ -144,7 +144,7 @@ export default {
     description:
       "Hvad Plainphone gemmer om dig og de telefoner, du styrer, hvor længe, hvem der ellers er involveret, og hvordan du beder os rette eller slette det.",
     h1: "Privatlivspolitik",
-    updated: "Sidst opdateret 17. november 2026",
+    updated: "Sidst opdateret 19. november 2026",
     lead:
       "Plainphone gemmer så lidt som muligt, så kort tid som muligt. Her står det, hvad det betyder i praksis. Siden er skrevet for at blive læst, ikke for at skjule noget.",
     status:
@@ -199,6 +199,7 @@ export default {
           "En forælder, eller en voksen til sin egen telefon, tilføjer en telefon ved at skrive den kode, telefonen viser. Børn får ikke en konto og bliver aldrig bedt om en e-mailadresse. Om hver telefon gemmer vi det, den voksne sætter op:",
           {
             list: [
+              "sproget i Plainphone på telefonen, hvis den voksne har valgt et",
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
               "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
               "hvis du slår beskyttelse mod nulstilling til, gemmer husstanden dit numeriske Google-konto-id og tidspunktet, hvor kontoen blev tilknyttet. Du kan slette id'et ved at fjerne tilknytningen i husstandens indstillinger eller slette din Plainphone-konto. Vi gemmer hverken din Google-mailadresse eller dine login-tokens til funktionen",
@@ -386,6 +387,7 @@ export default {
     strongHelp: "Anbefalet. Plainphone kan beskytte flere indstillinger på en ny eller nulstillet telefon.",
     light: "Den er allerede i brug",
     lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
+    strongLanguage: "Vælg telefonens sprog, før du viser QR-koden. Android bruger sproget under opsætningen. Du kan senere ændre sproget i Plainphone under telefonens indstillinger i kontrolpanelet.",
     startStrong: "Start opsætning af en ny eller nulstillet telefon",
     startLight: "Start opsætning af en telefon i brug",
     start: "Vælg i dashboardet, hvem telefonen er til, og lav et opsætningslink.",

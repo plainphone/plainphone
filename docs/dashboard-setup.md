@@ -10,6 +10,7 @@ for strong mode and on the phone for light mode.
 | Point in the flow | What the setup now says or does |
 | --- | --- |
 | Choosing a mode | Ask about the phone's current state. The strong-mode guide explains backup and reset before any data is erased. The light-mode guide goes straight to its own dashboard flow. |
+| Choosing the language | In strong mode, choose the language before generating the QR code. From the parent app, save the choice and continue to the browser to create the QR code. On a Child phone, Android uses the chosen language during setup and Plainphone locks it. **Use phone language** leaves Android’s setup language in place. |
 | Choosing a PIN | Explain what the PIN is for. In strong mode, enter it twice in the dashboard. The salted hash is in the provisioning QR code. In light mode, enter it twice on the phone, where Plainphone hashes it locally. |
 | Strong mode and the first Android screen | Ask parents to stop at the first welcome screen and tap the same spot six times. The guide shows the spot and explains Android's organisation-management prompt. |
 | Strong mode and Wi-Fi | Offer Wi-Fi in the code or use Android's network picker. Hidden networks, WPA3-only networks and networks with sign-in pages need a separate connection. The QR code includes any entered password, so keep it private. |

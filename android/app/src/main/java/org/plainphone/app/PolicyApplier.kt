@@ -70,7 +70,12 @@ class PolicyApplier(
         results += step("default phone app") { takeRole(ROLE_DIALER, ::takeDialer) }
         results += step("default SMS app") { takeRole(ROLE_SMS) { device.setDefaultSms(device.ownPackage) } }
         hardening?.let { results += it.resetProtection(config.frpAccountIds) }
-        for (key in LockPolicy.restrictions(sdkInt)) {
+        if (!config.lockSystemLanguage) {
+            results += step("clear ${UserManager.DISALLOW_CONFIG_LOCALE}") {
+                device.clearRestriction(UserManager.DISALLOW_CONFIG_LOCALE)
+            }
+        }
+        for (key in LockPolicy.restrictions(sdkInt, config.lockSystemLanguage)) {
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
             else step("restriction $key") {
                 if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
