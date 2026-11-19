@@ -1742,6 +1742,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "filter_method": {
+          "name": "filter_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vpn'"
         }
       },
       "indexes": {

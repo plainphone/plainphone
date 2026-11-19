@@ -1,6 +1,6 @@
 {
   "id": "fd5967a2-84bf-4a56-92e0-b03afb643e86",
-  "prevId": "817ce7af-7232-4806-90fc-39207bea8f08",
+  "prevId": "61a1d02e-4f25-4560-9f94-78bf65357715",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1735,6 +1735,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "filter_method": {
+          "name": "filter_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vpn'"
         }
       },
       "indexes": {
