@@ -6,17 +6,18 @@ The orchestrator can file these in order and replace draft numbers with issue li
 
 ### 1. Let a child ask a caregiver to call from SOS
 
-**Size** S, 2–4 days. **Dependencies** SOS action surface and existing Web Push. Coordinate with #109's “Call me” template to keep one action. Native push can follow independently.
+**Size** S, 3–5 days. **Dependencies** SOS action surface and existing Web Push, plus a new nullable per-phone callback number (additive migration). Coordinate with #109's “Call me” template to keep one action. Native push can follow independently.
 
 **Why** A child can use Wi-Fi to ask for help when placing a call themselves is inconvenient. The caregiver can respond through their normal dialer. Direct evidence for this exact button is unavailable. The practical coordination need is documented in the [parent–adolescent diary study](https://doi.org/10.1111/cdev.14203).
 
 **What and acceptance criteria**
 
+- Add a caregiver-entered, caregiver-confirmed callback number for the phone, in web and parent app. The phones and enrollment tables hold none today, and contacts hold allowlisted destinations, so the child phone never supplies a number. The toggle cannot be enabled while the number is empty. The request carries no number. Clearing the number turns the feature off on the phone via `/rules`.
 - Send a scoped, authenticated request to the enrolled caregiver with an idempotent identifier. Show queued, sent and expired distinctly. Expire within 24 hours, and suppress stale alerting while recording when an authenticated device says the action occurred.
-- Use existing Web Push and dashboard fallback. Show a callback button that opens the normal dialer using the enrolled number after explicit tap. Keep the existing SOS and 112 actions reachable.
+- Use existing Web Push and dashboard fallback. Show a callback button that opens the normal dialer with the number saved at tap time, after an explicit tap, and shows that number first. If it is missing or changed since the request, say so and link to settings instead of dialling a stale number. Always allow calling back from the caregiver's own contacts. Keep the existing SOS and 112 actions reachable.
 - Toggle “Ask for a callback” per phone in web and parent app, off by default. Explain “Let this phone ask a caregiver to call back.” Sync via `/rules` and show the state on the phone.
 
-**Tests** API auth and household isolation, duplicate taps, offline expiry, settings sync, delayed report after disable, denied push and physical carrier handoff in Light and Strong, with synthetic numbers.
+**Tests** API auth and household isolation, missing and changed callback number, duplicate taps, offline expiry, settings sync, delayed report after disable, denied push and physical carrier handoff in Light and Strong, with synthetic numbers.
 
 ## Phase 2 — Private coordination
 
@@ -106,7 +107,7 @@ The orchestrator can file these in order and replace draft numbers with issue li
 
 ## Parallel option — Calls without mobile coverage
 
-### 8. Pilot one-way Wi-Fi audio with a tap-to-answer invitation
+### 8. Pilot child-initiated Wi-Fi audio with a tap-to-answer invitation
 
 **Size** L, 8–13 days including the proof. **Dependencies** SOS, existing Web Push and approved web-5 capacity for an eventual pilot. Native push and #109 are optional. Adult synthetic pilot first.
 
@@ -114,23 +115,23 @@ The orchestrator can file these in order and replace draft numbers with issue li
 
 **What and acceptance criteria**
 
-- Use self-hosted LiveKit with one child caller and designated parent browser receiver. The parent chooses to answer in foreground from an expiring Web Push invitation. Use short-lived single-room credentials, atomic cancel/answer, explicit microphone permissions and clear status. Document SFU trust and gate family use on privacy review. Budget endpoint-only encryption separately if required.
+- Use self-hosted LiveKit with one child caller and designated parent browser receiver. Audio is two-way once answered: the caregiver can hear and speak to the child, and acceptance requires verifying both directions. The parent chooses to answer in foreground from an expiring Web Push invitation. Use short-lived single-room credentials, atomic cancel/answer, explicit microphone permissions and clear status. Document SFU trust and gate family use on privacy review. Budget endpoint-only encryption separately if required.
 - Add “Call a caregiver over Wi-Fi” off with a one-line explanation in both caregiver surfaces, `/rules` sync and visible policy. Preserve SOS, carrier reachability and 112.
 
 **Tests** Physical Android and browser, mixed networks, direct SFU connection and forced TURN, expired/revoked or raced acceptance, quiet hours, mobile interruptions, mic denial and accessibility. Measure outbound traffic, peak load and call outcomes on a synthetic setup.
 
 ### 9. Ring on parent phones for an incoming Wi-Fi call
 
-**Size** L, 7–12 days incremental with push ready. Add 2–4 days if common native push infrastructure is missing. **Dependencies** Draft 8 and supported native delivery, Android FCM or a separately tested UnifiedPush path, iOS APNs VoIP PushKit and CallKit. SOS through draft 8. #109 optional.
+**Size** L, 10–17 days incremental with push ready (7–12 for ringing plus 3–5 for the native Expo receiver). Add 2–4 days if common native push infrastructure is missing. **Dependencies** Draft 8 and supported native delivery, Android FCM or a separately tested UnifiedPush path, iOS APNs VoIP PushKit and CallKit. SOS through draft 8. #109 optional.
 
 **Why** A foreground invitation cannot be relied on for a locked phone. Native call affordances give an explicit accept or decline action. [Android Telecom](https://developer.android.com/develop/connectivity/telecom/voip-app/telecom) · [PushKit](https://developer.apple.com/documentation/pushkit/responding-to-voip-notifications-from-pushkit)
 
 **What and acceptance criteria**
 
-- Handle native cold start with a short-lived opaque invite. Deduplicate and surface cancellable ringing, and join media after explicit acceptance and authorization. Keep generic notifications and no idle call socket. Report delivery/ring and media connection separately.
+- Integrate the LiveKit React Native SDK in the parent app (development build, audio session, CallKit/Telecom answer path) so accepting carries media. Handle native cold start with a short-lived opaque invite. Deduplicate and surface cancellable ringing, and join media after explicit acceptance and authorization. Keep generic notifications and no idle call socket. Report delivery/ring and media connection separately.
 - Add “Ring caregiver phones for Wi-Fi calls” off per originating phone in web and parent app with one-line explanation and `/rules` sync. Each receiving device also opts in and can decline. Respect quiet hours and OS settings.
 
-**Tests** Physical devices across supported OS versions, locked/dozing/force-stopped, disabled notifications, delayed, duplicate and cancelled invites, Bluetooth, carrier interruptions, timeout, revocation and battery sampling.
+**Tests** Acceptance on a physical locked iPhone and a physical locked Android parent phone: ring, accept, and two-way audio with the child phone. Physical devices across supported OS versions, locked/dozing/force-stopped, disabled notifications, delayed, duplicate and cancelled invites, Bluetooth, carrier interruptions, timeout, revocation and battery sampling.
 
 ### 10. Add inbound family calls and optional video in separate steps
 
