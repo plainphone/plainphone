@@ -102,7 +102,7 @@ class MaintenanceScreenshotTest {
 
     private fun releaseDialog(activity: MaintenanceActivity): AlertDialog {
         val fields = column(activity)
-        val release = (0 until fields.childCount).map(fields::getChildAt).filterIsInstance<Button>().last()
+        val release = (0 until fields.childCount).map(fields::getChildAt).filterIsInstance<Button>().first { it.text.toString() == activity.getString(org.plainphone.app.R.string.maintenance_release_light) }
         release.performClick()
         shadowOf(Looper.getMainLooper()).idle()
         return ShadowAlertDialog.getLatestAlertDialog()
