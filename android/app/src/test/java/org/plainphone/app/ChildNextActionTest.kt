@@ -8,7 +8,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
@@ -61,7 +63,15 @@ class ChildNextActionTest {
             }
         }
         compose.onNodeWithText("Call a parent").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Emergency call").assertIsDisplayed().performClick()
+        val emergency = compose.onNodeWithText("Call 112").assertIsDisplayed()
+        emergency.performTouchInput { click() }
+        compose.onNodeWithText("Hold to call 112.").assertIsDisplayed()
+        compose.runOnIdle { assertThat(taps).containsExactly("parents") }
+        compose.mainClock.autoAdvance = false
+        emergency.performTouchInput { down(center) }
+        compose.mainClock.advanceTimeBy(3_100)
+        emergency.performTouchInput { up() }
+        compose.mainClock.autoAdvance = true
         compose.onNodeWithContentDescription("Call").performClick()
         compose.onNodeWithContentDescription("Delete last digit").assertIsDisplayed()
         compose.onNodeWithContentDescription("Call 2012").assertDoesNotExist()
