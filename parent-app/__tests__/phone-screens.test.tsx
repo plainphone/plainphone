@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; callRoleActionNeeded?: boolean; filterMethod?: "privateDns"; filterWorking?: boolean; filterIssue?: "wrongHost"; reportedAt?: string } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; healthBoardEnabled?: boolean; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; callRoleActionNeeded?: boolean; filterMethod?: "privateDns"; filterWorking?: boolean; filterIssue?: "wrongHost"; reportedAt?: string } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -330,6 +330,14 @@ describe("web filter", () => {
     const now = new Date().toISOString();
     phoneApi({ ...PHONE, mode: "light", lastSeenAt: now, status: { reportedAt: now, lockIntact: false, failedPolicies: [],
       filterMethod: "privateDns", filterWorking: false, filterIssue: "wrongHost" } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/different Private DNS host/)).toBeTruthy();
+  });
+
+  it("shows the Private DNS host repair when the health card is off", async () => {
+    const now = new Date().toISOString();
+    phoneApi({ ...PHONE, mode: "light", healthBoardEnabled: false, lastSeenAt: now, status: { reportedAt: now, lockIntact: false,
+      failedPolicies: [], filterMethod: "privateDns", filterWorking: false, filterIssue: "wrongHost" } });
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByText(/different Private DNS host/)).toBeTruthy();
   });

@@ -98,7 +98,7 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
   if (phone.mode === "light") {
     for (const key of LIGHT_CHECKS) {
       // Private DNS does not use the VPN, so Always-on VPN advice would only confuse.
-      if (key === "alwaysOnVpn" && status?.filterMethod === "privateDns") continue;
+      if (key === "alwaysOnVpn" && phone.status?.filterMethod === "privateDns") continue;
       const protections = status?.protections;
       const value = key === "usageAccess" ? protections?.usageAccessGranted : protections?.[key];
       const usageNotRequired = key === "usageAccess" && protections?.usageAccess === true;

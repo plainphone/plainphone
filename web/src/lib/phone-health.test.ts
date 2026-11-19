@@ -34,6 +34,12 @@ describe("phone health", () => {
     expect(rows.some((row) => row.key === "alwaysOnVpn")).toBe(false);
   });
 
+  it("keeps the Always-on VPN row hidden for a Private DNS phone whose report went stale", () => {
+    const status = { ...phone.status, reportedAt: at(60 * 24), filterMethod: "privateDns" as const };
+    const rows = healthRows({ ...phone, status }, now, "en", t);
+    expect(rows.some((row) => row.key === "alwaysOnVpn")).toBe(false);
+  });
+
   it.each([
     { protections: { usageAccess: true }, action: false, detail: "health.waitForReport" },
     { protections: { usageAccess: true, usageAccessGranted: false }, action: false, detail: "health.usageAccessOff" },
