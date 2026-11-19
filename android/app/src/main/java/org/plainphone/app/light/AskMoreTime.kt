@@ -18,6 +18,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -75,6 +79,9 @@ private fun AskButton(label: String, onClick: () -> Unit) {
 @Composable
 private fun Composing(onSend: (String) -> Unit) {
     var reason by rememberSaveable { mutableStateOf("") }
+    // Focus moves to the field when it appears, so TalkBack and the keyboard follow the tap.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Column {
         OutlinedTextField(
             value = reason,
@@ -84,7 +91,7 @@ private fun Composing(onSend: (String) -> Unit) {
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend(reason) }),
             textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).focusRequester(focus),
         )
         Spacer(Modifier.height(12.dp))
         AskButton(stringResource(R.string.more_time_send)) { onSend(reason) }

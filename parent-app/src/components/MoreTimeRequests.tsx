@@ -32,6 +32,8 @@ export function MoreTimeList({ phoneName, requests, busy, alreadyAnswered, onAns
   if (requests.length === 0) return null;
   const title = (r: MoreTimeRequest) =>
     r.appLabel === null ? t("moreTime.askTotal", { phone: phoneName }) : t("moreTime.askApp", { phone: phoneName, app: r.appLabel });
+  // A request that ended as expired (new day, other profile, limit removed) was not answered by anyone.
+  const lostText = (r: MoreTimeRequest) => t(r.status === "expired" ? "moreTime.expiredNow" : "moreTime.alreadyAnswered");
   const open = requests.filter((r) => r.status === "pending");
   const done = requests.filter((r) => r.status !== "pending");
   return (
@@ -70,13 +72,13 @@ export function MoreTimeList({ phoneName, requests, busy, alreadyAnswered, onAns
               key={r.id}
               testID={`more-time-done-${r.id}`}
               accessible
-              accessibilityLabel={[title(r), outcome, alreadyAnswered.has(r.id) ? t("moreTime.alreadyAnswered") : null].filter(Boolean).join(". ")}
+              accessibilityLabel={[title(r), outcome, alreadyAnswered.has(r.id) ? lostText(r) : null].filter(Boolean).join(". ")}
               style={{ backgroundColor: c.tint, borderRadius: radius, padding: space.md, gap: 2 }}
             >
               <Text variant="label">{title(r)}</Text>
               {r.reason ? <Text variant="small">{t("moreTime.reason", { reason: r.reason })}</Text> : null}
               {outcome ? <Text variant="label" style={{ marginTop: space.xs }}>{outcome}</Text> : null}
-              {alreadyAnswered.has(r.id) ? <Text variant="small">{t("moreTime.alreadyAnswered")}</Text> : null}
+              {alreadyAnswered.has(r.id) ? <Text variant="small">{lostText(r)}</Text> : null}
             </View>
           );
         })}

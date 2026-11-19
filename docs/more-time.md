@@ -47,7 +47,9 @@ touches them.
    nothing (`won: false`).
 5. The phone shows the state: sent, waiting, approved (with the new end time, or "the rest of
    the day"), declined, or no answer yet. A request nobody answers expires at the phone's local
-   midnight.
+   midnight. A request also ends as `expired` (no bonus, `won: false`) when a parent answers after
+   the phone stopped being a child's phone or the limit was removed; the dashboard and the parent
+   app then say it expired, not that someone else answered.
 
 An approval is an ordinary time bonus for that one app (or for the daily limit when that is
 what ran out), for that day only, like the bonus in Family Link. It reaches the phone through
@@ -110,8 +112,9 @@ Contract: [`server/openapi.yaml`](../server/openapi.yaml). Server code: `service
 ## Notes for self-hosters
 
 - The new migration is additive. Nothing to configure.
-- Push notification texts are in English and Danish (the parent's language), like the other
-  alerts. The buttons use the same two languages; the parent app and the dashboard show all five
-  languages once opened.
+- The "more time" notification text and its buttons are in English, Danish, Swedish, Norwegian
+  and German (the parent's language). The other alerts are still English and Danish only, and
+  fall back to English for the rest. The parent app and the dashboard show all five languages
+  once opened.
 - Without Web Push, FCM or APNs configured ([push setup](push-setup.md)) the request still shows
   in the dashboard and the parent app; there is just no notification.

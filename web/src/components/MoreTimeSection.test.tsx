@@ -97,6 +97,19 @@ it("sends the answer and shows the decided result at once", async () => {
   await m.unmount();
 });
 
+it("says an expired request expired, not that someone else answered it", async () => {
+  const list = [req()];
+  const post = vi.fn(async () => {
+    list[0] = req({ status: "expired" });
+    return { ...req({ status: "expired" }), won: false };
+  });
+  const m = await mount(list, post);
+  await click(m.container, t("moreTime.a15"));
+  expect(m.container.textContent).toContain(t("moreTime.expiredNow"));
+  expect(m.container.textContent).not.toContain(t("moreTime.alreadyAnswered"));
+  await m.unmount();
+});
+
 it("shows the other parent's answer when ours lost", async () => {
   const lostAnswer = { ...req({ status: "declined", answer: "no", answeredByYou: false }), won: false };
   const list = [req()];

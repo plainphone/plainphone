@@ -807,6 +807,7 @@ export const en = {
   "moreTime.byYou": "Answered by you",
   "moreTime.byOther": "Answered by another parent",
   "moreTime.alreadyAnswered": "This was already answered.",
+  "moreTime.expiredNow": "This request had expired, so nothing was given.",
   "moreTime.answerFailed": "The answer could not be sent. Try again.",
   "catalog.entry": "Add apps",
   "catalog.title": "Add apps",

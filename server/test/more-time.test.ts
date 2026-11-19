@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { moreTimeRequests, timeBonuses, users } from "../src/db/schema.js";
+import { moreTimeRequests, phones, timeBonuses, users } from "../src/db/schema.js";
 import { minutesFor, minutesLeftToday } from "../src/services/more-time.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -169,6 +169,18 @@ describe("ask for more time", () => {
     expect((await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "maybe" })).status).toBe(400);
   });
 
+  it("a phone that became a Self phone meanwhile expires the open request and gets no bonus", async () => {
+    const { mum, phoneId, device } = await setup();
+    const r = await device.post("/api/device/more-time-requests", { packageName: SPOTIFY });
+    await h.ctx.db.update(phones).set({ profile: "self" }).where(eq(phones.id, phoneId));
+    const late = await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "15" });
+    expect(late.json).toMatchObject({ status: "expired", won: false, answer: null, grantedMinutes: null });
+    expect(await bonuses(device)).toEqual([]);
+    expect((await h.ctx.db.select().from(timeBonuses)).filter((b) => b.phoneId === phoneId)).toEqual([]);
+    expect((await device.get("/api/device/more-time-requests")).json.requests[0].status).toBe("expired");
+    expect((await mum.get(`/api/phones/${phoneId}`)).json.openMoreTimeRequests).toBe(0);
+  });
+
   it("can be switched off per phone, and the switch reaches the phone in the rules", async () => {
     const { mum, phoneId, device } = await setup();
     const rules = (await device.get("/api/device/rules")).json;
@@ -204,6 +216,20 @@ describe("ask for more time", () => {
       body: "Den daglige grænse er brugt op. ”lektier på computer” Svar her eller åbn appen.",
     });
     expect(msg.actions!.map((a) => a.title)).toEqual(["15 min", "1 time", "Resten af dagen", "Nej"]);
+  });
+
+  it.each([
+    ["sv", "Alma ber om mer tid", "Tiden för Spotify är slut. ”en film till” Svara här eller öppna appen.", ["15 min", "1 timme", "Resten av dagen", "Nej"]],
+    ["nb", "Alma ber om mer tid", "Tiden for Spotify er brukt opp. «en film til» Svar her eller åpne appen.", ["15 min", "1 time", "Resten av dagen", "Nei"]],
+    ["de", "Alma bittet um mehr Zeit", "Die Zeit für Spotify ist aufgebraucht. „noch ein Film“ Antworten Sie hier oder öffnen Sie die App.", ["15 Min.", "1 Stunde", "Rest des Tages", "Nein"]],
+  ])("tells a %s-speaking parent in their language, with translated buttons", async (locale, title, body, buttons) => {
+    const { device } = await setup();
+    await h.ctx.db.update(users).set({ locale }).where(eq(users.email, "mum@example.org"));
+    await device.post("/api/device/more-time-requests", { packageName: SPOTIFY, reason: locale === "de" ? "noch ein Film" : locale === "sv" ? "en film till" : "en film til" });
+    const msg = h.parentPush.sent[0]!.msg;
+    expect(msg).toMatchObject({ title, body });
+    expect(msg.actions!.map((a) => a.title)).toEqual(buttons);
+    expect(msg.actions!.map((a) => a.id)).toEqual(["15", "60", "day", "no"]);
   });
 
   it("only the household's parents can answer", async () => {

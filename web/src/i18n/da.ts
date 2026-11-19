@@ -805,6 +805,7 @@ export const da: Messages = {
   "moreTime.byYou": "Besvaret af dig",
   "moreTime.byOther": "Besvaret af en anden forælder",
   "moreTime.alreadyAnswered": "Det er allerede besvaret.",
+  "moreTime.expiredNow": "Anmodningen var udløbet, så der blev ikke givet noget.",
   "moreTime.answerFailed": "Svaret kunne ikke sendes. Prøv igen.",
   "catalog.entry": "Tilføj apps",
   "catalog.title": "Tilføj apps",

@@ -43,6 +43,8 @@ internal class AskMoreTimeController(context: Context, private val pkg: String) 
     /** Saves the ask for whatever is used up, tries to send it at once, and returns the new state. */
     fun ask(reason: String): MoreTime.Ui? {
         val rules = store.rules() ?: return null
+        // Switched off (or no parent to ask) since the screen was drawn: save nothing.
+        if (!rules.askMoreTimeEnabled || rules.profile != "child") return null
         val snap = TimeGuard.snapshot(app) ?: return null
         val today = Instant.now().atZone(rules.timezone).toLocalDate()
         val target = MoreTime.target(snap.evaluation, pkg) { null } ?: return state(online = false)

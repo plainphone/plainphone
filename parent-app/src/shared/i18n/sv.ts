@@ -773,6 +773,7 @@ export const sv: Messages = {
   "moreTime.byYou": "Besvarad av dig",
   "moreTime.byOther": "Besvarad av en annan förälder",
   "moreTime.alreadyAnswered": "Det här var redan besvarat.",
+  "moreTime.expiredNow": "Förfrågan hade gått ut, så ingen tid gavs.",
   "moreTime.answerFailed": "Svaret kunde inte skickas. Försök igen.",
   "catalog.entry": "Lägg till appar",
   "catalog.title": "Lägg till appar",

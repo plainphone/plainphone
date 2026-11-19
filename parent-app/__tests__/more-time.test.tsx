@@ -99,6 +99,17 @@ describe("requests on the phone's screen", () => {
     expect(api.calls.find((c) => c.method === "POST")!.body).toEqual({ answer });
   });
 
+  it("says an expired request expired, not that someone else answered it", async () => {
+    phoneApi({
+      [`GET ${LIST}`]: { body: { requests: [request(1)] } },
+      [`POST ${LIST}/${ID(1)}/answer`]: { body: request(1, { status: "expired", won: false }) },
+    });
+    await renderRouter(routes, { initialUrl: at() });
+    await fireEvent.press(await screen.findByTestId(`more-time-${ID(1)}-15`));
+    expect(await screen.findByText("This request had expired, so nothing was given.")).toBeTruthy();
+    expect(screen.queryByText("This was already answered.")).toBeNull();
+  });
+
   it("says so, calmly, when someone else answered first", async () => {
     phoneApi({
       [`GET ${LIST}`]: { body: { requests: [request(1)] } },

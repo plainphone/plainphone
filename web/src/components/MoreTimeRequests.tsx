@@ -63,7 +63,7 @@ export function MoreTimeRequests({ phoneName, requests, busy, alreadyAnswered, o
                     {by && <>{". "}{t(by)}</>}
                   </p>
                 )}
-                {alreadyAnswered.has(r.id) && <p className="row-meta">{t("moreTime.alreadyAnswered")}</p>}
+                {alreadyAnswered.has(r.id) && <p className="row-meta">{t(r.status === "expired" ? "moreTime.expiredNow" : "moreTime.alreadyAnswered")}</p>}
               </div>
             </li>
           );

@@ -191,7 +191,10 @@ class SyncRunner(
         // Saved offline asks for more time go out; answers come in (the bonus itself is in the rules).
         if (rules != null) guarded("asks for more time") {
             val today = java.time.Instant.ofEpochMilli(device.nowMs()).atZone(rules.timezone).toLocalDate()
-            org.plainphone.app.time.MoreTimeOutbox.send(store.moreTime, api, token, today)
+            // Switched off on this phone: nothing new goes out, but answers to earlier asks still come in.
+            if (rules.askMoreTimeEnabled && rules.profile == "child") {
+                org.plainphone.app.time.MoreTimeOutbox.send(store.moreTime, api, token, today)
+            }
             org.plainphone.app.time.MoreTimeOutbox.refresh(store.moreTime, api, token, today)
         }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }

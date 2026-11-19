@@ -773,6 +773,7 @@ export const de: Messages = {
   "moreTime.byYou": "Von Ihnen beantwortet",
   "moreTime.byOther": "Von einem anderen Elternteil beantwortet",
   "moreTime.alreadyAnswered": "Das wurde bereits beantwortet.",
+  "moreTime.expiredNow": "Die Anfrage war abgelaufen, deshalb wurde nichts gewährt.",
   "moreTime.answerFailed": "Die Antwort konnte nicht gesendet werden. Versuchen Sie es erneut.",
   "catalog.entry": "Apps hinzufügen",
   "catalog.title": "Apps hinzufügen",

@@ -72,7 +72,8 @@ class BlockedActivity : ComponentActivity() {
             // Fresh at once, after every rules sync, and every 15 s while the screen can be seen.
             LaunchedEffect(asking, active, tick) {
                 while (asking != null && active) {
-                    ask = withContext(Dispatchers.IO) { runCatching { asking.state() }.getOrNull() } ?: ask
+                    // A failed read keeps what is shown; a null answer (switched off, nothing used up) clears it.
+                    withContext(Dispatchers.IO) { runCatching { asking.state() } }.onSuccess { ask = it }
                     delay(POLL_MS)
                 }
             }
@@ -91,7 +92,7 @@ class BlockedActivity : ComponentActivity() {
                     onAsk = { composing = true },
                     onSendAsk = { text ->
                         composing = false
-                        scope.launch { ask = withContext(Dispatchers.IO) { runCatching { asking?.ask(text) }.getOrNull() } ?: ask }
+                        scope.launch { withContext(Dispatchers.IO) { runCatching { asking?.ask(text) } }.onSuccess { ask = it } }
                     },
                 )
             }

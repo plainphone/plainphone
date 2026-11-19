@@ -773,6 +773,7 @@ export const nb: Messages = {
   "moreTime.byYou": "Besvart av deg",
   "moreTime.byOther": "Besvart av en annen forelder",
   "moreTime.alreadyAnswered": "Dette er allerede besvart.",
+  "moreTime.expiredNow": "Forespørselen hadde utløpt, så ingen tid ble gitt.",
   "moreTime.answerFailed": "Svaret kunne ikke sendes. Prøv igjen.",
   "catalog.entry": "Legg til apper",
   "catalog.title": "Legg til apper",
