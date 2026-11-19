@@ -6,10 +6,12 @@ import { parentPushEnabled } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 import { phoneAlertRecipients, pushMessage } from "./notifications.js";
+import { recordSummaryEvent } from "./summary-record.js";
 
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
 
 export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phones.$inferSelect, reportedLate: boolean) {
+  await recordSummaryEvent(tx, phone.id, "protection", ctx.now());
   const recipients = await phoneAlertRecipients(tx, phone.id, phone.householdId);
   if (recipients.length === 0) return;
   const notice = { householdId: phone.householdId, phoneId: phone.id, phoneName: phone.name, reportedLate, nextAttemptAt: ctx.now() };

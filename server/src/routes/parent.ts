@@ -63,6 +63,7 @@ import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
+import { summaryRoutes } from "./summary.js";
 import { locationRoutes, setLocationMode } from "./location.js";
 import { parentSosRoutes } from "./sos.js";
 
@@ -694,14 +695,16 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
         changeReceiptsEnabled: z.boolean().optional(),
         healthBoardEnabled: z.boolean().optional(),
+        weeklySummaryEnabled: z.boolean().optional(),
       }),
     );
-    const { changeReceiptsEnabled, healthBoardEnabled } = input;
+    const { changeReceiptsEnabled, healthBoardEnabled, weeklySummaryEnabled } = input;
     if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
-      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined ? nextRulesRevision() : {}),
+      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined || weeklySummaryEnabled !== undefined ? nextRulesRevision() : {}),
+      ...(weeklySummaryEnabled !== undefined ? { weeklySummaryEnabled } : {}),
       ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),
@@ -736,7 +739,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
     }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
-    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined) {
+    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined || weeklySummaryEnabled !== undefined) {
       await wakePhone(ctx, phone.id, "rules");
     }
     return c.json(await phoneSummary(ctx, updated!));
@@ -901,6 +904,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
+  summaryRoutes(app, ctx, { requireMember });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   parentSosRoutes(app, ctx, requirePhone);
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
