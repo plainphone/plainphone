@@ -39,23 +39,32 @@ case "$BACKUP_MODE" in
         ;;
 esac
 
-timestamp=$(date -u '+%Y%m%dT%H%M%SZ %u')
-read -r stamp weekday <<< "$timestamp"
+timestamp=$(date -u '+%Y%m%dT%H%M%SZ %G-W%V')
+read -r stamp week <<< "$timestamp"
 daily="$BACKUP_MODE/daily/$stamp.$extension.age"
 age -r "$BACKUP_AGE_RECIPIENT" -o "$work/encrypted.age" "$input"
 transfer "$work/encrypted.age" "$storage/$daily"
-if [[ $weekday == 7 ]]; then
-    transfer "$work/encrypted.age" "$storage/$BACKUP_MODE/weekly/$stamp.$extension.age"
-fi
-
+weekly_status="$BACKUP_STATUS_FILE.$BACKUP_MODE.week"
 status_tmp=$(mktemp -- "${BACKUP_STATUS_FILE}.XXXXXX")
 trap 'rm -rf -- "$work"; rm -f -- "$status_tmp"' EXIT
+if [[ ! -f $weekly_status || $(<"$weekly_status") != "$week" ]]; then
+    transfer "$work/encrypted.age" "$storage/$BACKUP_MODE/weekly/$stamp.$extension.age"
+    printf '%s\n' "$week" > "$status_tmp"
+    mv -fT -- "$status_tmp" "$weekly_status"
+    status_tmp=$(mktemp -- "${BACKUP_STATUS_FILE}.XXXXXX")
+fi
+
 printf '%s\n' "$daily" > "$status_tmp"
 mv -fT -- "$status_tmp" "$BACKUP_STATUS_FILE"
 if [[ -n ${BACKUP_HEARTBEAT_URL:-} ]]; then
-    # Suppress curl diagnostics because the URL can contain a secret token.
-    if ! code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
-        -- "$BACKUP_HEARTBEAT_URL") || [[ $code != 2[0-9][0-9] ]]; then
+    # Feed the URL through stdin and keep secret-bearing diagnostics out of the log.
+    [[ ! $BACKUP_HEARTBEAT_URL =~ [[:cntrl:]] ]] || fail 'Invalid heartbeat URL'
+    heartbeat_url=${BACKUP_HEARTBEAT_URL//\\/\\\\}
+    heartbeat_url=${heartbeat_url//\"/\\\"}
+    if ! code=$(printf 'url = "%s"\n' "$heartbeat_url" |
+        curl --disable --config - --proto '=http,https' --globoff --silent \
+            --output /dev/null --write-out '%{http_code}' --max-time 30 2>/dev/null) ||
+        [[ $code != 2[0-9][0-9] ]]; then
         fail 'Upload succeeded but heartbeat delivery failed'
     fi
 fi

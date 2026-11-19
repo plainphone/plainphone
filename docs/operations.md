@@ -27,7 +27,9 @@ stores the YAML in a gzip archive without client-side encryption.
 1. Choose an existing bucket and a dedicated prefix for this installation.
    Set S3 lifecycle expiration for `<prefix>/postgres/daily/` and
    `<prefix>/dns/daily/` to **14 days**, and for the corresponding `weekly/`
-   prefixes to **56 days**. Successful jobs on Sunday UTC write both copies.
+   prefixes to **56 days**. The first successful upload in each ISO week (UTC)
+   writes both copies. Keep the status directory persistent so later runs in
+   the same week only write the daily copy.
    For versioned buckets, also configure noncurrent version expiration and
    expired delete marker cleanup. Apply the rules alongside any existing rules
    and verify they are enabled. The S3 provider enforces expiration, so the
@@ -130,8 +132,8 @@ status file for monitoring, alert when it is missing or older than 26 hours.
 
 Run the drill from an independent recovery machine at setup and regularly
 thereafter. Use the same image build or the scripts with Bash, age, AWS CLI,
-curl and PostgreSQL 18 client tools. Give the recovery machine S3 read access
-to the prefix and access to the age identity. Keep the backup host's env file
+curl, Python 3, and PostgreSQL 18 client tools with libpq. Give the recovery
+machine S3 read access to the prefix and access to the age identity. Keep the backup host's env file
 out of the drill. Use a dedicated disposable PostgreSQL instance and create
 an empty database before restoring. The helper refuses targets with existing
 application schemas or objects and restores in a single transaction.
@@ -139,7 +141,10 @@ application schemas or objects and restores in a single transaction.
 1. Choose a recent completed object from the bucket or from a job's
    `last-success` file. Use its path relative to `BACKUP_S3_PREFIX`.
 2. Set the S3 variables from the table with **read** credentials. Set
-   `RESTORE_DATABASE_URL` to your scratch database URL and run:
+   `RESTORE_DATABASE_URL` to your scratch database URL and run the command below.
+   The helper passes connection details through a temporary owner-only libpq
+   service file. For interactive setup, use a URL without a password and
+   configure a PostgreSQL password file to keep credentials out of shell history.
 
    ```sh
    scripts/restore-backup.sh postgres/daily/YYYYMMDDTHHMMSSZ.dump.age /secure/plainphone-backup.agekey
@@ -158,6 +163,7 @@ application schemas or objects and restores in a single transaction.
 
 The CI drill (`scripts/test-offsite-backup.sh`) dumps and restores a synthetic
 row in a throwaway PostgreSQL 18 container, checks DNS YAML recovery and verifies
-that failed dumps leave the status and heartbeat untouched. The AWS CLI uses a
-local HTTP fixture for object transfers. The operational drill above verifies
-the actual bucket, credentials and stored backups.
+weekly catch-up and credential handling. It also checks that failed dumps leave
+the status and heartbeat untouched. The AWS CLI uses a local HTTP fixture for
+object transfers. The operational drill above verifies the actual bucket,
+credentials and stored backups.

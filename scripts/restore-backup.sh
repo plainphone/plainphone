@@ -19,7 +19,10 @@ case "$object" in
     postgres/*.dump.age)
         [[ $# == 2 ]] || fail 'PostgreSQL restore takes no output file'
         : "${RESTORE_DATABASE_URL:?Set the scratch PostgreSQL URL}"
-        populated=$(psql -X --no-password --dbname="$RESTORE_DATABASE_URL" -Atqc "
+        export PGSERVICEFILE="$work/pg_service.conf" PGSERVICE=plainphone-restore
+        python3 "$(dirname "${BASH_SOURCE[0]}")/restore-service.py" > "$PGSERVICEFILE"
+        unset RESTORE_DATABASE_URL
+        populated=$(psql -X --no-password -Atqc "
             SELECT EXISTS (
                 SELECT FROM pg_namespace
                 WHERE nspname NOT IN ('public', 'information_schema') AND nspname !~ '^pg_'
@@ -30,7 +33,7 @@ case "$object" in
         [[ $populated == f ]] || fail 'Use a fresh scratch database'
         transfer "$storage/$object" "$work/encrypted.age"
         age -d -i "$identity" -o "$work/plainphone.dump" "$work/encrypted.age"
-        pg_restore --no-password --dbname="$RESTORE_DATABASE_URL" --single-transaction \
+        pg_restore --no-password --dbname="service=$PGSERVICE" --single-transaction \
             --exit-on-error --no-owner --no-privileges "$work/plainphone.dump"
         ;;
     dns/*.yaml.age)

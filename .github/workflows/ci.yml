@@ -23,6 +23,7 @@ jobs:
       parent: ${{ steps.filter.outputs.parent }}
       dns: ${{ steps.filter.outputs.dns }}
       site: ${{ steps.filter.outputs.site }}
+      backup: ${{ steps.filter.outputs.backup }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -253,13 +254,25 @@ jobs:
         run: exit 1
 
   offsite-backup:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require a successful change check
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Change detection did not complete successfully."
+          exit 1
+      - name: No relevant changes
+        if: needs.changes.outputs.backup == 'false'
+        run: echo "No backup or deployment Compose changes."
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.backup == 'true'
         with:
           persist-credentials: false
       - name: Validate deployment Compose files
+        if: needs.changes.outputs.backup == 'true'
         env:
           POSTGRES_PASSWORD: compose-validation-only
           PUBLIC_URL: https://example.org
@@ -267,6 +280,7 @@ jobs:
           docker compose config --quiet
           docker compose -f deploy/dokploy-compose.yaml config --quiet
       - name: Run the off-site backup and restore drill
+        if: needs.changes.outputs.backup == 'true'
         run: scripts/test-offsite-backup.sh
 
   docker:

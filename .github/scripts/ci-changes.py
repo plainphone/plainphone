@@ -34,6 +34,11 @@ FILTERS = {
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
     "site": ("site/*",),
+    "backup": (
+        "compose.yaml", "deploy/dokploy-compose.yaml", "deploy/backup.Dockerfile*",
+        "scripts/backup*.sh", "scripts/restore-backup.sh", "scripts/restore-service.py",
+        "scripts/test-offsite-backup.sh", "scripts/backup-test/*",
+    ),
 }
 
 base, head = sys.argv[1:]

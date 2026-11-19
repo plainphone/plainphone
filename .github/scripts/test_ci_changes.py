@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 DETECTOR = Path(__file__).with_name("ci-changes.py")
-CHECKS = {"android", "e2e", "server", "parent", "dns", "site"}
+CHECKS = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
 
 
 class ChangeDetectionTests(unittest.TestCase):
@@ -31,6 +31,10 @@ class ChangeDetectionTests(unittest.TestCase):
             "dns/ppdns/profiles.py": {"dns"},
             "server/src/db/schema.ts": {"server", "e2e", "dns"},
             "server/src/lib/validation.ts": {"server", "e2e", "dns"},
+            "android/app/build.gradle.kts": {"android", "e2e"},
+            "deploy/backup.Dockerfile": {"backup"},
+            "scripts/backup-test/storage.py": {"backup"},
+            "compose.yaml": {"backup"},
             "README.md": set(),
             ".github/scripts/ci-changes.py": CHECKS,
         }

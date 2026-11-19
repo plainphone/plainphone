@@ -21,7 +21,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
             data = b"ok"
-        elif self.path == "/heartbeat":
+        elif self.path == "/heartbeat?token=test-token":
             heartbeats.append(1)
             data = b"ok"
         elif self.path == "/heartbeat-count":
