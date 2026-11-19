@@ -4,23 +4,10 @@ import { errorMessage, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import { api, type PhoneStatus } from "../lib/api";
-
-interface LatestVersion {
-  versionCode: number;
-  versionName: string;
-}
-
-async function latestVersion(): Promise<LatestVersion | undefined> {
-  const response = await fetch("/download/android/latest.json");
-  if (!response.ok) return undefined;
-  const release: Partial<LatestVersion> = await response.json();
-  if (typeof release.versionCode === "number" && typeof release.versionName === "string") {
-    return { versionCode: release.versionCode, versionName: release.versionName };
-  }
-}
+import { updateBatteryExemptionMessage } from "../lib/failedPolicies";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, type LatestVersion } from "../lib/phoneUpdate";
 
 const errorMessages: Readonly<Record<string, MessageKey>> = {
-  battery_exemption_missing: "phone.updateBatteryExemptionMissing",
   network: "phone.updateNetwork",
   signature_mismatch: "phone.updateSignatureMismatch",
   version_not_newer: "phone.updateVersionNotNewer",
@@ -28,13 +15,6 @@ const errorMessages: Readonly<Record<string, MessageKey>> = {
   install_failed: "phone.updateInstallFailed",
   unknown: "phone.updateFailed",
 };
-
-function usesProductionKey(version: string | null | undefined): boolean | undefined {
-  const match = version?.match(/^(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) return undefined;
-  const [, major, minor, patch] = match;
-  return Number(major) > 0 || Number(minor) > 1 || (Number(minor) === 1 && Number(patch) >= 10);
-}
 
 function updateMessage(status: PhoneStatus, latest: LatestVersion | undefined, t: T) {
   const update = status.update;
@@ -55,18 +35,17 @@ function updateMessage(status: PhoneStatus, latest: LatestVersion | undefined, t
 export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: PhoneStatus }) {
   const { t } = useI18n();
   const supported = status.appVersionCode !== undefined;
-  const { data: latest } = useLoad(() => supported ? latestVersion() : Promise.resolve(undefined), [supported]);
+  const { data: latest } = useLoad(() => supported ? fetchLatestPhoneVersion("/download/android/latest.json") : Promise.resolve(undefined), [supported]);
   const [busy, setBusy] = useState(false);
   const [request, setRequest] = useState<{ message: string; previousCheck?: string | null }>();
   const update = status.update;
-  const reportedOffer = update?.state === "prompted" || update?.state === "available"
-    || update?.errorCode === "signature_mismatch" ? update.latestVersion : undefined;
-  const signingKeyChange = usesProductionKey(status.appVersion) === false
-    && (usesProductionKey(latest?.versionName) === true || usesProductionKey(reportedOffer) === true);
+  const signingKeyChange = hasPhoneSigningKeyChange(status, latest);
   const signingKeyMessage = status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight";
   const checkedAt = update?.checkedAt;
   const requestPending = request && request.previousCheck === checkedAt;
-  const failureDetail = update?.state === "failed" || update?.state === "refused" ? update.detail : null;
+  const batteryMessage = updateBatteryExemptionMessage(status);
+  const batteryUpdateError = update?.errorCode === "battery_exemption_missing";
+  const failureDetail = !batteryUpdateError && (update?.state === "failed" || update?.state === "refused") ? update.detail : null;
 
   async function requestUpdate() {
     setBusy(true);
@@ -92,7 +71,8 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
         )}
       </div>
       <div role="status">
-        {signingKeyChange ? t(signingKeyMessage) : requestPending ? request.message : updateMessage(status, latest, t)}
+        {signingKeyChange ? t(signingKeyMessage) : requestPending ? request.message : !batteryUpdateError && updateMessage(status, latest, t)}
+        {batteryMessage && <p>{t(batteryMessage)}</p>}
       </div>
       {!requestPending && failureDetail && (
         <details className="phone-update-details" key={checkedAt}>

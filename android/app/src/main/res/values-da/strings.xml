@@ -249,6 +249,9 @@
     <string name="time_h_min">%1$d t %2$d min</string>
     <string name="maintenance_release_light">Slå Plainphone fra</string>
     <string name="maintenance_release_light_confirm">Det slår vagten, webfilteret og enhedsadministrator fra, så Plainphone kan afinstalleres. Forælderen får besked. Fortsæt?</string>
+    <string name="update_battery_required">Batteritilladelse kræves til opdateringer</string>
+    <string name="update_battery_reason">Tillad Plainphone at køre i baggrunden, så appen kan opdatere sig selv sikkert.</string>
+    <string name="update_battery_continue">Fortsæt</string>
     <string name="channel_updates">Appopdateringer</string>
     <string name="update_prompt_title">Plainphone kan opdateres</string>
     <string name="update_prompt_text">Version %1$s er klar. Tryk for at åbne download.</string>

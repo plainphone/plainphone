@@ -71,6 +71,10 @@ releasing the strong-mode Child phone, check that the language can be changed ag
 6. To add or remove approved contacts: tap "Version" 7 times, enter the PIN, choose "Approved contacts and blocked log". Once the phone is paired (step 7), the list comes from the dashboard and is read-only here.
 7. Pairing. **QR code from the dashboard:** the phone pairs by itself and shows the masked account and household when connected. The dashboard page with the QR code switches to "connected" within a few seconds. **QR code from the script:** the phone shows **Pair with a parent** with a code and a QR code. On your own phone, sign in at app.plainphone.org (or your own server), scan the code with the camera, or choose *Add phone*, *Type the code*. Either way the status screen then shows "Paired. Last sync: …". Change something in the dashboard (hide an app, add a contact) and check that it reaches the phone within a minute while its screen is on. If pairing did not happen, use the button on the status screen (first hour) or the maintenance screen.
 
+When Plainphone asks for battery permission, tap **Continue**, then allow it to run in the
+background so it can update itself safely. Decline once and reopen Plainphone to check that
+it asks again. For phones with extra restrictions, see [battery settings for updates](dashboard-setup.md#battery-settings-for-updates).
+
 Then work through [bypass-checklist.md](bypass-checklist.md).
 
 ## 5. Getting out again

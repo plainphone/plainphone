@@ -4,104 +4,98 @@ export default {
   lang: "de",
   path: "/de/",
   title: "Plainphone: ein ruhiges Telefon aus einem gewöhnlichen Android",
-  description:
-    "Kostenlose Open-Source-Software für ein Android-Telefon mit Anrufen, Nachrichten, einer Kamera und den Apps Ihrer Wahl.",
+  description: "Mit Plainphone wird ein Android-Handy zum Telefon für Anrufe, SMS und die Apps, die Sie auswählen.",
   ogAlt: "Plainphone: Ihr Telefon, ohne Lärm.",
   skip: "Zum Inhalt springen",
   nav: { label: "Hauptnavigation", source: "Quellcode", language: "Sprache" },
-  status: "In Entwicklung. Open Source. Noch nicht für den Alltag bereit.",
+  status: "Frühe Version zum Ausprobieren.",
   hero: {
     title: "Ihr Telefon ohne Ablenkung.",
-    lead:
-      "Mit Plainphone wird Ihr Android-Telefon ruhiger. Sie entscheiden, welche Apps verfügbar bleiben. Plainphone ist kostenlos und quelloffen.",
+    lead: "Mit Plainphone wird ein Android-Handy zum Telefon für Anrufe, SMS und die Apps, die Sie auswählen.",
     staysLabel: "Was bleibt",
-    stays: ["Anrufe", "Nachrichten", "Kamera", "Karten, Musik und die von Ihnen ausgewählten Apps"],
+    stays: ["Anrufe", "Nachrichten", "Kamera"],
     goesLabel: "Was Sie weglassen können",
     goes: ["Social-Media-Apps und Spiele, die Sie weglassen", "Ausgewählte Websites mit dem Webfilter", "App-Stores, die Sie nicht erlauben"],
   },
   who: {
-    title: "Für wen es ist",
-    lead: "Familien und Erwachsene, die selbst entscheiden möchten, was auf ihrem Telefon verfügbar ist. Die Regeln sind die gleichen; Was sich ändert, ist, wer den Schlüssel in der Hand hält. Dafür wurde Plainphone entwickelt.",
+    title: "Für wen ist Plainphone gedacht?",
     paths: [
       {
         id: "child",
         title: "Für mein Kind",
-        body:
-          "Ein erstes Telefon, das anrufen, SMS schreiben, den Weg nach Hause finden und Musik abspielen kann. Sie haben den Schlüssel in der Hand: Sie wählen die Apps und Kontakte aus und öffnen die Dinge, wenn Ihr Kind wächst.",
+        body: "Wählen Sie gemeinsam Apps und erlaubte Kontakte aus. Geben Sie Ihrem Kind mehr Freiraum, wenn es älter wird.",
       },
       {
         id: "self",
-        title: "Für mich",
-        body:
-          "Halten Sie Karten, Bankgeschäfte und Ihre Kamera bereit. Legen Sie eine Verzögerung fest, bevor Änderungen, die Ihre Regeln lockern, in Kraft treten. Oder lassen Sie es von einer Person Ihres Vertrauens genehmigen.",
+        title: "Für mich selbst",
+        body: "Lassen Sie Lockerungen erst nach einer Wartezeit gelten oder bitten Sie eine Vertrauensperson um Zustimmung, etwa per QR-Code. Während Sie warten, können Sie die Änderung zurücknehmen.",
       },
     ],
   },
   how: {
-    title: "Wie es funktioniert",
+    title: "So funktioniert es",
+    lead: "Sie brauchen Android 10 oder neuer. Wählen Sie eine passende Einrichtung für Ihr Handy.",
     steps: [
       {
-        title: "Wählen Sie, wie Sie es einrichten möchten",
-        body: "Ein Android-Telefon mit Android 10 oder neuer (siehe getestete Telefone unten). Sie können ein bereits verwendetes Telefon einrichten, ohne es zu löschen.",
+        title: "Starker Modus",
+        body: "Beginnen Sie mit einem neuen oder zurückgesetzten Handy, damit sich die Regeln schwerer umgehen lassen.",
       },
       {
-        title: "Installieren und anschließen",
-        body: "Öffnen Sie auf einem bereits verwendeten Telefon den Setup-Link, installieren Sie Plainphone und befolgen Sie die Anweisungen. Tippen Sie auf einem neuen oder zurückgesetzten Telefon sechsmal auf den Begrüßungsbildschirm und scannen Sie den Einrichtungscode.",
-      },
-      {
-        title: "Wählen Sie die Regeln",
-        body: "Wählen Sie aus, welche Apps angezeigt werden, wer anrufen kann und wann die Schul- oder Schlafenszeit beginnt. Das Telefon übernimmt die Änderungen bei der nächsten Synchronisierung mit dem Server.",
+        title: "Leichter Modus",
+        body: "Behalten Sie Ihre Einrichtung und beschränken Sie den Zugriff auf Apps mit einem leichteren Schutz.",
       },
     ],
-    guide: "Möchten Sie es ausprobieren? <a href=\"/de/setup/\">Folgen Sie der Schritt-für-Schritt-Anleitung</a>.",
-    note:
-      "Heute funktionieren die Schritte 1 und 2 auf Testtelefonen. Der Ort, an dem Sie die Regeln wählen, wird gebaut.",
+    guide: "Einrichtungsanleitung öffnen",
+    available: "Sie können bereits erlaubte Kontakte auswählen, Websites nach Kategorien filtern und den Verlauf für SMS, Anrufe und Kontakte aktivieren. Die Filteradresse des Handys lässt sich auch auf einem Router oder mit einem VPN nutzen. Das Handy kann sich selbst aktualisieren und der Server kann Sicherungskopien erstellen.",
+    note: "Demnächst: SOS und die Möglichkeit für Eltern, die Sprache des Handys auszuwählen.",
   },
-  compare: {
-    title: "Im Vergleich zu den üblichen Optionen",
-    lead:
-      "Jede Option ist für jemanden eine faire Wahl. Hier ist Plainphone einer von ihnen. Die Spalte „Plainphone“ enthält Funktionen, die sich noch in der Entwicklung befinden.",
-    caption: "Einfaches Telefon im Vergleich zu einem einfachen Telefon, einer Kinder-Smartwatch und integrierter Kindersicherung",
-    cols: ["Einfaches Telefon", "Kinder-Smartwatch", "Integrierte Kindersicherung", "Klartelefon"],
-    rows: [
-      ["Karten-, Musik-, Banking- und Schul-Apps", "NEIN", "NEIN", "Ja", "Ja, die, die Sie auswählen (geplant)"],
-      ["Webfilter für ausgewählte Domains", "Kein Internet", "Kein Internet", "Teilweise", "Blockiert übereinstimmende Webadressen nach der Konfiguration"],
-      ["Nur autorisierte Personen können anrufen", "Einige Modelle", "Ja", "Teilweise", "Ja, Anrufe und SMS (geplant)"],
-      ["Funktioniert auf einem Telefon, das Sie bereits besitzen", "NEIN", "NEIN", "Ja", "Ja, Android 10+"],
-      ["Auch für Erwachsene", "Ja", "NEIN", "Hauptsächlich für Kinder", "Ja (geplant)"],
-      ["Preis", "Ein neues Telefon", "Ein neues Gerät, oft ein Abonnement", "Frei", "Frei"],
+  open: {
+    title: "Offener Quellcode",
+    body: "Der Quellcode von Plainphone ist unter der Apache-2.0-Lizenz öffentlich zugänglich.",
+    github: "Quellcode auf GitHub ansehen",
+    issues: "Einen Fehler öffentlich melden oder eine Änderung vorschlagen",
+    privateReport: "Ein Sicherheits- oder Datenschutzproblem vertraulich melden",
+    contribute: "Anleitung zum Mitmachen lesen",
+  },
+  hosting: {
+    title: "Plainphone auf dem eigenen Server betreiben",
+    body: "Sie brauchen Docker mit PostgreSQL, eine HTTPS-Adresse und SMTP für Anmelde-E-Mails. Das Android-Handy verbindet sich bei der Einrichtung mit Ihrem Server. Öffnen Sie die Elternoberfläche unter Ihrer eigenen Adresse oder bauen Sie die Eltern-App mit dieser Adresse. Der Webfilter braucht einen eigenen DNS-Dienst.",
+    guide: "Anleitung für den eigenen Server lesen",
+  },
+  price: {
+    title: "Preis",
+    body: "Plainphone ist derzeit kostenlos. Der Betrieb auf dem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst bleiben immer kostenlos. Für weitere Handys bei unserem Dienst werden wir später eine Gebühr erheben. Wer früh dabei ist, wird rechtzeitig informiert.",
+    items: [
+      {
+        q: "Was kostet Plainphone?",
+        a: "Derzeit ist es kostenlos. Später kosten nur zusätzliche Handys bei unserem Dienst Geld.",
+      },
+      {
+        q: "Was bleibt immer kostenlos?",
+        a: "Der Betrieb auf Ihrem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst.",
+      },
+      {
+        q: "Was gilt beim Betrieb auf meinem eigenen Server?",
+        a: "Plainphone erhebt dafür keine Gebühr. Sie tragen die Kosten für Ihren Server und die Dienste, die Sie nutzen.",
+      },
     ],
+  },
+  privacySummary: {
+    title: "Datenschutz",
+    body: "Diese Website verwendet weder Cookies noch Besuchsanalysen. Plainphone zeigt keine Werbung und verkauft Ihre Daten nie.",
+    link: "Datenschutzerklärung lesen",
   },
   phones: {
     title: "Getestete Telefone",
     body:
       "Eines bisher: ein OnePlus 5T auf Android 10. Einrichtung, Sperre und Verbindung zum Dashboard funktionieren, wie der <a href=\"/de/setup/#tested\">Setup-Guide</a> zeigt. Es hat unsere <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">Bypass-Checkliste</a> auf echter Hardware noch nicht durchlaufen und ein Telefon gilt erst dann als vollständig getestet, wenn es alle Tests auf dieser Liste bestanden hat. Bis dahin betrachten Sie Plainphone bitte als Experiment.",
   },
-  open: {
-    title: "Kostenlos und Open Source",
-    body: [
-      "Plainphone ist kostenlos und wird kostenlos bleiben. Der Code ist unter der Apache-2.0-Lizenz öffentlich, sodass jeder ihn lesen, überprüfen und darauf aufbauen kann.",
-      "Es wird so aufgebaut, dass Sie den gesamten Dienst auf Ihrem eigenen Server ausführen können. Geplant ist auch ein gemeinsamer Server, gehostet in der EU.",
-    ],
-    follow:
-      "Es gibt keine Mailingliste. Um mitzumachen, markieren oder schauen Sie sich das Projekt auf GitHub an.",
-    github: "Folgen Sie auf GitHub",
-    donate: "Spenden werden später geöffnet. Es gibt noch keinen Zahlungslink.",
-  },
   faq: {
     title: "Fragen",
     items: [
       {
         q: "Funktioniert es auf dem iPhone?",
-        a: "Noch nicht. Apple lässt nicht zu, dass eine App ein iPhone sperrt, wie es bei Android der Fall ist. Eine leichtere Version, die auf Apples Screen Time basiert, ist für später geplant; Android bleibt die starke Option.",
-      },
-      {
-        q: "Was weiß Plainphone über mich oder mein Kind?",
-        a: "Ein gekoppeltes Telefon meldet den Gerätestatus an den Server, sodass Sie beispielsweise den Akkustand sehen können. Wenn die Standortbestimmung aktiviert ist, sendet das Telefon seine Position regelmäßig und wenn Sie „Suchen“ verwenden. Der Server behält nur die neueste Position. Der Standort ist für Kinderprofile aktiviert und für Selbstprofile deaktiviert. Wir speichern die E-Mail-Adresse Ihres Kontos und die von Ihnen festgelegten Regeln. Wir zeigen keine Werbung und verkaufen keine Daten. Die Einzelheiten finden Sie in der <a href=\"/de/privacy/\">Datenschutzerklärung</a>.",
-      },
-      {
-        q: "Was kostet es?",
-        a: "Nichts. Sie verwenden ein bereits vorhandenes Telefon und die Software ist kostenlos. Spenden helfen später dabei, die Server zu finanzieren.",
+        a: "Plainphone schützt Android-Handys. Eltern können sie von einem iPhone aus verwalten.",
       },
       {
         q: "Kann es umgangen werden?",
@@ -146,7 +140,7 @@ export default {
     description:
       "Was Plainphone über Sie und die von Ihnen verwalteten Telefone speichert, wie lange, wer sonst noch beteiligt ist und wie Sie uns bitten können, die Daten zu korrigieren oder zu löschen.",
     h1: "Datenschutzerklärung",
-    updated: "Zuletzt aktualisiert am 19. November 2026",
+    updated: "Zuletzt aktualisiert am 17. November 2026",
     lead:
       "Plainphone behält so wenig wie möglich und so kurz wie möglich. Auf dieser Seite erfahren Sie, was das in der Praxis bedeutet. Es ist geschrieben, um gelesen zu werden, und nicht, um Dinge zu verbergen.",
     status:
@@ -316,7 +310,7 @@ export default {
                 ],
                 [
                   "Änderungen, die auf den Schlüssel auf dem eigenen Telefon eines Erwachsenen warteten",
-                  "Während sie warten und 30 Tage nach Antragstellung, Stornierung oder Ablehnung",
+                  "Solange die Änderungen ausstehen und 30 Tage nachdem sie umgesetzt, abgebrochen oder abgelehnt wurden",
                 ],
                 [
                   "Anfragen von einem Telefon (einer App oder einem Kontakt)",
@@ -387,9 +381,9 @@ export default {
     question: "Ist das Telefon neu oder bereits in Gebrauch?",
     strong: "Es ist neu oder zurückgesetzt",
     strongHelp: "Empfohlen. Plainphone kann mehr Einstellungen auf einem neuen Telefon schützen.",
+    strongLanguage: "Wählen Sie vor dem Anzeigen des QR-Codes die Sprache des Telefons. Android verwendet sie bei der Einrichtung. Die Sprache in Plainphone können Sie später im Dashboard in den Telefoneinstellungen ändern.",
     light: "Es ist bereits im Einsatz",
     lightHelp: "Behalten Sie die Daten des Telefons und aktivieren Sie den Schutz in den Android-Einstellungen.",
-    strongLanguage: "Wählen Sie vor dem Anzeigen des QR-Codes die Sprache des Telefons. Android verwendet sie bei der Einrichtung. Die Sprache in Plainphone können Sie später im Dashboard in den Telefoneinstellungen ändern.",
     startStrong: "Starten Sie die Einrichtung für ein neues oder zurückgesetztes Telefon",
     startLight: "Starten Sie die Einrichtung für ein verwendetes Telefon",
     start: "Geben Sie im Dashboard an, für wen das Telefon bestimmt ist, und erstellen Sie einen Einrichtungslink.",
@@ -439,6 +433,10 @@ export default {
           "Unter Android 14 und neuer geschieht dies von selbst.",
         ],
         fig: "dialog",
+      },
+      {
+        title: "Plainphone im Hintergrund ausführen lassen",
+        body: ["Tippen Sie auf <strong>Continue</strong> und erteilen Sie dann die Berechtigung in Android, damit Plainphone sich sicher selbst aktualisieren kann. Wenn Sie diesen Schritt überspringen, öffnen Sie Plainphone erneut, um die Abfrage wieder anzuzeigen."],
       },
     ],
     figs: {

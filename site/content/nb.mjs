@@ -4,104 +4,98 @@ export default {
   lang: "nb",
   path: "/nb/",
   title: "Plainphone: en rolig telefon laget av en vanlig Android",
-  description:
-    "Gratis, åpen kildekode-programvare for en Android-telefon med anrop, meldinger, et kamera og appene du velger.",
+  description: "Plainphone gjør en Android-telefon til en telefon med samtaler, SMS og appene du velger.",
   ogAlt: "Plainphone: telefonen din, minus støyen.",
   skip: "Gå til innhold",
   nav: { label: "Hovedmeny", source: "Kildekode", language: "Språk" },
-  status: "Under utvikling. Åpen kildekode. Ikke klar for daglig bruk ennå.",
+  status: "Tidlig versjon til utprøving.",
   hero: {
     title: "Telefonen din uten all støyen.",
-    lead:
-      "Gjør Android-telefonen roligere med Plainphone. Du velger hvilke apper du vil beholde. Plainphone er gratis og har åpen kildekode.",
+    lead: "Plainphone gjør en Android-telefon til en telefon med samtaler, SMS og appene du velger.",
     staysLabel: "Det du beholder",
-    stays: ["Samtaler", "Meldinger", "Kamera", "Kart, musikk og appene du velger"],
+    stays: ["Samtaler", "Meldinger", "Kamera"],
     goesLabel: "Det du kan velge bort",
     goes: ["Sosiale medier-apper og spill du utelater fra listen", "Utvalgte nettsteder, med nettfilter", "Appbutikker, med mindre du tillater dem"],
   },
   who: {
-    title: "Hvem er det for",
-    lead: "Familier og voksne som ønsker å velge hva som er tilgjengelig på telefonen deres. Reglene er de samme; det som endres er hvem som har nøkkelen. Dette er hva Plainphone bygges for å gjøre.",
+    title: "Hvem passer det for?",
     paths: [
       {
         id: "child",
         title: "For barnet mitt",
-        body:
-          "En første telefon som kan ringe, sende tekstmeldinger, finne veien hjem og spille musikk. Du holder nøkkelen: du velger appene og kontaktene, og åpner ting etter hvert som barnet ditt vokser.",
+        body: "Velg apper og godkjente kontakter sammen. Gi barnet mer frihet etter hvert som det blir eldre.",
       },
       {
         id: "self",
         title: "For meg selv",
-        body:
-          "Hold kart, banktjenester og kamera tilgjengelig. Angi en forsinkelse før endringer som løser reglene dine trer i kraft. Eller la en person du stoler på godkjenne det.",
+        body: "Vent en stund før du lemper på reglene, eller be noen du stoler på om å godkjenne endringen, for eksempel med en QR-kode. Du kan angre mens du venter.",
       },
     ],
   },
   how: {
-    title: "Hvordan det fungerer",
+    title: "Slik fungerer det",
+    lead: "Du trenger Android 10 eller nyere. Velg hvordan du vil sette opp telefonen.",
     steps: [
       {
-        title: "Velg hvordan du vil konfigurere",
-        body: "En Android-telefon med Android 10 eller nyere (se testede telefoner nedenfor). Du kan sette opp en telefon som allerede er i bruk uten å slette den.",
+        title: "Sterk modus",
+        body: "Start med en ny eller tilbakestilt telefon for å gjøre reglene vanskeligere å omgå.",
       },
       {
-        title: "Installer og koble til",
-        body: "På en telefon som allerede er i bruk, åpne oppsettkoblingen, installer Plainphone og følg instruksjonene. På en ny eller tilbakestilt telefon, trykk på velkomstskjermen seks ganger og skann oppsettkoden.",
-      },
-      {
-        title: "Velg reglene",
-        body: "Velg hvilke apper som skal vises, hvem som kan ringe og når skoletiden eller leggetiden begynner. Telefonen bruker endringer neste gang den synkroniseres med serveren.",
+        title: "Lett modus",
+        body: "Behold oppsettet ditt og begrens tilgangen til apper med enklere beskyttelse.",
       },
     ],
-    guide: "Vil du prøve det? <a href=\"/nb/setup/\">Følg trinn-for-trinn-veiledningen</a>.",
-    note:
-      "I dag fungerer trinn 1 og 2 på testtelefoner. Stedet der du velger reglene bygges.",
+    guide: "Åpne oppsettveiledningen",
+    available: "Du kan allerede velge godkjente kontakter, filtrere nettsteder etter kategori og slå på historikk for SMS, samtaler og kontakter. Telefonens filteradresse kan også brukes på en ruter eller med en VPN. Telefonen kan oppdatere seg selv, og serveren kan ta sikkerhetskopier.",
+    note: "Kommer snart: SOS og mulighet for foreldre til å velge språk på telefonen.",
   },
-  compare: {
-    title: "Sammenlignet med de vanlige alternativene",
-    lead:
-      "Hvert alternativ er et rettferdig valg for noen. Det er her Plainphone sitter blant dem. Plainphone-kolonnen inneholder funksjoner som fortsatt er under utvikling.",
-    caption: "Plainphone sammenlignet med en grunnleggende telefon, en smartklokke for barn og innebygd foreldrekontroll",
-    cols: ["Grunnleggende telefon", "Smartklokke for barn", "Innebygd foreldrekontroll", "Plainphone"],
-    rows: [
-      ["Kart, musikk, bank- og skoleapper", "Ingen", "Ingen", "Ja", "Ja, de du velger (planlagt)"],
-      ["Nettfilter for utvalgte domener", "Ikke internett", "Ikke internett", "Delvis", "Blokkerer samsvarende nettadresser når de er konfigurert"],
-      ["Kun godkjente personer kan ringe", "Noen modeller", "Ja", "Delvis", "Ja, samtaler og tekstmeldinger (planlagt)"],
-      ["Fungerer på en telefon du allerede eier", "Ingen", "Ingen", "Ja", "Ja, Android 10+"],
-      ["Også for voksne", "Ja", "Ingen", "Mest for barn", "Ja (planlagt)"],
-      ["Pris", "En ny telefon", "En ny enhet, ofte et abonnement", "Gratis", "Gratis"],
+  open: {
+    title: "Åpen kildekode",
+    body: "Plainphones kildekode er offentlig under Apache-2.0-lisensen.",
+    github: "Se kildekoden på GitHub",
+    issues: "Meld fra om en feil offentlig eller foreslå en endring",
+    privateReport: "Meld fra privat om en sikkerhets- eller personvernfeil",
+    contribute: "Les hvordan du kan bidra",
+  },
+  hosting: {
+    title: "Kjør Plainphone på din egen server",
+    body: "Du trenger Docker med PostgreSQL, en HTTPS-adresse og SMTP for e-post til innlogging. Android-telefonen kobles til serveren din under oppsettet. Åpne foreldrepanelet på din egen adresse, eller bygg foreldreappen med den adressen. Nettfilter krever en egen DNS-tjeneste.",
+    guide: "Les veiledningen til egen server",
+  },
+  price: {
+    title: "Pris",
+    body: "Plainphone er gratis nå. Det vil alltid være gratis å kjøre Plainphone på egen server og å ha én telefon med full beskyttelse på tjenesten vår. Senere tar vi betalt for flere telefoner på tjenesten vår. Tidlige brukere får beskjed i god tid.",
+    items: [
+      {
+        q: "Hva koster det?",
+        a: "Det er gratis nå. Senere koster det bare å legge til flere telefoner på tjenesten vår.",
+      },
+      {
+        q: "Hva er alltid gratis?",
+        a: "Å kjøre Plainphone på egen server og å ha én telefon med full beskyttelse på tjenesten vår.",
+      },
+      {
+        q: "Hva om jeg kjører Plainphone på min egen server?",
+        a: "Du betaler ingenting til Plainphone. Du dekker selv serveren og tjenestene du bruker.",
+      },
     ],
+  },
+  privacySummary: {
+    title: "Personvern",
+    body: "Nettstedet bruker ingen informasjonskapsler eller besøksanalyse. Plainphone viser ingen reklame og selger aldri opplysningene dine.",
+    link: "Les personvernerklæringen",
   },
   phones: {
     title: "Testede telefoner",
     body:
       "En så langt: en OnePlus 5T på Android 10. Oppsett, låsen og tilkoblingen til dashbordet fungerer, som <a href=\"/nb/setup/#tested\">oppsettguiden</a> viser. Den har ikke vært gjennom <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass-sjekklisten</a> på ekte maskinvare ennå, og en telefon teller som fullstendig testet først etter at den har bestått hver test på den listen. Inntil da, vennligst behandle Plainphone som et eksperiment.",
   },
-  open: {
-    title: "Gratis og åpen kildekode",
-    body: [
-      "Plainphone er gratis og forblir gratis. Koden er offentlig under Apache-2.0-lisensen, så alle kan lese den, sjekke den og bygge videre på den.",
-      "Den bygges slik at du kan kjøre hele tjenesten på din egen server. En delt server, vert i EU, er også planlagt.",
-    ],
-    follow:
-      "Det er ingen e-postliste. For å følge med, stjerne eller se prosjektet på GitHub.",
-    github: "Følg på GitHub",
-    donate: "Donasjoner åpnes senere. Det er ingen betalingslenke ennå.",
-  },
   faq: {
     title: "Spørsmål",
     items: [
       {
         q: "Fungerer det på iPhone?",
-        a: "Ikke ennå. Apple lar ikke en app låse en iPhone slik Android gjør. En lettere versjon bygget på Apples skjermtid er planlagt for senere; Android vil forbli det sterke alternativet.",
-      },
-      {
-        q: "Hva vet Plainphone om meg eller barnet mitt?",
-        a: "En sammenkoblet telefon rapporterer enhetsstatus til serveren slik at du kan se ting som batterinivået. Når posisjon er på, sender telefonen sin posisjon med jevne mellomrom og når du bruker Finn. Serveren beholder kun den siste posisjonen. Plassering starter på for barneprofiler og av for selvprofiler. Vi lagrer e-postadressen til kontoen din og reglene du angir. Vi viser ingen annonser og selger ingen data. <a href=\"/nb/privacy/\">personvernreglene</a> har detaljene.",
-      },
-      {
-        q: "Hva koster det?",
-        a: "Ikke noe. Du bruker en telefon du allerede har, og programvaren er gratis. Donasjoner vil bidra til å betale for serverne senere.",
+        a: "Plainphone beskytter Android-telefoner. Foreldre kan styre dem fra en iPhone.",
       },
       {
         q: "Kan det omgås?",
@@ -109,7 +103,7 @@ export default {
       },
       {
         q: "Hva med WhatsApp, Snapchat og andre chat-apper?",
-        a: "Chat-apper forblir skjult med mindre du tillater dem, og godkjente kontakter vil dekke anrop og tekstmeldinger, ikke hva som skjer i disse appene. Hvis en hel klasse er på én app, vil ikke programvare fikse det. Å snakke med de andre foreldrene gjør det ofte.",
+        a: "Chat-apper forblir skjult med mindre du tillater dem, og godkjente kontakter gjelder for anrop og tekstmeldinger, ikke hva som skjer i disse appene. Hvis en hel klasse er på én app, vil ikke programvare fikse det. Å snakke med de andre foreldrene gjør det ofte.",
       },
     ],
   },
@@ -118,8 +112,8 @@ export default {
     h1: "Hvorfor Plainphone fungerer slik den gjør",
     lead: "Plainphone er for familier som vil at barnet deres skal ha en telefon mens de venter på å gi dem en full smarttelefon. Forskning hjelper oss å velge hva vi skal bygge.",
     sections: [
-      ["Sengetid", "Å ha en telefon på soverommet er knyttet til dårligere søvn hos barn og tenåringer. Plainphones sengetidsplan begrenser hvilke apper som er tilgjengelige. Helsetilsynet anbefaler å la telefonen ligge utenfor soverommet."],
-      ["Hva forskningen kan fortelle oss", "Store studier finner små gjennomsnittlige sammenhenger mellom teknologibruk og velvære. En gjennomgang fra National Academies fant for lite bevis til å fastslå en årsakseffekt av sosiale medier på ungdomshelse i hele befolkningen. Vi vet ikke om en begrenset telefon som Plainphone forbedrer velvære. Den danske trivselskommisjonen anbefaler å vente til 13.00 med en smarttelefon eller et eget nettbrett."],
+      ["Sengetid", "Å ha en telefon på soverommet er knyttet til dårligere søvn hos barn og tenåringer. Plainphones sengetidsplan begrenser hvilke apper som er tilgjengelige. Den danske Sundhedsstyrelsen anbefaler å la telefonen ligge utenfor soverommet."],
+      ["Hva forskningen kan fortelle oss", "Store studier finner små gjennomsnittlige sammenhenger mellom teknologibruk og velvære. En gjennomgang fra National Academies fant for lite bevis til å fastslå en årsakseffekt av sosiale medier på ungdomshelse i hele befolkningen. Vi vet ikke om en begrenset telefon som Plainphone forbedrer velvære. Den danske trivselskommisjonen anbefaler å vente til barnet fyller 13 år før det får egen smarttelefon eller eget nettbrett."],
       ["Skoletid", "Du velger selv når tidsplanen skal kjøres og hvilke apper som er tilgjengelige. Forskning på skoletelefonregler er blandet, og vi vet ikke om en timeplan som dette forbedrer trivselen."],
       ["Nettfiltrering", "Når det er konfigurert, blokkerer filteret forespørsler til nettadresser i kategoriene du velger. Det kan redusere noe eksponering, og studier har funnet lite bevis for at filtre endrer hvor ofte tenåringer møter seksuelt materiale. Filtre kan også blokkere nyttig helseinformasjon. Snakk med barnet ditt om hva de kan komme over."],
       ["Personvern, hjelp og økende uavhengighet", "Barn skal kunne forstå reglene, se når posisjonen deres deles og nå hjelp privat. Vi bruker disse prinsippene når vi designer Plainphone. Se reglene på nytt sammen etter hvert som barnet ditt vokser."],
@@ -128,7 +122,7 @@ export default {
     sourcesTitle: "Kilder",
     sources: [
       ["Carter et al. på enheter og søvn", "https://doi.org/10.1001/jamapediatrics.2016.2341"],
-      ["Helsetilsynets råd om bruk av skjermer", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
+      ["Råd om skjermbruk fra den danske Sundhedsstyrelsen", "https://www.sst.dk/vidensbase/forebyggelse/anbefalinger-om-brug-af-skaerm"],
       ["Den danske velværekommisjonens anbefalinger", "https://regeringen.dk/aktuelt/nyheder/2025/trivselskommissionens-anbefalinger-er-klar/"],
       ["National Academies gjennomgang av sosiale medier og ungdomshelse", "https://www.nationalacademies.org/read/27396/chapter/2"],
       ["Orben og Przybylski om digital teknologi og trivsel", "https://www.nature.com/articles/s41562-018-0506-1"],
@@ -146,7 +140,7 @@ export default {
     description:
       "Hva Plainphone lagrer om deg og telefonene du administrerer, hvor lenge, hvem andre er involvert, og hvordan du kan be oss om å rette eller slette det.",
     h1: "Personvernerklæring",
-    updated: "Sist oppdatert 19. november 2026",
+    updated: "Sist oppdatert 17. november 2026",
     lead:
       "Plainphone holder så lite den kan, så kort tid den kan. Denne siden sier hva det betyr i praksis. Den er skrevet for å leses, ikke for å skjule ting.",
     status:
@@ -316,7 +310,7 @@ export default {
                 ],
                 [
                   "Endringer som ventet på nøkkelen på en voksens egen telefon",
-                  "Mens de venter, og 30 dager etter at de ble søkt, kansellert eller avvist",
+                  "Mens endringene venter, og i 30 dager etter at de er gjennomført, avbrutt eller avvist",
                 ],
                 [
                   "Forespørsler fra en telefon (en app eller en kontakt)",
@@ -387,9 +381,9 @@ export default {
     question: "Er telefonen ny eller allerede i bruk?",
     strong: "Den er ny eller tilbakestilt",
     strongHelp: "Anbefalt. Plainphone kan beskytte flere innstillinger på en fersk telefon.",
+    strongLanguage: "Velg språk for telefonen før du viser QR-koden. Android bruker språket under oppsettet. Du kan senere endre språket i Plainphone i telefoninnstillingene på dashbordet.",
     light: "Den er allerede i bruk",
     lightHelp: "Behold telefonens data og slå på beskyttelse i Android-innstillingene.",
-    strongLanguage: "Velg språk for telefonen før du viser QR-koden. Android bruker språket under oppsettet. Du kan senere endre språket i Plainphone i telefoninnstillingene på dashbordet.",
     startStrong: "Start oppsettet for en ny eller tilbakestilt telefon",
     startLight: "Start oppsettet for en telefon som er i bruk",
     start: "I dashbordet sier du hvem telefonen er for og oppretter en oppsettkobling.",
@@ -439,6 +433,10 @@ export default {
           "På Android 14 og nyere skjer dette av seg selv.",
         ],
         fig: "dialog",
+      },
+      {
+        title: "Tillat at Plainphone kjører i bakgrunnen",
+        body: ["Trykk på <strong>Continue</strong> og gi deretter tillatelse i Android, slik at Plainphone kan oppdatere seg selv på en trygg måte. Hvis du hopper over trinnet, kan du åpne Plainphone igjen for å få spørsmålet på nytt."],
       },
     ],
     figs: {

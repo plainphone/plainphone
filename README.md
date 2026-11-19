@@ -11,7 +11,9 @@ Plainphone turns an ordinary Android phone into a calm phone: calls, messages, m
 
 It is meant for a parent setting up a child's first phone, and for adults who want to hold themselves to their own rules. The rules work the same way in both cases. What changes is who holds the key.
 
-[plainphone.org](https://plainphone.org) · [Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Releases](https://github.com/plainphone/plainphone/releases)
+[English](https://plainphone.org/) · [Dansk](https://plainphone.org/da/) · [Svenska](https://plainphone.org/sv/) · [Norsk bokmål](https://plainphone.org/nb/) · [Deutsch](https://plainphone.org/de/)
+
+[Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Self-hosting](docs/self-hosting.md) · [Translations](docs/translations.md) · [Releases](https://github.com/plainphone/plainphone/releases)
 
 > **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
 
@@ -88,6 +90,8 @@ See [Self keys](docs/self-keys.md).
 **As a parent:** sign in at [app.plainphone.org](https://app.plainphone.org), choose **Add phone** and follow the [illustrated setup guide](https://plainphone.org/setup/). [docs/dashboard-setup.md](docs/dashboard-setup.md) covers both modes in detail. The hosted service is a test version.
 
 **Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
+
+See [Operations](docs/operations.md) for encrypted off-site backups, monitoring and restore drills.
 
 **On a spare test phone:** [docs/setup-test-phone.md](docs/setup-test-phone.md) walks through it step by step, including how to get out again. [docs/bypass-checklist.md](docs/bypass-checklist.md) lists every bypass attempt to try, with the expected result.
 
@@ -167,6 +171,10 @@ code. Light mode keeps the phone's existing data. Chrome installs the app and op
 link, then the phone asks who will use it and hashes the PIN locally. In both modes, check the
 masked dashboard account on the phone before it redeems the one-time token. The server receives
 neither the PIN nor its hash.
+
+Strong-mode QR setup asks you to allow Plainphone to run in the background so it can update
+itself safely. If you skip this step, open Plainphone again to get the prompt. OnePlus, Oppo, Xiaomi
+and Samsung may have extra [battery settings](docs/dashboard-setup.md#battery-settings-for-updates).
 
 For self-hosting, tests and phones without an account there is a script with the same format:
 

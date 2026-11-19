@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo, Linking } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
-import { SERVER_URL } from "../../../lib/config";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
+import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
   const { t, locale } = useI18n();
@@ -211,6 +213,51 @@ const systemStatus = {
   unverifiable: "phone.attUnverifiable",
 } as const;
 
+function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
+  const { t } = useI18n();
+  const { notify } = usePhone();
+  const [busy, setBusy] = useState(false);
+  const batteryMessage = updateBatteryExemptionMessage(status);
+  const supported = status.appVersionCode !== undefined;
+  const checkSigningKey = supported && usesProductionKey(status.appVersion) === false;
+  const [latest, setLatest] = useState<LatestVersion | null>();
+  const signingKeyChange = hasPhoneSigningKeyChange(status, latest ?? undefined);
+
+  useEffect(() => {
+    if (!checkSigningKey) return;
+    let active = true;
+    void fetchLatestPhoneVersion(`${SERVER_URL}/download/android/latest.json`)
+      .catch(() => undefined)
+      .then((version) => { if (active) setLatest(version ?? null); });
+    return () => { active = false; };
+  }, [checkSigningKey]);
+
+  async function requestUpdate() {
+    setBusy(true);
+    try {
+      await unwrap(client.POST("/phones/{pid}/update", { params: { path: { pid: phoneId } } }));
+      notify({ tone: "success", text: t("phone.updateRequested") });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <VStack gap={space.sm}>
+      <Row>
+        <Text>{t("phone.appVersion", { version: status.appVersion })}</Text>
+        {supported && !signingKeyChange ? (
+          <Button kind="secondary" title={t("phone.updateNow")} busy={busy || (checkSigningKey && latest === undefined)} onPress={() => void requestUpdate()} />
+        ) : null}
+      </Row>
+      {signingKeyChange ? <Notice tone="warn" text={t(status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight")} /> : null}
+      {batteryMessage ? <Notice tone="warn" text={t(batteryMessage)} /> : null}
+    </VStack>
+  );
+}
+
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -251,6 +298,7 @@ function Overview() {
   ].join(", ");
 
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
+  const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
@@ -287,11 +335,12 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
+      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
-      {overrun !== undefined || failedPolicies.length > 0 ? (
+      {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>
           {overrun !== undefined ? <Text>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</Text> : null}
-          {failedPolicies.map((step, index) => <Text key={index}>{step}</Text>)}
+          {technicalSteps.map((step, index) => <Text key={index}>{step}</Text>)}
         </Disclosure>
       ) : null}
 

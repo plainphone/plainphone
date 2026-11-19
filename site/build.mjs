@@ -51,7 +51,6 @@ function head(
   const alt = alternates
     .map((a) => `<link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${a.path}">`)
     .join("");
-  const share = t.lang === "da" ? da : en;
   const ogAlternates = alternates
     .filter((a) => a.lang !== t.lang)
     .map((a) => `<meta property="og:locale:alternate" content="${ogLocales[a.lang]}">`)
@@ -76,10 +75,10 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <meta property="og:title" content="${esc(ogTitle)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${ORIGIN}${path}">
-<meta property="og:image" content="${ORIGIN}/og-${share.lang}.png">
+<meta property="og:image" content="${ORIGIN}/og-${t.lang}.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${esc(share.ogAlt)}">
+<meta property="og:image:alt" content="${esc(t.ogAlt)}">
 <meta property="og:locale" content="${ogLocales[t.lang]}">
 ${ogAlternates}
 <meta name="twitter:card" content="summary_large_image">
@@ -120,6 +119,10 @@ function page(t) {
   const section = (id, title, body, cls = "") =>
     `<section class="block ${cls}" aria-labelledby="${id}"><h2 id="${id}">${title}</h2>${body}</section>`;
 
+  const questions = (items) => items
+    .map((it) => `<details id="${slug(it.q)}"><summary>${it.q}</summary><p>${it.a}</p></details>`)
+    .join("");
+
   const hero = `<section class="hero" aria-labelledby="hero-title">
 <p class="status"><span>${t.status}</span></p>
 <h1 id="hero-title">${h.title}</h1>
@@ -133,7 +136,7 @@ function page(t) {
   const who = section(
     "who",
     t.who.title,
-    `<p class="intro">${t.who.lead}</p><div class="paths">${t.who.paths
+    `<div class="paths">${t.who.paths
       .map((p) => `<article class="path" id="${p.id}"><h3>${p.title}</h3><p>${p.body}</p></article>`)
       .join("")}</div>`,
   );
@@ -141,27 +144,11 @@ function page(t) {
   const how = section(
     "how",
     t.how.title,
-    `<ol class="steps">${t.how.steps
+    `<p>${t.how.lead}</p><ul class="modes" role="list">${t.how.steps
       .map((s) => `<li><h3>${s.title}</h3><p>${s.body}</p></li>`)
-      .join("")}</ol><p>${t.how.guide}</p><p class="note">${t.how.note}</p>
+      .join("")}</ul><p><a class="button" href="${t.setup.path}">${t.how.guide}</a></p>
+<p>${t.how.available}</p><p class="note">${t.how.note}</p>
 <p><a href="${t.why.path}">${t.why.h1}</a></p>`,
-  );
-
-  const c = t.compare;
-  const compare = section(
-    "compare",
-    c.title,
-    `<p class="intro">${c.lead}</p><div class="table-wrap" role="region" aria-labelledby="compare" tabindex="0"><table>
-<caption class="sr">${c.caption}</caption>
-<thead><tr><td></td>${c.cols.map((col, i) => `<th scope="col"${i === c.cols.length - 1 ? ' class="us"' : ""}>${col}</th>`).join("")}</tr></thead>
-<tbody>${c.rows
-      .map(
-        ([label, ...cells]) =>
-          `<tr><th scope="row">${label}</th>${cells
-            .map((v, i) => `<td${i === cells.length - 1 ? ' class="us"' : ""}>${v}</td>`)
-            .join("")}</tr>`,
-      )
-      .join("")}</tbody></table></div>`,
   );
 
   const phones = section("phones", t.phones.title, `<p>${t.phones.body}</p>`);
@@ -170,18 +157,26 @@ function page(t) {
   const open = section(
     "open",
     o.title,
-    `${o.body.map((p) => `<p>${p}</p>`).join("")}<p>${o.follow}</p>
-<p><a class="button" href="${GITHUB}">${o.github}</a></p>
-<p class="note">${o.donate}</p>`,
+    `<p>${o.body}</p>
+<ul>
+<li><a href="${GITHUB}">${o.github}</a></li>
+<li><a href="${GITHUB}/issues">${o.issues}</a></li>
+<li><a href="${GITHUB}/blob/main/SECURITY.md">${o.privateReport}</a></li>
+<li><a href="${GITHUB}/blob/main/CONTRIBUTING.md">${o.contribute}</a></li>
+</ul>`,
   );
 
-  const faq = section(
-    "faq",
-    t.faq.title,
-    t.faq.items
-      .map((it) => `<details id="${slug(it.q)}"><summary>${it.q}</summary><p>${it.a}</p></details>`)
-      .join(""),
-  );
+  const host = t.hosting;
+  const hosting = section("self-hosting", host.title,
+    `<p>${host.body}</p><p><a href="${GITHUB}/blob/main/docs/self-hosting.md">${host.guide}</a></p>`);
+
+  const price = section("price", t.price.title, `<p>${t.price.body}</p>${questions(t.price.items)}`);
+
+  const privacy = t.privacySummary;
+  const privacySummary = section("privacy", privacy.title,
+    `<p>${privacy.body}</p><p><a href="${t.privacy.path}">${privacy.link}</a></p>`);
+
+  const faq = section("faq", t.faq.title, questions(t.faq.items));
 
   return `${head(t, { path: t.path })}
 <body>
@@ -190,9 +185,11 @@ ${header(t)}
 ${hero}
 ${who}
 ${how}
-${compare}
-${phones}
 ${open}
+${hosting}
+${price}
+${privacySummary}
+${phones}
 ${faq}
 </main>
 ${footer(t)}
@@ -356,7 +353,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
-for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", "og-en.png", "og-da.png"]) {
+for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`)]) {
   cpSync(join(src, f), join(dist, f));
 }
 writeFileSync(join(dist, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
@@ -370,7 +367,7 @@ ${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path]
       (p) =>
         `<url><loc>${ORIGIN}${route(p)}</loc>${pages
           .map((a) => `<xhtml:link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${route(a)}"/>`)
-          .join("")}</url>`,
+          .join("")}<xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}${route(en)}"/></url>`,
     ),
   )
   .join("\n")}

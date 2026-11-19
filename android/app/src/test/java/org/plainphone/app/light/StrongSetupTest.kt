@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Looper
 import android.os.PersistableBundle
 import android.os.UserManager
+import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.NetworkType
 import androidx.work.WorkInfo
@@ -64,6 +65,20 @@ class StrongSetupTest {
         Robolectric.buildActivity(PolicyComplianceActivity::class.java, intent).setup().use { controller ->
             val activity = controller.get()
             val deadline = System.nanoTime() + 5_000_000_000L
+            while (ShadowAlertDialog.getLatestAlertDialog()?.isShowing != true &&
+                !activity.isFinishing && System.nanoTime() < deadline
+            ) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertTrue(!activity.isFinishing)
+            ShadowAlertDialog.getLatestAlertDialog().getButton(DialogInterface.BUTTON_POSITIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            val request = shadowOf(activity).nextStartedActivityForResult
+            assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, request?.intent?.action)
+            assertTrue(!activity.isFinishing)
+            shadowOf(activity).receiveResult(request.intent, Activity.RESULT_CANCELED, null)
+
             while (!activity.isFinishing && System.nanoTime() < deadline) {
                 shadowOf(Looper.getMainLooper()).idle()
                 Thread.sleep(10)

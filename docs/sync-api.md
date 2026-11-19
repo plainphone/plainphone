@@ -113,7 +113,7 @@ phone                                      server                         parent
    | `deviceOwner` | Plainphone is the device owner |
    | `lockIntact` | Every lock policy was applied **and** no maintenance unlock is running |
    | `maintenance` | A PIN maintenance unlock is running on the phone |
-   | `failedPolicies` | Names of the lock steps that failed (at most 50, each 1 to 200 characters) |
+   | `failedPolicies` | Names of the lock steps that failed (at most 50, each 1 to 200 characters). The strong-mode entry `battery exemption missing: self-update cannot run` describes update readiness and leaves `lockIntact` unchanged. |
    | `rulesEtag`, `rulesAppliedAt` | ETag of the rules the phone last applied and when (ISO 8601 with a time zone; `400` if more than 5 minutes ahead of the server), or `null` |
    | `dnsHost` | The private DNS host the phone actually uses, or `null` |
 

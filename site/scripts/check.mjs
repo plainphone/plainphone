@@ -11,7 +11,14 @@ const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const external = process.argv.includes("--external");
 const errors = [];
 const externalLinks = new Set();
-const locales = ["en", "da", "sv", "nb", "de"];
+const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
+const locales = Object.keys(ogLocales);
+const pagePaths = ["", "setup/", "privacy/", "why/"].map((page) =>
+  Object.fromEntries(locales.map((lang) => [
+    lang,
+    `/${lang === "en" ? "" : `${lang}/`}${lang === "da" && page === "why/" ? "hvorfor/" : page}`,
+  ])),
+);
 
 const files = (dir) =>
   readdirSync(dir).flatMap((f) => {
@@ -72,14 +79,29 @@ for (const file of html) {
   }
   if (name !== "404.html") {
     const ownLang = src.match(/<html lang="([a-z]{2})">/)?.[1];
+    const counterparts = pagePaths.find((paths) => target(paths[ownLang] ?? "/") === file);
+    if (!locales.includes(ownLang) || !counterparts) {
+      errors.push(`${name}: unexpected page for language ${ownLang}`);
+      continue;
+    }
+    const expectedOg = ownLang && `<meta property="og:locale" content="${ogLocales[ownLang]}">`;
+    if (!expectedOg || !src.includes(expectedOg)) errors.push(`${name}: missing Open Graph locale`);
+    if (!src.includes(`<meta property="og:image" content="https://plainphone.org/og-${ownLang}.png">`)) {
+      errors.push(`${name}: missing localized Open Graph image`);
+    }
     for (const lang of locales) {
-      const alternate = src.match(new RegExp(`<link rel="alternate" hreflang="${lang}" href="([^"]+)"`))?.[1];
-      if (!alternate) {
-        errors.push(`${name}: missing ${lang} alternate`);
-      } else if (lang !== ownLang) {
-        const path = new URL(alternate).pathname;
-        if (!src.includes(`<a href="${path}" hreflang="${lang}" lang="${lang}">`)) {
-          errors.push(`${name}: missing language switch to ${path}`);
+      const path = counterparts[lang];
+      const alternates = [...src.matchAll(new RegExp(`<link rel="alternate" hreflang="${lang}" href="([^"]+)"`, "g"))];
+      if (alternates.length !== 1 || alternates[0][1] !== `https://plainphone.org${path}`) {
+        errors.push(`${name}: expected ${lang} alternate to ${path}`);
+      }
+      if (lang !== ownLang) {
+        if (!src.includes(`<meta property="og:locale:alternate" content="${ogLocales[lang]}">`)) {
+          errors.push(`${name}: missing Open Graph alternate for ${lang}`);
+        }
+        const switches = [...src.matchAll(new RegExp(`<a href="([^"]+)" hreflang="${lang}" lang="${lang}">`, "g"))];
+        if (switches.length !== 1 || switches[0][1] !== path) {
+          errors.push(`${name}: expected ${lang} language switch to ${path}`);
         }
       }
     }

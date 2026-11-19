@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import type { MessageKey } from "../i18n/translate";
 import type { Locale } from "./api";
 
 const labels = new Map<string, Record<"en" | "da", string>>();
@@ -6,6 +7,16 @@ function add(step: string, en: string, da: string) {
   labels.set(step, { en, da });
 }
 
+export const BATTERY_EXEMPTION_POLICY = "battery exemption missing: self-update cannot run";
+
+export function updateBatteryExemptionMessage(
+  status: { failedPolicies: readonly string[]; update?: { errorCode?: string } },
+): MessageKey | undefined {
+  if (status.failedPolicies.includes(BATTERY_EXEMPTION_POLICY)) return "phone.updateBatteryExemptionMissing";
+  if (status.update?.errorCode === "battery_exemption_missing") return "phone.updateBatteryExemptionLegacy";
+}
+
+add(BATTERY_EXEMPTION_POLICY, "allow Plainphone to run in the background for updates", "tillad Plainphone at køre i baggrunden for at opdatere");
 add("bootloader warning", "confirm the system warning on the phone", "bekræft advarslen om telefonens system");
 add("device owner", "give Plainphone control of the phone", "giv Plainphone kontrol over telefonen");
 add("default phone app", "make Plainphone the phone app", "brug Plainphone til opkald");

@@ -1,0 +1,6 @@
+*
+!scripts/
+!scripts/backup.sh
+!scripts/backup-common.sh
+!scripts/restore-backup.sh
+!scripts/restore-service.py

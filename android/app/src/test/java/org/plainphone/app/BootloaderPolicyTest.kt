@@ -25,7 +25,7 @@ class BootloaderPolicyTest {
         assertThat(result.single().ok).isFalse()
         assertThat(users.hasUserRestriction(UserManager.DISALLOW_MODIFY_ACCOUNTS)).isFalse()
         assertThat(Lock.firstAppliedAtMs(context)).isNull()
-        assertThat(Lock.lockState(context).failedPolicies).containsExactly("bootloader warning")
+        assertThat(Lock.lockState(context).failedPolicies).containsExactly("bootloader warning", "battery exemption missing: self-update cannot run")
         assertThat(Lock.lockState(context).intact).isFalse()
 
         BootloaderWarning.acknowledge(context)

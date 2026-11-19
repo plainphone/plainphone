@@ -2,10 +2,9 @@
 
 Plainphone's server and the parent web app (PWA) ship as one Docker image. PostgreSQL 18 holds
 the data. The filtering DNS service is separate; see [self-hosting-dns.md](self-hosting-dns.md)
-when it exists, or run without it (`DNS_PROVIDER=mock`).
+to configure it, or run without it (`DNS_PROVIDER=mock`).
 
-> Status: early. It runs and is tested, but phones do not yet use the server (phase 4 connects
-> them). Do not rely on it for a real child's phone yet.
+> Plainphone is a test version. Try setup and protection on spare hardware before relying on it.
 
 ## Quick start
 
@@ -40,7 +39,7 @@ pairing QR code.
 | `PROVISIONING_DNS_HOST` | `family.adguard-dns.com` | Private DNS a phone uses from setup until its own filter host is ready |
 | `TRUST_PROXY` | `false` | Use `X-Forwarded-For` for rate limits. Set `true` only behind a reverse proxy, with port 8080 not reachable directly |
 | `MIGRATE_ON_START` | `true` | Apply database migrations when the server starts |
-| `PAYMENTS_ENABLED` | `false` | Pay to unlock (not implemented yet) |
+| `PAYMENTS_ENABLED` | `false` | Experimental pay-to-unlock control. Payment processing is unavailable. Leave disabled when self-hosting. |
 | `APPLE_APP_IDS` | `P7698GU4AV.org.plainphone.parent` | iOS apps that open this server's login, pairing and invite links ([parent-app.md](parent-app.md)) |
 | `ANDROID_APP_PACKAGE` | `org.plainphone.parent` | Android app that opens those links |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | | Optional. A Google OAuth client of type "Web application" for "Protect against reset" (factory reset protection with the parent's Google account). Create it in the Google Cloud console under Google Auth Platform → Clients, with the redirect URI `<PUBLIC_URL>/api/reset-protection/google/callback`. Enable **People API** for the Google Cloud project. Set both variables in the server environment. The server uses the `openid` and profile scopes to read only the numeric account ID from `people/me` and never requests an email address. Without it the dashboard says the feature is not set up |
@@ -52,7 +51,9 @@ the image, install both on a Unix host so certificate path verification can run 
 ## Backups
 
 The compose file has a `backup` service that writes a `pg_dump` (custom format) to `./backups`
-every 24 hours, keeps 14 daily and 8 weekly copies. Copy `./backups` off the machine. Restore:
+every 24 hours and keeps 14 daily and 8 weekly copies. For encrypted copies in an
+existing S3-compatible bucket, see [Operations](operations.md#off-site-backups-and-recovery).
+Restore a local dump:
 
 ```sh
 docker compose exec -T db pg_restore -U plainphone -d plainphone --clean --if-exists < backups/plainphone-YYYY-MM-DD.dump
@@ -60,8 +61,17 @@ docker compose exec -T db pg_restore -U plainphone -d plainphone --clean --if-ex
 
 ## Your own phone app
 
-Phones talk to the server set in the Plainphone app. To use your own server, build the app with
-your server's URL (phase 4 documents the setting) and generate QR codes with your own APK.
+Sign in to the parent dashboard at your `PUBLIC_URL` and choose **Add phone**.
+The strong-mode QR code and the light-mode setup link carry your server address.
+The setup flow uses the released APK by default. If you build and sign your own
+APK, set the download URL and signing checksum above.
+
+The native parent app can also use your server. Build it with
+`PLAINPHONE_SERVER_URL` set to your HTTPS address and follow the
+[universal link setup](parent-app.md). The parent dashboard works in a browser.
+
+Plainphone charges no fee for self-hosting. You cover the cost of your own
+infrastructure and any services you use.
 
 ## Development
 

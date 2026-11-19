@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webSrc = join(here, "..", "..", "web", "src");
 const shared = join(here, "..", "src", "shared");
 
-export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/sv.ts", "i18n/nb.ts", "i18n/de.ts", "lib/phone-language.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/settings.ts"];
+export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/sv.ts", "i18n/nb.ts", "i18n/de.ts", "lib/phone-language.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/phoneUpdate.ts", "lib/settings.ts"];
 
 const check = process.argv.includes("--check");
 let drift = 0;
@@ -21,8 +21,7 @@ for (const f of FILES) {
   const from = join(webSrc, f);
   const to = join(shared, f);
   const source = readFileSync(from, "utf8");
-  // Update controls and outcome copy currently exist only in the dashboard.
-  const content = f.startsWith("i18n/") ? source.replace(/^  "phone\.update.*\n/gm, "") : source;
+  const content = source;
   if (check) {
     if (!existsSync(to) || content !== readFileSync(to, "utf8")) {
       console.error(`out of date: src/shared/${f} (run pnpm sync:shared)`);

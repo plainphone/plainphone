@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import java.security.SecureRandom
+import org.plainphone.app.batteryExemptionRequest
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.MaintenancePin
 import org.plainphone.app.R
@@ -259,7 +260,6 @@ object LightSetup {
     }
 
     /** What the step's button opens. Null when the step is handled inside Plainphone (PIN, pairing). */
-    @SuppressLint("BatteryLife") // Plainphone must keep running to filter calls and enforce the parent's rules.
     fun intent(context: Context, step: Step): Intent? = when (step) {
         Step.PIN, Step.PAIR -> null
         Step.PHONE -> roleIntent(context, android.app.role.RoleManager.ROLE_DIALER)
@@ -272,7 +272,7 @@ object LightSetup {
         Step.RUNNING -> if (!notificationsAllowed(context)) {
             null // asked as a runtime permission by the activity
         } else {
-            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+            batteryExemptionRequest(context)
         }
         Step.LOCATION -> null // runtime permissions, asked by the activity
         Step.GUARD -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)

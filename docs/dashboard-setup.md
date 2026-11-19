@@ -15,6 +15,7 @@ for strong mode and on the phone for light mode.
 | Choosing a PIN | Explain what the PIN is for. In strong mode, enter it twice in the dashboard. The salted hash is in the provisioning QR code. In light mode, enter it twice on the phone, where Plainphone hashes it locally. |
 | Strong mode and the first Android screen | Ask parents to stop at the first welcome screen and tap the same spot six times. The guide shows the spot and explains Android's organisation-management prompt. |
 | Strong mode and Wi-Fi | Offer Wi-Fi in the code or use Android's network picker. Hidden networks, WPA3-only networks and networks with sign-in pages need a separate connection. The QR code includes any entered password, so keep it private. |
+| Strong mode and updates | On the phone, tap **Continue** and allow Plainphone to run in the background so it can update itself safely. If skipped, the step appears again the next time Plainphone opens. |
 | Strong mode on Android 10–13 | Explain when to choose Plainphone as the default phone app and how to open the app again if the dialog was dismissed. |
 | Light mode and APK installation | The QR and link go to a page with the latest APK and Android's **Allow from this source** instructions. After installing, return to the same Chrome tab and use **Open Plainphone** on that page to pass the token to the app. The page still works if Chrome reloads it. Choose who uses the phone, check the masked account and household, then choose and confirm the maintenance PIN. |
 | Light mode and Android prompts | Phone, messages and the web filter explain why Android asks. Each required permission has one primary action. Plainphone rechecks after the system screen closes. |
@@ -107,3 +108,16 @@ APK to Chrome to Plainphone on Android 10 and Android 13 or newer, including One
 Samsung battery settings where available. Use the scripts and manual steps in
 [setup-test-phone.md](setup-test-phone.md) for strong-mode hardware checks, and try both a regular
 Wi-Fi network from the picker and Wi-Fi in the QR code.
+
+## Battery settings for updates
+
+Strong mode requires Android's battery exemption to update safely. If the dashboard shows
+the exemption is missing, open Plainphone on the phone or tap the update notification,
+then allow it to run in the background. Once the permission is granted, choose **Update now**
+again in the dashboard or parent app.
+
+Some manufacturers apply additional restrictions. If updates still do not run, check how
+to allow background activity for Plainphone on [OnePlus](https://dontkillmyapp.com/oneplus),
+[Oppo](https://dontkillmyapp.com/oppo), or [Xiaomi](https://dontkillmyapp.com/xiaomi).
+On [Samsung](https://dontkillmyapp.com/samsung), check whether Plainphone is on a sleeping
+or deep sleeping apps list. The exact settings vary by model and Android version.
