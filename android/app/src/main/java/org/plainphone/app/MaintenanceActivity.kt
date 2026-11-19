@@ -256,7 +256,7 @@ class MaintenanceActivity : Activity() {
         val config = ConfigStore(this).load()
         stateView = style.body(TextView(this)).apply {
             textSize = 18f
-            setTypeface(typeface, Typeface.BOLD)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         column.addView(stateView)
