@@ -431,6 +431,20 @@ describe("key", () => {
     });
   });
 
+  it("shows a QR-invited helper as pending, needs no email and keeps the invite on save", async () => {
+    const api = phoneApi(SELF, {
+      [`GET /phones/${SELF_ID}/key`]: { body: { ...key, keyType: "trusted", trustedEmail: null } },
+      [`PUT /phones/${SELF_ID}/key`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "key") });
+    expect(await screen.findByText(/Waiting for your helper to scan the invite/)).toBeTruthy();
+    expect(screen.queryByTestId("key-email")).toBeNull();
+    expect(screen.getByTestId("key-share-invite")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("key-save"));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toMatchObject({ keyType: "trusted", trustedEmail: null, qrInvite: true });
+  });
+
   it("is not for Child phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE, "key") });

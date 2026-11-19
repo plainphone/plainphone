@@ -83,6 +83,11 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           {t(current.trustedAccepted ? "key.accepted" : "key.notAccepted", { email: current.trustedEmail })}
         </p>
       )}
+      {current.keyType === "trusted" && !current.trustedEmail && (
+        <p className={`notice ${current.trustedAccepted ? "notice-success" : "notice-info"}`}>
+          {t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting")}
+        </p>
+      )}
       <fieldset className="choices">
         <legend>{t("key.type")}</legend>
         {(["delay", "trusted"] as const).map((k) => (
@@ -114,7 +119,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
         </Field>
       )}
 
-      {current.keyType === "trusted" && !current.trustedEmail && (
+      {current.keyType === "trusted" && !current.trustedEmail && !current.trustedAccepted && (
         <div className="stack">
           <div><button type="button" className="btn btn-secondary" onClick={async () => {
             try {
@@ -124,6 +129,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
               notify({ tone: "error", text: errorMessage(err, t) });
             }
           }}>{t("key.showInviteQr")}</button></div>
+          <p className="help">{t("key.qrExpiredHint")}</p>
           {inviteUrl && <>
             <p>{t("key.inviteQrHelp")}</p>
             <QrImage modules={encode(inviteUrl, { border: 0 }).data} label={t("key.showInviteQr")} />
