@@ -27,6 +27,17 @@ it("uses the per-phone offline threshold before the server default", () => {
   expect(phoneState({ ...p, offlineAlertHours: 3 }, FIXTURE_NOW).state).toBe("applied");
 });
 
+it("never calls a phone stale when offline alerts are off (0 hours)", () => {
+  const p = { ...phoneFixtures[4]!, offlineAlertHours: 0, lastSeenAt: new Date(FIXTURE_NOW - 3 * 24 * 3_600_000).toISOString() };
+  expect(phoneState(p, FIXTURE_NOW).state).toBe("applied");
+  expect(phoneState({ ...p, offlineAlertHours: null, offlineAlertHoursDefault: 0 }, FIXTURE_NOW).state).toBe("applied");
+});
+
+it("does not claim confirmed rules where the list cannot know (rulesCurrent absent)", () => {
+  const { rulesCurrent: _unused, ...listRow } = phoneFixtures[4]!;
+  expect(phoneState(listRow, FIXTURE_NOW).state).toBe("noReport");
+});
+
 it("keeps stale ahead of waiting: an offline phone cannot be waited for as if it were coming", () => {
   expect(phoneState({ ...phoneFixtures[3]!, lastSeenAt: new Date(FIXTURE_NOW - 48 * 3_600_000).toISOString() }, FIXTURE_NOW).state).toBe("stale");
 });

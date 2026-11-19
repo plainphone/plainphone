@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useRouter } from "expo-router";
-import { AccessibilityInfo, Linking } from "react-native";
+import { Linking } from "react-native";
 import { useRef, useState } from "react";
 import { ApiError, client, unwrap } from "../api/client";
 import type { Approval } from "../api/models";
@@ -86,8 +86,7 @@ function ApprovalsList() {
       if (final) {
         setProcessed((all) => (all[a.id] ? all : { ...all, [a.id]: { approval: a, outcome: answered, decision: action } }));
         setFocusId(a.id);
-        // The answered row shows the result; the screen reader hears it once, here.
-        AccessibilityInfo.announceForAccessibility(text);
+        // The answered row takes focus and its label carries the result, so the screen reader hears it once.
       } else setNotice({ tone: "error", text });
     }
     await res.reload();

@@ -43,9 +43,11 @@ export function phoneState(p: PhoneStateInput, now: number): PhoneStateSummary {
   let state: PhoneState;
   let at: string | null = p.lastSeenAt;
   if (!p.lastSeenAt) state = "neverConnected";
-  else if (now - Date.parse(p.lastSeenAt) > hours * 3_600_000) state = "stale";
+  // 0 hours means "never alert", so silence never makes the phone stale.
+  else if (hours > 0 && now - Date.parse(p.lastSeenAt) > hours * 3_600_000) state = "stale";
   else if (p.rulesCurrent === false) state = "waiting";
-  else if (!p.status?.rulesAppliedAt) state = "noReport";
+  // The list has no rulesCurrent, so it cannot tell "confirmed" from "waiting": it says only that the phone is online.
+  else if (!p.status?.rulesAppliedAt || p.rulesCurrent === undefined) state = "noReport";
   else {
     state = "applied";
     at = p.status.rulesAppliedAt;

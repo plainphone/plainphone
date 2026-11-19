@@ -10,7 +10,7 @@ import { z } from "zod";
 import { fcmValidationKey, WAKE_PROVIDERS } from "../providers/push.js";
 import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
-import { body, clientIp, RateLimiter } from "../lib/http.js";
+import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REPORT_GRACE_MS, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { packageName, phoneNumber } from "../lib/validation.js";
@@ -457,7 +457,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/approval-challenge/:changeId", async (c) => {
     const phone = c.get("phone");
     if (phone.profile !== "self") throw new HTTPException(404, { message: "not found" });
-    const state = await phoneApprovalState(ctx, phone.id, c.req.param("changeId"));
+    const state = await phoneApprovalState(ctx, phone.id, param(c, "changeId"));
     if (!state) throw new HTTPException(404, { message: "not found" });
     c.header("Cache-Control", "no-store");
     return c.json({ state });
