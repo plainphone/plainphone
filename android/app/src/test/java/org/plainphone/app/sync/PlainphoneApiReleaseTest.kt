@@ -69,7 +69,7 @@ class PlainphoneApiReleaseTest {
 
     @Before
     fun start() {
-        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server = HttpServer.create(InetSocketAddress(0), 0)
         serverThreads = java.util.concurrent.Executors.newCachedThreadPool()
         server.executor = serverThreads
         server.createContext("/") { ex ->
@@ -103,11 +103,11 @@ class PlainphoneApiReleaseTest {
         serverThreads.shutdownNow()
     }
 
-    // HttpURLConnection pools keep-alive sockets for the whole JVM, keyed by host and port. A socket
-    // left over from an earlier test's server must never be reused by this one.
-    private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}") { url ->
-        (url.openConnection() as java.net.HttpURLConnection).also { it.setRequestProperty("Connection", "close") }
-    }
+    // HttpURLConnection pools keep-alive sockets for the whole JVM, keyed by host and port. Other test
+    // classes use 127.0.0.1 and leave pooled sockets behind for a few seconds, so this class addresses
+    // its server as "localhost" (a different pool key). The server also ends every connection
+    // (Connection: close in the handler), so nothing from this class is ever pooled.
+    private fun api() = PlainphoneApi("http://localhost:${server.address.port}")
 
     @Test
     fun `an invalid setup key is distinct from a rejected enrollment token`() {
@@ -268,7 +268,7 @@ class PlainphoneApiReleaseTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         Settings.Global.putInt(context.contentResolver, Settings.Global.BOOT_COUNT, 1)
         val config = ConfigStore(context)
-        config.save(config.load().copy(serverUrl = "http://127.0.0.1:${server.address.port}"))
+        config.save(config.load().copy(serverUrl = "http://localhost:${server.address.port}"))
         LightSetup.saveProfile(context, "self")
         LightSetup.saveUndoMinutes(context, 30)
         LightSetup.markComplete(context)
