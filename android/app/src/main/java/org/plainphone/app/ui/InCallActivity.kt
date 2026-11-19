@@ -114,7 +114,7 @@ private fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     RoundAction(stringResource(R.string.call_decline), EndCallRed, rotate = true) { CallManager.decline() }
-                    RoundAction(stringResource(R.string.call_answer), AnswerGreen) { CallManager.answer() }
+                    RoundAction(stringResource(R.string.call_answer), AnswerFill, OnAnswer) { CallManager.answer() }
                 }
                 else -> {
                     if (showKeypad) {
@@ -172,12 +172,12 @@ internal fun formatDuration(ms: Long): String {
 }
 
 @Composable
-private fun RoundAction(label: String, color: Color, rotate: Boolean = false, onClick: () -> Unit) {
+private fun RoundAction(label: String, color: Color, glyph: Color = Color.White, rotate: Boolean = false, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         FilledIconButton(
             onClick = onClick,
             modifier = Modifier.size(76.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(containerColor = color, contentColor = Color.White),
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = color, contentColor = glyph),
         ) {
             Icon(
                 Icons.Filled.Call,

@@ -96,7 +96,7 @@ internal fun KeypadScreen(initial: String, onCall: (String) -> Unit, onParents: 
             FilledIconButton(
                 onClick = { if (number.isNotBlank()) onCall(number) },
                 modifier = Modifier.size(72.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = AnswerGreen),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = AnswerFill, contentColor = OnAnswer),
             ) {
                 Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.action_call_plain), modifier = Modifier.size(32.dp))
             }

@@ -143,7 +143,7 @@ See [support tools and release troubleshooting](docs/support.md).
 |---|---|
 | [`android/`](android) | The phone app (Kotlin, Jetpack Compose) for strong and light mode |
 | [`server/`](server) | The API (Hono, PostgreSQL). [docs/sync-api.md](docs/sync-api.md) is the phone's side of it |
-| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) and [cross-surface UX research](docs/research/ux-premium.md). Brand directions for the redesign: [brand and design guide](docs/brand/README.md) |
+| [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) and [cross-surface UX research](docs/research/ux-premium.md). Look and feel: [brand and design guide](docs/brand/README.md) (direction C, Switch) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
 | [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |

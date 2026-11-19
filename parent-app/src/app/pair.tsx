@@ -8,6 +8,7 @@ import { RequireAuth } from "../components/RequireAuth";
 import { ScanCode } from "../components/ScanCode";
 import { Button, Choice, errorMessage, Field, LiveStatus, type NoticeValue, PageTitle, Screen, Stack, Switch, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
+import { fonts } from "../lib/theme";
 import { normaliseCode } from "../shared/lib/format";
 
 function PairForm() {
@@ -127,7 +128,7 @@ function PairForm() {
           spellCheck={false}
           maxLength={9}
           placeholder="K7MP-4QXR"
-          style={{ fontFamily: "monospace", letterSpacing: 1 }}
+          style={{ fontFamily: fonts.mono, letterSpacing: 1 }}
         />
         <Field
           testID="pair-name"

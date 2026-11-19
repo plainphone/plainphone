@@ -77,7 +77,7 @@ class RingService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = Notification.Builder(this, Safety.CHANNEL_RING)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.ring_title))
             .setContentText(getString(R.string.ring_notice))
             .setCategory(Notification.CATEGORY_ALARM)
