@@ -88,6 +88,8 @@ See [Self keys](docs/self-keys.md).
 
 **Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
 
+See [Operations](docs/operations.md) for encrypted off-site backups, monitoring and restore drills.
+
 **On a spare test phone:** [docs/setup-test-phone.md](docs/setup-test-phone.md) walks through it step by step, including how to get out again. [docs/bypass-checklist.md](docs/bypass-checklist.md) lists every bypass attempt to try, with the expected result.
 
 ## Privacy and security

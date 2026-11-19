@@ -52,7 +52,9 @@ the image, install both on a Unix host so certificate path verification can run 
 ## Backups
 
 The compose file has a `backup` service that writes a `pg_dump` (custom format) to `./backups`
-every 24 hours, keeps 14 daily and 8 weekly copies. Copy `./backups` off the machine. Restore:
+every 24 hours and keeps 14 daily and 8 weekly copies. For encrypted copies in an
+existing S3-compatible bucket, see [Operations](operations.md#off-site-backups-and-recovery).
+Restore a local dump:
 
 ```sh
 docker compose exec -T db pg_restore -U plainphone -d plainphone --clean --if-exists < backups/plainphone-YYYY-MM-DD.dump

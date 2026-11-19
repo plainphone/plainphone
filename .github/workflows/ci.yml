@@ -252,6 +252,23 @@ jobs:
         if: ${{ !cancelled() && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure') }}
         run: exit 1
 
+  offsite-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate deployment Compose files
+        env:
+          POSTGRES_PASSWORD: compose-validation-only
+          PUBLIC_URL: https://example.org
+        run: |
+          docker compose config --quiet
+          docker compose -f deploy/dokploy-compose.yaml config --quiet
+      - name: Run the off-site backup and restore drill
+        run: scripts/test-offsite-backup.sh
+
   docker:
     needs: changes
     if: ${{ !cancelled() }}

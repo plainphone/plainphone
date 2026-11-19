@@ -110,6 +110,9 @@ gives the same check (exit code 1 on failure).
 
 ## 7. Backups
 
+See [Operations](operations.md) for daily age-encrypted uploads, retention and
+restore drills.
+
 `AdGuardHome.yaml` holds every phone and rule. ppdns backs it up at start and
 every 24 hours into the `data` volume (`/data/backups`, the last 14). Set
 `PPDNS_BACKUP_S3_ENDPOINT`, `_REGION`, `_BUCKET`, `_ACCESS_KEY` and
