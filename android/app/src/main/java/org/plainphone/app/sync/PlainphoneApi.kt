@@ -250,7 +250,7 @@ class PlainphoneApi private constructor(
         try {
             cancellation?.throwIfCanceled()
             conn.requestMethod = method
-            conn.connectTimeout = 15_000
+            conn.connectTimeout = minOf(15_000, readTimeoutMs)
             conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             conn.instanceFollowRedirects = false // never send the token somewhere else
@@ -534,6 +534,22 @@ class PlainphoneApi private constructor(
             409 -> false
             else -> throw HttpError(r.status, r.body)
         }
+    }
+
+    fun reportSos(token: String, payload: JSONObject): JSONObject {
+        val response = call("POST", "/device/sos", token, payload, readTimeoutMs = 4_000, replayable = false)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return try {
+            JSONObject(response.body)
+        } catch (err: org.json.JSONException) {
+            throw IOException("Invalid SOS response", err)
+        }
+    }
+
+    fun sosStatus(token: String, id: String): JSONObject {
+        val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return JSONObject(response.body)
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

@@ -34,6 +34,7 @@ export function routeForPush(data: unknown): Href {
     : { pathname: "/phones/[pid]", params: { pid: path[1]! } };
   const pid = typeof d.phoneId === "string" && /^[0-9a-f-]{36}$/i.test(d.phoneId) ? d.phoneId : null;
   if (d.type === "approval") return pid ? { pathname: "/phones/[pid]", params: { pid } } : "/approvals";
+  if ((d.type === "sos-urgent" || d.type === "sos-help") && pid) return { pathname: "/phones/[pid]", params: { pid } };
   if (d.type === "location" && pid) return { pathname: "/phones/[pid]/location", params: { pid } };
   return "/";
 }
@@ -89,6 +90,13 @@ export function watchNativePush(locale: Locale) {
     if (state === "active") void syncNativePush(locale);
   });
   return () => { token.remove(); foreground.remove(); };
+}
+
+/** Removes delivered alerts (SOS included) from the shelf when the parent signs out. */
+export async function clearLocalNotifications() {
+  if (Platform.OS === "web") return;
+  await Notifications.dismissAllNotificationsAsync();
+  Notifications.clearLastNotificationResponse();
 }
 
 /** Opens the right screen when the user taps a notification. */

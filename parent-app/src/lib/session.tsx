@@ -7,7 +7,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
-import { syncNativePush, watchNativePush } from "./notifications";
+import { clearLocalNotifications, syncNativePush, watchNativePush } from "./notifications";
 import { logoutNativeSession } from "./push-registration";
 import { loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
@@ -76,6 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionToken(null);
     await removeItem(TOKEN_KEY).catch(() => undefined);
     setState({ status: "anon" });
+    await clearLocalNotifications().catch(() => undefined);
   }, []);
 
   const refresh = useCallback(async () => {

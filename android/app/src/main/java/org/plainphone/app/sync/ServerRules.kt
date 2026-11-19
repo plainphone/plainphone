@@ -57,6 +57,7 @@ data class ServerRules(
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
+    val sos: SosRules? = null,
     val locationAlwaysUntil: Instant? = null,
     /** An open "Ring the phone"; null means stop. */
     val ring: RingRequest? = null,
@@ -138,6 +139,13 @@ data class ServerRules(
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
                 release = j.optBoolean("release", false),
                 locationMode = locationMode(location),
+                sos = j.optJSONObject("sos")?.let { sos ->
+                    val parents = sos.getJSONArray("parents")
+                    SosRules(sos.getString("name"), List(parents.length()) { i ->
+                        val contact = parents.getJSONObject(i)
+                        ApprovedContact(contact.getString("name"), contact.getString("number"))
+                    })
+                },
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { runCatching { Instant.parse(it) }.getOrNull() },
@@ -223,3 +231,5 @@ data class CheckInRequest(
     val createdAt: Instant? = null,
     val locationDue: Boolean? = null,
 )
+
+data class SosRules(val name: String, val parents: List<ApprovedContact>)

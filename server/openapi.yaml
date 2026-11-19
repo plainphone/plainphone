@@ -82,6 +82,28 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    SosPosition:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+    SosEvent:
+      type: object
+      required: [id, kind, createdAt, seenAt, seenByName, deliveredVia, deliveryFailedAt, battery, location]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { enum: [urgent, help] }
+        createdAt: { type: string, format: date-time }
+        seenAt: { type: [string, "null"], format: date-time }
+        seenByName: { type: [string, "null"] }
+        deliveredVia: { enum: [push, sms, null] }
+        deliveryFailedAt: { type: [string, "null"], format: date-time, description: "Set when the alert still had not reached every parent at the final timeout." }
+        battery: { type: [integer, "null"] }
+        location:
+          anyOf:
+            - { $ref: "#/components/schemas/SosPosition" }
+            - { type: "null" }
     ChildContactSettings:
       type: object
       required: [suggestDeviceContacts, lightContactRestriction]
@@ -119,7 +141,7 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
-        platform: { enum: [web, apns, fcm] }
+        platform: { enum: [web, apns, fcm, expo] }
         label: { type: [string, "null"] }
         endpointHash:
           type: string
@@ -491,6 +513,19 @@ components:
       required: [phoneId, profile, mode, timezone, language, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
+        sos:
+          type: object
+          required: [name, parents]
+          properties:
+            name: { type: string }
+            parents:
+              type: array
+              items:
+                type: object
+                required: [name, number]
+                properties:
+                  name: { type: string }
+                  number: { $ref: "#/components/schemas/E164" }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
         language: { $ref: "#/components/schemas/PhoneLanguage" }
@@ -943,6 +978,135 @@ components:
         payUnlockRecipient: { enum: [plainphone] }
 
 paths:
+  /device/sos:
+    post:
+      operationId: reportSos
+      summary: Report a child SOS once per client ID
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, kind]
+              properties:
+                id: { type: string, format: uuid }
+                kind: { enum: [urgent, help] }
+                battery: { type: integer, minimum: 0, maximum: 100 }
+                location: { $ref: "#/components/schemas/SosPosition" }
+                smsSubmitted: { type: boolean }
+                sentAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SosEvent" }
+        "403": { description: SOS unavailable }
+        "410": { description: SOS expired }
+        "429": { description: Too many help requests }
+  /device/sos/{id}:
+    get:
+      operationId: getDeviceSos
+      summary: Check whether a parent acknowledged this SOS
+      tags: [device]
+      security: [{ device: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Acknowledgment status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [seenAt, seenBy, seenByName]
+                properties:
+                  seenAt: { type: [string, "null"], format: date-time }
+                  seenBy: { type: boolean }
+                  seenByName: { type: [string, "null"] }
+        "404": { description: SOS not found }
+  /phones/{pid}/sos:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: listPhoneSos
+      summary: Get the last 30 days of SOS events
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { in: query, name: unseen, schema: { type: string, enum: ["1"] } }
+      responses:
+        "200":
+          description: SOS history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, callbackNumber]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/SosEvent" }
+                  callbackNumber: { type: [string, "null"] }
+    put:
+      operationId: setSosCallbackNumber
+      summary: Set or clear the number parents can call back
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callbackNumber]
+              properties:
+                callbackNumber: { type: [string, "null"] }
+      responses:
+        "204": { description: Saved }
+  /phones/{pid}/sos/{id}/seen:
+    post:
+      operationId: acknowledgeSos
+      summary: Acknowledge an SOS
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 60 }
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: SOS with its original acknowledgment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SosEvent" }
+        "404": { description: SOS not found }
+  /phones/{pid}/contacts/{cid}/sos-parent:
+    put:
+      operationId: markSosParent
+      summary: Choose an approved parent number for SOS SMS and calls
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { in: path, name: cid, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "204": { description: Saved }
+        "404": { description: Contact not found }
   /health:
     get:
       operationId: getHealth
@@ -1891,7 +2055,7 @@ paths:
                 - type: object
                   required: [platform, token]
                   properties:
-                    platform: { enum: [apns, fcm] }
+                    platform: { enum: [apns, fcm, expo] }
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     replaces: { type: string, maxLength: 1024 }
                     subscriptionId: { type: string, format: uuid, description: Existing native subscription to refresh }
@@ -2710,6 +2874,7 @@ paths:
                         id: { type: string, format: uuid }
                         name: { type: string }
                         number: { $ref: "#/components/schemas/E164" }
+                        sosParent: { type: boolean }
                   selfScheduleContacts: { type: [boolean, "null"] }
                   suggestDeviceContacts: { type: boolean }
                   lightContactRestriction: { type: boolean }

@@ -145,10 +145,10 @@ export class NativeParentPush implements ParentPushProvider {
     return Boolean(platform === "web" ? this.webPublicKey : platform === "fcm" ? this.fcm : this.apns);
   }
 
-  async send(target: PushTarget, { title, body, url, tag }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
+  async send(target: PushTarget, { title, body, url, tag, data: extra }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
     if (target.platform === "web") return this.web.send(target, { title, body, url, tag }, opts);
     const urgent = Boolean(opts?.urgent);
-    const data = { url, urgent: String(urgent), type: url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone" };
+    const data = { url, urgent: String(urgent), type: extra?.type ?? (url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone") };
     if (target.platform === "apns") {
       return this.apns?.send(target.endpoint, {
         aps: { alert: { title, body }, sound: "default", ...(urgent && { "interruption-level": "time-sensitive" }) },

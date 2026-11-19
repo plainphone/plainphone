@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
+import { SosPanel } from "../../../components/SosPanel";
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -414,6 +415,7 @@ function Overview() {
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
+      {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
       {filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}

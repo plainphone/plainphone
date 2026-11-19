@@ -38,6 +38,9 @@ describe("push notifications", () => {
   it("opens the location screen when a position is ready", () => {
     expect(routeForPush({ type: "location", phoneId: pid })).toEqual({ pathname: "/phones/[pid]/location", params: { pid } });
   });
+  it.each(["sos-urgent", "sos-help"])("opens the phone for %s", (type) => {
+    expect(routeForPush({ type, phoneId: pid })).toEqual({ pathname: "/phones/[pid]", params: { pid } });
+  });
   it("never follows an unexpected payload", () => {
     expect(routeForPush({ type: "location", phoneId: "../../settings" })).toBe("/");
     expect(routeForPush(null)).toBe("/");

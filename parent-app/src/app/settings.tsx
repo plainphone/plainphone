@@ -38,6 +38,7 @@ function Settings() {
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
+          <Text variant="muted">{t("sos.dnd")}</Text>
           {push === "granted" ? (
             <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "unavailable" ? (

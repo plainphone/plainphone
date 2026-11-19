@@ -146,7 +146,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       )
       .orderBy(phoneApps.packageName),
     ctx.db
-      .select({ name: contacts.name, number: contacts.number })
+      .select({ name: contacts.name, number: contacts.number, sosParent: contacts.sosParent })
       .from(contacts)
       .where(eq(contacts.phoneId, phone.id))
       .orderBy(contacts.name, contacts.number),
@@ -208,6 +208,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       locateRequestedAt: phone.locateRequestedAt,
       updateRequestedAt: phone.updateRequestedAt,
       releaseRequestedAt: phone.releaseRequestedAt,
+      name: phone.name,
     },
     allApps,
     contactRows,
@@ -250,6 +251,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     },
     timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
     contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
+    ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })) } } : {}),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,

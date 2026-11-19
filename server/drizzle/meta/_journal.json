@@ -162,6 +162,13 @@
       "when": 1795093959293,
       "tag": "0034_phone_language",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795094057308,
+      "tag": "0035_sos",
+      "breakpoints": true
     }
   ]
 }

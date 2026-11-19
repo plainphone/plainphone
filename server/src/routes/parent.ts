@@ -61,6 +61,7 @@ import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
 import { locationRoutes, setLocationMode } from "./location.js";
+import { parentSosRoutes } from "./sos.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -836,6 +837,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
+  parentSosRoutes(app, ctx, requirePhone);
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
@@ -862,7 +864,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
     return c.json({
-      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })),
+      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number, ...(r.sosParent ? { sosParent: true } : {}) })),
       selfScheduleContacts: phone.selfScheduleContacts,
       suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
       lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,

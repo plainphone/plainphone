@@ -3,6 +3,7 @@ import { messageLanguage } from "../lib/phone-language";
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
+import { SosPanel } from "../components/SosPanel";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import {
@@ -161,6 +162,7 @@ export function PhoneLayout() {
       <p className="back">
         {atOverview ? <Link to="/">{t("nav.phones")}</Link> : <Link to={`/phones/${pid}`}>{value.phone.name}</Link>}
       </p>
+      {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar
         banner={banner}

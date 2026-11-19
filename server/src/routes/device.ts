@@ -33,6 +33,7 @@ import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
+import { deviceSosRoutes } from "./sos.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -266,6 +267,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
+  deviceSosRoutes(app, ctx);
 
   app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");

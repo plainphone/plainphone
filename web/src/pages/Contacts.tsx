@@ -29,6 +29,8 @@ export function ContactsPage() {
   const [number, setNumber] = useState("");
   const [errors, setErrors] = useState<{ name?: string; number?: string }>({});
   const [saving, setSaving] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const [sosError, setSosError] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -104,6 +106,19 @@ export function ContactsPage() {
     }
   }
 
+  async function markParent(c: Contact) {
+    setMarking(true);
+    setSosError(false);
+    try {
+      await api.put(`/phones/${phone.id}/contacts/${c.id}/sos-parent`, { enabled: !c.sosParent });
+      await res.reload();
+    } catch {
+      setSosError(true);
+    } finally {
+      setMarking(false);
+    }
+  }
+
   async function remove(c: Contact) {
     setRemoving(c.id);
     const r = await run(() => api.del<ChangeResult>(`/phones/${phone.id}/contacts/${c.id}`), t("contacts.removed"));
@@ -114,6 +129,7 @@ export function ContactsPage() {
   return (
     <>
       <PageTitle sub={self || lightChild ? undefined : t("contacts.intro")}>{t(self ? "contacts.favourites" : "contacts.title")}</PageTitle>
+      {sosError && <p role="alert">{t("sos.error")}</p>}
       {!self && <p className="help">{t("contacts.otherApps")}</p>}
 
       <LoadGate res={res}>
@@ -174,6 +190,10 @@ export function ContactsPage() {
                       <div>
                         <p className="row-title">{c.name}</p>
                         <p className="row-meta number">{c.number}</p>
+                        {!self && <label>
+                          <input type="checkbox" checked={Boolean(c.sosParent)} disabled={marking} onChange={() => void markParent(c)} />
+                          {t("sos.mark")}
+                        </label>}
                       </div>
                       <button
                         type="button"

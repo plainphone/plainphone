@@ -37,6 +37,11 @@ The app registers directly with the Plainphone server for APNs on iOS or FCM on 
 
 Per-phone alert preferences are shared with the web dashboard. See [push setup](push-setup.md) for the Firebase and Apple configuration.
 
+SOS alerts use the same registration. An urgent SOS is sent as a high-priority alert on the
+**Urgent SOS** channel (Android) or as a time-sensitive notification (iOS), and both SOS kinds
+open the child phone's overview. In system settings, allow Urgent SOS through Do Not Disturb or
+Focus if your phone offers it. See [SOS](sos.md#push-configuration).
+
 ## Location screen
 
 The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `web/src/i18n` through `pnpm sync:shared`):
@@ -91,9 +96,9 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
+Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
-EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
+EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
 
 ## Your own server
 
