@@ -10,3 +10,7 @@ section 4(d) of the Apache License, Version 2.0.
 See TRADEMARK.md for how the name may be used.
 
 Android includes Project Nayuki's QR Code generator v1.8.0 (MIT), https://www.nayuki.io/page/qr-code-generator-library.
+
+The web dashboard, the parent app and Android include Schibsted Grotesk (Copyright 2023 The Schibsted Grotesk
+Project Authors) and IBM Plex Mono (Copyright 2017 IBM Corp.), both under the SIL Open Font License 1.1;
+the licence texts are next to the font files (Android: app/src/main/assets/licenses/).

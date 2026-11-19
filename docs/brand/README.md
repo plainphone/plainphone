@@ -2,7 +2,7 @@
 
 One logo, one favicon and one look on every surface: the site, the web dashboard, the parent app, the phone and the mails.
 
-**Status: round 1.** This guide proposes three visual directions (A, B, C). After one is chosen, a later change redesigns the landing page on it and rolls it out to every asset in the [inventory](#asset-inventory). Nothing in the product uses these files yet.
+**Status: direction C chosen (19 November 2026).** This guide proposed three visual directions (A, B, C), and C, Switch, was chosen. The web dashboard, the parent app, Android and the mails use it (see the [inventory](#asset-inventory)); the site moves to it in its own redesign.
 
 | | A · Paper | B · Daylight | C · Switch |
 | --- | --- | --- | --- |
@@ -63,21 +63,21 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 | Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Share images, paper `#f3f5f2`, ink `#1d2a30` |
 | Site | `site/build.mjs` `theme-color` | `#f3f5f2` / `#172025` (slate, not the token values) |
 | Site | `site/src/style.css`, `site/src/fonts/` | Site palette and Atkinson Hyperlegible Next (OFL) |
-| Mail | `site/src/mail/logo@2x.png`, `logo-dark@2x.png` (copied to `plainphone.org/mail/`) and `web/public/mail/` (from `web/scripts/make-icons.mjs`) | Mail logo; the wordmark text is set in DejaVu Sans Bold |
-| Mail | `server/src/lib/mail-templates.ts` | Mail colours: slate `#1d2a30`, links `#93c9de` in dark, background `#e8ece8` |
-| Web dashboard | `web/public/icon.svg`, `web/public/icons/{icon-192,icon-512,maskable-192,maskable-512,apple-touch-icon}.png` (from `web/scripts/make-icons.mjs`) | Mark 2: green `#24604a` tile, white phone outline with a wave |
-| Web dashboard | `web/public/manifest.webmanifest`, `web/index.html` | `theme_color` `#24604a`, background `#f2f3ef` |
-| Web dashboard | `web/src/styles.css` | Token palette (paper, ink, green) |
-| Parent app | `parent-app/assets/{icon,android-icon-foreground,android-icon-background,android-icon-monochrome,splash-icon,favicon}.png` (from `parent-app/scripts/make-icons.mjs`) | Mark 2 again |
-| Parent app | `parent-app/app.config.ts` | Splash `#f2f3ef` / `#121816`, adaptive background and notification colour `#24604a` |
-| Parent app | `parent-app/src/lib/theme.ts` | Token palette |
-| Android | `android/app/src/main/res/drawable/ic_plainphone.xml` | Mark 3: dark green `#1F2A24` tile, beige `#F4F1EA` phone outline. Used as launcher icon (no adaptive icon, no `mipmap-*`) and for the messages launcher alias |
-| Android | `ic_plainphone` as `setSmallIcon` in `telephony/CallNotifications.kt`, `safety/RingService.kt`, `safety/Safety.kt`, `update/AndroidUpdateHost.kt`, `update/UpdateBatteryExemption.kt` | The notification icon is the full-colour tile. Android only reads the alpha, so it shows as a solid square |
-| Android | `android/app/src/main/java/org/plainphone/app/ui/Theme.kt`, `home/HomeColors.kt`, `res/values/themes.xml` | Phone palette (lighter green, two reds) and launcher palettes (sage, sand, grey) |
-| README | `README.md` | Shield badge in `24604a`; hero image is `site/src/og-en.png` |
+| Mail | `web/public/mail/lockup@2x.png`, `lockup-dark@2x.png` (from `web/scripts/make-icons.mjs`), served by each instance at `<PUBLIC_URL>/mail/` | Done: direction C lockup (outlined wordmark), 130 × 32 shown, 2× PNG. The site's old `site/src/mail/logo*.png` are no longer used by the server |
+| Mail | `server/src/lib/mail-templates.ts` | Done: C palette light and dark, ink card edge, pill button (signal green in dark), Schibsted Grotesk with system fallback |
+| Web dashboard | `web/public/icon.svg`, `web/public/icons/{favicon-16,favicon-32,icon-192,icon-512,maskable-192,maskable-512,apple-touch-icon,badge-96}.png` (from `web/scripts/make-icons.mjs`) | Done: C favicon (16 px drawing below 24 px), app icon, maskable icon and a white push badge |
+| Web dashboard | `web/public/manifest.webmanifest`, `web/index.html` | Done: `theme-color` and background are C paper, `#f5f5f3` / `#0f0f0f` |
+| Web dashboard | `web/src/styles.css`, `web/src/fonts/`, `components/Mark.tsx` | Done: C tokens incl. `--brand`, Schibsted Grotesk and IBM Plex Mono (OFL), the C mark in the header |
+| Parent app | `parent-app/assets/{icon,android-icon-foreground,android-icon-background,android-icon-monochrome,splash-icon,splash-icon-dark,notification-icon,favicon}.png` (from `parent-app/scripts/make-icons.mjs`) | Done: C app icon, adaptive and themed icon, splash in light and dark, white notification icon |
+| Parent app | `parent-app/app.config.ts` | Done: splash `#f5f5f3` / `#0f0f0f`, adaptive background and notification colour `#141414`, fonts linked by `expo-font` |
+| Parent app | `parent-app/src/lib/theme.ts`, `assets/fonts/`, `components/Mark.tsx` | Done: C tokens incl. `brand`, Schibsted Grotesk and IBM Plex Mono |
+| Android | `res/mipmap-anydpi-v26/ic_launcher{,_round}.xml`, `res/drawable/ic_launcher_{foreground,background,monochrome}.xml`, `res/mipmap-{m,h,xh,xxh,xxxh}dpi/` (from `android/scripts/make-icons.mjs`) | Done: adaptive launcher icon with a themed-icon layer; also used by the messages launcher alias |
+| Android | `res/drawable/ic_notification.xml` as `setSmallIcon` in `telephony/CallNotifications.kt`, `safety/RingService.kt`, `safety/Safety.kt`, `update/AndroidUpdateHost.kt`, `update/UpdateBatteryExemption.kt` | Done: white switch outline on transparent (checked in `BrandIconsScreenshotTest`) |
+| Android | `ui/Tokens.kt`, `ui/Theme.kt`, `MaintenanceStyle.kt`, `res/font/`, `home/HomeColors.kt` | Done: C tokens, Schibsted Grotesk and IBM Plex Mono, ink call buttons. The grey launcher palette is C graphite; sage (default) and sand stay as softer choices |
+| README | `README.md` | Done: badge in `141414`. The hero image is `site/src/og-en.png` (site redesign) |
 | Store listing | none in the repo | No Play Store graphics yet (feature graphic 1024×500, icon 512) |
 
-Rollout per surface after the choice: replace the marks above with the chosen direction's files, add a real adaptive icon (`mipmap-anydpi-v26` with foreground, background and monochrome) and a separate white notification icon on Android, use one mail logo generated from the outlined wordmark, and move every palette to the token table in `docs/design-tokens.md` (PR #143).
+The rollout (`feat/brand-rollout-switch`) replaced every non-site row above with direction C. Every generated file is rendered from the SVGs in [`directions/c/`](directions/c/), and the fonts come from `tools/product-fonts.py` at the same pinned google/fonts commit as `render.mjs`. Tokens: [`docs/design-tokens.md`](../design-tokens.md). Screenshots before and after: [`docs/screenshots/brand-rollout-switch/`](../screenshots/brand-rollout-switch/).
 
 ## Shared rules
 

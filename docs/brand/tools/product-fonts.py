@@ -4,8 +4,8 @@
     python3 docs/brand/tools/product-fonts.py   # needs fonttools and brotli
 
 Fetches the fonts and their licences from google/fonts at the same pinned commit as render.mjs
-into docs/brand/.cache/fonts (git-ignored), then writes, subset to Latin (Danish, Swedish,
-Norwegian, German, English) plus punctuation:
+into docs/brand/.cache/fonts (git-ignored), then writes (Schibsted Grotesk subset to Latin: Danish, Swedish,
+Norwegian, German, English and punctuation; IBM Plex Mono unmodified, because "Plex" is a Reserved Font Name):
   web/src/fonts/schibsted-grotesk.woff2       variable, 400-900
   web/src/fonts/ibm-plex-mono-500.woff2
   parent-app/assets/fonts/*.ttf               static 400 and 700, IBM Plex Mono 500
@@ -61,6 +61,7 @@ def subsetted(font: TTFont, flavor: str | None) -> TTFont:
     sub.populate(unicodes=subset.parse_unicodes(UNICODES))
     sub.subset(font)
     font.flavor = flavor
+    font.recalcTimestamp = False  # same bytes on every run
     return font
 
 
@@ -92,7 +93,11 @@ def main() -> int:
 
     # Web: one variable file keeps every weight the dashboard uses.
     subsetted(TTFont(GROTESK), "woff2").save(web / "schibsted-grotesk.woff2")
-    subsetted(TTFont(MONO), "woff2").save(web / "ibm-plex-mono-500.woff2")
+    # IBM Plex has a Reserved Font Name, so it ships unmodified (all glyphs); woff2 only compresses it.
+    mono = TTFont(MONO)
+    mono.flavor = "woff2"
+    mono.recalcTimestamp = False
+    mono.save(web / "ibm-plex-mono-500.woff2")
 
     # React Native and Android need one static file per weight.
     statics = {}
@@ -100,7 +105,6 @@ def main() -> int:
         font = instancer.instantiateVariableFont(TTFont(GROTESK), {"wght": wght})
         rename(font, "Schibsted Grotesk", style)
         statics[f"SchibstedGrotesk-{style}"] = subsetted(font, None)
-    statics["IBMPlexMono-Medium"] = subsetted(TTFont(MONO), None)
     android_names = {
         "SchibstedGrotesk-Regular": "schibsted_grotesk_regular",
         "SchibstedGrotesk-Bold": "schibsted_grotesk_bold",
@@ -108,7 +112,10 @@ def main() -> int:
     }
     for ps, font in statics.items():
         font.save(expo / f"{ps}.ttf")
-        shutil.copyfile(expo / f"{ps}.ttf", droid / f"{android_names[ps]}.ttf")
+    # The original file, byte for byte.
+    shutil.copyfile(MONO, expo / "IBMPlexMono-Medium.ttf")
+    for ps, name in android_names.items():
+        shutil.copyfile(expo / f"{ps}.ttf", droid / f"{name}.ttf")
 
     for family, lic in LICENSES.items():
         for d in (web, expo, licenses):
