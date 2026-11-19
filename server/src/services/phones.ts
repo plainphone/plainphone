@@ -417,7 +417,10 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     ...summary,
     ruleReceipt,
     /** Whether the phone has confirmed the rules the server holds now; null while it has confirmed none. */
-    rulesCurrent: phone.deviceStatus?.rulesEtag ? phone.deviceStatus.rulesEtag === current.etag : null,
+    rulesCurrent: !phone.deviceStatus?.rulesEtag ? null
+      // With receipts on, "current" needs the same proof as the receipt, so header and receipt agree.
+      : phone.changeReceiptsEnabled && phone.pairedAt ? !!confirmed
+      : phone.deviceStatus.rulesEtag === current.etag,
     setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
       ? row.setupEnrollment.id
       : null,

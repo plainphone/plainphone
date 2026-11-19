@@ -130,9 +130,9 @@ or deep sleeping apps list. The exact settings vary by model and Android version
 
 Open a phone to see **Current rules**. The confirmation time comes from the phone
 when it has applied the rules that match the dashboard. The web rule screens also
-show this confirmation. A phone that has been silent for 20 minutes appears
-offline. A recently seen phone without a confirmation still shows that it is
-waiting. Changes saved between syncs can be applied together and share a time.
+show this confirmation. A phone that has been silent for longer than its offline
+alert time (24 hours by default) appears offline. A phone seen since then
+without a confirmation still shows that it is waiting. Changes saved between syncs can be applied together and share a time.
 An edit that undoes an earlier change still gets a fresh confirmation. A web
 filter change waits for the resolver too. The filter screen shows whether its
 settings reached the resolver.

@@ -416,6 +416,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>
       )}
       {!showHealth && s?.maintenance && <p className="notice notice-warn" role="status">{t("phone.maintenance")}</p>}
+      {!showHealth && s?.lockIntact && !s.maintenance && <p className="row-title">{t("phone.lockIntact")}</p>}
       {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
       {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
@@ -465,6 +466,9 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
             <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
           )}
         </>
+      )}
+      {!showHealth && !phone.dnsReady && (
+        <p className="notice notice-info status-dns">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "phone.dnsWaiting")}</p>
       )}
       {phone.attestation?.lastFailedAt && (
         <p className="help status-updated">{t("phone.attLastFailedAt", { when: when(phone.attestation.lastFailedAt) })}</p>
