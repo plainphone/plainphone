@@ -163,7 +163,7 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string; onFailure?: () => void } = {},
+  opts: { subscriptionId?: string; onFailure?: () => void; keepOnTransientFailure?: boolean } = {},
 ): Promise<number> {
   if (userIds.length === 0) return 0;
   try {
@@ -205,6 +205,8 @@ export async function notifyUsers(
           return 1;
         }
         if (outcome === "failed") opts.onFailure?.();
+        // A retried alert must not use up a subscription's allowance: only a permanent error deletes it.
+        if (outcome === "failed" && opts.keepOnTransientFailure) return 0;
         if (outcome === "gone" || (outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
           await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
         } else if (outcome === "failed") {

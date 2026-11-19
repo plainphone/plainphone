@@ -80,10 +80,9 @@ it("retries an accepted urgent report after both notification providers fail", a
     push.mockRestore();
     mail.mockRestore();
   }
-  await vi.waitFor(async () => {
-    await sweep(h.ctx);
-    expect(h.parentPush.sent).toHaveLength(1);
-  });
+  h.clock.advance(60_000);
+  await sweep(h.ctx);
+  expect(h.parentPush.sent).toHaveLength(1);
   await sweep(h.ctx);
   expect(h.parentPush.sent).toHaveLength(1);
   expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events).toHaveLength(1);
@@ -125,7 +124,7 @@ it("reclaims dispatch after an interrupted worker's lease expires", async () => 
   });
   await sweep(h.ctx);
   expect(h.parentPush.sent).toHaveLength(0);
-  h.clock.advance(60_000);
+  h.clock.advance(120_000);
   await sweep(h.ctx);
   await sweep(h.ctx);
   expect(h.parentPush.sent).toHaveLength(1);

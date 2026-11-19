@@ -90,7 +90,7 @@ components:
         lon: { type: number, minimum: -180, maximum: 180 }
     SosEvent:
       type: object
-      required: [id, kind, createdAt, seenAt, seenByName, deliveredVia, battery, location]
+      required: [id, kind, createdAt, seenAt, seenByName, deliveredVia, deliveryFailedAt, battery, location]
       properties:
         id: { type: string, format: uuid }
         kind: { enum: [urgent, help] }
@@ -98,6 +98,7 @@ components:
         seenAt: { type: [string, "null"], format: date-time }
         seenByName: { type: [string, "null"] }
         deliveredVia: { enum: [push, sms, null] }
+        deliveryFailedAt: { type: [string, "null"], format: date-time, description: "Set when the alert still had not reached every parent at the final timeout." }
         battery: { type: [integer, "null"] }
         location:
           anyOf:

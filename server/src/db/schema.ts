@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  foreignKey,
   primaryKey,
   smallint,
   text,
@@ -685,8 +686,24 @@ export const sosEvents = pgTable("sos_events", {
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
   notificationClaimedAt: timestamp("notification_claimed_at", { withTimezone: true }),
   notificationLeaseUntil: timestamp("notification_lease_until", { withTimezone: true }),
+  /** Set when delivery to every parent was still incomplete at the final timeout. */
+  deliveryFailedAt: timestamp("delivery_failed_at", { withTimezone: true }),
 }, (t) => [
   primaryKey({ columns: [t.phoneId, t.id] }),
   index("sos_phone_created_idx").on(t.phoneId, t.createdAt),
   index("sos_created_idx").on(t.createdAt),
+]);
+
+/** What each parent has been sent for one SOS, so a retry only repeats what failed. */
+export const sosDeliveries = pgTable("sos_deliveries", {
+  phoneId: uuid("phone_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+  mailedAt: timestamp("mailed_at", { withTimezone: true }),
+  /** Reached, or nothing could reach them (no push registration and no mail): no more retries. */
+  doneAt: timestamp("done_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.phoneId, t.eventId, t.userId] }),
+  foreignKey({ columns: [t.phoneId, t.eventId], foreignColumns: [sosEvents.phoneId, sosEvents.id] }).onDelete("cascade"),
 ]);

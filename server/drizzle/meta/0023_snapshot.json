@@ -1,6 +1,6 @@
 {
-  "id": "8207d272-8304-4f17-804e-3704c6a8d80b",
-  "prevId": "817ce7af-7232-4806-90fc-39207bea8f08",
+  "id": "d050ca96-849e-4787-91fd-65f2abcca019",
+  "prevId": "61a1d02e-4f25-4560-9f94-78bf65357715",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1563,6 +1563,13 @@
           "notNull": true,
           "default": "'strong'"
         },
+        "filter_method": {
+          "name": "filter_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vpn'"
+        },
         "timezone": {
           "name": "timezone",
           "type": "text",
@@ -2495,6 +2502,93 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.sos_deliveries": {
+      "name": "sos_deliveries",
+      "schema": "",
+      "columns": {
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pushed_at": {
+          "name": "pushed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mailed_at": {
+          "name": "mailed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sos_deliveries_user_id_users_id_fk": {
+          "name": "sos_deliveries_user_id_users_id_fk",
+          "tableFrom": "sos_deliveries",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "sos_deliveries_phone_id_event_id_sos_events_phone_id_id_fk": {
+          "name": "sos_deliveries_phone_id_event_id_sos_events_phone_id_id_fk",
+          "tableFrom": "sos_deliveries",
+          "tableTo": "sos_events",
+          "columnsFrom": [
+            "phone_id",
+            "event_id"
+          ],
+          "columnsTo": [
+            "phone_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "sos_deliveries_phone_id_event_id_user_id_pk": {
+          "name": "sos_deliveries_phone_id_event_id_user_id_pk",
+          "columns": [
+            "phone_id",
+            "event_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.sos_events": {
       "name": "sos_events",
       "schema": "",
@@ -2580,6 +2674,12 @@
         },
         "notification_lease_until": {
           "name": "notification_lease_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_failed_at": {
+          "name": "delivery_failed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
