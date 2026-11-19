@@ -21,6 +21,8 @@ export type NotifyEvent =
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
+  /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
+  | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }
   | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" };
 
@@ -80,6 +82,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
           body: `${e.what}. Open the app to approve or decline.`,
         };
+      case "moreTime":
+        return {
+          title: `${e.phoneName} asks for more time`,
+          body: `${e.what ?? "The daily limit"} is used up.${e.reason ? ` "${e.reason}"` : ""} Answer here or open the app.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: "I'm here"`, body: "The button on the phone was pressed." },
@@ -120,6 +127,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
           body: `${e.what}. Åbn appen for at godkende eller afvise.`,
         };
+      case "moreTime":
+        return {
+          title: `${e.phoneName} beder om mere tid`,
+          body: `${e.what ?? "Den daglige grænse"} er brugt op.${e.reason ? ` ”${e.reason}”` : ""} Svar her eller åbn appen.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: ”Jeg er her”`, body: "Der blev trykket på knappen på telefonen." },
@@ -138,6 +150,12 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
   },
 };
 
+/** The buttons on a "more time" notification. The ids are the answers the API takes. */
+const MORE_TIME_ACTIONS: Record<Locale, { id: string; title: string }[]> = {
+  en: [{ id: "15", title: "15 min" }, { id: "60", title: "1 hour" }, { id: "day", title: "Rest of the day" }, { id: "no", title: "No" }],
+  da: [{ id: "15", title: "15 min" }, { id: "60", title: "1 time" }, { id: "day", title: "Resten af dagen" }, { id: "no", title: "Nej" }],
+};
+
 export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   const t = text[locale](e);
   switch (e.type) {
@@ -149,6 +167,9 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
       return { ...t, url: "/approvals", tag: "approvals" };
     case "request":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+    case "moreTime":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `moretime-${e.requestId.replaceAll("-", "")}`,
+        data: { type: "more-time", phoneId: e.phoneId, requestId: e.requestId }, actions: MORE_TIME_ACTIONS[locale] };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
     case "sos":

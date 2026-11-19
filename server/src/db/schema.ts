@@ -258,6 +258,10 @@ export const phones = pgTable(
     releaseSyncCount: integer("release_sync_count").notNull().default(0),
     supportEnabled: boolean("support_enabled").notNull().default(true),
     releaseWarningsEnabled: boolean("release_warnings_enabled").notNull().default(true),
+    /** "Ask for more time" on the stop screen (docs/more-time.md). */
+    askMoreTimeEnabled: boolean("ask_more_time_enabled").notNull().default(true),
+    /** A calm notice five minutes before an app or the daily cap runs out. */
+    limitWarningEnabled: boolean("limit_warning_enabled").notNull().default(true),
     sosCallbackNumber: text("sos_callback_number"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */
@@ -645,6 +649,38 @@ export const phoneRequests = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("phone_requests_phone_status_idx").on(t.phoneId, t.status)],
+);
+
+/**
+ * The person with the phone asks for more time on a used-up app or on the daily cap
+ * (docs/more-time.md). The first answer wins; an unanswered request expires at the phone's
+ * local midnight. An approval is a time bonus for [day] only.
+ */
+export const moreTimeRequests = pgTable(
+  "more_time_requests",
+  {
+    id: id(),
+    phoneId: uuid("phone_id")
+      .notNull()
+      .references(() => phones.id, { onDelete: "cascade" }),
+    /** An Android package name, or "*" for the daily cap. */
+    packageName: text("package_name").notNull(),
+    /** What the child wrote, up to 140 characters. */
+    reason: text("reason"),
+    /** The phone's local date when it was asked. */
+    day: date("day", { mode: "string" }).notNull(),
+    status: text("status", { enum: ["pending", "approved", "declined", "expired"] }).notNull().default("pending"),
+    /** The parent's choice: 15 minutes, 1 hour, the rest of the day, or no. */
+    answer: text("answer", { enum: ["15", "60", "day", "no"] }),
+    grantedMinutes: integer("granted_minutes"),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("more_time_requests_phone_idx").on(t.phoneId, t.createdAt),
+    uniqueIndex("more_time_requests_one_open_idx").on(t.phoneId, t.packageName).where(sql`${t.status} = 'pending'`),
+  ],
 );
 
 /**
