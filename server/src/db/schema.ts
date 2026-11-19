@@ -105,7 +105,17 @@ export const UPDATE_ERROR_CODES = [
 export type StatusNotice = { id?: string; receivedAt: string };
 
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
+export const FILTER_METHODS = ["vpn", "privateDns"] as const;
+export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "unverified", "alwaysOn", "strictDns"] as const;
+export type FilterMethod = (typeof FILTER_METHODS)[number];
+
 export interface DeviceStatus {
+  filterMethod?: FilterMethod;
+  filterWorking?: boolean;
+  filterIssue?: (typeof PRIVATE_DNS_ISSUES)[number];
+  /** Server-side alert state, preserved across inconclusive reports for the same method. */
+  lastConfirmedFilterWorking?: boolean;
+  lockIntactWithoutFilter?: boolean;
   appVersion: string;
   appVersionCode?: number;
   update?: {
@@ -196,6 +206,7 @@ export const phones = pgTable(
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
+    filterMethod: text("filter_method", { enum: FILTER_METHODS }).notNull().default("vpn"),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
     /** Opaque id used as the DNS-over-TLS ClientID (`<dnsClientId>.dns.plainphone.org`). */

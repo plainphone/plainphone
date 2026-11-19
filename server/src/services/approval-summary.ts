@@ -74,7 +74,7 @@ export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
   const contactsFor = phonesFor("contact.add", "contact.remove");
   const dnsFor = phonesFor("dns.category", "dns.allowDomain", "dns.blockDomain");
   const bonusesFor = phonesFor("timeLimit.bonus");
-  const phoneRulesFor = phonesFor("contact.schedule", "phone.release", "phone.remove");
+  const phoneRulesFor = phonesFor("contact.schedule", "dns.method", "phone.release", "phone.remove");
   const [limits, previousSchedules, settings, keys, contactRows, dns, bonuses, phoneRules] = await Promise.all([
     limitsFor.length ? db.select().from(timeLimits).where(inArray(timeLimits.phoneId, limitsFor)) : [],
     schedulesFor.length ? db.select().from(schedules).where(inArray(schedules.phoneId, schedulesFor)) : [],
@@ -84,7 +84,7 @@ export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
     dnsFor.length ? db.select().from(dnsSettings).where(inArray(dnsSettings.phoneId, dnsFor)) : [],
     bonusesFor.length ? db.select().from(timeBonuses).where(inArray(timeBonuses.phoneId, bonusesFor)) : [],
     phoneRulesFor.length ? db.select({
-      phoneId: phones.id, selfScheduleContacts: phones.selfScheduleContacts, mode: phones.mode,
+      phoneId: phones.id, filterMethod: phones.filterMethod, selfScheduleContacts: phones.selfScheduleContacts, mode: phones.mode,
       pairedAt: phones.pairedAt, releaseRequestedAt: phones.releaseRequestedAt,
     }).from(phones).where(inArray(phones.id, phoneRulesFor)) : [],
   ]);
@@ -136,6 +136,8 @@ function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonu
         (op.type === "contact.add" ? row.number === op.number : row.id === op.contactId));
     case "contact.schedule":
       return state.phoneRules.find((row) => row.phoneId === phoneId)?.selfScheduleContacts;
+    case "dns.method":
+      return state.phoneRules.find((row) => row.phoneId === phoneId)?.filterMethod;
     case "dns.category":
       return state.dns.find((row) => row.phoneId === phoneId)?.blockedCategories.includes(op.category);
     case "dns.allowDomain":
@@ -233,6 +235,11 @@ export function formatApprovalSummary(
       return op.present ? copy(`Allow ${safe(op.domain)}`, `Tillad ${safe(op.domain)}`) : copy(`Stop allowing ${safe(op.domain)}`, `Fjern tilladelsen til ${safe(op.domain)}`);
     case "dns.blockDomain":
       return op.present ? copy(`Block ${safe(op.domain)}`, `Blokér ${safe(op.domain)}`) : copy(`Stop blocking ${safe(op.domain)}`, `Fjern blokeringen af ${safe(op.domain)}`);
+    case "dns.method": {
+      const names = { vpn: copy("Plainphone VPN", "Plainphone VPN"), privateDns: copy("Private DNS", "Privat DNS") };
+      const current = state.phoneRules.find((row) => row.phoneId === phoneId)?.filterMethod ?? "vpn";
+      return localized((locale) => `${names[current][locale]} → ${names[op.method][locale]}`);
+    }
     case "dns.category": {
       const categories: Record<string, ReturnType<typeof copy>> = {
         adult: copy("adult content", "voksenindhold"), gambling: copy("gambling", "pengespil"),

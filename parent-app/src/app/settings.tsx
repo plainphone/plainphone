@@ -75,6 +75,10 @@ function Settings() {
         <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
+      <Card>
+        <Text variant="heading">{t("settings.freeTitle")}</Text>
+        <Text>{t("settings.freePromise")}</Text>
+      </Card>
       <Button
         kind="secondary"
         title={t("nav.logout")}

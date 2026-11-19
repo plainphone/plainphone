@@ -206,6 +206,7 @@ releases signed with the same key.
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` stays `true` for previously confirmed phones during upgrades and retries. A confirmation from the mock provider requires a fresh sync when switching to HTTP DNS |
+| `dns.privateDnsReady` | Required before offering manual Private DNS setup. True only when the currently configured DoT service has accepted this phone’s ClientID. Mock confirmations and older rules without this field leave setup waiting |
 | `location` | `enabled`, `mode`, `intervalMinutes`, `requestedAt`; see above |
 | `ring`, `checkIn` | See above and [location.md](location.md) |
 | `settings` | Phone settings that are not free (camera, screen timeout, Bluetooth and so on), keys in alphabetical order. Applied only in strong mode. See [phone-settings.md](phone-settings.md) |

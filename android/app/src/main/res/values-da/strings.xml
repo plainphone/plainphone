@@ -323,4 +323,18 @@
     <string name="server_connect">Forbind</string>
     <string name="server_move_allowed">Flytning til en anden server er tilladt i kontrolpanelet.</string>
     <string name="server_move_blocked">Flytning til en anden server er slået fra i kontrolpanelet.</string>
+    <string name="light_private_dns_title">Privat DNS</string>
+    <string name="light_private_dns_body">Kopiér adressen, og åbn Indstillinger. Vælg Privat DNS under Netværk og internet, vælg udbyderens værtsnavn, indsæt adressen, og gem. Slå “Use Tailscale DNS settings” fra i Tailscale. MagicDNS-navne virker derefter ikke.</string>
+    <string name="light_private_dns_waiting">Telefonens filteradresse er på vej. Prøv igen om lidt.</string>
+    <string name="light_private_dns_settings">Åbn netværksindstillinger</string>
+    <string name="light_private_dns_copy">Kopiér filteradresse</string>
+    <string name="light_other_vpn">Bruger du en anden VPN (fx Tailscale eller arbejds-VPN)?</string>
+    <string name="light_other_vpn_tip">Privat DNS giver plads til din anden VPN. Slå “Use Tailscale DNS settings” fra i Tailscale. MagicDNS-navne virker derefter ikke.</string>
+    <string name="light_other_vpn_yes">Ja, brug privat DNS</string>
+    <string name="light_other_vpn_no">Nej, brug Plainphone VPN</string>
+    <string name="light_private_dns_reset">Plainphone er slået fra. Vælg Automatisk under Privat DNS i Netværk og internet for at få internetadgang igen.</string>
+    <string name="light_private_dns_vpn_settings">Åbn VPN-indstillinger</string>
+    <string name="light_private_dns_vpn_handoff">Åbn Plainphone under VPN i Androids indstillinger. Slå Bloker forbindelser uden VPN og Altid aktiv VPN fra. Gå derefter tilbage hertil for at indstille Privat DNS.</string>
+    <string name="light_vpn_restore_dns">Vælg Automatisk eller Fra under Privat DNS i Netværk og internet. Gå derefter tilbage hertil for at tilslutte Plainphone VPN igen.</string>
+    <string name="free_promise">Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.</string>
 </resources>

@@ -2,7 +2,7 @@
 //
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
-import { errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
+import { Switch, errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
 import { lightSetupLink } from "../lib/light-setup";
@@ -49,6 +49,7 @@ export function AddPhonePage() {
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
+  const [privateDns, setPrivateDns] = useState(false);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
@@ -57,7 +58,7 @@ export function AddPhonePage() {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
@@ -83,6 +84,8 @@ export function AddPhonePage() {
           selfOnly={Boolean(template)}
           onNext={mode === "light" || template ? () => makeQr() : () => setStep(2)}
           makeLink={mode === "light"}
+          privateDns={privateDns}
+          onPrivateDns={setPrivateDns}
           onBack={() => setMode(null)}
         />
       )}
@@ -208,6 +211,8 @@ function WhoStep(props: {
   selfOnly?: boolean;
   onNext: () => void | Promise<void>;
   makeLink: boolean;
+  privateDns: boolean;
+  onPrivateDns: (value: boolean) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
@@ -247,6 +252,10 @@ function WhoStep(props: {
             </label>
           ))}
         </fieldset>
+        {props.makeLink && props.profile === "self" && (
+          <Switch label={t("filter.otherVpn")} checked={props.privateDns} onChange={props.onPrivateDns}
+            description={props.privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
+        )}
         <Field label={t("pair.name")} help={t("pair.nameHelp")} error={error}>
           {(p) => (
             <input

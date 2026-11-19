@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo } from "react-native";
@@ -6,7 +7,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useNow } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
@@ -128,6 +129,44 @@ function RenamePhone() {
         onSubmitEditing={() => void save()}
       />
       <Button testID="rename-save" kind="secondary" title={busy ? t("app.saving") : t("app.save")} busy={busy} onPress={() => void save()} />
+    </Card>
+  );
+}
+
+function FreePromiseSetting() {
+  const { t } = useI18n();
+  const { phone, run, notify } = usePhone();
+  const params = { path: { pid: phone.id } };
+  const res = useLoad(() => unwrap<{ showFreePromise?: boolean }>(client.GET("/phones/{pid}/home", { params })), [phone.id]);
+  const [busy, setBusy] = useState(false);
+
+  async function save(showFreePromise: boolean) {
+    setBusy(true);
+    try {
+      const result = await run(() =>
+        unwrap<ChangeResult>(client.PATCH("/phones/{pid}/home", { params, body: { showFreePromise } })),
+      );
+      if (result?.status === "applied") res.setData((home) => home && { ...home, showFreePromise });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <LoadGate res={res}>
+        {(home) => (
+          <Switch
+            label={t("home.freePromise")}
+            help={t("home.freePromiseHelp")}
+            value={home.showFreePromise ?? true}
+            disabled={busy}
+            onValueChange={(value) => void save(value)}
+          />
+        )}
+      </LoadGate>
     </Card>
   );
 }
@@ -267,6 +306,7 @@ function Overview() {
   ];
   if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
+  const filterStatus = filterStatusKey(phone.status);
   const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
@@ -284,6 +324,7 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
+      {filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
@@ -347,6 +388,7 @@ function Overview() {
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
         {phone.pairedAt ? <ServerMoveToggle /> : null}
+        <FreePromiseSetting key={phone.id} />
         <RenamePhone />
         <RemovePhone />
       </VStack>

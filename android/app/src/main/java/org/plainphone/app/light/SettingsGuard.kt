@@ -36,6 +36,7 @@ object SettingsGuard {
         val dangerous: List<String>,
         /** Words of the uninstall dialog, the only installer screen that is closed. */
         val uninstall: List<String> = UNINSTALL,
+        val vpnManagement: List<String> = emptyList(),
     ) {
         companion object {
             /**
@@ -56,8 +57,34 @@ object SettingsGuard {
         }
     }
 
-    fun isProtectedScreen(packageName: String, texts: List<String>, k: Keywords): Boolean {
-        if (packageName == VPN_DIALOGS) return true
+    // Match the provider option inside the editor. The overview only shows the Private DNS title.
+    private val DNS_OPTIONS = listOf(
+        "Private DNS provider hostname",
+        "Private DNS provider host name",
+        "Værtsnavn for udbyder af privat DNS",
+        "Værtsnavn for den private DNS-udbyder",
+        "com.android.settings:id/private_dns_hostname",
+        "com.android.settings:id/private_dns_mode_provider",
+    )
+
+    fun isProtectedScreen(
+        packageName: String,
+        texts: List<String>,
+        k: Keywords,
+        privateDns: Boolean = false,
+        dnsOptions: List<String> = emptyList(),
+        allowPrivateDnsEditor: Boolean = false,
+    ): Boolean {
+        if (packageName == VPN_DIALOGS) return !privateDns
+        if (privateDns && packageName in SETTINGS_PACKAGES &&
+            texts.any { text -> (DNS_OPTIONS + dnsOptions).any { it.equals(text.trim(), ignoreCase = true) } }
+        ) return !allowPrivateDnsEditor
+        if (privateDns && packageName in SETTINGS_PACKAGES &&
+            texts.any { text ->
+                (k.vpnManagement + listOf("Block connections without VPN", "Bloker forbindelser uden VPN"))
+                    .any { it.equals(text.trim(), ignoreCase = true) }
+            }
+        ) return false
         val lower = texts.map { it.lowercase() }
         if (k.ownDescriptions.any { d -> d.isNotBlank() && lower.any { it.contains(d.lowercase()) } }) return true
         val mentionsUs = lower.any { it.contains(k.appName.lowercase()) }

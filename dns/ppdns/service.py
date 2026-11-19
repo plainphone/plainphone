@@ -111,8 +111,10 @@ class Service:
             existing = self.adguard.user_rules()
             kept, previous = helplines.split_rules(existing)
             fixed = helplines.filter_rules(patterns)
-            self.adguard.exclude_from_stats(patterns, obsolete=sorted(previous - set(patterns)))
-            wanted = kept + fixed
+            self.adguard.exclude_from_stats(patterns + ["||plainphone-filter.test^"], obsolete=sorted(previous - set(patterns)))
+            # A fresh Android system DNS lookup confirms the active TLS resolver answered.
+            canary = "||plainphone-filter.test^$dnsrewrite=NOERROR;A;192.0.2.42"
+            wanted = [rule for rule in kept if rule != canary] + [canary] + fixed
             if wanted != existing:
                 self.adguard.set_user_rules(wanted)
 

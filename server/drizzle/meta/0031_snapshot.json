@@ -1,6 +1,6 @@
 {
-  "id": "fd107a8c-09c2-4d36-82a8-68bf1225e8a4",
-  "prevId": "817ce7af-7232-4806-90fc-39207bea8f08",
+  "id": "75ac1567-a27c-494e-8e9c-a0e56c1eccf2",
+  "prevId": "61a1d02e-4f25-4560-9f94-78bf65357715",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1776,6 +1776,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'strong'"
+        },
+        "filter_method": {
+          "name": "filter_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vpn'"
         },
         "timezone": {
           "name": "timezone",

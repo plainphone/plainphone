@@ -121,6 +121,7 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val filter: org.plainphone.app.light.FilterHealth? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -138,6 +139,11 @@ data class DeviceStatus(
         .put("mode", mode)
         .apply {
             // Optional fields (docs/sync-api.md): only sent when known.
+            filter?.let {
+                put("filterMethod", it.method.wire)
+                put("filterWorking", it.working)
+                it.issue?.let { issue -> put("filterIssue", issue) }
+            }
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
             if (callRoleActionNeeded) put("callRoleActionNeeded", true)
@@ -166,6 +172,7 @@ class PlainphoneApi private constructor(
     private val openConnection: (URL) -> HttpURLConnection,
     private val openFreshConnection: (URL) -> HttpURLConnection,
     private val setupKey: () -> JSONObject? = { null },
+    private val initialFilterMethod: () -> String? = { null },
 ) : SyncApi, MoveApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
@@ -184,6 +191,7 @@ class PlainphoneApi private constructor(
             Network.fromNetworkHandle(network.networkHandle).openConnection(url) as HttpURLConnection
         },
         { org.plainphone.app.light.LightSetup.selfKey(context) },
+        { org.plainphone.app.light.LightSetup.initialFilterMethod(context) },
     )
 
     private companion object {
@@ -315,7 +323,8 @@ class PlainphoneApi private constructor(
         val r = call("POST", "/device/pairings/${pairing.id}",
             headers = mapOf("X-Poll-Secret" to pairing.pollSecret),
             body = JSONObject().put("action", if (confirm) "confirm" else "cancel")
-                .put("key", if (confirm) setupKey() else null))
+                .put("key", if (confirm) setupKey() else null)
+                .put("filterMethod", if (confirm) initialFilterMethod() else null))
         if (confirm && invalidSetupKey(r)) return PairPoll.InvalidKey
         return pairingResult(r)
     }
@@ -426,6 +435,7 @@ class PlainphoneApi private constructor(
     override fun enroll(token: String, installId: String, deviceInfo: Map<String, String>): EnrollResult {
         val body = JSONObject().put("token", token).put("installId", installId).put("deviceInfo", JSONObject(deviceInfo))
             .put("key", setupKey())
+            .put("filterMethod", initialFilterMethod())
         val r = call("POST", "/device/enroll", body = body)
         return when (r.status) {
             200 -> JSONObject(r.body).let {

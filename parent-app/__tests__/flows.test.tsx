@@ -44,7 +44,7 @@ describe("logging in", () => {
     });
     await renderRouter(routes, { initialUrl: "/login" });
     await fireEvent.press(await screen.findByText("Use your own server"));
-    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+    await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
     await fireEvent.press(screen.getByText("Connect"));
     await screen.findByText(`This app talks to ${custom}.`);
     expect(await SecureStore.getItemAsync("pp.server")).toBe(custom);
@@ -138,7 +138,7 @@ describe("logging in", () => {
     await renderRouter(routes, { initialUrl: "/login" });
     await fireEvent.changeText(await screen.findByLabelText("Email address"), "parent@example.org");
     await fireEvent.press(screen.getByText("Use your own server"));
-    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+    await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
     await fireEvent.press(screen.getByText("Connect"));
     await fireEvent.press(screen.getByTestId("login-submit"));
     await fireEvent(screen.getByTestId("login-email"), "submitEditing");
@@ -329,7 +329,7 @@ describe("signed in", () => {
     });
     await renderRouter(routes, { initialUrl: "/settings" });
     await fireEvent.press(await screen.findByText("Use your own server"));
-    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+    await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
 
     const forget = jest.mocked(SecureStore.deleteItemAsync).getMockImplementation()!;
     let release!: () => void;

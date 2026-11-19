@@ -6,7 +6,7 @@ import { ApiError, client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { ScanCode } from "../components/ScanCode";
-import { Button, Choice, errorMessage, Field, LiveStatus, type NoticeValue, PageTitle, Screen, Stack, Text } from "../components/ui";
+import { Button, Choice, errorMessage, Field, LiveStatus, type NoticeValue, PageTitle, Screen, Stack, Switch, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { normaliseCode } from "../shared/lib/format";
 
@@ -17,7 +17,8 @@ function PairForm() {
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>("child");
-  const [lookup, setLookup] = useState<{ code: string; profile?: Profile; done: boolean }>({ code, done: false });
+  const [privateDns, setPrivateDns] = useState(false);
+  const [lookup, setLookup] = useState<{ code: string; profile?: Profile; light?: boolean; done: boolean }>({ code, done: false });
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
@@ -40,15 +41,17 @@ function PairForm() {
     let current = true;
     async function lookupProfile() {
       let found: Profile | undefined;
+      let light = false;
       try {
         const { data } = await client.POST("/phones/pairing-profile", { body: { code } });
         found = data?.profile ?? undefined;
+        light = data?.mode === "light";
       } catch {
         // The claim endpoint checks the profile again.
       }
       if (!current) return;
       if (found) setProfile(found);
-      setLookup({ code, profile: found, done: true });
+      setLookup({ code, profile: found, light, done: true });
     }
     void lookupProfile();
     return () => { current = false; };
@@ -69,7 +72,7 @@ function PairForm() {
       } catch {
         timezone = undefined;
       }
-      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone } }));
+      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, ...(lookup.light && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else router.replace({ pathname: "/phones/[pid]", params: { pid: phone.id } });
     } catch (err) {
@@ -149,6 +152,10 @@ function PairForm() {
           ]}
         />
       </Stack>
+      {lookup.light && profile === "self" ? (
+        <Switch label={t("filter.otherVpn")} value={privateDns} onValueChange={setPrivateDns}
+          help={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
+      ) : null}
       <Button testID="pair-submit" title={busy ? t("pair.adding") : t("pair.submit")} busy={busy} disabled={lookupPending} onPress={() => void submit()} />
     </Screen>
   );

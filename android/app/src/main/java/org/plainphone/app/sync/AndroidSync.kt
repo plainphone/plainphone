@@ -35,6 +35,8 @@ import java.util.concurrent.Executor
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import org.plainphone.app.light.FilterMethod
+import org.plainphone.app.light.LightFilter
 import org.plainphone.app.Compat
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
@@ -111,7 +113,15 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
         Lock.applyIfNeeded(context, reason, maxAgeMs)
     }
 
-    override fun lockState(): LockState = Lock.lockState(context)
+    override fun lockState(): LockState {
+        val state = Lock.lockState(context)
+        if (state.mode != "light") return state
+        val filter = LightFilter.probe(context, state.protections)
+        val dnsHost = if (filter.method == FilterMethod.PRIVATE_DNS) {
+            LightFilter.host(context).takeIf { filter.working }
+        } else state.dnsHost
+        return state.copy(filter = filter, dnsHost = dnsHost)
+    }
 
     override fun release(): List<StepResult> = Lock.releaseNow(context)
 
