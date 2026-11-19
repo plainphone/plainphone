@@ -4,7 +4,7 @@
 // (web/src/styles.css) and the phone: graphite and white with one signal green, light and dark,
 // AA contrast on every text pair. `brand` only means "on" (switches, the mark, active states),
 // always with `onBrand` on it and `brandEdge` around it; never decoration or a call button.
-import { useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
 export const light = {
   bg: "#f5f5f3",
@@ -50,9 +50,13 @@ export const dark: Colors = {
 
 /**
  * Schibsted Grotesk 400/700 and IBM Plex Mono 500, built into the app by the expo-font plugin
- * (app.config.ts). Where the font is missing (Expo Go, tests) the system font is used.
+ * (app.config.ts). Where the font is missing (Expo Go, tests) the system font is used; the web
+ * build (development and screenshots) names a system fallback, or the browser would pick a serif.
  */
-export const fonts = { text: "Schibsted Grotesk", mono: "IBMPlexMono-Medium" };
+export const fonts = Platform.select({
+  web: { text: "'Schibsted Grotesk', system-ui, sans-serif", mono: "'IBM Plex Mono', ui-monospace, monospace" },
+  default: { text: "Schibsted Grotesk", mono: "IBMPlexMono-Medium" },
+});
 
 /** Grouped surfaces (cards, rows) and controls use 6; buttons are pills. */
 export const radius = 6;
