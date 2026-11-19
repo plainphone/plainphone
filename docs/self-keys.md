@@ -38,6 +38,11 @@ own account. A new QR replaces the previous one. The invitation grants helper
 access only. They can find the phones they help and any requests under
 **People I help**. On the owner's **Key** page, the owner can see who holds the
 key. Two people can invite each other separately.
+While a QR invitation is waiting, the web **Key** page and the parent app say so and name the
+fallback (changes wait for the key's delay, 24 hours by default); once it is accepted they say that instead. The parent app
+can create the invitation link too. An invite is never an approval: on the phone the two codes
+are labelled differently, and an expired invitation or approval code is reported as expired
+with a button for a new one, rather than as an empty list.
 
 To end your outgoing key, choose **Wait time** and save. The request goes to
 your current helper. The opposite direction of a mutual arrangement continues

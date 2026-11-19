@@ -119,6 +119,15 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
    setting, open **App info** from Plainphone, tap **⋮ (top right) → Allow restricted settings**,
    return to Plainphone and retry the step. The menu depends on the Android version and manufacturer.
    See [Android's restricted settings help](https://support.google.com/android/answer/12623953).
+   The help is a short numbered list and is kept on the phone, so it is still there if Plainphone
+   is closed and reopened. If a runtime permission (notifications or location) was declined, the
+   screen says so; once Android stops asking (a second decline, or "don't ask again"), the step
+   becomes a list that leads through **App info → Permissions**, with **Try again** and, for
+   optional steps, **Not now** with one line on what skipping costs. A step that Android reports
+   as done clears its own help.
+   On **Myself**, **Back** goes one screen at a time and keeps every choice (other VPN, undo
+   time, key). The last screen summarises the undo time and the key: the wait in hours or, for a
+   trusted person, that changes wait 24 hours until they accept.
 6. Background operation, location and always-on VPN are optional. For always-on VPN, leave
    **Block connections without VPN** off. The filter only carries DNS lookups
    ([light-mode-vpn.md](light-mode-vpn.md)). After installation, you can turn off Chrome's

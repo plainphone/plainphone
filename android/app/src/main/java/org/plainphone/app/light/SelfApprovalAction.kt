@@ -51,14 +51,16 @@ internal fun SelfApprovalAction() {
     val language = LocalConfiguration.current.locales[0].language
     var qrSummary by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<String?>(null) }
-    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null }
+    var expired by remember { mutableStateOf(false) }
+    var attempt by remember { mutableStateOf(0) }
+    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null; expired = false }
     TextButton(onClick = { open = true }) { Text(stringResource(R.string.self_approval_title)) }
     TextButton(onClick = { invite = true; open = true }) { Text(stringResource(R.string.setup_key_qr)) }
     TextButton(onClick = { template = true; open = true }) { Text(stringResource(R.string.self_template_share)) }
     ScanPlainphoneCode()
     if (!open) return
     val api = remember { PlainphoneApi(ConfigStore(context).load().serverUrl, context) }
-    LaunchedEffect(selected, invite, template, language) {
+    LaunchedEffect(selected, invite, template, language, attempt) {
         val id = selected
         try {
             if (template) {
@@ -71,6 +73,7 @@ internal fun SelfApprovalAction() {
                 else {
                     delay(15 * 60_000L)
                     qr = null
+                    expired = true
                     requests = emptyList()
                 }
             } else if (id == null) requests = withContext(Dispatchers.IO) { api.approvalRequests(token, language) }
@@ -82,6 +85,7 @@ internal fun SelfApprovalAction() {
                 delay((120_000 - (SystemClock.elapsedRealtime() - started)).coerceAtLeast(0))
                 qr = null
                 qrSummary = null
+                expired = true
                 selected = null
             }
         } catch (_: IOException) {
@@ -104,11 +108,19 @@ internal fun SelfApprovalAction() {
                     error -> Text(stringResource(R.string.pairing_failed))
                     url != null -> {
                         Text(stringResource(when { template -> R.string.self_template_help; invite -> R.string.self_invite_scan; else -> R.string.self_approval_scan }))
+                        if (!template) Text(stringResource(if (invite) R.string.self_invite_not_approval else R.string.self_approval_not_invite))
                         SelfApprovalQr(url, qrSummary)
                     }
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
+                    invite && expired -> {
+                        Text(stringResource(R.string.self_invite_expired))
+                        TextButton(onClick = { expired = false; requests = null; attempt++ }) { Text(stringResource(R.string.self_invite_new)) }
+                    }
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
-                    else -> SelfApprovalChoices(rows) { selected = it }
+                    else -> {
+                        if (expired) Text(stringResource(R.string.self_approval_expired))
+                        SelfApprovalChoices(rows) { expired = false; selected = it }
+                    }
                 }
             }
         },
