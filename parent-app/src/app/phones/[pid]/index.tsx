@@ -2,7 +2,7 @@
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { AccessibilityInfo, Switch } from "react-native";
+import { AccessibilityInfo, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -95,7 +95,7 @@ function PushPreferences() {
         <>
           <Row>
             <Text variant="label" style={{ flex: 1 }}>{t("phone.pushWakeups")}</Text>
-            <Switch accessibilityLabel={t("phone.pushWakeups")} accessibilityHint={t("phone.pushWakeupsHelp")}
+            <NativeSwitch accessibilityLabel={t("phone.pushWakeups")} accessibilityHint={t("phone.pushWakeupsHelp")}
               disabled={busy} value={phone.pushWakeups} onValueChange={(value) => void save("wakeups", value)} />
           </Row>
           <Text variant="muted">{t("phone.pushWakeupsHelp")}</Text>
@@ -103,7 +103,7 @@ function PushPreferences() {
             <>
               <Row>
                 <Text variant="label" style={{ flex: 1 }}>{t("phone.pushGoogleFree")}</Text>
-                <Switch accessibilityLabel={t("phone.pushGoogleFree")} accessibilityHint={t("phone.pushGoogleFreeHelp")}
+                <NativeSwitch accessibilityLabel={t("phone.pushGoogleFree")} accessibilityHint={t("phone.pushGoogleFreeHelp")}
                   disabled={busy} value={phone.preferUnifiedPush} onValueChange={(value) => void save("googleFree", value)} />
               </Row>
               <Text variant="muted">{t("phone.pushGoogleFreeHelp")}</Text>
@@ -115,7 +115,7 @@ function PushPreferences() {
         <>
           <Row>
             <Text variant="label" style={{ flex: 1 }}>{t("phone.pushAlerts")}</Text>
-            <Switch accessibilityLabel={t("phone.pushAlerts")} accessibilityHint={t("phone.pushAlertsHelp")}
+            <NativeSwitch accessibilityLabel={t("phone.pushAlerts")} accessibilityHint={t("phone.pushAlertsHelp")}
               disabled={busy} value={alerts} onValueChange={(value) => void save("alerts", value)} />
           </Row>
           <Text variant="muted">{t("phone.pushAlertsHelp")}</Text>
