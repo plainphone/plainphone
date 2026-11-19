@@ -28,7 +28,25 @@ const files = (dir) =>
 const html = files(dist).filter((f) => f.endsWith(".html"));
 if (html.length !== locales.length * 4 + 1) errors.push("Expected four pages per locale and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
-const cspHashes = new Set([...headers.matchAll(/'sha256-([^']+)'/g)].map((m) => m[1]));
+const csp = headers.match(/^  Content-Security-Policy: (.+)$/m)?.[1] ?? "";
+const directives = new Map();
+for (const line of csp.split(";").filter((line) => line.trim())) {
+  const [name, ...values] = line.trim().split(/\s+/);
+  if (directives.has(name)) errors.push(`_headers: duplicate CSP directive ${name}`);
+  directives.set(name, values);
+}
+const cspHashes = new Set((directives.get("style-src") ?? []).map((value) => value.match(/^'sha256-([A-Za-z0-9+/]+=)'$/)?.[1]));
+const seenHashes = new Set();
+for (const directive of ["default-src", "script-src", "style-src-attr", "frame-ancestors", "base-uri", "form-action"]) {
+  if (directives.get(directive)?.join(" ") !== "'none'") errors.push(`_headers: expected ${directive} 'none'`);
+}
+for (const directive of ["img-src", "font-src", "connect-src"]) {
+  if (directives.get(directive)?.join(" ") !== "'self'") errors.push(`_headers: expected ${directive} 'self'`);
+}
+if (directives.size !== 10) errors.push("_headers: unexpected CSP directive");
+if (!cspHashes.size || cspHashes.has(undefined) || csp.includes("unsafe-")) {
+  errors.push("_headers: style-src must contain only SHA-256 hashes");
+}
 
 function resolve(from, url) {
   const u = new URL(url, "https://plainphone.org/" + relative(dist, from));
@@ -40,6 +58,18 @@ function target(pathname) {
   return p;
 }
 
+function checkResource(file, url) {
+  if (url.startsWith("#")) return;
+  const name = relative(dist, file);
+  // Build output uses root-relative asset URLs. Reject HTML entities and
+  // backslashes before parsing so browser URL normalization cannot change them.
+  if (!/^\/(?!\/)[A-Za-z0-9._/-]+$/.test(url)) {
+    errors.push(`${name}: resource must use a same-origin asset path: ${url}`);
+  } else if (!existsSync(target(resolve(file, url).pathname))) {
+    errors.push(`${name}: missing resource ${url}`);
+  }
+}
+
 for (const file of html) {
   const src = readFileSync(file, "utf8");
   const name = relative(dist, file);
@@ -48,11 +78,54 @@ for (const file of html) {
   if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
-  if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
-  // Every inline <style> must be allowed by a hash in the CSP, or the page renders unstyled.
-  for (const [, css] of src.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
+  const scripts = [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  for (const [, attrs, value] of scripts) {
+    try {
+      if (attrs !== ' type="application/ld+json"') throw new Error();
+      JSON.parse(value);
+    } catch {
+      errors.push(`${name}: only valid inline JSON-LD is allowed in script elements`);
+    }
+  }
+  if ((src.match(/<script\b/gi) ?? []).length !== scripts.length) errors.push(`${name}: malformed script`);
+  // Hash the exact published styles, and check CSS requests even if CSP would block them.
+  for (const [, css] of src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
     const h = createHash("sha256").update(css).digest("base64");
+    seenHashes.add(h);
     if (!cspHashes.has(h)) errors.push(`${name}: inline <style> hash ${h} is not in the _headers CSP`);
+    // The stylesheet uses literal asset paths and one escaped minus glyph.
+    if (/@import\b|image-set\(|\\/i.test(css.replaceAll('"\\2212"', ''))) {
+      errors.push(`${name}: unsupported CSS resource syntax`);
+    }
+    for (const [, resource] of css.matchAll(/url\(\s*("[^"]*"|'[^']*'|[^)]+)\)/gi)) {
+      checkResource(file, resource.trim().replace(/^(["'])(.*)\1$/, "$2"));
+    }
+  }
+  for (const [, name, attrs] of src.matchAll(/<([a-z][\w:-]*)\b((?:"[^"]*"|'[^']*'|[^'"<>])*)>/gi)) {
+    const tag = name.toLowerCase();
+    const attributes = new Map([...attrs.matchAll(/([^\s=/"'<>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+)))?/g)]
+      .map(([, key, double, single, bare]) => [key.toLowerCase(), double ?? single ?? bare ?? ""]));
+    if (/^(iframe|frame|embed|object|base|audio|video|track|portal)$/i.test(tag) ||
+        [...attributes.keys()].some((key) => key === "style" || key.startsWith("on") || key === "ping" || key === "srcdoc") ||
+        (tag === "meta" && attributes.has("http-equiv"))) {
+      errors.push(`${relative(dist, file)}: disallowed element or attribute on <${tag}>`);
+    }
+    for (const key of ["src", "poster", "background", "data", "manifest", "xlink:href"]) {
+      if (attributes.has(key)) checkResource(file, attributes.get(key));
+    }
+    for (const key of ["srcset", "imagesrcset"]) {
+      if (!attributes.has(key)) continue;
+      for (const candidate of attributes.get(key).split(",")) checkResource(file, candidate.trim().split(/\s+/)[0]);
+    }
+    if (attributes.has("href") && tag !== "a") {
+      const rel = attributes.get("rel") ?? "";
+      if (tag !== "link" || !["canonical", "alternate"].includes(rel)) {
+        checkResource(file, attributes.get("href"));
+        if (tag === "link" && !["icon", "apple-touch-icon", "preload"].includes(rel)) {
+          errors.push(`${relative(dist, file)}: unsupported link relation ${rel}`);
+        }
+      }
+    }
   }
   const dupes = [...src.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]).filter((v, i, a) => a.indexOf(v) !== i);
   if (dupes.length) errors.push(`${name}: duplicate ids ${dupes.join(", ")}`);
@@ -111,6 +184,10 @@ for (const file of html) {
     const u = new URL(url);
     if (!existsSync(target(u.pathname))) errors.push(`${name}: canonical/alternate ${url} does not exist`);
   }
+}
+
+for (const hash of cspHashes) {
+  if (!seenHashes.has(hash)) errors.push(`_headers: unused style hash ${hash}`);
 }
 
 if (external) {

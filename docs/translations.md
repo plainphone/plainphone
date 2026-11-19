@@ -13,7 +13,9 @@ with an editorial pass.
 | Norwegian Bokmål (`nb`) | Needed |
 | German (`de`) | Needed |
 
-Review the privacy policy, setup and permissions first. Check the pricing
+The new landing-page navigation, setup diagram, first-day steps, child view,
+screenshot text and FAQ entries need native review in Swedish, Norwegian Bokmål
+and German. Review the privacy policy, setup and permissions first. Check the pricing
 promise against the English and Danish pages. Read the longer strings in the
 browser with large text.
 

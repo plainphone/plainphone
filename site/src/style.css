@@ -299,3 +299,99 @@ details p { padding-bottom: 0.5rem; }
   color: var(--ink);
   font-size: 0.9375em;
 }
+
+/* The two setup choices and the actual screen that presents them. */
+.top, main, .foot { width: min(100% - 2.5rem, 68rem); }
+.top { border-bottom: 1px solid var(--rule); padding-block: 0.75rem; }
+.top nav { gap: 0.25rem 1.5rem; }
+.top nav a, .mobile-menu summary, .hero-actions a, .foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.top .desktop-menu { display: none; }
+.mobile-menu { border: 0; max-width: 100%; }
+.mobile-menu:last-of-type { border-bottom: 0; }
+.mobile-menu summary { padding-block: 0.4rem; }
+.mobile-menu summary::after { top: 0.55rem; }
+.mobile-menu nav { flex-direction: column; padding-inline: 0.2rem; }
+.top:has(.mobile-menu[open]) { align-items: start; }
+.home-hero { display: grid; gap: 2rem; }
+.home-hero h1 { max-width: 17ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center; }
+.hero-actions .button { margin: 0; }
+.product-shot {
+  margin: 0;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 1.1rem;
+  text-align: center;
+}
+.product-shot img {
+  display: block;
+  margin-inline: auto;
+  width: min(100%, 14rem);
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: 0.65rem;
+}
+.product-shot figcaption { margin-top: 0.75rem; font-size: 0.9rem; color: var(--pencil); }
+.ledger { margin: 0; font-size: 1em; gap: 1.5rem 3rem; }
+.ledger h2 { margin-bottom: 0.6rem; font-size: 1.12em; }
+.ledger .goes { color: var(--pencil); }
+.modes li { border-inline-start: 3px solid var(--rule); padding-inline-start: 1rem; }
+.modes li p { margin-bottom: 0; }
+.first-day { padding-inline-start: 1.6rem; max-width: var(--measure); }
+.first-day li { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--rule); }
+.first-day li::marker { font-weight: 700; color: var(--link); }
+.faq-group { display: grid; gap: 0.5rem 2rem; padding-block: 1.1rem; }
+.faq-group h3 { padding-block: 0.45rem; }
+.faq-group details { max-width: none; }
+.faq-group summary { min-height: 44px; }
+.foot-links { display: grid; gap: 1.75rem; }
+.foot h2 { color: var(--ink); font-size: 1.1rem; margin: 0 0 0.3rem; }
+.foot ul { list-style: none; margin: 0; padding: 0; }
+.foot .operator { margin-top: 1.5rem; border-top: 1px solid var(--rule); padding-top: 1rem; }
+.language-links a[aria-current] { font-weight: 700; color: var(--ink); }
+.block[id], #languages { scroll-margin-top: 1rem; }
+
+@media (min-width: 48rem) {
+  .top .desktop-menu { display: flex; }
+  .mobile-menu { display: none; }
+  .home-hero { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: center; gap: 2rem 3rem; }
+  .home-hero .ledger { grid-column: 1 / -1; }
+  .foot-links { grid-template-columns: 1.2fr 1fr 1fr; }
+  .faq-group { grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr); }
+}
+
+.mode-diagram { max-width: 50rem; margin-block: 1.5rem; }
+.mode-root {
+  width: fit-content;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.85rem;
+  margin: 0;
+  font-weight: 700;
+}
+.mode-diagram .modes {
+  position: relative;
+  gap: 0;
+  margin: 0;
+  padding-top: 1.5rem;
+}
+.mode-diagram .modes::before {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  width: 1rem;
+  bottom: 1.75rem;
+  border-block: 1px solid var(--rule);
+  border-inline-start: 1px solid var(--rule);
+}
+.mode-diagram .modes li { padding: 0.8rem 0.75rem; margin-inline-start: 2rem; }
+@media (min-width: 46rem) {
+  .mode-diagram .modes::before { width: 50%; height: 1.5rem; border-block-start: 0; }
+}
