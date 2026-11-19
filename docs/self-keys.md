@@ -107,5 +107,6 @@ work policies require a particular resolver.
 After pairing, switching between **Plainphone VPN** and **Private DNS** in the
 dashboard or parent app waits for your key. In Private DNS mode the Android
 guard protects the Private DNS editor while leaving network settings open.
-A report that a previously verified filter stopped working follows the
-protection alert flow and can reach your trusted person by push.
+A confirmed loss of a previously working filter can reach your trusted person
+by push and email. Setup after a method change and inconclusive DNS checks
+remain visible in status without sending a protection alert.

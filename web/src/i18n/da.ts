@@ -310,6 +310,8 @@ export const da: Messages = {
   "filter.privateOff": "Privat DNS er slået fra. Kopiér adressen fra Plainphones opsætning på telefonen, og vælg udbyderens værtsnavn under Privat DNS i Android.",
   "filter.privateAutomatic": "Privat DNS står på Automatisk. Vælg udbyderens værtsnavn i Android, og brug adressen fra Plainphones opsætning.",
   "filter.privateWrongHost": "Telefonen bruger en anden privat DNS-adresse. Kopiér filteradressen fra Plainphones opsætning, og erstat adressen i Android.",
+  "filter.privateAlwaysOn": "Slå Bloker forbindelser uden VPN og Altid aktiv VPN fra for Plainphone i Androids VPN-indstillinger. Gør derefter opsætningen af Privat DNS færdig.",
+  "filter.vpnStrictDns": "Vælg Automatisk eller Fra under Privat DNS i Android, og tilslut derefter Plainphone VPN igen.",
   "filter.privateWaiting": "Telefonen venter på sin private DNS-adresse. Åbn Plainphone på telefonen, og prøv igen om lidt.",
   "filter.privateUnverified": "Plainphone kunne ikke bekræfte privat DNS. Tjek forbindelsen og din VPN’s DNS-indstillinger.",
   "filter.vpnWorking": "Filter virker (Plainphone VPN)",

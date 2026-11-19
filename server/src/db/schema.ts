@@ -106,13 +106,16 @@ export type StatusNotice = { id?: string; receivedAt: string };
 
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export const FILTER_METHODS = ["vpn", "privateDns"] as const;
-export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "unverified"] as const;
+export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "unverified", "alwaysOn", "strictDns"] as const;
 export type FilterMethod = (typeof FILTER_METHODS)[number];
 
 export interface DeviceStatus {
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
   filterIssue?: (typeof PRIVATE_DNS_ISSUES)[number];
+  /** Server-side alert state, preserved across inconclusive reports for the same method. */
+  lastConfirmedFilterWorking?: boolean;
+  lockIntactWithoutFilter?: boolean;
   appVersion: string;
   appVersionCode?: number;
   update?: {

@@ -329,5 +329,7 @@
     <string name="light_other_vpn_yes">Yes, use Private DNS</string>
     <string name="light_other_vpn_no">No, use Plainphone VPN</string>
     <string name="light_private_dns_reset">Plainphone has been switched off. In Network &amp; internet, change Private DNS back to Automatic to restore internet access.</string>
-    <string name="light_private_dns_vpn_settings">Previously used Plainphone as always-on VPN? Turn it off in VPN settings.</string>
+    <string name="light_private_dns_vpn_settings">Open VPN settings</string>
+    <string name="light_private_dns_vpn_handoff">In Android’s VPN settings, open Plainphone and turn off Block connections without VPN and Always-on VPN. Then return here to set up Private DNS.</string>
+    <string name="light_vpn_restore_dns">In Network &amp; internet, set Private DNS to Automatic or Off. Then return here to reconnect Plainphone VPN.</string>
 </resources>

@@ -82,7 +82,7 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 6. **Default phone and SMS app** can be changed in Settings > Default apps (the guard closes that
    screen when it shows Plainphone). Then calls and SMS are unfiltered until Plainphone is chosen
    again; the parent sees it.
-7. **Private DNS** set to another resolver in strict mode sends lookups past the VPN. Plainphone
+7. **Private DNS** set to a hostname in strict mode sends lookups past the VPN. Plainphone
    detects it (`LinkProperties.getPrivateDnsServerName`) and reports it as a missing protection.
 8. **Incognito and other browsers.** Chrome's managed configuration (no incognito, no secure-DNS
    bypass) needs Device Owner. In light mode only the DNS filter applies; other browsers are blocked
@@ -172,9 +172,10 @@ the phone’s **Web filter** settings in the dashboard or parent app to free
 Android’s VPN slot. A light-mode Myself setup also asks about other VPNs.
 A paired Myself phone uses its key to approve a switch in either direction.
 
-On the phone, open Plainphone setup and copy the filter address. If Plainphone
-was the always-on VPN, turn off **Always-on VPN** and **Block connections
-without VPN** for Plainphone in Android’s VPN settings. Open Android
+On the phone, open Plainphone setup. If Plainphone was the always-on VPN, turn
+off **Block connections without VPN** and **Always-on VPN** for Plainphone in
+Android’s VPN settings. Return to Plainphone and copy the filter address once
+the configured DNS service has confirmed it. Open Android
 **Settings**, then **Network & internet**, then **Private DNS**. Choose
 **Private DNS provider hostname**, paste the address and save. Keep the
 address private. It gives anyone who knows it access to that filtering policy.

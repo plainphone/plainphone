@@ -23,7 +23,7 @@ export type FilterMethod = "vpn" | "privateDns";
 export interface PhoneStatus {
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
-  filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified";
+  filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
   appVersion: string;
   appVersionCode?: number;
   update?: {

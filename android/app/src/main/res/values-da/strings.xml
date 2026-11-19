@@ -325,5 +325,7 @@
     <string name="light_other_vpn_yes">Ja, brug privat DNS</string>
     <string name="light_other_vpn_no">Nej, brug Plainphone VPN</string>
     <string name="light_private_dns_reset">Plainphone er slået fra. Vælg Automatisk under Privat DNS i Netværk og internet for at få internetadgang igen.</string>
-    <string name="light_private_dns_vpn_settings">Brugte du Plainphone som altid aktiv VPN? Slå det fra i VPN-indstillingerne.</string>
+    <string name="light_private_dns_vpn_settings">Åbn VPN-indstillinger</string>
+    <string name="light_private_dns_vpn_handoff">Åbn Plainphone under VPN i Androids indstillinger. Slå Bloker forbindelser uden VPN og Altid aktiv VPN fra. Gå derefter tilbage hertil for at indstille Privat DNS.</string>
+    <string name="light_vpn_restore_dns">Vælg Automatisk eller Fra under Privat DNS i Netværk og internet. Gå derefter tilbage hertil for at tilslutte Plainphone VPN igen.</string>
 </resources>

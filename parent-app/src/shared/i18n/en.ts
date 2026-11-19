@@ -311,6 +311,8 @@ export const en = {
   "filter.privateOff": "Private DNS is off. In the Plainphone setup on the phone, copy the address and select Private DNS provider hostname in Android settings.",
   "filter.privateAutomatic": "Private DNS is set to Automatic. In Android settings, select Private DNS provider hostname and use the address from Plainphone setup.",
   "filter.privateWrongHost": "The phone uses a different Private DNS host. Copy the filter address from Plainphone setup and replace the host in Android settings.",
+  "filter.privateAlwaysOn": "Turn off Block connections without VPN and Always-on VPN for Plainphone in Android’s VPN settings, then finish Private DNS setup.",
+  "filter.vpnStrictDns": "Set Android Private DNS to Automatic or Off, then reconnect Plainphone VPN.",
   "filter.privateWaiting": "The phone is waiting for its Private DNS address. Open Plainphone setup and try again shortly.",
   "filter.privateUnverified": "Plainphone could not verify the Private DNS filter. Check connectivity and your VPN’s DNS settings.",
   "filter.vpnWorking": "Filter works (Plainphone VPN)",

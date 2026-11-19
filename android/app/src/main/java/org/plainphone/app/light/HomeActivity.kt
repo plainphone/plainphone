@@ -107,11 +107,11 @@ class HomeActivity : ComponentActivity() {
         val rules = SyncStore(context).rules()
         val light = Mode.isLight(context)
         val privateDnsNeedsSetup = light && LightFilter.method(context) == FilterMethod.PRIVATE_DNS &&
-            LightFilter.setupIssue(context) != null
-        val vpnNeedsConsent = light && LightFilter.method(context) == FilterMethod.VPN &&
+            LightFilter.privateDnsSetupIssue(context) != null
+        val vpnNeedsSetup = light && LightFilter.method(context) == FilterMethod.VPN &&
             !LightSetup.isDone(context, LightSetup.Step.FILTER)
         val missing = if (light) {
-            Protections.read(context, ConfigStore(context).load().dnsHost, snapshot != null).missingForLight(LightFilter.method(context), LightFilter.setupIssue(context))
+            Protections.read(context, ConfigStore(context).load().dnsHost, snapshot != null).missingForLight(LightFilter.method(context), LightFilter.privateDnsSetupIssue(context))
         } else emptyList()
         // Strong mode: everything else is set by Device Owner; usage access only by the user.
         val needsUsage = !light && snapshot != null && !TimeGuard.hasUsageAccess(context)
@@ -138,7 +138,7 @@ class HomeActivity : ComponentActivity() {
                     runCatching { startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                 } else if (offerHome) {
                     askToBeHome()
-                } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context) && !privateDnsNeedsSetup && !vpnNeedsConsent) {
+                } else if (LightSetup.isComplete(context) && !Lock.isInMaintenanceWindow(context) && !privateDnsNeedsSetup && !vpnNeedsSetup) {
                     // Repairing is the parent's job, and the guard closes those screens outside the PIN window.
                     startActivity(Intent(context, org.plainphone.app.MaintenanceActivity::class.java))
                 } else {

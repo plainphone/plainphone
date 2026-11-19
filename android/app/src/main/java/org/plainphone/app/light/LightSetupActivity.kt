@@ -458,6 +458,17 @@ class LightSetupActivity : ComponentActivity() {
             PrivateDnsStep(index, total)
             return
         }
+        if (step == LightSetup.Step.FILTER && LightFilter.strictDnsConfigured(this)) {
+            CalmScreen(
+                eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
+                title = stringResource(R.string.light_private_dns_title),
+                body = stringResource(R.string.light_vpn_restore_dns),
+                primary = stringResource(R.string.light_private_dns_settings),
+                onPrimary = { open(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)) },
+                progress = (index + 1f) / total,
+            )
+            return
+        }
         val batteryDone = step == LightSetup.Step.RUNNING && LightSetup.isDone(this, step)
         val batteryHelp = if (step == LightSetup.Step.RUNNING && LightSetup.notificationsAllowed(this) &&
             (batteryDone || batteryPromptOpened)
@@ -608,6 +619,7 @@ class LightSetupActivity : ComponentActivity() {
     @Composable
     private fun PrivateDnsStep(index: Int, total: Int) {
         val host = LightFilter.host(this)
+        val handoffBlocked = LightFilter.vpnHandoffBlocked(this)
         LaunchedEffect(host) {
             if (host == null) {
                 while (LightFilter.host(this@LightSetupActivity) == null) kotlinx.coroutines.delay(1_000)
@@ -617,11 +629,20 @@ class LightSetupActivity : ComponentActivity() {
         CalmScreen(
             eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
             title = stringResource(R.string.light_private_dns_title),
-            body = if (host == null) stringResource(R.string.light_private_dns_waiting)
-                else stringResource(R.string.light_private_dns_body),
-            primary = stringResource(if (host == null) R.string.pairing_retry else R.string.light_private_dns_settings),
+            body = stringResource(when {
+                handoffBlocked -> R.string.light_private_dns_vpn_handoff
+                host == null -> R.string.light_private_dns_waiting
+                else -> R.string.light_private_dns_body
+            }),
+            primary = stringResource(when {
+                handoffBlocked -> R.string.light_private_dns_vpn_settings
+                host == null -> R.string.pairing_retry
+                else -> R.string.light_private_dns_settings
+            }),
             onPrimary = {
-                if (host == null) {
+                if (handoffBlocked) {
+                    open(Intent(android.provider.Settings.ACTION_VPN_SETTINGS))
+                } else if (host == null) {
                     org.plainphone.app.sync.SyncScheduler.now(this, "private DNS setup")
                 } else {
                     LightSetup.allowPrivateDnsSetup(this)
@@ -629,20 +650,13 @@ class LightSetupActivity : ComponentActivity() {
                 }
                 refresh++
             },
-            secondary = if (host != null) stringResource(R.string.light_private_dns_copy) else null,
+            secondary = if (host != null && !handoffBlocked) stringResource(R.string.light_private_dns_copy) else null,
             onSecondary = {
                 if (host != null) getSystemService(android.content.ClipboardManager::class.java)
                     .setPrimaryClip(android.content.ClipData.newPlainText("Private DNS", host))
             },
             progress = (index + 1f) / total,
-        ) {
-            if (host != null) {
-                OutlinedButton(onClick = { open(Intent(android.provider.Settings.ACTION_VPN_SETTINGS)) },
-                    modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.light_private_dns_vpn_settings))
-                }
-            }
-        }
+        )
     }
 
     private fun open(intent: Intent?, fallback: Intent = Intent(android.provider.Settings.ACTION_SETTINGS)) {

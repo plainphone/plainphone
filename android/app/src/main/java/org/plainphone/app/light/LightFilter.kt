@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.net.DnsResolver
 import android.os.CancellationSignal
 import android.provider.Settings
+import org.plainphone.app.light.vpn.PlainphoneVpnService
 import org.plainphone.app.sync.SyncStore
 import java.net.InetAddress
 import java.util.UUID
@@ -27,7 +28,22 @@ data class FilterHealth(val method: FilterMethod, val working: Boolean, val issu
 object LightFilter {
     fun method(context: Context): FilterMethod = SyncStore(context).rules()?.filterMethod ?: FilterMethod.VPN
 
-    fun host(context: Context): String? = SyncStore(context).rules()?.takeIf { it.dnsReady }?.dnsHost
+    fun host(context: Context): String? = SyncStore(context).rules()?.takeIf { it.privateDnsReady }?.dnsHost
+
+    fun shouldStopVpn(method: FilterMethod, alwaysOn: Boolean, lockdown: Boolean): Boolean =
+        method == FilterMethod.PRIVATE_DNS && !alwaysOn && !lockdown
+
+    fun vpnHandoffBlocked(context: Context): Boolean =
+        PlainphoneVpnService.isAlwaysOn(context) || PlainphoneVpnService.isLockdownEnabled(context)
+
+    fun strictDnsConfigured(context: Context): Boolean =
+        !vpnPrivateDnsOk(Settings.Global.getString(context.contentResolver, "private_dns_mode"), null)
+
+    fun vpnPrivateDnsOk(mode: String?, activeHostname: String?): Boolean =
+        mode != "hostname" && activeHostname.isNullOrBlank()
+
+    fun privateDnsSetupIssue(context: Context): String? =
+        if (vpnHandoffBlocked(context)) "alwaysOn" else setupIssue(context)
 
     fun setupIssue(context: Context, expected: String? = host(context)): String? = issue(
         Settings.Global.getString(context.contentResolver, "private_dns_mode"),
@@ -51,14 +67,16 @@ object LightFilter {
     fun probe(context: Context, protections: Map<String, Boolean>?): FilterHealth {
         val method = method(context)
         if (method == FilterMethod.VPN) {
-            return FilterHealth(method, protections?.get("vpn") == true && protections["privateDnsOk"] == true)
+            val strict = strictDnsConfigured(context) || protections?.get("privateDnsOk") == false
+            val working = protections?.get("vpn") == true && protections["privateDnsOk"] == true && !strict
+            return FilterHealth(method, working, if (strict) "strictDns" else null)
         }
-        setupIssue(context)?.let { return FilterHealth(method, false, it) }
+        privateDnsSetupIssue(context)?.let { return FilterHealth(method, false, it) }
         val cm = context.getSystemService(ConnectivityManager::class.java)
         val network = cm.activeNetwork
         val expectedHost = host(context)
         fun validated(): Boolean {
-            if (network == null || cm.activeNetwork != network || setupIssue(context) != null) return false
+            if (network == null || cm.activeNetwork != network || privateDnsSetupIssue(context) != null) return false
             val properties = cm.getLinkProperties(network)
             return properties?.isPrivateDnsActive == true &&
                 expectedHost != null && expectedHost.equals(properties.privateDnsServerName, ignoreCase = true)
@@ -87,6 +105,6 @@ object LightFilter {
                 cancel.cancel()
             }
         }.getOrDefault(false)
-        return FilterHealth(method, working, if (working) null else setupIssue(context) ?: "unverified")
+        return FilterHealth(method, working, if (working) null else privateDnsSetupIssue(context) ?: "unverified")
     }
 }

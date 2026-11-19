@@ -206,7 +206,7 @@ export async function notifyUsers(
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
+  return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
 }
 
 type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -223,7 +223,7 @@ export async function phoneAlertRecipients(db: RecipientDb, phoneId: string, hou
     .where(and(eq(householdMembers.householdId, householdId), notInArray(householdMembers.userId, muted)));
 }
 
-export async function notifyHouseholdMembers(
+export async function notifyAlertRecipients(
   ctx: Ctx,
   members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
   e: NotifyEvent,
@@ -240,7 +240,7 @@ export async function notifyHouseholdMembers(
             locale,
             ctx.cfg.PUBLIC_URL,
             e.type === "protection"
-              ? { kind: "protection", phoneId: e.phoneId, phoneName: e.phoneName, reason: e.reason }
+              ? { kind: "protection", phoneId: e.phoneId, phoneName: e.phoneName, reason: e.reason, trusted: e.trusted }
               : { kind: "offline", phoneId: e.phoneId, phoneName: e.phoneName, hours: e.hours, lastSeen: lastSeen(e, locale) },
           ),
         );

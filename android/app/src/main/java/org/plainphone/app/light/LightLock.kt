@@ -32,7 +32,7 @@ object LightLock {
         results += planSteps(context, config)
         if (config.filterMethod == FilterMethod.VPN) {
             results += vpnStep(context, config.dnsHost)
-        } else {
+        } else if (!LightFilter.vpnHandoffBlocked(context)) {
             PlainphoneVpnService.stop(context)
         }
         val now = Protections.read(context, config.dnsHost, needsUsageAccess = hasLimits)

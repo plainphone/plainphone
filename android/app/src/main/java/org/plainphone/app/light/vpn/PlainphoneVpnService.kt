@@ -62,7 +62,7 @@ class PlainphoneVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Android can restart an always-on VPN even after the app stopped it during release.
         val host = if (LightRelease.isReleased(this) ||
-            LightFilter.method(this) == FilterMethod.PRIVATE_DNS) null else chooseHost(intent?.getStringExtra(EXTRA_HOST), prefs(this))
+            LightFilter.shouldStopVpn(LightFilter.method(this), isAlwaysOn, isLockdownEnabled)) null else chooseHost(intent?.getStringExtra(EXTRA_HOST), prefs(this))
         if (host == null) {
             // An intentional stop does not count as a revoked permission.
             stoppedByApp = true

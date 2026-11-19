@@ -61,6 +61,14 @@ class RulesTest {
     }
 
     @Test
+    fun `manual Private DNS requires separate resolver confirmation`() {
+        val legacy = rulesJson()
+        assertThat(ServerRules.parse(legacy).dnsReady).isTrue()
+        assertThat(ServerRules.parse(legacy).privateDnsReady).isFalse()
+        assertThat(ServerRules.parse(legacy.replace("\"dns\":{", "\"dns\":{\"privateDnsReady\":true,")).privateDnsReady).isTrue()
+    }
+
+    @Test
     fun `malformed documents throw instead of being applied`() {
         assertThrows(Exception::class.java) { ServerRules.parse("{}") }
         assertThrows(Exception::class.java) { ServerRules.parse("<html>") }

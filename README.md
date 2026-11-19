@@ -67,7 +67,8 @@ Use **Private DNS** as the web filter on a light-mode phone if you need the Andr
 VPN slot for Tailscale or a work VPN. In Tailscale, turn off **Use Tailscale DNS settings**.
 MagicDNS names will no longer resolve. Work VPN compatibility depends on its DNS
 policy. Follow the [Private DNS setup](docs/light-mode.md#tailscale-and-work-vpns)
-and check filter status with your VPN connected. Myself phones use their key
+to clear Plainphone’s always-on VPN setting if enabled and get the address once
+your DoT resolver confirms it. Check filter status with your VPN connected. Myself phones use their key
 when you switch filter methods after pairing.
 
 ### Myself keys and QR codes

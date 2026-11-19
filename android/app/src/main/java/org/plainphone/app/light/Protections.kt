@@ -81,11 +81,16 @@ data class Protections(
                 notifications = context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true,
                 batteryUnrestricted = context.getSystemService(PowerManager::class.java)
                     ?.isIgnoringBatteryOptimizations(context.packageName) == true,
-                privateDnsOk = privateDnsOk(privateDnsServer(context), filterHost),
+                privateDnsOk = if (Mode.isLight(context)) {
+                    LightFilter.vpnPrivateDnsOk(
+                        Settings.Global.getString(context.contentResolver, "private_dns_mode"),
+                        privateDnsServer(context),
+                    )
+                } else privateDnsOk(privateDnsServer(context), filterHost),
             )
         }
 
-        /** Private DNS in "hostname" mode sends every lookup to that host, past the VPN. Only our own host is fine. */
+        /** Strong mode expects its own strict Private DNS hostname. */
         fun privateDnsOk(serverName: String?, filterHost: String?): Boolean =
             serverName.isNullOrBlank() || serverName.equals(filterHost, ignoreCase = true)
 

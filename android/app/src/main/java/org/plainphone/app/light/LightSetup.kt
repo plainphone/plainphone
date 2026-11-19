@@ -44,11 +44,13 @@ object LightSetup {
         !org.plainphone.app.light.vpn.PlainphoneVpnService.isRunning()
 
     fun allowPrivateDnsSetup(context: Context) {
-        if (LightFilter.setupIssue(context) != null) privateDnsSetupUntil = SystemClock.elapsedRealtime() + 120_000L
+        if (LightFilter.host(context) != null && LightFilter.privateDnsSetupIssue(context) != null) privateDnsSetupUntil = SystemClock.elapsedRealtime() + 120_000L
     }
 
     fun privateDnsSetupAllowed(context: Context): Boolean =
-        SystemClock.elapsedRealtime() < privateDnsSetupUntil && LightFilter.setupIssue(context) != null
+        SystemClock.elapsedRealtime() < privateDnsSetupUntil &&
+            LightFilter.host(context) != null && !LightFilter.vpnHandoffBlocked(context) &&
+            LightFilter.setupIssue(context) != null
 
     private const val PREFS = "plainphone_light_setup"
 
@@ -71,8 +73,8 @@ object LightSetup {
         Step.PHONE -> roleHeld(context, android.app.role.RoleManager.ROLE_DIALER)
         Step.SMS -> roleHeld(context, android.app.role.RoleManager.ROLE_SMS)
         Step.FILTER -> if (LightFilter.method(context) == FilterMethod.PRIVATE_DNS) {
-            LightFilter.setupIssue(context) == null
-        } else VpnService.prepare(context) == null
+            LightFilter.privateDnsSetupIssue(context) == null
+        } else !LightFilter.strictDnsConfigured(context) && VpnService.prepare(context) == null
         Step.USAGE -> TimeGuard.hasUsageAccess(context)
         Step.ADMIN -> context.getSystemService(DevicePolicyManager::class.java)?.isAdminActive(LightAdminReceiver.component(context)) == true
         Step.RUNNING -> notificationsAllowed(context) &&

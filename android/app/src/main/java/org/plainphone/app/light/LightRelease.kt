@@ -17,7 +17,7 @@ object LightRelease {
         val undoPending = SyncStore(context).setupUndoPending
         // Keep Android's uninstall barrier until the server has durably accepted the report.
         if (!undoPending) add(step("device admin off") { removeAdmin(context) })
-        val storedDns = LightFilter.host(context)?.takeIf { LightFilter.setupIssue(context, it) == null }
+        val storedDns = SyncStore(context).rules()?.dnsHost?.takeIf { LightFilter.setupIssue(context, it) == null }
         prefs(context).edit().putBoolean(KEY_RELEASED, true).apply {
             if (storedDns != null) putString(KEY_RELEASED_DNS, storedDns)
         }.apply()

@@ -2266,6 +2266,8 @@ export interface components {
                 host?: string;
                 /** @description The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone uses the private DNS host from its setup profile. */
                 ready?: boolean;
+                /** @description The current DNS-over-TLS provider has confirmed the phone’s ClientID. Required before offering Android Private DNS setup. */
+                privateDnsReady?: boolean;
                 filterMethod?: components["schemas"]["FilterMethod"];
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
@@ -2556,7 +2558,7 @@ export interface components {
             filterMethod?: components["schemas"]["FilterMethod"];
             filterWorking?: boolean;
             /** @enum {string} */
-            filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified";
+            filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
             protections?: components["schemas"]["Protections"];
             timeUsed?: components["schemas"]["TimeUsed"];
         };
@@ -2685,7 +2687,6 @@ export interface operations {
                      * @enum {unknown}
                      */
                     mode?: "strong" | "light";
-                    filterMethod?: components["schemas"]["FilterMethod"];
                     /** @enum {unknown} */
                     profile?: "child" | "self";
                     /** @default false */

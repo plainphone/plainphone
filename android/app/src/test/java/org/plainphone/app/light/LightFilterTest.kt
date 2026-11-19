@@ -20,6 +20,21 @@ class LightFilterTest {
         assertEquals("waiting", LightFilter.issue("hostname", host, null))
     }
 
+    @Test fun keepsTheAlwaysOnTunnelDuringHandoff() {
+        assertFalse(LightFilter.shouldStopVpn(FilterMethod.PRIVATE_DNS, alwaysOn = true, lockdown = true))
+        assertFalse(LightFilter.shouldStopVpn(FilterMethod.PRIVATE_DNS, alwaysOn = true, lockdown = false))
+        assertFalse(LightFilter.shouldStopVpn(FilterMethod.PRIVATE_DNS, alwaysOn = false, lockdown = true))
+        assertTrue(LightFilter.shouldStopVpn(FilterMethod.PRIVATE_DNS, alwaysOn = false, lockdown = false))
+        assertFalse(LightFilter.shouldStopVpn(FilterMethod.VPN, alwaysOn = false, lockdown = false))
+    }
+
+    @Test fun strictDnsPreventsVpnHealthEvenWithTheOldPlainphoneHost() {
+        assertFalse(LightFilter.vpnPrivateDnsOk("hostname", host))
+        assertTrue(LightFilter.vpnPrivateDnsOk("opportunistic", null))
+        assertTrue(LightFilter.vpnPrivateDnsOk("off", null))
+        assertFalse(LightFilter.vpnPrivateDnsOk(null, host))
+    }
+
     @Test fun requiresTheDistinctiveCanaryAnswer() {
         assertTrue(LightFilter.canaryMatches(0, listOf("192.0.2.42")))
         assertFalse(LightFilter.canaryMatches(3, listOf("192.0.2.42")))
