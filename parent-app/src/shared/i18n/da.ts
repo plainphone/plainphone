@@ -828,6 +828,8 @@ export const da: Messages = {
   "add.pinMismatch": "De to PIN-koder er ikke ens.",
   "add.makeLink": "Lav opsætningslink",
   "add.lightPinOnPhone": "Vælg og bekræft din forælder-PIN på telefonen.",
+  "add.timezone": "Husstandens tidszone",
+  "add.timezoneHelp": "Vælg tidszonen dér, hvor telefonen skal bruges. Android og tidsplanerne bruger den.",
   "add.makeQr": "Lav QR-koden",
   "add.making": "Laver QR-koden…",
   "add.qrTitle": "Sæt telefonen op: {name}",

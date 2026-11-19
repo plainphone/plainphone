@@ -837,6 +837,8 @@ export const sv: Messages = {
   "add.pinMismatch": "De två PIN-koderna är inte samma.",
   "add.makeLink": "Skapa installationslänk",
   "add.lightPinOnPhone": "Välj och bekräfta din föräldra-PIN på telefonen.",
+  "add.timezone": "Hushållets tidszon",
+  "add.timezoneHelp": "Välj tidszonen där telefonen ska användas. Android och schemana använder den.",
   "add.makeQr": "Gör QR-koden",
   "add.making": "Gör QR-koden...",
   "add.qrTitle": "Konfigurera {name}s telefon",

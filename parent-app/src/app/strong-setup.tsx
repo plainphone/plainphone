@@ -33,7 +33,7 @@ function StrongSetup() {
       let id = phoneId;
       if (!id) {
         const { phone } = await unwrap<{ phone: Phone }>(client.POST("/phones/enroll", {
-          body: { mode: "strong", name: name.trim(), profile, language, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+          body: { mode: "strong", name: name.trim(), profile, language },
         }));
         id = phone.id;
         setPhoneId(id);

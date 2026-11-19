@@ -53,12 +53,12 @@ export function AddPhonePage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [language, setLanguage] = useState<PhoneLanguage>(null);
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
   async function makeQr(pin?: string) {
     if (!mode) return;
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
     const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(template ? { template } : {}) });
@@ -93,6 +93,7 @@ export function AddPhonePage() {
       {step === 2 && (
         <PinStep onBack={() => setStep(1)} onDone={makeQr}>
           <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} />
+          <SetupTimezonePicker value={timezone} onChange={setTimezone} />
         </PinStep>
       )}
       {step === 3 && qr && <QrStep qr={qr} />}
@@ -107,6 +108,7 @@ export function SetupPhonePage() {
   const res = useLoad(() => api.get<Phone>(`/phones/${pid}`), [pid]);
   const [qr, setQr] = useState<Qr | null>(null);
   const [chosenLanguage, setChosenLanguage] = useState<PhoneLanguage>();
+  const [chosenTimezone, setChosenTimezone] = useState<string>();
 
   return (
     <div className={qr ? "setup" : "narrow"}>
@@ -131,21 +133,42 @@ export function SetupPhonePage() {
               light={phone.mode === "light"}
               onDone={async (pin) => {
                 const pinned = pin === undefined ? undefined : await hashForQr(pin);
-                const updated = chosenLanguage !== undefined && chosenLanguage !== phone.language
-                  ? await api.patch<Phone>(`/phones/${phone.id}`, { language: chosenLanguage })
+                const updated = chosenLanguage !== undefined || chosenTimezone !== undefined
+                  ? await api.patch<Phone>(`/phones/${phone.id}`, { language: chosenLanguage, timezone: chosenTimezone })
                   : phone;
+                res.setData(() => updated);
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
                 setQr(buildQr(out, updated, pinned, locale));
               }}
             >
               {phone.mode === "strong" && (
-                <PhoneLanguagePicker value={chosenLanguage === undefined ? phone.language ?? null : chosenLanguage} onChange={setChosenLanguage} setup={phone.profile === "child"} />
+                <>
+                  <PhoneLanguagePicker value={chosenLanguage === undefined ? phone.language ?? null : chosenLanguage} onChange={setChosenLanguage} setup={phone.profile === "child"} />
+                  <SetupTimezonePicker value={chosenTimezone ?? phone.timezone} onChange={setChosenTimezone} />
+                </>
               )}
             </PinStep>
           )
         }
       </LoadGate>
     </div>
+  );
+}
+
+function SetupTimezonePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useI18n();
+  const zones = useMemo(
+    () => [...new Set(["UTC", ...Intl.supportedValuesOf("timeZone"), value])].sort(),
+    [value],
+  );
+  return (
+    <Field label={t("add.timezone")} help={t("add.timezoneHelp")}>
+      {(props) => (
+        <select {...props} value={value} onChange={(event) => onChange(event.target.value)}>
+          {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+        </select>
+      )}
+    </Field>
   );
 }
 

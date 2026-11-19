@@ -829,6 +829,8 @@ export const en = {
   "add.pinMismatch": "The two PINs are not the same.",
   "add.makeLink": "Create setup link",
   "add.lightPinOnPhone": "Choose and confirm your parent PIN on the phone.",
+  "add.timezone": "Household time zone",
+  "add.timezoneHelp": "Choose the time zone where this phone will be used. Android setup and schedules use it.",
   "add.makeQr": "Make the QR code",
   "add.making": "Making the QR code…",
   "add.qrTitle": "Set up {name}'s phone",

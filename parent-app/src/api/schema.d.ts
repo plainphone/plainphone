@@ -940,7 +940,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename a phone or switch location
+         * Update a phone
          * @description Turning location off deletes the stored position.
          */
         patch: operations["updatePhone"];
@@ -4515,6 +4515,8 @@ export interface operations {
                     name?: string;
                     locationEnabled?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];
+                    /** @description IANA time zone for the household. Can be set before strong setup. */
+                    timezone?: string;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };
@@ -4523,6 +4525,20 @@ export interface operations {
         responses: {
             /** @description Updated phone */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid time zone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Time zone can only be set before strong setup */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -2149,7 +2149,7 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
     patch:
       operationId: updatePhone
-      summary: Rename a phone or switch location
+      summary: Update a phone
       tags: [phones]
       description: Turning location off deletes the stored position.
       security: [{ session: [] }, { cookie: [] }]
@@ -2162,6 +2162,9 @@ paths:
                 name: { type: string }
                 locationEnabled: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
+                timezone:
+                  type: string
+                  description: IANA time zone for the household. Can be set before strong setup.
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0
@@ -2169,6 +2172,8 @@ paths:
                   description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
         "200": { description: "Updated phone" }
+        "400": { description: Invalid time zone }
+        "409": { description: Time zone can only be set before strong setup }
     delete:
       operationId: deletePhone
       summary: Remove a phone

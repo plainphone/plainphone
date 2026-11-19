@@ -658,16 +658,27 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
         language: v.phoneLanguage.optional(),
+        timezone: z.string().min(1).max(64).optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
+    if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+      return c.json({ error: "unknown time zone" }, 400);
+    }
     const fields = {
       ...(input.name ? { name: input.name } : {}),
       ...(input.language !== undefined ? { language: input.language } : {}),
+      ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
-    if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));
+    if (Object.keys(fields).length) {
+      const [updated] = await ctx.db.update(phones).set(fields).where(and(
+        eq(phones.id, phone.id),
+        input.timezone !== undefined ? and(eq(phones.mode, "strong"), isNull(phones.pairedAt), isNull(phones.deviceTokenHash)) : undefined,
+      )).returning({ id: phones.id });
+      if (input.timezone !== undefined && !updated) return c.json({ error: "time zone can only be set before strong setup" }, 409);
+    }
     // The boolean predates the location modes: on means the child default, off means off.
     if (input.locationEnabled !== undefined && input.locationEnabled !== phone.locationEnabled) {
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");

@@ -91,6 +91,13 @@ it.each(["/settings", "/setup"])("offers a labeled language picker on %s", (sect
   expect(html).toContain("Use phone language");
 });
 
+it("shows the saved household time zone when regenerating a setup QR code", () => {
+  const html = renderPhone({ ...phone, timezone: "Europe/Oslo" }, "/setup");
+  expect(html).toContain("Household time zone");
+  expect(html).toContain('value="Europe/Oslo" selected="">Europe/Oslo');
+  expect(html).toContain('value="Europe/Copenhagen"');
+});
+
 it.each([
   { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again", latest: undefined },
   { mode: "light", state: "prompted", errorCode: undefined, guidance: "pair it again",

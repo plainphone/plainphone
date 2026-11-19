@@ -49,7 +49,7 @@ describe("pairing", () => {
       await fireEvent.press(screen.getByRole("radio", { name: "Svenska" }));
       await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
       await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
-      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toMatchObject({ mode: "strong", language: "sv" });
+      expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
     } finally {
       open.mockRestore();
     }

@@ -822,6 +822,8 @@ export const de: Messages = {
   "add.pinMismatch": "Die beiden PINs sind nicht identisch.",
   "add.makeLink": "Setup-Link erstellen",
   "add.lightPinOnPhone": "Wählen und bestätigen Sie Ihre Eltern-PIN am Telefon.",
+  "add.timezone": "Zeitzone des Haushalts",
+  "add.timezoneHelp": "Wähle die Zeitzone, in der das Handy genutzt wird. Android und die Zeitpläne verwenden sie.",
   "add.makeQr": "Erstellen Sie den QR-Code",
   "add.making": "Den QR-Code erstellen…",
   "add.qrTitle": "Richten Sie das Telefon von {name} ein",

@@ -244,7 +244,7 @@ class HomeActivity : ComponentActivity() {
             return HomeUi(
                 state = state,
                 time = timeText(context, at.toLocalTime()),
-                date = dateText(at, Locale.getDefault()),
+                date = dateText(at, context.resources.configuration.locales[0]),
                 noticeUntil = state.notice?.let { timeText(context, it.until) },
                 offerDefaultHome = !isOwner && !isHome,
             )

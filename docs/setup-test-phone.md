@@ -6,7 +6,7 @@ You need:
 
 - an Android 10 or newer phone (Settings → About phone → Android version). Android 14 or newer gives the full lock; on Android 10 to 13 a few things work differently, see the table below and [android-versions.md](android-versions.md);
 - Wi-Fi without a login page (hotel and school portals do not work during setup), or a SIM card with mobile data;
-- the QR code: in the dashboard (app.plainphone.org or your own server) choose *Add phone*, choose a language, pick a maintenance PIN, and keep the page with the QR code open on another screen. Or make one with `scripts/provisioning-qr.py` and show it on another screen or printed;
+- the QR code: in the dashboard (app.plainphone.org or your own server) choose *Add phone*, choose a language and the household time zone, pick a maintenance PIN, and keep the page with the QR code open on another screen. Or make one with `scripts/provisioning-qr.py` and show it on another screen or printed;
 - the maintenance PIN that belongs to that QR code;
 - for phase 2: a SIM card, and a second phone to call and text from.
 

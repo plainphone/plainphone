@@ -822,6 +822,8 @@ export const nb: Messages = {
   "add.pinMismatch": "De to PIN-kodene er ikke de samme.",
   "add.makeLink": "Lag oppsettlink",
   "add.lightPinOnPhone": "Velg og bekreft foreldrenes PIN-kode på telefonen.",
+  "add.timezone": "Husstandens tidssone",
+  "add.timezoneHelp": "Velg tidssonen der telefonen skal brukes. Android og tidsplanene bruker den.",
   "add.makeQr": "Lag QR-koden",
   "add.making": "Lager QR-koden …",
   "add.qrTitle": "Sett opp telefonen til {name}",

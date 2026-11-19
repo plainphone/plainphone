@@ -3,6 +3,7 @@
 package org.plainphone.app.contacts
 
 import android.content.Context
+import android.content.res.Resources
 import java.util.Locale
 import org.json.JSONObject
 
@@ -60,7 +61,7 @@ object Helplines {
     private val directories = mutableMapOf<String, HelpDirectory>()
 
     fun country(configured: PhoneNumbers.Country?): PhoneNumbers.Country? =
-        configured ?: PhoneNumbers.countryForIso(Locale.getDefault().country)
+        configured ?: PhoneNumbers.countryForIso(Resources.getSystem().configuration.locales[0]?.country)
 
     @Synchronized
     fun forCountry(context: Context, country: PhoneNumbers.Country?): HelpDirectory {
