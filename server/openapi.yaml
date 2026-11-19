@@ -149,6 +149,16 @@ components:
         status: { enum: [pending, approved, rejected] }
         createdAt: { type: string, format: date-time }
         decidedAt: { type: [string, "null"], format: date-time }
+        decidedVia:
+          enum: [parent, phone, null]
+          description: Where the answer came from. `phone` means a parent approved it on the phone with the parent PIN.
+    RequestOutcomeError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        outcome:
+          enum: [approvedByYou, approvedByOther, approvedOnPhone, declinedByYou, declinedByOther]
     PushSubscription:
       type: object
       properties:
@@ -665,6 +675,14 @@ components:
           type: boolean
           default: true
           description: Include live web filter checks and the observed usage access permission in phone status.
+        silentBedtime:
+          type: boolean
+          default: true
+          description: During bedtime the phone is silent except calls from parents, 112 and help lines. Missing means on.
+        pinApprovalEnabled:
+          type: boolean
+          default: true
+          description: A parent may approve a request on the phone with the parent PIN. Always false on a Self phone. Missing means on.
         lightContactRestriction:
           type: boolean
           description: Enforce the approved list on a light Child phone. Missing means off in light mode.
@@ -919,6 +937,8 @@ components:
         offlineAlertHoursDefault: { type: integer }
         changeReceiptsEnabled: { type: boolean }
         healthBoardEnabled: { type: boolean }
+        silentBedtime: { type: boolean }
+        pinApprovalEnabled: { type: boolean }
         ruleReceipt:
           type: [object, "null"]
           description: Confirmation for the current rules document. Null if disabled or unpaired.
@@ -1962,6 +1982,34 @@ paths:
                               format: date-time
                               description: When a delay-key change takes effect
 
+  /device/requests/{rid}/approve-on-phone:
+    post:
+      operationId: approveDeviceRequestOnPhone
+      tags: [device]
+      summary: Report that a parent approved a request on the phone with the parent PIN (phone)
+      description: |
+        The phone checked the parent PIN itself and is the authority for what it did, so this is a
+        report, not a question. The first answer wins and a repeat changes nothing: if a parent
+        already answered in the dashboard or the parent app, `won` is false and the body shows
+        what was decided. The approval is applied like a parent's (the app is shown, the contact
+        is added) and the parents are told it happened on the phone. Only child phones.
+      security: [{ device: [] }]
+      parameters:
+        - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The request as it stands now, and whether this report decided it
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PhoneRequest"
+                  - type: object
+                    required: [won]
+                    properties:
+                      won: { type: boolean }
+        "404": { description: "No such request on this phone" }
+        "409": { description: "A Self phone has no parent PIN, or the change could not be applied (the request stays open)" }
   /device/attestation/challenge:
     post:
       operationId: postDeviceAttestationChallenge
@@ -2586,6 +2634,8 @@ paths:
                 locationEnabled: { type: boolean }
                 changeReceiptsEnabled: { type: boolean }
                 healthBoardEnabled: { type: boolean }
+                silentBedtime: { type: boolean }
+                pinApprovalEnabled: { type: boolean }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
@@ -3500,6 +3550,16 @@ paths:
                           properties:
                             phoneId: { type: string, format: uuid }
                             appLabel: { type: [string, "null"] }
+                  recent:
+                    type: array
+                    description: The last few answered requests (3 days), newest first, with where the answer came from.
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/PhoneRequest"
+                        - type: object
+                          properties:
+                            phoneId: { type: string, format: uuid }
+                            appLabel: { type: [string, "null"] }
   /phones/{pid}/requests/{rid}/approve:
     post:
       operationId: approvePhoneRequest
@@ -3519,7 +3579,11 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
-        "409": { description: "No longer open" }
+        "409":
+          description: No longer open. `outcome` says who answered first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestOutcomeError" }
   /phones/{pid}/requests/{rid}/reject:
     post:
       operationId: rejectPhoneRequest
@@ -3531,7 +3595,11 @@ paths:
         - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         "204": { description: "Declined" }
-        "409": { description: "No longer open" }
+        "409":
+          description: No longer open. `outcome` says who answered first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestOutcomeError" }
   /phones/{pid}/location:
     get:
       operationId: getPhonesLocation

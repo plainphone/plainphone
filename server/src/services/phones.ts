@@ -214,6 +214,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       timezone: phone.timezone,
       changeReceiptsEnabled: phone.changeReceiptsEnabled,
       healthBoardEnabled: phone.healthBoardEnabled,
+      silentBedtime: phone.silentBedtime,
+      pinApprovalEnabled: phone.pinApprovalEnabled,
       language: phone.language,
       lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
@@ -285,6 +287,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     timezone: phone.timezone,
     changeReceiptsEnabled: phone.changeReceiptsEnabled,
     healthBoardEnabled: phone.healthBoardEnabled,
+    silentBedtime: phone.silentBedtime,
+    pinApprovalEnabled: phone.profile === "child" && phone.pinApprovalEnabled,
     language: phone.language,
     lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     apps: {
@@ -520,6 +524,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
     changeReceiptsEnabled: phone.changeReceiptsEnabled,
     healthBoardEnabled: phone.healthBoardEnabled,
+    silentBedtime: phone.silentBedtime,
+    pinApprovalEnabled: phone.pinApprovalEnabled,
     status: summaryStatus(phone, ctx.now()),
   };
 }

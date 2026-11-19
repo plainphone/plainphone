@@ -204,6 +204,13 @@
       "when": 1795114311905,
       "tag": "0040_receipts_health",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795118031923,
+      "tag": "0041_bedtime_pin_approval",
+      "breakpoints": true
     }
   ]
 }

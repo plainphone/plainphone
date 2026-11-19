@@ -20,6 +20,7 @@ export type NotifyEvent =
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
+  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" };
@@ -80,6 +81,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
           body: `${e.what}. Open the app to approve or decline.`,
         };
+      case "request-on-phone":
+        return {
+          title: `Approved on ${e.phoneName}`,
+          body: `${e.what}. A parent approved it on the phone with the PIN. Nothing more to do.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: "I'm here"`, body: "The button on the phone was pressed." },
@@ -120,6 +126,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
           body: `${e.what}. Åbn appen for at godkende eller afvise.`,
         };
+      case "request-on-phone":
+        return {
+          title: `Godkendt på ${e.phoneName}`,
+          body: `${e.what}. En forælder godkendte det på telefonen med pinkoden. Du skal ikke gøre mere.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: ”Jeg er her”`, body: "Der blev trykket på knappen på telefonen." },
@@ -148,6 +159,8 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
     case "approval":
       return { ...t, url: "/approvals", tag: "approvals" };
     case "request":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+    case "request-on-phone":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };

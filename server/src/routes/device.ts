@@ -16,7 +16,7 @@ import { DEFAULT_SETUP_UNDO_MINUTES, MAX_SETUP_COMPLETION_AGE_MS, SETUP_UNDO_REP
 import { packageName, phoneNumber } from "../lib/validation.js";
 import { phoneApprovalState } from "../services/approval-outcome.js";
 import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
-import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
+import { applyDueChanges, ChangeError, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
 import { ENROLLMENT_PREFIX, enrollmentMatches, lockEnrollment, redeemEnrollment } from "../services/enrollment.js";
@@ -32,7 +32,7 @@ import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
 import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../services/server-move.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
-import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
+import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
 import { deviceSosRoutes } from "./sos.js";
@@ -871,6 +871,18 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   app.get("/requests", async (c) => c.json({ requests: await phoneRequestList(ctx, c.get("phone").id) }));
+
+  // A parent next to the child approved a request on the phone with the parent PIN. The phone
+  // checked the PIN; this is its report. The first answer wins, a repeat changes nothing.
+  app.post("/requests/:rid/approve-on-phone", async (c) => {
+    try {
+      const { request, won } = await approveRequestOnPhone(ctx, c.get("phone"), param(c, "rid"));
+      return c.json({ ...requestJson(request), won });
+    } catch (err) {
+      if (err instanceof RequestError || err instanceof ChangeError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
 
   app.put("/push-token", async (c) => {
     const { fcmToken = null, unifiedPushEndpoint = null } = await body(c, z.object({
