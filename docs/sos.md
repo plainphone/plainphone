@@ -45,7 +45,11 @@ accepted online report nor a submitted SMS proves a parent has received it.
 A parent may receive an SMS plus the queued report's later email and push.
 
 The background delivery job starts the urgent call even when the SOS screen
-is closed. Urgent tries the next parent after 30 seconds without an answer,
+is closed. The phone records that the call has been handled only after a call
+has actually started. If it cannot start (the phone is already in a call, the
+call permission is missing), the job tries again for ten minutes without
+reporting the alert a second time. After that the SOS screen tells the child
+that the call did not start and suggests calling a parent or 112. Urgent tries the next parent after 30 seconds without an answer,
 or sooner when Android reports the first attempt ended. **Stop calling** cancels
 escalation. Escalation requires Plainphone to hold the dialer role. If Android
 does not let Plainphone observe the call, Plainphone only attempts the first
@@ -56,10 +60,23 @@ The server limits ordinary help reports to five reports per phone in ten
 minutes. When an over-limit help report was already submitted by SMS, the
 server keeps it in history. Urgent reports above the limit still create
 distinct events and run through delivery. A repeated client ID keeps its
-original event. The server retries when all attempted notification providers
-fail or a dispatch reservation expires after an interruption. A provider may
-accept a notification just before the server stops, so recovery can deliver
-that notification again.
+original event.
+
+The server tracks delivery for each parent in the household (`sos_deliveries`):
+whether they were sent a push, a mail, or neither was possible. A retry, which
+runs one minute after a failed round and after an interrupted dispatch, only
+repeats what failed for the parents who have not been reached, so a parent who
+already got the alert does not get it again. Each push and mail send is bounded
+(20 seconds, shorter than the 2 minute dispatch reservation) and is recorded
+the moment it succeeds. A parent counts as done when any channel reached them,
+or when nothing could reach them (no push registration and no mail). The
+incident closes when every parent is done, or when a parent has acknowledged it.
+If a parent is still unreached after six hours, the server stops, records
+`delivery_failed_at`, and the dashboard shows that the alert did not reach
+every parent. Temporary push errors during these retries never count toward a
+subscription's failure limit; only a permanent error (an invalid or unregistered
+token) removes a subscription. A provider may accept a notification just before
+the server stops, so recovery can deliver that notification again.
 
 ## Push configuration
 
@@ -76,7 +93,10 @@ build. Set `PLAINPHONE_EXPO_PROJECT_ID` for the app build and, on Android,
 requires it. Browser push uses the existing VAPID config. Both kinds use the
 existing transactional email layout. Native push shows the alarm type. The
 child’s details are visible inside the signed-in dashboard. After offline
-logout, the app retries subscription removal when it next runs online.
+logout, the app retries subscription removal when it next runs online. If the old
+session has expired by then, the app removes the registration with its push token
+instead (`POST /api/notifications/subscriptions/revoke`, app tokens only), so the
+install stops receiving generic SOS alerts.
 
 ## Privacy
 
