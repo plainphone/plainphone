@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Builds the static plainphone.org site into dist/. No dependencies, no client JS.
+// Builds the static plainphone.org site into dist/. No dependencies.
 import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -10,6 +10,7 @@ import { help } from "./content/help.mjs";
 import sv from "./content/sv.mjs";
 import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
+import { compatibilityContent } from "./compatibility.mjs";
 import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +28,8 @@ const css = readFileSync(join(src, "style.css"), "utf8")
   .replace(/\s*([{}:;,>])\s*/g, "$1")
   .replace(/;}/g, "}");
 const cssHash = createHash("sha256").update(css).digest("base64");
+const appSearchFile = "app-search.mjs";
+const appSearchHash = createHash("sha256").update(readFileSync(join(src, appSearchFile))).digest("base64");
 const wordmark = readFileSync(join(src, "wordmark.svg"), "utf8")
   .trim()
   .replace("<svg ", '<svg class="wordmark" ')
@@ -129,6 +132,7 @@ function page(t) {
 <p class="status"><span>${t.status}</span></p>
 <h1 id="hero-title">${h.title}</h1>
 <p class="lead">${h.lead}</p>
+<p><a href="${t.compatibility.path}">${t.compatibility.title}</a></p>
 <div class="ledger">
 <ul class="stays" aria-label="${h.staysLabel}">${h.stays.map((s) => `<li>${s}</li>`).join("")}</ul>
 <ul class="goes" aria-label="${h.goesLabel}">${h.goes.map((s) => `<li><del>${s}</del></li>`).join("")}</ul>
@@ -195,6 +199,28 @@ ${phones}
 ${faq}
 </main>
 ${footer(t)}
+</body>
+</html>
+`;
+}
+
+function compatibilityPage(t) {
+  const p = t.compatibility;
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.lead,
+    ogTitle: p.title,
+    alternates: pages.map((page) => ({ lang: page.lang, path: page.compatibility.path })),
+    xDefault: en.compatibility.path,
+  })}
+<body>
+${header(t, (page) => page.compatibility.path)}
+<main id="main" class="doc compatibility">
+${compatibilityContent(t, esc)}
+</main>
+${footer(t)}
+<script type="module" src="/${appSearchFile}" integrity="sha256-${appSearchHash}"></script>
 </body>
 </html>
 `;
@@ -379,6 +405,8 @@ for (const t of pages) {
   writeFileSync(join(dist, help[t.lang].path, "index.html"), helpPage(t));
   mkdirSync(join(dist, t.path), { recursive: true });
   writeFileSync(join(dist, t.path, "index.html"), page(t));
+  mkdirSync(join(dist, t.compatibility.path), { recursive: true });
+  writeFileSync(join(dist, t.compatibility.path, "index.html"), compatibilityPage(t));
   mkdirSync(join(dist, t.why.path), { recursive: true });
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
@@ -390,7 +418,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
-for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`)]) {
+for (const f of [appSearchFile, "favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`)]) {
   cpSync(join(src, f), join(dist, f));
 }
 writeFileSync(join(dist, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
@@ -398,7 +426,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => help[p.lang].path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -415,7 +443,7 @@ ${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path,
 writeFileSync(
   join(dist, "_headers"),
   `/*
-  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; script-src 'sha256-${appSearchHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
@@ -426,4 +454,4 @@ writeFileSync(
   Cache-Control: public, max-age=604800
 `,
 );
-console.log(`Built ${pages.length * 5} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 6} pages + 404 into dist/ (css ${css.length} bytes)`);

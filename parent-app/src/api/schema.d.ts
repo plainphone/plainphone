@@ -1229,14 +1229,15 @@ export interface paths {
         get: operations["getPhonesHome"];
         /**
          * Change the home screen
-         * @description Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+         * @description Send the layout settings. The free promise is updated separately. Never waits for the key.
          */
         put: operations["putPhonesHome"];
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Show or hide the free promise on this phone */
+        patch: operations["patchPhonesHome"];
         trace?: never;
     };
     "/phones/{pid}/contact-suggestions": {
@@ -1976,7 +1977,7 @@ export interface components {
         } | {
             /** @constant */
             type?: "home.set";
-            home?: components["schemas"]["Home"];
+            home?: components["schemas"]["HomeLayoutSettings"] | components["schemas"]["HomeFreePromise"];
         } | {
             /** @constant */
             type?: "key.set";
@@ -2120,8 +2121,16 @@ export interface components {
              */
             value?: string | number;
         };
+        Home: components["schemas"]["HomeLayoutSettings"] & components["schemas"]["HomeFreePromise"];
+        HomeFreePromise: {
+            /**
+             * @description Show the free promise on the phone.
+             * @default true
+             */
+            showFreePromise: boolean;
+        };
         /** @description How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed. */
-        Home: {
+        HomeLayoutSettings: {
             /**
              * @default list
              * @enum {unknown}
@@ -4957,12 +4966,38 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Home"];
+                "application/json": components["schemas"]["HomeLayoutSettings"];
             };
         };
         responses: {
             200: components["responses"]["Change"];
             400: components["responses"]["Error"];
+        };
+    };
+    patchPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomeFreePromise"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            400: components["responses"]["Error"];
+            /** @description Unknown phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getContactSuggestions: {

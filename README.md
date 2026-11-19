@@ -13,7 +13,9 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 [English](https://plainphone.org/) · [Dansk](https://plainphone.org/da/) · [Svenska](https://plainphone.org/sv/) · [Norsk bokmål](https://plainphone.org/nb/) · [Deutsch](https://plainphone.org/de/)
 
-[Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [Self-hosting](docs/self-hosting.md) · [Translations](docs/translations.md) · [Releases](https://github.com/plainphone/plainphone/releases)
+[Parent dashboard](https://app.plainphone.org) · [Setup guide](https://plainphone.org/setup/) · [App and website lookup](https://plainphone.org/apps/) · [Self-hosting](docs/self-hosting.md) · [Translations](docs/translations.md) · [Releases](https://github.com/plainphone/plainphone/releases)
+
+Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.
 
 > **Status: early, pre-release.** Releases from v0.1.10 use the production signing key. Earlier pre-releases (v0.1.9 and below) used a test key. Some features still need testing on a real phone. Only install Plainphone on a spare phone that you are ready to factory reset, and do not rely on it for a child's phone yet.
 
@@ -119,7 +121,7 @@ See [support tools and release troubleshooting](docs/support.md).
 | [`web/`](web) | The parent web app (PWA) at app.plainphone.org. See the [dashboard UX review](docs/ux-review.md) |
 | [`parent-app/`](parent-app) | The native parent app for iOS and Android (Expo), see [docs/parent-app.md](docs/parent-app.md) |
 | [`dns/`](dns) | The filter DNS: AdGuard Home and `ppdns`, its profiles and API. [docs/privacy.md](docs/privacy.md) says what it stores |
-| [`site/`](site) | plainphone.org (static, no JavaScript) |
+| [`site/`](site) | plainphone.org (static, with browser-side search on the compatibility page) |
 | [`packages/`](packages) | Shared encryption test vectors |
 | [`scripts/`](scripts) | The provisioning QR script, a release APK smoke test and an end-to-end test of the phone sync |
 | [`docs/`](docs) | Design, evidence, policies and how-tos |

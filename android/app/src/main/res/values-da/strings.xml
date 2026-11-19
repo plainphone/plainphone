@@ -319,4 +319,5 @@
     <string name="support_help_fallback">Åbn %1$s på en anden enhed.</string>
     <string name="support_copy_diagnostics">Kopiér tekniske oplysninger</string>
     <string name="support_copied">Tekniske oplysninger kopieret.</string>
+    <string name="free_promise">Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.</string>
 </resources>

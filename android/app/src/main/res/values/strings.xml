@@ -323,4 +323,5 @@
     <string name="support_help_fallback">Open %1$s on another device.</string>
     <string name="support_copy_diagnostics">Copy diagnostics</string>
     <string name="support_copied">Diagnostics copied.</string>
+    <string name="free_promise">Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.</string>
 </resources>

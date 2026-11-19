@@ -1,12 +1,12 @@
 name: Site deploy
 
-# Publishes plainphone.org (Cloudflare Pages project "plainphone") when site/ changes on main.
+# Publishes plainphone.org (Cloudflare Pages project "plainphone") when site/ or the app catalog changes on main.
 # Pull requests are built and checked by ci.yml and never deploy.
 
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/site-deploy.yml"]
+    paths: ["site/**", "server/catalog/*.json", ".github/workflows/site-deploy.yml"]
   workflow_dispatch:
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
         run: node build.mjs
 
       - name: Check pages, internal links, anchors and the CSP hash
-        run: node scripts/check.mjs
+        run: npm run check
 
       - name: Deploy to Cloudflare Pages
         # The secrets are only visible to this step. Wrangler is pinned, so a new release
