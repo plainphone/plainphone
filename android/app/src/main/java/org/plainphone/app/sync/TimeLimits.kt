@@ -157,4 +157,17 @@ object UsageCounter {
         close(nowMs)
         return out
     }
+
+    /** The app in front after [events] (the same reading as [foregroundMs]), or null when none is. */
+    fun foreground(events: List<Event>): String? {
+        var fg: String? = null
+        for (e in events) {
+            when (e.kind) {
+                Kind.RESUMED -> fg = e.packageName
+                Kind.PAUSED -> if (fg == e.packageName) fg = null
+                Kind.SCREEN_OFF -> fg = null
+            }
+        }
+        return fg
+    }
 }

@@ -4,18 +4,30 @@ package org.plainphone.app.light
 
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.Compat
 import org.plainphone.app.MaintenanceActivity
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.time.MoreTime
 import org.plainphone.app.ui.PhoneActivity
 import org.plainphone.app.ui.PlainphoneTheme
 
@@ -23,6 +35,14 @@ import org.plainphone.app.ui.PlainphoneTheme
 class BlockedActivity : ComponentActivity() {
     /** [OTHER] is the neutral fallback when the reason is missing or unknown. */
     enum class Reason { NOT_ALLOWED, TIME_USED_UP, PROTECTION, OTHER }
+
+    /** Only refresh the ask while the screen can be seen. */
+    private var onScreen by mutableStateOf(false)
+    private var rulesChanged by mutableIntStateOf(0)
+    // Held here: SharedPreferences keeps listeners weakly.
+    private val rulesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "rules") rulesChanged++
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,10 +57,24 @@ class BlockedActivity : ComponentActivity() {
 
     private fun render(intent: Intent) {
         val reason = runCatching { Reason.valueOf(intent.getStringExtra(EXTRA_REASON) ?: "") }.getOrDefault(Reason.OTHER)
-        val label = label(intent.getStringExtra(EXTRA_PACKAGE))
+        val pkg = intent.getStringExtra(EXTRA_PACKAGE)
+        val label = label(pkg)
+        val asking = pkg?.takeIf { reason == Reason.TIME_USED_UP }?.let { AskMoreTimeController(this, it) }
         setContent {
             val showParent by produceState(true) {
                 value = withContext(Dispatchers.IO) { !ContactPolicySources.get(this@BlockedActivity).rules().selfProfile }
+            }
+            var ask by remember { mutableStateOf<MoreTime.Ui?>(null) }
+            var composing by rememberSaveable { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            val active = onScreen
+            val tick = rulesChanged
+            // Fresh at once, after every rules sync, and every 15 s while the screen can be seen.
+            LaunchedEffect(asking, active, tick) {
+                while (asking != null && active) {
+                    ask = withContext(Dispatchers.IO) { runCatching { asking.state() }.getOrNull() } ?: ask
+                    delay(POLL_MS)
+                }
             }
             PlainphoneTheme {
                 BlockedScreen(
@@ -53,9 +87,27 @@ class BlockedActivity : ComponentActivity() {
                         startActivity(Intent(this, MaintenanceActivity::class.java))
                         finish()
                     },
+                    ask = ask?.let { if (it == MoreTime.Ui.Offer && composing) MoreTime.Ui.Composing else it },
+                    onAsk = { composing = true },
+                    onSendAsk = { text ->
+                        composing = false
+                        scope.launch { ask = withContext(Dispatchers.IO) { runCatching { asking?.ask(text) }.getOrNull() } ?: ask }
+                    },
                 )
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        onScreen = true
+        getSharedPreferences(SyncStore.PREFS, MODE_PRIVATE).registerOnSharedPreferenceChangeListener(rulesListener)
+    }
+
+    override fun onStop() {
+        getSharedPreferences(SyncStore.PREFS, MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(rulesListener)
+        onScreen = false
+        super.onStop()
     }
 
     private fun goHome() {
@@ -77,6 +129,7 @@ class BlockedActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_PACKAGE = "package"
         private const val EXTRA_REASON = "reason"
+        private const val POLL_MS = 15_000L
 
         fun intent(context: Context, pkg: String, reason: Reason): Intent =
             Intent(context, BlockedActivity::class.java)
