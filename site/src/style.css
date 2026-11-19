@@ -7,27 +7,36 @@
   font-display: swap;
 }
 
+/* The common tokens (docs/research/ux-premium.md): the same values as the dashboard and the apps. */
 :root {
-  --paper: #f3f5f2;
-  --ink: #1d2a30;
-  --pencil: #4c5a60;
-  --rule: #c3cbc7;
-  --link: #1d5870;
-  --mark: #efdd74;
-  --sheet: #e8ece8;
+  --paper: #f2f3ef;
+  --ink: #1c2321; /* 14.4:1 on paper */
+  --pencil: #4d5753; /* 6.7:1 on paper */
+  --rule: #dfe3df; /* dividers only, not a control boundary */
+  --outline: #7a8580; /* 3.8:1 on sheet: inputs and other control edges */
+  --link: #24604a; /* 6.6:1 on paper */
+  --on-link: #ffffff;
+  --focus: #24604a;
+  --mark: #fbf1d9; /* attention fill, ink 14:1 */
+  --warn-line: #a57a10;
+  --sheet: #ffffff;
   --measure: 40rem;
   --gap: clamp(3.5rem, 9vw, 6.5rem);
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #172025;
-    --ink: #e3e8e4;
-    --pencil: #a5b1b3;
-    --rule: #34433f;
-    --link: #93c9de;
-    --mark: #4d4919;
-    --sheet: #1d282d;
+    --paper: #121816;
+    --ink: #e8ece9; /* 15.1:1 on paper */
+    --pencil: #a9b3ae; /* 8.3:1 on paper */
+    --rule: #2c3833;
+    --outline: #6b7873; /* 3.5:1 on sheet */
+    --link: #7fc4a2; /* 7.9:1 on sheet */
+    --on-link: #0d1a14;
+    --focus: #7fc4a2;
+    --mark: #33301f;
+    --warn-line: #d6b45a;
+    --sheet: #1b2320;
   }
 }
 
@@ -37,14 +46,14 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  font-family: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: clamp(1.0625rem, 0.98rem + 0.35vw, 1.1875rem);
   line-height: 1.55;
   font-weight: 400;
 }
 a { color: var(--link); text-underline-offset: 0.18em; text-decoration-thickness: 0.07em; }
 a:hover { text-decoration-thickness: 0.14em; }
-:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 2px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 2px; }
 h1, h2, h3 { line-height: 1.12; margin: 0; font-weight: 700; text-wrap: balance; }
 h2 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem); letter-spacing: -0.015em; margin-bottom: 1.25rem; }
 h3 { font-size: 1.15em; margin-bottom: 0.35rem; }
@@ -75,6 +84,7 @@ p { margin: 0 0 1rem; max-width: var(--measure); text-wrap: pretty; }
 .status { margin-bottom: 1.75rem; font-weight: 600; }
 .status span {
   background: var(--mark);
+  border-bottom: 2px solid var(--warn-line);
   padding: 0.15em 0.4em;
   margin-inline: -0.4em;
   -webkit-box-decoration-break: clone;
@@ -120,7 +130,7 @@ h1 {
 
 /* Tables in the privacy policy and setup guide */
 .table-wrap { overflow-x: auto; margin-inline: -0.25rem; padding-inline: 0.25rem; }
-table { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: 0.93em; line-height: 1.35; }
+table { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: 0.93em; line-height: 1.35; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; vertical-align: top; padding: 0.7rem 0.9rem 0.7rem 0; border-bottom: 1px solid var(--rule); }
 thead th { font-weight: 600; color: var(--pencil); border-bottom-color: var(--ink); }
 thead td { border-bottom-color: var(--ink); }
@@ -130,12 +140,13 @@ td { color: var(--pencil); }
 /* Open source */
 .button {
   display: inline-block;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--link);
+  color: var(--on-link);
   text-decoration: none;
   font-weight: 600;
   padding: 0.8rem 1.3rem;
-  border-radius: 0.4rem;
+  min-height: 44px;
+  border-radius: 10px;
   margin-top: 0.5rem;
 }
 .button:hover { text-decoration: underline; }
@@ -249,7 +260,7 @@ details p { padding-bottom: 0.5rem; }
 .f-pencil-line { stroke: var(--pencil); }
 .f-ink-line circle { fill: var(--ink); stroke: none; }
 .f-pencil-line circle { fill: var(--pencil); stroke: none; }
-.f-txt { font: 600 10.5px "Atkinson Hyperlegible Next", system-ui, sans-serif; fill: var(--ink); }
+.f-txt { font: 600 10.5px "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; fill: var(--ink); }
 .f-txt.tap { font-size: 15px; font-weight: 700; }
 .f-txt.on-ink { fill: var(--paper); }
 
@@ -403,7 +414,7 @@ details p { padding-bottom: 0.5rem; }
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
   margin: 0.25rem 0 0.5rem;
-  border: 1px solid var(--pencil);
+  border: 1px solid var(--outline);
   border-radius: 0.4rem;
   background: var(--sheet);
   color: var(--ink);

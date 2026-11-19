@@ -31,6 +31,8 @@ Plainphone is built on a short list of [design principles](docs/design-principle
 - no streaks, rewards or engagement tricks;
 - as little data as possible, kept as briefly as possible.
 
+The [common design tokens](docs/design-tokens.md) keep the colours the same on every surface.
+
 A filter reduces exposure. It does not make a phone safe, and Plainphone does not claim to.
 
 ## How it works

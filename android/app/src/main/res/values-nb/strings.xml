@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Sett på låsen nå</string>
     <string name="maintenance_release">Slipp enhetseier (testtelefoner)</string>
     <string name="maintenance_release_confirm">Dette fjerner alle begrensninger og gir opp enhetseier. Plainphone kan deretter avinstalleres og telefonen tilbakestilles normalt. Fortsette?</string>
+    <string name="maintenance_release_go">Slipp telefonen</string>
+    <string name="maintenance_release_light_go">Slå av</string>
+    <string name="maintenance_release_keep">Behold den</string>
     <string name="maintenance_contacts">Godkjente kontakter og blokkert logg</string>
     <string name="status_phone_role_ok">Telefonapp: Plainphone.</string>
     <string name="status_phone_role_missing">Telefonapp: ikke Plainphone. Samtaler filtreres ikke.</string>

@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Lås telefonen nu</string>
     <string name="maintenance_release">Frigiv Device Owner (testtelefoner)</string>
     <string name="maintenance_release_confirm">Det fjerner alle begrænsninger og opgiver Device Owner. Bagefter kan Plainphone afinstalleres, og telefonen kan nulstilles normalt. Fortsæt?</string>
+    <string name="maintenance_release_go">Frigiv telefonen</string>
+    <string name="maintenance_release_light_go">Slå fra</string>
+    <string name="maintenance_release_keep">Behold den</string>
     <string name="maintenance_contacts">Godkendte kontakter og blokeringslog</string>
     <string name="status_phone_role_ok">Telefon-app: Plainphone.</string>
     <string name="status_phone_role_missing">Telefon-app: ikke Plainphone. Opkald filtreres ikke.</string>

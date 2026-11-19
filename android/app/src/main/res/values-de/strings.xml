@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Jetzt wieder sperren</string>
     <string name="maintenance_release">Gerätebesitzer freigeben (Testtelefone)</string>
     <string name="maintenance_release_confirm">Dadurch werden alle Einschränkungen aufgehoben und der Geräteeigentümer aufgegeben. Anschließend kann Plainphone deinstalliert und das Telefon normal zurückgesetzt werden. Weitermachen?</string>
+    <string name="maintenance_release_go">Telefon freigeben</string>
+    <string name="maintenance_release_light_go">Ausschalten</string>
+    <string name="maintenance_release_keep">Eingeschaltet lassen</string>
     <string name="maintenance_contacts">Genehmigte Kontakte und blockiertes Protokoll</string>
     <string name="status_phone_role_ok">Telefon-App: Plainphone.</string>
     <string name="status_phone_role_missing">Telefon-App: nicht Plainphone. Anrufe werden nicht gefiltert.</string>
