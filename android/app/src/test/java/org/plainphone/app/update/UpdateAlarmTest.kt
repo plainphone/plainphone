@@ -55,10 +55,13 @@ class UpdateAlarmTest {
 
     @After fun stopWatchdog() {
         installThread.shutdownNow()
-        if (startId > 0) {
-            service.destroy()
-            awaitRecovery()
-        }
+        // A still-running install thread would touch the next test's lease state.
+        assertTrue(installThread.awaitTermination(5, TimeUnit.SECONDS))
+        if (startId > 0) service.destroy()
+        // Lock's recovery executor and InstallLease's counters are process-wide: leave them clean.
+        awaitRecovery()
+        InstallLease.resetStateForTests()
+        AndroidLeaseEnv.wallClock = System::currentTimeMillis
     }
 
     private fun <T> startInstall(block: () -> T): java.util.concurrent.Future<T> {
@@ -85,6 +88,9 @@ class UpdateAlarmTest {
         shadowOf(context.getSystemService(PowerManager::class.java))
             .setIgnoringBatteryOptimizations(context.packageName, true)
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        // A recovery queued by an earlier test or class must not run against this test's lease.
+        awaitRecovery()
+        InstallLease.resetStateForTests()
     }
 
     private fun approveCatalogTarget() {
@@ -392,6 +398,9 @@ class UpdateAlarmTest {
         hasWallDeadline: Boolean = true,
     ) {
         ShadowSystemClock.advanceBy(Duration.ofMinutes(1))
+        // Pin wall time too, or the reported overrun drifts with machine load.
+        val wall = System.currentTimeMillis()
+        AndroidLeaseEnv.wallClock = { wall }
         val env = AndroidLeaseEnv(context)
         // Simulate recovery after Android delayed delivery, with no watchdog or alarm queued.
         val elapsedDeadline = if (previousBoot) env.nowMs() + 60_000L else env.nowMs() - overrunMs
