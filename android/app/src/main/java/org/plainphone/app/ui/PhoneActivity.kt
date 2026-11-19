@@ -883,7 +883,7 @@ internal fun MessageBody(body: String) {
 }
 
 @Composable
-private fun KeypadScreen(initial: String, onCall: (String) -> Unit) {
+internal fun KeypadScreen(initial: String, onCall: (String) -> Unit) {
     var number by remember(initial) { mutableStateOf(initial) }
     Column(
         Modifier.fillMaxSize().padding(24.dp),
