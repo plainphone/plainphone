@@ -39,7 +39,8 @@ it("retries only the parent whose delivery failed and then closes the incident",
     expect((await device.post("/api/device/sos", { id, kind: "urgent" })).status).toBe(200);
     await vi.waitFor(async () => {
       const [open] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
-      expect(open!.notificationLeaseUntil).not.toBeNull();
+      // The lease starts at two minutes and drops to the one-minute retry backoff once the pass is over.
+      expect(open!.notificationLeaseUntil?.getTime()).toBe(h.clock.now.getTime() + 60_000);
     });
     // Only the first parent has a completed delivery.
     expect(await h.ctx.db.select().from(sosDeliveries)).toHaveLength(1);
