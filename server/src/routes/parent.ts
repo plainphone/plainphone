@@ -39,7 +39,7 @@ import { DEFAULT_SETUP_UNDO_MINUTES, setupUndoDeadline, undoMinutesInput } from 
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
-import { isAppCategory, OPEN_CATEGORIES } from "../lib/open-mode.js";
+import { categoryOf, isAppCategory, OPEN_CATEGORIES } from "../lib/open-mode.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
 import {
@@ -743,8 +743,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .from(phoneApps)
       .where(and(eq(phoneApps.phoneId, phone.id), (phone.pairedAt ? eq(phoneApps.installed, true) : undefined)))
       .orderBy(phoneApps.label);
+    // In open mode an app is blocked one by one (`blocked`) or with its category (`blockedBy`).
+    const via = (pkg: string) => (phone.openMode ? categoryOf(pkg, phone.blockedAppCategories) : undefined);
     return c.json({
-      apps: rows.map((a) => ({ packageName: a.packageName, label: a.label, allowed: a.allowed, blocked: a.explicitlyBlocked && !a.core, core: a.core })),
+      apps: rows.map((a) => ({
+        packageName: a.packageName,
+        label: a.label,
+        allowed: a.allowed,
+        blocked: !a.core && (a.explicitlyBlocked || via(a.packageName) !== undefined),
+        ...(!a.core && via(a.packageName) ? { blockedBy: via(a.packageName) } : {}),
+        core: a.core,
+      })),
     });
   });
 

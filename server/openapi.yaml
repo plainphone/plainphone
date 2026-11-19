@@ -2259,7 +2259,7 @@ paths:
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "Installed apps: packageName, label, allowed, blocked (on the block list), core" }
+        "200": { description: "Installed apps: packageName, label, allowed, blocked (open mode block list, also via a category), blockedBy (the category, when a blocked category blocks it), core" }
   /phones/{pid}/apps/{package}:
     put:
       operationId: putPhonesApps

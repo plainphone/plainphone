@@ -33,6 +33,11 @@ export function isAppCategory(category: string): category is AppCategory {
   return (APP_CATEGORIES as readonly string[]).includes(category);
 }
 
+/** The blocked app category that blocks a package, if any. */
+export function categoryOf(packageName: string, categories: readonly string[]): AppCategory | undefined {
+  return APP_CATEGORIES.find((c) => categories.includes(c) && CATEGORY_APPS[c].includes(packageName));
+}
+
 /** Every package that the blocked app categories put on the block list, sorted. */
 export function categoryPackages(categories: readonly string[]): string[] {
   const out = new Set<string>();

@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
+import type { MessageKey } from "../i18n/translate";
 import { api, type App, type ChangeResult } from "../lib/api";
 import { usePhone } from "./Phone";
 import { Chevron } from "./Phones";
+import { OpenModePanel } from "./OpenMode";
 
 export function AppsPage() {
   const { t, locale } = useI18n();
@@ -23,14 +25,16 @@ export function AppsPage() {
     [pending],
   );
 
+  const open = phone.openMode === true;
+
   async function toggle(app: App, allowed: boolean) {
     setBusy(app.packageName);
     const r = await run(
       () => api.put<ChangeResult>(`/phones/${phone.id}/apps/${encodeURIComponent(app.packageName)}`, { allowed }),
-      t(allowed ? "apps.shown" : "apps.hidden", { app: app.label }),
+      open ? t(allowed ? "apps.unblockedOne" : "apps.blockedOne", { app: app.label }) : t(allowed ? "apps.shown" : "apps.hidden", { app: app.label }),
     );
     if (r?.status === "applied") {
-      res.setData((list) => list?.map((a) => (a.packageName === app.packageName ? { ...a, allowed } : a)));
+      res.setData((list) => list?.map((a) => (a.packageName === app.packageName ? { ...a, allowed, blocked: !allowed } : a)));
     }
     setBusy(null);
   }
@@ -38,12 +42,13 @@ export function AppsPage() {
   return (
     <>
       <div className="title-row apps-heading">
-        <PageTitle sub={t("apps.intro")}>{t("apps.title")}</PageTitle>
+        <PageTitle sub={t(open ? "apps.introOpen" : "apps.intro")}>{t("apps.title")}</PageTitle>
         <Link to={`/phones/${phone.id}/apps/add`} className="btn btn-secondary">
           {t("catalog.entry")}
           <Chevron />
         </Link>
       </div>
+      <OpenModePanel onChanged={() => void res.reload()} />
       <LoadGate res={res}>
         {(apps) => {
           if (apps.length === 0) return <p className="empty-inline">{t("apps.empty")}</p>;
@@ -67,12 +72,14 @@ export function AppsPage() {
                     <li key={a.packageName}>
                       <Switch
                         label={a.label}
-                        checked={a.allowed || a.core}
-                        disabled={a.core}
+                        checked={open ? !a.blocked : a.allowed || a.core}
+                        disabled={a.core || (open && Boolean(a.blockedBy))}
                         busy={busy === a.packageName}
                         description={
                           a.core ? (
                             t("apps.core")
+                          ) : open && a.blockedBy ? (
+                            t("apps.viaCategory", { category: t(`open.cat.${a.blockedBy}` as MessageKey).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB") })
                           ) : waiting.has(a.packageName) ? (
                             <span className="tag tag-waiting">{t("pending.waitingTag")}</span>
                           ) : undefined
