@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { moreTimeRequests, timeBonuses } from "../src/db/schema.js";
+import { moreTimeRequests, timeBonuses, users } from "../src/db/schema.js";
 import { minutesFor, minutesLeftToday } from "../src/services/more-time.js";
 import { sweep } from "../src/services/sweeper.js";
 import { pairPhone, signIn, useHarness } from "./harness.js";
@@ -187,6 +187,18 @@ describe("ask for more time", () => {
     await device.post("/api/device/more-time-requests", { packageName: SPOTIFY });
     expect(h.parentPush.sent).toHaveLength(0);
     expect((await mum.get(`/api/phones/${phoneId}/more-time-requests`)).json.requests).toHaveLength(1);
+  });
+
+  it("tells a Danish-speaking parent in Danish, with Danish buttons", async () => {
+    const { device } = await setup();
+    await h.ctx.db.update(users).set({ locale: "da" }).where(eq(users.email, "mum@example.org"));
+    await device.post("/api/device/more-time-requests", { packageName: "*", reason: "lektier på computer" });
+    const msg = h.parentPush.sent[0]!.msg;
+    expect(msg).toMatchObject({
+      title: "Alma beder om mere tid",
+      body: "Den daglige grænse er brugt op. ”lektier på computer” Svar her eller åbn appen.",
+    });
+    expect(msg.actions!.map((a) => a.title)).toEqual(["15 min", "1 time", "Resten af dagen", "Nej"]);
   });
 
   it("only the household's parents can answer", async () => {
