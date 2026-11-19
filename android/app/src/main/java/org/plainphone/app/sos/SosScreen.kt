@@ -2,6 +2,8 @@
 package org.plainphone.app.sos
 
 import android.os.SystemClock
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -43,7 +46,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -148,6 +154,7 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
             HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency }) {
                 pending?.cancel()
                 pending = null
+                SosCalls.stop()
                 emergency()
             }
             hint?.let { Text(stringResource(it), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
@@ -190,8 +197,9 @@ internal fun HoldAction(label: String, onTap: () -> Unit, onHeld: () -> Unit) {
             held()
         }
     }
-    OutlinedButton(
-        onClick = { tap() },
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = Modifier.fillMaxWidth().onFocusChanged {
             if (!it.isFocused && keyboardHeld) {
                 keyboardHeld = false
@@ -209,7 +217,10 @@ internal fun HoldAction(label: String, onTap: () -> Unit, onHeld: () -> Unit) {
                 start = 0
             }
             true
-        }.pointerInput(Unit) {
+        }.semantics(mergeDescendants = true) {
+            role = Role.Button
+            onClick { tap(); true }
+        }.focusable().pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 down.consume()
@@ -229,8 +240,8 @@ internal fun HoldAction(label: String, onTap: () -> Unit, onHeld: () -> Unit) {
         },
     ) {
         Row(
-            Modifier.padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (start != 0L) CircularProgressIndicator(

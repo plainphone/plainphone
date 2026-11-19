@@ -31,6 +31,9 @@ in this table against the production source, including both branches of platform
 | `safety/Safety.kt` `am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, elapsed, pi)` | 2 min idle poll or check-in deadline + 2 s | Either | Use an inexact alarm if exact alarm permission changes. |
 | `sync/AndroidSync.kt` `val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))` | Once per status read | Either | Read the sticky battery state without subscribing. |
 | `sync/AndroidSync.kt` `val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)` | 15 min | Either | Build the connected-network periodic sync. |
+| `sos/SosScreen.kt` `id = SosDelivery.enqueue(context, phoneId, kind)` | After a child confirms SOS | On | Start the report when the undo window expires. |
+| `sos/SosDelivery.kt` `val request = OneTimeWorkRequestBuilder<SosWorker>()` | Once per confirmed SOS | On | Build the durable report request. |
+| `sos/SosDelivery.kt` `WorkManager.getInstance(context).enqueueUniqueWork(id, ExistingWorkPolicy.KEEP, request)` | On SOS and WorkManager retries | Either | Keep the report under one identifier until online delivery succeeds or the event expires. |
 | `sync/AndroidSync.kt` `WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)` | 15 min | Either | Enqueue one unique periodic sync. |
 | `sync/AndroidSync.kt` `val request = OneTimeWorkRequestBuilder<LocalSetupUndoWorker>().build()` | After an incomplete local release or on startup with an undo pending | Either | Build the local retry without a network requirement. |
 | `sync/AndroidSync.kt` `WorkManager.getInstance(context).enqueueUniqueWork(LOCAL_UNDO, ExistingWorkPolicy.KEEP, request)` | After an incomplete local release or on startup with an undo pending | Either | Coalesce local release retries. Once complete, enqueue the separate network report. |

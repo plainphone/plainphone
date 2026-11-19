@@ -22,7 +22,7 @@ class SosTimingTest {
     }
 
     @Test
-    fun `call another parent when unanswered and stop when answered`() = runBlocking {
+    fun `call another parent when unanswered and stop when answered`(): Unit = runBlocking {
         val attempts = mutableListOf<String>()
         callSosParents(listOf("one", "two", "three")) { parent ->
             attempts += parent
@@ -32,7 +32,7 @@ class SosTimingTest {
     }
 
     @Test
-    fun `stop calling prevents escalation`() = runBlocking {
+    fun `stop calling prevents escalation`(): Unit = runBlocking {
         val attempts = mutableListOf<String>()
         callSosParents(listOf("one", "two")) { parent ->
             attempts += parent
