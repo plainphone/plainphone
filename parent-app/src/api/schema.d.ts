@@ -940,7 +940,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename a phone or switch location
+         * Update a phone’s name or preferences
          * @description Turning location off deletes the stored position.
          */
         patch: operations["updatePhone"];
@@ -2212,6 +2212,18 @@ export interface components {
             };
             /** @description Parent opt-in to send names and numbers from a Child phone. */
             suggestDeviceContacts?: boolean;
+            /** @description Opaque revision of the web filter's domain lists and resolver sync state. */
+            dnsRevision?: string;
+            /**
+             * @description Send confirmations when a rules document is applied.
+             * @default true
+             */
+            changeReceiptsEnabled: boolean;
+            /**
+             * @description Include live web filter checks in phone status.
+             * @default true
+             */
+            healthBoardEnabled: boolean;
             /** @description Enforce the approved list on a light Child phone. Missing means off in light mode. */
             lightContactRestriction?: boolean;
             /** @description True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone. */
@@ -2441,6 +2453,17 @@ export interface components {
             /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
             offlineAlertHours?: number | null;
             offlineAlertHoursDefault?: number;
+            changeReceiptsEnabled?: boolean;
+            healthBoardEnabled?: boolean;
+            /** @description Confirmation for the current rules document. Null if disabled or unpaired. */
+            ruleReceipt?: {
+                /** @description The phone still reports a fetched ETag without confirming successful application. */
+                needsUpdate?: boolean;
+                /** Format: date-time */
+                appliedAt: string | null;
+                /** Format: date-time */
+                confirmedAt: string | null;
+            } | null;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
         };
@@ -2495,12 +2518,16 @@ export interface components {
             installOverrunSequence?: number;
             /** @description ETag of the rules the phone last applied. */
             rulesEtag: string | null;
+            /** @description The ETag and time refer to a successful rules application; missing on older phones. */
+            rulesReceiptConfirmed?: boolean;
+            /** @description Whether the phone observed the configured filter in use. Null if it could not tell. */
+            webFilterActive?: boolean | null;
             /**
              * Format: date-time
-             * @description When the phone applied those rules. Must carry a time zone and may be at most 5 minutes ahead of the server.
+             * @description When the phone applied those rules. Must carry a time zone. Clock skew does not invalidate the report.
              */
             rulesAppliedAt: string | null;
-            /** @description The private DNS host the phone actually uses. */
+            /** @description The last private DNS host applied by the phone. Web filter observations use webFilterActive. */
             dnsHost: string | null;
             /**
              * @description Factory reset protection on the phone: `on`, `off` (no parent account; Android's own FRP), `no-play-services` or `failed`. Optional for older apps.
@@ -3003,7 +3030,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rules changed (or first fetch). Apply them, then store the ETag. */
+            /** @description Rules changed (or first fetch). Cache the document and ETag, and confirm the ETag in status after a successful application. */
             200: {
                 headers: {
                     ETag?: string;
@@ -4505,6 +4532,8 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     locationEnabled?: boolean;
+                    changeReceiptsEnabled?: boolean;
+                    healthBoardEnabled?: boolean;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };
@@ -4516,7 +4545,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PhoneSummary"];
+                };
             };
         };
     };

@@ -76,7 +76,6 @@ class PhoneSyncContractTest {
             ),
         ).apply {
             now = System.currentTimeMillis()
-            // The server rejects times in the future, so the fake lock must use the real clock too.
             lock = lock.copy(appliedAtMs = now)
         }
 
@@ -117,6 +116,12 @@ class PhoneSyncContractTest {
         assertThat(status.getString("appVersion")).isEqualTo("0.1.2")
         assertThat(status.getBoolean("lockIntact")).isTrue()
         assertThat(status.getInt("batteryPct")).isEqualTo(64)
+        assertThat(summary.getJSONObject("ruleReceipt").isNull("appliedAt")).isTrue()
+
+        device.lock = device.lock.copy(receipt = AppliedRulesReceipt(store.etag!!, device.now))
+        runner.run("successful application")
+        val (_, confirmed) = parent("GET", "/phones/$phoneId")
+        assertThat(confirmed!!.getJSONObject("ruleReceipt").isNull("appliedAt")).isFalse()
 
         val batteryPolicy = "battery exemption missing: self-update cannot run"
         val appliedLock = device.lock

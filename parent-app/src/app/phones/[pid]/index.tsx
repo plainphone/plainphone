@@ -6,6 +6,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
+import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
@@ -14,6 +15,7 @@ import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, insta
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
+import { healthRows, receiptText } from "../../../shared/lib/phone-health";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
@@ -218,7 +220,10 @@ function Overview() {
   useFocusEffect(
     useCallback(() => {
       void reloadPending();
-    }, [reloadPending]),
+      void reloadPhone();
+      const timer = setInterval(() => void reloadPhone(), 30_000);
+      return () => clearInterval(timer);
+    }, [reloadPending, reloadPhone]),
   );
 
   async function refresh() {
@@ -239,25 +244,79 @@ function Overview() {
   ];
   if (phone.profile === "self") items.push({ to: "key", label: t("phone.key"), hint: t("phone.keyHint") });
 
-  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
-    phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phone.neverOnline"),
   ].join(", ");
 
+  return (
+    <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
+      <PageTitle sub={status}>{phone.name}</PageTitle>
+      {phone.healthBoardEnabled !== false && (
+        <Card>
+          <Text variant="heading">{t("health.title")}</Text>
+          {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
+            <VStack key={key} gap={space.xs}>
+              <Text variant="label">{label}</Text>
+              <Text variant={action ? "error" : "muted"}>{detail}</Text>
+            </VStack>
+          ))}
+          {phone.mode === "light" && <Text variant="small">{t("mode.lightNote")}</Text>}
+          <StatusDetails />
+        </Card>
+      )}
+
+      {phone.profile === "self" || pending.length > 0 ? (
+        <VStack>
+          <Text variant="heading">{t("phone.pendingTitle")}</Text>
+          <PendingList />
+        </VStack>
+      ) : null}
+
+      <VStack>
+        <Text variant="heading">{t("phone.rules")}</Text>
+        {phone.changeReceiptsEnabled !== false && phone.ruleReceipt && (
+          <Card>
+            <Text variant="label">{t("receipt.title")}</Text>
+            <Text accessibilityLiveRegion="polite">{receiptText(phone.ruleReceipt, phone.lastSeenAt, now, locale, t)}</Text>
+          </Card>
+        )}
+        <VStack gap={space.sm}>
+          {items.map((i) => (
+            <LinkRow
+              key={i.to}
+              testID={`section-${i.to}`}
+              title={i.label}
+              meta={i.hint}
+              onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
+            />
+          ))}
+        </VStack>
+      </VStack>
+
+      <VStack>
+        <Text variant="heading">{t("native.manage")}</Text>
+        <PhoneDisplayPreferences />
+        <RenamePhone />
+        <RemovePhone />
+      </VStack>
+    </Screen>
+  );
+}
+
+function StatusDetails() {
+  const { phone } = usePhone();
+  const { t, locale } = useI18n();
+  const now = useNow(60_000);
+  const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
   const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
-
   return (
-    <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
-      <PageTitle sub={status}>{phone.name}</PageTitle>
-      {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
+    <>
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
-      {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {failedPolicies.length > 0 ? (
         <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(failedPolicies.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
@@ -284,7 +343,9 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
-      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
+      {phone.status?.appVersion
+        ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} />
+        : <Text variant="muted">{t("health.versionUnknown")}</Text>}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
       {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>
@@ -293,34 +354,7 @@ function Overview() {
         </Disclosure>
       ) : null}
 
-      {phone.profile === "self" || pending.length > 0 ? (
-        <VStack>
-          <Text variant="heading">{t("phone.pendingTitle")}</Text>
-          <PendingList />
-        </VStack>
-      ) : null}
-
-      <VStack>
-        <Text variant="heading">{t("phone.rules")}</Text>
-        <VStack gap={space.sm}>
-          {items.map((i) => (
-            <LinkRow
-              key={i.to}
-              testID={`section-${i.to}`}
-              title={i.label}
-              meta={i.hint}
-              onPress={() => router.push({ pathname: `/phones/[pid]/${i.to}`, params: { pid: phone.id } })}
-            />
-          ))}
-        </VStack>
-      </VStack>
-
-      <VStack>
-        <Text variant="heading">{t("native.manage")}</Text>
-        <RenamePhone />
-        <RemovePhone />
-      </VStack>
-    </Screen>
+    </>
   );
 }
 

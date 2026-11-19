@@ -61,6 +61,8 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val changeReceiptsEnabled: Boolean = true,
+    val healthBoardEnabled: Boolean = true,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -86,6 +88,8 @@ data class ServerRules(
                 phoneId = j.getString("phoneId"),
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
+                changeReceiptsEnabled = j.optBoolean("changeReceiptsEnabled", true),
+                healthBoardEnabled = j.optBoolean("healthBoardEnabled", true),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),
                 lightContactRestriction = j.optBoolean("lightContactRestriction", false),
                 selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),

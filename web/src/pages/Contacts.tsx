@@ -19,7 +19,7 @@ type ChildContactSettings = {
 
 export function ContactsPage() {
   const { t } = useI18n();
-  const { phone, run, pending } = usePhone();
+  const { phone, run, pending, refreshRuleReceipt } = usePhone();
   const self = phone.profile === "self";
   const lightChild = !self && phone.mode === "light";
   const res = useLoad(() => api.get<ChildContactSettings & { contacts: Contact[]; selfScheduleContacts?: boolean | null }>(
@@ -52,6 +52,7 @@ export function ContactsPage() {
         to: t(after[key] ? "contacts.settingOn" : "contacts.settingOff"),
       }));
       res.setData((data) => data && { ...data, ...after });
+      if (before[key] !== after[key]) refreshRuleReceipt();
     } catch {
       setSettingsFailed(true);
     } finally {

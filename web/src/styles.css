@@ -2207,3 +2207,49 @@ main {
 .check > span {
   min-width: 0;
 }
+
+/* Per-phone health and rule confirmations. */
+.rule-receipt {
+  display: grid;
+  gap: 0.2rem;
+  margin-block: 0.75rem 1rem;
+  padding: 0.625rem 0.875rem;
+  border-inline-start: 2px solid var(--line);
+}
+
+.health-rows {
+  margin: 0;
+}
+
+.health-rows > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.25rem 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.health-rows dt {
+  font-weight: 600;
+}
+
+.health-rows dd {
+  margin: 0;
+}
+
+.health-action dt {
+  color: var(--danger);
+}
+
+.health-preference {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 44px;
+}
+
+.health-preference .help {
+  grid-column: 2;
+  margin-top: 0;
+}

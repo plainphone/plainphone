@@ -17,6 +17,7 @@ import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.settings.AndroidSettingsControls
 import org.plainphone.app.settings.PrefsPresetStore
 import org.plainphone.app.settings.SettingsApplier
+import org.plainphone.app.sync.AppliedRulesReceipt
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.LockState
 import org.plainphone.app.sync.Schedules
@@ -150,6 +151,7 @@ object Lock {
         if (sync.released) return listOf(StepResult("lock", true, "released by a parent; nothing applied"))
         // A release that has not finished yet: do not lock again in between, the next sync retries it.
         if (sync.releaseAsked || sync.setupUndoPending) return listOf(StepResult("lock", true, "release in progress; nothing applied"))
+        val receiptEtag = sync.etag?.takeIf { sync.rules()?.changeReceiptsEnabled == true }
         val config = effectiveConfig(context)
         if (!Mode.isLight(context) && BootloaderWarning.needsAcknowledgement(context)) {
             return listOf(StepResult("bootloader warning", false, "confirm the warning on the phone")).also {
@@ -168,7 +170,7 @@ object Lock {
         }
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
-        saveApplied(context, config, results)
+        saveApplied(context, config, results, receiptEtag = receiptEtag?.takeIf { it == sync.etag })
         scheduleNextWindowChange(context)
         return results
     }
@@ -181,11 +183,15 @@ object Lock {
     fun applyIfNeeded(context: Context, reason: String, maxAgeMs: Long): List<StepResult>? = synchronized(APPLY_LOCK) {
         // Checked under the lock that lift() also takes, so a sync cannot run into a starting unlock.
         if (isInMaintenanceWindow(context)) return null
-        SyncStore(context).let { if (it.released || it.releaseAsked || it.setupUndoPending) return null }
+        val sync = SyncStore(context)
+        if (sync.released || sync.releaseAsked || sync.setupUndoPending) return null
         recoverInstall(context, reason)
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
-        if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
+        val etag = sync.etag
+        val receiptPending = etag != null && sync.rules()?.changeReceiptsEnabled == true &&
+            p.getString("receipt_attempt_etag", null) != etag
+        if (fresh && !receiptPending && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
             // Back-to-back windows can leave the config unchanged: still arm the next change.
             scheduleNextWindowChange(context)
             return null
@@ -207,7 +213,8 @@ object Lock {
         val p = prefs(context)
         val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
         val owner = dpm?.isDeviceOwnerApp(context.packageName) == true
-        val hasLimits = SyncStore(context).rules()?.timeLimits?.isEmpty == false
+        val rules = SyncStore(context).rules()
+        val hasLimits = rules?.timeLimits?.isEmpty == false
         val failed = p.getString("applied_failed", null)?.split('\n')
             ?.filter { it.isNotEmpty() && it != UpdateBatteryExemption.FAILED_POLICY }.orEmpty()
         return LockState(
@@ -224,6 +231,12 @@ object Lock {
             resetProtection = p.getString("reset_protection", null),
             callRoleActionNeeded = p.getBoolean("call_role_action_needed", false),
             accountTypes = p.getStringSet("account_types", null)?.sorted(),
+            receipt = p.getString("receipt_etag", null)?.let { etag ->
+                p.getLong("receipt_applied_at", 0L).takeIf { it > 0 }?.let { AppliedRulesReceipt(etag, it) }
+            },
+            webFilterActive = rules?.dnsHost?.takeIf { rules.healthBoardEnabled && rules.dnsReady }?.let { host ->
+                Protections.webFilterActive(context, host, owner)
+            },
         )
     }
 
@@ -232,6 +245,7 @@ object Lock {
         config: PolicyConfig,
         results: List<StepResult>,
         waitingForBootWarning: Boolean = false,
+        receiptEtag: String? = null,
     ) {
         val now = System.currentTimeMillis()
         val edit = prefs(context).edit()
@@ -248,6 +262,14 @@ object Lock {
             // Report the failure without counting this as an applied configuration.
             edit.remove("applied_fingerprint").remove("applied_at").apply()
             return
+        }
+        edit.putString("receipt_attempt_etag", receiptEtag)
+        if (receiptEtag == null) {
+            edit.remove("receipt_etag").remove("receipt_applied_at")
+        } else if (receiptEtag != prefs(context).getString("receipt_etag", null) &&
+            results.all { it.ok || it.name == UpdateBatteryExemption.FAILED_POLICY }
+        ) {
+            edit.putString("receipt_etag", receiptEtag).putLong("receipt_applied_at", now)
         }
         edit.remove("owner_release_started")
             .putLong("applied_at", now)

@@ -104,7 +104,7 @@ phone                                      server                         parent
    regularly and at once when the lock state or a maintenance unlock changes. The newest report
    replaces the one before (no history), and the parent sees it on the phone's page: battery,
    last sync, app version, and a warning listing `failedPolicies` when `lockIntact` is false.
-   Every field is required (use `null` where the type allows it):
+   These fields are required (use `null` where the type allows it):
 
    | Field | Meaning |
    |---|---|
@@ -114,13 +114,15 @@ phone                                      server                         parent
    | `lockIntact` | Every lock policy was applied **and** no maintenance unlock is running |
    | `maintenance` | A PIN maintenance unlock is running on the phone |
    | `failedPolicies` | Names of the lock steps that failed (at most 50, each 1 to 200 characters). The strong-mode entry `battery exemption missing: self-update cannot run` describes update readiness and leaves `lockIntact` unchanged. |
-   | `rulesEtag`, `rulesAppliedAt` | ETag of the rules the phone last applied and when (ISO 8601 with a time zone; `400` if more than 5 minutes ahead of the server), or `null` |
+   | `rulesEtag`, `rulesAppliedAt` | ETag of successfully applied rules and the first successful application time (ISO 8601 with a time zone), or `null` |
    | `dnsHost` | The private DNS host the phone actually uses, or `null` |
 
-   Three fields are optional, so older phones keep working:
+   These fields are optional, so older phones keep working:
 
    | Field | Meaning |
    |---|---|
+   | `rulesReceiptConfirmed` | True when the ETag and timestamp represent a successful application. Older reports lack this confirmation because their ETag can refer to a fetched document. |
+   | `webFilterActive` | The phone observed the configured filter in use (`true`), observed that it was absent (`false`), or could not check (omitted or `null`). |
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
@@ -131,7 +133,17 @@ phone                                      server                         parent
    `lockIntact: false` when `protections` is missing, one of those six is off or missing, a
    policy failed or maintenance runs, whatever the phone sent. The parent sees the protections on the phone's page.
 
-   The answer is `204`. Invalid bodies get `400`. The parent API returns `rulesAppliedAt` in UTC.
+   The answer is `204`. Invalid bodies get `400`. A valid report with an ahead
+   clock is still stored. The confirmation compares the reported ETag to the
+   current rules ETag, and the parent API returns timestamps in UTC. The dashboard
+   labels the server's confirmation time when the phone clock is ahead.
+   The parent's per-phone `changeReceiptsEnabled` and `healthBoardEnabled`
+   preferences default to true and sync in `GET /device/rules`. Android sends
+   null rule confirmation fields when receipts are off and omits the extra
+   filter observation when the board is off. The phone continues sending
+   existing operational status and safety reports.
+   The DNS revision in the rules varies when domain lists change and when their
+   resolver sync completes, so a domain-only save also waits for confirmation.
 6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again

@@ -655,9 +655,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         locationEnabled: z.boolean().optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
+        changeReceiptsEnabled: z.boolean().optional(),
+        healthBoardEnabled: z.boolean().optional(),
       }),
     );
+    const { changeReceiptsEnabled, healthBoardEnabled } = input;
     const fields = {
+      ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
+      ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
@@ -667,6 +672,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
     }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
+    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined) {
+      await wakePhone(ctx, phone.id, "rules");
+    }
     return c.json(await phoneSummary(ctx, updated!));
   });
 

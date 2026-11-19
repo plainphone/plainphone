@@ -72,6 +72,22 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("updates the phone health preference independently of rule confirmations", async () => {
+    const phone = { ...PHONE, changeReceiptsEnabled: true, healthBoardEnabled: true };
+    const path = `/phones/${PHONE.id}`;
+    const api = phoneApi(phone, {
+      [`PATCH ${path}`]: { body: { ...phone, healthBoardEnabled: false } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("Last contact")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name: "Phone health" }));
+    await waitFor(() => expect(screen.queryByText("Last contact")).toBeNull());
+    expect(screen.getByRole("switch", { name: "Rule confirmations", checked: true })).toBeTruthy();
+    expect(api.calls).toContainEqual(expect.objectContaining({
+      method: "PATCH", path, body: { healthBoardEnabled: false },
+    }));
+  });
+
   it("shows the system check's own date even after a newer phone sync", async () => {
     phoneApi({
       ...PHONE,

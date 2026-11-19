@@ -503,6 +503,17 @@ components:
         suggestDeviceContacts:
           type: boolean
           description: Parent opt-in to send names and numbers from a Child phone.
+        dnsRevision:
+          type: string
+          description: Opaque revision of the web filter's domain lists and resolver sync state.
+        changeReceiptsEnabled:
+          type: boolean
+          default: true
+          description: Send confirmations when a rules document is applied.
+        healthBoardEnabled:
+          type: boolean
+          default: true
+          description: Include live web filter checks in phone status.
         lightContactRestriction:
           type: boolean
           description: Enforce the approved list on a light Child phone. Missing means off in light mode.
@@ -726,6 +737,18 @@ components:
           type: [integer, "null"]
           description: Hours of silence before the parents are told. Null means the server default, 0 never.
         offlineAlertHoursDefault: { type: integer }
+        changeReceiptsEnabled: { type: boolean }
+        healthBoardEnabled: { type: boolean }
+        ruleReceipt:
+          type: [object, "null"]
+          description: Confirmation for the current rules document. Null if disabled or unpaired.
+          required: [appliedAt, confirmedAt]
+          properties:
+            needsUpdate:
+              type: boolean
+              description: The phone still reports a fetched ETag without confirming successful application.
+            appliedAt: { type: [string, "null"], format: date-time }
+            confirmedAt: { type: [string, "null"], format: date-time }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
           oneOf:
@@ -785,14 +808,20 @@ components:
           type: [string, "null"]
           maxLength: 100
           description: ETag of the rules the phone last applied.
+        rulesReceiptConfirmed:
+          type: boolean
+          description: The ETag and time refer to a successful rules application; missing on older phones.
+        webFilterActive:
+          type: [boolean, "null"]
+          description: Whether the phone observed the configured filter in use. Null if it could not tell.
         rulesAppliedAt:
           type: [string, "null"]
           format: date-time
-          description: When the phone applied those rules. Must carry a time zone and may be at most 5 minutes ahead of the server.
+          description: When the phone applied those rules. Must carry a time zone. Clock skew does not invalidate the report.
         dnsHost:
           type: [string, "null"]
           maxLength: 253
-          description: The private DNS host the phone actually uses.
+          description: The last private DNS host applied by the phone. Web filter observations use webFilterActive.
         resetProtection:
           type: [string, "null"]
           enum: ["on", "off", "no-play-services", "failed", null]
@@ -1145,7 +1174,7 @@ paths:
         - { name: If-None-Match, in: header, schema: { type: string } }
       responses:
         "200":
-          description: Rules changed (or first fetch). Apply them, then store the ETag.
+          description: Rules changed (or first fetch). Cache the document and ETag, and confirm the ETag in status after a successful application.
           headers:
             ETag: { schema: { type: string } }
           content:
@@ -2141,7 +2170,7 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
     patch:
       operationId: updatePhone
-      summary: Rename a phone or switch location
+      summary: Update a phone’s name or preferences
       tags: [phones]
       description: Turning location off deletes the stored position.
       security: [{ session: [] }, { cookie: [] }]
@@ -2153,13 +2182,19 @@ paths:
               properties:
                 name: { type: string }
                 locationEnabled: { type: boolean }
+                changeReceiptsEnabled: { type: boolean }
+                healthBoardEnabled: { type: boolean }
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0
                   maximum: 168
                   description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
-        "200": { description: "Updated phone" }
+        "200":
+          description: Updated phone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneSummary" }
     delete:
       operationId: deletePhone
       summary: Remove a phone

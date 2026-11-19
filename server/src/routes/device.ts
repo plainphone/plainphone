@@ -669,6 +669,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         failedPolicies: z.array(z.string().min(1).max(200)).max(50),
         installOverrunSequence: z.number().int().positive().optional(),
         rulesEtag: z.string().max(100).nullable(),
+        rulesReceiptConfirmed: z.boolean().optional(),
+        webFilterActive: z.boolean().nullable().optional(),
         rulesAppliedAt: z.iso.datetime({ offset: true }).nullable(),
         dnsHost: z.string().max(253).nullable(),
         resetProtection: z.enum(["on", "off", "no-play-services", "failed"]).nullable().optional(),
@@ -686,9 +688,6 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const appliedAt = input.rulesAppliedAt ? new Date(input.rulesAppliedAt) : null;
-    if (appliedAt && appliedAt.getTime() > ctx.now().getTime() + 5 * 60_000) {
-      return c.json({ error: "rulesAppliedAt is in the future" }, 400);
-    }
     // A light-mode phone (paired as light, or reporting light) is only intact when all six
     // light protections are on, no policy failed and no maintenance unlock runs, whatever
     // it says about lockIntact. The server only ever makes this stricter.
@@ -732,8 +731,15 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const lateGoogleAccountNotice = lateGoogleAccountId && lateGoogleAccountId !== previousLateAccount?.id
         ? { id: lateGoogleAccountId, receivedAt: now.toISOString() }
         : previousLateAccount;
+      // The first receipt is needed to detect an ahead phone clock even on later heartbeats.
+      const previous = prev.status;
+      const sameReceipt = previous?.rulesReceiptConfirmed === true &&
+        previous?.rulesEtag === status.rulesEtag && previous?.rulesAppliedAt === status.rulesAppliedAt;
+      const rulesReceiptReceivedAt = status.rulesReceiptConfirmed === true && status.rulesEtag && status.rulesAppliedAt
+        ? (sameReceipt ? previous?.rulesReceiptReceivedAt ?? prev.reportedAt?.toISOString() : undefined) ?? now.toISOString()
+        : undefined;
       await tx.update(phones).set({
-        deviceStatus: { ...status, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice },
+        deviceStatus: { ...status, rulesReceiptReceivedAt, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice },
         statusReportedAt: now,
       }).where(eq(phones.id, phone.id));
       return protectionLost(

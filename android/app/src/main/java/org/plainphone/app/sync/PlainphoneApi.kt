@@ -121,6 +121,8 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val rulesReceiptConfirmed: Boolean? = null,
+    val webFilterActive: Boolean? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -138,6 +140,8 @@ data class DeviceStatus(
         .put("mode", mode)
         .apply {
             // Optional fields (docs/sync-api.md): only sent when known.
+            rulesReceiptConfirmed?.let { put("rulesReceiptConfirmed", it) }
+            webFilterActive?.let { put("webFilterActive", it) }
             protections?.let { put("protections", JSONObject(it)) }
             timeUsed?.let { used -> put("timeUsed", JSONObject(used.entries.take(200).associate { it.key to it.value.coerceIn(0, 1440) })) }
             if (callRoleActionNeeded) put("callRoleActionNeeded", true)

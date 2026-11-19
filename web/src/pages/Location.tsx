@@ -48,7 +48,7 @@ export function LocationPage() {
   const { t, locale } = useI18n();
   const [pickAlways, setPickAlways] = useState(false);
   const [alwaysFor, setAlwaysFor] = useState<AlwaysFor>("hour");
-  const { phone, setPhone } = usePhone();
+  const { phone, setPhone, refreshRuleReceipt } = usePhone();
   const now = useNow(1000);
   const res = useLoad(() => api.get<LocationState>(`/phones/${phone.id}/location`), [phone.id]);
   const contacts = useLoad(() => api.get<{ contacts: Contact[] }>(`/phones/${phone.id}/contacts`), [phone.id]);
@@ -106,6 +106,7 @@ export function LocationPage() {
       async () => {
         const r = await api.put<LocationState>(`/phones/${phone.id}/location/mode`, forHow ? { mode, alwaysFor: forHow } : { mode });
         setPhone({ ...phone, locationEnabled: mode !== "off", locationMode: mode });
+        refreshRuleReceipt();
         return r;
       },
       t(`loc.mode.${mode}.done`),

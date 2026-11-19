@@ -145,7 +145,11 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       .where(eq(schedules.phoneId, phone.id))
       .orderBy(schedules.createdAt),
     ctx.db
-      .select({ blockedCategories: dnsSettings.blockedCategories })
+      .select({
+        blockedCategories: dnsSettings.blockedCategories,
+        allowDomains: dnsSettings.allowDomains,
+        blockDomains: dnsSettings.blockDomains,
+      })
       .from(dnsSettings)
       .where(eq(dnsSettings.phoneId, phone.id)),
     ctx.db
@@ -173,8 +177,11 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
+      changeReceiptsEnabled: phone.changeReceiptsEnabled,
+      healthBoardEnabled: phone.healthBoardEnabled,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
+      dnsSynced: !phone.dnsDirty,
       locationEnabled: phone.locationEnabled,
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,
@@ -208,6 +215,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
+    changeReceiptsEnabled: phone.changeReceiptsEnabled,
+    healthBoardEnabled: phone.healthBoardEnabled,
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
@@ -233,6 +242,10 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       ready: phone.dnsReady,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
+    // Domain rules are enforced at the resolver. The revision changes after a completed sync as well.
+    dnsRevision: createHash("sha256").update(JSON.stringify([
+      sorted(dnsRow[0]?.allowDomains ?? []), sorted(dnsRow[0]?.blockDomains ?? []), phone.dnsSynced,
+    ])).digest("base64url"),
     location: {
       enabled: phone.locationEnabled,
       mode: phone.locationMode,
@@ -294,7 +307,21 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
   const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const current = phone.changeReceiptsEnabled && phone.pairedAt
+    ? rulesDocument(await loadRulesInputs(ctx, phone))
+    : null;
+  const status = phone.deviceStatus;
+  const confirmed = current && !phone.dnsDirty && status?.rulesEtag === current.etag && status.rulesAppliedAt &&
+    status.rulesReceiptConfirmed === true;
+  return {
+    ...summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false),
+    ruleReceipt: current ? {
+      needsUpdate: status?.rulesReceiptConfirmed === undefined && status?.rulesEtag != null,
+      appliedAt: confirmed ? status.rulesAppliedAt : null,
+      // A clock ahead can still carry a valid acknowledgment. Display the server's receipt time separately.
+      confirmedAt: confirmed ? status.rulesReceiptReceivedAt ?? phone.statusReportedAt?.toISOString() ?? null : null,
+    } : null,
+  };
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -328,7 +355,7 @@ function visibleNotice(notice: StatusNotice | undefined, now: Date): true | unde
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
-    lateGoogleAccountNotice, ...status } = phone.deviceStatus;
+    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
   const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
@@ -376,6 +403,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
+    changeReceiptsEnabled: phone.changeReceiptsEnabled,
+    healthBoardEnabled: phone.healthBoardEnabled,
     status: summaryStatus(phone, ctx.now()),
   };
 }

@@ -165,6 +165,7 @@ class PlainphoneVpnService : VpnService() {
         }, "plainphone-vpn")
 
         val alive: Boolean get() = !stopped && thread.isAlive
+        val activeHost: String? get() = upstream.host.takeIf { alive }
 
         fun start() = thread.start()
 
@@ -264,6 +265,8 @@ class PlainphoneVpnService : VpnService() {
 
         /** True while the interface is up. */
         fun isRunning(): Boolean = running
+
+        fun activeHost(): String? = instance?.tunnel?.activeHost
 
         /**
          * True when Android has this app as the always-on VPN. Asks the running service, because Android only

@@ -71,6 +71,8 @@ data class SafetyEvent(val requestId: String, val event: String)
 
 data class SetupCompletion(val elapsedMs: Long?, val undoMinutes: Int)
 
+data class AppliedRulesReceipt(val etag: String, val atMs: Long)
+
 data class LockState(
     /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
     val mode: String = "strong",
@@ -86,6 +88,8 @@ data class LockState(
     /** Account types on the phone ("com.google"), no names. */
     val accountTypes: List<String>? = null,
     val callRoleActionNeeded: Boolean = false,
+    val receipt: AppliedRulesReceipt? = null,
+    val webFilterActive: Boolean? = null,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -177,7 +181,7 @@ class SyncRunner(
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
-        guarded("report status") { reportStatus(token) }
+        guarded("report status") { reportStatus(token, rules) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
         } else {
@@ -461,8 +465,9 @@ class SyncRunner(
         return true
     }
 
-    private fun reportStatus(token: String) {
+    private fun reportStatus(token: String, rules: ServerRules?) {
         val lock = device.lockState()
+        val receipt = lock.receipt?.takeIf { rules?.changeReceiptsEnabled == true && it.etag == store.etag }
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
         val notices = store.statusNotices
@@ -478,8 +483,10 @@ class SyncRunner(
             maintenance = lock.maintenance,
             failedPolicies = if (overrun == null) lock.failedPolicies
                 else listOf("install window overran: ${overrun.seconds}s") + lock.failedPolicies,
-            rulesEtag = store.etag,
-            rulesAppliedAtMs = lock.appliedAtMs,
+            rulesEtag = receipt?.etag,
+            rulesAppliedAtMs = receipt?.atMs,
+            rulesReceiptConfirmed = (receipt != null).takeIf { rules?.changeReceiptsEnabled == true },
+            webFilterActive = lock.webFilterActive.takeIf { rules?.healthBoardEnabled == true },
             dnsHost = lock.dnsHost,
             resetProtection = lock.resetProtection,
             accountTypes = lock.accountTypes,
@@ -495,7 +502,7 @@ class SyncRunner(
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
-        val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
+        val comparable = status.copy(batteryPct = null, charging = null, timeUsed = null)
         val hash = sha256(comparable.toString())
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         // A local undo can switch protection off while this sync is collecting status.

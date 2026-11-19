@@ -38,6 +38,7 @@ export interface PhoneStatus {
   /** Names of the lock steps that failed. */
   failedPolicies: string[];
   rulesEtag: string | null;
+  webFilterActive?: boolean | null;
   rulesAppliedAt: string | null;
   dnsHost: string | null;
   /** Factory reset protection on the phone (#19); missing on apps before 0.1.4. */
@@ -98,6 +99,9 @@ export interface Phone {
   /** Hours of silence before parents are told; null = the server default. */
   offlineAlertHours: number | null;
   offlineAlertHoursDefault: number;
+  changeReceiptsEnabled?: boolean;
+  healthBoardEnabled?: boolean;
+  ruleReceipt?: import("./phone-health").RuleReceipt | null;
 }
 
 export interface PushSubscriptionInfo {

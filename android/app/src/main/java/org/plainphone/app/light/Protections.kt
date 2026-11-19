@@ -85,6 +85,15 @@ data class Protections(
         fun privateDnsOk(serverName: String?, filterHost: String?): Boolean =
             serverName.isNullOrBlank() || serverName.equals(filterHost, ignoreCase = true)
 
+        /** An observation of Android routing, not a test of what the resolver blocks. */
+        fun webFilterActive(context: Context, host: String, owner: Boolean): Boolean? = runCatching {
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            val link = cm.getLinkProperties(cm.activeNetwork) ?: return null
+            val server = link.privateDnsServerName.takeIf { link.isPrivateDnsActive }
+            if (owner) server.equals(host, ignoreCase = true)
+            else PlainphoneVpnService.activeHost().equals(host, ignoreCase = true) && privateDnsOk(server, host)
+        }.getOrNull()
+
         private fun privateDnsServer(context: Context): String? = runCatching {
             val cm = context.getSystemService(ConnectivityManager::class.java)
             // Plainphone itself is outside its VPN, so this is the real network (Wi-Fi or mobile).
