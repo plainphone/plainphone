@@ -378,7 +378,7 @@
     <string name="setup_summary_qr">En person, du inviterer med QR-kode, godkender løsere regler. Indtil de accepterer, venter ændringer %1$d t.</string>
     <string name="setup_summary_email">%1$s godkender løsere regler. Indtil de accepterer, venter ændringer %2$d t.</string>
     <string name="self_invite_expired">Invitationen er udløbet. Vis en ny.</string>
-    <string name="self_invite_new">Vis en ny kode</string>
+    <string name="self_new_code">Vis en ny kode</string>
     <string name="self_invite_not_approval">Det her er en invitation, ikke en godkendelse. Den gør din ven til din nøgle.</string>
     <string name="self_approval_not_invite">Det her beder din ven om at se på én ændring. At scanne er ikke samtykke: de beslutter, når de har læst den.</string>
 </resources>

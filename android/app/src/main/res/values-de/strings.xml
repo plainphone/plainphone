@@ -347,7 +347,7 @@
     <string name="light_skip_effect_running">Wenn du das überspringst, kann Android Plainphone im Hintergrund beenden und der Schutz sich ausschalten.</string>
     <string name="self_approval_not_invite">Damit bittest du deine Freundin oder deinen Freund, eine Änderung zu prüfen. Scannen ist keine Zustimmung: Sie oder er entscheidet erst nach dem Lesen.</string>
     <string name="self_invite_expired">Diese Einladung ist abgelaufen. Zeige eine neue an.</string>
-    <string name="self_invite_new">Neuen Code anzeigen</string>
+    <string name="self_new_code">Neuen Code anzeigen</string>
     <string name="self_invite_not_approval">Das ist eine Einladung, keine Genehmigung. Sie macht deine Vertrauensperson zu deinem Schlüssel.</string>
     <string name="setup_denied_once">Diesmal nicht erlaubt. Tippe auf die Schaltfläche, um es erneut zu versuchen, oder überspringe es vorerst.</string>
     <string name="setup_recovery_denied_location">Der Standort wurde abgelehnt, daher fragt Android nicht mehr. Er kann nur in der App-Info erlaubt werden.</string>

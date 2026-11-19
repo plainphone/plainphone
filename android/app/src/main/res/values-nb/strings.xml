@@ -347,7 +347,7 @@
     <string name="light_skip_effect_running">Hvis du hopper over dette, kan Android stoppe Plainphone i bakgrunnen, og beskyttelsen kan slås av.</string>
     <string name="self_approval_not_invite">Dette ber vennen din se på én endring. Å skanne er ikke samtykke: vedkommende bestemmer etter å ha lest den.</string>
     <string name="self_invite_expired">Invitasjonen har utløpt. Vis en ny.</string>
-    <string name="self_invite_new">Vis en ny kode</string>
+    <string name="self_new_code">Vis en ny kode</string>
     <string name="self_invite_not_approval">Dette er en invitasjon, ikke en godkjenning. Den gjør vennen din til nøkkelen din.</string>
     <string name="setup_denied_once">Ikke tillatt denne gangen. Trykk på knappen for å prøve igjen, eller hopp over dette foreløpig.</string>
     <string name="setup_recovery_denied_location">Plassering ble avslått, så Android spør ikke lenger. Den kan bare tillates i Appinfo.</string>

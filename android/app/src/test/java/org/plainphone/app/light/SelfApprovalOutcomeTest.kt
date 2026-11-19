@@ -24,6 +24,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.R
 import org.plainphone.app.ui.PlainphoneTheme
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -130,6 +131,13 @@ class SelfApprovalOutcomeTest {
         compose.setContent { PlainphoneTheme { SelfApprovalBody(null, summary, ApprovalState.Approved) } }
         compose.onNodeWithText("Approved. The new rule reaches this phone in a moment.").assertIsDisplayed()
         compose.onNodeWithText(summary).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the waiting code says that scanning is not consent`() {
+        compose.setContent { PlainphoneTheme { SelfApprovalBody(url, summary, ApprovalState.Waiting) } }
+        val label = RuntimeEnvironment.getApplication().getString(R.string.self_approval_not_invite)
+        compose.onNodeWithText(label).assertIsDisplayed()
     }
 
     @Test

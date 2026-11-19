@@ -121,7 +121,7 @@ internal fun SelfApprovalAction() {
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
                     invite && state == ApprovalState.Expired -> {
                         Text(stringResource(R.string.self_invite_expired), Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                        TextButton(onClick = newCode) { Text(stringResource(R.string.self_invite_new)) }
+                        TextButton(onClick = newCode) { Text(stringResource(R.string.self_new_code)) }
                     }
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
                     else -> SelfApprovalChoices(rows) { selected = it }

@@ -89,9 +89,10 @@ internal fun SelfApprovalBody(url: String?, summary: String?, state: ApprovalSta
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
-            if (state == ApprovalState.Expired) TextButton(onClick = onNewCode) { Text(stringResource(R.string.self_invite_new)) }
+            if (state == ApprovalState.Expired) TextButton(onClick = onNewCode) { Text(stringResource(R.string.self_new_code)) }
         } else if (url != null) {
             Text(stringResource(R.string.self_approval_scan))
+            Text(stringResource(R.string.self_approval_not_invite))
             QrCode(url, Modifier.size(200.dp))
             Text(stringResource(R.string.self_approval_waiting), style = MaterialTheme.typography.bodyMedium)
         }

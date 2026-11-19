@@ -382,7 +382,7 @@
     <string name="setup_summary_qr">A person you invite by QR code approves looser rules. Until they accept, changes wait %1$d h.</string>
     <string name="setup_summary_email">%1$s approves looser rules. Until they accept, changes wait %2$d h.</string>
     <string name="self_invite_expired">This invitation has expired. Show a new one.</string>
-    <string name="self_invite_new">Show a new code</string>
+    <string name="self_new_code">Show a new code</string>
     <string name="self_invite_not_approval">This is an invitation, not an approval. It lets your friend become your key.</string>
     <string name="self_approval_not_invite">This asks your friend to review one change. Scanning is not consent: they decide after reading it.</string>
 </resources>
