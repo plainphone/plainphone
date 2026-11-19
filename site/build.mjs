@@ -450,21 +450,19 @@ ${header(t)}
 <section aria-labelledby="phone-choice">
 <h2 id="phone-choice">${p.question}</h2>
 <div class="setup-paths">
-  <a href="#strong"><strong>${p.strong}</strong><span>${p.strongHelp}</span></a>
-  <a href="#light"><strong>${p.light}</strong><span>${p.lightHelp}</span></a>
+  <div><strong>${p.strong}</strong><span>${p.strongHelp}</span><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a><a href="#strong">${p.stepsLink}</a></div>
+  <div><strong>${p.light}</strong><span>${p.lightHelp}</span><a class="button" href="https://app.plainphone.org/add?mode=light">${p.startLight}</a><a href="#light">${p.stepsLink}</a></div>
 </div>
 </section>
-<section aria-labelledby="strong"><h2 id="strong">${p.strongTitle}</h2>
+<section aria-labelledby="strong"><h2 id="strong">${p.strong}</h2>
 <p>${p.start}</p>
-<p><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a></p>
 <ol class="guide">
 ${p.steps
   .map((st) => `<li><h3>${st.title}</h3>${st.body.map((b) => `<p>${b}</p>`).join("")}${figure(st.fig)}</li>`)
   .join("\n")}
 </ol></section>
-<section aria-labelledby="light"><h2 id="light">${p.lightTitle}</h2>
+<section aria-labelledby="light"><h2 id="light">${p.light}</h2>
 <p>${p.start}</p>
-<p><a class="button" href="https://app.plainphone.org/add?mode=light">${p.startLight}</a></p>
 <ol class="guide">
 ${p.lightSteps.map(([title, body, fig]) => `<li><h3>${title}</h3><p>${body}</p>${figure(fig)}</li>`).join("\n")}
 </ol></section>

@@ -34,6 +34,8 @@ interface Qr {
   makeModules: (wifi?: SetupWifi) => boolean[][];
   link?: string;
   expiresAt: string;
+  /** A fresh code for the same phone (and the same PIN), so an expired code never costs the parent their place. */
+  restart: () => Promise<Qr>;
 }
 
 /** /add: a new phone. */
@@ -161,6 +163,7 @@ export function buildQr(
     mode: phone.mode,
     link,
     expiresAt: out.enrollment.expiresAt,
+    restart: async () => buildQr(await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`), phone, pinned, locale),
     makeModules: (wifi) => link
       ? encode(link, { ecc: "L", border: 0 }).data
       : provisioningQr(provisioningPayload(out.provisioning, {
@@ -187,7 +190,7 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
           <span className="choice-desc">{t("add.modeLightHelp")}</span>
         </button>
       </div>
-      <p className="muted small"><Link to="/pair">{t("add.useCode")}</Link></p>
+      <p><Link className="btn btn-secondary" to="/pair">{t("add.useCode")}</Link></p>
     </>
   );
 }
@@ -367,8 +370,12 @@ function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: 
   );
 }
 
-function QrStep({ qr }: { qr: Qr }) {
+function QrStep({ qr: first }: { qr: Qr }) {
   const { t, locale } = useI18n();
+  const [qr, setQr] = useState(first);
+  const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const startRef = useRef<HTMLParagraphElement>(null);
   const [paired, setPaired] = useState(false);
   const light = qr.mode === "light";
   const [wifi, setWifi] = useState<SetupWifi>();
@@ -401,6 +408,21 @@ function QrStep({ qr }: { qr: Qr }) {
     };
   }, [qr.phoneId, qr.expiresAt, paired, gone]);
 
+  async function restart() {
+    setRestarting(true);
+    setRestartError(null);
+    try {
+      setQr(await qr.restart());
+      setGone(null);
+      // Keep keyboard and screen-reader users at the first instruction of the new code.
+      window.setTimeout(() => startRef.current?.focus(), 0);
+    } catch (err) {
+      setRestartError(errorMessage(err, t));
+    } finally {
+      setRestarting(false);
+    }
+  }
+
   const expires = new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
     weekday: "long",
     hour: "2-digit",
@@ -425,18 +447,24 @@ function QrStep({ qr }: { qr: Qr }) {
     <>
       <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
+      {!gone && (
+        <p className="setup-first" ref={startRef} tabIndex={-1}>
+          <span className="setup-first-label">{t("add.startHere")}</span>
+          {t(light ? "add.light1" : "add.s1")}
+        </p>
+      )}
       <div className="setup-grid">
         {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}
         <div className="setup-side">
           {!gone && (
             <>
-              <ol className="setup-steps">
-                <li>{t(light ? "add.light1" : "add.s1")}</li>
+              <ol className="setup-steps setup-steps-after" start={2}>
                 <li>{t(light ? "add.light2" : "add.s2")}</li>
                 <li>{t(light ? "add.light3" : "add.s3")}</li>
               </ol>
               {qr.link ? (
                 <div className="actions">
+                  <span className="setup-fallback">{t("add.cantScan")}</span>
                   <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
                   {navigator.clipboard && (
                     <button type="button" className="btn btn-secondary" onClick={async () => {
@@ -454,10 +482,15 @@ function QrStep({ qr }: { qr: Qr }) {
             </>
           )}
           {gone ? (
-            <p className="notice notice-error" role="alert">
-              {t(gone === "expired" ? "add.expired" : "add.removed")}{" "}
-              {gone === "expired" && <Link to={`/phones/${qr.phoneId}/setup`} reloadDocument>{t(light ? "add.newLink" : "setup.showQr")}</Link>}
-            </p>
+            <div className="notice notice-error setup-gone" role="alert">
+              <p>{t(gone === "expired" ? "add.expired" : "add.removed")}</p>
+              {restartError && <p>{restartError}</p>}
+              {gone === "expired" && (
+                <button type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
+                  {t(restarting ? "add.making" : light ? "add.newLink" : "add.newCode")}
+                </button>
+              )}
+            </div>
           ) : (
             <p className="setup-wait" role="status">
               <span className="pulse" aria-hidden="true" />

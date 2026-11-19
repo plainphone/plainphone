@@ -449,9 +449,8 @@ export default {
     lightHelp: "Behalten Sie die Daten des Telefons und aktivieren Sie den Schutz in den Android-Einstellungen.",
     startStrong: "Starten Sie die Einrichtung für ein neues oder zurückgesetztes Telefon",
     startLight: "Starten Sie die Einrichtung für ein verwendetes Telefon",
+    stepsLink: "Schritte ansehen",
     start: "Geben Sie im Dashboard an, für wen das Telefon bestimmt ist, und erstellen Sie einen Einrichtungslink.",
-    strongTitle: "Neues oder zurückgesetztes Telefon",
-    lightTitle: "Telefon bereits in Gebrauch",
     lightSteps: [
       ["Öffnen Sie den Download auf dem Telefon", "Scannen Sie den Code im Dashboard mit der Kamera des Telefons oder öffnen Sie den privaten Link in Chrome auf diesem Telefon.", "lightScan"],
       ["Installieren Sie Plainphone", "Laden Sie die App herunter und öffnen Sie die Datei. Wenn Android es blockiert, tippen Sie auf „Einstellungen“, aktivieren Sie „Von dieser Quelle zulassen“, gehen Sie zurück und tippen Sie auf „Installieren“.", "download"],
