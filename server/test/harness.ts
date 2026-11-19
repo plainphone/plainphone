@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, inject } from "vitest";
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, expect, inject, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { createDb, runMigrations } from "../src/db/client.js";
+import { sosEvents } from "../src/db/schema.js";
 import { MockDnsProvider } from "../src/providers/dns.js";
 import { MemoryMailProvider } from "../src/providers/mail.js";
 import { MemoryParentPushProvider } from "../src/providers/parent-push.js";
@@ -135,4 +136,17 @@ export async function pairPhone(
   });
   device.token = poll.json.deviceToken;
   return { phoneId: claim.json.id as string, device };
+}
+
+/**
+ * Waits until the request's own background dispatch of an SOS has finished its pass and is
+ * waiting out the retry backoff. The lease is already set when the pass starts (two minutes), so
+ * "has a lease" is not enough: only the one-minute retry lease on the injected clock means the pass is over.
+ * Advance the clock or sweep only after this, or the sweeper races the first pass.
+ */
+export async function waitForSosRetryBackoff(h: Harness, id: string): Promise<void> {
+  await vi.waitFor(async () => {
+    const [open] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
+    expect(open!.notificationLeaseUntil?.getTime()).toBe(h.clock.now.getTime() + 60_000);
+  });
 }
