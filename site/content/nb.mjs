@@ -5,9 +5,8 @@ export default {
   path: "/nb/",
   title: "Plainphone | Foreldrekontroll for barnets første Android-mobil",
   description: "Gjør en Android til barnets første mobil eller en enkel telefon for deg selv. Behold samtaler og viktige apper, og velg hvilke apper og nettsteder du vil begrense.",
-  ogAlt: "Plainphone: telefonen din, minus støyen.",
+  ogAlt: "Plainphone: Telefonen din uten all støyen. Samtaler, SMS og kamera er på, sosiale medier og appbutikken er av.",
   landing: {
-    product: "Produkt",
     setup: "Oppsett",
     faq: "Spørsmål",
     menu: "Meny",
@@ -19,9 +18,8 @@ export default {
     project: "Prosjekt",
     languages: "Språk",
     day: ["Den første dagen med Plainphone", "Velg sterk eller lett modus i foreldrepanelet.", "Velg hvem som skal bruke telefonen.", "Følg veiledningen og koble til telefonen.", "Bli enige om reglene og prøv en samtale og appene dere trenger."],
-    child: ["Dette ser barnet ditt", "På telefonen kan barnet se hvilke apper som er tilgjengelige, og hvor mye tid som er igjen for apper med en tidsgrense. Telefonen sier fra når tiden er ute og viser et varsel når den sender posisjonen sin."],
-    visual: ["Oppsettet i Plainphone med valg mellom sterk og lett modus", "Oppsettet i foreldrepanelet (vist på dansk).", "Dette nettstedet bruker ingen informasjonskapsler, besøksmåling, sporing eller forespørsler til tredjeparter."],
-    diagram: "Android 10 eller nyere",
+    childSees: "På telefonen kan barnet se hvilke apper som er tilgjengelige, og hvor mye tid som er igjen for apper med en tidsgrense. Telefonen sier fra når tiden er ute og viser et varsel når den sender posisjonen sin.",
+    privacyNote: "Dette nettstedet bruker ingen informasjonskapsler, besøksmåling, sporing eller forespørsler til tredjeparter.",
     groups: {
       gettingStarted: "Kom i gang",
       safety: "Sikkerhet",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Telefonen din uten all støyen.",
     lead: "Plainphone gjør en Android-telefon til en telefon med samtaler, SMS og appene du velger.",
-    staysLabel: "Det du beholder",
-    stays: ["Samtaler", "Meldinger", "Kamera"],
-    goesLabel: "Det du kan velge bort",
-    goes: ["Sosiale medier-apper og spill du utelater fra listen", "Utvalgte nettsteder, med nettfilter", "Appbutikker, med mindre du tillater dem"],
   },
   who: {
     title: "Hvem passer det for?",
@@ -553,7 +547,7 @@ export default {
     maintained: "Plainphone vedlikeholdes av <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
     setup: "Veiledning: <a href=\"/nb/setup/\">Konfigurer en telefon</a>.",
     privacy: "Dette nettstedet setter ingen informasjonskapsler og kjører ingen analyser. <a href=\"/nb/privacy/\">Personvernerklæring</a>.",
-    license: "Kode under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Font: Atkinson Hyperlesible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Kode under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Skrifttyper: Schibsted Grotesk og IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Siden ikke funnet",

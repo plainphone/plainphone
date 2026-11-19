@@ -5,9 +5,8 @@ export default {
   path: "/sv/",
   title: "Plainphone | Föräldrakontroll för barnets första Android-mobil",
   description: "Gör en Android till barnets första mobil eller en enkel telefon för dig själv. Behåll samtal och viktiga appar och välj vilka appar och webbplatser du vill begränsa.",
-  ogAlt: "Plainphone: din telefon, minus bruset.",
+  ogAlt: "Plainphone: Din telefon utan allt brus. Samtal, sms och kamera är på, sociala medier och appbutiken är av.",
   landing: {
-    product: "Produkt",
     setup: "Installation",
     faq: "Frågor",
     menu: "Meny",
@@ -19,9 +18,8 @@ export default {
     project: "Projekt",
     languages: "Språk",
     day: ["Första dagen med Plainphone", "Välj starkt eller lätt läge i föräldrapanelen.", "Välj vem som ska använda telefonen.", "Följ guiden och anslut telefonen.", "Kom överens om reglerna och testa samtal och de appar ni behöver."],
-    child: ["Det här ser ditt barn", "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats."],
-    visual: ["Plainphones installationsskärm med val av starkt eller lätt läge", "Installationen i föräldrapanelen (visas på danska).", "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part."],
-    diagram: "Android 10 eller senare",
+    childSees: "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats.",
+    privacyNote: "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part.",
     groups: {
       gettingStarted: "Kom igång",
       safety: "Säkerhet",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Din telefon utan allt brus.",
     lead: "Plainphone gör en Android-telefon till en telefon med samtal, sms och de appar du väljer.",
-    staysLabel: "Det som är kvar",
-    stays: ["Samtal", "Meddelanden", "Kamera"],
-    goesLabel: "Det du kan välja bort",
-    goes: ["Sociala medier och spel som du väljer bort", "Utvalda webbplatser, med webbfiltret", "Appbutiker, om du inte tillåter dem"],
   },
   who: {
     title: "Vem är det till för?",
@@ -553,7 +547,7 @@ export default {
     maintained: "Plainphone underhålls av <a href=\"https://mahoje.dk\">Mahoje</a> i Danmark.",
     setup: "Guide: <a href=\"/sv/setup/\">Konfigurera en telefon</a>.",
     privacy: "Den här webbplatsen lägger inga cookies och kör inga analyser. <a href=\"/sv/privacy/\">Integritetspolicy</a>.",
-    license: "Kod under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Teckensnitt: Atkinson Hyperlegible Next, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
+    license: "Kod under <a href=\"https://github.com/plainphone/plainphone/blob/main/LICENSE\">Apache-2.0</a>. Teckensnitt: Schibsted Grotesk och IBM Plex Mono, <a href=\"/fonts/OFL.txt\">SIL OFL</a>.",
   },
   notFound: {
     title: "Sidan hittades inte",

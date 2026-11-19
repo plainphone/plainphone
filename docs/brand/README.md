@@ -2,7 +2,7 @@
 
 One logo, one favicon and one look on every surface: the site, the web dashboard, the parent app, the phone and the mails.
 
-**Status: round 1.** This guide proposes three visual directions (A, B, C). After one is chosen, a later change redesigns the landing page on it and rolls it out to every asset in the [inventory](#asset-inventory). Nothing in the product uses these files yet.
+**Status: direction C chosen (19 November 2026).** This guide proposed three visual directions (A, B, C), and C, Switch, was chosen. The site (plainphone.org) uses it. The web dashboard, the parent app, Android and the mails still use the old marks and palettes in the [inventory](#asset-inventory) until a separate rollout changes them.
 
 | | A · Paper | B · Daylight | C · Switch |
 | --- | --- | --- | --- |
@@ -58,11 +58,10 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 
 | Surface | File | What it is today |
 | --- | --- | --- |
-| Site | `site/src/favicon.svg`, `favicon-32.png`, `apple-touch-icon.png` | Mark 1: slate circle `#1d2a30` with a white bar ("minus") |
-| Site | `site/src/wordmark.svg` (from `site/tools/make-wordmark.py`) | "plainphone", Atkinson Hyperlegible Next 640, circle-bar mark |
-| Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Share images, paper `#f3f5f2`, ink `#1d2a30` |
-| Site | `site/build.mjs` `theme-color` | `#f3f5f2` / `#172025` (slate, not the token values) |
-| Site | `site/src/style.css`, `site/src/fonts/` | Site palette and Atkinson Hyperlegible Next (OFL) |
+| Site | `site/src/brand/` (copies of `directions/c/`), `favicon-32.png`, `apple-touch-icon.png` | Done: direction C mark, wordmark, favicon and apple-touch icon |
+| Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Done: direction C share images with the hero switch panel |
+| Site | `site/build.mjs` `theme-color` | Done: C paper, `#f5f5f3` / `#0f0f0f` |
+| Site | `site/src/style.css`, `site/src/fonts/` | Done: C palette, Schibsted Grotesk and IBM Plex Mono (OFL) |
 | Mail | `site/src/mail/logo@2x.png`, `logo-dark@2x.png` (copied to `plainphone.org/mail/`) and `web/public/mail/` (from `web/scripts/make-icons.mjs`) | Mail logo; the wordmark text is set in DejaVu Sans Bold |
 | Mail | `server/src/lib/mail-templates.ts` | Mail colours: slate `#1d2a30`, links `#93c9de` in dark, background `#e8ece8` |
 | Web dashboard | `web/public/icon.svg`, `web/public/icons/{icon-192,icon-512,maskable-192,maskable-512,apple-touch-icon}.png` (from `web/scripts/make-icons.mjs`) | Mark 2: green `#24604a` tile, white phone outline with a wave |

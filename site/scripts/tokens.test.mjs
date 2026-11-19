@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // The common tokens (docs/research/ux-premium.md, "Shared design system proposal") must be the same
-// on the site, the web dashboard, the Expo parent app and Android, and every text pair must stay AA.
+// on the web dashboard, the Expo parent app and Android, and every text pair must stay AA.
+// The site already uses brand direction C ("Switch", docs/brand/README.md); the other surfaces
+// move to it in a separate rollout. Until then the site is checked against the guide's C table.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -37,15 +39,39 @@ function cssVars(css) {
   return { light: vars(blocks[0]), dark: { ...vars(blocks[0]), ...vars(blocks[1]) } };
 }
 
+/** The direction C palette from the brand guide's `<!-- palette:c -->` table. */
+function switchPalette() {
+  const table = read("docs/brand/README.md").match(/<!-- palette:c -->([\s\S]*?)<!-- \/palette:c -->/)[1];
+  const rows = [...table.matchAll(/^\| (\w+) \| `(#[0-9a-f]{6})` \| `(#[0-9a-f]{6})` \|$/gm)];
+  return {
+    light: Object.fromEntries(rows.map((m) => [m[1], m[2]])),
+    dark: Object.fromEntries(rows.map((m) => [m[1], m[3]])),
+  };
+}
+const SWITCH = switchPalette();
+
+test("the site uses the direction C tokens from the brand guide", () => {
+  const v = cssVars(read("site/src/style.css"));
+  const map = {
+    paper: "paper", sheet: "sheet", ink: "ink", pencil: "pencil", divider: "divider", outline: "outline", action: "action",
+    onAction: "on-action", tint: "tint", attention: "attention", danger: "danger", brand: "brand", onBrand: "on-brand",
+  };
+  for (const theme of ["light", "dark"]) {
+    assert.equal(Object.keys(SWITCH[theme]).length, 14, "palette:c table in docs/brand/README.md");
+    for (const [role, variable] of Object.entries(map)) {
+      assert.equal(v[theme][variable], SWITCH[theme][role], `site ${theme} --${variable} (${role})`);
+    }
+  }
+});
+
 const MAPS = {
-  site: { paper: "paper", sheet: "sheet", ink: "ink", pencil: "pencil", divider: "rule", outline: "outline", action: "link", onAction: "on-link", attention: "mark" },
   web: {
     paper: "bg", sheet: "surface", ink: "ink", pencil: "muted", divider: "line", outline: "border-strong", action: "accent",
     onAction: "on-accent", tint: "tint", attention: "warn-bg", danger: "danger", dangerFill: "danger-bg",
   },
 };
 
-for (const [name, file] of [["site", "site/src/style.css"], ["web", "web/src/styles.css"]]) {
+for (const [name, file] of [["web", "web/src/styles.css"]]) {
   test(`${name} uses the common tokens`, () => {
     const v = cssVars(read(file));
     for (const theme of ["light", "dark"]) {
@@ -81,8 +107,9 @@ test("Android uses the common tokens", () => {
   }
 });
 
-test("common tokens meet WCAG AA", () => {
-  for (const [theme, t] of Object.entries(COMMON)) {
+test("common and direction C tokens meet WCAG AA", () => {
+  for (const [theme, t] of [...Object.entries(COMMON), ...Object.entries(SWITCH).map(([k, t]) => [`C ${k}`, t])]) {
+    if (t.brand) assert.ok(ratio(t.onBrand, t.brand) >= 4.5, `${theme} ink on signal green`);
     for (const surface of [t.paper, t.sheet]) {
       for (const fg of [t.ink, t.pencil, t.action, t.danger]) assert.ok(ratio(fg, surface) >= 4.5, `${theme} ${fg} on ${surface}`);
       assert.ok(ratio(t.outline, surface) >= 3, `${theme} outline on ${surface}`);
