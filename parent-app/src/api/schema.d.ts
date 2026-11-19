@@ -2332,6 +2332,8 @@ export interface components {
              * @enum {unknown}
              */
             pushProvider?: "none" | "fcm" | "unifiedpush";
+            /** @description FCM registration cache key that changes with the configured Firebase project or validation version */
+            fcmValidationKey?: string;
             /** @description Whether the device can fall back to UnifiedPush */
             unifiedPushAvailable?: boolean;
             /**
@@ -3959,6 +3961,10 @@ export interface operations {
                      * @description Existing native subscription to refresh
                      */
                     subscriptionId?: string;
+                    /** @description Opaque installation key persisted before first registration and across token rotations and logins */
+                    installationKey?: string;
+                    /** @description True when the parent explicitly enables native notifications */
+                    optIn?: boolean;
                     label?: string;
                 };
             };
@@ -3980,14 +3986,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The native subscription was removed */
+            /** @description The native subscription was removed or its token is no longer valid */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Notifications are not set up on this server */
+            /** @description Notifications are not set up on this server or the registration changed concurrently */
             409: {
                 headers: {
                     [name: string]: unknown;

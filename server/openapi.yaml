@@ -628,6 +628,7 @@ components:
             Plainphone off"), never locks again, and calls `POST /device/released`. An older
             server without this field means false.
         pushProvider: { enum: [none, fcm, unifiedpush], description: "Preferred wakeup transport, subject to device availability" }
+        fcmValidationKey: { type: string, description: FCM registration cache key that changes with the configured Firebase project or validation version }
         unifiedPushAvailable: { type: boolean, description: "Whether the device can fall back to UnifiedPush" }
         pollSeconds:
           type: integer
@@ -1823,6 +1824,8 @@ paths:
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     replaces: { type: string, maxLength: 1024 }
                     subscriptionId: { type: string, format: uuid, description: Existing native subscription to refresh }
+                    installationKey: { type: string, minLength: 16, maxLength: 1024, description: Opaque installation key persisted before first registration and across token rotations and logins }
+                    optIn: { type: boolean, description: True when the parent explicitly enables native notifications }
                     label: { type: string, maxLength: 60 }
       responses:
         "201":
@@ -1831,8 +1834,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PushSubscription" }
         "400": { description: "Unknown push service or invalid keys" }
-        "404": { description: "The native subscription was removed" }
-        "409": { description: "Notifications are not set up on this server" }
+        "404": { description: "The native subscription was removed or its token is no longer valid" }
+        "409": { description: "Notifications are not set up on this server or the registration changed concurrently" }
   /notifications/subscriptions/{sid}:
     delete:
       operationId: deleteNotificationSubscription

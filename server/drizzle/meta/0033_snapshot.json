@@ -1638,6 +1638,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "fcm_validation_key": {
+          "name": "fcm_validation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "unified_push_endpoint": {
           "name": "unified_push_endpoint",
           "type": "text",
@@ -1808,6 +1814,25 @@
           "primaryKey": false,
           "notNull": true
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_hash": {
+          "name": "installation_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
         "platform": {
           "name": "platform",
           "type": "text",
@@ -1874,6 +1899,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "push_subscriptions_session_idx": {
+          "name": "push_subscriptions_session_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1889,10 +1929,30 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "push_subscriptions_session_id_sessions_id_fk": {
+          "name": "push_subscriptions_session_id_sessions_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "push_subscriptions_installation_hash_unique": {
+          "name": "push_subscriptions_installation_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "installation_hash"
+          ]
+        },
         "push_subscriptions_endpoint_unique": {
           "name": "push_subscriptions_endpoint_unique",
           "nullsNotDistinct": false,

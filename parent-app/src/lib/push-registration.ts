@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import { ApiError, client, getSessionToken, unwrap } from "../api/client";
-import { getItem, removeItem, setItem } from "./storage";
+import { getItem, setItem } from "./storage";
 
 const key = "pp.push-registration";
+const installationStorageKey = "pp.push-installation";
 type Registration = { id: string; token: string; platform: "apns" | "fcm" };
 const pending = new Map<string, Promise<unknown>>();
+let initializingInstallation: Promise<string> | undefined;
 let signedOutSession: string | null = null;
 
 async function saved(): Promise<Registration | null> {
@@ -22,20 +24,31 @@ function serialize<T>(session: string, run: () => Promise<T>): Promise<T> {
   return operation;
 }
 
+function getInstallationKey(seed: string): Promise<string> {
+  return initializingInstallation ??= (async () => {
+    const existing = await getItem(installationStorageKey);
+    if (existing) return existing;
+    // The first provider token is an opaque, installation-specific seed. Keep it across rotations and logins.
+    await setItem(installationStorageKey, seed);
+    return seed;
+  })().finally(() => { initializingInstallation = undefined; });
+}
+
+function current(session: string) {
+  return session === getSessionToken() && session !== signedOutSession;
+}
+
 export function registerNativeToken(platform: Registration["platform"], token: string, session: string, optIn = false) {
   return serialize(session, async () => {
     const prior = await saved();
-    if (session !== getSessionToken() || session === signedOutSession) return false;
-    const post = (subscriptionId?: string) => unwrap<{ id: string }>(client.POST("/notifications/subscriptions", {
-      body: { platform, token, subscriptionId },
-    }));
+    if (!current(session)) return false;
+    const installationKey = await getInstallationKey(prior?.token ?? token);
+    if (!current(session)) return false;
     try {
-      const { id } = await post(prior?.id).catch((error: unknown) => {
-        if (optIn && error instanceof ApiError && error.status === 404 && session === getSessionToken() &&
-          session !== signedOutSession) return post();
-        throw error;
-      });
-      if (session !== getSessionToken()) return false;
+      const { id } = await unwrap<{ id: string }>(client.POST("/notifications/subscriptions", {
+        body: { platform, token, installationKey, subscriptionId: prior?.id, optIn },
+      }));
+      if (!current(session)) return false;
       await setItem(key, JSON.stringify({ id, token, platform }));
       return true;
     } catch (error) {
@@ -45,16 +58,10 @@ export function registerNativeToken(platform: Registration["platform"], token: s
   });
 }
 
-export async function unregisterNativeToken(signingOut = false) {
+export async function logoutNativeSession() {
   const session = getSessionToken();
   if (!session) return;
-  if (signingOut) signedOutSession = session;
-  // A permission check on an app that never registered has no work to queue.
-  if (!signingOut && !pending.has(session) && !(await saved()) && !pending.has(session)) return;
-  return serialize(session, async () => {
-    const prior = await saved();
-    if (!prior || session !== getSessionToken()) return;
-    await unwrap(client.DELETE("/notifications/subscriptions/{sid}", { params: { path: { sid: prior.id } } }));
-    if (signingOut) await removeItem(key);
-  });
+  signedOutSession = session;
+  // The server revokes every registration owned by this session, including POSTs whose response we never received.
+  await unwrap(client.POST("/auth/logout"));
 }

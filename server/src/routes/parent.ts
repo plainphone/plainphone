@@ -27,6 +27,7 @@ import {
   users,
 } from "../db/schema.js";
 import { DEFAULT_PUSH_HOSTS, parentPushEnabled, pushHostAllowed } from "../providers/parent-push.js";
+import { registerNativeSubscription, removePushSubscription } from "../services/push-subscriptions.js";
 import { notifyUsers } from "../services/notifications.js";
 import { approveRequest, openRequests, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
@@ -39,7 +40,7 @@ import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
 import { deleteAccount } from "../services/account.js";
-import { endSession, requestMagicLink, SESSION_DAYS, userForSession, verifyMagicLink } from "../services/auth.js";
+import { endSession, requestMagicLink, SESSION_DAYS, resolveSession, verifyMagicLink } from "../services/auth.js";
 import {
   applyPending,
   rejectTrustedChange,
@@ -62,7 +63,7 @@ import { locationRoutes, setLocationMode } from "./location.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
-type Env = { Variables: { user: User; viaCookie: boolean } };
+export type ParentEnv = { Variables: { user: User; sessionId: string; viaCookie: boolean } };
 
 export const SESSION_COOKIE = "pp_session";
 const INVITE_DAYS = 7;
@@ -81,8 +82,8 @@ function changeJson(r: ChangeResult) {
       };
 }
 
-export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<Env>) => void) {
-  const app = new Hono<Env>();
+export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<ParentEnv>) => void) {
+  const app = new Hono<ParentEnv>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
   const loginIpLimit = new RateLimiter(20, 60 * 60_000);
@@ -148,8 +149,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (bearer.startsWith(DEVICE_PREFIX)) throw new HTTPException(403, { message: "device tokens cannot use this API" });
     const cookie = getCookie(c, SESSION_COOKIE);
     const token = bearer || cookie || "";
-    const user = token ? await userForSession(ctx, token) : null;
-    if (!user) throw new HTTPException(401, { message: "sign in first" });
+    const session = token ? await resolveSession(ctx, token) : null;
+    if (!session) throw new HTTPException(401, { message: "sign in first" });
     const viaCookie = !bearer;
     // CSRF: a cookie-authenticated write must come from our own origin.
     if (viaCookie && !["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
@@ -159,7 +160,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         throw new HTTPException(403, { message: "cross-site request refused" });
       }
     }
-    c.set("user", user);
+    c.set("user", session.user);
+    c.set("sessionId", session.id);
     c.set("viaCookie", viaCookie);
     await next();
   });
@@ -168,9 +170,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   extra?.(app);
 
   app.post("/auth/logout", async (c) => {
-    const auth = c.req.header("authorization") ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : getCookie(c, SESSION_COOKIE);
-    if (token) await endSession(ctx, token);
+    await endSession(ctx, c.get("sessionId"));
     deleteCookie(c, SESSION_COOKIE, { path: "/api" });
     return c.body(null, 204);
   });
@@ -237,7 +237,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const subs = await ctx.db
       .select()
       .from(pushSubscriptions)
-      .where(eq(pushSubscriptions.userId, user.id))
+      .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.state, "active")))
       .orderBy(pushSubscriptions.createdAt);
     const muted = await ctx.db
       .select({ phoneId: notificationMutes.phoneId })
@@ -271,6 +271,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           token: z.string().regex(/^[A-Za-z0-9_:.-]{16,1024}$/),
           replaces: z.string().max(1024).optional(),
           subscriptionId: z.uuid().optional(),
+          installationKey: z.string().regex(/^[A-Za-z0-9_:.-]{16,1024}$/).optional(),
+          optIn: z.boolean().optional(),
           label,
         }),
       ]),
@@ -281,25 +283,19 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (input.platform === "web" && !pushHostAllowed(input.endpoint, pushHosts)) {
       return c.json({ error: "unknown push service" }, 400);
     }
-    const values =
-      input.platform === "web"
-        ? { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth }
-        : { endpoint: input.token, p256dh: null, auth: null };
-    if (input.platform !== "web" && input.subscriptionId) {
-      // Rotation keeps the subscription ID stable so removal wins even during a refresh.
-      const [existing] = await ctx.db.update(pushSubscriptions)
-        .set({ endpoint: input.token, failures: 0 })
-        .where(and(eq(pushSubscriptions.id, input.subscriptionId), eq(pushSubscriptions.userId, user.id),
-          eq(pushSubscriptions.platform, input.platform)))
-        .returning();
-      return existing ? c.json(subscriptionJson(existing), 201) : c.json({ error: "subscription removed" }, 404);
+    if (input.platform !== "web") {
+      const result = await registerNativeSubscription(ctx, user.id, c.get("sessionId"), input);
+      if (result.status !== 201) return c.json({ error: result.error }, result.status);
+      return c.json(subscriptionJson(result.row), 201);
     }
-    // The same browser or app install signing in as someone else takes the row over.
+
+    const values = { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth };
     const [row] = await ctx.db
       .insert(pushSubscriptions)
       .values({ userId: user.id, platform: input.platform, label: input.label ?? null, ...values })
       .onConflictDoUpdate({
         target: pushSubscriptions.endpoint,
+        setWhere: eq(pushSubscriptions.platform, "web"),
         set: {
           userId: user.id,
           platform: input.platform,
@@ -309,24 +305,23 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         },
       })
       .returning();
+    if (!row) return c.json({ error: "endpoint already registered" }, 409);
     if (input.replaces && input.replaces !== values.endpoint) {
       const [old] = await ctx.db
         .delete(pushSubscriptions)
         .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces), eq(pushSubscriptions.platform, input.platform)))
         .returning({ label: pushSubscriptions.label });
       // The service worker cannot tell the device's name; keep the one the old row had.
-      if (old?.label && !row!.label) {
-        row!.label = old.label;
-        await ctx.db.update(pushSubscriptions).set({ label: old.label }).where(eq(pushSubscriptions.id, row!.id));
+      if (old?.label && !row.label) {
+        row.label = old.label;
+        await ctx.db.update(pushSubscriptions).set({ label: old.label }).where(eq(pushSubscriptions.id, row.id));
       }
     }
-    return c.json(subscriptionJson(row!), 201);
+    return c.json(subscriptionJson(row), 201);
   });
 
   app.delete("/notifications/subscriptions/:sid", async (c) => {
-    await ctx.db
-      .delete(pushSubscriptions)
-      .where(and(eq(pushSubscriptions.id, param(c, "sid")), eq(pushSubscriptions.userId, c.get("user").id)));
+    await removePushSubscription(ctx, c.get("user").id, param(c, "sid"));
     return c.body(null, 204);
   });
 
@@ -340,7 +335,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // --- Households -------------------------------------------------------------
 
-  async function requireMember(c: Context<Env>, householdId: string) {
+  async function requireMember(c: Context<ParentEnv>, householdId: string) {
     const [m] = await ctx.db
       .select()
       .from(householdMembers)
@@ -508,7 +503,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return rows.map((r) => r.id);
   }
 
-  async function requirePhone(c: Context<Env>): Promise<Phone> {
+  async function requirePhone(c: Context<ParentEnv>): Promise<Phone> {
     const pid = param(c, "pid");
     const [row] = await ctx.db
       .select({ phone: phones })
@@ -522,7 +517,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return row.phone;
   }
 
-  async function change(c: Context<Env>, phone: Phone, op: Op) {
+  async function change(c: Context<ParentEnv>, phone: Phone, op: Op) {
     try {
       const r = await submitChange(ctx, phone, c.get("user").id, op);
       return c.json(changeJson(r), r.status === "applied" ? 200 : 202);
@@ -678,8 +673,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ...(input.name ? { name: input.name } : {}),
       ...(input.pushWakeups === undefined ? {} : { pushWakeups: input.pushWakeups }),
       ...(input.preferUnifiedPush === undefined ? {} : { preferUnifiedPush: input.preferUnifiedPush }),
-      ...(input.preferUnifiedPush === true ? { fcmToken: null } : {}),
-      ...(input.pushWakeups === false ? { fcmToken: null, unifiedPushEndpoint: null } : {}),
+      ...(input.preferUnifiedPush === true ? { fcmToken: null, fcmValidationKey: null } : {}),
+      ...(input.pushWakeups === false ? { fcmToken: null, fcmValidationKey: null, unifiedPushEndpoint: null } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
     if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));
@@ -1029,7 +1024,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   // Requests for a trusted person
-  async function requireTrusted(c: Context<Env>) {
+  async function requireTrusted(c: Context<ParentEnv>) {
     const cid = param(c, "cid");
     const [row] = await ctx.db
       .select({ change: pendingChanges })

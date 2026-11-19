@@ -97,6 +97,103 @@ describe("push subscriptions", () => {
     expect((await parent.get("/api/notifications")).json.subscriptions).toEqual([]);
   });
 
+  it("keeps manual native removal after logout, login and token rotation until opt-in", async () => {
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: () => true,
+      async send() { return "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const path = "/api/notifications/subscriptions";
+    const registration = { platform: "apns", token: "a".repeat(40), installationKey: "a".repeat(40) };
+    const initial = await parent.post(path, registration);
+    expect(initial.status).toBe(201);
+    await parent.del(`${path}/${initial.json.id}`);
+    expect((await parent.post("/api/auth/logout")).status).toBe(204);
+
+    const signedInAgain = await signIn(h, "parent@example.org");
+    expect((await signedInAgain.post(path, registration)).status).toBe(404);
+    const rotated = { ...registration, token: "b".repeat(40) };
+    expect((await signedInAgain.post(path, rotated)).status).toBe(404);
+    expect((await signedInAgain.post("/api/notifications/test", {})).json).toEqual({ sent: 0 });
+    expect((await signedInAgain.post(path, { ...rotated, optIn: true })).status).toBe(201);
+    expect((await signedInAgain.post("/api/notifications/test", {})).json).toEqual({ sent: 1 });
+  });
+
+  it("logout removes native registrations even without their POST responses", async () => {
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: () => true,
+      async send() { return "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const otherSession = await signIn(h, "parent@example.org");
+    const path = "/api/notifications/subscriptions";
+    const register = (client: Client, seed: string) =>
+      client.post(path, { platform: "fcm", token: seed.repeat(40), installationKey: seed.repeat(40) });
+    expect((await register(parent, "a")).status).toBe(201);
+    expect((await register(parent, "b")).status).toBe(201);
+    const other = await register(otherSession, "c");
+    expect((await parent.post("/api/auth/logout")).status).toBe(204);
+    expect((await register(parent, "d")).status).toBe(401);
+    expect((await otherSession.get("/api/notifications")).json.subscriptions)
+      .toEqual([expect.objectContaining({ id: other.json.id })]);
+    expect((await otherSession.post("/api/notifications/test", {})).json).toEqual({ sent: 1 });
+  });
+
+  it("lets a reinstall with a new installation key take over its active token", async () => {
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: () => true,
+      async send() { return "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const path = "/api/notifications/subscriptions";
+    const token = "a".repeat(40);
+    const first = await parent.post(path, { platform: "apns", token, installationKey: token });
+    expect(first.status).toBe(201);
+    const again = await parent.post(path, { platform: "apns", token, installationKey: "n".repeat(40) });
+    expect(again.status).toBe(201);
+    expect(again.json.id).toBe(first.json.id);
+    expect((await parent.get("/api/notifications")).json.subscriptions).toHaveLength(1);
+  });
+
+  it("does not leave an active subscription when its registration races logout", async () => {
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: () => true,
+      async send() { return "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const observer = await signIn(h, "parent@example.org");
+    const token = "a".repeat(40);
+    const [registration, logout] = await Promise.all([
+      parent.post("/api/notifications/subscriptions", { platform: "fcm", token, installationKey: token }),
+      parent.post("/api/auth/logout"),
+    ]);
+    expect([201, 401]).toContain(registration.status);
+    expect(logout.status).toBe(204);
+    expect((await observer.get("/api/notifications")).json.subscriptions).toEqual([]);
+  });
+
+  it.each(["fcm", "apns"])("recovers %s provider cleanup with a fresh token", async (platform) => {
+    const token = "a".repeat(40);
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: () => true,
+      async send(target) { return target.endpoint === token ? "gone" : "sent"; },
+    };
+    let parent = await signIn(h, "parent@example.org");
+    const path = "/api/notifications/subscriptions";
+    const registration = { platform, token, installationKey: token };
+    const initial = await parent.post(path, registration);
+    expect((await parent.post("/api/notifications/test", {})).json).toEqual({ sent: 0 });
+    expect((await parent.get("/api/notifications")).json.subscriptions).toEqual([]);
+    expect((await parent.post(path, { ...registration, subscriptionId: initial.json.id })).status).toBe(404);
+    expect((await parent.post("/api/auth/logout")).status).toBe(204);
+    parent = await signIn(h, "parent@example.org");
+    expect((await parent.post(path, registration)).status).toBe(404);
+    const rotated = await parent.post(path, { ...registration, subscriptionId: initial.json.id, token: "b".repeat(40) });
+    expect(rotated.status).toBe(201);
+    expect(rotated.json.id).toBe(initial.json.id);
+    expect((await parent.post("/api/notifications/test", {})).json).toEqual({ sent: 1 });
+  });
+
   it("drops a subscription the push service says is gone", async () => {
     const mum = await signIn(h, "mum@example.org");
     await subscribe(mum, "old");

@@ -2,6 +2,8 @@
 package org.plainphone.app.push
 
 import android.content.Context
+import org.plainphone.app.sync.HttpError
+import org.plainphone.app.sync.ServerRules
 import org.plainphone.app.sync.SyncApi
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
@@ -15,9 +17,23 @@ internal fun selectWakeProvider(
     endpoint: () -> String?,
     acceptFcm: (String) -> Boolean = { true },
 ): WakeRegistration {
-    if (preferred == "fcm") fcmToken()?.takeIf(acceptFcm)?.let { return WakeRegistration("fcm", it) }
+    var validationError: HttpError? = null
+    if (preferred == "fcm") {
+        try {
+            fcmToken()?.takeIf(acceptFcm)?.let { return WakeRegistration("fcm", it) }
+        } catch (error: HttpError) {
+            if (error.status != 503) throw error
+            validationError = error
+        }
+    }
     if (preferred != "none" && unifiedPushAvailable) endpoint()?.let { return WakeRegistration("unifiedpush", it) }
+    validationError?.let { throw it }
     return WakeRegistration("none")
+}
+
+internal fun wakeRegistrationPolicy(rules: ServerRules): String {
+    val policy = "${rules.phoneId}:${rules.pushProvider}:${rules.unifiedPushAvailable}"
+    return if (rules.pushProvider == "fcm") "$policy:fcm-v1:${rules.fcmValidationKey}" else policy
 }
 
 internal object PhoneWake {
@@ -28,7 +44,7 @@ internal object PhoneWake {
         val store = SyncStore(context)
         val rules = store.rules()?.takeIf { it.phoneId == store.phoneId } ?: return "none"
         val cache = context.getSharedPreferences("wake-registration", Context.MODE_PRIVATE)
-        val policy = "${rules.phoneId}:${rules.pushProvider}:${rules.unifiedPushAvailable}"
+        val policy = wakeRegistrationPolicy(rules)
         if (!rules.unifiedPushAvailable) UnifiedWake.unregister(context)
         if (rules.pushProvider == "none") {
             if (cache.contains("policy")) cache.edit().clear().apply()

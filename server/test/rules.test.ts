@@ -108,6 +108,28 @@ describe("rules delivery", () => {
     expect(wake).toHaveBeenLastCalledWith("valid", "rules", "fcm");
   });
 
+  it("validates the same FCM token after upgrade and after switching Firebase projects", async () => {
+    const { parent, phoneId, device } = await setup();
+    await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true });
+    const path = "/api/device/push-token";
+    const registration = { fcmToken: "stored-token" };
+    expect((await device.put(path, registration)).status).toBe(204);
+    const validateFcmToken = vi.fn().mockResolvedValueOnce("sent").mockResolvedValueOnce("gone");
+    h.ctx.push = { ...h.push, fcmProject: "project-a", validateFcmToken, wake: vi.fn() };
+    const before = await device.get("/api/device/rules");
+    expect((await device.put(path, registration)).status).toBe(204);
+    expect((await device.put(path, registration)).status).toBe(204);
+    expect(validateFcmToken).toHaveBeenCalledTimes(1);
+    h.ctx.push = { ...h.ctx.push, fcmProject: "project-b" };
+    const after = await device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
+    expect(after.status).toBe(200);
+    expect(after.json.fcmValidationKey).not.toBe(before.json.fcmValidationKey);
+    expect((await device.put(path, registration)).status).toBe(422);
+    expect(validateFcmToken.mock.calls).toEqual([["stored-token"], ["stored-token"]]);
+    await parent.put(`/api/phones/${phoneId}/apps/com.spotify.music`, { allowed: false });
+    expect(h.ctx.push.wake).not.toHaveBeenCalled();
+  });
+
   it("wakes the phone by push when it has a token", async () => {
     const { parent, phoneId, device } = await setup();
     expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);

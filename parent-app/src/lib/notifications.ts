@@ -5,7 +5,7 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { getSessionToken } from "../api/client";
-import { registerNativeToken, unregisterNativeToken } from "./push-registration";
+import { registerNativeToken } from "./push-registration";
 
 export const CHANNELS = [
   { id: "normal", name: { en: "Notifications", da: "Notifikationer" }, importance: AndroidImportance.DEFAULT },
@@ -66,7 +66,7 @@ export async function syncNativePush(locale: "en" | "da", requestPermission = fa
     await ensureChannels(locale);
     const p = requestPermission ? await Notifications.requestPermissionsAsync() : await Notifications.getPermissionsAsync();
     if (!permissionGranted(p)) {
-      if (getSessionToken() === session) await unregisterNativeToken().catch(() => undefined);
+      // A missing OS permission is not a dashboard removal: only skip registering, never tombstone.
       return p.canAskAgain ? "undetermined" : "denied";
     }
     const registered = await sendNativeToken(await Notifications.getDevicePushTokenAsync(), session, requestPermission);

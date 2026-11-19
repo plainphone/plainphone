@@ -26,6 +26,8 @@ export class Fcm {
     this.key = createPrivateKey(this.account.private_key);
   }
 
+  get projectId() { return this.account.project_id; }
+
   private async authorize() {
     const iat = Math.floor(Date.now() / 1000);
     const assertion = jwt({ alg: "RS256" }, {

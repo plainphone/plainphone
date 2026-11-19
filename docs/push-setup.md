@@ -20,6 +20,10 @@ The web dashboard uses VAPID. The Android parent app uses Firebase Cloud Messagi
 4. Use `APNS_SANDBOX=true` with a development-signed app. For TestFlight and store builds, use `APNS_SANDBOX=false` on the server and `PLAINPHONE_APNS_ENVIRONMENT=production` on the build machine. Use a separate environment to test both signing configurations at once.
 5. Urgent alerts use time-sensitive delivery. Users can disable that behavior in iOS Settings. Critical alerts that can override device settings require a separate Apple entitlement and are future work.
 
+## Manage native subscriptions
+
+Removing a native app in the dashboard stops alerts for that installation. To restore delivery, enable notifications in the app's settings. Signing in again or rotating the token leaves a dashboard removal in place. Signing out revokes that session's active subscriptions on the server. When a push provider retires a token, a fresh token can restore delivery automatically unless the installation was removed in the dashboard. A removal belongs to the installation, not the account: another parent who signs in on the same phone also has to enable notifications first. Turning notifications off in the OS only stops registering; it never counts as a removal, so turning them on again restores delivery. Signing out needs a connection: if the request fails offline, the server keeps the session's subscriptions until the session expires.
+
 ## Verify with real devices
 
 1. Check `GET /api/health`. The `push` object reports whether each provider is configured using booleans only.

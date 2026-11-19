@@ -11,10 +11,16 @@ export type WakeReason = "rules" | "locate" | "update" | "sos-ack";
 export interface PushProvider {
   readonly name: string;
   readonly fcmAvailable?: boolean;
+  readonly fcmProject?: string;
   readonly unifiedPushAvailable?: boolean;
   acceptsEndpoint?(endpoint: string): boolean;
   validateFcmToken?(token: string): ReturnType<Fcm["send"]>;
   wake(token: string, reason: WakeReason, transport?: WakeTransport): Promise<void | "gone">;
+}
+
+/** Bump the version when validation semantics change. The project ID is public Firebase metadata. */
+export function fcmValidationKey(push: PushProvider) {
+  return push.validateFcmToken ? `v1:${push.fcmProject ?? ""}` : null;
 }
 
 export class NoPushProvider implements PushProvider {
@@ -28,6 +34,7 @@ export class PhonePushProvider implements PushProvider {
     this.hosts = cfg.PUSH_EXTRA_HOSTS.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
   }
   get name() { return this.cfg.PUSH_PROVIDER; }
+  get fcmProject() { return this.fcm?.projectId; }
   get fcmAvailable() { return this.name === "fcm" && Boolean(this.fcm); }
   get unifiedPushAvailable() { return this.name !== "none" && this.hosts.length > 0; }
   acceptsEndpoint(endpoint: string) {

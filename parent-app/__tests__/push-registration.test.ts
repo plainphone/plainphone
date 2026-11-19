@@ -2,10 +2,13 @@
 import * as Notifications from "expo-notifications";
 import { setSessionToken } from "../src/api/client";
 import { syncNativePush, watchNativePush } from "../src/lib/notifications";
-import { registerNativeToken, unregisterNativeToken } from "../src/lib/push-registration";
+import { logoutNativeSession, registerNativeToken } from "../src/lib/push-registration";
+import { removeItem } from "../src/lib/storage";
 import { fakeApi } from "../test/fakeApi";
 
-afterEach(() => {
+afterEach(async () => {
+  await removeItem("pp.push-registration");
+  await removeItem("pp.push-installation");
   jest.clearAllMocks();
   setSessionToken(null);
 });
@@ -34,46 +37,73 @@ it("does not ask for permission or send a token before sign-in", async () => {
   expect(api.calls).toEqual([]);
 });
 
-it("waits for registration before removing the new subscription on logout", async () => {
-  const session = "pp_s_logout";
+it.each(["lost", "delayed"])("revokes the session with a %s first POST response", async (outcome) => {
+  const session = `pp_s_${outcome}`;
   setSessionToken(session);
   let respond!: (response: Response) => void;
+  let reject!: (error: Error) => void;
   let started!: () => void;
   const requestStarted = new Promise<void>((resolve) => { started = resolve; });
-  const deleted = jest.fn();
+  const revoke = jest.fn();
   globalThis.fetch = jest.fn(async (input) => {
     const request = input as Request;
-    if (request.method === "POST") {
-      return new Promise<Response>((resolve) => { respond = resolve; started(); });
+    if (request.url.endsWith("/notifications/subscriptions")) {
+      return new Promise<Response>((resolve, fail) => { respond = resolve; reject = fail; started(); });
     }
-    deleted(request.url, request.headers.get("authorization"));
+    revoke(request.method, request.url, request.headers.get("authorization"));
     return new Response(null, { status: 204 });
   });
   const registration = registerNativeToken("fcm", "fcm-token", session);
+  const settled = registration.catch(() => false);
   await requestStarted;
-  const logout = unregisterNativeToken(true);
-  await Promise.resolve();
-  expect(deleted).not.toHaveBeenCalled();
-  respond(new Response(JSON.stringify({ id: "new-id" }), {
+  if (outcome === "lost") reject(new Error("response lost"));
+  await logoutNativeSession();
+  expect(revoke).toHaveBeenCalledTimes(1);
+  expect(revoke).toHaveBeenCalledWith("POST", expect.stringContaining("/auth/logout"), `Bearer ${session}`);
+  if (outcome === "delayed") respond(new Response(JSON.stringify({ id: "new-id" }), {
     status: 201, headers: { "content-type": "application/json" },
   }));
-  await logout;
-  expect(deleted).toHaveBeenCalledWith(expect.stringContaining("/subscriptions/new-id"), "Bearer pp_s_logout");
-  await registration;
+  expect(await settled).toBe(false);
 });
 
-it("only recreates a removed subscription after explicit opt-in", async () => {
-  setSessionToken("pp_s_revoked");
+it("keeps dashboard removal after logout and re-login until explicit opt-in", async () => {
+  let removed = false;
+  let installationKey: string | undefined;
   const api = fakeApi({
-    "POST /notifications/subscriptions": ({ body }) => (body as { subscriptionId?: string }).subscriptionId
-      ? { status: 404 } : { status: 201, body: { id: "subscription-id" } },
+    "POST /auth/logout": { status: 204 },
+    "POST /notifications/subscriptions": ({ body }) => {
+      const input = body as { installationKey: string; optIn?: boolean };
+      if (removed && (!installationKey || input.installationKey !== installationKey)) {
+        throw new Error("registration lost its installation key");
+      }
+      installationKey = input.installationKey;
+      return removed && !input.optIn ? { status: 404 } : { status: 201, body: { id: "subscription-id" } };
+    },
   });
   (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ granted: true });
   (Notifications.requestPermissionsAsync as jest.Mock).mockResolvedValue({ granted: true });
+  setSessionToken("pp_s_revoked");
   expect(await syncNativePush("en")).toBe("granted");
+  removed = true;
+  await logoutNativeSession();
+  setSessionToken("pp_s_signed_in_again");
+  (Notifications.getDevicePushTokenAsync as jest.Mock).mockResolvedValueOnce({ type: "android", data: "rotated" });
   expect(await syncNativePush("en")).toBe("undetermined");
-  expect(await syncNativePush("en")).toBe("undetermined");
-  expect(api.calls).toHaveLength(3);
+  expect(api.calls.at(-1)?.body).toMatchObject({ token: "rotated", installationKey: "fcm-token" });
   expect(await syncNativePush("en", true)).toBe("granted");
-  expect(api.calls).toHaveLength(5);
+});
+
+it("refreshes a provider-cleaned subscription when the SDK supplies a fresh token", async () => {
+  const session = "pp_s_provider_cleanup";
+  setSessionToken(session);
+  const api = fakeApi({
+    "POST /notifications/subscriptions": ({ body }) => {
+      const input = body as { token: string; installationKey?: string; optIn?: boolean };
+      return input.token === "fresh-token" && (input.installationKey !== "old-token" || input.optIn)
+        ? { status: 404 } : { status: 201, body: { id: "subscription-id" } };
+    },
+  });
+  expect(await registerNativeToken("fcm", "old-token", session)).toBe(true);
+  expect(await registerNativeToken("fcm", "fresh-token", session)).toBe(true);
+  expect(api.calls.at(-1)?.body).toMatchObject({ token: "fresh-token", installationKey: "old-token" });
 });

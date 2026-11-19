@@ -7,7 +7,7 @@ import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHand
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { syncNativePush, watchNativePush } from "./notifications";
-import { unregisterNativeToken } from "./push-registration";
+import { logoutNativeSession } from "./push-registration";
 import { loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -159,8 +159,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await unregisterNativeToken(true).catch(() => undefined);
-      await unwrap(client.POST("/auth/logout"));
+      await logoutNativeSession();
     } catch {
       // signed out locally either way
     } finally {

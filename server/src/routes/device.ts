@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { WAKE_PROVIDERS } from "../providers/push.js";
+import { fcmValidationKey, WAKE_PROVIDERS } from "../providers/push.js";
 import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
@@ -784,18 +784,26 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if ((fcmToken || unifiedPushEndpoint) && !phone.pushWakeups) {
       return c.json({ error: "wakeups disabled" }, 409);
     }
-    if (fcmToken === phone.fcmToken && unifiedPushEndpoint === phone.unifiedPushEndpoint) return c.body(null, 204);
+    const validationKey = fcmToken ? fcmValidationKey(ctx.push) : null;
+    const sameToken = fcmToken === phone.fcmToken;
+    if (sameToken && validationKey === phone.fcmValidationKey &&
+        unifiedPushEndpoint === phone.unifiedPushEndpoint) return c.body(null, 204);
+    const unchanged = and(eq(phones.id, phone.id), eq(phones.pushWakeups, phone.pushWakeups),
+      eq(phones.preferUnifiedPush, phone.preferUnifiedPush),
+      phone.fcmToken === null ? isNull(phones.fcmToken) : eq(phones.fcmToken, phone.fcmToken),
+      phone.fcmValidationKey === null ? isNull(phones.fcmValidationKey) : eq(phones.fcmValidationKey, phone.fcmValidationKey),
+      phone.unifiedPushEndpoint === null ? isNull(phones.unifiedPushEndpoint) : eq(phones.unifiedPushEndpoint, phone.unifiedPushEndpoint));
     if (fcmToken && ctx.push.validateFcmToken) {
       const outcome = await ctx.push.validateFcmToken(fcmToken);
-      if (outcome === "gone") return c.json({ error: "FCM token rejected" }, 422);
+      if (outcome === "gone") {
+        if (sameToken) await ctx.db.update(phones).set({ fcmToken: null, fcmValidationKey: null }).where(unchanged);
+        return c.json({ error: "FCM token rejected" }, 422);
+      }
       if (outcome !== "sent") return c.json({ error: "FCM validation unavailable" }, 503);
     }
     const updated = await ctx.db.update(phones)
-      .set({ fcmToken, unifiedPushEndpoint })
-      .where(and(eq(phones.id, phone.id), eq(phones.pushWakeups, phone.pushWakeups),
-        eq(phones.preferUnifiedPush, phone.preferUnifiedPush),
-        phone.fcmToken === null ? isNull(phones.fcmToken) : eq(phones.fcmToken, phone.fcmToken),
-        phone.unifiedPushEndpoint === null ? isNull(phones.unifiedPushEndpoint) : eq(phones.unifiedPushEndpoint, phone.unifiedPushEndpoint)))
+      .set({ fcmToken, fcmValidationKey: validationKey, unifiedPushEndpoint })
+      .where(unchanged)
       .returning({ id: phones.id });
     if (!updated.length) return c.json({ error: "wakeups changed" }, 409);
     return c.body(null, 204);
