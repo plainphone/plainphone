@@ -438,6 +438,10 @@ export default {
         ],
         fig: "dialog",
       },
+      {
+        title: "Allow Plainphone to run in the background",
+        body: ["Tap <strong>Continue</strong>, then allow it in Android so Plainphone can update itself safely. If you skip this step, open Plainphone again to get the prompt."],
+      },
     ],
     figs: {
       lightScan: "A phone camera framing a setup code.",
@@ -451,6 +455,7 @@ export default {
     drawing: { taps: "6×", set: "Set as default", cancel: "Cancel" },
     troubleTitle: "If something goes wrong",
     trouble: [
+      ["Updates still don’t run", "OnePlus, Oppo, Xiaomi and Samsung may have extra battery settings. Allow background activity for Plainphone and remove it from sleeping apps if that option exists. Find the instructions for your model at <a href=\"https://dontkillmyapp.com/\">Don’t kill my app!</a>."],
       [
         "The QR code has expired or does not work",
         "A code works once, and for 24 hours. Open the phone in the dashboard and choose <strong>Show the setup QR code</strong> to get a new one. A new code stops the old one from working.",

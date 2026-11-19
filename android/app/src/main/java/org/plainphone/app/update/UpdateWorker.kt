@@ -144,7 +144,9 @@ object SelfUpdate {
     }
 
     /** For the status report. */
-    fun report(context: Context): UpdateReport? = PrefsUpdateStateStore(context.applicationContext).report
+    fun report(context: Context): UpdateReport? = PrefsUpdateStateStore(context.applicationContext).report?.takeUnless {
+        it.errorCode == UpdateErrorCode.BATTERY_EXEMPTION_MISSING && !UpdateBatteryExemption.isMissing(context)
+    }
 }
 
 class PrefsUpdateStateStore(context: Context) : UpdateStateStore {

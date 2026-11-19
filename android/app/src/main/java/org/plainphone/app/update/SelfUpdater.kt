@@ -68,6 +68,8 @@ interface UpdateHost {
     fun nowMs(): Long
     fun installed(): ApkInfo
     fun isDeviceOwner(): Boolean
+    fun needsBatteryExemption(): Boolean
+    fun promptBatteryExemption()
     /** A maintenance unlock is running: a parent works on the phone, leave it alone. */
     fun inMaintenance(): Boolean
     /** Unmetered network or charging: a background download is fine. */
@@ -164,6 +166,7 @@ class SelfUpdater(
         if (!force && now - store.lastCheckMs in 0 until CHECK_EVERY_MS) return Outcome.Skipped("checked recently")
         if (host.inMaintenance()) return Outcome.Skipped("maintenance unlock")
 
+        if (force && host.needsBatteryExemption()) return batteryExemptionFailure(prompt = true, latest = null)
         if (!force && !host.downloadAllowed()) return Outcome.Skipped("waiting for Wi-Fi or charging")
         store.lastCheckMs = now
         val installed = host.installed()
@@ -188,6 +191,7 @@ class SelfUpdater(
             store.report = UpdateReport(STATE_PROMPTED, null, now, latest.versionName, latest.versionCode)
             return Outcome.Waiting("asked the user to update")
         }
+        if (host.needsBatteryExemption()) return batteryExemptionFailure(force, latest)
         val apk = try {
             host.download(latest?.url ?: host.fallbackUrl(), latest?.sha256)
         } catch (e: Exception) {
@@ -232,8 +236,8 @@ class SelfUpdater(
             // On success Android usually kills this process; the next startup reconciles the version.
             val error = try {
                 host.install(apk)
-            } catch (e: BatteryExemptionMissingException) {
-                return failed(UpdateErrorCode.BATTERY_EXEMPTION_MISSING, e.message.orEmpty(), latest)
+            } catch (_: BatteryExemptionMissingException) {
+                return batteryExemptionFailure(force, latest)
             } catch (e: Exception) {
                 e.message ?: e.javaClass.simpleName
             } finally {
@@ -245,6 +249,11 @@ class SelfUpdater(
         } finally {
             apk.delete()
         }
+    }
+
+    private fun batteryExemptionFailure(prompt: Boolean, latest: ReleaseInfo?): Outcome.Failed {
+        if (prompt) host.promptBatteryExemption()
+        return failed(UpdateErrorCode.BATTERY_EXEMPTION_MISSING, UpdateBatteryExemption.FIX, latest)
     }
 
     private fun failed(code: UpdateErrorCode, why: String, latest: ReleaseInfo?): Outcome.Failed {

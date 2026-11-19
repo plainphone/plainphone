@@ -4,6 +4,7 @@ import { errorMessage, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import { api, type PhoneStatus } from "../lib/api";
+import { updateBatteryExemptionMessage } from "../lib/failedPolicies";
 
 interface LatestVersion {
   versionCode: number;
@@ -20,7 +21,6 @@ async function latestVersion(): Promise<LatestVersion | undefined> {
 }
 
 const errorMessages: Readonly<Record<string, MessageKey>> = {
-  battery_exemption_missing: "phone.updateBatteryExemptionMissing",
   network: "phone.updateNetwork",
   signature_mismatch: "phone.updateSignatureMismatch",
   version_not_newer: "phone.updateVersionNotNewer",
@@ -66,7 +66,8 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
   const signingKeyMessage = status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight";
   const checkedAt = update?.checkedAt;
   const requestPending = request && request.previousCheck === checkedAt;
-  const failureDetail = update?.state === "failed" || update?.state === "refused" ? update.detail : null;
+  const batteryMessage = updateBatteryExemptionMessage(status);
+  const failureDetail = !batteryMessage && (update?.state === "failed" || update?.state === "refused") ? update.detail : null;
 
   async function requestUpdate() {
     setBusy(true);
@@ -92,7 +93,8 @@ export function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: 
         )}
       </div>
       <div role="status">
-        {signingKeyChange ? t(signingKeyMessage) : requestPending ? request.message : updateMessage(status, latest, t)}
+        {signingKeyChange ? t(signingKeyMessage) : requestPending ? request.message : !batteryMessage && updateMessage(status, latest, t)}
+        {batteryMessage && <p>{t(batteryMessage)}</p>}
       </div>
       {!requestPending && failureDetail && (
         <details className="phone-update-details" key={checkedAt}>

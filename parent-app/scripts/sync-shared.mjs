@@ -21,8 +21,7 @@ for (const f of FILES) {
   const from = join(webSrc, f);
   const to = join(shared, f);
   const source = readFileSync(from, "utf8");
-  // Update controls and outcome copy currently exist only in the dashboard.
-  const content = f.startsWith("i18n/") ? source.replace(/^  "phone\.update.*\n/gm, "") : source;
+  const content = source;
   if (check) {
     if (!existsSync(to) || content !== readFileSync(to, "utf8")) {
       console.error(`out of date: src/shared/${f} (run pnpm sync:shared)`);

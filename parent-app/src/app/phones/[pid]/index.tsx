@@ -10,6 +10,7 @@ import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Scr
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
 
@@ -159,6 +160,37 @@ const systemStatus = {
   unverifiable: "phone.attUnverifiable",
 } as const;
 
+function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
+  const { t } = useI18n();
+  const { notify } = usePhone();
+  const [busy, setBusy] = useState(false);
+  const batteryMessage = updateBatteryExemptionMessage(status);
+
+  async function requestUpdate() {
+    setBusy(true);
+    try {
+      await unwrap(client.POST("/phones/{pid}/update", { params: { path: { pid: phoneId } } }));
+      notify({ tone: "success", text: t("phone.updateRequested") });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <VStack gap={space.sm}>
+      <Row>
+        <Text>{t("phone.appVersion", { version: status.appVersion })}</Text>
+        {status.appVersionCode !== undefined ? (
+          <Button kind="secondary" title={t("phone.updateNow")} busy={busy} onPress={() => void requestUpdate()} />
+        ) : null}
+      </Row>
+      {batteryMessage ? <Notice tone="warn" text={t(batteryMessage)} /> : null}
+    </VStack>
+  );
+}
+
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -199,6 +231,7 @@ function Overview() {
   ].join(", ");
 
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
+  const technicalSteps = failedPolicies.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const reset = phone.status?.resetProtection;
   const system = phone.attestation?.state;
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
@@ -235,11 +268,12 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
+      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
-      {overrun !== undefined || failedPolicies.length > 0 ? (
+      {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>
           {overrun !== undefined ? <Text>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</Text> : null}
-          {failedPolicies.map((step, index) => <Text key={index}>{step}</Text>)}
+          {technicalSteps.map((step, index) => <Text key={index}>{step}</Text>)}
         </Disclosure>
       ) : null}
 

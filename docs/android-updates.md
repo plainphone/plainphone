@@ -32,8 +32,10 @@ On the phone, tap **Version** seven times. Enter the parent PIN and choose
 `https://app.plainphone.org/download/android`, and download the APK. Allow Chrome to
 install it if Android asks, then tap **Update**. Open Plainphone and choose **Lock now**.
 The first build with self-update must use the same signing key as the installed app.
-On a strong-mode phone, use **Open battery settings** on the parent PIN screen to
-exempt Plainphone from battery optimization if needed. The phone keeps the install
+On a strong-mode phone, open Plainphone and allow it to run in the background when asked.
+If an update request finds the exemption missing, the phone shows a notification that
+opens Android's permission dialog. Older builds may require **Open battery settings** on
+the parent PIN screen. The phone keeps the install
 restriction in place for self-updates and approved catalog installs until the exemption
 is enabled.
 
@@ -163,7 +165,9 @@ disclosure. Reports from older phones without a code use the generic failure sum
    restored. Repeat with an approved catalog install overlapping an update. Confirm Play
    closes when Plainphone restarts and that ordinary installation is blocked again.
 5. On a test phone without the battery exemption, verify that strong-mode install
-   requests leave the restriction in place. Enable the exemption, check recovery with
+   requests leave the restriction in place. Check that **Update now** sends a notification
+   that opens Android's permission dialog and that the parent sees how to fix the problem.
+   Enable the exemption, retry the update, and check recovery with
    **Alarms & reminders** already disabled, then repeat by revoking alarm access during a window. Record whether the restriction returns at
    the deadline when the screen is off or the process is killed. Check that restarting
    Plainphone recovers the restriction and keeps the used catalog slot.

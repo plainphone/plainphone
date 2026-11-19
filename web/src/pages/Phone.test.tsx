@@ -56,10 +56,10 @@ vi.mock("../components/ui", async (importOriginal) => {
   };
 });
 
-function renderPhone(data: Phone) {
+function renderPhone(data: Phone, locale: "en" | "da" = "en") {
   currentPhone = data;
-  vi.stubGlobal("localStorage", { getItem: () => "en" });
-  vi.stubGlobal("navigator", { languages: ["en"] });
+  vi.stubGlobal("localStorage", { getItem: () => locale });
+  vi.stubGlobal("navigator", { languages: [locale] });
   try {
     return renderToStaticMarkup(
       <I18nProvider>
@@ -172,4 +172,37 @@ it("shows code-pairing recovery instructions instead of the setup QR action", ()
   expect(codeClaim).toContain(t("setup.codePendingBody"));
   expect(codeClaim).not.toContain(t("setup.showQr"));
   expect(qrSetup).toContain(t("setup.showQr"));
+});
+
+it.each(["en", "da"] as const)("shows the battery fix by the version and Update button in %s", (locale) => {
+  const html = renderPhone({
+    ...phone,
+    status: {
+      ...phone.status,
+      appVersionCode: 11,
+      failedPolicies: ["battery exemption missing: self-update cannot run"],
+      lockIntact: false,
+    },
+  }, locale);
+  const t = makeT(locale);
+  const versionRow = html.match(/<li><div class="phone-version">[\s\S]*?<\/li>/)?.[0];
+  expect(versionRow).toContain(t("phone.updateNow"));
+  expect(versionRow).toContain(t("phone.updateBatteryExemptionMissing"));
+  expect(html).not.toContain("battery exemption missing: self-update cannot run");
+});
+
+
+it("replaces a legacy battery update error with the fix text", () => {
+  const detail = "Could not open and relock the install session";
+  const html = renderPhone({
+    ...phone,
+    status: {
+      ...phone.status,
+      appVersionCode: 11,
+      failedPolicies: [],
+      update: { state: "failed", errorCode: "battery_exemption_missing", detail, checkedAt: null, latestVersion: null },
+    },
+  });
+  expect(html).toContain(makeT("en")("phone.updateBatteryExemptionLegacy"));
+  expect(html).not.toContain(detail);
 });

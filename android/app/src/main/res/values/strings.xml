@@ -251,6 +251,9 @@
     <string name="time_h_min">%1$d h %2$d min</string>
     <string name="maintenance_release_light">Switch off Plainphone</string>
     <string name="maintenance_release_light_confirm">This switches off the guard, the web filter and device admin, so Plainphone can be uninstalled. The parent is told. Continue?</string>
+    <string name="update_battery_required">Battery permission required for updates</string>
+    <string name="update_battery_reason">Allow Plainphone to run in the background so it can update itself safely.</string>
+    <string name="update_battery_continue">Continue</string>
     <string name="channel_updates">App updates</string>
     <string name="update_prompt_title">Plainphone update available</string>
     <string name="update_prompt_text">Version %1$s is ready. Tap to open the download.</string>
