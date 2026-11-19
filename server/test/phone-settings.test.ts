@@ -33,7 +33,7 @@ describe("phone settings (child profile)", () => {
     for (const key of SETTING_KEYS) expect(r.json.settings[key]).toEqual({ mode: "free" });
     const doc = await rules(s.device);
     expect(doc.settings).toEqual({});
-    expect(doc.home).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [], showFreePromise: true });
+    expect(doc.home).toEqual({ layout: "list", theme: "system", palette: "grey", apps: [], showFreePromise: true });
   });
 
   it("applies at once, shows in the rules in alphabetical order and changes the ETag", async () => {
@@ -215,7 +215,7 @@ describe("home screen", () => {
     expect((await s.parent.get(`/api/phones/${s.phoneId}/home`)).json).toEqual({
       layout: "list",
       theme: "system",
-      palette: "sage",
+      palette: "grey",
       apps: [],
       showFreePromise: true,
     });
