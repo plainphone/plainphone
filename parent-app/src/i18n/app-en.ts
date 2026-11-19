@@ -15,7 +15,7 @@ export const appEn = {
   "native.notificationsOn": "Notifications are on.",
   "native.notificationsOff": "Notifications are off. You can turn them on in the phone's settings.",
   "native.notificationsAsk": "Turn on notifications",
-  "native.notificationsLater": "Push delivery from the server is not switched on yet. The app is ready for it.",
+  "native.notificationsUnavailable": "Push notifications are unavailable. Check the connection or try again later.",
   "native.scan": "Scan the code",
   "native.scanHelp": "Point the camera at the QR code on the phone.",
   "native.scanStop": "Stop scanning",

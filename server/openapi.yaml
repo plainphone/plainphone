@@ -658,6 +658,9 @@ components:
             (the same as the maintenance screen's "Release Device Owner", or light mode's "Switch
             Plainphone off"), never locks again, and calls `POST /device/released`. An older
             server without this field means false.
+        pushProvider: { enum: [none, fcm, unifiedpush], description: "Preferred wakeup transport, subject to device availability" }
+        fcmValidationKey: { type: string, description: FCM registration cache key that changes with the configured Firebase project or validation version }
+        unifiedPushAvailable: { type: boolean, description: "Whether the device can fall back to UnifiedPush" }
         pollSeconds:
           type: integer
           description: Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
@@ -760,6 +763,8 @@ components:
         offlineAlertHours:
           type: [integer, "null"]
           description: Hours of silence before the parents are told. Null means the server default, 0 never.
+        pushWakeups: { type: boolean }
+        preferUnifiedPush: { type: boolean }
         offlineAlertHoursDefault: { type: integer }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
@@ -808,6 +813,7 @@ components:
           type: boolean
           description: Every lock policy was applied and no maintenance unlock is running. In light mode also deviceAdmin, accessibility, usageAccess, vpn, phoneRole and smsRole must be on; for a phone paired as light or a report with mode light, the server stores false when `protections` is missing, one of them is off or missing, a policy failed or maintenance runs.
         maintenance: { type: boolean, description: A PIN maintenance unlock is running on the phone. }
+        pushProvider: { enum: [none, fcm, unifiedpush] }
         failedPolicies:
           type: array
           maxItems: 50
@@ -926,7 +932,7 @@ paths:
       operationId: getHealth
       security: []
       summary: Liveness, database and DNS service check
-      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server.'
+      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`.'
       responses:
         "200": { description: "OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}`" }
         "503": { description: "Database down" }
@@ -1643,7 +1649,7 @@ paths:
     put:
       operationId: putDevicePushToken
       tags: [device]
-      summary: Register the FCM token (phone, optional)
+      summary: Register or clear the phone wakeup transport
       security: [{ device: [] }]
       requestBody:
         required: true
@@ -1653,8 +1659,12 @@ paths:
               type: object
               properties:
                 fcmToken: { type: [string, "null"] }
+                unifiedPushEndpoint: { type: [string, "null"] }
       responses:
         "204": { description: "Stored" }
+        "409": { description: "Wakeup settings changed or the transport is unavailable" }
+        "422": { description: "Firebase rejected the registration token" }
+        "503": { description: "Firebase token validation is temporarily unavailable" }
 
   # ---------------------------------------------------------------- auth
   /auth/request:
@@ -1822,8 +1832,8 @@ paths:
       summary: Register this browser or app install
       description: |
         `web`: the PushSubscription from the browser. Only the browsers' push services are
-        accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
-        now, sending to them comes with the native apps. Registering an endpoint that belongs
+        accepted as endpoint. `apns`/`fcm`: a device token from a native parent app.
+        Registering an endpoint that belongs
         to someone else moves it to you (another person signed in on the same device).
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
@@ -1853,6 +1863,10 @@ paths:
                   properties:
                     platform: { enum: [apns, fcm] }
                     token: { type: string, minLength: 16, maxLength: 1024 }
+                    replaces: { type: string, maxLength: 1024 }
+                    subscriptionId: { type: string, format: uuid, description: Existing native subscription to refresh }
+                    installationKey: { type: string, minLength: 16, maxLength: 1024, description: Opaque installation key persisted before first registration and across token rotations and logins }
+                    optIn: { type: boolean, description: True when the parent explicitly enables native notifications }
                     label: { type: string, maxLength: 60 }
       responses:
         "201":
@@ -1861,7 +1875,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PushSubscription" }
         "400": { description: "Unknown push service or invalid keys" }
-        "409": { description: "Notifications are not set up on this server" }
+        "404": { description: "The native subscription was removed or its token is no longer valid" }
+        "409": { description: "Notifications are not set up on this server or the registration changed concurrently" }
   /notifications/subscriptions/{sid}:
     delete:
       operationId: deleteNotificationSubscription
@@ -2199,6 +2214,8 @@ paths:
                 supportEnabled: { type: boolean }
                 releaseWarningsEnabled: { type: boolean }
                 locationEnabled: { type: boolean }
+                pushWakeups: { type: boolean }
+                preferUnifiedPush: { type: boolean }
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0

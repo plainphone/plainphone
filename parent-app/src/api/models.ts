@@ -22,6 +22,8 @@ export interface Me {
   mailEnabled: boolean;
 }
 export interface Phone {
+  pushWakeups?: boolean;
+  preferUnifiedPush?: boolean;
   id: string;
   name: string;
   profile: Profile;

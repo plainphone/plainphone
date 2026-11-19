@@ -34,9 +34,10 @@ describe("phone update requests", () => {
     const before = await device.get("/api/device/rules");
     const waiting = device.get("/api/device/update-request?after=0");
     expect(before.json.update.requestedAt).toBeNull();
+    expect((await parent.patch(path, { pushWakeups: true })).status).toBe(200);
     await device.put("/api/device/push-token", { fcmToken: "update-test" });
     expect((await parent.post(`${path}/update`)).status).toBe(202);
-    expect(h.push.sent).toEqual([{ token: "update-test", reason: "rules" }]);
+    expect(h.push.sent).toEqual([{ token: "update-test", reason: "update" }]);
     expect(await waiting).toMatchObject({ status: 200, json: { requestedAtMs: h.clock.now.getTime() } });
     const rules = await device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
     expect(rules.status).toBe(200);

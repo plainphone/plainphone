@@ -110,6 +110,7 @@ export const PRIVATE_DNS_ISSUES = ["off", "automatic", "wrongHost", "waiting", "
 export type FilterMethod = (typeof FILTER_METHODS)[number];
 
 export interface DeviceStatus {
+  pushProvider?: "none" | "fcm" | "unifiedpush";
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
   filterIssue?: (typeof PRIVATE_DNS_ISSUES)[number];
@@ -230,6 +231,10 @@ export const phones = pgTable(
     locationAlwaysUntil: timestamp("location_always_until", { withTimezone: true }),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
+    fcmValidationKey: text("fcm_validation_key"),
+    unifiedPushEndpoint: text("unified_push_endpoint"),
+    pushWakeups: boolean("push_wakeups").notNull().default(false),
+    preferUnifiedPush: boolean("prefer_unified_push").notNull().default(false),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
     setupUndoMinutes: integer("setup_undo_minutes"),
@@ -559,6 +564,9 @@ export const pushSubscriptions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id").references(() => sessions.id, { onDelete: "cascade" }),
+    installationHash: text("installation_hash").unique(),
+    state: text("state", { enum: ["active", "gone", "revoked"] }).notNull().default("active"),
     platform: text("platform", { enum: ["web", "apns", "fcm"] }).notNull(),
     /** Web Push: the push service URL. APNs/FCM: the device token. */
     endpoint: text("endpoint").notNull().unique(),
@@ -571,7 +579,10 @@ export const pushSubscriptions = pgTable(
     failures: integer("failures").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+  (t) => [
+    index("push_subscriptions_user_idx").on(t.userId),
+    index("push_subscriptions_session_idx").on(t.sessionId),
+  ],
 );
 
 // A deleted phone must no longer be needed to deliver its final notice.

@@ -6,7 +6,7 @@
 import { and, eq } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { householdMembers, type users } from "../db/schema.js";
+import { householdMembers } from "../db/schema.js";
 import { clientIp, param, RateLimiter } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import {
@@ -19,8 +19,7 @@ import {
   saveAccount,
 } from "../services/reset-protection.js";
 
-type User = typeof users.$inferSelect;
-type ParentEnv = { Variables: { user: User; viaCookie: boolean } };
+import type { ParentEnv } from "./parent.js";
 
 export function resetProtectionRoutes(ctx: Ctx) {
   const pending = new PendingLogins();

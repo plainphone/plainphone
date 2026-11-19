@@ -62,24 +62,37 @@ class PlainphoneApiReleaseTest {
     private lateinit var server: HttpServer
     @Volatile private var answer = 204
     @Volatile private var responseBody = """{"error":"x"}"""
-    private val seen = mutableListOf<Triple<String, String, String?>>()
-    private val completionReports = mutableListOf<JSONObject>()
-
+    // The server answers on its own threads; the test reads these on the test thread.
+    private val seen = java.util.Collections.synchronizedList(mutableListOf<Triple<String, String, String?>>())
+    private val completionReports = java.util.Collections.synchronizedList(mutableListOf<JSONObject>())
+    private lateinit var serverThreads: java.util.concurrent.ExecutorService
 
     @Before
     fun start() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        serverThreads = java.util.concurrent.Executors.newCachedThreadPool()
+        server.executor = serverThreads
         server.createContext("/") { ex ->
-            seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
-            val request = ex.requestBody.readBytes()
-            val status = if (ex.requestURI.path == "/api/device/setup-completion") {
-                completionReports += JSONObject(request.decodeToString())
-                if (answer == 204) 200 else answer
-            } else answer
-            val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
-            ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
-            if (status != 204) ex.responseBody.use { it.write(body) }
-            ex.close()
+            try {
+                seen += Triple(ex.requestMethod, ex.requestURI.path, ex.requestHeaders.getFirst("Authorization"))
+                val request = ex.requestBody.readBytes()
+                val status = if (ex.requestURI.path == "/api/device/setup-completion") {
+                    completionReports += JSONObject(request.decodeToString())
+                    if (answer == 204) 200 else answer
+                } else answer
+                val body = if (status == 204) ByteArray(0) else responseBody.toByteArray()
+                // Every answer ends its connection, so no client can pick up a socket the server has dropped.
+                ex.responseHeaders.set("Connection", "close")
+                ex.sendResponseHeaders(status, if (status == 204) -1 else body.size.toLong())
+                if (status != 204) ex.responseBody.use { it.write(body) }
+            } catch (e: Throwable) {
+                // A handler that dies drops the connection and the client only sees a SocketException.
+                // Say what went wrong here instead.
+                System.err.println("test server failed: $e")
+                runCatching { ex.sendResponseHeaders(500, -1) }
+            } finally {
+                ex.close()
+            }
         }
         server.start()
     }
@@ -87,9 +100,14 @@ class PlainphoneApiReleaseTest {
     @After
     fun stop() {
         server.stop(0)
+        serverThreads.shutdownNow()
     }
 
-    private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}")
+    // HttpURLConnection pools keep-alive sockets for the whole JVM, keyed by host and port. A socket
+    // left over from an earlier test's server must never be reused by this one.
+    private fun api() = PlainphoneApi("http://127.0.0.1:${server.address.port}") { url ->
+        (url.openConnection() as java.net.HttpURLConnection).also { it.setRequestProperty("Connection", "close") }
+    }
 
     @Test
     fun `an invalid setup key is distinct from a rejected enrollment token`() {

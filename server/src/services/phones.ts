@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createHash } from "node:crypto";
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   contacts,
   type DeviceStatus,
@@ -20,6 +20,7 @@ import {
 } from "../db/schema.js";
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
+import { fcmValidationKey, type WakeReason } from "../providers/push.js";
 import type { Ctx } from "./context.js";
 import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
@@ -82,13 +83,24 @@ export async function createPhone(
 }
 
 /** Asks the phone to fetch rules (or report its position) now. Polling is the fallback. */
-export async function wakePhone(ctx: Ctx, phoneId: string, reason: "rules" | "locate") {
-  const [p] = await ctx.db.select({ token: phones.fcmToken }).from(phones).where(eq(phones.id, phoneId));
-  if (!p?.token) return;
+export async function wakePhone(ctx: Ctx, phoneId: string, reason: WakeReason) {
+  const [p] = await ctx.db.select({
+    enabled: phones.pushWakeups, token: phones.fcmToken, endpoint: phones.unifiedPushEndpoint,
+    validationKey: phones.fcmValidationKey,
+  }).from(phones).where(eq(phones.id, phoneId));
+  if (!p?.enabled) return;
+  const column = p.endpoint ? phones.unifiedPushEndpoint : phones.fcmToken;
+  const registration = p.endpoint ?? p.token;
+  if (!registration || (!p.endpoint && p.validationKey !== fcmValidationKey(ctx.push))) return;
   try {
-    await ctx.push.wake(p.token, reason);
-  } catch (err) {
-    console.error(`push to phone ${phoneId} failed: ${(err as Error).message}`);
+    if (await ctx.push.wake(registration, reason, p.endpoint ? "unifiedpush" : "fcm") === "gone") {
+      const sameValidation = p.validationKey === null ? isNull(phones.fcmValidationKey)
+        : eq(phones.fcmValidationKey, p.validationKey);
+      await ctx.db.update(phones).set(p.endpoint ? { unifiedPushEndpoint: null } : { fcmToken: null, fcmValidationKey: null })
+        .where(and(eq(phones.id, phoneId), eq(column, registration), p.endpoint ? undefined : sameValidation));
+    }
+  } catch {
+    console.error("phone wakeup failed");
   }
 }
 
@@ -170,6 +182,11 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     phone: {
       id: phone.id,
       profile: phone.profile,
+      pushProvider: !phone.pushWakeups ? "none" : !phone.preferUnifiedPush && ctx.push.fcmAvailable ? "fcm"
+        : ctx.push.unifiedPushAvailable ? "unifiedpush" : "none",
+      unifiedPushAvailable: phone.pushWakeups && Boolean(ctx.push.unifiedPushAvailable),
+      fcmValidationKey: phone.pushWakeups && !phone.preferUnifiedPush && ctx.push.fcmAvailable
+        ? fcmValidationKey(ctx.push) : null,
       suggestDeviceContacts: phone.suggestDeviceContacts,
       lightContactRestriction: phone.lightContactRestriction,
       selfScheduleContacts: phone.selfScheduleContacts,
@@ -208,6 +225,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
+    pushProvider: phone.pushProvider,
+    unifiedPushAvailable: phone.unifiedPushAvailable,
+    ...(phone.fcmValidationKey ? { fcmValidationKey: phone.fcmValidationKey } : {}),
     profile: phone.profile,
     suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
     lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
@@ -387,6 +407,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
         }
       : null,
     openRequests,
+    pushWakeups: phone.pushWakeups,
+    preferUnifiedPush: phone.preferUnifiedPush,
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
