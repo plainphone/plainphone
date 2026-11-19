@@ -37,6 +37,7 @@ import { approvalBonusDate, approvalRevision, loadApprovalSummaries } from "./ap
 import type { Ctx } from "./context.js";
 import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
+import { isAppCategory, type OpenCategory } from "../lib/open-mode.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
 import { wakePhone } from "./phones.js";
@@ -48,6 +49,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: Phone["filterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
@@ -134,6 +137,12 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
     case "dns.method":
       return phone.filterMethod !== op.method;
     case "dns.category":
+      return !op.blocked;
+    case "openMode.set":
+      // Open mode lets every app in, so turning it on goes through the key. Turning it off
+      // goes back to the allow-list, which only ever tightens.
+      return op.enabled && !phone.openMode;
+    case "openMode.category":
       return !op.blocked;
     case "dns.allowDomain":
       return op.present;
@@ -327,6 +336,25 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
         })
         .where(eq(dnsSettings.phoneId, phone.id));
       return { dns: true };
+    }
+    case "openMode.set":
+      await db.update(phones).set({ openMode: op.enabled }).where(eq(phones.id, phone.id));
+      return { dns: false };
+    case "openMode.category": {
+      // One action: the category's known apps go on (or off) the block list and the DNS
+      // category follows, so the two never disagree.
+      if (isAppCategory(op.category)) {
+        const col = phones.blockedAppCategories;
+        await db
+          .update(phones)
+          .set({
+            blockedAppCategories: op.blocked
+              ? sql`array_append(array_remove(${col}, ${op.category}::text), ${op.category}::text)`
+              : sql`array_remove(${col}, ${op.category}::text)`,
+          })
+          .where(eq(phones.id, phone.id));
+      }
+      return applyOp(ctx, db, phone, { type: "dns.category", category: op.category, blocked: op.blocked });
     }
     case "dns.allowDomain":
     case "dns.blockDomain": {

@@ -24,6 +24,12 @@ data class ServerRules(
     val timezone: ZoneId,
     val allowedApps: Set<String>,
     val hiddenApps: Set<String>,
+    /**
+     * Open mode (docs/open-mode.md): every app is allowed except [blockedApps], also apps the
+     * rules have never listed. Missing from older servers: the allow-list applies.
+     */
+    val openApps: Boolean = false,
+    val blockedApps: Set<String> = emptySet(),
     val contacts: List<ApprovedContact>,
     val schedules: List<Schedule>,
     /** `<id>.dns.plainphone.org`; only used once [dnsReady] says the DNS service knows the id. */
@@ -95,6 +101,8 @@ data class ServerRules(
                 selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),
                 allowedApps = strings(apps.getJSONArray("allowed")),
                 hiddenApps = strings(apps.getJSONArray("hidden")),
+                openApps = apps.optBoolean("open", false),
+                blockedApps = apps.optJSONArray("blocked")?.let(::strings).orEmpty(),
                 contacts = objects(j.getJSONArray("contacts")).map {
                     ApprovedContact(it.getString("name"), it.getString("number"))
                 },

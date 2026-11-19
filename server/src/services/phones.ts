@@ -24,6 +24,7 @@ import type { Ctx } from "./context.js";
 import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
+import { APP_CATEGORIES, categoryPackages } from "../lib/open-mode.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 
@@ -69,6 +70,11 @@ export async function createPhone(
       dnsClientId: dnsClientId(),
       // D7 and spec 11: a child's phone sends its position only on Find and an unanswered
       // "Are you okay?"; an adult's is off until its owner turns it on.
+      // Open mode: an adult's phone starts with every app allowed except what they block.
+      openMode: input.profile === "self",
+      // Like the web filter, whose categories all start blocked (spec 6): the known social and
+      // gambling apps start on the block list, so an app and its websites never disagree.
+      blockedAppCategories: input.profile === "self" ? [...APP_CATEGORIES] : [],
       locationEnabled: input.profile === "child",
       locationMode: input.profile === "child" ? "checkin" : "off",
       timezone: input.timezone ?? "Europe/Copenhagen",
@@ -119,6 +125,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
         installed: phoneApps.installed,
         core: phoneApps.core,
         allowed: phoneApps.allowed,
+        explicitlyBlocked: phoneApps.explicitlyBlocked,
         requested: phoneApps.requested,
       })
       .from(phoneApps)
@@ -174,6 +181,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       lightContactRestriction: phone.lightContactRestriction,
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
+      openMode: phone.openMode,
+      blockedAppCategories: phone.blockedAppCategories,
       timezone: phone.timezone,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
@@ -203,6 +212,14 @@ type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
   const apps = allApps.filter((a) => a.installed);
+  // Open mode: everything is allowed except the block list (apps blocked one by one plus the
+  // known apps of the blocked categories, also when they are not installed yet).
+  const blocked = new Set(
+    phone.openMode
+      ? [...apps.filter((a) => a.explicitlyBlocked && !a.core).map((a) => a.packageName), ...categoryPackages(phone.blockedAppCategories)]
+      : [],
+  );
+  const isAllowed = (a: (typeof apps)[number]) => a.core || (phone.openMode ? !blocked.has(a.packageName) : a.allowed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
@@ -213,8 +230,11 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     mode: phone.mode,
     timezone: phone.timezone,
     apps: {
-      allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
-      hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
+      allowed: sorted(apps.filter(isAllowed).map((a) => a.packageName)),
+      hidden: sorted(apps.filter((a) => !isAllowed(a)).map((a) => a.packageName)),
+      // True: the phone allows every app that is not in `blocked`, also ones installed later.
+      open: phone.openMode,
+      blocked: sorted([...blocked]),
       // Picked from the catalog but not installed yet: the phone offers to install them.
       toInstall: allApps
         .filter((a) => a.requested && a.allowed && !a.installed)
@@ -354,6 +374,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     name: phone.name,
     profile: phone.profile,
     mode: phone.mode,
+    openMode: phone.openMode,
     timezone: phone.timezone,
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
