@@ -455,9 +455,8 @@ export default {
     lightHelp: "Behåll telefonens data och aktivera skyddet i Android-inställningarna.",
     startStrong: "Starta installationen för en ny eller återställd telefon",
     startLight: "Starta konfigurationen för en telefon som används",
+    stepsLink: "Se stegen",
     start: "I kontrollpanelen, säg vem telefonen är till för och skapa en inställningslänk.",
-    strongTitle: "Ny eller återställd telefon",
-    lightTitle: "Telefonen används redan",
     lightSteps: [
       ["Öppna nedladdningen på telefonen", "Skanna koden från kontrollpanelen med telefonens kamera eller öppna den privata länken i Chrome på den telefonen.", "lightScan"],
       ["Installera Plainphone", "Ladda ner appen och öppna filen. Om Android blockerar det trycker du på Inställningar, aktiverar Tillåt från den här källan, går tillbaka och trycker på Installera.", "download"],

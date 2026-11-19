@@ -5,7 +5,7 @@ import { expect, it, vi } from "vitest";
 import { householdMembers, phones, pushSubscriptions, sosDeliveries, sosEvents } from "../src/db/schema.js";
 import { deliverSos } from "../src/services/sos.js";
 import { sweep } from "../src/services/sweeper.js";
-import { Client, pairPhone, signIn, useHarness } from "./harness.js";
+import { Client, pairPhone, signIn, useHarness, waitForSosRetryBackoff } from "./harness.js";
 
 const h = useHarness();
 
@@ -143,10 +143,7 @@ it("counts the final timeout from when the server received the report, not the p
     // The phone was offline for seven hours and reports the SOS late.
     const sentAt = new Date(h.clock.now.getTime() - 7 * 3_600_000).toISOString();
     expect((await device.post("/api/device/sos", { id, kind: "urgent", sentAt })).status).toBe(200);
-    await vi.waitFor(async () => {
-      const [open] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
-      expect(open!.notificationLeaseUntil).not.toBeNull();
-    });
+    await waitForSosRetryBackoff(h, id);
     expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events[0].deliveryFailedAt).toBeNull();
     h.clock.advance(60_000);
     await sweep(h.ctx);
@@ -169,10 +166,7 @@ it("closes an undeliverable incident at the final timeout and shows it as not de
     const id = randomUUID();
     expect((await device.post("/api/device/sos", { id, kind: "urgent" })).status).toBe(200);
     await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
-    await vi.waitFor(async () => {
-      const [open] = await h.ctx.db.select().from(sosEvents).where(eq(sosEvents.id, id));
-      expect(open!.notificationLeaseUntil).not.toBeNull();
-    });
+    await waitForSosRetryBackoff(h, id);
     expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events[0].deliveryFailedAt).toBeNull();
     h.clock.advance(6 * 3_600_000 + 1);
     await sweep(h.ctx);

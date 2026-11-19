@@ -2,8 +2,8 @@
 
 The Plainphone website is available in English (`/`), Danish (`/da/`), Swedish
 (`/sv/`), Norwegian Bokmål (`/nb/`) and German (`/de/`). Each language has a home
-page, setup guide, privacy policy, app and website lookup, and page about the
-research behind Plainphone.
+page, setup guide, privacy policy, help pages, app and website lookup, and page
+about the research behind Plainphone.
 The language menu keeps readers on the equivalent page. The build adds canonical
 URLs, hreflang tags, sitemap alternates, Open Graph and Twitter metadata,
 and a localized share image for each language. The landing pages include
@@ -31,10 +31,11 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 
 | Path | What |
 |---|---|
-| `content/{en,da,sv,nb,de}.mjs` | All website copy. Keep the five languages in step and see [translation review](../docs/translations.md). |
+| `content/{en,da,sv,nb,de}.mjs` | Landing, setup, privacy and research copy. Keep the five languages in step and see [translation review](../docs/translations.md). |
 | `why` in the same files | The research and design page (`/why/`, `/da/hvorfor/`). See the [evidence review](../docs/evidence.md) for source checks and limitations. |
 | `privacy` in the same files | The privacy policy (`/privacy/`, `/da/privacy/`). Change it in the same pull request as anything that changes what the server stores, and update the date in `updated`. The technical basis is [`docs/privacy.md`](../docs/privacy.md) |
 | `setup` in the same files | The setup guide (`/setup/`, `/da/setup/`). The dashboard links to exactly these two addresses, so they must keep existing. Change the steps in the same pull request as anything in the dashboard's Add phone flow or the setup QR code |
+| `content/help*.mjs` | Help and support topics for all five languages. |
 | `compatibility.mjs` | Renders the localized lookup at `/apps/` and its language equivalents using the country catalogs in `server/catalog/` and a curated DNS reference. |
 | `src/app-search.mjs` | Filters rendered results locally by name, Android package, domain or pasted URL. |
 | `figures.mjs` | The schematic phone drawings in the guide: inline SVG, coloured by the page's own custom properties |

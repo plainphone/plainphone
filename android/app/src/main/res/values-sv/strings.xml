@@ -273,7 +273,7 @@
     <string name="setup_confirm_child_body">En förälder kommer att hantera vilka appar och webbplatser den här telefonen kan använda. Android kommer att be dig att tillåta dessa skydd under installationen.</string>
     <string name="setup_confirm_self">Konfigurera skydd på din egen telefon?</string>
     <string name="setup_confirm_self_body">Du väljer vad du vill begränsa på den här telefonen. Strängare regler gäller nästa gång din telefon ansluter. Lösare regler väntar på din nyckel.</string>
-    <string name="setup_restricted_body">Android gav inte denna åtkomst. Om Android blockerade det som en begränsad inställning, öppna Appinformation och välj ⋮ (överst till höger) → Tillåt begränsade inställningar. Återvänd hit och försök igen.</string>
+    <string name="setup_restricted_body">Android blockerade detta som en begränsad inställning. Följ dessa steg:</string>
     <string name="setup_pair_account">Anslut den här telefonen till %1$s?</string>
     <string name="setup_pair_household">Hushåll: %1$s</string>
     <string name="setup_connect">Anslut telefonen</string>
@@ -292,7 +292,7 @@
     <string name="setup_undo_closed">Ångra-fönstret har stängts.</string>
     <string name="setup_pair_self_title">Anslut telefonen</string>
     <string name="setup_undo_choice_title">Hur länge kan du ångra installationen?</string>
-    <string name="setup_undo_choice_body">Välj hur länge du kan stänga av Plainphone efter installationen. Ett instrumentpanelsval för den här telefonen har företräde.</string>
+    <string name="setup_undo_choice_body">Välj hur länge du kan stänga av Plainphone efter installationen, utan att vänta eller fråga någon. Ett instrumentpanelsval för den här telefonen har företräde.</string>
     <string name="setup_undo_choice_off">Av</string>
     <string name="setup_undo_choice_default">10 minuter (standard)</string>
     <string name="setup_undo_choice_minutes">%1$d minuter</string>
@@ -304,7 +304,7 @@
     <string name="setup_key_email">Deras e-postadress</string>
     <string name="setup_key_hours">Vänta %1$d h</string>
     <string name="setup_key_wait_preview">Att ta bort Plainphone tar %1$d h.</string>
-    <string name="setup_key_trusted_preview">Din vän kan godkänna ändringar efter att ha loggat in. Tills dess tar ändringarna 24 timmar.</string>
+    <string name="setup_key_trusted_preview">Din vän kan godkänna ändringar efter att ha loggat in. Tills dess tar ändringarna %1$d timmar.</string>
     <string name="self_approval_title">Be om godkännande</string>
     <string name="self_approval_scan">Be din betrodda person att skanna den här koden. Den upphör efter två minuter.</string>
     <string name="self_approval_loading">Läser in förfrågningar…</string>
@@ -364,4 +364,8 @@
     <string name="setup_summary_undo">Du kan ångra installationen i %1$d minuter. Om du ångrar stängs Plainphone av utan din nyckel.</string>
     <string name="setup_summary_undo_off">Ångra efter installation är avstängt. Att ta bort Plainphone kräver din nyckel.</string>
     <string name="setup_summary_wait">Lösare regler och borttagning av Plainphone väntar %1$d h.</string>
+    <string name="support_open_help">Öppna hjälp</string>
+    <string name="support_help_fallback">Öppna %1$s på en annan enhet.</string>
+    <string name="support_copy_diagnostics">Kopiera tekniska uppgifter</string>
+    <string name="support_copied">Tekniska uppgifter kopierade.</string>
 </resources>

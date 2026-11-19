@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { householdMembers, phones, pushSubscriptions, sosEvents } from "../src/db/schema.js";
 import { sweep } from "../src/services/sweeper.js";
 import { expect, it, vi } from "vitest";
-import { pairPhone, signIn, useHarness } from "./harness.js";
+import { pairPhone, signIn, useHarness, waitForSosRetryBackoff } from "./harness.js";
 
 const h = useHarness();
 
@@ -77,7 +77,8 @@ it("retries an accepted urgent report after both notification providers fail", a
   const report = { id: randomUUID(), kind: "urgent" };
   try {
     expect((await device.post("/api/device/sos", report)).status).toBe(200);
-    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    await waitForSosRetryBackoff(h, report.id);
+    expect(push).toHaveBeenCalledTimes(1);
     expect(mail).toHaveBeenCalledTimes(1);
   } finally {
     push.mockRestore();

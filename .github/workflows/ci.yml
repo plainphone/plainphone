@@ -116,6 +116,16 @@ jobs:
         with:
           packages: "platforms;android-37.0 build-tools;36.1.0"
 
+      # Robolectric downloads its android-all jars from Maven Central into ~/.m2 on first use.
+      # Cache them so the unit tests stop depending on a live fetch.
+      - name: Cache Robolectric android-all jars
+        if: needs.changes.outputs.android == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-android-all-${{ runner.os }}-${{ hashFiles('android/app/build.gradle.kts') }}
+          restore-keys: robolectric-android-all-${{ runner.os }}-
+
       - uses: gradle/actions/setup-gradle@v6
         if: needs.changes.outputs.android == 'true'
 

@@ -273,7 +273,7 @@
     <string name="setup_confirm_child_body">Ein Elternteil entscheidet, welche Apps und Websites dieses Telefon nutzen darf. Android fragt dich bei der Einrichtung nach den nötigen Berechtigungen.</string>
     <string name="setup_confirm_self">Schutz auf dem eigenen Telefon einrichten?</string>
     <string name="setup_confirm_self_body">Du entscheidest, was du einschränken möchtest. Strengere Regeln gelten, sobald dein Telefon wieder online ist. Lockerungen warten auf deinen Schlüssel.</string>
-    <string name="setup_restricted_body">Android hat den Zugriff verweigert. Falls die Einstellung eingeschränkt ist, öffne die App-Info. Wähle rechts oben ⋮ und dann „Eingeschränkte Einstellungen zulassen“. Komm zurück und versuch es erneut.</string>
+    <string name="setup_restricted_body">Android hat dies als eingeschränkte Einstellung blockiert. Folge diesen Schritten:</string>
     <string name="setup_pair_account">Dieses Telefon mit %1$s verbinden?</string>
     <string name="setup_pair_household">Haushalt: %1$s</string>
     <string name="setup_connect">Telefon anschließen</string>
@@ -292,7 +292,7 @@
     <string name="setup_undo_closed">Das Rückgängig-Fenster wurde geschlossen.</string>
     <string name="setup_pair_self_title">Telefon anschließen</string>
     <string name="setup_undo_choice_title">Wie lange kann man die Einrichtung rückgängig machen?</string>
-    <string name="setup_undo_choice_body">Wähle, wie lange du Plainphone nach der Einrichtung ausschalten kannst. Eine Einstellung für dieses Telefon im Dashboard hat Vorrang.</string>
+    <string name="setup_undo_choice_body">Wähle, wie lange du Plainphone nach der Einrichtung ausschalten kannst, ohne zu warten oder jemanden zu fragen. Eine Einstellung für dieses Telefon im Dashboard hat Vorrang.</string>
     <string name="setup_undo_choice_off">Aus</string>
     <string name="setup_undo_choice_default">10 Minuten (Standard)</string>
     <string name="setup_undo_choice_minutes">%1$d Minuten</string>
@@ -304,7 +304,7 @@
     <string name="setup_key_email">E-Mail-Adresse der Vertrauensperson</string>
     <string name="setup_key_hours">%1$d Std. warten</string>
     <string name="setup_key_wait_preview">Das Entfernen von Plainphone dauert %1$d h.</string>
-    <string name="setup_key_trusted_preview">Deine Vertrauensperson kann Änderungen nach der Anmeldung bestätigen. Bis dahin dauern Änderungen 24 Stunden.</string>
+    <string name="setup_key_trusted_preview">Deine Vertrauensperson kann Änderungen nach der Anmeldung bestätigen. Bis dahin dauern Änderungen %1$d Stunden.</string>
     <string name="self_approval_title">Um Zustimmung bitten</string>
     <string name="self_approval_scan">Bitte deine Vertrauensperson, diesen Code zu scannen. Er ist zwei Minuten gültig.</string>
     <string name="self_approval_loading">Anfragen werden geladen…</string>
@@ -364,4 +364,8 @@
     <string name="setup_summary_undo">Du kannst die Einrichtung %1$d Minuten lang rückgängig machen. Dabei schaltet sich Plainphone ohne deinen Schlüssel aus.</string>
     <string name="setup_summary_undo_off">Rückgängig nach der Einrichtung ist aus. Zum Entfernen von Plainphone brauchst du deinen Schlüssel.</string>
     <string name="setup_summary_wait">Lockerere Regeln und das Entfernen von Plainphone warten %1$d Std.</string>
+    <string name="support_open_help">Hilfe öffnen</string>
+    <string name="support_help_fallback">Öffnen Sie %1$s auf einem anderen Gerät.</string>
+    <string name="support_copy_diagnostics">Technische Angaben kopieren</string>
+    <string name="support_copied">Technische Angaben kopiert.</string>
 </resources>
