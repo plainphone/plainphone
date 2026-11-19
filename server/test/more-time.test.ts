@@ -141,16 +141,19 @@ describe("ask for more time", () => {
     expect(await h.ctx.db.select().from(moreTimeRequests)).toHaveLength(0);
   });
 
-  it("is limited per phone", async () => {
-    const { device } = await setup();
+  it("allows six new requests an hour per phone, and asking again for an open one is free", async () => {
+    const { mum, phoneId, device } = await setup();
     const statuses: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      // Each ask needs its own target, or it only returns the open one.
-      statuses.push((await device.post("/api/device/more-time-requests", { packageName: i === 0 ? SPOTIFY : "*", reason: String(i) })).status);
+    for (let i = 0; i < 7; i++) {
+      const r = await device.post("/api/device/more-time-requests", { packageName: SPOTIFY });
+      statuses.push(r.status);
+      // Asking again while it is open is not a new request.
+      if (r.status === 201) expect((await device.post("/api/device/more-time-requests", { packageName: SPOTIFY })).status).toBe(200);
+      if (r.status === 201) await mum.post(`/api/phones/${phoneId}/more-time-requests/${r.json.id}/answer`, { answer: "no" });
     }
-    expect(statuses.slice(0, 2)).toEqual([201, 201]);
-    expect(statuses.at(-1)).toBe(429);
+    expect(statuses).toEqual([201, 201, 201, 201, 201, 201, 429]);
   });
+
 
   it("needs a limit on the target, and refuses what is not allowed", async () => {
     const { mum, phoneId, device } = await setup();

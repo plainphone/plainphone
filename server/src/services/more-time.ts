@@ -27,7 +27,7 @@ export const MORE_TIME_HISTORY_DAYS = 30;
 
 export class MoreTimeError extends Error {
   constructor(
-    readonly status: 403 | 404 | 409,
+    readonly status: 403 | 404 | 409 | 429,
     message: string,
   ) {
     super(message);
@@ -106,6 +106,8 @@ export async function createMoreTimeRequest(
   ctx: Ctx,
   phone: Phone,
   input: { packageName: string; reason?: string | undefined },
+  /** Asked right before a new request is made, so asking again for an open one never uses up the allowance. */
+  mayCreate: () => boolean = () => true,
 ): Promise<{ request: Row; created: boolean }> {
   if (!phone.askMoreTimeEnabled) throw new MoreTimeError(403, "asking for more time is switched off for this phone");
   if (phone.profile !== "child") throw new MoreTimeError(409, "only a child's phone can ask for more time");
@@ -130,6 +132,7 @@ export async function createMoreTimeRequest(
         ),
       );
     if (open) return { request: open, created: false };
+    if (!mayCreate()) throw new MoreTimeError(429, "too many requests for more time; wait for an answer");
     const [row] = await tx
       .insert(moreTimeRequests)
       .values({ phoneId: phone.id, packageName: input.packageName, reason, day, createdAt: ctx.now() })

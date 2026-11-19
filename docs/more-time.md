@@ -62,7 +62,7 @@ request itself is only a question, so it can be refused (switched off, no such l
 
 - One open request per app (or daily limit) at a time: asking again returns the open one and
   does not notify the parents again.
-- At most 6 new requests an hour per phone.
+- At most 6 new requests an hour (asking again for an open one does not count) per phone.
 - Answered requests are deleted after 30 days (the reason is text the child wrote).
 - Only child phones can ask. On a Self phone there is nobody to ask.
 - A muted phone ([notifications](parent-app.md)) sends no push, but the request still appears

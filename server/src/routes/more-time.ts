@@ -40,9 +40,8 @@ export function deviceMoreTimeRoutes<E extends { Variables: { phone: Phone } }>(
       }),
     );
     const phone = c.get("phone");
-    if (!askLimit.take(phone.id)) throw new HTTPException(429, { message: "too many requests for more time; wait for an answer" });
     try {
-      const { request, created } = await createMoreTimeRequest(ctx, phone, input);
+      const { request, created } = await createMoreTimeRequest(ctx, phone, input, () => askLimit.take(phone.id));
       return c.json(moreTimeJson(request), created ? 201 : 200);
     } catch (err) {
       return fail(err);
