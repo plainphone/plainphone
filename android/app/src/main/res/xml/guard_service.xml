@@ -5,5 +5,5 @@
     android:canRetrieveWindowContent="true"
     android:description="@string/guard_description"
     android:notificationTimeout="0"
-    android:accessibilityFlags="flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds"
     android:summary="@string/guard_summary" />

@@ -8,7 +8,7 @@
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { and, eq, isNull, lt } from "drizzle-orm";
-import { enrollments, households, phones, users } from "../db/schema.js";
+import { enrollments, households, phones, users, type FilterMethod } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { provisioningInfo } from "../lib/provisioning.js";
 import { sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "./initial-self-key.js";
@@ -85,7 +85,7 @@ export type EnrollResult =
  */
 export async function redeemEnrollment(
   ctx: Ctx,
-  input: { key?: InitialSelfKey; token: string; installId: string; deviceInfo: Record<string, string> | null },
+  input: { key?: InitialSelfKey; filterMethod?: FilterMethod; token: string; installId: string; deviceInfo: Record<string, string> | null },
   devicePrefix: string,
 ): Promise<EnrollResult> {
   const deviceToken = randomToken(devicePrefix);
@@ -131,7 +131,13 @@ export async function redeemEnrollment(
 
     await tx
       .update(phones)
-      .set({ deviceTokenHash: sha256(deviceToken), pairedAt: now, deviceInfo: input.deviceInfo })
+      .set({
+        deviceTokenHash: sha256(deviceToken),
+        pairedAt: now,
+        deviceInfo: input.deviceInfo,
+        ...(phone.mode === "light" && phone.profile === "self" && input.filterMethod
+          ? { filterMethod: input.filterMethod } : {}),
+      })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
     await invalidateEnrollments(tx, phone.id, now);

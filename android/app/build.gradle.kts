@@ -98,6 +98,11 @@ android {
     }
 }
 
+// Robolectric and Compose screenshot tests outgrow the 512 MB default test heap.
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "1536m"
+}
+
 dependencies {
     // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))

@@ -46,7 +46,7 @@ class GuardService : AccessibilityService() {
         if (canGuardSettings()) guardSettings(packages, windowIds)
     }
     private val vpnRetry = Runnable {
-        if (canGuardSettings()) closeVpnDialog()
+        if (canGuardSettings() && guardsSettings(SettingsGuard.VPN_DIALOGS)) closeVpnDialog()
     }
 
     private val tick = object : Runnable {
@@ -131,7 +131,8 @@ class GuardService : AccessibilityService() {
     private fun guardsSettings(pkg: String) =
         pkg in SettingsGuard.SETTINGS_PACKAGES ||
             pkg in SettingsGuard.INSTALLER_PACKAGES ||
-            pkg == SettingsGuard.VPN_DIALOGS
+            (pkg == SettingsGuard.VPN_DIALOGS && LightFilter.method(this) == FilterMethod.VPN &&
+                !LightSetup.vpnSetupAllowed())
 
     @Suppress("DEPRECATION")
     private fun updateWindowSubscription(focusChanges: Int = 0) {
@@ -223,7 +224,7 @@ class GuardService : AccessibilityService() {
         }
         if (pkg == SettingsGuard.VPN_DIALOGS) {
             recycle(root)
-            dismissVpnDialog()
+            if (guardsSettings(pkg)) dismissVpnDialog()
             return
         }
         val k = keywords
@@ -233,7 +234,9 @@ class GuardService : AccessibilityService() {
         }
         val texts = ArrayList<String>()
         collect(root, texts, depth = 0)
-        if (!SettingsGuard.isProtectedScreen(pkg, texts, k)) return
+        val privateDns = LightFilter.method(this) == FilterMethod.PRIVATE_DNS
+        if (!SettingsGuard.isProtectedScreen(pkg, texts, k, privateDns, privateDnsOptions,
+                allowPrivateDnsEditor = privateDns && LightSetup.privateDnsSetupAllowed(this))) return
         if (performGlobalAction(GLOBAL_ACTION_BACK)) clearSettingsCheck()
         block(pkg, BlockedActivity.Reason.PROTECTION)
     }
@@ -289,6 +292,7 @@ class GuardService : AccessibilityService() {
     private fun collect(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
         try {
             if (depth > 25 || out.size > 400) return
+            node.viewIdResourceName?.let { out += it }
             node.text?.let { out += it.toString() }
             node.contentDescription?.let { out += it.toString() }
             for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, out, depth + 1) }
@@ -305,12 +309,17 @@ class GuardService : AccessibilityService() {
     /** The shade, the keyboard and the launcher are not "an app in front". */
     private fun isOverlay(pkg: String) = pkg == "com.android.systemui" || pkg.contains("inputmethod")
 
+    private val privateDnsOptions by lazy {
+        listOf("private_dns_mode_provider", "private_dns_mode_provider_hostname").mapNotNull(::settingsString)
+    }
+
     private fun buildKeywords(): SettingsGuard.Keywords {
         val fromSettings = SETTINGS_STRING_NAMES.mapNotNull { name -> settingsString(name) }
         return SettingsGuard.Keywords(
             ownDescriptions = listOf(getString(R.string.guard_description), getString(R.string.light_admin_description)),
             appName = getString(R.string.app_name),
             dangerous = (SettingsGuard.Keywords.BUILT_IN + fromSettings.map { it.lowercase() }).distinct(),
+            vpnManagement = listOfNotNull(settingsString("vpn_require_connection")),
             uninstall = (SettingsGuard.Keywords.UNINSTALL + listOfNotNull(settingsString("uninstall_text")).map { it.lowercase() }).distinct(),
         )
     }

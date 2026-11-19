@@ -2,6 +2,8 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.light.FilterMethod
+
 import android.content.Context
 import android.os.BaseBundle
 import org.plainphone.app.contacts.ApprovedContact
@@ -16,6 +18,7 @@ import org.plainphone.app.contacts.ContactCodec
 data class PolicyConfig(
     /** Host for forced private DNS (DNS-over-TLS). Phase 1 placeholder: AdGuard Family. */
     val dnsHost: String = DEFAULT_DNS_HOST,
+    val filterMethod: FilterMethod = FilterMethod.VPN,
     /** Packages that stay visible in addition to the resolved core apps. */
     val allowedPackages: Set<String> = DEFAULT_ALLOWED_PACKAGES,
     /** Google account IDs (numeric People API IDs, not email addresses) allowed to unlock FRP. */

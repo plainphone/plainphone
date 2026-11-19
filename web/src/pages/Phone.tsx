@@ -19,6 +19,7 @@ import {
 } from "../lib/api";
 import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { lockStepLabel } from "../lib/lock-steps";
+import { filterStatusKey } from "../lib/filter-status";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
@@ -322,6 +323,7 @@ const RESET_PROTECTION_TEXT = {
 export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
+  const filterStatus = filterStatusKey(s);
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
   const failures = s?.failedPolicies ?? [];
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
@@ -331,6 +333,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>
+      {filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
       {s && !s.lockIntact && (
         <div className="notice notice-error" role="status">
           <div>
@@ -640,7 +643,8 @@ function LightModeSection({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const p = phone.status?.protections;
   const rows = p
-    ? PROTECTIONS.filter((k) => k !== "deviceOwner" && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
+    ? PROTECTIONS.filter((k) => k !== "deviceOwner" &&
+        !(phone.status?.filterMethod === "privateDns" && (k === "vpn" || k === "alwaysOnVpn" || k === "privateDnsOk")) && (LIGHT_REQUIRED.includes(k) || p[k] === false || p[k] === true)).map(
         (k) => ({ key: k, ok: p[k] === true, required: LIGHT_REQUIRED.includes(k) }),
       )
     : [];

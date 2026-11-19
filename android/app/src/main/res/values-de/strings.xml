@@ -320,4 +320,18 @@
     <string name="self_template_help">Teile Zeitlimits, Zeitpläne, erlaubte Apps und Webfilter-Kategorien. Der Code ist 15 Minuten gültig.</string>
     <string name="self_tools">Helft einander</string>
     <string name="maintenance_language">Sprache in Plainphone: %1$s</string>
+    <string name="light_private_dns_title">Privates DNS</string>
+    <string name="light_private_dns_body">Kopiere die Adresse und öffne die Einstellungen. Wähle unter Netzwerk &amp; Internet „Privates DNS“, wähle den Hostnamen des Anbieters, füge die Adresse ein und speichere. Schalte in Tailscale „Use Tailscale DNS settings“ aus. MagicDNS-Namen funktionieren danach nicht mehr.</string>
+    <string name="light_private_dns_waiting">Die Filteradresse deines Handys ist unterwegs. Versuche es gleich noch einmal.</string>
+    <string name="light_private_dns_settings">Netzwerkeinstellungen öffnen</string>
+    <string name="light_private_dns_copy">Filteradresse kopieren</string>
+    <string name="light_other_vpn">Nutzt du ein anderes VPN (zum Beispiel Tailscale oder ein Firmen-VPN)?</string>
+    <string name="light_other_vpn_tip">Privates DNS lässt Platz für dein anderes VPN. Schalte in Tailscale „Use Tailscale DNS settings“ aus. MagicDNS-Namen funktionieren danach nicht mehr.</string>
+    <string name="light_other_vpn_yes">Ja, Privates DNS nutzen</string>
+    <string name="light_other_vpn_no">Nein, Plainphone VPN nutzen</string>
+    <string name="light_private_dns_reset">Plainphone wurde ausgeschaltet. Wähle unter Netzwerk &amp; Internet bei Privates DNS wieder „Automatisch“, damit das Internet wieder funktioniert.</string>
+    <string name="light_private_dns_vpn_settings">VPN-Einstellungen öffnen</string>
+    <string name="light_private_dns_vpn_handoff">Öffne in den VPN-Einstellungen von Android Plainphone und schalte „Verbindungen ohne VPN blockieren“ und „Always-on VPN“ aus. Komm danach hierher zurück, um Privates DNS einzurichten.</string>
+    <string name="light_vpn_restore_dns">Wähle unter Netzwerk &amp; Internet bei Privates DNS „Automatisch“ oder „Aus“. Komm danach hierher zurück, um Plainphone VPN wieder zu verbinden.</string>
+    <string name="free_promise">Plainphone ist derzeit kostenlos. Der Betrieb auf dem eigenen Server und ein Handy mit vollem Schutz bei unserem Dienst bleiben immer kostenlos. Für weitere Handys bei unserem Dienst werden wir später eine Gebühr erheben. Wer früh dabei ist, wird rechtzeitig informiert.</string>
 </resources>

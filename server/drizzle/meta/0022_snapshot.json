@@ -1,5 +1,5 @@
 {
-  "id": "4f1d9dbc-7266-49e1-96d5-201f7c2e8de6",
+  "id": "61a1d02e-4f25-4560-9f94-78bf65357715",
   "prevId": "817ce7af-7232-4806-90fc-39207bea8f08",
   "version": "7",
   "dialect": "postgresql",
@@ -312,18 +312,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "provisioning": {
-          "name": "provisioning",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "invalidated_at": {
-          "name": "invalidated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "used_at": {
           "name": "used_at",
@@ -1568,18 +1556,12 @@
           "notNull": true,
           "default": "'strong'"
         },
-        "lock_system_language": {
-          "name": "lock_system_language",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "language": {
-          "name": "language",
+        "filter_method": {
+          "name": "filter_method",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'vpn'"
         },
         "timezone": {
           "name": "timezone",

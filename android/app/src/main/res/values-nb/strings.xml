@@ -320,4 +320,18 @@
     <string name="self_template_help">Del dine tidsbegrensninger, tidsplaner, appvalg og nettfilterkategorier. Koden utløper etter 15 minutter.</string>
     <string name="self_tools">Hjelp hverandre</string>
     <string name="maintenance_language">Språk i Plainphone: %1$s</string>
+    <string name="light_private_dns_title">Privat DNS</string>
+    <string name="light_private_dns_body">Kopier adressen og åpne Innstillinger. Velg Privat DNS under Nettverk og internett, velg leverandørens vertsnavn, lim inn adressen og lagre. Slå av «Use Tailscale DNS settings» i Tailscale. MagicDNS-navn fungerer da ikke lenger.</string>
+    <string name="light_private_dns_waiting">Telefonens filteradresse er på vei. Prøv igjen om litt.</string>
+    <string name="light_private_dns_settings">Åpne nettverksinnstillinger</string>
+    <string name="light_private_dns_copy">Kopier filteradresse</string>
+    <string name="light_other_vpn">Bruker du en annen VPN (for eksempel Tailscale eller jobb-VPN)?</string>
+    <string name="light_other_vpn_tip">Privat DNS gir plass til den andre VPN-en din. Slå av «Use Tailscale DNS settings» i Tailscale. MagicDNS-navn fungerer da ikke lenger.</string>
+    <string name="light_other_vpn_yes">Ja, bruk privat DNS</string>
+    <string name="light_other_vpn_no">Nei, bruk Plainphone VPN</string>
+    <string name="light_private_dns_reset">Plainphone er slått av. Velg Automatisk under Privat DNS i Nettverk og internett for å få internettilgang igjen.</string>
+    <string name="light_private_dns_vpn_settings">Åpne VPN-innstillinger</string>
+    <string name="light_private_dns_vpn_handoff">Åpne Plainphone under VPN i Androids innstillinger. Slå av Blokker tilkoblinger uten VPN og Alltid på VPN. Gå deretter tilbake hit for å sette opp Privat DNS.</string>
+    <string name="light_vpn_restore_dns">Velg Automatisk eller Av under Privat DNS i Nettverk og internett. Gå deretter tilbake hit for å koble til Plainphone VPN igjen.</string>
+    <string name="free_promise">Plainphone er gratis nå. Det vil alltid være gratis å kjøre Plainphone på egen server og å ha én telefon med full beskyttelse på tjenesten vår. Senere tar vi betalt for flere telefoner på tjenesten vår. Tidlige brukere får beskjed i god tid.</string>
 </resources>

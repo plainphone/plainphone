@@ -36,6 +36,12 @@ const wordmark = readFileSync(join(src, "wordmark.svg"), "utf8")
   .replace(/\saria-labelledby="[^"]*"><title[^>]*>[^<]*<\/title>/, ' aria-hidden="true" focusable="false">');
 if (!wordmark.includes('aria-hidden="true"') || wordmark.includes("<title")) throw new Error("wordmark.svg: unexpected markup");
 
+const ADVISORIES = `${GITHUB}/security/advisories/new`;
+const SECURITY_POLICY = `${GITHUB}/blob/main/SECURITY.md`;
+const setupImages = ["light", "dark"].flatMap((theme) =>
+  ["webp", "png"].map((format) => `setup-choice-${theme}.${format}`),
+);
+
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const slug = (s) => s.toLowerCase().replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a").normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -49,6 +55,7 @@ function head(
     ogTitle = t.hero.title,
     alternates = pages.map((p) => ({ lang: p.lang, path: p.path })),
     xDefault = "/",
+    schema = [],
   },
 ) {
   const alt = alternates
@@ -58,6 +65,18 @@ function head(
     .filter((a) => a.lang !== t.lang)
     .map((a) => `<meta property="og:locale:alternate" content="${ogLocales[a.lang]}">`)
     .join("\n");
+  const structuredData = [...schema];
+  if (!noindex && path !== t.path) {
+    structuredData.push({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Plainphone", item: ORIGIN + t.path },
+        { "@type": "ListItem", position: 2, name: plainText(ogTitle), item: ORIGIN + path },
+      ],
+    });
+  }
+  const jsonLd = JSON.stringify({ "@context": "https://schema.org", "@graph": structuredData })
+    .replace(/</g, "\\u003c");
   return `<!doctype html>
 <html lang="${t.lang}">
 <head>
@@ -85,40 +104,121 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <meta property="og:locale" content="${ogLocales[t.lang]}">
 ${ogAlternates}
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(ogTitle)}">
+<meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:image" content="${ORIGIN}/og-${t.lang}.png">
+<meta name="twitter:image:alt" content="${esc(t.ogAlt)}">
+${structuredData.length ? `<script type="application/ld+json">${jsonLd}</script>` : ""}
 <style>${css}</style>
 </head>`;
 }
 
-function header(t, route = (p) => p.path) {
-  const languages = pages
-    .filter((p) => p.lang !== t.lang)
-    .map((p) => `<li><a href="${route(p)}" hreflang="${p.lang}" lang="${p.lang}">${languageNames[p.lang]}</a></li>`)
-    .join("");
+function languageLinks(route, t) {
+  return pages.map((p) =>
+    `<li><a href="${route(p)}" hreflang="${p.lang}" lang="${p.lang}"${p === t ? ' aria-current="true"' : ""}>${languageNames[p.lang]}</a></li>`,
+  ).join("");
+}
+
+function header(t) {
+  const l = t.landing;
   return `<a class="skip" href="#main">${t.skip}</a>
 <header class="top">
 <a class="brand" href="${t.path}">${wordmark}<span class="sr">Plainphone</span></a>
+<details class="mobile-menu">
+<summary>${l.menu}</summary>
 <nav aria-label="${t.nav.label}">
-<details class="languages">
-<summary>${t.nav.language}</summary>
-<ul>${languages}</ul>
+<a href="${t.path}#how">${l.product}</a>
+<a href="${t.setup.path}">${l.setup}</a>
+<a href="${t.path}#faq">${l.faq}</a>
+<a href="#languages">${l.languages}</a>
+</nav>
 </details>
-<a href="${GITHUB}">${t.nav.source}</a>
+<nav class="desktop-menu" aria-label="${t.nav.label}">
+<a href="${t.path}#how">${l.product}</a>
+<a href="${t.setup.path}">${l.setup}</a>
+<a href="${t.path}#faq">${l.faq}</a>
+<a href="#languages">${l.languages}</a>
 </nav>
 </header>`;
 }
 
-function footer(t) {
+function footer(t, route = (p) => p.path) {
+  const l = t.landing;
   return `<footer class="foot">
-<p>${t.footer.maintained}</p>
-<p>${t.footer.setup}</p>
-<p><a href="${t.why.path}">${t.why.h1}</a></p>
-<p>${t.footer.privacy}</p>
-<p>${t.footer.license}</p>
+<div class="foot-links">
+<section><h2>${l.help}</h2><ul>
+<li><a href="${t.setup.path}">${l.guide}</a></li>
+<li><a href="${t.compatibility.path}">${t.compatibility.title}</a></li>
+<li><a href="${t.path}#faq">${l.faq}</a></li>
+<li><a href="${t.why.path}">${t.why.h1}</a></li>
+<li><a href="${t.privacy.path}">${t.privacy.h1}</a></li>
+</ul></section>
+<section><h2>${l.project}</h2><ul>
+<li><a href="${GITHUB}">${l.code}</a></li>
+<li><a href="${t.path}#self-hosting">${t.hosting.title}</a></li>
+<li><a href="${SECURITY_POLICY}">${l.security}</a></li>
+<li><a href="/.well-known/security.txt">security.txt</a></li>
+</ul></section>
+<section aria-labelledby="languages"><h2 id="languages" tabindex="-1">${l.languages}</h2>
+<ul class="language-links" role="list">${languageLinks(route, t)}</ul></section>
+</div>
+<div class="operator"><p><a href="https://mahoje.dk">Mahoje</a> (CVR 39413892)</p>
+<p>${l.visual[2]}</p>
+<p>${t.footer.license}</p></div>
 </footer>`;
+}
+
+const plainText = (html) => html.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ");
+
+function landingSchema(t, items) {
+  return [
+    { "@type": "Organization", name: "Mahoje", url: "https://mahoje.dk", taxID: "DK39413892" },
+    {
+      "@type": "SoftwareApplication",
+      name: "Plainphone",
+      description: t.description,
+      url: ORIGIN + t.path,
+      operatingSystem: "Android 10+",
+      applicationCategory: "UtilitiesApplication",
+      inLanguage: t.lang,
+    },
+    {
+      "@type": "WebApplication",
+      name: "Plainphone Parent Dashboard",
+      url: "https://app.plainphone.org/",
+      browserRequirements: "Requires a web browser",
+      applicationCategory: "UtilitiesApplication",
+    },
+    {
+      "@type": "FAQPage",
+      inLanguage: t.lang,
+      mainEntity: items.map(({ q, a }) => ({
+        "@type": "Question",
+        name: plainText(q),
+        acceptedAnswer: { "@type": "Answer", text: plainText(a) },
+      })),
+    },
+  ];
 }
 
 function page(t) {
   const h = t.hero;
+  const l = t.landing;
+  const [dayTitle, ...daySteps] = l.day;
+  const [childTitle, childBody] = l.child;
+  const [imageAlt, imageCaption] = l.visual;
+  const faqItems = [
+    ...t.faq.items,
+    ...l.questions.map(([group, q, a]) => ({ group, q, a })),
+    ...t.price.items.map((item) => ({ ...item, group: "price" })),
+  ];
+  const faqGroups = Object.entries(l.groups).map(([group, title]) => ({
+    title,
+    items: faqItems.filter((item) => item.group === group),
+  }));
+  if (faqGroups.flatMap(({ items }) => items).length !== faqItems.length) {
+    throw new Error(`${t.lang}: FAQ question is missing a valid group`);
+  }
   const section = (id, title, body, cls = "") =>
     `<section class="block ${cls}" aria-labelledby="${id}"><h2 id="${id}">${title}</h2>${body}</section>`;
 
@@ -126,14 +226,28 @@ function page(t) {
     .map((it) => `<details id="${slug(it.q)}"><summary>${it.q}</summary><p>${it.a}</p></details>`)
     .join("");
 
-  const hero = `<section class="hero" aria-labelledby="hero-title">
+  const hero = `<section class="hero home-hero" aria-labelledby="hero-title">
+<div class="hero-copy">
 <p class="status"><span>${t.status}</span></p>
 <h1 id="hero-title">${h.title}</h1>
 <p class="lead">${h.lead}</p>
-<p><a href="${t.compatibility.path}">${t.compatibility.title}</a></p>
+<div class="hero-actions">
+<a class="button" href="https://app.plainphone.org/">${l.start}</a>
+<a href="${t.setup.path}">${l.guide}</a>
+</div>
+</div>
+<figure class="product-shot">
+<picture>
+<source media="(prefers-color-scheme: dark)" type="image/webp" srcset="/setup-choice-dark.webp">
+<source media="(prefers-color-scheme: dark)" srcset="/setup-choice-dark.png">
+<source type="image/webp" srcset="/setup-choice-light.webp">
+<img src="/setup-choice-light.png" width="375" height="465" alt="${esc(imageAlt)}" fetchpriority="high">
+</picture>
+<figcaption>${imageCaption}</figcaption>
+</figure>
 <div class="ledger">
-<ul class="stays" aria-label="${h.staysLabel}">${h.stays.map((s) => `<li>${s}</li>`).join("")}</ul>
-<ul class="goes" aria-label="${h.goesLabel}">${h.goes.map((s) => `<li><del>${s}</del></li>`).join("")}</ul>
+<div><h2>${h.staysLabel}</h2><ul class="stays" role="list">${h.stays.map((s) => `<li>${s}</li>`).join("")}</ul></div>
+<div><h2>${h.goesLabel}</h2><ul class="goes" role="list">${h.goes.map((s) => `<li>${s}</li>`).join("")}</ul></div>
 </div>
 </section>`;
 
@@ -148,13 +262,16 @@ function page(t) {
   const how = section(
     "how",
     t.how.title,
-    `<p>${t.how.lead}</p><ul class="modes" role="list">${t.how.steps
+    `<p>${t.how.lead}</p><div class="mode-diagram"><p class="mode-root">${l.diagram}</p><ul class="modes" role="list">${t.how.steps
       .map((s) => `<li><h3>${s.title}</h3><p>${s.body}</p></li>`)
-      .join("")}</ul><p><a class="button" href="${t.setup.path}">${t.how.guide}</a></p>
+      .join("")}</ul></div><p><a class="button" href="${t.setup.path}">${t.how.guide}</a></p>
 <p>${t.how.available}</p><p class="note">${t.how.note}</p>
 <p><a href="${t.why.path}">${t.why.h1}</a></p>`,
   );
 
+  const firstDay = section("first-day", dayTitle,
+    `<ol class="first-day">${daySteps.map((step) => `<li>${step}</li>`).join("")}</ol>`);
+  const childView = section("child-view", childTitle, `<p>${childBody}</p>`);
   const phones = section("phones", t.phones.title, `<p>${t.phones.body}</p>`);
 
   const o = t.open;
@@ -174,26 +291,30 @@ function page(t) {
   const hosting = section("self-hosting", host.title,
     `<p>${host.body}</p><p><a href="${GITHUB}/blob/main/docs/self-hosting.md">${host.guide}</a></p>`);
 
-  const price = section("price", t.price.title, `<p>${t.price.body}</p>${questions(t.price.items)}`);
+  const price = section("price", t.price.title, `<p>${t.price.body}</p>`);
 
   const privacy = t.privacySummary;
   const privacySummary = section("privacy", privacy.title,
     `<p>${privacy.body}</p><p><a href="${t.privacy.path}">${privacy.link}</a></p>`);
 
-  const faq = section("faq", t.faq.title, questions(t.faq.items));
+  const faq = section("faq", t.faq.title, faqGroups.map(({ title, items }) =>
+    `<div class="faq-group"><h3>${esc(title)}</h3><div>${questions(items)}</div></div>`,
+  ).join(""));
 
-  return `${head(t, { path: t.path })}
+  return `${head(t, { path: t.path, schema: landingSchema(t, faqGroups.flatMap(({ items }) => items)) })}
 <body>
 ${header(t)}
-<main id="main">
+<main id="main" tabindex="-1">
 ${hero}
 ${who}
 ${how}
+${phones}
+${firstDay}
+${childView}
+${privacySummary}
 ${open}
 ${hosting}
 ${price}
-${privacySummary}
-${phones}
 ${faq}
 </main>
 ${footer(t)}
@@ -213,11 +334,11 @@ function compatibilityPage(t) {
     xDefault: en.compatibility.path,
   })}
 <body>
-${header(t, (page) => page.compatibility.path)}
-<main id="main" class="doc compatibility">
+${header(t)}
+<main id="main" tabindex="-1" class="doc compatibility">
 ${compatibilityContent(t, esc)}
 </main>
-${footer(t)}
+${footer(t, (page) => page.compatibility.path)}
 <script type="module" src="/${appSearchFile}" integrity="sha256-${appSearchHash}"></script>
 </body>
 </html>
@@ -226,10 +347,10 @@ ${footer(t)}
 
 function notFound() {
   const t = en;
-  return `${head({ ...t, title: `${t.notFound.title}: Plainphone` }, { path: "/404", noindex: true })}
+  return `${head({ ...t, title: `${t.notFound.title}: Plainphone` }, { path: "/404", noindex: true, description: `${t.notFound.body} ${t.notFound.back}.` })}
 <body>
 ${header(t)}
-<main id="main" class="hero">
+<main id="main" tabindex="-1" class="hero">
 <h1>${t.notFound.title}</h1>
 <p class="lead">${t.notFound.body}</p>
 <p><a href="/">${t.notFound.back}</a></p>
@@ -252,8 +373,8 @@ function whyPage(t) {
     xDefault: pages[0].why.path,
   })}
 <body>
-${header(t, (p) => p.why.path)}
-<main id="main" class="doc">
+${header(t)}
+<main id="main" tabindex="-1" class="doc">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
 ${p.sections.map(([title, body]) => `<section><h2>${title}</h2><p>${body}</p></section>`).join("\n")}
@@ -262,7 +383,7 @@ ${p.sections.map(([title, body]) => `<section><h2>${title}</h2><p>${body}</p></s
 <ul>${p.sources.map(([label, url]) => `<li><a href="${esc(url)}">${label}</a></li>`).join("")}</ul>
 </section>
 </main>
-${footer(t)}
+${footer(t, (p) => p.why.path)}
 </body>
 </html>
 `;
@@ -292,8 +413,8 @@ function privacyPage(t) {
     xDefault: pages[0].privacy.path,
   })}
 <body>
-${header(t, (p) => p.privacy.path)}
-<main id="main" class="doc">
+${header(t)}
+<main id="main" tabindex="-1" class="doc">
 <h1>${p.h1}</h1>
 <p class="updated">${p.updated}</p>
 <p class="lead">${p.lead}</p>
@@ -302,7 +423,7 @@ ${header(t, (p) => p.privacy.path)}
 <section class="short" aria-labelledby="short"><h2 id="short">${p.short.title}</h2>${block({ list: p.short.list })}</section>
 ${p.sections.map(section).join("\n")}
 </main>
-${footer(t)}
+${footer(t, (p) => p.privacy.path)}
 </body>
 </html>
 `;
@@ -322,8 +443,8 @@ function setupPage(t) {
     xDefault: pages[0].setup.path,
   })}
 <body>
-${header(t, (p) => p.setup.path)}
-<main id="main" class="doc setup">
+${header(t)}
+<main id="main" tabindex="-1" class="doc setup">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
 <section aria-labelledby="phone-choice">
@@ -358,7 +479,7 @@ ${p.lightSteps.map(([title, body, fig]) => `<li><h3>${title}</h3><p>${body}</p>$
 <tbody>${tb.rows.map(([phone, android, result]) => `<tr><th scope="row">${phone}</th><td>${android}</td><td>${result}</td></tr>`).join("")}</tbody></table></div>
 ${tb.body.map((b) => `<p>${b}</p>`).join("")}</section>
 </main>
-${footer(t)}
+${footer(t, (p) => p.setup.path)}
 </body>
 </html>
 `;
@@ -381,7 +502,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
-for (const f of [appSearchFile, "favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`)]) {
+for (const f of [appSearchFile, "favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`), ...setupImages]) {
   cpSync(join(src, f), join(dist, f));
 }
 writeFileSync(join(dist, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
@@ -402,19 +523,37 @@ ${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path,
 </urlset>
 `,
 );
-// Cloudflare Pages headers. The CSP allows only our own files plus the one inline stylesheet.
+mkdirSync(join(dist, ".well-known"), { recursive: true });
+writeFileSync(join(dist, ".well-known", "security.txt"),
+  `Contact: ${ADVISORIES}
+Contact: mailto:support@plainphone.org
+Expires: 2027-11-18T00:00:00Z
+Preferred-Languages: en, da
+Canonical: ${ORIGIN}/.well-known/security.txt
+Policy: ${SECURITY_POLICY}
+`,
+);
+// Cloudflare Pages headers. The CSP pins the shared inline stylesheet and compatibility search module.
 writeFileSync(
   join(dist, "_headers"),
   `/*
-  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; script-src 'sha256-${appSearchHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; script-src 'sha256-${appSearchHash}'; style-src-attr 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
+  Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
   Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+/.well-known/security.txt
+  Content-Type: text/plain; charset=utf-8
 
 /fonts/*
   Cache-Control: public, max-age=604800
+
+/mail/*
+  ! Cross-Origin-Resource-Policy
+  Cross-Origin-Resource-Policy: cross-origin
 `,
 );
 console.log(`Built ${pages.length * 5} pages + 404 into dist/ (css ${css.length} bytes)`);

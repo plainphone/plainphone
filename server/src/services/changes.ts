@@ -46,6 +46,7 @@ export type Op =
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
   | { type: "contact.schedule"; restricted: boolean }
+  | { type: "dns.method"; method: Phone["filterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
@@ -130,6 +131,8 @@ export async function isLoosening(db: DbLike, phone: Phone, op: Op): Promise<boo
       return false;
     case "contact.schedule":
       return phone.selfScheduleContacts === null || !op.restricted;
+    case "dns.method":
+      return phone.filterMethod !== op.method;
     case "dns.category":
       return !op.blocked;
     case "dns.allowDomain":
@@ -309,6 +312,9 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
       return { dns: false };
     case "contact.remove":
       await db.delete(contacts).where(and(eq(contacts.id, op.contactId), eq(contacts.phoneId, phone.id)));
+      return { dns: false };
+    case "dns.method":
+      await db.update(phones).set({ filterMethod: op.method }).where(eq(phones.id, phone.id));
       return { dns: false };
     case "dns.category": {
       const col = dnsSettings.blockedCategories;
