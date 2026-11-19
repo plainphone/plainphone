@@ -22,7 +22,7 @@ it("puts the first instruction before the code and restarts an expired code for 
     if (request.method === "GET") return Response.json(phone);
     const first = url === "/api/phones/enroll";
     // The first code is already about to run out.
-    const expiresAt = new Date(Date.now() + (first ? 30 : 3_600_000)).toISOString();
+    const expiresAt = new Date(Date.now() + (first ? 300 : 3_600_000)).toISOString();
     return Response.json({ phone, enrollment: { token: tokens[first ? 0 : 1], expiresAt }, provisioning }, { status: 201 });
   });
   vi.stubGlobal("fetch", fetch);
@@ -49,7 +49,7 @@ it("puts the first instruction before the code and restarts an expired code for 
     expect(first.textContent).toContain("Start here");
     expect(first.compareDocumentPosition(qr) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    await act(async () => { await new Promise((r) => setTimeout(r, 80)); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 500)); });
     expect(container.querySelector(".qr")).toBeNull();
     expect(container.querySelector("[role=alert]")?.textContent).toContain("the same phone");
 
@@ -60,6 +60,48 @@ it("puts the first instruction before the code and restarts an expired code for 
     expect(container.querySelector("[role=alert]")).toBeNull();
     const link = [...container.querySelectorAll("a")].find((el) => el.textContent === "Open setup link")!;
     expect(link.href).toContain("9x8-AbCdEfGhIjKlMnOpQr");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    localStorage.removeItem("pp.locale");
+    vi.unstubAllGlobals();
+  }
+});
+
+it("shows the paired screen when restarting an expired code hits 409 because the phone paired", async () => {
+  let paired = false;
+  const fetch = vi.fn(async (url: string, request: RequestInit) => {
+    if (request.method === "GET") return Response.json({ ...phone, pairedAt: paired ? "2026-01-01T00:00:00Z" : null });
+    if (url === "/api/phones/enroll") {
+      return Response.json({ phone, enrollment: { token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
+    }
+    paired = true;
+    return Response.json({ error: "conflict" }, { status: 409 });
+  });
+  vi.stubGlobal("fetch", fetch);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  localStorage.setItem("pp.locale", "en");
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(
+      <MemoryRouter initialEntries={["/add?mode=light"]}>
+        <I18nProvider><AddPhonePage /></I18nProvider>
+      </MemoryRouter>,
+    ));
+    const field = container.querySelector<HTMLInputElement>('input[name="name"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "Test phone");
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => container.querySelector<HTMLFormElement>("form")!.requestSubmit());
+    await act(async () => { await new Promise((r) => setTimeout(r, 500)); });
+    const restart = [...container.querySelectorAll("button")].find((b) => b.textContent === "Create a new setup link")!;
+    expect(document.activeElement).toBe(restart);
+    await act(async () => restart.click());
+    expect(container.querySelector(".setup-done")).not.toBeNull();
+    expect(container.querySelector("[role=alert]")).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

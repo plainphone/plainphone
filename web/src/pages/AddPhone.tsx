@@ -375,6 +375,8 @@ function QrStep({ qr: first }: { qr: Qr }) {
   const [qr, setQr] = useState(first);
   const [restarting, setRestarting] = useState(false);
   const [restartError, setRestartError] = useState<string | null>(null);
+  const [restartPending, setRestartPending] = useState(false);
+  const restartRef = useRef<HTMLButtonElement>(null);
   const startRef = useRef<HTMLParagraphElement>(null);
   const [paired, setPaired] = useState(false);
   const light = qr.mode === "light";
@@ -408,6 +410,11 @@ function QrStep({ qr: first }: { qr: Qr }) {
     };
   }, [qr.phoneId, qr.expiresAt, paired, gone]);
 
+  // The focused element disappears with the code: move focus to the way forward.
+  useEffect(() => {
+    if (gone === "expired") restartRef.current?.focus();
+  }, [gone]);
+
   async function restart() {
     setRestarting(true);
     setRestartError(null);
@@ -417,7 +424,20 @@ function QrStep({ qr: first }: { qr: Qr }) {
       // Keep keyboard and screen-reader users at the first instruction of the new code.
       window.setTimeout(() => startRef.current?.focus(), 0);
     } catch (err) {
-      setRestartError(errorMessage(err, t));
+      // 409: the phone paired (or waits for confirmation) in the meantime. Ask the server
+      // instead of showing a dead end.
+      if (err instanceof ApiError && err.status === 409) {
+        try {
+          const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
+          if (p.pairedAt) {
+            setPaired(true);
+            return;
+          }
+        } catch { /* fall through to the setup page link */ }
+        setRestartPending(true);
+      } else {
+        setRestartError(errorMessage(err, t));
+      }
     } finally {
       setRestarting(false);
     }
@@ -485,8 +505,9 @@ function QrStep({ qr: first }: { qr: Qr }) {
             <div className="notice notice-error setup-gone" role="alert">
               <p>{t(gone === "expired" ? "add.expired" : "add.removed")}</p>
               {restartError && <p>{restartError}</p>}
+              {restartPending && <p><Link to={`/phones/${qr.phoneId}/setup`}>{t("setup.open", { name: qr.name })}</Link></p>}
               {gone === "expired" && (
-                <button type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
+                <button ref={restartRef} type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
                   {t(restarting ? "add.making" : light ? "add.newLink" : "add.newCode")}
                 </button>
               )}
