@@ -15,7 +15,7 @@
     <string name="maintenance_title">Maintenance</string>
     <string name="maintenance_pin_hint">Parent PIN</string>
     <string name="maintenance_unlock">Open</string>
-    <string name="maintenance_wrong_pin">Wrong PIN.</string>
+    <string name="maintenance_wrong_pin">That PIN does not match. Try again.</string>
     <string name="maintenance_install_limit">All installation windows for today have been used. Try again tomorrow.</string>
     <string name="maintenance_install_unavailable">This app is no longer waiting to be installed.</string>
     <string name="maintenance_install_battery">Allow Plainphone to run without battery restrictions, then try again.</string>
@@ -37,6 +37,9 @@
     <string name="maintenance_reapply">Apply the lock now</string>
     <string name="maintenance_release">Release Device Owner (test phones)</string>
     <string name="maintenance_release_confirm">This removes every restriction and gives up Device Owner. Plainphone can then be uninstalled and the phone reset normally. Continue?</string>
+    <string name="maintenance_release_go">Release the phone</string>
+    <string name="maintenance_release_light_go">Switch off</string>
+    <string name="maintenance_release_keep">Keep it on</string>
     <string name="maintenance_contacts">Approved contacts and blocked log</string>
     <string name="status_phone_role_ok">Phone app: Plainphone.</string>
     <string name="status_phone_role_missing">Phone app: not Plainphone. Calls are not filtered.</string>
