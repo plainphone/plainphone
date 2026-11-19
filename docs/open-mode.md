@@ -62,7 +62,7 @@ A school time or bedtime window wins over open mode: during a window only the wi
 - `PUT /phones/{pid}/apps/{package}` blocks or allows one app. `GET /phones/{pid}/apps` adds `blocked` and,
   when only a category blocks the app, `blockedBy`.
 
-Storage: `phones.open_mode` and `phones.blocked_app_categories` (migration `0023_open_mode`). Single apps use
+Storage: `phones.open_mode` and `phones.blocked_app_categories` (migration `0036_open_mode`). Single apps use
 the existing `phone_apps.explicitly_blocked`.
 
 ## Limits
