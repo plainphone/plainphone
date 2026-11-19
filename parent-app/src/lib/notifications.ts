@@ -4,12 +4,13 @@ import { AndroidImportance, IosAuthorizationStatus } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
+import type { Locale } from "../api/models";
 import { getSessionToken } from "../api/client";
 import { registerNativeToken } from "./push-registration";
 
-export const CHANNELS = [
-  { id: "normal", name: { en: "Notifications", da: "Notifikationer" }, importance: AndroidImportance.DEFAULT },
-  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS" }, importance: AndroidImportance.HIGH },
+export const CHANNELS: { id: string; name: Record<Locale, string>; importance: AndroidImportance }[] = [
+  { id: "normal", name: { en: "Notifications", da: "Notifikationer", sv: "Aviseringar", nb: "Varsler", de: "Benachrichtigungen" }, importance: AndroidImportance.DEFAULT },
+  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS", sv: "Akut SOS", nb: "Akutt SOS", de: "Dringender SOS" }, importance: AndroidImportance.HIGH },
 ];
 
 if (Platform.OS !== "web") {
@@ -37,7 +38,7 @@ export function routeForPush(data: unknown): Href {
   return "/";
 }
 
-async function ensureChannels(locale: "en" | "da") {
+async function ensureChannels(locale: Locale) {
   if (Platform.OS !== "android") return;
   for (const ch of CHANNELS) {
     await Notifications.setNotificationChannelAsync(ch.id, {
@@ -59,7 +60,7 @@ async function sendNativeToken(token: Notifications.DevicePushToken, session: st
   }
 }
 
-export async function syncNativePush(locale: "en" | "da", requestPermission = false): Promise<PushState> {
+export async function syncNativePush(locale: Locale, requestPermission = false): Promise<PushState> {
   const session = getSessionToken();
   if (!session || Platform.OS === "web") return "unsupported";
   try {
@@ -76,7 +77,7 @@ export async function syncNativePush(locale: "en" | "da", requestPermission = fa
   }
 }
 
-export function watchNativePush(locale: "en" | "da") {
+export function watchNativePush(locale: Locale) {
   if (Platform.OS === "web") return () => {};
   const token = Notifications.addPushTokenListener((value) => {
     const session = getSessionToken();

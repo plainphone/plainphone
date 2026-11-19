@@ -18,7 +18,7 @@ import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprova
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
-import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
+import { ENROLLMENT_PREFIX, enrollmentMatches, lockEnrollment, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
 import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -186,10 +186,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       cancel: z.boolean().optional(),
     }));
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || (!input.cancel && e.expiresAt <= ctx.now())) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== input.mode || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || (!input.cancel && e.expiresAt <= ctx.now())) return null;
+      if (phone.mode !== input.mode || phone.deviceTokenHash) return null;
       if (input.cancel) return { clientId: await deletePhone(tx, phone.id) };
       const [account] = e.createdBy
         ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, e.createdBy))
@@ -216,10 +217,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }));
     const now = ctx.now();
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || e.expiresAt <= now) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || e.expiresAt <= now) return null;
+      if (phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
       const rules = await readSelfTemplate(tx, input.template, now);
       if (!rules) return null;
       const skippedCoreBlocks = await replaceDraftTemplate(tx, phone.id, rules, now);
@@ -245,7 +247,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
-    if (r.status !== 200) return c.json({ error: r.error }, r.status);
+    if (r.status !== 200) return c.json({ error: r.error, ...(r.code && { code: r.code }) }, r.status);
     const { phoneId, deviceToken, account, setupUndoMinutes } = r;
     return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
   });

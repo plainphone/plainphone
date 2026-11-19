@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- The home screen. Kept apart from strings.xml so parallel work does not collide. -->
+<resources>
+    <string name="home_label">Plainphones startskärm</string>
+    <string name="home_phone">Telefon</string>
+    <string name="home_messages">Meddelanden</string>
+    <string name="home_emergency">Nödsamtal</string>
+    <string name="home_all_apps">Alla appar</string>
+    <string name="home_back">Tillbaka</string>
+    <string name="home_no_apps">Inga andra appar just nu.</string>
+    <string name="home_school_until">Skoltid till %1$s</string>
+    <string name="home_bedtime_until">Nattläge till %1$s</string>
+    <string name="home_time_used">Slut för idag</string>
+    <plurals name="home_minutes_left">
+        <item quantity="one">%d min kvar</item>
+        <item quantity="other">%d min kvar</item>
+    </plurals>
+    <string name="home_make_default_title">Använd Plainphone som din startskärm</string>
+    <string name="home_make_default_body">Då är bara de valda apparna på din skärm.</string>
+    <string name="home_make_default_button">Välj Plainphone</string>
+</resources>

@@ -143,6 +143,8 @@
     <string name="blocked_sms_out">Outgoing message</string>
     <string name="pair_button">Pair with a parent</string>
     <string name="pairing_connecting">Connecting to the dashboard…</string>
+    <string name="pairing_outdated_qr_strong">Ask your parent for a new setup QR code. Factory-reset this phone, then scan the new code during Android setup.</string>
+    <string name="pairing_outdated_qr_light">This setup link is out of date. Make a new one in the dashboard and open it on this phone.</string>
     <string name="pairing_loading">Getting a pairing code…</string>
     <string name="pairing_instructions">Scan this code with the camera on the parent\'s phone. Or open app.plainphone.org, choose Add phone, then Type the code.</string>
     <string name="pairing_waiting">Waiting for the dashboard. The code is valid for 15 minutes.</string>
@@ -319,6 +321,7 @@
     <string name="self_template_share">Set up like me</string>
     <string name="self_template_help">Share your time limits, schedules, app choices and web filter categories. The code expires after 15 minutes.</string>
     <string name="self_tools">Help each other</string>
+    <string name="maintenance_language">Plainphone language: %1$s</string>
     <string name="light_private_dns_title">Private DNS</string>
     <string name="light_private_dns_body">Copy the address, then open Settings. In Network &amp; internet, choose Private DNS, select Private DNS provider hostname, paste the address and save. In Tailscale, turn off “Use Tailscale DNS settings”. MagicDNS names will no longer resolve.</string>
     <string name="light_private_dns_waiting">Waiting for your phone’s filter address. Try again in a moment.</string>

@@ -145,6 +145,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
 
+    override fun refreshPhoneLanguage() {
+        (context.applicationContext as? org.plainphone.app.PlainphoneApplication)?.refreshPhoneLanguage()
+    }
+
     override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
     override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()
     override fun safetyEventDone(event: SafetyEvent) = org.plainphone.app.safety.SafetyStore(context).done(event)

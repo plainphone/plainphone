@@ -56,6 +56,8 @@ interface SyncDevice {
     // "Ring the phone", "Are you okay?" and the location notices (docs/location.md).
     // Defaults do nothing, so a device without a screen (tests) needs none of it.
 
+    /** Apply the last saved app locale, or the system default after release. */
+    fun refreshPhoneLanguage() {}
     /** Starts or stops the ring, shows or closes the question, and keeps the location notices current. */
     fun onSafetyRules(rules: ServerRules) {}
     /** Answers and "shown" events the server has not heard yet, oldest first. */
@@ -174,6 +176,7 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
+        guarded("phone language") { device.refreshPhoneLanguage() }
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
@@ -239,6 +242,7 @@ class SyncRunner(
             return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
         }
         store.markReleased()
+        guarded("reset phone language") { device.refreshPhoneLanguage() }
         return acknowledgeRelease(token) ?: Outcome.Failed("the server says nobody asked for a release")
     }
 

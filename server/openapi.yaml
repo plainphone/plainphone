@@ -133,6 +133,7 @@ components:
         enrollment:
           type: object
           properties:
+            id: { type: string, format: uuid, description: Public identifier used by the dashboard to check whether the QR is still current. }
             token: { type: string, examples: ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"] }
             expiresAt: { type: string, format: date-time }
         provisioning:
@@ -147,6 +148,12 @@ components:
             signatureChecksum: { type: string, description: base64url SHA-256 of the app's signing certificate }
             serverUrl: { type: string, format: uri }
             dnsHost: { type: string, description: Private DNS until the phone's own filter host is ready }
+            mode: { enum: [strong, light] }
+            profile: { enum: [child, self] }
+            language: { $ref: "#/components/schemas/PhoneLanguage" }
+            timezone: { type: string }
+            locale: { type: [string, "null"], description: Android setup locale for a strong Child phone, if chosen. }
+            countryCode: { type: [string, "null"], description: Calling code inferred from the strong setup time zone. }
     Error:
       type: object
       required: [error]
@@ -474,14 +481,22 @@ components:
         status: { const: pending }
         change: { $ref: "#/components/schemas/PendingChange" }
 
+    PhoneLanguage:
+      enum: [da, en, sv, nb, de, null]
+      description: Plainphone UI language. Null follows the system.
+
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
+      required: [phoneId, profile, mode, timezone, language, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
+        language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
         timezone:
           type: string
           description: IANA time zone that schedule times are in.
@@ -729,6 +744,10 @@ components:
         name: { type: string }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
+        language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
         timezone: { type: string }
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
@@ -736,6 +755,10 @@ components:
         setupQrAvailable:
           type: boolean
           description: Whether the dashboard can issue a new setup QR code for this phone.
+        setupEnrollmentId:
+          type: [string, "null"]
+          format: uuid
+          description: Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -1171,8 +1194,22 @@ paths:
                       maskedEmail: { type: string }
                       householdName: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/Error" }
-        "404": { description: Unknown token. Fall back to pairing with a code. }
-        "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
+        "404": { description: Unknown token. Strong setup requires a fresh QR and a factory reset. }
+        "409":
+          description: "This QR code is out of date. Make a new one."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "410":
+          description: Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+                  code: { const: outdated_qr, description: Present for superseded tokens. }
         "429": { $ref: "#/components/responses/Error" }
 
   /device/rules:
@@ -1676,7 +1713,7 @@ paths:
               required: [email]
               properties:
                 email: { type: string, format: email }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
                 client:
                   enum: [web, native]
                   default: web
@@ -1701,7 +1738,7 @@ paths:
               required: [token]
               properties:
                 token: { type: string }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
                 client:
                   enum: [web, native]
                   default: web
@@ -1751,7 +1788,7 @@ paths:
             schema:
               type: object
               properties:
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
       responses:
         "204": { description: "Saved" }
     delete:
@@ -2026,7 +2063,7 @@ paths:
               required: [email]
               properties:
                 email: { type: string, format: email }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
       responses:
         "201": { description: "Invited" }
   /households/{hid}/invites/{iid}:
@@ -2118,6 +2155,7 @@ paths:
                 profile: { enum: [child, self] }
                 filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 householdId: { type: string, format: uuid }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
         "201":
@@ -2153,6 +2191,7 @@ paths:
                 filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 profile: { enum: [child, self] }
                 householdId: { type: string, format: uuid }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
         "201":
@@ -2193,9 +2232,9 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
     patch:
       operationId: updatePhone
-      summary: Rename a phone or switch location
+      summary: Update a phone
       tags: [phones]
-      description: Turning location off deletes the stored position.
+      description: Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         content:
@@ -2207,6 +2246,11 @@ paths:
                 locationEnabled: { type: boolean }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
+                lockSystemLanguage: { type: boolean }
+                timezone:
+                  type: string
+                  description: IANA time zone for the household. Can be set before strong setup.
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0
@@ -2214,6 +2258,8 @@ paths:
                   description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
         "200": { description: "Updated phone" }
+        "400": { description: Invalid time zone }
+        "409": { description: Time zone can only be set before strong setup }
     delete:
       operationId: deletePhone
       summary: Remove a phone

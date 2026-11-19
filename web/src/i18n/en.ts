@@ -862,6 +862,8 @@ export const en = {
   "add.pinMismatch": "The two PINs are not the same.",
   "add.makeLink": "Create setup link",
   "add.lightPinOnPhone": "Choose and confirm your parent PIN on the phone.",
+  "add.timezone": "Household time zone",
+  "add.timezoneHelp": "Choose the time zone where this phone will be used. Android setup and schedules use it.",
   "add.makeQr": "Make the QR code",
   "add.making": "Making the QR code…",
   "add.qrTitle": "Set up {name}'s phone",
@@ -879,6 +881,8 @@ export const en = {
   "add.pairedBody": "The phone follows your rules from now on. Choose its apps and contacts next.",
   "add.noCrypto": "This browser cannot make the code here. Open the dashboard over https in an up-to-date browser.",
   "add.expired": "The code has run out.",
+  "add.outdatedQr": "This QR code is out of date. Make a new one.",
+  "add.setupChanged": "Setup settings changed. If you already made a QR code, make a new one.",
   "add.removed": "This phone was removed from the dashboard.",
   "setup.open": "Open {name}",
   "setup.alreadyTitle": "This phone is set up",
@@ -968,6 +972,15 @@ export const en = {
 
   "notif.serverOff": "Browser notifications are not set up on this server.",
   "notif.neverDefault": "Never (standard)",
+  "phoneLanguage.label": "Plainphone language",
+  "phoneLanguage.system": "Use phone language",
+  "phoneLanguage.help": "This changes the language of Plainphone after the phone syncs.",
+  "phoneLanguage.setup": "In strong mode for a child, this also sets the Android language during setup.",
+  "phoneLanguage.lockSystem": "Lock Android language",
+  "phoneLanguage.lockSystemHelp": "Prevents changes to the system language in Android Settings.",
+  "phoneLanguage.strong": "Set up in strong mode",
+  "phoneLanguage.browser": "Continue in the browser",
+  "phoneLanguage.browserHelp": "Sign in to the dashboard in your browser to create the setup QR code.",
 } as const;
 
 export type MessageKey = keyof typeof en;

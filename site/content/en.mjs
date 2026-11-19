@@ -109,7 +109,7 @@ export default {
     ],
     guide: "Open the setup guide",
     available: "Available now: approved contacts, a web filter with categories, and optional text, call and contact history. You can also use the phone’s filter address on a router or VPN. Phone updates and server backups are supported.",
-    note: "Coming soon: SOS and a phone language parents can choose.",
+    note: "Coming soon: SOS.",
   },
   open: {
     title: "Open source",
@@ -261,6 +261,7 @@ export default {
           {
             list: [
               "the name the adult gives the phone, whether it is a child’s or an adult’s own phone, its time zone and when it last contacted the server",
+              "the language chosen for Plainphone on the phone, if the adult picks one",
               "a few short facts the phone reports when it pairs, such as its model and Android version, and its latest status: battery level, app version, whether its lock is intact and which web filter address it uses. Each report replaces the one before",
               "if you turn on protection against reset, your household keeps your numeric Google account ID and when it was linked. Disconnect it in Household settings to delete it, or delete your Plainphone account. We do not store your Google email address or sign-in tokens for this feature",
               "for a phone in strong mode, the latest system check, including whether the bootloader is locked, the security patch level and the check time. Each check replaces the previous one, and removing the phone deletes it. We do not keep its certificate chain",
@@ -388,6 +389,10 @@ export default {
                   "Invitations",
                   "Deleted when accepted. Otherwise they stop working after 7 days and are deleted a day later. You can withdraw an open invitation at any time",
                 ],
+                [
+                  "Setup code hashes and saved setup settings",
+                  "Eligible for cleanup 30 days after the code expires. Removing the phone deletes them",
+                ],
                 ["Web filter counters", "24 hours"],
                 [
                   "Backups of the database",
@@ -445,6 +450,7 @@ export default {
     question: "Is the phone new or already in use?",
     strong: "It is new or reset",
     strongHelp: "Recommended. Plainphone can protect more settings on a fresh phone.",
+    strongLanguage: "Before showing the QR code, choose the phone language. Android uses it during setup. You can change the language in Plainphone later from the phone settings in the dashboard.",
     light: "It is already in use",
     lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
     startStrong: "Start setup for a new or reset phone",

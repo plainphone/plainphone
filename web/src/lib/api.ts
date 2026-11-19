@@ -3,7 +3,9 @@
 // Thin client for the parent API. The session lives in an HttpOnly cookie (path /api),
 // so the app never sees or stores a token.
 
-export type Locale = "en" | "da";
+import type { Language, PhoneLanguage } from "./phone-language";
+
+export type Locale = Language;
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
@@ -83,10 +85,13 @@ export interface Phone {
   profile: Profile;
   mode: "strong" | "light";
   timezone: string;
+  language?: PhoneLanguage;
+  lockSystemLanguage?: boolean;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;
   setupQrAvailable?: boolean;
+  setupEnrollmentId?: string | null;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
   lastSeenAt: string | null;
@@ -318,7 +323,7 @@ export type Op =
   | { type: "catalog.add"; packageName: string; label: string }
   | { type: "catalog.remove"; packageName: string };
 
-export type ApprovalSummary = Record<Locale, string>;
+export type ApprovalSummary = Record<"en" | "da", string>;
 
 export interface PendingChange {
   summary?: ApprovalSummary;

@@ -9,6 +9,7 @@ import {
   DNS_CATEGORIES,
   dnsSettings,
   locations,
+  enrollments,
   pairings,
   pendingChanges,
   phoneApps,
@@ -22,6 +23,7 @@ import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import { fcmValidationKey, type WakeReason } from "../providers/push.js";
 import type { Ctx } from "./context.js";
+import { enrollmentMatches } from "./enrollment.js";
 import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
@@ -53,6 +55,7 @@ export async function createPhone(
     deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
+    language?: Phone["language"];
     filterMethod?: Phone["filterMethod"];
   },
 ): Promise<Phone> {
@@ -72,6 +75,7 @@ export async function createPhone(
       // "Are you okay?"; an adult's is off until its owner turns it on.
       locationEnabled: input.profile === "child",
       locationMode: input.profile === "child" ? "checkin" : "off",
+      language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
     })
@@ -192,6 +196,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
       timezone: phone.timezone,
+      language: phone.language,
+      lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
       privateDnsReady: isDnsReady(ctx, phone),
@@ -232,6 +238,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
+    language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
@@ -319,8 +327,25 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const [row] = await ctx.db.select({
+    phone: phones,
+    ...summaryFields(),
+    setupEnrollment: sql<Pick<typeof enrollments.$inferSelect, "id" | "provisioning" | "invalidatedAt"> | null>`
+      (select jsonb_build_object('id', ${enrollments.id}, 'provisioning', ${enrollments.provisioning}, 'invalidatedAt', null)
+       from ${enrollments}
+       where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
+         and ${enrollments.invalidatedAt} is null and ${enrollments.usedAt} is null
+         and ${enrollments.provisioning} is not null
+         and ${enrollments.expiresAt} > ${ctx.now().toISOString()}::timestamptz
+       order by ${enrollments.createdAt} desc limit 1)`,
+  }).from(phones).where(eq(phones.id, phone.id));
+  const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  return {
+    ...summary,
+    setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
+      ? row.setupEnrollment.id
+      : null,
+  };
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -375,6 +400,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     profile: phone.profile,
     mode: phone.mode,
     timezone: phone.timezone,
+    language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,

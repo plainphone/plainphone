@@ -2,7 +2,7 @@
 import type { MessageKey } from "../i18n/translate";
 import type { Locale } from "./api";
 
-const labels = new Map<string, Record<Locale, string>>();
+const labels = new Map<string, Record<"en" | "da", string>>();
 function add(step: string, en: string, da: string) {
   labels.set(step, { en, da });
 }
@@ -60,6 +60,7 @@ add("hardware attestation: failed-boot", "check why the phone’s system did not
 add("hardware attestation", "check the phone’s system", "tjek telefonens system");
 
 const restrictions: Record<string, [string, string]> = {
+  no_config_locale: ["Lock Android language", "Lås sproget i Android"],
   no_install_apps: ["block app installation", "blokér installation af apps"],
   no_install_unknown_sources: ["block apps from unknown sources", "blokér apps fra ukendte kilder"],
   no_install_unknown_sources_globally: ["block apps from unknown sources for all users", "blokér apps fra ukendte kilder for alle brugere"],
@@ -89,6 +90,6 @@ for (const [key, [en, da]] of Object.entries(restrictions)) add(`restriction ${k
 
 export function failedPolicyLabel(step: string, locale: Locale): string | undefined {
   const key = step.startsWith("extra users and profiles:") ? "extra users and profiles" : step;
-  return labels.get(key)?.[locale] ??
-    (key.startsWith("hardware attestation:") ? labels.get("hardware attestation")?.[locale] : undefined);
+  return labels.get(key)?.[locale === "da" ? "da" : "en"] ??
+    (key.startsWith("hardware attestation:") ? labels.get("hardware attestation")?.[locale === "da" ? "da" : "en"] : undefined);
 }

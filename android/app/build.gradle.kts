@@ -85,7 +85,13 @@ android {
     sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
 
     androidResources {
-        localeFilters += listOf("en", "da")
+        localeFilters += listOf("en", "da", "sv", "nb", "de")
+    }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
     }
 
     dependenciesInfo {
@@ -116,6 +122,11 @@ android {
         // androidx.lifecycle ships lint checks built against an older lint API; nothing to fix on our side.
         disable += "ObsoleteLintCustomCheck"
     }
+}
+
+// Robolectric and Compose screenshot tests outgrow the 512 MB default test heap.
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "1536m"
 }
 
 dependencies {

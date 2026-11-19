@@ -109,7 +109,7 @@ export default {
     ],
     guide: "Åbn opsætningsvejledningen",
     available: "Du kan allerede vælge godkendte kontakter, filtrere hjemmesider efter kategori og slå historik for sms, opkald og kontakter til. Telefonens filteradresse kan også bruges på en router eller med en VPN. Telefonen kan opdatere sig selv, og serveren kan tage sikkerhedskopier.",
-    note: "Kommer snart: SOS og mulighed for at vælge telefonens sprog som forælder.",
+    note: "Kommer snart: SOS.",
   },
   open: {
     title: "Åben kildekode",
@@ -261,6 +261,7 @@ export default {
           {
             list: [
               "det navn, den voksne giver telefonen, om det er et barns telefon eller en voksens egen, tidszonen og hvornår telefonen sidst var i kontakt med serveren",
+              "sproget i Plainphone på telefonen, hvis den voksne har valgt et",
               "nogle få korte oplysninger, som telefonen sender, når den parres, fx model og Androidversion, og dens seneste status: batteriniveau, appversion, om låsen er intakt, og hvilken webfilteradresse den bruger. Hver melding erstatter den forrige",
               "hvis du slår beskyttelse mod nulstilling til, gemmer husstanden dit numeriske Google-konto-id og tidspunktet, hvor kontoen blev tilknyttet. Du kan slette id'et ved at fjerne tilknytningen i husstandens indstillinger eller slette din Plainphone-konto. Vi gemmer hverken din Google-mailadresse eller dine login-tokens til funktionen",
               "for en telefon i stærk tilstand gemmer vi det seneste systemtjek, herunder om bootloaderen er låst, sikkerhedsopdateringens niveau og tidspunktet for tjekket. Hvert tjek erstatter det forrige. Når telefonen fjernes, slettes tjekket. Vi gemmer ikke dens certifikatkæde",
@@ -388,6 +389,10 @@ export default {
                   "Invitationer",
                   "Slettes, når de tages imod. Ellers holder de op med at virke efter 7 dage og slettes et døgn senere. Du kan altid trække en åben invitation tilbage",
                 ],
+                [
+                  "Hashværdier for opsætningskoder og gemte opsætningsindstillinger",
+                  "Kan ryddes op 30 dage efter kodens udløb. De slettes, når telefonen fjernes",
+                ],
                 ["Webfilterets tællere", "24 timer"],
                 [
                   "Sikkerhedskopier af databasen",
@@ -445,6 +450,7 @@ export default {
     question: "Er telefonen ny eller allerede i brug?",
     strong: "Den er ny eller nulstillet",
     strongHelp: "Anbefalet. Plainphone kan beskytte flere indstillinger på en ny eller nulstillet telefon.",
+    strongLanguage: "Vælg telefonens sprog, før du viser QR-koden. Android bruger sproget under opsætningen. Du kan senere ændre sproget i Plainphone under telefonens indstillinger i kontrolpanelet.",
     light: "Den er allerede i brug",
     lightHelp: "Behold telefonens indhold, og slå beskyttelsen til i Androids indstillinger.",
     startStrong: "Start opsætning af en ny eller nulstillet telefon",

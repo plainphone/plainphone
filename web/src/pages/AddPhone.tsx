@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { Switch, errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
+import { intlLocale } from "../lib/format";
 import { lightSetupLink } from "../lib/light-setup";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import {
-  countryCodeForTimezone,
   hashPin,
   isValidPin,
   newSalt,
@@ -17,17 +17,26 @@ import {
   provisioningPayload,
   provisioningQr,
 } from "../lib/provisioning";
+import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
+import type { PhoneLanguage } from "../lib/phone-language";
 import "./add-phone.css";
 
 interface EnrollmentOut {
   phone?: Phone;
-  enrollment: { token: string; expiresAt: string };
-  provisioning: ProvisioningInfo;
+  enrollment: { id: string; token: string; expiresAt: string };
+  provisioning: ProvisioningInfo & {
+    mode: Phone["mode"];
+    profile: Profile;
+    timezone: string;
+    locale: string | null;
+    countryCode: string | null;
+  };
 }
 
 type Mode = Phone["mode"];
 
 interface Qr {
+  enrollmentId: string;
   phoneId: string;
   name: string;
   mode: Mode;
@@ -49,16 +58,17 @@ export function AddPhonePage() {
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
+  const [language, setLanguage] = useState<PhoneLanguage>(null);
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [privateDns, setPrivateDns] = useState(false);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
   async function makeQr(pin?: string) {
     if (!mode) return;
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
@@ -89,8 +99,13 @@ export function AddPhonePage() {
           onBack={() => setMode(null)}
         />
       )}
-      {step === 2 && <PinStep onBack={() => setStep(1)} onDone={makeQr} />}
-      {step === 3 && qr && <QrStep qr={qr} />}
+      {step === 2 && (
+        <PinStep onBack={() => setStep(1)} onDone={makeQr}>
+          <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} />
+          <SetupTimezonePicker value={timezone} onChange={setTimezone} />
+        </PinStep>
+      )}
+      {step === 3 && qr && <QrStep key={qr.enrollmentId} qr={qr} />}
     </div>
   );
 }
@@ -101,6 +116,8 @@ export function SetupPhonePage() {
   const { pid = "" } = useParams();
   const res = useLoad(() => api.get<Phone>(`/phones/${pid}`), [pid]);
   const [qr, setQr] = useState<Qr | null>(null);
+  const [chosenLanguage, setChosenLanguage] = useState<PhoneLanguage>();
+  const [chosenTimezone, setChosenTimezone] = useState<string>();
 
   return (
     <div className={qr ? "setup" : "narrow"}>
@@ -119,20 +136,48 @@ export function SetupPhonePage() {
           ) : phone.setupQrAvailable === false ? (
             <PageTitle sub={t("setup.codePendingBody")}>{t("setup.pendingTitle")}</PageTitle>
           ) : qr ? (
-            <QrStep qr={qr} />
+            <QrStep key={qr.enrollmentId} qr={qr} />
           ) : (
             <PinStep
               light={phone.mode === "light"}
               onDone={async (pin) => {
                 const pinned = pin === undefined ? undefined : await hashForQr(pin);
+                const updated = chosenLanguage !== undefined || chosenTimezone !== undefined
+                  ? await api.patch<Phone>(`/phones/${phone.id}`, { language: chosenLanguage, timezone: chosenTimezone })
+                  : phone;
+                res.setData(() => updated);
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
-                setQr(buildQr(out, phone, pinned, locale));
+                setQr(buildQr(out, updated, pinned, locale));
               }}
-            />
+            >
+              {phone.mode === "strong" && (
+                <>
+                  <PhoneLanguagePicker value={chosenLanguage === undefined ? phone.language ?? null : chosenLanguage} onChange={setChosenLanguage} setup={phone.profile === "child"} />
+                  <SetupTimezonePicker value={chosenTimezone ?? phone.timezone} onChange={setChosenTimezone} />
+                </>
+              )}
+            </PinStep>
           )
         }
       </LoadGate>
     </div>
+  );
+}
+
+function SetupTimezonePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useI18n();
+  const zones = useMemo(
+    () => [...new Set(["UTC", ...Intl.supportedValuesOf("timeZone"), value])].sort(),
+    [value],
+  );
+  return (
+    <Field label={t("add.timezone")} help={t("add.timezoneHelp")}>
+      {(props) => (
+        <select {...props} value={value} onChange={(event) => onChange(event.target.value)}>
+          {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+        </select>
+      )}
+    </Field>
   );
 }
 
@@ -152,13 +197,15 @@ function buildQr(
   locale: string,
 ): Qr {
   const enrollmentToken = out.enrollment.token;
-  const link = phone.mode === "light"
+  const { mode, profile, timezone, locale: setupLocale, countryCode } = out.provisioning;
+  const link = mode === "light"
     ? lightSetupLink(out.provisioning.serverUrl, enrollmentToken, out.provisioning.adminComponent, locale)
     : undefined;
   return {
+    enrollmentId: out.enrollment.id,
     phoneId: phone.id,
     name: phone.name,
-    mode: phone.mode,
+    mode,
     link,
     expiresAt: out.enrollment.expiresAt,
     makeModules: (wifi) => link
@@ -166,7 +213,10 @@ function buildQr(
       : provisioningQr(provisioningPayload(out.provisioning, {
         enrollmentToken,
         ...pinned!,
-        countryCode: countryCodeForTimezone(phone.timezone),
+        countryCode,
+        locale: setupLocale,
+        profile,
+        timezone,
         wifi,
       })).modules,
   };
@@ -284,7 +334,7 @@ function WhoStep(props: {
   );
 }
 
-function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void> }) {
+function PinStep({ light = false, onBack, onDone, children }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void>; children?: ReactNode }) {
   const { t } = useI18n();
   const [pin, setPin] = useState("");
   const [again, setAgain] = useState("");
@@ -317,6 +367,7 @@ function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: 
     <>
       <PageTitle sub={t(light ? "add.lightPinOnPhone" : "add.pinIntro")}>{t(light ? "add.newLink" : "add.pinTitle")}</PageTitle>
       <form onSubmit={submit} noValidate className="stack">
+        {children && <fieldset disabled={busy} className="choices">{children}</fieldset>}
         {!light && (
           <>
             <Field label={t("add.pin")} help={t("add.pinHelp")} error={errors.pin}>
@@ -376,32 +427,41 @@ function QrStep({ qr }: { qr: Qr }) {
   const [copyStatus, setCopyStatus] = useState<"copied" | "copyFailed">();
 
   // Wait for the phone: it pairs itself with the token as soon as setup is done.
-  const [gone, setGone] = useState<"expired" | "removed" | null>(null);
+  const [gone, setGone] = useState<"expired" | "outdated" | "removed" | null>(null);
   useEffect(() => {
     if (paired || gone) return;
     let stop = false;
     const expiresAt = Date.parse(qr.expiresAt);
     const expiryTimer = window.setTimeout(() => setGone("expired"), Math.max(0, expiresAt - Date.now()));
-    const id = window.setInterval(async () => {
+    let checking = false;
+    async function check() {
       // Only while someone looks at the page; stop for good once the code has run out.
-      if (document.hidden) return;
+      if (document.hidden || checking) return;
+      checking = true;
       try {
         const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
         if (stop) return;
         if (p.pairedAt) setPaired(true);
+        else if (p.setupEnrollmentId !== qr.enrollmentId) setGone("outdated");
       } catch (err) {
         if (!stop && err instanceof ApiError && err.status === 404) setGone("removed");
         // Anything else is a network hiccup: try again on the next tick.
+      } finally {
+        checking = false;
       }
-    }, 4_000);
+    }
+    void check();
+    const id = window.setInterval(check, 4_000);
+    document.addEventListener("visibilitychange", check);
     return () => {
       stop = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
       window.clearTimeout(expiryTimer);
     };
-  }, [qr.phoneId, qr.expiresAt, paired, gone]);
+  }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);
 
-  const expires = new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
+  const expires = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
     hour: "2-digit",
     minute: "2-digit",
@@ -421,50 +481,54 @@ function QrStep({ qr }: { qr: Qr }) {
     );
   }
 
+  if (gone) {
+    const message = { expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const;
+    return (
+      <>
+        <PageTitle>{t("add.qrTitle", { name: qr.name })}</PageTitle>
+        <p className="notice notice-error" role="alert">{t(message[gone])}</p>
+        {gone !== "removed" && (
+          <Link className="btn btn-primary" to={`/phones/${qr.phoneId}/setup`} reloadDocument>
+            {t(light ? "add.newLink" : "setup.showQr")}
+          </Link>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
       <div className="setup-grid">
-        {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}
+        <QrImage modules={modules} label={t("add.qrAlt")} />
         <div className="setup-side">
-          {!gone && (
-            <>
-              <ol className="setup-steps">
-                <li>{t(light ? "add.light1" : "add.s1")}</li>
-                <li>{t(light ? "add.light2" : "add.s2")}</li>
-                <li>{t(light ? "add.light3" : "add.s3")}</li>
-              </ol>
-              {qr.link ? (
-                <div className="actions">
-                  <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
-                  {navigator.clipboard && (
-                    <button type="button" className="btn btn-secondary" onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(qr.link!);
-                        setCopyStatus("copied");
-                      } catch {
-                        setCopyStatus("copyFailed");
-                      }
-                    }}>{t("add.copyLink")}</button>
-                  )}
-                  {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
-                </div>
-              ) : <WifiForm wifi={wifi} onChange={setWifi} />}
-            </>
-          )}
-          {gone ? (
-            <p className="notice notice-error" role="alert">
-              {t(gone === "expired" ? "add.expired" : "add.removed")}{" "}
-              {gone === "expired" && <Link to={`/phones/${qr.phoneId}/setup`} reloadDocument>{t(light ? "add.newLink" : "setup.showQr")}</Link>}
-            </p>
-          ) : (
-            <p className="setup-wait" role="status">
-              <span className="pulse" aria-hidden="true" />
-              {t("add.waiting")}
-            </p>
-          )}
-          {!gone && <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>}
+          <ol className="setup-steps">
+            <li>{t(light ? "add.light1" : "add.s1")}</li>
+            <li>{t(light ? "add.light2" : "add.s2")}</li>
+            <li>{t(light ? "add.light3" : "add.s3")}</li>
+          </ol>
+          {qr.link ? (
+            <div className="actions">
+              <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
+              {navigator.clipboard && (
+                <button type="button" className="btn btn-secondary" onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(qr.link!);
+                    setCopyStatus("copied");
+                  } catch {
+                    setCopyStatus("copyFailed");
+                  }
+                }}>{t("add.copyLink")}</button>
+              )}
+              {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
+            </div>
+          ) : <WifiForm wifi={wifi} onChange={setWifi} />}
+          <p className="setup-wait" role="status">
+            <span className="pulse" aria-hidden="true" />
+            {t("add.waiting")}
+          </p>
+          <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>
           <p className="small">
             <a href={t("add.guideUrl")} target="_blank" rel="noreferrer">
               {t("add.guide")}

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import { languageNames, messageLanguage, type PhoneLanguage } from "../../../shared/lib/phone-language";
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { AccessibilityInfo, Switch as NativeSwitch } from "react-native";
+import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
+import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad, useNow } from "../../../components/ui";
@@ -40,7 +42,7 @@ function PendingList() {
   return (
     <VStack gap={space.sm}>
       {pending.map((c) => {
-        const what = c.summary?.[locale] ?? describeOp(c.op, t, locale, appLabel);
+        const what = c.summary?.[messageLanguage(locale)] ?? describeOp(c.op, t, locale, appLabel);
         return (
           <ItemRow key={c.id} testID={`pending-${c.id}`} title={what} meta={pendingWhen(c, now, t, locale)}>
             <Button
@@ -211,6 +213,55 @@ function FreePromiseSetting() {
   );
 }
 
+function PhoneLanguageSettings() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [busy, setBusy] = useState(false);
+
+  async function save(fields: { language: PhoneLanguage } | { lockSystemLanguage: boolean }) {
+    setBusy(true);
+    try {
+      const updated = await unwrap<Phone>(client.PATCH("/phones/{pid}", {
+        params: { path: { pid: phone.id } }, body: fields,
+      }));
+      setPhone(updated);
+      if ("language" in fields && updated.setupQrAvailable) {
+        notify({ tone: "info", text: t("add.setupChanged") });
+      }
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Disclosure title={`${t("phoneLanguage.label")} (${phone.language ? languageNames[phone.language] : t("phoneLanguage.system")})`}>
+        <PhoneLanguagePicker value={phone.language ?? null} onChange={(value) => {
+          if (value !== (phone.language ?? null)) void save({ language: value });
+        }} disabled={busy} />
+      </Disclosure>
+      {phone.mode === "strong" && phone.profile === "child" && (
+        <Switch
+          label={t("phoneLanguage.lockSystem")}
+          help={t("phoneLanguage.lockSystemHelp")}
+          value={phone.lockSystemLanguage ?? true}
+          disabled={busy}
+          onValueChange={(lockSystemLanguage) => void save({ lockSystemLanguage })}
+        />
+      )}
+      {phone.setupQrAvailable && (
+        <Button kind="secondary" title={t("phoneLanguage.browser")} onPress={() => {
+          void Linking.openURL(`${SERVER_URL}/phones/${phone.id}/setup`).catch((err) => {
+            notify({ tone: "error", text: errorMessage(err, t) });
+          });
+        }} />
+      )}
+    </Card>
+  );
+}
+
 function RemovePhone() {
   const { t } = useI18n();
   const router = useRouter();
@@ -368,8 +419,8 @@ function Overview() {
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
-      {failedPolicies.length > 0 ? (
-        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(failedPolicies.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
+      {technicalSteps.length > 0 ? (
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(technicalSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
       ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>
@@ -429,6 +480,7 @@ function Overview() {
         <PushPreferences />
         <FreePromiseSetting key={phone.id} />
         <RenamePhone />
+        <PhoneLanguageSettings />
         <RemovePhone />
       </VStack>
     </Screen>

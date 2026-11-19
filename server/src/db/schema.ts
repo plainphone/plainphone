@@ -16,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ProvisioningInfo } from "../lib/provisioning.js";
 import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -205,6 +206,8 @@ export const phones = pgTable(
     lightContactRestriction: boolean("light_contact_restriction").notNull().default(true),
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
+    language: text("language", { enum: ["da", "en", "sv", "nb", "de"] }),
+    lockSystemLanguage: boolean("lock_system_language").notNull().default(true),
     filterMethod: text("filter_method", { enum: FILTER_METHODS }).notNull().default("vpn"),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
@@ -645,6 +648,8 @@ export const enrollments = pgTable(
       .references(() => phones.id, { onDelete: "cascade" }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    provisioning: jsonb("provisioning").$type<ProvisioningInfo>(),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
     usedAt: timestamp("used_at", { withTimezone: true }),
     /** SHA-256 of the phone's install id, so a lost answer can be retried by the same phone. */
     installIdHash: text("install_id_hash"),

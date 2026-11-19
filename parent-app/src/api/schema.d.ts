@@ -940,8 +940,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename a phone or switch location
-         * @description Turning location off deletes the stored position.
+         * Update a phone
+         * @description Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
          */
         patch: operations["updatePhone"];
         trace?: never;
@@ -1915,6 +1915,11 @@ export interface components {
         Enrollment: {
             phone?: components["schemas"]["PhoneSummary"];
             enrollment?: {
+                /**
+                 * Format: uuid
+                 * @description Public identifier used by the dashboard to check whether the QR is still current.
+                 */
+                id?: string;
                 /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
                 token?: string;
                 /** Format: date-time */
@@ -1935,6 +1940,16 @@ export interface components {
                 serverUrl?: string;
                 /** @description Private DNS until the phone's own filter host is ready */
                 dnsHost?: string;
+                /** @enum {unknown} */
+                mode?: "strong" | "light";
+                /** @enum {unknown} */
+                profile?: "child" | "self";
+                language?: components["schemas"]["PhoneLanguage"];
+                timezone?: string;
+                /** @description Android setup locale for a strong Child phone */
+                locale?: string | null;
+                /** @description Calling code inferred from the strong setup time zone. */
+                countryCode?: string | null;
             };
         };
         Error: {
@@ -2209,6 +2224,11 @@ export interface components {
             status: "pending";
             change: components["schemas"]["PendingChange"];
         };
+        /**
+         * @description Plainphone UI language. Null follows the system.
+         * @enum {unknown}
+         */
+        PhoneLanguage: "da" | "en" | "sv" | "nb" | "de" | null;
         /** @description Everything the phone enforces. Compare the ETag, not the content. */
         Rules: {
             /** Format: uuid */
@@ -2217,6 +2237,9 @@ export interface components {
             profile: "child" | "self";
             /** @enum {unknown} */
             mode: "strong" | "light";
+            language: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
             /**
              * @description IANA time zone that schedule times are in.
              * @example Europe/Copenhagen
@@ -2457,6 +2480,9 @@ export interface components {
             profile?: "child" | "self";
             /** @enum {unknown} */
             mode?: "strong" | "light";
+            language?: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
             timezone?: string;
             locationEnabled?: boolean;
             locationMode?: components["schemas"]["LocationMode"];
@@ -2464,6 +2490,11 @@ export interface components {
             pairedAt?: string | null;
             /** @description Whether the dashboard can issue a new setup QR code for this phone. */
             setupQrAvailable?: boolean;
+            /**
+             * Format: uuid
+             * @description Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
+             */
+            setupEnrollmentId?: string | null;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -3029,19 +3060,37 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
-            /** @description Unknown token. Fall back to pairing with a code. */
+            /** @description Unknown token. Strong setup requires a fresh QR and a factory reset. */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Token expired */
+            /** @description This QR code is out of date. Make a new one. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset. */
             410: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        error: string;
+                        /**
+                         * @description Present for superseded tokens.
+                         * @constant
+                         */
+                        code?: "outdated_qr";
+                    };
+                };
             };
             429: components["responses"]["Error"];
         };
@@ -3769,7 +3818,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description `native` mails a link to /auth/app, which the native parent app opens (universal/app link).
                      * @default web
@@ -3802,7 +3851,7 @@ export interface operations {
                 "application/json": {
                     token: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
                      * @default web
@@ -3928,7 +3977,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4298,7 +4347,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4436,6 +4485,7 @@ export interface operations {
                     filterMethod?: components["schemas"]["FilterMethod"];
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4490,6 +4540,7 @@ export interface operations {
                     profile: "child" | "self";
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4604,6 +4655,10 @@ export interface operations {
                     locationEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
+                    language?: components["schemas"]["PhoneLanguage"];
+                    lockSystemLanguage?: boolean;
+                    /** @description IANA time zone for the household. Can be set before strong setup. */
+                    timezone?: string;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };
@@ -4612,6 +4667,20 @@ export interface operations {
         responses: {
             /** @description Updated phone */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid time zone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Time zone can only be set before strong setup */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
