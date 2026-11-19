@@ -55,6 +55,7 @@ class SettingsApplier(
         }
         for (key in SettingKey.entries) {
             if (key == SettingKey.LOCATION) continue // see location(), it shares its restriction with "Find"
+            if (key == SettingKey.LANGUAGE) continue // System language is part of the Device Owner baseline.
             val s = settings[key]
             if (s.mode == Mode.FREE) {
                 if (presets.applied(key) != null) presets.save(key, null)
@@ -189,7 +190,8 @@ class SettingsApplier(
                 SettingKey.BRIGHTNESS -> setOf(UserManager.DISALLOW_CONFIG_BRIGHTNESS)
                 SettingKey.VOLUME -> setOf(UserManager.DISALLOW_ADJUST_VOLUME)
                 SettingKey.WALLPAPER -> setOf(UserManager.DISALLOW_SET_WALLPAPER)
-                SettingKey.LANGUAGE -> setOf(UserManager.DISALLOW_CONFIG_LOCALE)
+                // The Device Owner baseline controls the system locale for Child phones.
+                SettingKey.LANGUAGE -> emptySet()
                 SettingKey.TETHERING -> setOf(UserManager.DISALLOW_CONFIG_TETHERING)
                 SettingKey.NFC -> if (sdkInt >= 34) {
                     setOf(UserManager.DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO, UserManager.DISALLOW_OUTGOING_BEAM)

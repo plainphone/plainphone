@@ -103,12 +103,13 @@ export function createApp(ctx: Ctx) {
       await ctx.db.execute(sql`select 1`);
       // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
       const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await dnsHealthy()) ? "ok" : "down";
-      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns, push: {
+      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns, push: {
         web: parentPushEnabled(ctx.parentPush, "web"),
         fcm: parentPushEnabled(ctx.parentPush, "fcm"),
         apns: parentPushEnabled(ctx.parentPush, "apns"),
         unifiedpush: Boolean(ctx.push.unifiedPushAvailable),
-      } });
+        errors: ctx.degraded?.push ?? [],
+      }, errors: ctx.degraded?.other ?? [] });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

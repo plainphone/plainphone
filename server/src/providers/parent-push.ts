@@ -11,6 +11,7 @@ export interface PushMessage {
   url: string;
   /** Same tag = the newer notification replaces the older one on the device. */
   tag: string;
+  data?: { type: string; phoneId?: string };
 }
 
 export interface PushTarget {

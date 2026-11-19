@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { allowsServerMove } from "./move-policy.js";
+import { moveInstruction } from "./server-move.js";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
@@ -9,6 +11,7 @@ import {
   DNS_CATEGORIES,
   dnsSettings,
   locations,
+  enrollments,
   pairings,
   pendingChanges,
   phoneApps,
@@ -22,9 +25,11 @@ import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import { fcmValidationKey, type WakeReason } from "../providers/push.js";
 import type { Ctx } from "./context.js";
+import { enrollmentMatches } from "./enrollment.js";
 import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
+import { APP_CATEGORIES, categoryPackages } from "../lib/open-mode.js";
 import { loadTimeLimits } from "./limits.js";
 import { FAST_POLL_SECONDS, loadSafety, safetyForPhone } from "./safety.js";
 
@@ -53,6 +58,7 @@ export async function createPhone(
     deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
+    language?: Phone["language"];
     filterMethod?: Phone["filterMethod"];
   },
 ): Promise<Phone> {
@@ -70,8 +76,14 @@ export async function createPhone(
       dnsClientId: dnsClientId(),
       // D7 and spec 11: a child's phone sends its position only on Find and an unanswered
       // "Are you okay?"; an adult's is off until its owner turns it on.
+      // Open mode: an adult's phone starts with every app allowed except what they block.
+      openMode: input.profile === "self",
+      // Like the web filter, whose categories all start blocked (spec 6): the known social and
+      // gambling apps start on the block list, so an app and its websites never disagree.
+      blockedAppCategories: input.profile === "self" ? [...APP_CATEGORIES] : [],
       locationEnabled: input.profile === "child",
       locationMode: input.profile === "child" ? "checkin" : "off",
+      language: input.language,
       timezone: input.timezone ?? "Europe/Copenhagen",
       pairedAt: input.deviceTokenHash ? ctx.now() : null,
     })
@@ -131,6 +143,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
         installed: phoneApps.installed,
         core: phoneApps.core,
         allowed: phoneApps.allowed,
+        explicitlyBlocked: phoneApps.explicitlyBlocked,
         requested: phoneApps.requested,
       })
       .from(phoneApps)
@@ -142,7 +155,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       )
       .orderBy(phoneApps.packageName),
     ctx.db
-      .select({ name: contacts.name, number: contacts.number })
+      .select({ name: contacts.name, number: contacts.number, sosParent: contacts.sosParent })
       .from(contacts)
       .where(eq(contacts.phoneId, phone.id))
       .orderBy(contacts.name, contacts.number),
@@ -157,7 +170,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       })
       .from(schedules)
       .where(eq(schedules.phoneId, phone.id))
-      .orderBy(schedules.createdAt),
+      .orderBy(schedules.createdAt, schedules.id),
     ctx.db
       .select({ blockedCategories: dnsSettings.blockedCategories })
       .from(dnsSettings)
@@ -181,6 +194,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
   return {
     phone: {
       id: phone.id,
+      allowServerMove: allowsServerMove(phone),
       profile: phone.profile,
       pushProvider: !phone.pushWakeups ? "none" : !phone.preferUnifiedPush && ctx.push.fcmAvailable ? "fcm"
         : ctx.push.unifiedPushAvailable ? "unifiedpush" : "none",
@@ -191,7 +205,11 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       lightContactRestriction: phone.lightContactRestriction,
       selfScheduleContacts: phone.selfScheduleContacts,
       mode: phone.mode,
+      openMode: phone.openMode,
+      blockedAppCategories: phone.blockedAppCategories,
       timezone: phone.timezone,
+      language: phone.language,
+      lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
       privateDnsReady: isDnsReady(ctx, phone),
@@ -204,6 +222,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       releaseRequestedAt: phone.releaseRequestedAt,
       supportEnabled: phone.supportEnabled,
       releaseWarningsEnabled: phone.releaseWarningsEnabled,
+      name: phone.name,
     },
     allApps,
     contactRows,
@@ -220,11 +239,24 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
   const apps = allApps.filter((a) => a.installed);
+  // Open mode: everything is allowed except the block list (apps blocked one by one plus the
+  // known apps of the blocked categories, also when they are not installed yet).
+  const blocked = new Set(
+    phone.openMode
+      ? [...apps.filter((a) => a.explicitlyBlocked && !a.core).map((a) => a.packageName), ...categoryPackages(phone.blockedAppCategories)]
+      : [],
+  );
+  const isAllowed = (a: (typeof apps)[number]) => a.core || (phone.openMode ? !blocked.has(a.packageName) : a.allowed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
+    allowServerMove: phone.allowServerMove,
+    ...(move && { move }),
+    // This server's provisioning host, which answers for any ClientID. A phone falls back to it when its own
+    // filter host stops answering (removed, deleted, or not ready), also after moving here from another server.
+    fallbackDnsHost: fallbackDnsHost ?? null,
     pushProvider: phone.pushProvider,
     unifiedPushAvailable: phone.unifiedPushAvailable,
     ...(phone.fcmValidationKey ? { fcmValidationKey: phone.fcmValidationKey } : {}),
@@ -234,9 +266,14 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
+    language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     apps: {
-      allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
-      hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
+      allowed: sorted(apps.filter(isAllowed).map((a) => a.packageName)),
+      hidden: sorted(apps.filter((a) => !isAllowed(a)).map((a) => a.packageName)),
+      // True: the phone allows every app that is not in `blocked`, also ones installed later.
+      open: phone.openMode,
+      blocked: sorted([...blocked]),
       // Picked from the catalog but not installed yet: the phone offers to install them.
       toInstall: allApps
         .filter((a) => a.requested && a.allowed && !a.installed)
@@ -244,6 +281,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     },
     timeLimits: { total: limits.total, apps: limits.apps.map((a) => ({ packageName: a.packageName, ...a.limit })), bonuses: limits.bonuses },
     contacts: contactRows.map((c) => ({ name: c.name, number: c.number })),
+    ...(phone.profile === "child" ? { sos: { name: phone.name, parents: contactRows.filter((c) => c.sosParent).map(({ name, number }) => ({ name, number })) } } : {}),
     schedules: scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,
@@ -297,8 +335,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
 }
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
-  const { body, etag } = rulesDocument(await loadRulesInputs(ctx, phone));
-  return { etag, body: candidates.includes(etag) ? null : body };
+  const [inputs, move] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone)]);
+  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST);
+  return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 
 function summaryFields() {
@@ -323,8 +362,25 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const [row] = await ctx.db.select({
+    phone: phones,
+    ...summaryFields(),
+    setupEnrollment: sql<Pick<typeof enrollments.$inferSelect, "id" | "provisioning" | "invalidatedAt"> | null>`
+      (select jsonb_build_object('id', ${enrollments.id}, 'provisioning', ${enrollments.provisioning}, 'invalidatedAt', null)
+       from ${enrollments}
+       where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
+         and ${enrollments.invalidatedAt} is null and ${enrollments.usedAt} is null
+         and ${enrollments.provisioning} is not null
+         and ${enrollments.expiresAt} > ${ctx.now().toISOString()}::timestamptz
+       order by ${enrollments.createdAt} desc limit 1)`,
+  }).from(phones).where(eq(phones.id, phone.id));
+  const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  return {
+    ...summary,
+    setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
+      ? row.setupEnrollment.id
+      : null,
+  };
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -378,11 +434,16 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     name: phone.name,
     profile: phone.profile,
     mode: phone.mode,
+    openMode: phone.openMode,
     timezone: phone.timezone,
+    language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
-    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim,
+    allowServerMove: allowsServerMove(phone),
+    awaitingServerMove: phone.awaitingServerMove,
+    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim && !phone.awaitingServerMove,
     /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
     releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     releaseSyncCount: phone.releaseSyncCount,

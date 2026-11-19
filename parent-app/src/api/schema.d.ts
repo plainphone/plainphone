@@ -4,6 +4,94 @@
  */
 
 export interface paths {
+    "/device/sos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a child SOS once per client ID */
+        post: operations["reportSos"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/sos/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check whether a parent acknowledged this SOS */
+        get: operations["getDeviceSos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/sos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** Get the last 30 days of SOS events */
+        get: operations["listPhoneSos"];
+        /** Set or clear the number parents can call back */
+        put: operations["setSosCallbackNumber"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/sos/{id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge an SOS */
+        post: operations["acknowledgeSos"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/contacts/{cid}/sos-parent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Choose an approved parent number for SOS SMS and calls */
+        put: operations["markSosParent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -13,7 +101,7 @@ export interface paths {
         };
         /**
          * Liveness, database and DNS service check
-         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`.
+         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.
          */
         get: operations["getHealth"];
         put?: never;
@@ -120,6 +208,40 @@ export interface paths {
          *     token) pair with a code as before (`POST /device/pairings`).
          */
         post: operations["postDeviceEnroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Redeem a one-time move token into a phone-generated device credential. */
+        post: operations["redeemServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/move-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate the new rules before changing the phone's connection. */
+        get: operations["previewServerMoveRules"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -940,8 +1062,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename a phone or switch location
-         * @description Turning location off deletes the stored position.
+         * Update a phone
+         * @description Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
          */
         patch: operations["updatePhone"];
         trace?: never;
@@ -1002,6 +1124,47 @@ export interface paths {
         get?: never;
         /** Show or hide an app */
         put: operations["putPhonesApps"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/open-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open mode, its blocked categories and the apps blocked one by one */
+        get: operations["getPhonesOpenMode"];
+        /**
+         * Turn open mode on or off
+         * @description Turning it on loosens the rules, so on a Self phone it waits for the key. Turning it off applies at once.
+         */
+        put: operations["putPhonesOpenMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/open-mode/categories/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block or allow a category in open mode
+         * @description Blocks the category's known apps and its web filter category in one action. Allowing it loosens, so on a Self phone it waits for the key.
+         */
+        put: operations["putPhonesOpenModeCategories"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1162,6 +1325,118 @@ export interface paths {
          * @description Hides it and takes it off the install list. Applies at once.
          */
         delete: operations["deletePhonesCatalog"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/phones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listHouseholdMovePhones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMoveSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["prepareServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exportServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/server-move/allow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setServerMovePermission"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/server-move/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startServerMove"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1871,6 +2146,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SosPosition: {
+            lat: number;
+            lon: number;
+        };
+        SosEvent: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {unknown} */
+            kind: "urgent" | "help";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            seenAt: string | null;
+            seenByName: string | null;
+            /** @enum {unknown} */
+            deliveredVia: "push" | "sms" | null;
+            /**
+             * Format: date-time
+             * @description Set when the alert still had not reached every parent at the final timeout.
+             */
+            deliveryFailedAt: string | null;
+            battery: number | null;
+            location: components["schemas"]["SosPosition"] | null;
+        };
         ChildContactSettings: {
             suggestDeviceContacts: boolean;
             lightContactRestriction: boolean;
@@ -1903,7 +2202,7 @@ export interface components {
             /** Format: uuid */
             id?: string;
             /** @enum {unknown} */
-            platform?: "web" | "apns" | "fcm";
+            platform?: "web" | "apns" | "fcm" | "expo";
             label?: string | null;
             /** @description SHA-256 (hex) of the endpoint or token, so a browser can find its own row. The endpoint itself is never returned. */
             endpointHash?: string;
@@ -1915,6 +2214,11 @@ export interface components {
         Enrollment: {
             phone?: components["schemas"]["PhoneSummary"];
             enrollment?: {
+                /**
+                 * Format: uuid
+                 * @description Public identifier used by the dashboard to check whether the QR is still current.
+                 */
+                id?: string;
                 /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
                 token?: string;
                 /** Format: date-time */
@@ -1935,6 +2239,16 @@ export interface components {
                 serverUrl?: string;
                 /** @description Private DNS until the phone's own filter host is ready */
                 dnsHost?: string;
+                /** @enum {unknown} */
+                mode?: "strong" | "light";
+                /** @enum {unknown} */
+                profile?: "child" | "self";
+                language?: components["schemas"]["PhoneLanguage"];
+                timezone?: string;
+                /** @description Android setup locale for a strong Child phone */
+                locale?: string | null;
+                /** @description Calling code inferred from the strong setup time zone. */
+                countryCode?: string | null;
             };
         };
         Error: {
@@ -1952,6 +2266,11 @@ export interface components {
         FilterMethod: "vpn" | "privateDns";
         /** @enum {string} */
         DnsCategory: "social" | "adult" | "gambling" | "games" | "dating" | "video";
+        /**
+         * @description A category open mode can block. "adult" is web filter only; the others also block known apps.
+         * @enum {string}
+         */
+        OpenCategory: "social" | "gambling" | "adult";
         /** @description A rule change, as stored for pending changes and shown on the phone. */
         Op: {
             /** @constant */
@@ -1981,6 +2300,15 @@ export interface components {
             type?: "dns.category";
             category?: components["schemas"]["DnsCategory"];
             blocked?: boolean;
+        } | {
+            /** @constant */
+            type: "openMode.set";
+            enabled: boolean;
+        } | {
+            /** @constant */
+            type: "openMode.category";
+            category: components["schemas"]["OpenCategory"];
+            blocked: boolean;
         } | {
             /** @enum {unknown} */
             type?: "dns.allowDomain" | "dns.blockDomain";
@@ -2012,6 +2340,17 @@ export interface components {
         } | {
             /** @constant */
             type?: "phone.release";
+        } | {
+            /** @constant */
+            type: "move.allow";
+            allowed: boolean;
+        } | {
+            /** @constant */
+            type: "move.start";
+            /** Format: uuid */
+            exportId: string;
+            /** Format: uri */
+            serverUrl: string;
         } | {
             /** @constant */
             type?: "timeLimit.set";
@@ -2209,14 +2548,50 @@ export interface components {
             status: "pending";
             change: components["schemas"]["PendingChange"];
         };
+        /**
+         * @description Plainphone UI language. Null follows the system.
+         * @enum {unknown}
+         */
+        PhoneLanguage: "da" | "en" | "sv" | "nb" | "de" | null;
+        MoveSource: {
+            /** @constant */
+            version: 1;
+            /** Format: uri */
+            serverUrl: string;
+            publicKey: string;
+        };
+        MoveTicket: components["schemas"]["MoveSource"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         /** @description Everything the phone enforces. Compare the ETag, not the content. */
         Rules: {
             /** Format: uuid */
             phoneId: string;
+            sos?: {
+                name: string;
+                parents: {
+                    name: string;
+                    number: components["schemas"]["E164"];
+                }[];
+            };
+            allowServerMove?: boolean;
+            /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
+            fallbackDnsHost?: string | null;
+            move?: {
+                /** Format: uri */
+                serverUrl: string;
+                token: string;
+            };
             /** @enum {unknown} */
             profile: "child" | "self";
             /** @enum {unknown} */
             mode: "strong" | "light";
+            language: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
             /**
              * @description IANA time zone that schedule times are in.
              * @example Europe/Copenhagen
@@ -2224,8 +2599,12 @@ export interface components {
             timezone: string;
             apps: {
                 allowed?: components["schemas"]["PackageName"][];
-                /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default. */
+                /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default, unless `open` is true. */
                 hidden?: components["schemas"]["PackageName"][];
+                /** @description Open mode. Allow every app that is not in `blocked`, also apps the rules have never listed. Missing from older servers (false). */
+                open?: boolean;
+                /** @description The block list in open mode, also apps that are not installed yet (the known apps of blocked categories). Empty when `open` is false. */
+                blocked?: components["schemas"]["PackageName"][];
                 /** @description Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play). */
                 toInstall?: {
                     packageName?: components["schemas"]["PackageName"];
@@ -2461,11 +2840,18 @@ export interface components {
             profile?: "child" | "self";
             /** @enum {unknown} */
             mode?: "strong" | "light";
+            language?: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
+            /** @description Every app is allowed except the block list. */
+            openMode?: boolean;
             timezone?: string;
             locationEnabled?: boolean;
             locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
+            allowServerMove?: boolean;
+            awaitingServerMove?: boolean;
             /** @description Whether the dashboard can issue a new setup QR code for this phone. */
             setupQrAvailable?: boolean;
             /** @default true */
@@ -2474,6 +2860,11 @@ export interface components {
             releaseWarningsEnabled: boolean;
             releaseSyncCount?: number;
             androidVersion?: string | null;
+            /**
+             * Format: uuid
+             * @description Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
+             */
+            setupEnrollmentId?: string | null;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -2680,6 +3071,211 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    reportSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    /** @enum {unknown} */
+                    kind: "urgent" | "help";
+                    battery?: number;
+                    location?: components["schemas"]["SosPosition"];
+                    smsSubmitted?: boolean;
+                    /** Format: date-time */
+                    sentAt?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SosEvent"];
+                };
+            };
+            /** @description SOS unavailable (only for a report that did not already send an SMS) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SOS expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDeviceSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Acknowledgment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        seenAt: string | null;
+                        seenBy: boolean;
+                        seenByName: string | null;
+                    };
+                };
+            };
+            /** @description SOS not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPhoneSos: {
+        parameters: {
+            query?: {
+                unseen?: "1";
+            };
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SOS history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        events: components["schemas"]["SosEvent"][];
+                        callbackNumber: string | null;
+                    };
+                };
+            };
+        };
+    };
+    setSosCallbackNumber: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    callbackNumber: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    acknowledgeSos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    name?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description SOS with its original acknowledgment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SosEvent"];
+                };
+            };
+            /** @description SOS not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markSosParent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Contact not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -2689,7 +3285,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}` */
+            /** @description OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}` */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3040,21 +3636,90 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
-            /** @description Unknown token. Fall back to pairing with a code. */
+            /** @description Unknown token. Strong setup requires a fresh QR and a factory reset. */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Token expired */
+            /** @description This QR code is out of date. Make a new one. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset. */
             410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        /**
+                         * @description Present for superseded tokens.
+                         * @constant
+                         */
+                        code?: "outdated_qr";
+                    };
+                };
+            };
+            429: components["responses"]["Error"];
+        };
+    };
+    redeemServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    deviceToken: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Token consumed */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            429: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    previewServerMoveRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Destination rules for the pending move */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rules"];
+                };
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     getDeviceRules: {
@@ -3780,7 +4445,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description `native` mails a link to /auth/app, which the native parent app opens (universal/app link).
                      * @default web
@@ -3813,7 +4478,7 @@ export interface operations {
                 "application/json": {
                     token: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                     /**
                      * @description Native apps send `native` to get the session token in the body. The PWA only gets the HttpOnly cookie.
                      * @default web
@@ -3939,7 +4604,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4005,7 +4670,7 @@ export interface operations {
                     replaces?: string;
                 } | {
                     /** @enum {unknown} */
-                    platform: "apns" | "fcm";
+                    platform: "apns" | "fcm" | "expo";
                     token: string;
                     replaces?: string;
                     /**
@@ -4309,7 +4974,7 @@ export interface operations {
                     /** Format: email */
                     email: string;
                     /** @enum {unknown} */
-                    locale?: "en" | "da";
+                    locale?: "en" | "da" | "sv" | "nb" | "de";
                 };
             };
         };
@@ -4447,6 +5112,7 @@ export interface operations {
                     filterMethod?: components["schemas"]["FilterMethod"];
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4501,6 +5167,7 @@ export interface operations {
                     profile: "child" | "self";
                     /** Format: uuid */
                     householdId?: string;
+                    language?: components["schemas"]["PhoneLanguage"];
                     /** @example Europe/Copenhagen */
                     timezone?: string;
                 };
@@ -4617,6 +5284,10 @@ export interface operations {
                     locationEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
+                    language?: components["schemas"]["PhoneLanguage"];
+                    lockSystemLanguage?: boolean;
+                    /** @description IANA time zone for the household. Can be set before strong setup. */
+                    timezone?: string;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };
@@ -4625,6 +5296,20 @@ export interface operations {
         responses: {
             /** @description Updated phone */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid time zone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Time zone can only be set before strong setup */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4659,7 +5344,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Installed apps: packageName, label, allowed, core */
+            /** @description Installed apps: packageName, label, allowed, blocked (open mode block list, also via a category), blockedBy (the category, when a blocked category blocks it), core */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4695,6 +5380,82 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getPhonesOpenMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open mode state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        categories: {
+                            category: components["schemas"]["OpenCategory"];
+                            blocked: boolean;
+                            hasApps: boolean;
+                        }[];
+                        blockedApps: {
+                            packageName: components["schemas"]["PackageName"];
+                            label: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    putPhonesOpenMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    putPhonesOpenModeCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                category: components["schemas"]["OpenCategory"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    blocked: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
         };
     };
     getPhonesTimeLimits: {
@@ -4962,6 +5723,191 @@ export interface operations {
             202: components["responses"]["ChangePending"];
         };
     };
+    listHouseholdMovePhones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phones available to the household owner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        phones?: components["schemas"]["PhoneSummary"][];
+                    };
+                };
+            };
+        };
+    };
+    getMoveSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Old server identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveSource"];
+                };
+            };
+        };
+    };
+    prepareServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveSource"];
+            };
+        };
+        responses: {
+            /** @description New server invitation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveTicket"];
+                };
+            };
+        };
+    };
+    exportServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: components["schemas"]["MoveTicket"];
+                    /** Format: uuid */
+                    phoneId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed bundle encrypted to the destination */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bundle: string;
+                        /** Format: uuid */
+                        exportId: string;
+                        phoneIds: string[];
+                    };
+                };
+            };
+        };
+    };
+    importServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    ticketId: string;
+                    bundle: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rules saved on the new server */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        phoneIds: string[];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+        };
+    };
+    setServerMovePermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    allowed: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    startServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    exportId: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            409: components["responses"]["Error"];
+        };
+    };
     getPhonesSettings: {
         parameters: {
             query?: never;
@@ -5219,6 +6165,7 @@ export interface operations {
                             id: string;
                             name: string;
                             number: components["schemas"]["E164"];
+                            sosParent?: boolean;
                         }[];
                         selfScheduleContacts?: boolean | null;
                         suggestDeviceContacts?: boolean;

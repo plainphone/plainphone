@@ -37,6 +37,11 @@ The app registers directly with the Plainphone server for APNs on iOS or FCM on 
 
 Per-phone alert preferences are shared with the web dashboard. See [push setup](push-setup.md) for the Firebase and Apple configuration.
 
+SOS alerts use the same registration. An urgent SOS is sent as a high-priority alert on the
+**Urgent SOS** channel (Android) or as a time-sensitive notification (iOS), and both SOS kinds
+open the child phone's overview. In system settings, allow Urgent SOS through Do Not Disturb or
+Focus if your phone offers it. See [SOS](sos.md#push-configuration).
+
 ## Location screen
 
 The screen mirrors the PWA's location page, section by section, with the same copy (`loc.*`, `ring.*` and `checkin.*` come from `web/src/i18n` through `pnpm sync:shared`):
@@ -91,13 +96,32 @@ xcodebuild -exportArchive -archivePath build/Plainphone.xcarchive -exportPath bu
   -exportOptionsPlist ExportOptions.plist   # method app-store-connect
 ```
 
-Two capabilities must be enabled on the App ID in the Apple developer account, or signing fails: Associated Domains (`applinks:app.plainphone.org`) and Push Notifications (the `expo-notifications` plugin adds the `aps-environment` entitlement). Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
+Enable Associated Domains (`applinks:app.plainphone.org`), Push Notifications and Time Sensitive Notifications for the App ID in the Apple developer account. The `expo-notifications` plugin adds the `aps-environment` entitlement. Add `-allowProvisioningUpdates` to both `xcodebuild` calls to let Xcode refresh the provisioning profile.
 
-EAS Build would do both in the cloud, but needs an Expo account; the project does not depend on one.
+EAS Build is optional for compiling and signing. Push does not need an Expo account: the app registers its APNs or FCM token with your server.
 
 ## Your own server
 
-Build the app with your server and ids:
+Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin
+(e.g. `https://plainphone.example.org`), and select **Connect**. The app checks
+`/api/health` for `ok: true` and `compatibility: 1` before saving the address.
+Changing servers clears the session and you sign in again. Select **Use plainphone.org**
+to return to the hosted service. If the sign-in link opens your browser, choose **Open in the app**
+from the page served by your server.
+
+For an existing phone, **Allow moving this phone to another server** is on the phone overview.
+Enable it before exporting the phone. A Myself phone needs its key. Use the web dashboard on
+both servers to download and import the encrypted file and start the
+[move](self-hosting.md#move-to-your-own-server).
+
+Native notification registration goes to the selected server when you enable notifications
+in Settings. When you reopen Settings, the app checks whether this device's APNs or FCM
+token is still registered for your account on that server. Older servers without the status
+endpoint may ask you to enable notifications again. The built-in server provider delivers
+Web Push to the dashboard and stores native tokens for future delivery.
+
+To set a custom default and have the OS open your domain's links directly, build with
+your own address and app identifiers:
 
 ```sh
 PLAINPHONE_SERVER_URL=https://plainphone.example.org \

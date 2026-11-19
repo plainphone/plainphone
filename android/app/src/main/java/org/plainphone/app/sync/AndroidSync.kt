@@ -55,7 +55,15 @@ import org.plainphone.app.contacts.DeviceContacts
 object Sync {
     fun runner(context: Context): SyncRunner {
         val app = context.applicationContext
-        return SyncRunner(SyncStore(app), PlainphoneApi(ConfigStore(app).load().serverUrl, app), AndroidSyncDevice(app))
+        val store = SyncStore(app)
+        val move = ServerMove(store, { PlainphoneApi(it, app) }, ::checkMoveDns)
+        val server = ConfigStore(app).load().serverUrl
+        val api = PlainphoneApi(server, app)
+        return SyncRunner(store, api, AndroidSyncDevice(app), connectedServer = server) { token, instruction ->
+            move.attempt(token, instruction, System.currentTimeMillis()) {
+                api.fetchRules(token, store.etag) == RulesResult.Unchanged
+            }
+        }
     }
 }
 
@@ -146,6 +154,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
     override fun updateReport() = SelfUpdate.report(context)
 
     override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
+
+    override fun refreshPhoneLanguage() {
+        (context.applicationContext as? org.plainphone.app.PlainphoneApplication)?.refreshPhoneLanguage()
+    }
 
     override fun onSafetyRules(rules: ServerRules) = org.plainphone.app.safety.Safety.onRules(context, rules)
     override fun pendingSafetyEvents() = org.plainphone.app.safety.SafetyStore(context).pending()

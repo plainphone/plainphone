@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { SosPanel } from "../components/SosPanel";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
@@ -49,6 +50,9 @@ export function PhonesPage() {
           </Link>
         )}
       </div>
+      {res.data?.filter(({ phone }) => phone.profile === "child" && phone.pairedAt).map(({ phone }) => (
+        <SosPanel key={phone.id} pid={phone.id} phoneName={phone.name} />
+      ))}
       <LiveStatus notice={notice} onClose={() => setNotice(null)} />
       <LoadGate res={res}>
         {(rows) =>

@@ -45,6 +45,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - forces private DNS (DNS-over-TLS) to a filtering resolver and stops the user from changing private DNS, VPN, network reset and user certificates;
 - turns Chrome's own DNS-over-HTTPS and incognito mode off and forces SafeSearch;
 - hides every app that is not on the allowlist: phone, messages, camera, clock, contacts, settings, keyboard and launcher (found per device, so Samsung and Xiaomi keep their own apps), plus Chrome, Maps, calculator, calendar and gallery;
+- lets parents lock or unlock the Android system language on strong-mode Child phones;
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 
@@ -66,6 +67,15 @@ even offline. The phone reports Undo when it reconnects, even before its first r
 The server removes the phone and notifies current household members whenever the report arrives.
 If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
 [docs/light-mode.md](docs/light-mode.md).
+
+### Open mode: every app except what you block
+
+On a Myself phone, open mode allows every app, also new ones, except a block list. Block one app, or a
+category: **Social media** closes the known social apps and turns on the web filter's social category in
+one action, and gambling works the same way. **Adult content** is web filter only. It is on by default for a
+new Myself phone and off for a child phone, and the Apps page starts with a one-line summary of what is
+blocked. Blocking applies at once; allowing something again goes through your key. Combine it with Private
+DNS to keep Tailscale running. See [docs/open-mode.md](docs/open-mode.md).
 
 ### Tailscale and work VPNs
 
@@ -92,8 +102,9 @@ See [Self keys](docs/self-keys.md).
 
 - **Calls, SMS and contacts.** Plainphone becomes the default phone and SMS app. Strong Child phones enforce approved contacts. Light Child phones enforce the list by default on new pairings. Parents can change the setting in the dashboard, where it starts off for light phones already paired at the upgrade, even before their first rules sync. Parents can also opt in to suggestions from the phone's address book for review in the dashboard or parent app. A Self phone shows the local address book and can limit calls and texts to favourites during schedules. Favourite setup is available after the first rules sync. 112, 911, 114 and the phone's own emergency numbers always work, and after an emergency call anyone can call back for an hour. Existing system SMS and call history is available in the phone app. See [docs/contacts.md](docs/contacts.md).
 - **Helplines.** Children can reach listed support services from Help. See [the helpline policy](docs/policies.md#help-lines).
+- **SOS.** A child can alert their parents from the home screen and include a position when location sharing is enabled. Hold **Call 112** for three seconds to open Android’s emergency dialer. Screen readers offer a timed confirmation. See [docs/sos.md](docs/sos.md).
 - **A filter DNS per phone.** Each phone gets its own DNS-over-TLS address (`<id>.dns.plainphone.org`) on the Plainphone resolver in [`dns/`](dns). On servers without an HTTP DNS provider, the web dashboard says the web filter is unavailable. It shows the address after the HTTP DNS provider confirms provisioning, with [router and VPN setup guides](docs/self-hosting-dns.md#use-a-phones-filter-on-a-router-or-vpn). Previously confirmed phones keep their filter while the server refreshes legacy confirmations. Both parent apps explain the filter's limits even when the DNS settings cannot load. How apps could still get around it: [docs/dns-bypass.md](docs/dns-bypass.md).
-- **Rules from the server.** App list, approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. The app inventory refreshes when installed apps, the phone locale, or enabled keyboard packages change. See [phone sync](docs/phone-sync.md) and the [Android wakeup inventory](docs/wakeups.md). Faster rule updates are optional per phone. With both FCM and UnifiedPush configured, any phone can opt for UnifiedPush without changing the others. The native parent app can receive alerts directly via FCM and APNs. Removing a native app in the dashboard pauses its alerts until you enable them again in the app. See [push setup](docs/push-setup.md).
+- **Rules from the server.** App list (or, in [open mode](docs/open-mode.md), a block list), approved contacts, school time, bedtime, [time limits](docs/time-limits.md) and [phone settings](docs/phone-settings.md). The phone syncs every 15 minutes, at boot, on network changes and every minute while the screen is on. The app inventory refreshes when installed apps, the phone locale, or enabled keyboard packages change. See [phone sync](docs/phone-sync.md) and the [Android wakeup inventory](docs/wakeups.md). Faster rule updates are optional per phone. With both FCM and UnifiedPush configured, any phone can opt for UnifiedPush without changing the others. The native parent app can receive alerts directly via FCM and APNs. Removing a native app in the dashboard pauses its alerts until you enable them again in the app. See [push setup](docs/push-setup.md).
 - **Location on request.** By default the phone shares its position when a parent presses Find or when a check-in reaches its reply deadline without an answer. The server waits briefly before showing a check-in position so a reply arriving at the same time can still win. The phone sends saved or cached positions before requesting new ones, then looks up new positions in order of server expiry. Older Android apps can answer both requests with one position. The map can show the last known position with its original time if a lookup fails. An older position leaves Find open for a newer one. Each lookup has a 30-second budget, and each request gets up to five precise attempts. Sharing every few minutes is an explicit, time-limited choice. Only the latest position is kept, and the child can see each request on the phone. See [docs/location.md](docs/location.md).
 - **Status.** Battery, when the phone was last online, app version and whether the lock is intact. The web dashboard groups phone rules by what they control, when they apply, and what they change on the phone. If a lock step fails, the dashboard describes it in plain language and offers technical details. Both parent apps show a warning if app installation stayed open longer than planned during an update, even when the lock is intact. Both apps also show when the phone detects an unexpected account change, needs consent for a call role, or has removed parallel apps.
 - **Self profile.** For adults using Plainphone on their own phone: changes that loosen the rules wait for a delay, or need approval from a person you trust.
@@ -102,7 +113,7 @@ See [Self keys](docs/self-keys.md).
 
 **As a parent:** sign in at [app.plainphone.org](https://app.plainphone.org), choose **Add phone** and follow the [illustrated setup guide](https://plainphone.org/setup/). [docs/dashboard-setup.md](docs/dashboard-setup.md) covers both modes in detail. The hosted service is a test version.
 
-**Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
+**Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. The native parent app and manual Light setup both offer **Use your own server**. The parent app can return to plainphone.org from the sign-in screen. Dashboard setup links and Strong provisioning codes carry the server address. Household owners can [move existing phones](docs/self-hosting.md#move-to-your-own-server) with an encrypted export. Phones keep their current protection while the new server and filter come online. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
 
 See [Operations](docs/operations.md) for encrypted off-site backups, monitoring and restore drills.
 
@@ -152,7 +163,7 @@ The debug APK ends up in `android/app/build/outputs/apk/debug/`. The server, web
 
 The Android location-budget tests use a simulated monotonic clock to exercise provider fallback and expiry without waiting for the phone's lookup deadline.
 
-The APK includes English and Danish resources. The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
+The APK includes English, Danish, Swedish, Norwegian Bokmål and German resources. See [translation review status](docs/translations.md). The phone draws its pairing QR code with the vendored [Nayuki QR Code generator v1.8.0](https://github.com/nayuki/QR-Code-generator/tree/v1.8.0/java), with a local package name and locale-independent error formatting. Its MIT license is included in the APK and credited in [NOTICE](NOTICE).
 
 See [CI and build](docs/ci-build.md) for workflow triggers, cache behavior and Docker build measurements.
 
@@ -183,7 +194,13 @@ Android cannot update in place from the test key used through v0.1.9. In light m
 
 In the dashboard, **Add phone** starts with a new or reset phone (strong mode) or one
 already in use (light mode). Strong mode uses Android's welcome screen and can include Wi-Fi in
-the provisioning code. The browser hashes the maintenance PIN before adding it to the
+the provisioning code. Choose the phone's language before creating the QR code. For a
+Child phone in strong mode, Android uses that language at setup and Plainphone locks it.
+Choose the household time zone in the browser. The same setting is used for Android setup and schedules.
+If you change the language or the time zone before pairing, make a new QR code or setup link.
+If a strong-mode phone already scanned a rejected code, factory-reset it and scan the new code during setup.
+Later, use **Plainphone language** in either parent app to change the app language or return to the phone's language.
+Light and Myself phones only apply the app language. The browser hashes the maintenance PIN before adding it to the
 code. Light mode keeps the phone's existing data. Chrome installs the app and opens the setup
 link, then the phone asks who will use it and hashes the PIN locally. In both modes, check the
 masked dashboard account on the phone before it redeems the one-time token. The server receives

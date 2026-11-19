@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { messageLanguage } from "../shared/lib/phone-language";
 import { useRouter } from "expo-router";
 import { Linking } from "react-native";
 import { useState } from "react";
@@ -88,7 +89,7 @@ function ApprovalsList() {
           ) : (
             <VStack gap={space.sm}>
               {list.map((a) => {
-                const what = a.summary[locale];
+                const what = a.summary[messageLanguage(locale)];
                 const from = a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : t("appr.fromPhone", { phone: a.phoneName });
                 return (
                   <ItemRow key={a.id} testID={`approval-${a.id}`} title={what} meta={`${from}\n${t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}`}>

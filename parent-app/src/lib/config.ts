@@ -1,21 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
-//
-// Which Plainphone server the app talks to. The hosted service by default; a
-// self-hosted build sets `expo.extra.serverUrl` in app.json (or PLAINPHONE_SERVER_URL
-// at build time via app.config.ts).
 import Constants from "expo-constants";
+import { getItem, setItem } from "./storage";
 
-const DEFAULT_SERVER = "https://app.plainphone.org";
+export const HOSTED_SERVER = "https://app.plainphone.org";
+const SERVER_KEY = "pp.server";
+export const BUILD_SERVER = ((Constants.expoConfig?.extra?.serverUrl as string | undefined) ?? HOSTED_SERVER).replace(/\/+$/, "");
+export let SERVER_URL = BUILD_SERVER;
 
-function clean(url: string): string {
-  return url.replace(/\/+$/, "");
+export function normalizeServerUrl(input: string, dev = __DEV__): string {
+  const raw = input.trim();
+  // Restrict runtime settings to origins, as setup links and APIs use absolute paths.
+  if (!/^https?:\/\/[^\s/?#@\\]+\/?$/i.test(raw)) throw new Error("Invalid server address");
+  const url = new URL(raw);
+  if (url.port === "0") throw new Error("Invalid server port");
+  const host = url.hostname;
+  const local = host === "localhost" || host === "[::1]" || host.endsWith(".local") ||
+    /^(?:(?:127|10)\.\d+|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+$/.test(host);
+  if (url.protocol !== "https:" && !(dev && local)) throw new Error("HTTPS required");
+  return url.origin;
 }
 
-export const SERVER_URL: string = clean(
-  (Constants.expoConfig?.extra?.serverUrl as string | undefined) ?? DEFAULT_SERVER,
-);
+export async function checkServer(server: string, fetchImpl = globalThis.fetch): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const url = `${server}/api/health`;
+    const response = await fetchImpl(url, { credentials: "omit", redirect: "error", signal: controller.signal });
+    if (!response.ok || response.redirected || (response.url && response.url !== url)) throw new Error("Server unavailable");
+    const status = await response.json();
+    if (status?.ok !== true || status?.compatibility !== 1) throw new Error("Incompatible server");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
-export const API_URL = `${SERVER_URL}/api`;
+export async function restoreServer() {
+  const saved = await getItem(SERVER_KEY);
+  SERVER_URL = saved === null ? BUILD_SERVER : normalizeServerUrl(saved);
+}
 
-/** Host part, for matching incoming universal/app links. */
-export const SERVER_HOST = SERVER_URL.replace(/^https?:\/\//, "").split("/")[0];
+export async function saveServer(server: string) {
+  await setItem(SERVER_KEY, server);
+  SERVER_URL = server;
+}

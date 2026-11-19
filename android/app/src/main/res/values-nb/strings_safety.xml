@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- "Ring the phone", "Are you okay?" and location notices (docs/location.md). -->
+<resources>
+    <string name="safety_channel_ring">Ring telefonen</string>
+    <string name="safety_channel_checkin">Har du det bra?</string>
+    <string name="safety_channel_location">Plassering delt</string>
+
+    <string name="ring_eyebrow">Fra foreldrene dine</string>
+    <string name="ring_title">Forelderen din ser etter deg</string>
+    <string name="ring_body">Trykk på knappen så foreldrene dine vet at du hørte telefonen.</string>
+    <string name="ring_here">Jeg er her</string>
+    <string name="ring_notice">Trykk for å åpne, og trykk deretter på Jeg er her.</string>
+    <string name="ring_thanks">Takk. Foreldrene dine har fått svar.</string>
+    <string name="ring_keeps_going">Foreldrene dine vil at telefonen skal fortsette å ringe. Den stopper om %1$s.</string>
+
+    <string name="checkin_eyebrow">Fra foreldrene dine</string>
+    <string name="checkin_title">Har du det bra?</string>
+    <string name="checkin_body">Svar før %1$s.</string>
+    <string name="checkin_body_location">Svar før %1$s. Hvis du ikke svarer i tide, får foreldrene dine se hvor du er da.</string>
+    <string name="checkin_ok">Ja, jeg har det bra</string>
+    <string name="checkin_call">Ring meg</string>
+    <string name="checkin_notice">Svar før %1$s.</string>
+
+    <string name="location_sent_title">Posisjonen er sendt</string>
+    <string name="location_sent_find">Foreldrene dine trykket på Finn. Posisjonen din ble sendt kl. %1$s.</string>
+    <string name="location_sent_checkin">Du svarte ikke på «Har du det bra?». Posisjonen din ble sendt til foreldrene dine kl. %1$s.</string>
+    <string name="location_always_title">Posisjonen din deles med forelderen din</string>
+    <string name="location_always_body">Hvert femte minutt til foreldrene dine slår av posisjonsdeling.</string>
+    <string name="location_always_body_until">Hvert femte minutt fram til %1$s. Deretter bare når foreldrene dine trykker på Finn eller du ikke svarer på «Har du det bra?».</string>
+    <string name="location_always_badge_until">Posisjonen din er delt frem til %1$s</string>
+
+    <string name="sharing_open">Hva kan foreldrene mine se?</string>
+    <string name="sharing_title">Hva kan foreldrene mine se?</string>
+    <string name="sharing_mode_off">Foreldrene dine kan ikke se hvor du er. Posisjonsdeling er av.</string>
+    <string name="sharing_mode_find">Foreldrene dine får bare se hvor du var da de trykket på Finn. Du får beskjed hver gang.</string>
+    <string name="sharing_mode_checkin">Når foreldrene dine trykker på Finn, eller du ikke svarer på «Har du det bra?» i tide, får de se hvor du var akkurat da. Du får beskjed hver gang.</string>
+    <string name="sharing_mode_always">Posisjonen din deles hvert femte minutt fram til %1$s. Deretter bare når foreldrene dine trykker på Finn eller du ikke svarer på «Har du det bra?».</string>
+    <string name="sharing_mode_always_open">Posisjonen din deles hvert femte minutt. Denne meldingen vises hele tiden.</string>
+    <string name="sharing_only_latest">Foreldrene dine ser bare den siste posisjonen din. Det lagres ingen posisjonshistorikk hos dem.</string>
+    <string name="sharing_latest">Når posisjonen din ble sendt</string>
+    <string name="sharing_none">Posisjonen din har ikke blitt sendt de siste 30 dagene.</string>
+    <string name="sharing_why_find">Forelderen din trykket på Finn</string>
+    <string name="sharing_why_checkin">Du svarte ikke på «Har du det bra?»</string>
+    <string name="sharing_why_always">Alltid på</string>
+    <string name="sharing_range">%1$s til %2$s</string>
+    <string name="sharing_log_note">Listen lagres bare på telefonen og viser de siste 30 dagene.</string>
+</resources>

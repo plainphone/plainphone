@@ -31,7 +31,7 @@ export function releaseState(phone: SupportPhone) {
   return "requested";
 }
 
-export function helpUrl(locale: "en" | "da", recovery = false) {
+export function helpUrl(locale: string, recovery = false) {
   return `https://plainphone.org/${locale === "da" ? "da/" : ""}help/${recovery ? "#recovery" : ""}`;
 }
 

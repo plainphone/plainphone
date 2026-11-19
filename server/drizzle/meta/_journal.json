@@ -159,8 +159,36 @@
     {
       "idx": 34,
       "version": "7",
-      "when": 1795093600738,
-      "tag": "0034_launch_support",
+      "when": 1795093813019,
+      "tag": "0034_server_move",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795093873019,
+      "tag": "0035_phone_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795093933019,
+      "tag": "0036_sos",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795093993019,
+      "tag": "0037_open_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795097786050,
+      "tag": "0038_launch_support",
       "breakpoints": true
     }
   ]

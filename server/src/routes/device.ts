@@ -18,7 +18,7 @@ import { approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprova
 import { applyDueChanges, deletePhone, submitChange, type Op } from "../services/changes.js";
 import { pairingAccount, PAIRING_RECOVERY_MS } from "../services/pairing-account.js";
 import { retryDnsDeletions, syncDns } from "../services/dns.js";
-import { ENROLLMENT_PREFIX, redeemEnrollment } from "../services/enrollment.js";
+import { ENROLLMENT_PREFIX, enrollmentMatches, lockEnrollment, redeemEnrollment } from "../services/enrollment.js";
 import { initialSelfKey, sendInitialKeyInvite, setInitialSelfKey, type InitialSelfKey } from "../services/initial-self-key.js";
 import { issueTrustedInvite } from "../services/trusted-invites.js";
 import { readSelfTemplate, replaceDraftTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
@@ -28,11 +28,13 @@ import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
 import { notifyHousehold, notifyAlertRecipients, protectionLost } from "../services/notifications.js";
 import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
+import { canPreviewMove, MoveError, redeemMove, redeemMoveInput } from "../services/server-move.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
 import { createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
+import { deviceSosRoutes } from "./sos.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -186,10 +188,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       cancel: z.boolean().optional(),
     }));
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || (!input.cancel && e.expiresAt <= ctx.now())) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== input.mode || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || (!input.cancel && e.expiresAt <= ctx.now())) return null;
+      if (phone.mode !== input.mode || phone.deviceTokenHash) return null;
       if (input.cancel) return { clientId: await deletePhone(tx, phone.id) };
       const [account] = e.createdBy
         ? await tx.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, e.createdBy))
@@ -216,10 +219,11 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }));
     const now = ctx.now();
     const result = await ctx.db.transaction(async (tx) => {
-      const [e] = await tx.select().from(enrollments).where(eq(enrollments.tokenHash, sha256(input.token))).for("update");
-      if (!e || e.usedAt || e.expiresAt <= now) return null;
-      const [phone] = await tx.select().from(phones).where(eq(phones.id, e.phoneId)).for("update");
-      if (!phone || phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
+      const locked = await lockEnrollment(tx, input.token);
+      if (!locked) return null;
+      const { enrollment: e, phone } = locked;
+      if (e.usedAt || !enrollmentMatches(ctx, e, phone) || e.expiresAt <= now) return null;
+      if (phone.mode !== "light" || phone.profile !== "self" || phone.pairedAt || phone.deviceTokenHash) return null;
       const rules = await readSelfTemplate(tx, input.template, now);
       if (!rules) return null;
       const skippedCoreBlocks = await replaceDraftTemplate(tx, phone.id, rules, now);
@@ -245,9 +249,21 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
-    if (r.status !== 200) return c.json({ error: r.error }, r.status);
+    if (r.status !== 200) return c.json({ error: r.error, ...(r.code && { code: r.code }) }, r.status);
     const { phoneId, deviceToken, account, setupUndoMinutes } = r;
     return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
+  });
+
+  const moveLimit = new RateLimiter(60, 15 * 60_000);
+  app.post("/move", bodyLimit({ maxSize: 1024 }), async (c) => {
+    if (!moveLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "too many moves" });
+    try {
+      await redeemMove(ctx, await body(c, redeemMoveInput));
+      return c.body(null, 204);
+    } catch (err) {
+      if (err instanceof MoveError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
   });
 
   // --- Everything below needs the device token ------------------------------
@@ -264,6 +280,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
+  deviceSosRoutes(app, ctx);
 
   app.put("/contact-suggestions", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     const phone = c.get("phone");
@@ -292,6 +309,16 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.body(null, result.status === "applied" ? 204 : 202);
   });
 
+  app.get("/move-rules", async (c) => {
+    const phone = c.get("phone");
+    if (!await canPreviewMove(ctx, phone)) return c.body(null, 409);
+    const { body: rules, etag } = await respondWithRules(ctx, phone, []);
+    c.header("Cache-Control", "no-store");
+    c.header("ETag", etag);
+    c.header("Content-Type", "application/json");
+    return c.body(rules ?? "");
+  });
+
   app.get("/rules", async (c) => {
     let phone = c.get("phone");
     if (await applyDueChanges(ctx, phone.id)) {
@@ -305,7 +332,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const deviceTokenHash = phone.deviceTokenHash;
       if (!deviceTokenHash) throw new HTTPException(401, { message: "unknown device; pair again" });
       const [activated] = await ctx.db.update(phones)
-        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)` })
+        .set({ pairedAt: sql`coalesce(${phones.pairedAt}, ${ctx.now().toISOString()}::timestamptz)`, awaitingServerMove: false })
         .where(and(eq(phones.id, phone.id), eq(phones.deviceTokenHash, deviceTokenHash)))
         .returning();
       if (!activated) throw new HTTPException(401, { message: "unknown device; pair again" });
@@ -332,7 +359,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       );
     const ifNoneMatch = c.req.header("if-none-match");
     const candidates = ifNoneMatch ? ifNoneMatch.split(",").map((t) => t.trim().replace(/^W\//, "")) : [];
-    const { body: rules, etag } = await respondWithRules(ctx, phone, candidates);
+    const { body: rules, etag, hasMove } = await respondWithRules(ctx, phone, candidates);
     // Count requests that actually serve release rules, including conditional fetches.
     // Tie each increment to this request so concurrent syncs cannot lose counts or update a new release.
     if (phone.releaseWarningsEnabled && phone.releaseRequestedAt && phone.releaseSyncCount < 3) {
@@ -347,7 +374,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         ));
     }
     c.header("ETag", etag);
-    c.header("Cache-Control", "no-cache");
+    c.header("Cache-Control", hasMove ? "no-store" : "private, no-cache");
     if (rules === null) return c.body(null, 304);
     c.header("Content-Type", "application/json");
     return c.body(rules);

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { PendingChange, Phone } from "../api/models";
+import { SosPanel } from "../components/SosPanel";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, LinkRow, LiveStatus, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
@@ -61,6 +62,9 @@ function PhonesList() {
       />
       <PageTitle>{t("phones.title")}</PageTitle>
       <LiveStatus notice={feedback} onClose={() => router.setParams({ notice: undefined })} />
+      {res.data?.filter(({ phone }) => phone.profile === "child" && phone.pairedAt).map(({ phone }) => (
+        <SosPanel key={phone.id} pid={phone.id} phoneName={phone.name} />
+      ))}
       <LoadGate res={res}>
         {(rows) =>
           rows.length === 0 ? (

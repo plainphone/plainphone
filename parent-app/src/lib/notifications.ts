@@ -4,12 +4,13 @@ import { AndroidImportance, IosAuthorizationStatus } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
+import type { Locale } from "../api/models";
 import { getSessionToken } from "../api/client";
 import { registerNativeToken } from "./push-registration";
 
-export const CHANNELS = [
-  { id: "normal", name: { en: "Notifications", da: "Notifikationer" }, importance: AndroidImportance.DEFAULT },
-  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS" }, importance: AndroidImportance.HIGH },
+export const CHANNELS: { id: string; name: Record<Locale, string>; importance: AndroidImportance }[] = [
+  { id: "normal", name: { en: "Notifications", da: "Notifikationer", sv: "Aviseringar", nb: "Varsler", de: "Benachrichtigungen" }, importance: AndroidImportance.DEFAULT },
+  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS", sv: "Akut SOS", nb: "Akutt SOS", de: "Dringender SOS" }, importance: AndroidImportance.HIGH },
 ];
 
 if (Platform.OS !== "web") {
@@ -33,11 +34,12 @@ export function routeForPush(data: unknown): Href {
     : { pathname: "/phones/[pid]", params: { pid: path[1]! } };
   const pid = typeof d.phoneId === "string" && /^[0-9a-f-]{36}$/i.test(d.phoneId) ? d.phoneId : null;
   if (d.type === "approval") return pid ? { pathname: "/phones/[pid]", params: { pid } } : "/approvals";
+  if ((d.type === "sos-urgent" || d.type === "sos-help") && pid) return { pathname: "/phones/[pid]", params: { pid } };
   if (d.type === "location" && pid) return { pathname: "/phones/[pid]/location", params: { pid } };
   return "/";
 }
 
-async function ensureChannels(locale: "en" | "da") {
+async function ensureChannels(locale: Locale) {
   if (Platform.OS !== "android") return;
   for (const ch of CHANNELS) {
     await Notifications.setNotificationChannelAsync(ch.id, {
@@ -59,7 +61,7 @@ async function sendNativeToken(token: Notifications.DevicePushToken, session: st
   }
 }
 
-export async function syncNativePush(locale: "en" | "da", requestPermission = false): Promise<PushState> {
+export async function syncNativePush(locale: Locale, requestPermission = false): Promise<PushState> {
   const session = getSessionToken();
   if (!session || Platform.OS === "web") return "unsupported";
   try {
@@ -76,7 +78,7 @@ export async function syncNativePush(locale: "en" | "da", requestPermission = fa
   }
 }
 
-export function watchNativePush(locale: "en" | "da") {
+export function watchNativePush(locale: Locale) {
   if (Platform.OS === "web") return () => {};
   const token = Notifications.addPushTokenListener((value) => {
     const session = getSessionToken();
@@ -88,6 +90,13 @@ export function watchNativePush(locale: "en" | "da") {
     if (state === "active") void syncNativePush(locale);
   });
   return () => { token.remove(); foreground.remove(); };
+}
+
+/** Removes delivered alerts (SOS included) from the shelf when the parent signs out. */
+export async function clearLocalNotifications() {
+  if (Platform.OS === "web") return;
+  await Notifications.dismissAllNotificationsAsync();
+  Notifications.clearLastNotificationResponse();
 }
 
 /** Opens the right screen when the user taps a notification. */

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.light.FilterMethod
 
 import android.content.Context
@@ -51,8 +52,20 @@ data class PolicyConfig(
      * the app is installed or the install window ends (docs/app-catalog.md, R2).
      */
     val installing: String? = null,
+    /** Strong Child phones keep the system language chosen during provisioning. */
+    val lockSystemLanguage: Boolean = true,
+    /**
+     * Open mode: when not null, every app is allowed except these, also ones installed after the
+     * last sync. Null means the allow-list in [allowedPackages] decides (always during school
+     * time and bedtime, whose windows list what is allowed).
+     */
+    val openBlocked: Set<String>? = null,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
+
+    /** The apps among [launchable] that stay visible under the app rules (the allow-list or open mode). */
+    fun visibleAmong(launchable: Set<String>): Set<String> =
+        openBlocked?.let { launchable - it } ?: allowedPackages
 
     companion object {
         const val DEFAULT_DNS_HOST = "family.adguard-dns.com"
@@ -92,6 +105,7 @@ data class PolicyConfig(
         const val KEY_COUNTRY = "plainphone.country_code"
         const val KEY_CONTACTS = "plainphone.contacts"
         const val KEY_SERVER_URL = "plainphone.server_url"
+        const val KEY_SELF = "plainphone.self"
         const val KEY_ENROLL = "plainphone.enroll"
         private val ENROLL_TOKEN = Regex("^pp_e_[A-Za-z0-9_-]{10,95}$")
 
@@ -113,6 +127,7 @@ data class PolicyConfig(
                 seedContacts = ContactCodec.decode(str(KEY_CONTACTS)),
                 serverUrl = str(KEY_SERVER_URL)?.let(::normalizeServerUrl) ?: DEFAULT_SERVER_URL,
                 enrollToken = str(KEY_ENROLL)?.takeIf(ENROLL_TOKEN::matches),
+                lockSystemLanguage = str(KEY_SELF) != "true",
             )
         }
 
@@ -140,9 +155,10 @@ data class PolicyConfig(
 class ConfigStore(context: Context) {
     private val prefs = context.getSharedPreferences("plainphone_config", Context.MODE_PRIVATE)
 
+    private val sync = context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE)
+
     fun load(): PolicyConfig {
-        if (!prefs.getBoolean("saved", false)) return PolicyConfig.DEFAULT
-        return PolicyConfig(
+        val base = if (!prefs.getBoolean("saved", false)) PolicyConfig.DEFAULT else PolicyConfig(
             dnsHost = prefs.getString("dns_host", null) ?: PolicyConfig.DEFAULT_DNS_HOST,
             allowedPackages = prefs.getStringSet("allowed", null) ?: PolicyConfig.DEFAULT_ALLOWED_PACKAGES,
             frpAccountIds = prefs.getStringSet("frp", null) ?: emptySet(),
@@ -150,7 +166,13 @@ class ConfigStore(context: Context) {
             pinSaltHex = prefs.getString("pin_salt", null),
             relockMinutes = prefs.getInt("relock_minutes", PolicyConfig.DEFAULT_RELOCK_MINUTES),
             countryCallingCode = prefs.getString("country_code", null),
+            lockSystemLanguage = prefs.getBoolean("lock_system_language", true),
             serverUrl = prefs.getString("server_url", null) ?: PolicyConfig.DEFAULT_SERVER_URL,
+        )
+        return base.copy(
+            serverUrl = sync.getString(SyncStore.KEY_MOVED_SERVER, null) ?: base.serverUrl,
+            // The fallback only (the provisioning host), never the phone-specific ClientID host.
+            dnsHost = sync.getString(SyncStore.KEY_MOVED_FALLBACK_DNS, null) ?: base.dnsHost,
         )
     }
 
@@ -165,7 +187,11 @@ class ConfigStore(context: Context) {
             .putInt("relock_minutes", config.relockMinutes)
             .putString("country_code", config.countryCallingCode)
             .putString("server_url", config.serverUrl)
+            .putBoolean("lock_system_language", config.lockSystemLanguage)
             .apply()
+        // The saved config is now the truth (built from load() or a new enrolment), so a pin left by an
+        // earlier move must not override it.
+        sync.edit().remove(SyncStore.KEY_MOVED_SERVER).remove(SyncStore.KEY_MOVED_FALLBACK_DNS).apply()
     }
 }
 

@@ -42,6 +42,7 @@ import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.MainActivity
 import org.plainphone.app.R
+import org.plainphone.app.sync.ServerAddress
 import org.plainphone.app.sync.PairingController
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.Sync
@@ -57,6 +58,7 @@ import org.plainphone.app.ui.PlainphoneTheme
 class LightSetupActivity : ComponentActivity() {
     private var refresh by mutableIntStateOf(0)
     private var pendingLink by mutableStateOf<LightEnrollment.Link?>(null)
+    private var manualServerOpen by mutableStateOf(false)
     private var batteryPromptOpened by mutableStateOf(false)
 
     private var requestedStep: LightSetup.Step? = null
@@ -485,7 +487,7 @@ class LightSetupActivity : ComponentActivity() {
                 step == LightSetup.Step.ADMIN && LightSetup.profile(this) == "self" -> R.string.setup_admin_self
                 else -> step.body
             }),
-            primary = stringResource(when {
+            primary = if (step == LightSetup.Step.PAIR && manualServerOpen) null else stringResource(when {
                 batteryHelp != null -> R.string.light_battery_settings
                 backgroundLocationSettings -> R.string.light_app_info
                 else -> step.action
@@ -511,12 +513,83 @@ class LightSetupActivity : ComponentActivity() {
             },
             progress = (index + 1f) / total,
         ) {
+            if (step == LightSetup.Step.PAIR && canChooseSetupServer()) {
+                ManualServer()
+            }
             if (step == LightSetup.Step.PAIR && !SyncStore(this@LightSetupActivity).everPaired) {
                 OutlinedButton(onClick = ::changeAudience, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.setup_back))
                 }
             }
             PermissionIllustration(step)
+        }
+    }
+
+    private fun canChooseSetupServer(): Boolean {
+        val store = SyncStore(this)
+        return Mode.isLight(this) && !LightSetup.isComplete(this) && !store.everPaired &&
+            store.enrollToken() == null && pendingLink == null
+    }
+
+    @Composable
+    private fun ManualServer() {
+        var current by remember { mutableStateOf(ConfigStore(this).load().serverUrl) }
+        var address by rememberSaveable { mutableStateOf(current) }
+        var busy by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        Text(stringResource(R.string.server_current, current))
+        if (!manualServerOpen) {
+            OutlinedButton(onClick = { manualServerOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.server_custom))
+            }
+            return
+        }
+        OutlinedTextField(
+            value = address,
+            onValueChange = { address = it; failed = false },
+            label = { Text(stringResource(R.string.server_address)) },
+            enabled = !busy,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (failed) Text(stringResource(R.string.server_error))
+        OutlinedButton(
+            enabled = !busy && address.isNotBlank(),
+            onClick = {
+                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                val server = ServerAddress.normalize(address, debug)
+                if (server == null) {
+                    failed = true
+                } else {
+                    busy = true
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { ServerAddress.check(server) }
+                            if (canChooseSetupServer()) {
+                                val config = ConfigStore(this@LightSetupActivity)
+                                SyncStore(this@LightSetupActivity).savePairing(null)
+                                config.save(config.load().copy(serverUrl = server))
+                                current = server
+                                manualServerOpen = false
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            failed = true
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(if (busy) R.string.server_checking else R.string.server_connect))
+        }
+        OutlinedButton(enabled = !busy, onClick = { manualServerOpen = false }, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(android.R.string.cancel))
         }
     }
 

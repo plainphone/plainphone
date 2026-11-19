@@ -82,6 +82,28 @@ components:
     householdId: { name: hid, in: path, required: true, schema: { type: string, format: uuid } }
 
   schemas:
+    SosPosition:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+    SosEvent:
+      type: object
+      required: [id, kind, createdAt, seenAt, seenByName, deliveredVia, deliveryFailedAt, battery, location]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { enum: [urgent, help] }
+        createdAt: { type: string, format: date-time }
+        seenAt: { type: [string, "null"], format: date-time }
+        seenByName: { type: [string, "null"] }
+        deliveredVia: { enum: [push, sms, null] }
+        deliveryFailedAt: { type: [string, "null"], format: date-time, description: "Set when the alert still had not reached every parent at the final timeout." }
+        battery: { type: [integer, "null"] }
+        location:
+          anyOf:
+            - { $ref: "#/components/schemas/SosPosition" }
+            - { type: "null" }
     ChildContactSettings:
       type: object
       required: [suggestDeviceContacts, lightContactRestriction]
@@ -119,7 +141,7 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
-        platform: { enum: [web, apns, fcm] }
+        platform: { enum: [web, apns, fcm, expo] }
         label: { type: [string, "null"] }
         endpointHash:
           type: string
@@ -133,6 +155,7 @@ components:
         enrollment:
           type: object
           properties:
+            id: { type: string, format: uuid, description: Public identifier used by the dashboard to check whether the QR is still current. }
             token: { type: string, examples: ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"] }
             expiresAt: { type: string, format: date-time }
         provisioning:
@@ -147,6 +170,12 @@ components:
             signatureChecksum: { type: string, description: base64url SHA-256 of the app's signing certificate }
             serverUrl: { type: string, format: uri }
             dnsHost: { type: string, description: Private DNS until the phone's own filter host is ready }
+            mode: { enum: [strong, light] }
+            profile: { enum: [child, self] }
+            language: { $ref: "#/components/schemas/PhoneLanguage" }
+            timezone: { type: string }
+            locale: { type: [string, "null"], description: Android setup locale for a strong Child phone, if chosen. }
+            countryCode: { type: [string, "null"], description: Calling code inferred from the strong setup time zone. }
     Error:
       type: object
       required: [error]
@@ -176,6 +205,10 @@ components:
     DnsCategory:
       type: string
       enum: [social, adult, gambling, games, dating, video]
+    OpenCategory:
+      type: string
+      description: A category open mode can block. "adult" is web filter only; the others also block known apps.
+      enum: [social, gambling, adult]
 
     Op:
       description: A rule change, as stored for pending changes and shown on the phone.
@@ -207,6 +240,19 @@ components:
           properties:
             type: { const: dns.category }
             category: { $ref: "#/components/schemas/DnsCategory" }
+            blocked: { type: boolean }
+        - type: object
+          description: Loosening when turned on while it was off (it lets every app in).
+          required: [type, enabled]
+          properties:
+            type: { const: openMode.set }
+            enabled: { type: boolean }
+        - type: object
+          description: Blocks or allows a category's known apps and the DNS category together. Loosening when allowing.
+          required: [type, category, blocked]
+          properties:
+            type: { const: openMode.category }
+            category: { $ref: "#/components/schemas/OpenCategory" }
             blocked: { type: boolean }
         - type: object
           properties:
@@ -242,6 +288,17 @@ components:
           description: Loosening on a phone that has paired. Switches Plainphone off on the phone.
           properties:
             type: { const: phone.release }
+        - type: object
+          required: [type, allowed]
+          properties:
+            type: { const: move.allow }
+            allowed: { type: boolean }
+        - type: object
+          required: [type, exportId, serverUrl]
+          properties:
+            type: { const: move.start }
+            exportId: { type: string, format: uuid }
+            serverUrl: { type: string, format: uri }
         - type: object
           description: Loosening when any weekday gets more minutes, or the limit is removed (limit null).
           properties:
@@ -474,14 +531,60 @@ components:
         status: { const: pending }
         change: { $ref: "#/components/schemas/PendingChange" }
 
+    PhoneLanguage:
+      enum: [da, en, sv, nb, de, null]
+      description: Plainphone UI language. Null follows the system.
+    MoveSource:
+      type: object
+      required: [version, serverUrl, publicKey]
+      properties:
+        version: { const: 1 }
+        serverUrl: { type: string, format: uri }
+        publicKey: { type: string }
+    MoveTicket:
+      allOf:
+        - $ref: "#/components/schemas/MoveSource"
+        - type: object
+          required: [id, expiresAt]
+          properties:
+            id: { type: string, format: uuid }
+            expiresAt: { type: string, format: date-time }
+
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
-      required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
+      required: [phoneId, profile, mode, timezone, language, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
+        sos:
+          type: object
+          required: [name, parents]
+          properties:
+            name: { type: string }
+            parents:
+              type: array
+              items:
+                type: object
+                required: [name, number]
+                properties:
+                  name: { type: string }
+                  number: { $ref: "#/components/schemas/E164" }
+        allowServerMove: { type: boolean }
+        fallbackDnsHost:
+          type: [string, "null"]
+          description: This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready.
+        move:
+          type: object
+          required: [serverUrl, token]
+          properties:
+            serverUrl: { type: string, format: uri }
+            token: { type: string }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
+        language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
         timezone:
           type: string
           description: IANA time zone that schedule times are in.
@@ -494,7 +597,14 @@ components:
               items: { $ref: "#/components/schemas/PackageName" }
             hidden:
               type: array
-              description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default.
+              description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default, unless `open` is true.
+              items: { $ref: "#/components/schemas/PackageName" }
+            open:
+              type: boolean
+              description: Open mode. Allow every app that is not in `blocked`, also apps the rules have never listed. Missing from older servers (false).
+            blocked:
+              type: array
+              description: The block list in open mode, also apps that are not installed yet (the known apps of blocked categories). Empty when `open` is false.
               items: { $ref: "#/components/schemas/PackageName" }
             toInstall:
               type: array
@@ -731,10 +841,17 @@ components:
         name: { type: string }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
+        language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
+        openMode: { type: boolean, description: Every app is allowed except the block list. }
         timezone: { type: string }
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
         pairedAt: { type: [string, "null"], format: date-time }
+        allowServerMove: { type: boolean }
+        awaitingServerMove: { type: boolean }
         setupQrAvailable:
           type: boolean
           description: Whether the dashboard can issue a new setup QR code for this phone.
@@ -742,6 +859,10 @@ components:
         releaseWarningsEnabled: { type: boolean, default: true }
         releaseSyncCount: { type: integer, minimum: 0, maximum: 3 }
         androidVersion: { type: [string, "null"] }
+        setupEnrollmentId:
+          type: [string, "null"]
+          format: uuid
+          description: Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -927,14 +1048,142 @@ components:
         payUnlockRecipient: { enum: [plainphone] }
 
 paths:
+  /device/sos:
+    post:
+      operationId: reportSos
+      summary: Report a child SOS once per client ID
+      tags: [device]
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, kind]
+              properties:
+                id: { type: string, format: uuid }
+                kind: { enum: [urgent, help] }
+                battery: { type: integer, minimum: 0, maximum: 100 }
+                location: { $ref: "#/components/schemas/SosPosition" }
+                smsSubmitted: { type: boolean }
+                sentAt: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SosEvent" }
+        "403": { description: SOS unavailable (only for a report that did not already send an SMS) }
+        "410": { description: SOS expired }
+  /device/sos/{id}:
+    get:
+      operationId: getDeviceSos
+      summary: Check whether a parent acknowledged this SOS
+      tags: [device]
+      security: [{ device: [] }]
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Acknowledgment status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [seenAt, seenBy, seenByName]
+                properties:
+                  seenAt: { type: [string, "null"], format: date-time }
+                  seenBy: { type: boolean }
+                  seenByName: { type: [string, "null"] }
+        "404": { description: SOS not found }
+  /phones/{pid}/sos:
+    parameters: [{ $ref: "#/components/parameters/phoneId" }]
+    get:
+      operationId: listPhoneSos
+      summary: Get the last 30 days of SOS events
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { in: query, name: unseen, schema: { type: string, enum: ["1"] } }
+      responses:
+        "200":
+          description: SOS history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, callbackNumber]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: "#/components/schemas/SosEvent" }
+                  callbackNumber: { type: [string, "null"] }
+    put:
+      operationId: setSosCallbackNumber
+      summary: Set or clear the number parents can call back
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [callbackNumber]
+              properties:
+                callbackNumber: { type: [string, "null"] }
+      responses:
+        "204": { description: Saved }
+  /phones/{pid}/sos/{id}/seen:
+    post:
+      operationId: acknowledgeSos
+      summary: Acknowledge an SOS
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 60 }
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: SOS with its original acknowledgment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SosEvent" }
+        "404": { description: SOS not found }
+  /phones/{pid}/contacts/{cid}/sos-parent:
+    put:
+      operationId: markSosParent
+      summary: Choose an approved parent number for SOS SMS and calls
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { in: path, name: cid, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "204": { description: Saved }
+        "404": { description: Contact not found }
   /health:
     get:
       operationId: getHealth
       security: []
       summary: Liveness, database and DNS service check
-      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`.'
+      description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.'
       responses:
-        "200": { description: "OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}`" }
+        "200": { description: "OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}`" }
         "503": { description: "Database down" }
 
   # ---------------------------------------------------------------- device
@@ -1178,9 +1427,62 @@ paths:
                       maskedEmail: { type: string }
                       householdName: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/Error" }
-        "404": { description: Unknown token. Fall back to pairing with a code. }
-        "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
+        "404": { description: Unknown token. Strong setup requires a fresh QR and a factory reset. }
+        "409":
+          description: "This QR code is out of date. Make a new one."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "410":
+          description: Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+                  code: { const: outdated_qr, description: Present for superseded tokens. }
         "429": { $ref: "#/components/responses/Error" }
+
+  /device/move:
+    post:
+      operationId: redeemServerMove
+      tags: [device]
+      security: []
+      summary: Redeem a one-time move token into a phone-generated device credential.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, deviceToken]
+              properties:
+                token: { type: string }
+                deviceToken: { type: string }
+      responses:
+        "204": { description: Token consumed }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /device/move-rules:
+    get:
+      operationId: previewServerMoveRules
+      tags: [device]
+      security: [{ device: [] }]
+      summary: Validate the new rules before changing the phone's connection.
+      responses:
+        "200":
+          description: Destination rules for the pending move
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rules" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /device/rules:
     get:
@@ -1683,7 +1985,7 @@ paths:
               required: [email]
               properties:
                 email: { type: string, format: email }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
                 client:
                   enum: [web, native]
                   default: web
@@ -1708,7 +2010,7 @@ paths:
               required: [token]
               properties:
                 token: { type: string }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
                 client:
                   enum: [web, native]
                   default: web
@@ -1758,7 +2060,7 @@ paths:
             schema:
               type: object
               properties:
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
       responses:
         "204": { description: "Saved" }
     delete:
@@ -1861,7 +2163,7 @@ paths:
                 - type: object
                   required: [platform, token]
                   properties:
-                    platform: { enum: [apns, fcm] }
+                    platform: { enum: [apns, fcm, expo] }
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     replaces: { type: string, maxLength: 1024 }
                     subscriptionId: { type: string, format: uuid, description: Existing native subscription to refresh }
@@ -2033,7 +2335,7 @@ paths:
               required: [email]
               properties:
                 email: { type: string, format: email }
-                locale: { enum: [en, da] }
+                locale: { enum: [en, da, sv, nb, de] }
       responses:
         "201": { description: "Invited" }
   /households/{hid}/invites/{iid}:
@@ -2125,6 +2427,7 @@ paths:
                 profile: { enum: [child, self] }
                 filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 householdId: { type: string, format: uuid }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
         "201":
@@ -2160,6 +2463,7 @@ paths:
                 filterMethod: { $ref: "#/components/schemas/FilterMethod" }
                 profile: { enum: [child, self] }
                 householdId: { type: string, format: uuid }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
                 timezone: { type: string, examples: [Europe/Copenhagen] }
       responses:
         "201":
@@ -2200,9 +2504,9 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
     patch:
       operationId: updatePhone
-      summary: Rename a phone or switch location
+      summary: Update a phone
       tags: [phones]
-      description: Turning location off deletes the stored position.
+      description: Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         content:
@@ -2216,6 +2520,11 @@ paths:
                 locationEnabled: { type: boolean }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
+                language: { $ref: "#/components/schemas/PhoneLanguage" }
+                lockSystemLanguage: { type: boolean }
+                timezone:
+                  type: string
+                  description: IANA time zone for the household. Can be set before strong setup.
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0
@@ -2223,6 +2532,8 @@ paths:
                   description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
         "200": { description: "Updated phone" }
+        "400": { description: Invalid time zone }
+        "409": { description: Time zone can only be set before strong setup }
     delete:
       operationId: deletePhone
       summary: Remove a phone
@@ -2260,7 +2571,7 @@ paths:
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "Installed apps: packageName, label, allowed, core" }
+        "200": { description: "Installed apps: packageName, label, allowed, blocked (open mode block list, also via a category), blockedBy (the category, when a blocked category blocks it), core" }
   /phones/{pid}/apps/{package}:
     put:
       operationId: putPhonesApps
@@ -2278,6 +2589,74 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { description: "Core apps cannot be hidden" }
+
+  /phones/{pid}/open-mode:
+    get:
+      operationId: getPhonesOpenMode
+      tags: [rules]
+      summary: Open mode, its blocked categories and the apps blocked one by one
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Open mode state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, categories, blockedApps]
+                properties:
+                  enabled: { type: boolean }
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [category, blocked, hasApps]
+                      properties:
+                        category: { $ref: "#/components/schemas/OpenCategory" }
+                        blocked: { type: boolean }
+                        hasApps: { type: boolean }
+                  blockedApps:
+                    type: array
+                    items:
+                      type: object
+                      required: [packageName, label]
+                      properties:
+                        packageName: { $ref: "#/components/schemas/PackageName" }
+                        label: { type: string }
+    put:
+      operationId: putPhonesOpenMode
+      tags: [rules]
+      summary: Turn open mode on or off
+      description: Turning it on loosens the rules, so on a Self phone it waits for the key. Turning it off applies at once.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/open-mode/categories/{category}:
+    put:
+      operationId: putPhonesOpenModeCategories
+      tags: [rules]
+      summary: Block or allow a category in open mode
+      description: Blocks the category's known apps and its web filter category in one action. Allowing it loosens, so on a Self phone it waits for the key.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: category, in: path, required: true, schema: { $ref: "#/components/schemas/OpenCategory" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [blocked], properties: { blocked: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
 
   /phones/{pid}/time-limits:
     get:
@@ -2477,6 +2856,156 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
 
+  /households/{hid}/server-move/phones:
+    get:
+      operationId: listHouseholdMovePhones
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Phones available to the household owner
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones:
+                    type: array
+                    items: { $ref: "#/components/schemas/PhoneSummary" }
+
+  /households/{hid}/server-move/source:
+    get:
+      operationId: getMoveSource
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Old server identity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoveSource" }
+
+  /households/{hid}/server-move/prepare:
+    post:
+      operationId: prepareServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MoveSource" }
+      responses:
+        "201":
+          description: New server invitation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoveTicket" }
+
+  /households/{hid}/server-move/export:
+    post:
+      operationId: exportServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { $ref: "#/components/schemas/MoveTicket" }
+                phoneId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Signed bundle encrypted to the destination
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bundle, exportId, phoneIds]
+                properties:
+                  bundle: { type: string }
+                  exportId: { type: string, format: uuid }
+                  phoneIds:
+                    type: array
+                    items: { type: string, format: uuid }
+
+  /households/{hid}/server-move/import:
+    post:
+      operationId: importServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticketId, bundle]
+              properties:
+                ticketId: { type: string, format: uuid }
+                bundle: { type: string }
+      responses:
+        "201":
+          description: Rules saved on the new server
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [phoneIds]
+                properties:
+                  phoneIds:
+                    type: array
+                    items: { type: string, format: uuid }
+        "400": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+
+  /phones/{pid}/server-move/allow:
+    put:
+      operationId: setServerMovePermission
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allowed]
+              properties:
+                allowed: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/server-move/start:
+    post:
+      operationId: startServerMove
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exportId]
+              properties:
+                exportId: { type: string, format: uuid }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /phones/{pid}/settings:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]
     get:
@@ -2673,6 +3202,7 @@ paths:
                         id: { type: string, format: uuid }
                         name: { type: string }
                         number: { $ref: "#/components/schemas/E164" }
+                        sosParent: { type: boolean }
                   selfScheduleContacts: { type: [boolean, "null"] }
                   suggestDeviceContacts: { type: boolean }
                   lightContactRestriction: { type: boolean }

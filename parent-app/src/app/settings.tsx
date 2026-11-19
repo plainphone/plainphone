@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
+import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
-import { SERVER_HOST } from "../lib/config";
+import { ServerChoice } from "../components/ServerChoice";
 import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
@@ -30,16 +31,14 @@ function Settings() {
           label={t("nav.language")}
           value={locale}
           onChange={saveLocale}
-          options={[
-            { value: "en", label: "English" },
-            { value: "da", label: "Dansk" },
-          ]}
+          options={languages.map((value) => ({ value, label: languageNames[value] }))}
         />
       </Card>
       {push && push !== "unsupported" ? (
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
+          <Text variant="muted">{t("sos.dnd")}</Text>
           {push === "granted" ? (
             <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "unavailable" ? (
@@ -63,7 +62,7 @@ function Settings() {
       ) : null}
       <Card>
         <Text variant="heading">{t("native.server")}</Text>
-        <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
+        <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
       <Card>

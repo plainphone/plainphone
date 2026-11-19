@@ -85,6 +85,7 @@ sealed interface EnrollResult {
     ) : EnrollResult
     /** The server refused the token for good (unknown, used, expired): pair with a code instead. */
     data object InvalidKey : EnrollResult
+    data object OutdatedQr : EnrollResult
     data object Rejected : EnrollResult
 }
 
@@ -178,7 +179,7 @@ class PlainphoneApi private constructor(
     private val openFreshConnection: (URL) -> HttpURLConnection,
     private val setupKey: () -> JSONObject? = { null },
     private val initialFilterMethod: () -> String? = { null },
-) : SyncApi {
+) : SyncApi, MoveApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
     internal constructor(baseUrl: String, openConnection: (URL) -> HttpURLConnection) :
@@ -251,7 +252,7 @@ class PlainphoneApi private constructor(
         try {
             cancellation?.throwIfCanceled()
             conn.requestMethod = method
-            conn.connectTimeout = 15_000
+            conn.connectTimeout = minOf(15_000, readTimeoutMs)
             conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             conn.instanceFollowRedirects = false // never send the token somewhere else
@@ -447,7 +448,11 @@ class PlainphoneApi private constructor(
                 EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it), readSetupUndoMinutes(it))
             }
             400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
-            404, 410 -> EnrollResult.Rejected
+            409 -> EnrollResult.OutdatedQr
+            410 -> if (runCatching { JSONObject(r.body).optString("code") }.getOrNull() == "outdated_qr") {
+                EnrollResult.OutdatedQr
+            } else EnrollResult.Rejected
+            404 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }
@@ -460,6 +465,20 @@ class PlainphoneApi private constructor(
         val email = account.optString("maskedEmail")
         val household = if (account.isNull("householdName")) null else account.optString("householdName")
         return email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
+    }
+
+    override fun redeemMove(token: String, deviceToken: String) {
+        val body = JSONObject().put("token", token).put("deviceToken", deviceToken)
+        val response = call("POST", "/device/move", body = body, readTimeoutMs = 8_000)
+        // A response might have been lost after redemption. Only the same credential
+        // can fetch move rules in that case; no token can create a second pairing.
+        if (response.status != 204 && response.status != 410) throw HttpError(response.status, response.body)
+    }
+
+    override fun moveRules(deviceToken: String): RulesResult.Changed {
+        val response = call("GET", "/device/move-rules", deviceToken, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return RulesResult.Changed(response.etag ?: throw IOException("missing move rules ETag"), response.body)
     }
 
     override fun fetchRules(token: String, etag: String?): RulesResult {
@@ -531,6 +550,22 @@ class PlainphoneApi private constructor(
             409 -> false
             else -> throw HttpError(r.status, r.body)
         }
+    }
+
+    fun reportSos(token: String, payload: JSONObject): JSONObject {
+        val response = call("POST", "/device/sos", token, payload, readTimeoutMs = 4_000, replayable = false)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return try {
+            JSONObject(response.body)
+        } catch (err: org.json.JSONException) {
+            throw IOException("Invalid SOS response", err)
+        }
+    }
+
+    fun sosStatus(token: String, id: String): JSONObject {
+        val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return JSONObject(response.body)
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

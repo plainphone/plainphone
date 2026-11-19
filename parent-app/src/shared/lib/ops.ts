@@ -56,6 +56,12 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
       return t(op.blocked ? "op.categoryOn" : "op.categoryOff", {
         category: categoryLabel(op.category, t).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB"),
       });
+    case "openMode.set":
+      return t(op.enabled ? "op.openOn" : "op.openOff");
+    case "openMode.category":
+      return t(op.blocked ? "op.openCategoryBlock" : "op.openCategoryAllow", {
+        category: t(`open.cat.${op.category}` as MessageKey).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB"),
+      });
     case "dns.allowDomain":
       return t(op.present ? "op.allowAdd" : "op.allowRemove", { domain: op.domain });
     case "dns.blockDomain":
@@ -85,6 +91,10 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
         : t("op.keyDelay", { hours: op.key.delayHours });
     case "phone.remove":
       return t("op.phoneRemove");
+    case "move.allow":
+      return t("move.allow");
+    case "move.start":
+      return t("move.approval", { server: op.serverUrl });
     case "phone.release":
       return t("op.phoneRelease");
     case "timeLimit.set": {

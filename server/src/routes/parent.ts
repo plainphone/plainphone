@@ -40,6 +40,7 @@ import { DEFAULT_SETUP_UNDO_MINUTES, setupUndoDeadline, undoMinutesInput } from 
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
+import { categoryOf, isAppCategory, OPEN_CATEGORIES } from "../lib/open-mode.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, resolveSession, verifyMagicLink } from "../services/auth.js";
 import {
@@ -55,12 +56,14 @@ import { childContactSettingsInput, pendingContactSuggestions, reviewContactSugg
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
-import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
+import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
+import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
 import { locationRoutes, setLocationMode } from "./location.js";
+import { parentSosRoutes } from "./sos.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
@@ -111,7 +114,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!loginIpLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY)) || !loginEmailLimit.take(input.email)) {
       throw new HTTPException(429, { message: "too many login links; try again later" });
     }
-    await requestMagicLink(ctx, input.email, input.locale, input.client);
+    await requestMagicLink(ctx, input.email, toLocale(input.locale), input.client);
     // Same answer whether or not the address is known.
     return c.json({ ok: true, mailEnabled: ctx.mail.canSend }, 202);
   });
@@ -390,7 +393,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .values({ householdId: hid, email: input.email, tokenHash: sha256(token), invitedBy: c.get("user").id, expiresAt })
       .returning();
     const url = `${ctx.cfg.PUBLIC_URL}/invite#token=${encodeURIComponent(token)}`;
-    const locale = input.locale ?? toLocale(c.get("user").locale);
+    const locale = toLocale(input.locale ?? c.get("user").locale);
     if (ctx.mail.canSend) {
       await ctx.mail.send(inviteMail(input.email, locale, ctx.cfg.PUBLIC_URL, url, "parent", INVITE_DAYS));
     }
@@ -528,6 +531,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
   }
 
+  mountServerMoveRoutes(app, ctx, { requireMember, requirePhone, change });
+
   app.get("/phones", async (c) => {
     const hids = await myHouseholdIds(c.get("user").id);
     if (hids.length === 0) return c.json({ phones: [] });
@@ -557,13 +562,14 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         profile: z.enum(["child", "self"]),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
+        language: v.phoneLanguage.optional(),
         filterMethod: z.enum(FILTER_METHODS).optional(),
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
     const householdId = input.householdId ?? hids[0];
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
-    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+    if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
 
@@ -588,6 +594,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceTokenHash: p.requiresConfirmation ? null : sha256(deviceToken),
         deviceInfo: p.deviceInfo ?? null,
         timezone: input.timezone,
+        language: input.language,
       });
       await tx
         .update(pairings)
@@ -615,12 +622,13 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         template: templateCode.optional(),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
+        language: v.phoneLanguage.optional(),
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
     const householdId = input.householdId ?? hids[0];
     if (!householdId || !hids.includes(householdId)) throw new HTTPException(404, { message: "household not found" });
-    if (input.timezone && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+    if (input.timezone && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     if (input.template && input.profile !== "self") return c.json({ error: "only Self phones can copy rules" }, 400);
@@ -636,15 +644,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
+        language: input.language,
       });
       if (template) await applySelfTemplate(tx, created.id, template, ctx.now());
       return created;
     });
     if (!phone) return c.json({ error: "the setup template has expired" }, 404);
-    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    if (!setup) return c.json({ error: "this phone is already set up" }, 409);
     // Register the DNS ClientID now, so the filter host is ready by the time the phone is set up.
     await syncDns(ctx, phone.id);
-    return c.json({ phone: await phoneSummary(ctx, phone), enrollment, provisioning: provisioningInfo(ctx) }, 201);
+    return c.json({ phone: await phoneSummary(ctx, phone), ...setup }, 201);
   });
 
   // A new QR code for a phone that has not been set up yet (the old one expired or got lost).
@@ -653,13 +663,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
     const [pending] = await ctx.db.select({ id: pairings.id }).from(pairings)
       .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
-    if (pending || phone.deviceTokenHash !== null) return c.json({ error: "confirm the account on the phone" }, 409);
+    if (pending || phone.deviceTokenHash !== null || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
-    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
-    return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);
+    const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    if (!setup) return c.json({ error: "this phone is already set up" }, 409);
+    return c.json(setup, 201);
   });
 
-  app.get("/phones/:pid", async (c) => c.json(await phoneSummary(ctx, await requirePhone(c))));
+  app.get("/phones/:pid", async (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json(await phoneSummary(ctx, await requirePhone(c)));
+  });
 
   app.patch("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
@@ -672,10 +686,16 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         releaseWarningsEnabled: z.boolean().optional(),
         pushWakeups: z.boolean().optional(),
         preferUnifiedPush: z.boolean().optional(),
+        language: v.phoneLanguage.optional(),
+        lockSystemLanguage: z.boolean().optional(),
+        timezone: z.string().min(1).max(64).optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
+    if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
+      return c.json({ error: "unknown time zone" }, 400);
+    }
     const fields = {
       ...(input.name ? { name: input.name } : {}),
       ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
@@ -684,9 +704,26 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ...(input.preferUnifiedPush === undefined ? {} : { preferUnifiedPush: input.preferUnifiedPush }),
       ...(input.preferUnifiedPush === true ? { fcmToken: null, fcmValidationKey: null } : {}),
       ...(input.pushWakeups === false ? { fcmToken: null, fcmValidationKey: null, unifiedPushEndpoint: null } : {}),
+      ...(input.language !== undefined ? { language: input.language } : {}),
+      ...(input.lockSystemLanguage !== undefined ? { lockSystemLanguage: input.lockSystemLanguage } : {}),
+      ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
-    if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));
+    if (Object.keys(fields).length) {
+      const updated = await ctx.db.transaction(async (tx) => {
+        const [current] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+        if (!current || (input.timezone !== undefined && (
+          current.mode !== "strong" || current.pairedAt !== null || current.deviceTokenHash !== null
+        ))) return false;
+        await tx.update(phones).set(fields).where(eq(phones.id, phone.id));
+        if ((input.language !== undefined && input.language !== current.language)
+          || (input.timezone !== undefined && input.timezone !== current.timezone)) {
+          await invalidateEnrollments(tx, phone.id, ctx.now());
+        }
+        return true;
+      });
+      if (input.timezone !== undefined && !updated) return c.json({ error: "time zone can only be set before strong setup" }, 409);
+    }
     // The boolean predates the location modes: on means the child default, off means off.
     if (input.locationEnabled !== undefined && input.locationEnabled !== phone.locationEnabled) {
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
@@ -762,8 +799,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .from(phoneApps)
       .where(and(eq(phoneApps.phoneId, phone.id), (phone.pairedAt ? eq(phoneApps.installed, true) : undefined)))
       .orderBy(phoneApps.label);
+    // In open mode an app is blocked one by one (`blocked`) or with its category (`blockedBy`).
+    const via = (pkg: string) => (phone.openMode ? categoryOf(pkg, phone.blockedAppCategories) : undefined);
     return c.json({
-      apps: rows.map((a) => ({ packageName: a.packageName, label: a.label, allowed: a.allowed, core: a.core })),
+      apps: rows.map((a) => ({
+        packageName: a.packageName,
+        label: a.label,
+        allowed: a.allowed,
+        blocked: !a.core && (a.explicitlyBlocked || via(a.packageName) !== undefined),
+        ...(!a.core && via(a.packageName) ? { blockedBy: via(a.packageName) } : {}),
+        core: a.core,
+      })),
     });
   });
 
@@ -773,6 +819,44 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!pkg.success) throw new HTTPException(404, { message: "not found" });
     const input = await body(c, z.object({ allowed: z.boolean() }));
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
+  });
+
+  // Open mode: every app allowed except the block list (docs/open-mode.md)
+  app.get("/phones/:pid/open-mode", async (c) => {
+    const phone = await requirePhone(c);
+    const [dns] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
+    const apps = await ctx.db
+      .select({ packageName: phoneApps.packageName, label: phoneApps.label })
+      .from(phoneApps)
+      .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true), eq(phoneApps.explicitlyBlocked, true), eq(phoneApps.core, false)))
+      .orderBy(phoneApps.label);
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      enabled: phone.openMode,
+      categories: OPEN_CATEGORIES.map((category) => ({
+        category,
+        // Blocked when either half is: the DNS category or the apps (the apps half also marks
+        // the app list). Turning it off clears both, so the switch never hides a block.
+        blocked: (dns?.blockedCategories ?? []).includes(category) ||
+          (isAppCategory(category) && phone.blockedAppCategories.includes(category)),
+        hasApps: isAppCategory(category),
+      })),
+      blockedApps: apps,
+    });
+  });
+
+  app.put("/phones/:pid/open-mode", async (c) => {
+    const phone = await requirePhone(c);
+    const { enabled } = await body(c, z.strictObject({ enabled: z.boolean() }));
+    return change(c, phone, { type: "openMode.set", enabled });
+  });
+
+  app.put("/phones/:pid/open-mode/categories/:category", async (c) => {
+    const phone = await requirePhone(c);
+    const category = z.enum(OPEN_CATEGORIES).safeParse(c.req.param("category"));
+    if (!category.success) throw new HTTPException(404, { message: "unknown category" });
+    const input = await body(c, z.strictObject({ blocked: z.boolean() }));
+    return change(c, phone, { type: "openMode.category", category: category.data, blocked: input.blocked });
   });
 
   // Phone settings and the home screen (docs/phone-settings.md)
@@ -808,6 +892,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
+  parentSosRoutes(app, ctx, requirePhone);
   phoneCatalogRoutes(app, ctx, { requirePhone, change });
 
   // Contacts
@@ -834,7 +919,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const phone = await requirePhone(c);
     const rows = await ctx.db.select().from(contacts).where(eq(contacts.phoneId, phone.id)).orderBy(contacts.name);
     return c.json({
-      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number })),
+      contacts: rows.map((r) => ({ id: r.id, name: r.name, number: r.number, ...(r.sosParent ? { sosParent: true } : {}) })),
       selfScheduleContacts: phone.selfScheduleContacts,
       suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
       lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,

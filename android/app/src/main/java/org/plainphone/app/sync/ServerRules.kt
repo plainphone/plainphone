@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import org.plainphone.app.PhoneLanguage
 import org.plainphone.app.light.FilterMethod
 
 import java.time.Instant
@@ -24,6 +25,12 @@ data class ServerRules(
     val timezone: ZoneId,
     val allowedApps: Set<String>,
     val hiddenApps: Set<String>,
+    /**
+     * Open mode (docs/open-mode.md): every app is allowed except [blockedApps], also apps the
+     * rules have never listed. Missing from older servers: the allow-list applies.
+     */
+    val openApps: Boolean = false,
+    val blockedApps: Set<String> = emptySet(),
     val contacts: List<ApprovedContact>,
     val schedules: List<Schedule>,
     /** `<id>.dns.plainphone.org`; only used once [dnsReady] says the DNS service knows the id. */
@@ -58,6 +65,7 @@ data class ServerRules(
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
+    val sos: SosRules? = null,
     val locationAlwaysUntil: Instant? = null,
     /** An open "Ring the phone"; null means stop. */
     val ring: RingRequest? = null,
@@ -67,9 +75,18 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val allowServerMove: Boolean = false,
+    val serverMove: ServerMoveInstruction? = null,
+    /**
+     * This server's provisioning DNS host. It answers for every ClientID, so it is the safe fallback
+     * when the phone's own host stops answering. Null on old servers or when none is configured.
+     */
+    val fallbackDnsHost: String? = null,
     val pushProvider: String = "none",
     val unifiedPushAvailable: Boolean = false,
     val fcmValidationKey: String = "",
+    val language: String? = null,
+    val lockSystemLanguage: Boolean = true,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -93,6 +110,13 @@ data class ServerRules(
             val host = dns.optString("host", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) }
             return ServerRules(
                 phoneId = j.getString("phoneId"),
+                language = PhoneLanguage.supportedTag(j.optString("language", "")),
+                lockSystemLanguage = j.optBoolean("lockSystemLanguage", true),
+                allowServerMove = j.optBoolean("allowServerMove", false),
+                serverMove = j.optJSONObject("move")?.let {
+                    ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))
+                },
+                fallbackDnsHost = j.optString("fallbackDnsHost", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) },
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),
@@ -103,6 +127,8 @@ data class ServerRules(
                 selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),
                 allowedApps = strings(apps.getJSONArray("allowed")),
                 hiddenApps = strings(apps.getJSONArray("hidden")),
+                openApps = apps.optBoolean("open", false),
+                blockedApps = apps.optJSONArray("blocked")?.let(::strings).orEmpty(),
                 contacts = objects(j.getJSONArray("contacts")).map {
                     ApprovedContact(it.getString("name"), it.getString("number"))
                 },
@@ -137,6 +163,13 @@ data class ServerRules(
                 supportEnabled = j.optBoolean("supportEnabled", true),
                 releaseWarningsEnabled = j.optBoolean("releaseWarningsEnabled", true),
                 locationMode = locationMode(location),
+                sos = j.optJSONObject("sos")?.let { sos ->
+                    val parents = sos.getJSONArray("parents")
+                    SosRules(sos.getString("name"), List(parents.length()) { i ->
+                        val contact = parents.getJSONObject(i)
+                        ApprovedContact(contact.getString("name"), contact.getString("number"))
+                    })
+                },
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { runCatching { Instant.parse(it) }.getOrNull() },
@@ -222,3 +255,5 @@ data class CheckInRequest(
     val createdAt: Instant? = null,
     val locationDue: Boolean? = null,
 )
+
+data class SosRules(val name: String, val parents: List<ApprovedContact>)

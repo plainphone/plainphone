@@ -57,6 +57,8 @@ interface SyncDevice {
     // "Ring the phone", "Are you okay?" and the location notices (docs/location.md).
     // Defaults do nothing, so a device without a screen (tests) needs none of it.
 
+    /** Apply the last saved app locale, or the system default after release. */
+    fun refreshPhoneLanguage() {}
     /** Starts or stops the ring, shows or closes the question, and keeps the location notices current. */
     fun onSafetyRules(rules: ServerRules) {}
     /** Answers and "shown" events the server has not heard yet, oldest first. */
@@ -109,6 +111,8 @@ class SyncRunner(
     private val store: SyncStore,
     private val api: SyncApi,
     private val device: SyncDevice,
+    private val connectedServer: String? = null,
+    private val serverMove: ((String, ServerMoveInstruction) -> Boolean)? = null,
 ) {
     private data class PendingContactSuggestions(val token: String, val contacts: List<DeviceContact>)
 
@@ -123,6 +127,12 @@ class SyncRunner(
     fun run(reason: String): Outcome = synchronized(LOCK) { runLocked(reason) }
 
     private fun runLocked(reason: String): Outcome {
+        val movedServer = store.movedServer()
+        if (connectedServer != null && movedServer != null && movedServer != connectedServer) {
+            // A worker created before the move may only start its sync after the move commits.
+            // Sending the new token to the old server would fail and mark the pairing removed.
+            return Outcome.Synced(false, ServerRules.MIN_POLL_SECONDS)
+        }
         val token = if (store.removed) null else store.deviceToken()
         if (pendingContactSuggestions?.token != token || store.released) pendingContactSuggestions = null
         if (store.removed) return Outcome.Removed
@@ -175,6 +185,7 @@ class SyncRunner(
 
         device.applyLockIfNeeded(if (changed) "new rules ($reason)" else "sync ($reason)", APPLY_MAX_AGE_MS)
         val rules = store.rules()
+        guarded("phone language") { device.refreshPhoneLanguage() }
         // Answers first: an "I'm okay" sent now means no position is owed for that check-in.
         guarded("report safety events") { reportSafetyEvents(token) }
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
@@ -188,6 +199,17 @@ class SyncRunner(
             if (store.contactSuggestionsReadAt != null) store.contactSuggestionsReadAt = null
         }
         guarded("report setup completion") { reportSetupCompletion(token) }
+        val instruction = rules?.serverMove
+        val attemptMove = serverMove
+        if (rules?.allowServerMove == true && instruction != null && attemptMove != null) {
+            // Require a current response from the old server on each attempt. Its rules have
+            // already been enforced, and only a successful handoff can replace the connection.
+            val moved = runCatching { attemptMove(token, instruction) }.getOrDefault(false)
+            if (moved) {
+                device.applyLockIfNeeded("server move", 0)
+                return Outcome.Synced(true, ServerRules.MIN_POLL_SECONDS)
+            }
+        }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
     }
 
@@ -243,6 +265,7 @@ class SyncRunner(
             return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
         }
         store.markReleased()
+        guarded("reset phone language") { device.refreshPhoneLanguage() }
         return acknowledgeRelease(token) ?: Outcome.Failed("the server says nobody asked for a release")
     }
 

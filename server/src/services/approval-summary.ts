@@ -72,9 +72,9 @@ export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
   const settingsFor = phonesFor("setting.set", "home.set");
   const keysFor = phonesFor("key.set");
   const contactsFor = phonesFor("contact.add", "contact.remove");
-  const dnsFor = phonesFor("dns.category", "dns.allowDomain", "dns.blockDomain");
+  const dnsFor = phonesFor("dns.category", "openMode.category", "dns.allowDomain", "dns.blockDomain");
   const bonusesFor = phonesFor("timeLimit.bonus");
-  const phoneRulesFor = phonesFor("contact.schedule", "dns.method", "phone.release", "phone.remove");
+  const phoneRulesFor = phonesFor("contact.schedule", "dns.method", "openMode.set", "openMode.category", "phone.release", "phone.remove");
   const [limits, previousSchedules, settings, keys, contactRows, dns, bonuses, phoneRules] = await Promise.all([
     limitsFor.length ? db.select().from(timeLimits).where(inArray(timeLimits.phoneId, limitsFor)) : [],
     schedulesFor.length ? db.select().from(schedules).where(inArray(schedules.phoneId, schedulesFor)) : [],
@@ -84,7 +84,7 @@ export async function loadApprovalSummaries(db: Db, targets: SummaryTarget[]) {
     dnsFor.length ? db.select().from(dnsSettings).where(inArray(dnsSettings.phoneId, dnsFor)) : [],
     bonusesFor.length ? db.select().from(timeBonuses).where(inArray(timeBonuses.phoneId, bonusesFor)) : [],
     phoneRulesFor.length ? db.select({
-      phoneId: phones.id, filterMethod: phones.filterMethod, selfScheduleContacts: phones.selfScheduleContacts, mode: phones.mode,
+      phoneId: phones.id, filterMethod: phones.filterMethod, openMode: phones.openMode, blockedAppCategories: phones.blockedAppCategories, selfScheduleContacts: phones.selfScheduleContacts, mode: phones.mode,
       pairedAt: phones.pairedAt, releaseRequestedAt: phones.releaseRequestedAt,
     }).from(phones).where(inArray(phones.id, phoneRulesFor)) : [],
   ]);
@@ -140,6 +140,13 @@ function approvalBeforeState(state: ApprovalState, phoneId: string, op: Op, bonu
       return state.phoneRules.find((row) => row.phoneId === phoneId)?.filterMethod;
     case "dns.category":
       return state.dns.find((row) => row.phoneId === phoneId)?.blockedCategories.includes(op.category);
+    case "openMode.set":
+      return state.phoneRules.find((row) => row.phoneId === phoneId)?.openMode;
+    case "openMode.category":
+      return {
+        blocked: state.dns.find((row) => row.phoneId === phoneId)?.blockedCategories.includes(op.category),
+        apps: state.phoneRules.find((row) => row.phoneId === phoneId)?.blockedAppCategories.includes(op.category),
+      };
     case "dns.allowDomain":
     case "dns.blockDomain": {
       const current = state.dns.find((row) => row.phoneId === phoneId);
@@ -250,6 +257,20 @@ export function formatApprovalSummary(
       const category = categories[op.category] ?? copy(op.category, op.category);
       return op.blocked ? copy(`Block ${category.en}`, `Blokér ${category.da}`) : copy(`Allow ${category.en}`, `Tillad ${category.da}`);
     }
+    case "openMode.set":
+      return op.enabled
+        ? copy("Open mode: allow every app except the block list", "Åben tilstand: tillad alle apps undtagen blokeringslisten")
+        : copy("Turn off open mode: only allowed apps open", "Slå åben tilstand fra: kun tilladte apps åbner");
+    case "openMode.category": {
+      const names: Record<string, ReturnType<typeof copy>> = {
+        social: copy("social media", "sociale medier"), gambling: copy("gambling", "spil om penge"),
+        adult: copy("adult content", "voksenindhold"),
+      };
+      const category = names[op.category] ?? copy(op.category, op.category);
+      return op.blocked
+        ? copy(`Block ${category.en} (apps and websites)`, `Bloker ${category.da} (apps og hjemmesider)`)
+        : copy(`Allow ${category.en} (apps and websites)`, `Tillad ${category.da} (apps og hjemmesider)`);
+    }
     case "contact.schedule": {
       const current = state.phoneRules.find((row) => row.phoneId === phoneId)?.selfScheduleContacts;
       const title = copy("Calls and texts during schedules", "Opkald og beskeder under tidsplaner");
@@ -301,6 +322,8 @@ export function formatApprovalSummary(
     }
     case "catalog.add": return copy(`Add ${app} to the app list`, `Tilføj ${app} til applisten`);
     case "catalog.remove": return copy(`Remove ${app} from the app list`, `Fjern ${app} fra applisten`);
+    case "move.allow": return copy("Allow moving this phone to another server", "Tillad at flytte telefonen til en anden server");
+    case "move.start": return copy(`Move this phone to ${op.serverUrl}`, `Flyt telefonen til ${op.serverUrl}`);
     case "phone.release": return copy("Release this phone", "Frigiv denne telefon");
     case "phone.remove": return copy("Remove this phone from Plainphone", "Fjern denne telefon fra Plainphone");
     case "home.set": return copy("Change the home screen", "Ændr hjemmeskærmen");
