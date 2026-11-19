@@ -1055,4 +1055,7 @@ export const de: Messages = {
   "move.startPhone": "{name} umziehen",
   "move.invalid": "Prüfe den Code oder wähle die verschlüsselte Datei erneut.",
   "move.allowed": "Umzugserlaubnis gespeichert.",
+  "key.qrWaiting": "Warten Sie darauf, dass die vertrauenswürdige Person die Einladung scannt. Bis sie annimmt, warten Änderungen {hours} Stunden.",
+  "key.qrAccepted": "Die vertrauenswürdige Person hat die Einladung angenommen und kann Änderungen genehmigen.",
+  "key.qrExpiredHint": "Einladungscodes laufen nach 15 Minuten ab. Zeigen Sie einen neuen an, falls er abgelaufen ist. Eine Einladung ist keine Genehmigung.",
 };

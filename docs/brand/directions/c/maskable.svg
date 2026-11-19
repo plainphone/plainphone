@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Maskable PWA icon: the artwork stays inside the central 80 % circle (r 25.6). -->
+  <rect width="64" height="64" fill="#141414"/>
+  <rect x="24" y="14" width="16" height="36" rx="8" fill="#c5f04a"/>
+  <circle cx="32" cy="42" r="4.75" fill="#141414"/>
+</svg>

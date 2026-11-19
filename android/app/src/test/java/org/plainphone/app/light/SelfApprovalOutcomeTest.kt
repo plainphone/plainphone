@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
@@ -135,6 +136,20 @@ class SelfApprovalOutcomeTest {
     fun `says expired in Danish`() {
         qualifiers(night = false, danish = true)
         compose.setContent { PlainphoneTheme { SelfApprovalBody(null, summary, ApprovalState.Expired) } }
-        compose.onNodeWithText("Koden er udløbet. Luk dette, og vælg anmodningen igen for at få en ny kode.").assertIsDisplayed()
+        compose.onNodeWithText("Koden er udløbet. Intet blev godkendt. Vis en ny kode for at prøve igen.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `expired offers a new code`() {
+        var asked = 0
+        compose.setContent { PlainphoneTheme { SelfApprovalBody(null, summary, ApprovalState.Expired) { asked++ } } }
+        compose.onNodeWithText("Show a new code").performClick()
+        assertThat(asked).isEqualTo(1)
+    }
+
+    @Test
+    fun `an answered request has no new code button`() {
+        compose.setContent { PlainphoneTheme { SelfApprovalBody(null, summary, ApprovalState.Declined) } }
+        compose.onNodeWithText("Show a new code").assertDoesNotExist()
     }
 }

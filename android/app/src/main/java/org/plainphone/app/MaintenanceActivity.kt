@@ -17,6 +17,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.text.InputType
+import java.util.Date
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -45,6 +46,8 @@ class MaintenanceActivity : Activity() {
     private lateinit var output: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var checkFallbackExpiry: Runnable? = null
+    private var stateView: TextView? = null
+    private var reapplyButton: Button? = null
     private val installPackage by lazy { intent.getStringExtra(EXTRA_INSTALL_PACKAGE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,6 +152,7 @@ class MaintenanceActivity : Activity() {
                         showActions()
                     } else {
                         message.text = getString(R.string.maintenance_wrong_pin)
+                        pin.requestFocus()
                     }
                 }
             }.start()
@@ -251,6 +255,12 @@ class MaintenanceActivity : Activity() {
 
     private fun showActions() {
         val config = ConfigStore(this).load()
+        stateView = TextView(this).apply {
+            textSize = 18f
+            setTypeface(typeface, Typeface.BOLD)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        column.addView(stateView)
         column.addView(TextView(this).apply { text = getString(R.string.server_current, config.serverUrl) })
         org.plainphone.app.sync.SyncStore(this).rules()?.let { rules ->
             column.addView(TextView(this).apply {
@@ -262,10 +272,12 @@ class MaintenanceActivity : Activity() {
             text = resources.getQuantityString(R.plurals.maintenance_lift, minutes, minutes)
             setOnClickListener { Lock.liftAsync(this@MaintenanceActivity, ::show) }
         })
-        column.addView(Button(this).apply {
+        reapplyButton = Button(this).apply {
             text = getString(R.string.maintenance_reapply)
             setOnClickListener { Lock.applyAsync(this@MaintenanceActivity, "maintenance screen", ::show) }
-        })
+        }
+        column.addView(reapplyButton)
+        refreshState()
         column.addView(Button(this).apply {
             text = getString(R.string.maintenance_contacts)
             setOnClickListener {
@@ -369,5 +381,17 @@ class MaintenanceActivity : Activity() {
 
     private fun show(results: List<StepResult>) = runOnUiThread {
         output.text = results.joinToString("\n")
+        refreshState()
+    }
+
+    /** Leads with the lock state and, while an unlock is open, when it ends and how to end it now. */
+    private fun refreshState() {
+        val endsAt = Lock.maintenanceEndsAtMs(this)
+        stateView?.text = if (endsAt == null) {
+            getString(R.string.maintenance_state_locked)
+        } else {
+            getString(R.string.maintenance_state_lifted, android.text.format.DateFormat.getTimeFormat(this).format(Date(endsAt)))
+        }
+        reapplyButton?.setText(if (endsAt == null) R.string.maintenance_reapply else R.string.maintenance_lock_now)
     }
 }

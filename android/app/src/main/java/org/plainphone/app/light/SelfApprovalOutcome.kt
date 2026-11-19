@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -78,7 +79,7 @@ internal suspend fun awaitApprovalState(
  * while waiting, then the result in place of the code. The result is one polite announcement.
  */
 @Composable
-internal fun SelfApprovalBody(url: String?, summary: String?, state: ApprovalState) {
+internal fun SelfApprovalBody(url: String?, summary: String?, state: ApprovalState, onNewCode: () -> Unit = {}) {
     Column {
         summary?.let { Text(it) }
         val message = state.message
@@ -88,6 +89,7 @@ internal fun SelfApprovalBody(url: String?, summary: String?, state: ApprovalSta
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
+            if (state == ApprovalState.Expired) TextButton(onClick = onNewCode) { Text(stringResource(R.string.self_invite_new)) }
         } else if (url != null) {
             Text(stringResource(R.string.self_approval_scan))
             QrCode(url, Modifier.size(200.dp))

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- 16 px: the two lines sit on whole pixels. -->
+  <rect width="16" height="16" rx="3.5" fill="#1b2240"/>
+  <path d="M3 9a5 5 0 0 1 10 0z" fill="#f2b23a"/>
+  <rect x="3" y="10" width="10" height="2" fill="#f2b23a" shape-rendering="crispEdges"/>
+  <rect x="5" y="13" width="6" height="2" fill="#f2b23a" shape-rendering="crispEdges"/>
+</svg>

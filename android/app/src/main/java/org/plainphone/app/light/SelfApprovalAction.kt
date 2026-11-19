@@ -26,6 +26,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
@@ -52,14 +55,16 @@ internal fun SelfApprovalAction() {
     var qrSummary by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf(ApprovalState.Waiting) }
+    var attempt by remember { mutableStateOf(0) }
     val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null; state = ApprovalState.Waiting }
+    val newCode = { state = ApprovalState.Waiting; qr = null; requests = null; attempt++ }
     TextButton(onClick = { open = true }) { Text(stringResource(R.string.self_approval_title)) }
     TextButton(onClick = { invite = true; open = true }) { Text(stringResource(R.string.setup_key_qr)) }
     TextButton(onClick = { template = true; open = true }) { Text(stringResource(R.string.self_template_share)) }
     ScanPlainphoneCode()
     if (!open) return
     val api = remember { PlainphoneApi(ConfigStore(context).load().serverUrl, context) }
-    LaunchedEffect(selected, invite, template, language) {
+    LaunchedEffect(selected, invite, template, language, attempt) {
         val id = selected
         try {
             if (template) {
@@ -72,6 +77,7 @@ internal fun SelfApprovalAction() {
                 else {
                     delay(15 * 60_000L)
                     qr = null
+                    state = ApprovalState.Expired
                     requests = emptyList()
                 }
             } else if (id == null) requests = withContext(Dispatchers.IO) { api.approvalRequests(token, language) }
@@ -106,12 +112,17 @@ internal fun SelfApprovalAction() {
                 val rows = requests
                 when {
                     error -> Text(stringResource(R.string.pairing_failed))
-                    selected != null && (url != null || state.settled) -> SelfApprovalBody(url, qrSummary, state)
+                    selected != null && (url != null || state.settled) -> SelfApprovalBody(url, qrSummary, state, newCode)
                     url != null -> {
                         Text(stringResource(when { template -> R.string.self_template_help; invite -> R.string.self_invite_scan; else -> R.string.self_approval_scan }))
+                        if (!template) Text(stringResource(if (invite) R.string.self_invite_not_approval else R.string.self_approval_not_invite))
                         SelfApprovalQr(url, qrSummary)
                     }
                     rows == null || selected != null -> Text(stringResource(R.string.self_approval_loading))
+                    invite && state == ApprovalState.Expired -> {
+                        Text(stringResource(R.string.self_invite_expired), Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                        TextButton(onClick = newCode) { Text(stringResource(R.string.self_invite_new)) }
+                    }
                     rows.isEmpty() -> Text(stringResource(if (invite) R.string.self_invite_unavailable else R.string.self_approval_empty))
                     else -> SelfApprovalChoices(rows) { selected = it }
                 }

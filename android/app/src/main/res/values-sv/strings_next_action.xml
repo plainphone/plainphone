@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="action_call_plain">Ring</string>
+    <string name="action_delete_digit">Radera sista siffran</string>
+    <string name="blocked_other_body">Gå tillbaka till startskärmen. Du kan alltid ringa eller skriva till en förälder.</string>
+    <string name="blocked_other_title">Det här är inte tillgängligt just nu</string>
+    <string name="blocked_reach_parent">Ring eller skriv till en förälder</string>
+    <string name="dialer_call_parent">Ring en förälder</string>
+    <string name="maintenance_lock_now">Lås telefonen nu</string>
+    <string name="maintenance_state_lifted">Låset är upphävt till %1$s.</string>
+    <string name="maintenance_state_locked">Telefonen är låst.</string>
+    <string name="message_retry">Skriv det igen</string>
+</resources>
