@@ -51,7 +51,8 @@ internal fun SelfApprovalAction() {
     val language = LocalConfiguration.current.locales[0].language
     var qrSummary by remember { mutableStateOf<String?>(null) }
     var qr by remember { mutableStateOf<String?>(null) }
-    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null }
+    var state by remember { mutableStateOf(ApprovalState.Waiting) }
+    val close = { open = false; template = false; invite = false; error = false; requests = null; selected = null; qr = null; qrSummary = null; state = ApprovalState.Waiting }
     TextButton(onClick = { open = true }) { Text(stringResource(R.string.self_approval_title)) }
     TextButton(onClick = { invite = true; open = true }) { Text(stringResource(R.string.setup_key_qr)) }
     TextButton(onClick = { template = true; open = true }) { Text(stringResource(R.string.self_template_share)) }
@@ -79,10 +80,13 @@ internal fun SelfApprovalAction() {
                 val approval = withContext(Dispatchers.IO) { api.approvalQr(token, id, language) }
                 qrSummary = approval.summary
                 qr = approval.url
-                delay((120_000 - (SystemClock.elapsedRealtime() - started)).coerceAtLeast(0))
+                state = awaitApprovalState(
+                    elapsedMs = { SystemClock.elapsedRealtime() - started },
+                    poll = { ApprovalState.fromServer(withContext(Dispatchers.IO) { api.approvalState(token, id) }) },
+                    sleep = { delay(it) },
+                )
+                // Answered or expired: the code is no use now, and the result stays until the dialog is closed.
                 qr = null
-                qrSummary = null
-                selected = null
             }
         } catch (_: IOException) {
             error = true
@@ -102,6 +106,7 @@ internal fun SelfApprovalAction() {
                 val rows = requests
                 when {
                     error -> Text(stringResource(R.string.pairing_failed))
+                    selected != null && (url != null || state.settled) -> SelfApprovalBody(url, qrSummary, state)
                     url != null -> {
                         Text(stringResource(when { template -> R.string.self_template_help; invite -> R.string.self_invite_scan; else -> R.string.self_approval_scan }))
                         SelfApprovalQr(url, qrSummary)
@@ -113,7 +118,7 @@ internal fun SelfApprovalAction() {
             }
         },
         confirmButton = {
-            TextButton(onClick = close) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = close) { Text(stringResource(if (state.settled) android.R.string.ok else android.R.string.cancel)) }
         },
     )
 }

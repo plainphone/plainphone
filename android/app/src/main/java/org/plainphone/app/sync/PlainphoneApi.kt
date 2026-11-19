@@ -406,6 +406,17 @@ class PlainphoneApi private constructor(
         }
     }
 
+    /**
+     * What became of the request behind a QR code: waiting, approved, declined, cancelled or failed.
+     * Null from a server that does not know the question yet, so the phone keeps showing the code.
+     */
+    fun approvalState(token: String, changeId: String): String? {
+        val r = call("GET", "/device/approval-challenge/$changeId", token)
+        if (r.status == 404) return null
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readApprovalResponse { JSONObject(r.body).getString("state") }
+    }
+
     private fun approvalSummary(response: JSONObject, language: String): String =
         response.getJSONObject("summary").getString(if (language == "da") "da" else "en")
 
