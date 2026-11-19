@@ -382,6 +382,12 @@ class InstallLease(
         // Android creates a new InstallLease for each recovery entry point.
         private val pendingClosures = mutableMapOf<Pair<String, Lease>, Lease>()
 
+        /** Tests share this process-wide state across Robolectric sandboxes; call only when nothing is running. */
+        internal fun resetStateForTests(): Unit = synchronized(LOCK) {
+            clearsInFlight = 0
+            pendingClosures.clear()
+        }
+
         internal fun latestOverrun(context: Context, nowMs: Long): InstallWindowOverrun? = synchronized(LOCK) {
             PrefsLeaseStore(context).latestOverrun(nowMs)
         }
