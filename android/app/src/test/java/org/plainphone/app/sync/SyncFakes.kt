@@ -144,6 +144,22 @@ class FakeSyncApi : SyncApi {
         return true
     }
     override fun reportStatus(token: String, status: DeviceStatus) { statuses += status }
+
+    /** What GET /device/requests lists, and what POST .../approve-on-phone answers (null: nothing left to report). */
+    var requests: List<org.plainphone.app.requests.PhoneRequest> = emptyList()
+    var requestsFailure: IOException? = null
+    val approvedOnPhone = mutableListOf<String>()
+    var approveFailure: IOException? = null
+    var approveAnswer: org.plainphone.app.requests.PhoneRequest? = null
+    override fun phoneRequests(token: String): List<org.plainphone.app.requests.PhoneRequest> {
+        requestsFailure?.let { throw it }
+        return requests
+    }
+    override fun reportApprovedOnPhone(token: String, requestId: String): org.plainphone.app.requests.PhoneRequest? {
+        approveFailure?.let { throw it }
+        approvedOnPhone += requestId
+        return approveAnswer
+    }
     override fun ackReleased(token: String): Boolean {
         acks += token
         ackFailure?.let { throw it }

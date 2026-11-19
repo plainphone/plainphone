@@ -280,6 +280,8 @@ class SmsDeliverReceiver : BroadcastReceiver() {
                 context, contact?.name ?: sender, contact?.number ?: sender, body,
                 privateOnLockScreen = rules.isHelpNumber(sender),
                 helpReply = helpReply != null,
+                // Silent bedtime: messages arrive without a sound or a heads-up, whoever sent them.
+                quiet = rules.silentBedtime,
             )
         }
     }

@@ -34,7 +34,11 @@ class PlainphoneCallScreeningService : CallScreeningService() {
             return
         }
         if (decision.allowed) {
-            respondToCall(details, CallResponse.Builder().build())
+            // Silent bedtime: a call that is allowed but is not from a parent, a help line or an
+            // emergency call-back does not ring. It is kept in the call log as a missed call.
+            val quiet = !ringsAtBedtime(number)
+            if (quiet) Log.i(TAG, "silent bedtime: letting an allowed call go unanswered without a ring")
+            respondToCall(details, CallResponse.Builder().setSilenceCall(quiet).setSkipNotification(quiet).build())
             return
         }
         Log.i(TAG, "blocked incoming call: ${decision}")
@@ -49,6 +53,10 @@ class PlainphoneCallScreeningService : CallScreeningService() {
                 .build(),
         )
     }
+
+    private fun ringsAtBedtime(number: String?): Boolean = runCatching {
+        contactPolicy().ringsAtBedtime(ContactPolicySources.get(this).rules(), number)
+    }.getOrDefault(true) // Never let a bug make a parent's call silent.
 
     companion object {
         private const val TAG = "Plainphone"

@@ -60,6 +60,9 @@ class PlainphoneInCallService : InCallService() {
             return
         }
 
+        // Silent bedtime: no ring screen, no heads-up. The call stays in the shade without a sound.
+        if (!outgoing && rules != null && !contactPolicy().ringsAtBedtime(rules, number)) CallManager.markQuiet(call)
+
         val opensWindow = outgoing && number != null && EmergencyNumbers.forContext(this).opensCallBackWindow(number)
         CallManager.add(call, rules?.contactFor(number)?.name)
         CallNotifications.update(this)
@@ -73,7 +76,7 @@ class PlainphoneInCallService : InCallService() {
         }
         callbacks[call] = callback
         call.registerCallback(callback)
-        if (outgoing || callState(call) != Call.STATE_RINGING) {
+        if (outgoing || (callState(call) != Call.STATE_RINGING && !CallManager.isQuiet(call))) {
             // The user just started this call, so Plainphone is in front and may open the screen.
             runCatching {
                 startActivity(Intent(this, InCallActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

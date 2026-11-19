@@ -206,4 +206,6 @@ data class ServerOverlay(
     val locationRequired: Boolean = false,
     /** Phone settings the parent set or locked (camera, Wi-Fi, screen timeout ...). */
     val settings: org.plainphone.app.settings.PhoneSettings = org.plainphone.app.settings.PhoneSettings.NONE,
+    /** A bedtime window is on and the parent kept "Silent bedtime" on: the phone is silent (docs/bedtime.md). */
+    val quietBedtime: Boolean = false,
 )

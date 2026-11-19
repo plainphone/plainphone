@@ -198,6 +198,9 @@ class SyncRunner(
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
         guarded("report status") { reportStatus(token, rules, reason) }
+        // Before the list is read: an approval entered on the phone must not show as waiting.
+        guarded("report approvals on the phone") { reportPhoneApprovals(token) }
+        guarded("requests") { refreshOpenRequests(token, rules) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
         } else {
@@ -217,6 +220,24 @@ class SyncRunner(
             }
         }
         return Outcome.Synced(changed, rules?.pollSeconds ?: ServerRules.DEFAULT_POLL_SECONDS)
+    }
+
+    /** Approvals a parent gave on the phone with the PIN. The server answers a repeat with the same result. */
+    private fun reportPhoneApprovals(token: String) {
+        for (id in store.pendingPhoneApprovals()) {
+            api.reportApprovedOnPhone(token, id)
+            store.phoneApprovalReported(id)
+        }
+    }
+
+    /** How many requests wait for a parent, for the link on the home screen. Only while approval on the phone is on. */
+    private fun refreshOpenRequests(token: String, rules: ServerRules?) {
+        if (rules?.pinApproval != true) {
+            if (store.openRequests != 0) store.openRequests = 0
+            return
+        }
+        val waiting = store.pendingPhoneApprovals()
+        store.openRequests = api.phoneRequests(token).count { it.pending && it.id !in waiting }
     }
 
     private fun reportContactSuggestions(token: String) {

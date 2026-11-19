@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Silent bedtime (docs/bedtime.md) -->
+    <string name="channel_quiet">Silent bedtime</string>
+    <string name="home_bedtime_silent">The phone is silent. Only parents and help lines ring.</string>
+    <string name="home_bedtime_silent_why">Everyone sleeps better when the phone is quiet at night.</string>
+    <string name="maintenance_silent_bedtime_missing">Silent bedtime is on, but Android has not given Plainphone access to Do Not Disturb. Calls and Plainphone\'s messages are silent. Other apps can still make sounds.</string>
+    <string name="maintenance_silent_bedtime_access">Allow Do Not Disturb</string>
+
+    <!-- Requests and approval with the parent PIN -->
+    <string name="requests_title">My requests</string>
+    <string name="requests_empty">Nothing is waiting. When you ask for an app or a contact, it shows here.</string>
+    <string name="requests_load_failed">Could not load your requests. Check the connection and try again.</string>
+    <string name="requests_retry">Try again</string>
+    <string name="requests_back">Back</string>
+    <string name="requests_kind_app">App</string>
+    <string name="requests_kind_contact">Contact</string>
+    <string name="requests_status_waiting">Waiting for a parent</string>
+    <string name="requests_status_approved">Approved</string>
+    <string name="requests_status_approved_phone">Approved on this phone</string>
+    <string name="requests_status_approved_phone_sending">Approved on this phone. It reaches your parents when the phone is online.</string>
+    <string name="requests_status_declined">Declined</string>
+    <string name="requests_status_waiting_key">Approved. It takes effect after the waiting time.</string>
+    <string name="requests_parent_here">A parent is here: approve with PIN</string>
+    <string name="requests_pin_title">Parent PIN</string>
+    <string name="requests_pin_help">Only a parent knows this PIN.</string>
+    <string name="requests_pin_hint">Parent PIN</string>
+    <string name="requests_pin_approve">Approve</string>
+    <string name="requests_pin_cancel">Cancel</string>
+    <string name="requests_pin_wrong">That PIN is not right.</string>
+    <string name="requests_pin_none">This phone has no parent PIN yet. Ask a parent to answer in the app instead.</string>
+    <plurals name="requests_pin_wait">
+        <item quantity="one">Too many tries. Try again in %1$d second.</item>
+        <item quantity="other">Too many tries. Try again in %1$d seconds.</item>
+    </plurals>
+    <string name="requests_already_answered">A parent already answered this request. The answer is shown here.</string>
+    <string name="requests_approved_now">Approved. It takes effect within a minute.</string>
+    <plurals name="home_requests_waiting">
+        <item quantity="one">1 request is waiting for an answer</item>
+        <item quantity="other">%d requests are waiting for an answer</item>
+    </plurals>
+</resources>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Tyst läggdags (docs/bedtime.md) -->
+    <string name="channel_quiet">Tyst läggdags</string>
+    <string name="home_bedtime_silent">Telefonen är tyst. Bara föräldrar och stödlinjer ringer.</string>
+    <string name="home_bedtime_silent_why">Alla sover bättre när telefonen är tyst på natten.</string>
+    <string name="maintenance_silent_bedtime_missing">Tyst läggdags är på, men Android har inte gett Plainphone åtkomst till Stör ej. Samtal och Plainphones meddelanden är tysta. Andra appar kan fortfarande ge ljud.</string>
+    <string name="maintenance_silent_bedtime_access">Tillåt Stör ej</string>
+
+    <!-- Önskemål och godkännande med föräldrakoden -->
+    <string name="requests_title">Mina önskemål</string>
+    <string name="requests_empty">Inget väntar. När du ber om en app eller en kontakt syns det här.</string>
+    <string name="requests_load_failed">Kunde inte hämta dina önskemål. Kontrollera anslutningen och försök igen.</string>
+    <string name="requests_retry">Försök igen</string>
+    <string name="requests_back">Tillbaka</string>
+    <string name="requests_kind_app">App</string>
+    <string name="requests_kind_contact">Kontakt</string>
+    <string name="requests_status_waiting">Väntar på en förälder</string>
+    <string name="requests_status_approved">Godkänd</string>
+    <string name="requests_status_approved_phone">Godkänd på den här telefonen</string>
+    <string name="requests_status_approved_phone_sending">Godkänd på den här telefonen. Det når dina föräldrar när telefonen är online.</string>
+    <string name="requests_status_declined">Avslagen</string>
+    <string name="requests_status_waiting_key">Godkänd. Det börjar gälla efter väntetiden.</string>
+    <string name="requests_parent_here">En förälder är här: godkänn med PIN-kod</string>
+    <string name="requests_pin_title">Föräldrakod</string>
+    <string name="requests_pin_help">Bara en förälder känner till den här koden.</string>
+    <string name="requests_pin_hint">Föräldrakod</string>
+    <string name="requests_pin_approve">Godkänn</string>
+    <string name="requests_pin_cancel">Avbryt</string>
+    <string name="requests_pin_wrong">Koden stämmer inte.</string>
+    <string name="requests_pin_none">Den här telefonen har ännu ingen föräldrakod. Be en förälder svara i appen i stället.</string>
+    <plurals name="requests_pin_wait">
+        <item quantity="one">För många försök. Försök igen om %1$d sekund.</item>
+        <item quantity="other">För många försök. Försök igen om %1$d sekunder.</item>
+    </plurals>
+    <string name="requests_already_answered">En förälder har redan svarat på det här önskemålet. Svaret visas här.</string>
+    <string name="requests_approved_now">Godkänd. Det börjar gälla inom en minut.</string>
+    <plurals name="home_requests_waiting">
+        <item quantity="one">1 önskemål väntar på svar</item>
+        <item quantity="other">%d önskemål väntar på svar</item>
+    </plurals>
+</resources>

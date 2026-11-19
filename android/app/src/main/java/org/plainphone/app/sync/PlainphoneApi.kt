@@ -22,6 +22,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.DeviceContact
+import org.plainphone.app.requests.PhoneRequest
 
 /** The phone's side of the sync API (server/openapi.yaml, tag "device"). Faked in unit tests. */
 interface SyncApi {
@@ -52,6 +53,16 @@ interface SyncApi {
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
      */
     fun reportSafety(token: String, requestId: String, event: String): Boolean
+    /** The phone's own requests: open ones and answers from the last 30 days (`GET /device/requests`). */
+    fun phoneRequests(token: String): List<PhoneRequest> = emptyList()
+    /**
+     * Tells the server that a parent approved [requestId] on the phone with the PIN
+     * (`POST /device/requests/{id}/approve-on-phone`). The request as it stands now, or null when there
+     * is nothing to report any more (the server does not know it, or this is not a child phone).
+     * Idempotent: the first answer wins and a repeat changes nothing. Throws on network errors, so the
+     * phone tries again.
+     */
+    fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? = null
 }
 
 data class Pairing(
@@ -581,6 +592,33 @@ class PlainphoneApi private constructor(
         val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
         if (response.status != 200) throw HttpError(response.status, response.body)
         return JSONObject(response.body)
+    }
+
+    override fun phoneRequests(token: String): List<PhoneRequest> {
+        val r = call("GET", "/device/requests", token, readTimeoutMs = 15_000)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            PhoneRequest.parseList(r.body)
+        } catch (e: JSONException) {
+            throw IOException("Invalid requests response", e)
+        } catch (e: IllegalArgumentException) {
+            throw IOException("Invalid requests response", e)
+        }
+    }
+
+    override fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? {
+        require(requestId.matches(Regex("[0-9a-fA-F-]{36}"))) { "bad request id" }
+        val r = call("POST", "/device/requests/$requestId/approve-on-phone", token, JSONObject(), replayable = true)
+        return when (r.status) {
+            200 -> try {
+                PhoneRequest.parse(JSONObject(r.body))
+            } catch (e: JSONException) {
+                throw IOException("Invalid approval response", e)
+            }
+            // Gone, or a Self phone, which has no parent PIN: nothing left to report.
+            404, 409 -> null
+            else -> throw HttpError(r.status, r.body)
+        }
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

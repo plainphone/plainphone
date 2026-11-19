@@ -14,6 +14,8 @@ import java.time.Instant
 import java.util.Date
 import java.util.concurrent.Executors
 import org.plainphone.app.provisioning.BootloaderWarning
+import org.plainphone.app.quiet.BedtimeDnd
+import org.plainphone.app.quiet.DndOutcome
 import org.plainphone.app.settings.AndroidSettingsControls
 import org.plainphone.app.settings.PrefsPresetStore
 import org.plainphone.app.settings.SettingsApplier
@@ -35,6 +37,7 @@ import org.plainphone.app.update.UpdateBatteryExemption
 /** Glue between Android entry points and [PolicyApplier]. */
 object Lock {
     private const val TAG = "Plainphone"
+    private const val BEDTIME_STEP = "silent bedtime (Do Not Disturb)"
     private val APPLY_LOCK = Any()
     private val executor = Executors.newSingleThreadExecutor()
     private val installRecoveryExecutor = Executors.newSingleThreadExecutor()
@@ -160,7 +163,7 @@ object Lock {
             }
         }
         // Light mode (not Device Owner): the guard and the VPN enforce a plan instead (docs/light-mode.md).
-        val results = if (Mode.isLight(context)) {
+        val locked = if (Mode.isLight(context)) {
             LightLock.apply(context, config).also {
                 if (config.installing != null) onInstallsAllowed()
             }
@@ -168,6 +171,7 @@ object Lock {
             applier(context, onInstallsAllowed).apply(config) + usageAccessStep(context) +
                 listOfNotNull(UpdateBatteryExemption.failure(context))
         }
+        val results = locked + silentBedtimeStep(context, config.server?.quietBedtime == true)
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
         saveApplied(context, config, results, receiptEtag = receiptEtag?.takeIf { it == sync.etag })
@@ -213,6 +217,20 @@ object Lock {
             return null
         }
         return applyNow(context, reason)
+    }
+
+    /**
+     * Silent bedtime (docs/bedtime.md): Do Not Disturb on while bedtime is on, the phone's own setting
+     * back afterwards. Never a failure: without Android's access, calls and Plainphone's own
+     * notifications are still silent, and the maintenance screen says what is missing.
+     */
+    private fun silentBedtimeStep(context: Context, silent: Boolean): List<StepResult> = try {
+        if (BedtimeDnd.forContext(context).apply(silent) == DndOutcome.NO_ACCESS) {
+            listOf(StepResult(BEDTIME_STEP, true, "no Do Not Disturb access: only Plainphone's own calls and messages are silent"))
+        } else emptyList()
+    } catch (e: Exception) {
+        Log.e(TAG, "silent bedtime failed", e)
+        listOf(StepResult(BEDTIME_STEP, true, e.javaClass.simpleName))
     }
 
     /** Strong mode: time limits count with usage access, which only the user can grant (Today screen). */
@@ -356,6 +374,8 @@ object Lock {
                     val minutes = ConfigStore(app).load().relockMinutes
                     scheduleRelock(app, minutes)
                     org.plainphone.app.home.HomeGuard.reset(app)
+                    // A maintenance unlock is a normal phone: bedtime's Do Not Disturb ends with it.
+                    silentBedtimeStep(app, silent = false)
                     // Light mode: the guard pauses while the window is open; nothing else to lift.
                     val lifted = if (Mode.isLight(app)) {
                         listOf(StepResult("guard paused", true, "$minutes min"))
@@ -383,6 +403,7 @@ object Lock {
     fun releaseNow(context: Context): List<StepResult> = synchronized(APPLY_LOCK) {
         cancelRelock(context)
         context.getSystemService(AlarmManager::class.java).cancel(windowIntent(context))
+        silentBedtimeStep(context, silent = false)
         val state = prefs(context)
         val ownerReleaseStarted = state.getBoolean("owner_release_started", false)
         if (Mode.isStrong(context) || ownerReleaseStarted) {

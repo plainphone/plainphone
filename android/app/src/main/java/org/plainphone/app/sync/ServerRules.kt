@@ -90,6 +90,15 @@ data class ServerRules(
     val fcmValidationKey: String = "",
     val language: String? = null,
     val lockSystemLanguage: Boolean = true,
+    /**
+     * Bedtime is silent (docs/bedtime.md). Missing from older servers: on, the default.
+     */
+    val silentBedtime: Boolean = true,
+    /**
+     * A parent next to the child may approve a request on the phone with the parent PIN. Old servers
+     * have no endpoint for it, so missing means off.
+     */
+    val pinApproval: Boolean = false,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -115,6 +124,8 @@ data class ServerRules(
                 phoneId = j.getString("phoneId"),
                 language = PhoneLanguage.supportedTag(j.optString("language", "")),
                 lockSystemLanguage = j.optBoolean("lockSystemLanguage", true),
+                silentBedtime = j.optBoolean("silentBedtime", true),
+                pinApproval = j.optBoolean("pinApprovalEnabled", false),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))
