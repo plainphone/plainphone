@@ -33,7 +33,7 @@ describe("phone settings (child profile)", () => {
     for (const key of SETTING_KEYS) expect(r.json.settings[key]).toEqual({ mode: "free" });
     const doc = await rules(s.device);
     expect(doc.settings).toEqual({});
-    expect(doc.home).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [] });
+    expect(doc.home).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [], showFreePromise: true });
   });
 
   it("applies at once, shows in the rules in alphabetical order and changes the ETag", async () => {
@@ -217,26 +217,51 @@ describe("home screen", () => {
       theme: "system",
       palette: "sage",
       apps: [],
+      showFreePromise: true,
     });
 
     const put = await s.parent.put(`/api/phones/${s.phoneId}/home`, home);
     expect(put.status).toBe(200);
     expect(put.json).toEqual({ status: "applied" });
-    expect((await s.parent.get(`/api/phones/${s.phoneId}/home`)).json).toEqual(home);
+    expect((await s.parent.get(`/api/phones/${s.phoneId}/home`)).json).toEqual({ ...home, showFreePromise: true });
     expect(h.push.sent).toEqual([{ token: "fcm-2", reason: "rules" }]);
 
     const after = await s.device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
     expect(after.status).toBe(200);
     expect(after.headers.get("etag")).not.toBe(before.headers.get("etag"));
     // The order of the apps is the order on the front page.
-    expect(after.json.home).toEqual(home);
+    expect(after.json.home).toEqual({ ...home, showFreePromise: true });
     expect(after.json.settings).toEqual({});
 
     // Changing the home screen leaves the settings alone, and the other way round.
     await setting(s, "wifi", { mode: "locked" });
-    expect((await rules(s.device)).home).toEqual(home);
+    expect((await rules(s.device)).home).toEqual({ ...home, showFreePromise: true });
     await s.parent.put(`/api/phones/${s.phoneId}/home`, { ...home, apps: [] });
     expect((await rules(s.device)).settings).toEqual({ wifi: { mode: "locked" } });
+  });
+
+  it.each(["child", "self"] as const)("syncs the free promise separately for each %s phone", async (profile) => {
+    const s = await setup(profile);
+    const other = await pairPhone(h, s.parent, { profile, mode: "light" });
+    const path = `/api/phones/${s.phoneId}/home`;
+    expect((await rules(s.device)).home.showFreePromise).toBe(true);
+    const before = await s.device.get("/api/device/rules");
+
+    expect((await s.parent.patch(path, { showFreePromise: "false" })).status).toBe(400);
+    expect((await s.parent.patch(path, { showFreePromise: false })).json).toEqual({ status: "applied" });
+    expect((await s.parent.get(path)).json.showFreePromise).toBe(false);
+    const after = await s.device.get("/api/device/rules", { "if-none-match": before.headers.get("etag")! });
+    expect(after.status).toBe(200);
+    expect(after.json.home.showFreePromise).toBe(false);
+    expect((await rules(other.device)).home.showFreePromise).toBe(true);
+
+    // An older dashboard can still save the layout without resetting the toggle.
+    expect((await s.parent.put(path, home)).status).toBe(200);
+    expect((await rules(s.device)).home).toEqual({ ...home, showFreePromise: false });
+    expect((await s.parent.patch(path, { showFreePromise: true })).status).toBe(200);
+    expect((await rules(s.device)).home).toEqual({ ...home, showFreePromise: true });
+    expect((await s.parent.patch(`/api/phones/${other.phoneId}/home`, { showFreePromise: false })).status).toBe(200);
+    expect((await rules(other.device)).home.showFreePromise).toBe(false);
   });
 
   it("rejects what the home screen cannot show", async () => {
@@ -259,7 +284,7 @@ describe("home screen", () => {
     const put = await s.parent.put(`/api/phones/${s.phoneId}/home`, home);
     expect(put.status).toBe(200);
     expect(put.json).toEqual({ status: "applied" });
-    expect((await rules(s.device)).home).toEqual(home);
+    expect((await rules(s.device)).home).toEqual({ ...home, showFreePromise: true });
     // Going back to the defaults is not a loosening either.
     const reset = await s.parent.put(`/api/phones/${s.phoneId}/home`, { layout: "list", theme: "system", palette: "sage", apps: [] });
     expect(reset.status).toBe(200);

@@ -16,7 +16,7 @@ import type { Ctx } from "./context.js";
 const MAX_FAILURES = 20;
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
@@ -135,7 +135,7 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   const t = text[locale](e);
   switch (e.type) {
     case "protection":
-      return { ...t, url: e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
+      return { ...t, url: e.trusted ? "/approvals" : e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
     case "offline":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
     case "approval":
@@ -211,7 +211,7 @@ export async function notifyUsers(
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);
+  return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);
 }
 
 type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -228,7 +228,7 @@ export async function phoneAlertRecipients(db: RecipientDb, phoneId: string, hou
     .where(and(eq(householdMembers.householdId, householdId), notInArray(householdMembers.userId, muted)));
 }
 
-export async function notifyHouseholdMembers(
+export async function notifyAlertRecipients(
   ctx: Ctx,
   members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
   e: NotifyEvent,
@@ -246,7 +246,7 @@ export async function notifyHouseholdMembers(
             locale,
             ctx.cfg.PUBLIC_URL,
             e.type === "protection"
-              ? { kind: "protection", phoneId: e.phoneId, phoneName: e.phoneName, reason: e.reason }
+              ? { kind: "protection", phoneId: e.phoneId, phoneName: e.phoneName, reason: e.reason, trusted: e.trusted }
               : { kind: "offline", phoneId: e.phoneId, phoneName: e.phoneName, hours: e.hours, lastSeen: lastSeen(e, locale) },
           ),
         );

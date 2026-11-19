@@ -181,12 +181,17 @@ export const homeInput = z.object({
     .refine((apps) => new Set(apps).size === apps.length, { message: "an app can only be on the front page once" }),
 });
 
-export type Home = z.infer<typeof homeInput>;
+export const homePromiseInput = z.strictObject({ showFreePromise: z.boolean() });
+export const homeUpdateInput = z.union([homePromiseInput, homeInput]);
+const homeWithPromise = homeInput.extend(homePromiseInput.shape);
 
-export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "sage", apps: [] };
+export type Home = z.infer<typeof homeWithPromise>;
+export type HomeUpdate = z.infer<typeof homeUpdateInput>;
+
+export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "sage", apps: [], showFreePromise: true };
 
 /** The stored home choices with the defaults filled in. Anything unreadable falls back to the default. */
 export function fullHome(stored: unknown): Home {
-  const parsed = homeInput.safeParse({ ...DEFAULT_HOME, ...(stored && typeof stored === "object" ? stored : {}) });
+  const parsed = homeWithPromise.safeParse({ ...DEFAULT_HOME, ...(stored && typeof stored === "object" ? stored : {}) });
   return parsed.success ? parsed.data : { ...DEFAULT_HOME, apps: [] };
 }

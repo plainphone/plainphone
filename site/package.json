@@ -3,11 +3,11 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "The plainphone.org landing page. Static, no dependencies, no client JavaScript.",
+  "description": "The plainphone.org landing page. Static, with local app search and no dependencies.",
   "engines": { "node": ">=24" },
   "scripts": {
     "build": "node build.mjs",
-    "check": "node scripts/check.mjs",
+    "check": "node --test scripts/*.test.mjs && node scripts/check.mjs",
     "check:external": "node scripts/check.mjs --external"
   }
 }

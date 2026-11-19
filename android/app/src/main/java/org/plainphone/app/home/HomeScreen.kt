@@ -81,7 +81,7 @@ fun HomeScreen(ui: HomeUi, showAll: Boolean, onShowAll: (Boolean) -> Unit, actio
     val c = LocalHomeColors.current
     Box(Modifier.fillMaxSize().background(c.paper)) {
         if (showAll) {
-            AllApps(ui.state.all, onBack = { onShowAll(false) }, open = actions.open)
+            AllApps(ui.state.all, ui.state.prefs.showFreePromise, onBack = { onShowAll(false) }, open = actions.open)
         } else {
             FrontPage(ui, onShowAll = { onShowAll(true) }, actions)
         }
@@ -321,7 +321,7 @@ private fun DockButton(label: String, bg: Color, fg: Color, modifier: Modifier, 
 }
 
 @Composable
-private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> Unit) {
+private fun AllApps(apps: List<HomeApp>, showFreePromise: Boolean, onBack: () -> Unit, open: (HomeApp) -> Unit) {
     val c = LocalHomeColors.current
     val back = stringResource(R.string.home_back)
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -338,13 +338,19 @@ private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> 
                 modifier = Modifier.semantics { heading() },
             )
         }
-        if (apps.isEmpty()) {
-            Text(stringResource(R.string.home_no_apps), color = c.muted, fontSize = 17.sp, modifier = Modifier.padding(28.dp))
-            return@Column
-        }
         // Grouped by first letter, quietly: the letter is a small muted label, not a heading bar.
         val groups = apps.groupBy { it.label.firstOrNull()?.uppercaseChar()?.takeIf(Char::isLetter) ?: '#' }
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 28.dp)) {
+            if (apps.isEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.home_no_apps),
+                        color = c.muted,
+                        fontSize = 17.sp,
+                        modifier = Modifier.padding(vertical = 28.dp),
+                    )
+                }
+            }
             groups.forEach { (letter, group) ->
                 item(key = "h$letter") {
                     Text(
@@ -357,7 +363,16 @@ private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> 
                 }
                 items(group, key = { it.component }) { ListRow(it, big = false, open = open) }
             }
-            item { Spacer(Modifier.height(24.dp)) }
+            if (showFreePromise) {
+                item {
+                    Text(
+                        stringResource(R.string.free_promise),
+                        color = c.ink,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
+            }
         }
     }
 }

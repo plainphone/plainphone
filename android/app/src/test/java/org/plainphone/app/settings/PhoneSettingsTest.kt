@@ -63,6 +63,14 @@ class PhoneSettingsTest {
     }
 
     @Test
+    fun `free promise is shown for older rules and can be hidden and shown again`() {
+        assertThat(ServerRules.parse(rulesJson()).home.showFreePromise).isTrue()
+        assertThat(ServerRules.parse(withExtra(""""home":{"layout":"grid"}""")).home.showFreePromise).isTrue()
+        assertThat(ServerRules.parse(withExtra(""""home":{"showFreePromise":false}""")).home.showFreePromise).isFalse()
+        assertThat(ServerRules.parse(withExtra(""""home":{"showFreePromise":true}""")).home.showFreePromise).isTrue()
+    }
+
+    @Test
     fun `the home screen keeps at most eight distinct apps and falls back on unknown values`() {
         val apps = (1..10).joinToString(",") { "\"a.b$it\"" }
         val h = HomePrefs.parse(JSONObject("""{"layout":"spiral","theme":"neon","apps":["a.b1",$apps]}"""))

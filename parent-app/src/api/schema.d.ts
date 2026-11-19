@@ -1229,14 +1229,15 @@ export interface paths {
         get: operations["getPhonesHome"];
         /**
          * Change the home screen
-         * @description Send the whole object. Never waits for the key, also on a Self phone, because it only arranges apps the rules already allow.
+         * @description Send the layout settings. The free promise is updated separately. Never waits for the key.
          */
         put: operations["putPhonesHome"];
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Show or hide the free promise on this phone */
+        patch: operations["patchPhonesHome"];
         trace?: never;
     };
     "/phones/{pid}/contact-suggestions": {
@@ -1329,6 +1330,23 @@ export interface paths {
         /** Get phones dns */
         get: operations["getPhonesDns"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/dns/method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Switch the filter method of a light phone */
+        put: operations["setPhoneFilterMethod"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1931,6 +1949,8 @@ export interface components {
         /** @example +4512345678 */
         E164: string;
         /** @enum {string} */
+        FilterMethod: "vpn" | "privateDns";
+        /** @enum {string} */
         DnsCategory: "social" | "adult" | "gambling" | "games" | "dating" | "video";
         /** @description A rule change, as stored for pending changes and shown on the phone. */
         Op: {
@@ -1952,6 +1972,10 @@ export interface components {
             /** @constant */
             type?: "contact.schedule";
             restricted?: boolean;
+        } | {
+            /** @constant */
+            type: "dns.method";
+            method: components["schemas"]["FilterMethod"];
         } | {
             /** @constant */
             type?: "dns.category";
@@ -1976,7 +2000,7 @@ export interface components {
         } | {
             /** @constant */
             type?: "home.set";
-            home?: components["schemas"]["Home"];
+            home?: components["schemas"]["HomeLayoutSettings"] | components["schemas"]["HomeFreePromise"];
         } | {
             /** @constant */
             type?: "key.set";
@@ -2120,8 +2144,16 @@ export interface components {
              */
             value?: string | number;
         };
+        Home: components["schemas"]["HomeLayoutSettings"] & components["schemas"]["HomeFreePromise"];
+        HomeFreePromise: {
+            /**
+             * @description Show the free promise on the phone.
+             * @default true
+             */
+            showFreePromise: boolean;
+        };
         /** @description How Plainphone's home screen looks. Phone and the emergency call are always on it and cannot be removed; apps that the rules hide are never shown, even when listed. */
-        Home: {
+        HomeLayoutSettings: {
             /**
              * @default list
              * @enum {unknown}
@@ -2243,6 +2275,9 @@ export interface components {
                 host?: string;
                 /** @description The phone has a DNS confirmation. Legacy confirmations stay ready during provisioning retries. When switching from mock to HTTP DNS, mock confirmations require a successful HTTP sync. While false, the phone uses the private DNS host from its setup profile. */
                 ready?: boolean;
+                /** @description The current DNS-over-TLS provider has confirmed the phone’s ClientID. Required before offering Android Private DNS setup. */
+                privateDnsReady?: boolean;
+                filterMethod?: components["schemas"]["FilterMethod"];
                 /** @description Informational; filtering happens in the DNS service. */
                 blockedCategories?: components["schemas"]["DnsCategory"][];
             };
@@ -2542,6 +2577,10 @@ export interface components {
              * @enum {unknown}
              */
             mode?: "strong" | "light";
+            filterMethod?: components["schemas"]["FilterMethod"];
+            filterWorking?: boolean;
+            /** @enum {string} */
+            filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
             protections?: components["schemas"]["Protections"];
             timeUsed?: components["schemas"]["TimeUsed"];
         };
@@ -2795,6 +2834,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {unknown} */
                     action: "confirm" | "cancel";
+                    filterMethod?: components["schemas"]["FilterMethod"];
                     key?: components["schemas"]["InitialSelfKey"];
                 };
             };
@@ -2952,6 +2992,7 @@ export interface operations {
             content: {
                 "application/json": {
                     token: string;
+                    filterMethod?: components["schemas"]["FilterMethod"];
                     key?: components["schemas"]["InitialSelfKey"];
                     /** @description Random id the phone makes once and keeps; only its hash is stored. */
                     installId: string;
@@ -4363,6 +4404,8 @@ export interface operations {
                     "application/json": {
                         /** @enum {unknown} */
                         profile?: "child" | "self" | null;
+                        /** @enum {unknown} */
+                        mode?: "strong" | "light";
                     };
                 };
             };
@@ -4390,6 +4433,7 @@ export interface operations {
                     name: string;
                     /** @enum {unknown} */
                     profile: "child" | "self";
+                    filterMethod?: components["schemas"]["FilterMethod"];
                     /** Format: uuid */
                     householdId?: string;
                     /** @example Europe/Copenhagen */
@@ -4441,6 +4485,7 @@ export interface operations {
                      * @enum {string}
                      */
                     mode?: "strong" | "light";
+                    filterMethod?: components["schemas"]["FilterMethod"];
                     /** @enum {unknown} */
                     profile: "child" | "self";
                     /** Format: uuid */
@@ -4998,12 +5043,38 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Home"];
+                "application/json": components["schemas"]["HomeLayoutSettings"];
             };
         };
         responses: {
             200: components["responses"]["Change"];
             400: components["responses"]["Error"];
+        };
+    };
+    patchPhonesHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomeFreePromise"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            400: components["responses"]["Error"];
+            /** @description Unknown phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getContactSuggestions: {
@@ -5238,6 +5309,34 @@ export interface operations {
         responses: {
             /** @description host (null in mock mode or before provisioning), synced, blockedCategories, allowDomains, blockDomains */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setPhoneFilterMethod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    method: components["schemas"]["FilterMethod"];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            /** @description The phone uses strong mode */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

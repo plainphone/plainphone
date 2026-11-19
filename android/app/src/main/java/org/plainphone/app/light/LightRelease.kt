@@ -17,7 +17,10 @@ object LightRelease {
         val undoPending = SyncStore(context).setupUndoPending
         // Keep Android's uninstall barrier until the server has durably accepted the report.
         if (!undoPending) add(step("device admin off") { removeAdmin(context) })
-        prefs(context).edit().putBoolean(KEY_RELEASED, true).apply()
+        val storedDns = SyncStore(context).rules()?.dnsHost?.takeIf { LightFilter.setupIssue(context, it) == null }
+        prefs(context).edit().putBoolean(KEY_RELEASED, true).apply {
+            if (storedDns != null) putString(KEY_RELEASED_DNS, storedDns)
+        }.apply()
         add(step("DNS filter (VPN) stopped") {
             PlainphoneVpnService.stop(context)
         })
@@ -39,10 +42,16 @@ object LightRelease {
     /** After a release no apply starts the VPN or the plan again, until setup is completed anew. */
     fun isReleased(context: Context) = prefs(context).getBoolean(KEY_RELEASED, false)
 
-    fun clear(context: Context) {
-        prefs(context).edit().remove(KEY_RELEASED).apply()
+    fun needsPrivateDnsReset(context: Context): Boolean {
+        val host = prefs(context).getString(KEY_RELEASED_DNS, null) ?: return false
+        return isReleased(context) && LightFilter.setupIssue(context, host) == null
     }
 
+    fun clear(context: Context) {
+        prefs(context).edit().remove(KEY_RELEASED).remove(KEY_RELEASED_DNS).apply()
+    }
+
+    private const val KEY_RELEASED_DNS = "released_dns"
     private const val KEY_RELEASED = "released"
     private fun prefs(context: Context) = context.getSharedPreferences("plainphone_light", Context.MODE_PRIVATE)
 

@@ -87,13 +87,14 @@ data class LockState(
     /** Account types on the phone ("com.google"), no names. */
     val accountTypes: List<String>? = null,
     val callRoleActionNeeded: Boolean = false,
+    val filter: org.plainphone.app.light.FilterHealth? = null,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
      * is a lock step, so a missing one is a failed policy. The strong-mode battery exemption
      * gates self-update and can be reported while the lock is intact.
      */
-    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && appliedAtMs != null &&
+    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && appliedAtMs != null && filter?.working != false &&
         failedPolicies.none { it != UpdateBatteryExemption.FAILED_POLICY }
 }
 
@@ -491,6 +492,7 @@ class SyncRunner(
             update = device.updateReport(),
             mode = lock.mode,
             protections = lock.protections,
+            filter = lock.filter,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
             pushProvider = runCatching { device.registerWakeup(api, token, reason) }.getOrNull(),
