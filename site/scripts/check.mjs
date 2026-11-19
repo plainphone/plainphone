@@ -11,6 +11,8 @@ const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const external = process.argv.includes("--external");
 const errors = [];
 const externalLinks = new Set();
+const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
+const locales = Object.keys(ogLocales);
 
 const files = (dir) =>
   readdirSync(dir).flatMap((f) => {
@@ -18,6 +20,7 @@ const files = (dir) =>
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
+if (html.length !== locales.length * 4 + 1) errors.push("Expected four pages per locale and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
 const cspHashes = new Set([...headers.matchAll(/'sha256-([^']+)'/g)].map((m) => m[1]));
 
@@ -66,6 +69,34 @@ for (const file of html) {
     if (u.hash) {
       const tIds = t === file ? ids : new Set([...readFileSync(t, "utf8").matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
       if (!tIds.has(u.hash.slice(1))) errors.push(`${name}: missing anchor ${url}`);
+    }
+  }
+  if (name !== "404.html") {
+    const ownLang = src.match(/<html lang="([a-z]{2})">/)?.[1];
+    const expectedOg = ownLang && `<meta property="og:locale" content="${ogLocales[ownLang]}">`;
+    if (!expectedOg || !src.includes(expectedOg)) errors.push(`${name}: missing Open Graph locale`);
+    if (!src.includes(`<meta property="og:image" content="https://plainphone.org/og-${ownLang}.png">`)) {
+      errors.push(`${name}: missing localized Open Graph image`);
+    }
+    for (const lang of locales) {
+      const alternate = src.match(new RegExp(`<link rel="alternate" hreflang="${lang}" href="([^"]+)"`))?.[1];
+      if (!alternate) {
+        errors.push(`${name}: missing ${lang} alternate`);
+        continue;
+      }
+      const path = new URL(alternate).pathname;
+      const counterpart = target(path);
+      if (existsSync(counterpart) && !readFileSync(counterpart, "utf8").includes(`<html lang="${lang}">`)) {
+        errors.push(`${name}: ${path} is not in ${lang}`);
+      }
+      if (lang !== ownLang) {
+        if (!src.includes(`<meta property="og:locale:alternate" content="${ogLocales[lang]}">`)) {
+          errors.push(`${name}: missing Open Graph alternate for ${lang}`);
+        }
+        if (!src.includes(`<a href="${path}" hreflang="${lang}" lang="${lang}">`)) {
+          errors.push(`${name}: missing language switch to ${path}`);
+        }
+      }
     }
   }
   // Every <link rel=canonical/alternate> must point at a page that exists.

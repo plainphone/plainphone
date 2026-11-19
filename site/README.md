@@ -1,6 +1,10 @@
 # plainphone.org
 
-The landing page for Plainphone, in English (`/`) and Danish (`/da/`).
+The Plainphone website is available in English (`/`), Danish (`/da/`), Swedish
+(`/sv/`), Norwegian Bokmål (`/nb/`) and German (`/de/`). Each language has a home
+page, setup guide, privacy policy and page about the research behind Plainphone.
+The language menu keeps readers on the equivalent page. The build adds canonical
+URLs, hreflang tags, Open Graph locales and a localized share image for each language.
 
 It is plain HTML and CSS, built by one Node script with no dependencies and no
 client-side JavaScript. No cookies, no analytics, no external fonts or requests.
@@ -20,7 +24,7 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 
 | Path | What |
 |---|---|
-| `content/en.mjs`, `content/da.mjs` | All copy. Change text here, keep the two languages in step. |
+| `content/{en,da,sv,nb,de}.mjs` | All website copy. Keep the five languages in step and see [translation review](../docs/translations.md). |
 | `why` in the same files | The research and design page (`/why/`, `/da/hvorfor/`). See the [evidence review](../docs/evidence.md) for source checks and limitations. |
 | `privacy` in the same files | The privacy policy (`/privacy/`, `/da/privacy/`). Change it in the same pull request as anything that changes what the server stores, and update the date in `updated`. The technical basis is [`docs/privacy.md`](../docs/privacy.md) |
 | `setup` in the same files | The setup guide (`/setup/`, `/da/setup/`). The dashboard links to exactly these two addresses, so they must keep existing. Change the steps in the same pull request as anything in the dashboard's Add phone flow or the setup QR code |
@@ -33,6 +37,9 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 
 The files in `tools/` are only needed when the logo or images change. They need
 `fonttools` + `brotli` and `Pillow` (Python) and `playwright` (Node); their output is committed.
+
+Regenerate the share images with `NODE_PATH=<directory containing playwright> node tools/make-images.mjs`
+from `site/` when the hero copy changes. The output is checked into `src/`.
 
 ## Design notes
 
@@ -50,8 +57,8 @@ redirect to it with a 301.
 
 **Automatic.** A push to `main` that touches `site/` runs
 [`.github/workflows/site-deploy.yml`](../.github/workflows/site-deploy.yml): build, run
-`scripts/check.mjs`, then `wrangler pages deploy`. Pull requests are built and checked by
-`site.yml` but never deployed. The workflow can also be started by hand from the Actions
+`scripts/check.mjs`, then `wrangler pages deploy`. The website is built and checked in pull requests by
+the [site job in `ci.yml`](../.github/workflows/ci.yml). You can also start the deploy workflow from the Actions
 tab (`workflow_dispatch`), but only on `main`, and it only runs in the
 `plainphone/plainphone` repository, so forks do not try to deploy.
 
