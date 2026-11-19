@@ -229,13 +229,6 @@ fun placeCall(context: Context, number: String): String? {
     }.getOrElse { context.getString(R.string.call_failed) }
 }
 
-/** Opens the emergency dialer with 112 ready; the child still presses call, so one stray tap never rings the centre. */
-private fun openEmergencyDialer(context: Context) {
-    val system = Intent("com.android.phone.EmergencyDialer.DIAL").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    if (runCatching { context.startActivity(system) }.isSuccess) return
-    runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneApp(route: Route, resumed: Int) {
@@ -359,7 +352,7 @@ private fun PhoneApp(route: Route, resumed: Int) {
                     onCall = call,
                     onParents = { tab = Tab.CONTACTS },
                     showParents = !rules.selfProfile,
-                    onEmergency = { openEmergencyDialer(context) },
+                    onEmergency = { org.plainphone.app.sos.openEmergencyDialer(context) },
                 )
             }
         }

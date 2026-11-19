@@ -3,6 +3,7 @@
 package org.plainphone.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,14 +33,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.plainphone.app.R
+import org.plainphone.app.sos.HoldAction
 
 /**
  * The keypad tab. Two labelled routes sit above the digits so they stay on screen however large
@@ -50,6 +54,7 @@ import org.plainphone.app.R
 @Composable
 internal fun KeypadScreen(initial: String, onCall: (String) -> Unit, onParents: () -> Unit = {}, showParents: Boolean = true, onEmergency: () -> Unit = {}) {
     var number by remember(initial) { mutableStateOf(initial) }
+    var hint by remember { mutableStateOf<Int?>(null) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -58,9 +63,16 @@ internal fun KeypadScreen(initial: String, onCall: (String) -> Unit, onParents: 
             if (showParents) OutlinedButton(onClick = onParents, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
                 Text(stringResource(R.string.dialer_call_parent), textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
             }
-            OutlinedButton(onClick = onEmergency, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
-                Text(stringResource(R.string.home_emergency), textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
+            Box(Modifier.weight(1f)) {
+                HoldAction(stringResource(R.string.sos_emergency), { hint = R.string.sos_hold_emergency }, onEmergency)
             }
+        }
+        hint?.let {
+            Text(
+                stringResource(it),
+                Modifier.padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         Text(
             number.ifEmpty { " " },
