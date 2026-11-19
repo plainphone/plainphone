@@ -33,13 +33,9 @@ The paths are listed twice, in `parent-app/app.config.ts` and in `APP_LINK_PATHS
 
 ## Push notifications
 
-The app is ready for two notifications: a change waiting for your approval, and a position that is ready after Find. It asks for permission in Settings, creates the Android channels `approval` and `location`, and reads the native device token (APNs or FCM). It does not use the Expo push service.
+The app registers directly with the Plainphone server for APNs on iOS or FCM on Android. Enable permission under **Settings → Notifications**. The app sends a granted token on sign-in and refresh, and registers a replacement when the OS rotates it. Android uses the **Notifications** and **Urgent SOS** channels. Tapping an alert can open a phone, its location, approvals or settings.
 
-Still missing before notifications arrive:
-
-1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server-side provider that sends through APNs and FCM. The registration endpoint already stores the tokens.
-3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
+Per-phone alert preferences are shared with the web dashboard. See [push setup](push-setup.md) for the Firebase and Apple configuration.
 
 ## Location screen
 

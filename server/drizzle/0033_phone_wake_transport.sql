@@ -1,0 +1,1 @@
+ALTER TABLE "phones" ADD COLUMN "prefer_unified_push" boolean DEFAULT false NOT NULL;

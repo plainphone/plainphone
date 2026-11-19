@@ -17,6 +17,7 @@ interface SyncDevice {
     fun nowMs(): Long
     fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
+    fun registerWakeup(api: SyncApi, token: String, reason: String): String? = null
     fun appVersion(): String
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
@@ -186,7 +187,7 @@ class SyncRunner(
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
-        guarded("report status") { reportStatus(token) }
+        guarded("report status") { reportStatus(token, reason) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
         } else {
@@ -481,7 +482,7 @@ class SyncRunner(
         return true
     }
 
-    private fun reportStatus(token: String) {
+    private fun reportStatus(token: String, reason: String) {
         val lock = device.lockState()
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
@@ -513,6 +514,7 @@ class SyncRunner(
             filter = lock.filter,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
+            pushProvider = runCatching { device.registerWakeup(api, token, reason) }.getOrNull(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.

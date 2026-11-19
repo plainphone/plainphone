@@ -45,6 +45,7 @@ import org.plainphone.app.light.LightSetup
 import org.plainphone.app.PrefsHiddenAppsStore
 import org.plainphone.app.StepResult
 import org.plainphone.app.AndroidDeviceControls
+import org.plainphone.app.push.PhoneWake
 import org.plainphone.app.update.SelfUpdate
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.contacts.ContactPolicySources
@@ -68,6 +69,9 @@ object Sync {
 
 /** Real phone effects for [SyncRunner]. */
 class AndroidSyncDevice(private val context: Context) : SyncDevice {
+    override fun registerWakeup(api: SyncApi, token: String, reason: String): String =
+        PhoneWake.register(context, api, token, reason == PhoneWake.REGISTRATION_CHANGED)
+
     override fun nowMs() = System.currentTimeMillis()
 
     override fun pendingSetupCompletion(phoneId: String?) = LightSetup.pendingCompletion(context, phoneId)
@@ -483,7 +487,7 @@ internal fun isInteractive(context: Context) = context.getSystemService(PowerMan
  * - every 15 minutes (WorkManager's shortest period), whenever there is a network,
  * - right away after boot, an app update, pairing, the screen turning on and a network change,
  * - every `pollSeconds` (60 s) while the screen is on.
- * Push (FCM) can come later; polling stays the guarantee.
+ * Push can request an immediate sync; periodic polling remains active.
  */
 object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
@@ -512,6 +516,12 @@ object SyncScheduler {
 
     fun now(context: Context, reason: String) = enqueueNow(context, reason, NOW)
 
+    fun pushWake(context: Context, reason: String) =
+        enqueueNow(context, "push: $reason", "plainphone-push-wake", ExistingWorkPolicy.APPEND_OR_REPLACE)
+
+    fun pushRegistrationChanged(context: Context) =
+        enqueueNow(context, PhoneWake.REGISTRATION_CHANGED, "plainphone-push-registration", ExistingWorkPolicy.APPEND_OR_REPLACE)
+
     fun recoverSetupUndoLocally(context: Context) {
         val request = OneTimeWorkRequestBuilder<LocalSetupUndoWorker>().build()
         WorkManager.getInstance(context).enqueueUniqueWork(LOCAL_UNDO, ExistingWorkPolicy.KEEP, request)
@@ -519,7 +529,9 @@ object SyncScheduler {
 
     fun finishSetupUndo(context: Context) = enqueueNow(context, "undo setup", FINISH_UNDO)
 
-    private fun enqueueNow(context: Context, reason: String, workName: String) {
+    private fun enqueueNow(
+        context: Context, reason: String, workName: String, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+    ) {
         val store = SyncStore(context)
         if (!store.hasStoredPairing) return
         if (workName == NOW && !store.setupUndoPending) org.plainphone.app.update.UpdateRequestListener.start(context)
@@ -528,7 +540,7 @@ object SyncScheduler {
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setInputData(workDataOf(SyncWorker.KEY_REASON to reason))
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(context).enqueueUniqueWork(workName, policy, request)
     }
 
     fun soon(context: Context, delaySeconds: Int) {

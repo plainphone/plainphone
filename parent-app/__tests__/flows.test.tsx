@@ -82,30 +82,6 @@ describe("logging in", () => {
     expect(api.calls.every((call) => call.auth !== "Bearer pp_s_hosted")).toBe(true);
   });
 
-  it("recognises a native subscription already stored on the current server", async () => {
-    const server = "https://plainphone.example.org";
-    await SecureStore.setItemAsync("pp.server", server);
-    await SecureStore.setItemAsync("pp.customSession", JSON.stringify({ server, token: "pp_s_custom" }));
-    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce({
-      ...await Notifications.getPermissionsAsync(), granted: true,
-    });
-    jest.mocked(Notifications.getDevicePushTokenAsync)
-      .mockResolvedValueOnce({ type: "ios", data: "native-test-token-123456789" });
-    const api = fakeApi({
-      "GET /me": { body: ME },
-      "POST /notifications/subscriptions/status": { body: { registered: true } },
-    });
-
-    await renderRouter(routes, { initialUrl: "/settings" });
-    expect(await screen.findByText("Notifications are registered on this server.")).toBeTruthy();
-    expect(api.calls.find((call) => call.path === "/notifications/subscriptions/status")).toMatchObject({
-      origin: server,
-      auth: "Bearer pp_s_custom",
-      body: { token: "native-test-token-123456789" },
-    });
-    expect(api.calls.some((call) => call.path === "/notifications/subscriptions")).toBe(false);
-  });
-
   it("warns when the server cannot send mail", async () => {
     await SecureStore.setItemAsync("pp.server", "https://plainphone.example.org");
     fakeApi({
@@ -154,10 +130,12 @@ describe("logging in", () => {
 
   it("opens the login link, keeps the session in the keychain and shows the phones", async () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_linktoken123");
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
     const api = fakeApi({
       "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_session" } },
       "GET /me": (c) => (c.auth === "Bearer pp_s_session" ? { body: ME } : { status: 401, body: { error: "sign in first" } }),
       "GET /phones": { body: { phones: [PHONE] } },
+      "POST /notifications/subscriptions": { status: 201, body: { id: "native-subscription" } },
     });
     await renderRouter(routes, { initialUrl: "/auth/app" });
     expect(await screen.findByText("Alma")).toBeTruthy();
@@ -170,6 +148,10 @@ describe("logging in", () => {
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.session", "pp_s_session");
     // Every later call carries the Bearer token, never a cookie.
     expect(api.calls.filter((c) => c.path === "/phones").every((c) => c.auth === "Bearer pp_s_session")).toBe(true);
+    await waitFor(() => expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.push-registration", expect.any(String)));
+    expect(api.calls.find((call) => call.path === "/notifications/subscriptions")).toMatchObject({
+      auth: "Bearer pp_s_session", body: { platform: "fcm", token: "fcm-token" },
+    });
   });
 
   it("says so when the link is used up", async () => {

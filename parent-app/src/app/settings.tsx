@@ -1,34 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { ServerChoice } from "../components/ServerChoice";
-import { enablePush, pushState, type PushState } from "../lib/notifications";
+import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
 function Settings() {
   const { t, locale } = useI18n();
   const { saveLocale, logout } = useSession();
   const me = useMe();
-  const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pushError, setPushError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    void pushState().then((result) => { if (active) setPush(result); }).catch(() => {
-      if (active) {
-        setPush("granted");
-        setPushError(true);
-      }
-    });
+    void syncNativePush(locale).then((state) => { if (active) setPush(state); });
     return () => { active = false; };
-  }, []);
+  }, [locale]);
 
   return (
     <Screen testID="settings">
@@ -48,8 +40,10 @@ function Settings() {
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
-          {push === "registered" ? (
+          {push === "granted" ? (
             <Notice tone="success" text={t("native.notificationsOn")} />
+          ) : push === "unavailable" ? (
+            <Notice tone="warn" text={t("native.notificationsUnavailable")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (
@@ -59,15 +53,12 @@ function Settings() {
               busy={busy}
               onPress={() => {
                 setBusy(true);
-                setPushError(false);
-                void enablePush(locale)
+                void syncNativePush(locale, true)
                   .then(setPush)
-                  .catch(() => setPushError(true))
                   .finally(() => setBusy(false));
               }}
             />
           )}
-          {pushError ? <Notice tone="error" text={t("native.pushRegistrationError")} /> : null}
         </Card>
       ) : null}
       <Card>
@@ -83,7 +74,7 @@ function Settings() {
         kind="secondary"
         title={t("nav.logout")}
         testID="logout"
-        onPress={() => void logout().then(() => router.replace("/login"))}
+        onPress={() => void logout()}
       />
     </Screen>
   );

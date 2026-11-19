@@ -25,3 +25,7 @@ coverage/
 
 # DNS stack test certificates
 dns/tests/.certs/
+
+# Local native push configuration and Apple signing keys
+google-services.json
+*.p8

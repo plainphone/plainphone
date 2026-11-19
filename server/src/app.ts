@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { etag } from "hono/etag";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
+import { parentPushEnabled } from "./providers/parent-push.js";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { ValidationError } from "./lib/http.js";
 import { attestationRoutes } from "./routes/attestation.js";
@@ -102,7 +103,12 @@ export function createApp(ctx: Ctx) {
       await ctx.db.execute(sql`select 1`);
       // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
       const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await dnsHealthy()) ? "ok" : "down";
-      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns });
+      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns, push: {
+        web: parentPushEnabled(ctx.parentPush, "web"),
+        fcm: parentPushEnabled(ctx.parentPush, "fcm"),
+        apns: parentPushEnabled(ctx.parentPush, "apns"),
+        unifiedpush: Boolean(ctx.push.unifiedPushAvailable),
+      } });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

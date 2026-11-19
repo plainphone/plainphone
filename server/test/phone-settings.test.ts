@@ -38,6 +38,7 @@ describe("phone settings (child profile)", () => {
 
   it("applies at once, shows in the rules in alphabetical order and changes the ETag", async () => {
     const s = await setup();
+    expect((await s.parent.patch(`/api/phones/${s.phoneId}`, { pushWakeups: true })).status).toBe(200);
     await s.device.put("/api/device/push-token", { fcmToken: "fcm-1" });
     const before = await s.device.get("/api/device/rules");
 
@@ -208,6 +209,7 @@ describe("home screen", () => {
 
   it("starts with the defaults and round-trips what the parent chooses", async () => {
     const s = await setup();
+    expect((await s.parent.patch(`/api/phones/${s.phoneId}`, { pushWakeups: true })).status).toBe(200);
     await s.device.put("/api/device/push-token", { fcmToken: "fcm-2" });
     const before = await s.device.get("/api/device/rules");
     expect((await s.parent.get(`/api/phones/${s.phoneId}/home`)).json).toEqual({

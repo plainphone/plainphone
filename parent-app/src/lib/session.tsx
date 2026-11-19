@@ -7,6 +7,8 @@ import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHand
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { checkServer, HOSTED_SERVER, BUILD_SERVER, normalizeServerUrl, restoreServer, saveServer, SERVER_URL } from "./config";
+import { syncNativePush, watchNativePush } from "./notifications";
+import { logoutNativeSession } from "./push-registration";
 import { clearPendingInvite, loadPendingInvite } from "./pendingInvite";
 import { getItem, removeItem, setItem } from "./storage";
 
@@ -105,6 +107,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (getSessionToken() !== used) return null;
       setState({ status: "in", me });
       if (me.user.locale === "en" || me.user.locale === "da") setLocale(me.user.locale);
+      void syncNativePush(me.user.locale === "da" ? "da" : "en");
       return me;
     } catch (err) {
       if (getSessionToken() !== used) return null;
@@ -186,9 +189,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [refresh, restore],
   );
 
+  const signedIn = state.status === "in";
+  useEffect(() => {
+    if (signedIn) return watchNativePush(locale);
+  }, [signedIn, locale]);
+
   const logout = useCallback(async () => {
     try {
-      await unwrap(client.POST("/auth/logout"));
+      await logoutNativeSession();
     } catch {
       // signed out locally either way
     } finally {

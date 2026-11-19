@@ -1,6 +1,6 @@
 {
-  "id": "75ac1567-a27c-494e-8e9c-a0e56c1eccf2",
-  "prevId": "61a1d02e-4f25-4560-9f94-78bf65357715",
+  "id": "36bb1e7b-78c4-4abd-870d-09f30a15f84d",
+  "prevId": "dbf382a7-e7cb-4940-b8c6-3181ed2091e4",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1866,6 +1866,32 @@
           "primaryKey": false,
           "notNull": false
         },
+        "fcm_validation_key": {
+          "name": "fcm_validation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unified_push_endpoint": {
+          "name": "unified_push_endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "push_wakeups": {
+          "name": "push_wakeups",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "prefer_unified_push": {
+          "name": "prefer_unified_push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "device_info": {
           "name": "device_info",
           "type": "jsonb",
@@ -2016,6 +2042,25 @@
           "primaryKey": false,
           "notNull": true
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_hash": {
+          "name": "installation_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
         "platform": {
           "name": "platform",
           "type": "text",
@@ -2082,6 +2127,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "push_subscriptions_session_idx": {
+          "name": "push_subscriptions_session_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2097,10 +2157,30 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "push_subscriptions_session_id_sessions_id_fk": {
+          "name": "push_subscriptions_session_id_sessions_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "sessions",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "push_subscriptions_installation_hash_unique": {
+          "name": "push_subscriptions_installation_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "installation_hash"
+          ]
+        },
         "push_subscriptions_endpoint_unique": {
           "name": "push_subscriptions_endpoint_unique",
           "nullsNotDistinct": false,

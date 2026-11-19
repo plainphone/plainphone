@@ -2,7 +2,7 @@
 import { filterStatusKey } from "../../../shared/lib/filter-status";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
@@ -81,6 +81,74 @@ function ServerMoveToggle() {
       <Switch label={t("move.allow")} value={phone.allowServerMove ?? phone.profile === "child"}
         disabled={working || waiting} onValueChange={(allowed) => void update(allowed)} />
       <Text variant="muted">{t("move.help")}</Text>
+    </Card>
+  );
+}
+
+function PushPreferences() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [alerts, setAlerts] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    let current = true;
+    void unwrap<{ mutedPhoneIds: string[] }>(client.GET("/notifications")).then((settings) => {
+      if (current) setAlerts(!settings.mutedPhoneIds.includes(phone.id));
+    }).catch(() => undefined);
+    return () => { current = false; };
+  }, [phone.id]));
+
+  async function save(field: "alerts" | "wakeups" | "googleFree", enabled: boolean) {
+    setBusy(true);
+    const params = { path: { pid: phone.id } };
+    try {
+      if (field === "alerts") {
+        await unwrap(client.PUT("/phones/{pid}/notifications", { params, body: { enabled } }));
+        setAlerts(enabled);
+      } else {
+        setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", { params, body: field === "wakeups" ? { pushWakeups: enabled } : { preferUnifiedPush: enabled } })));
+      }
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (alerts === null && phone.pushWakeups === undefined) return null;
+  return (
+    <Card>
+      {phone.pushWakeups !== undefined ? (
+        <>
+          <Row>
+            <Text variant="label" style={{ flex: 1 }}>{t("phone.pushWakeups")}</Text>
+            <NativeSwitch accessibilityLabel={t("phone.pushWakeups")} accessibilityHint={t("phone.pushWakeupsHelp")}
+              disabled={busy} value={phone.pushWakeups} onValueChange={(value) => void save("wakeups", value)} />
+          </Row>
+          <Text variant="muted">{t("phone.pushWakeupsHelp")}</Text>
+          {phone.pushWakeups && phone.preferUnifiedPush !== undefined ? (
+            <>
+              <Row>
+                <Text variant="label" style={{ flex: 1 }}>{t("phone.pushGoogleFree")}</Text>
+                <NativeSwitch accessibilityLabel={t("phone.pushGoogleFree")} accessibilityHint={t("phone.pushGoogleFreeHelp")}
+                  disabled={busy} value={phone.preferUnifiedPush} onValueChange={(value) => void save("googleFree", value)} />
+              </Row>
+              <Text variant="muted">{t("phone.pushGoogleFreeHelp")}</Text>
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {alerts !== null ? (
+        <>
+          <Row>
+            <Text variant="label" style={{ flex: 1 }}>{t("phone.pushAlerts")}</Text>
+            <NativeSwitch accessibilityLabel={t("phone.pushAlerts")} accessibilityHint={t("phone.pushAlertsHelp")}
+              disabled={busy} value={alerts} onValueChange={(value) => void save("alerts", value)} />
+          </Row>
+          <Text variant="muted">{t("phone.pushAlertsHelp")}</Text>
+        </>
+      ) : null}
     </Card>
   );
 }
@@ -387,6 +455,7 @@ function Overview() {
 
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
+        <PushPreferences />
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
         <RenamePhone />

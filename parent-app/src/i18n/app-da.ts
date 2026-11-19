@@ -19,6 +19,7 @@ export const appDa: AppMessages = {
   "native.notificationsOff": "Notifikationer er slået fra. Du kan slå dem til i telefonens indstillinger.",
   "native.pushRegistrationError": "Notifikationer kunne ikke tilmeldes på denne server.",
   "native.notificationsAsk": "Slå notifikationer til",
+  "native.notificationsUnavailable": "Pushbeskeder er ikke tilgængelige. Tjek forbindelsen, eller prøv igen senere.",
   "native.scan": "Scan koden",
   "native.scanHelp": "Ret kameraet mod QR-koden på telefonen.",
   "native.scanStop": "Stop scanning",

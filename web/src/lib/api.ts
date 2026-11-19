@@ -21,6 +21,7 @@ export interface Me {
 /** What the phone last reported about itself (`PUT /device/status`). */
 export type FilterMethod = "vpn" | "privateDns";
 export interface PhoneStatus {
+  pushProvider?: "none" | "fcm" | "unifiedpush";
   filterMethod?: FilterMethod;
   filterWorking?: boolean;
   filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
@@ -75,6 +76,8 @@ export const PROTECTIONS = [
 ] as const;
 export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
+  pushWakeups?: boolean;
+  preferUnifiedPush?: boolean;
   id: string;
   name: string;
   profile: Profile;

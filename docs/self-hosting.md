@@ -154,3 +154,18 @@ pnpm dev:web                              # Vite on :5173, proxies /api to :8080
 
 Schema changes: edit `server/src/db/schema.ts`, then `pnpm --filter @plainphone/server db:generate`
 and commit the new file in `server/drizzle/`.
+
+## Native parent push and faster rule updates
+
+Follow [push setup](push-setup.md) for Firebase and Apple credentials. Configure server secrets in the app container environment. To use the service-account file variant in Docker, add a read-only mount in a Compose override and set `FCM_SERVICE_ACCOUNT_FILE` to the container path. For example, mount a file from the host's secret directory at `/run/secrets/plainphone-fcm.json:ro`. The APK and parent app need their own Firebase client configuration only when building with FCM.
+
+`PUSH_PROVIDER=none` (the default) keeps phone sync on polling. `fcm` prefers FCM if the server has credentials and the APK can acquire a token, with UnifiedPush as a fallback when allowed. `unifiedpush` uses UnifiedPush only. The phone must also opt in via **Faster rule updates**. To skip FCM for just one phone, enable **Wakeups without Google** for that phone and keep the server on `fcm` with UnifiedPush configured. The server can send native parent alerts with any of these settings.
+
+## UnifiedPush with ntfy
+
+1. On the push host, run [the ntfy Compose stack](../deploy/ntfy-compose.yaml) with `NTFY_BASE_URL=https://push.example.org`. For the project's hosted instance, use the planned push host and attach the service to the HTTPS reverse proxy so it can reach `ntfy:80`. Proxy streaming and WebSocket connections, and keep the ntfy data volume.
+2. On the Plainphone server set `PUSH_EXTRA_HOSTS=push.example.org`. Allow only hosts you operate or explicitly trust to receive wake hints. Use a dedicated hostname. Set `PUSH_PROVIDER=unifiedpush` to skip FCM, or `fcm` to use ntfy as the fallback.
+3. On the child phone install the [ntfy Android app](https://docs.ntfy.sh/subscribe/phone/) and configure the HTTPS base URL in its UnifiedPush distributor settings. For Google-free delivery use the F-Droid build and ntfy instant delivery. In the parent interface, enable **Faster rule updates** for the phone. If several distributors are installed, Plainphone keeps the one already registered, or prefers ntfy for a new registration.
+4. Keep endpoint URLs private. They are capabilities. The example stack permits anonymous access for the distributor-generated topics and should run as a dedicated instance with normal proxy and ntfy rate limits. For the child wake channel, only a short reason goes through ntfy. Plainphone does not send names, rules or locations.
+
+See [ntfy configuration](https://docs.ntfy.sh/config/) and the [UnifiedPush Android protocol](https://unifiedpush.org/developers/spec/android/).
