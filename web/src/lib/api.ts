@@ -92,6 +92,8 @@ export interface Phone {
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
   lastSeenAt: string | null;
+  /** Only on a single phone: whether it has confirmed the rules the server holds now. Null while it has confirmed none. */
+  rulesCurrent?: boolean | null;
   dnsHost: string;
   dnsSynced: boolean;
   /** The DNS service has accepted the phone's ClientID; until then the web filter is not active. */
@@ -371,7 +373,7 @@ export class ApiError extends Error {
     message: string,
     readonly issues: Issue[] = [],
     /** The whole error body, for endpoints that explain more (e.g. selfPhoneIds). */
-    readonly data: { selfPhoneIds?: string[] } = {},
+    readonly data: { selfPhoneIds?: string[]; outcome?: string } = {},
   ) {
     super(message);
   }
@@ -415,7 +417,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     }
   }
   if (!res.ok) {
-    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[] };
+    const j = (json ?? {}) as { error?: string; issues?: Issue[]; selfPhoneIds?: string[]; outcome?: string };
     if (res.status === 401 && !path.startsWith("/auth/")) onUnauthorized?.();
     throw new ApiError(res.status, j.error ?? res.statusText, j.issues ?? [], j);
   }

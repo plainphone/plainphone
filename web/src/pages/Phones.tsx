@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
-import { formatRelative } from "../lib/format";
 
 interface Row {
   phone: Phone;
@@ -12,7 +12,7 @@ interface Row {
 }
 
 export function PhonesPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const now = useNow(60_000);
   // A note handed over by the page that sent us here, such as "The phone was removed."
   const loc = useLocation();
@@ -75,13 +75,7 @@ export function PhonesPage() {
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.releaseRequestedAt && <span className="tag tag-waiting">{t("phone.releasingTag")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
-                        {phone.pairedAt && (
-                          <span>
-                            {phone.lastSeenAt
-                              ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                              : t("phones.neverSeen")}
-                          </span>
-                        )}
+                        {phone.pairedAt && <PhoneStateTitle phone={phone} now={now} />}
                       </span>
                       {pending > 0 && (
                         <span className="row-pending">

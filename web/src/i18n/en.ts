@@ -3,12 +3,15 @@
 // English is the source language. Every key here must exist in da.ts (the type enforces it).
 // Placeholders look like {name}. Never use em dashes in copy.
 
+import { statusEn } from "./status";
+
 const filterSummary = "The web filter makes you less likely to encounter websites in the categories you choose, but some can still get through.";
 const filterLimits = "Useful sites can also be blocked. Helplines and selected health information sites are always available.";
 const nextOnline = "the next time the phone is online (usually within a minute).";
 const changeTiming = `Takes effect ${nextOnline}`;
 
 export const en = {
+  ...statusEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",

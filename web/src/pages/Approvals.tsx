@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApprovalQueue } from "../components/ApprovalQueue";
 import { ApprovalScanner } from "../components/ApprovalScanner";
 import { errorMessage, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Approval } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { type ApprovalOutcome, type Decision, decisionOutcome, isFinal, outcomeKey, outcomeOf, type Processed, queueOf } from "../lib/approval-state";
 
 export function ApprovalsPage() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const res = useLoad(() => api.get<{ approvals: Approval[] }>("/approvals").then((r) => r.approvals), []);
   const people = useLoad(() => api.get<{ people: { id: string; name: string; owner: string }[] }>("/people-i-help"), []);
   const [code, setCode] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("code"));
@@ -21,48 +22,50 @@ export function ApprovalsPage() {
   }, [reloadApprovals]);
   const requestedId = code?.split(".")[1];
   const [busy, setBusy] = useState<string | null>(null);
+  const sending = useRef(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [processed, setProcessed] = useState<Record<string, Processed<Approval>>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
 
-  async function decide(a: Approval, action: "approve" | "reject") {
+  async function decide(a: Approval, action: Decision) {
+    // One answer at a time: a double tap or a second tab must not send it twice.
+    if (sending.current) return;
+    sending.current = true;
     setBusy(a.id);
     setNotice(null);
+    let outcome: ApprovalOutcome | null = null;
     try {
       if (code && action === "approve") {
         await api.post(`/changes/${a.id}/approve-qr`, { challenge: code, revision: a.revision });
         setCode(null);
       } else await api.post(`/changes/${a.id}/${action}`, action === "approve" ? { revision: a.revision } : undefined);
-      setNotice({ tone: "success", text: t(action === "approve" ? "appr.approved" : "appr.rejected") });
+      outcome = decisionOutcome(action);
     } catch (err) {
-      setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
+      outcome = err instanceof ApiError && err.status === 409 ? outcomeOf(err.data) : null;
+      if (!outcome) setNotice({ tone: "error", text: err instanceof ApiError && err.status === 409 ? t(code ? "appr.codeUnavailable" : "appr.previewChanged") : errorMessage(err, t) });
     } finally {
+      sending.current = false;
       setBusy(null);
-      await Promise.all([res.reload(), people.reload()]);
     }
+    if (outcome) {
+      const final = isFinal(outcome);
+      const answered = outcome;
+      if (final) {
+        setProcessed((all) => (all[a.id] ? all : { ...all, [a.id]: { approval: a, outcome: answered, decision: action } }));
+        setFocusId(a.id);
+      }
+      // Announced once, here. The answered row itself is not a live region.
+      setNotice({ tone: !final ? "error" : outcome === decisionOutcome(action) ? "success" : "info", text: t(outcomeKey(outcome, action)) });
+    }
+    await Promise.all([res.reload(), people.reload()]);
   }
 
-  function changes(list: Approval[], showOwner: boolean) {
-    if (list.length === 0) return <p className="empty-inline">{t(code ? "appr.codeUnavailable" : "appr.empty")}</p>;
-    return <ul className="list item-list">
-      {list.map((a) => (
-        <li key={a.id} className="item item-stack">
-          <div>
-            <p className="row-title">{a.summary[locale]}</p>
-            {showOwner && <p className="row-meta">
-              {a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : a.phoneName}
-            </p>}
-            <p className="row-meta">{t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}</p>
-          </div>
-          <div className="actions">
-            <button type="button" className="btn btn-primary" onClick={() => void decide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[locale]}`} disabled={busy !== null}>
-              {t("appr.approve")}
-            </button>
-            {!code && <button type="button" className="btn btn-secondary" onClick={() => void decide(a, "reject")} disabled={busy !== null}>
-              {t("appr.reject")}
-            </button>}
-          </div>
-        </li>
-      ))}
-    </ul>;
+  function changes(list: Approval[], showOwner: boolean, mine: (a: Approval) => boolean) {
+    const { open, done } = queueOf(list, processed);
+    const answered = done.filter((d) => mine(d.approval));
+    if (open.length === 0 && answered.length === 0) return <p className="empty-inline">{t(code ? "appr.codeUnavailable" : "appr.empty")}</p>;
+    return <ApprovalQueue open={open} done={answered} showOwner={showOwner} busy={busy} approveOnly={code !== null}
+      focusId={focusId} onDecide={(a, action) => void decide(a, action)} />;
   }
 
   return (
@@ -74,14 +77,14 @@ export function ApprovalsPage() {
           : <ApprovalScanner onCode={scanApproval} />}
         <LiveStatus notice={notice} onClose={() => setNotice(null)} />
         <LoadGate res={res}>{(all) => code
-          ? changes(all.filter((a) => a.id === requestedId), true)
+          ? changes(all.filter((a) => a.id === requestedId), true, (a) => a.id === requestedId)
           : <LoadGate res={people}>{({ people: list }) => list.length > 0
             ? list.map((person) => <section key={person.id} className="stack" aria-labelledby={`person-${person.id}`}>
               <h2 id={`person-${person.id}`}>{person.name}</h2>
               <p className="row-meta">{person.owner}</p>
-              {changes(all.filter((a) => a.phoneId === person.id), false)}
+              {changes(all.filter((a) => a.phoneId === person.id), false, (a) => a.phoneId === person.id)}
             </section>)
-            : changes(all, true)
+            : changes(all, true, () => true)
           }</LoadGate>
         }</LoadGate>
       </div>

@@ -60,6 +60,18 @@ components:
       name: pp_session
 
   responses:
+    ApprovalConflict:
+      description: The request was answered already, withdrawn, or the preview or code no longer matches. Repeating your own earlier answer is not a conflict and gives 204.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, outcome]
+            properties:
+              error: { type: string }
+              outcome:
+                type: string
+                enum: [approvedByYou, approvedByOther, declinedByYou, declinedByOther, cancelled, failed, changed, codeExpired]
     Error:
       description: Error
       content:
@@ -780,6 +792,9 @@ components:
           format: date-time
           description: When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
         lastSeenAt: { type: [string, "null"], format: date-time }
+        rulesCurrent:
+          type: [boolean, "null"]
+          description: Only on a single phone. Whether the phone has confirmed the rules the server holds now. Null while it has confirmed none.
         dnsHost: { type: string }
         dnsSynced: { type: boolean }
         dnsConfigured: { type: boolean, description: Whether this server has a DNS filter service configured }
@@ -1517,6 +1532,24 @@ paths:
                   challenge: { type: string }
                   url: { type: string, format: uri }
                   summary: { $ref: "#/components/schemas/ApprovalSummary" }
+        "404": { $ref: "#/components/responses/Error" }
+  /device/approval-challenge/{changeId}:
+    get:
+      operationId: getDeviceApprovalState
+      security: [{ device: [] }]
+      tags: [device]
+      summary: Whether the request behind a QR code on this Self phone has been answered
+      parameters: [{ name: changeId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200":
+          description: The state of the request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state: { type: string, enum: [waiting, approved, declined, cancelled, failed] }
         "404": { $ref: "#/components/responses/Error" }
   /device/trusted-invite:
     post:
@@ -3451,7 +3484,7 @@ paths:
       responses:
         "204": { description: Applied }
         "404": { description: Not my request to decide }
-        "409": { description: Invalid code or stale preview }
+        "409": { $ref: "#/components/responses/ApprovalConflict" }
   /changes/{cid}/approve:
     post:
       operationId: postChangesApprove
@@ -3470,7 +3503,7 @@ paths:
                 revision: { $ref: "#/components/schemas/ApprovalRevision" }
       responses:
         "204": { description: "Applied" }
-        "409": { description: "Stale preview or request no longer pending" }
+        "409": { $ref: "#/components/responses/ApprovalConflict" }
         "404": { description: "Not my request to decide" }
   /changes/{cid}/reject:
     post:
@@ -3480,7 +3513,8 @@ paths:
       security: [{ session: [] }, { cookie: [] }]
       parameters: [{ $ref: "#/components/parameters/changeId" }]
       responses:
-        "204": { description: "Rejected" }
+        "204": { description: "Rejected, or already rejected by you" }
+        "409": { $ref: "#/components/responses/ApprovalConflict" }
   /changes/{cid}/pay-unlock:
     post:
       operationId: postChangesPayUnlock

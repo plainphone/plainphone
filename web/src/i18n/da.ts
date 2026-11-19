@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Messages } from "./en";
+import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
 const filterSummary = "Webfilteret gør det mindre sandsynligt, at du møder hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
@@ -8,6 +9,7 @@ const nextOnline = "næste gang telefonen er online (normalt inden for et minut)
 const changeTiming = `Gælder, ${nextOnline}`;
 
 export const da: Messages = {
+  ...statusDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
   "app.loading": "Henter…",
