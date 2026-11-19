@@ -85,7 +85,7 @@ class HomeScreenshotTest {
     fun `light, list, graphite (the default)`() = shoot("home-light-list", ui(), HomePalette.GREY, dark = false)
 
     @Test
-    fun `light, list, sage`() = shoot("home-light-list-sage", ui(HomePrefs(palette = HomePalette.SAGE)), HomePalette.SAGE, dark = false)
+    fun `light, list, sage`() = shoot("home-light-list-sage", ui(), HomePalette.SAGE, dark = false)
 
     @Test
     fun `dark, list, school time`() = shoot(
