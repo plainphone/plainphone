@@ -31,10 +31,10 @@ export function ReleaseNotice() {
     <Stack>
       <Notice tone={state === "requested" ? "info" : "warn"}
         text={t(state === "old" ? "support.releaseOld" : state === "stalled" ? "support.releaseStalled" : "phone.releasing")} />
-      {state === "stalled" ? (
+      {state !== "requested" ? (
         <Text variant="muted">{report ? t("support.lastReport", { when: formatDateTime(report, locale) }) : t("support.noReport")}</Text>
       ) : null}
-      {state !== "requested" ? <Button kind="secondary" title={t("support.recovery")} onPress={() => openHelp(true)} /> : null}
+      {state === "old" ? <Button kind="secondary" title={t("support.recovery")} onPress={() => openHelp(true)} /> : null}
     </Stack>
   );
 }

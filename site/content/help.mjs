@@ -12,6 +12,7 @@ export const help = {
         body: [
           "If you can open Maintenance with the parent PIN, try Release Device Owner in strong mode or Switch Plainphone off in light mode. If release fails or Android blocks a reset from Settings, a reset from recovery may help.",
           "<strong>A factory reset erases the data on the phone.</strong> Back up what you can and check that you know the screen lock and the sign-in for a Google Account previously synced with the phone. Android may ask for them during setup.",
+          "If you linked parent Google accounts under Household → Protect against reset, Android may require one of those accounts, even if it was never signed in on the phone. Before wiping, confirm you can sign in, wait until the account’s Ready from time, and check that the phone has received the protection settings. If you cannot confirm access to an eligible account, contact support before wiping.",
           { steps: [
             "Switch the phone off. Look up how to start recovery mode for your exact model on the manufacturer’s support site. The buttons vary by model.",
             "In recovery, choose <strong>Wipe data/factory reset</strong> or the equivalent option, then confirm the erase. Follow the instructions on the recovery screen.",
@@ -60,6 +61,7 @@ export const help = {
         body: [
           "Hvis du kan åbne Vedligeholdelse med forældrenes pinkode, så prøv at frigive telefonen i stærk tilstand eller vælge Slå Plainphone fra i let tilstand. Hvis frigivelsen mislykkes, eller Android blokerer nulstilling fra Indstillinger, kan du prøve at nulstille fra gendannelsestilstand.",
           "<strong>En fabriksnulstilling sletter data på telefonen.</strong> Tag en sikkerhedskopi af det, du kan, og tjek, at du kender skærmlåsen og kan logge ind på en Google-konto, der tidligere har været synkroniseret med telefonen. Android kan bede om dem under opsætningen.",
+          "Hvis I har tilknyttet forældrenes Google-konti under Husstand → Beskyt mod nulstilling, kan Android kræve en af dem, selv om kontoen aldrig har været brugt på telefonen. Før du sletter telefonen, så tjek, at du kan logge ind, vent til tidspunktet under Klar fra, og tjek, at telefonen har modtaget beskyttelsesindstillingerne. Kontakt support før nulstillingen, hvis du er i tvivl om, hvorvidt du har adgang til en konto, der kan låse telefonen op.",
           { steps: [
             "Sluk telefonen. Find vejledningen til gendannelsestilstand for netop din model hos producenten. Knapperne varierer efter model.",
             "Vælg <strong>Wipe data/factory reset</strong> eller den tilsvarende mulighed i gendannelsesmenuen, og bekræft sletningen. Følg vejledningen på skærmen.",

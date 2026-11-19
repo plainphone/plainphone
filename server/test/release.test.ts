@@ -55,7 +55,8 @@ describe("release on a Child phone", () => {
     const headers = { "if-none-match": first.headers.get("etag")! };
     const responses = await Promise.all([device.get("/api/device/rules", headers), device.get("/api/device/rules", headers)]);
     expect(responses.map((r) => r.status)).toEqual([304, 304]);
-    await device.get("/api/device/rules", headers);
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(3);
+    expect((await device.get("/api/device/rules", headers)).status).toBe(304);
     expect((await parent.get(detail)).json.releaseSyncCount).toBe(3);
   });
 

@@ -4,8 +4,8 @@
 // approvals) through the real router, against a fake API.
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
-import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { Share } from "react-native";
+import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { AccessibilityInfo, Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
 import type { Phone } from "../src/api/models";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
@@ -77,10 +77,14 @@ describe("overview", () => {
     phoneApi({
       ...PHONE,
       releaseRequestedAt: "2026-11-18T19:26:00Z",
-      status: { appVersion: "0.1.3", deviceOwner: true, lockIntact: true, failedPolicies: [] },
+      status: {
+        appVersion: "0.1.3", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
     });
     await renderRouter(routes, { initialUrl: at(PHONE) });
-    expect(await screen.findByText("This phone’s app is too old to be released remotely.")).toBeTruthy();
+    expect(await screen.findByText(/^The last reported app version is too old/)).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
     expect(screen.getByText("Open the recovery reset guide")).toBeTruthy();
   });
 
@@ -95,8 +99,31 @@ describe("overview", () => {
       },
     });
     await renderRouter(routes, { initialUrl: at(PHONE) });
-    expect(await screen.findByText("The phone has not carried out the release.")).toBeTruthy();
+    expect(await screen.findByText("The phone has not confirmed the release.")).toBeTruthy();
     expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+  });
+
+  it("returns to the phone list without claiming release when the pending phone disappears", async () => {
+    jest.useFakeTimers();
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    try {
+      let removed = false;
+      phoneApi(PHONE, {
+        [`GET /phones/${PHONE.id}`]: () => removed
+          ? { status: 404, body: { error: "phone not found" } }
+          : { body: { ...PHONE, releaseRequestedAt: "2026-11-18T19:26:00Z" } },
+        "GET /phones": { body: { phones: [] } },
+      });
+      await renderRouter(routes, { initialUrl: at(PHONE) });
+      await screen.findByTestId("section-apps");
+      removed = true;
+      await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+      expect(screen).toHavePathname("/");
+      expect(announce).toHaveBeenCalledWith("This phone is no longer in your list. Check on the phone whether Plainphone is still on.");
+    } finally {
+      announce.mockRestore();
+      jest.useRealTimers();
+    }
   });
 
   it("shows the system check's own date even after a newer phone sync", async () => {

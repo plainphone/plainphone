@@ -16,10 +16,10 @@ export function ReleaseNotice({ phone }: { phone: Phone }) {
     <div className={`notice notice-${state === "requested" ? "info" : "warn"} status-release`} role="status">
       <div className="stack-sm">
         <div>{t(state === "old" ? "support.releaseOld" : state === "stalled" ? "support.releaseStalled" : "phone.releasing")}</div>
-        {state === "stalled" && <div>{report
+        {state !== "requested" && <div>{report
           ? t("support.lastReport", { when: formatDateTime(report, locale) })
           : t("support.noReport")}</div>}
-        {state !== "requested" && <div><a href={helpUrl(locale, true)}>{t("support.recovery")}</a></div>}
+        {state === "old" && <div><a href={helpUrl(locale, true)}>{t("support.recovery")}</a></div>}
       </div>
     </div>
   );

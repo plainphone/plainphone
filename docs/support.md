@@ -2,8 +2,10 @@
 
 The public [English](https://plainphone.org/help/) and
 [Danish](https://plainphone.org/da/help/) help pages explain recovery reset,
-Play Protect, restricted settings and VPN conflicts. Families can write to
-support@plainphone.org from either page.
+Play Protect, restricted settings and VPN conflicts. The reset guide explains
+which parent Google account may be required before a family wipes a phone.
+Both pages link to support@plainphone.org. See the launch setup below for
+mail delivery and Play listing verification.
 
 Support tools are on by default. A parent can turn them off for each phone
 in the dashboard or parent app. This controls the diagnostics in the parent
@@ -24,12 +26,14 @@ system share sheet. Nothing is sent automatically.
 
 Version **0.1.8** was the first release that handles remote release in
 `SyncRunner` (commit `0b22040`, first included in tag `v0.1.8`). A pending
-release for an older known version immediately links to the recovery reset
-guide. For current or unknown versions, the warning appears after three
-authenticated fetches of pending release rules, including conditional
-fetches. The warning shows the timestamp of the last status report when one
-exists. A rules fetch confirms contact with the server. Successful release
-is established by the phone's acknowledgement.
+release for an older last-reported version links to the recovery reset guide
+and shows when the phone reported that version. Check the version on the
+phone before resetting it. For current or unknown versions, after three
+authenticated rule fetches, including conditional fetches, the warning says
+that the phone has yet to confirm the release and shows the last status
+report time when available. A rules fetch confirms contact with the server.
+The phone acknowledges successful release separately. A missing phone
+in the parent app can also mean it was removed from the list.
 
 ## Launch setup
 
@@ -37,5 +41,6 @@ Use `https://plainphone.org/help/` as the **Website** in Google Play
 Console’s store listing contact details, and `support@plainphone.org` as the
 support email. The Danish listing can also link to
 `https://plainphone.org/da/help/` in its description. Route the role address
-to the maintainer’s inbox in the domain’s mail provider and verify delivery
-before publishing the listing.
+to the maintainer’s inbox in the domain’s mail provider. With approval for
+launch, verify that a test message reaches the inbox and that both listings
+open the intended help pages. Keep #100 open until those checks pass.

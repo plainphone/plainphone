@@ -28,12 +28,14 @@ function render(value: Phone) {
 
 it("points parents of older phones to the recovery guide even when the phone reports", () => {
   const markup = render(phone);
-  expect(markup).toContain("too old to be released remotely");
+  expect(markup).toContain("The last reported app version is too old");
+  expect(markup).toContain("Last phone report:");
   expect(markup).toContain("https://plainphone.org/help/#recovery");
 });
 
-it("shows the last report when a current app has not released after three syncs", () => {
+it("shows the last report when release is still unconfirmed after three rule fetches", () => {
   const markup = render({ ...phone, releaseSyncCount: 3, status: { ...phone.status!, appVersion: "0.1.8" } });
-  expect(markup).toContain("The phone has not carried out the release.");
+  expect(markup).toContain("The phone has not confirmed the release.");
+  expect(markup).not.toContain("#recovery");
   expect(markup).toContain("Last phone report:");
 });

@@ -231,7 +231,7 @@ function Overview() {
         .then((latest) => { if (active) setPhone(latest); })
         .catch((error) => {
           if (active && releasing && error instanceof ApiError && error.status === 404) {
-            AccessibilityInfo.announceForAccessibility(t("phone.released"));
+            AccessibilityInfo.announceForAccessibility(t("support.phoneUnavailable"));
             router.dismissTo("/");
           }
         });

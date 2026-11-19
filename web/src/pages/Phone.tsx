@@ -423,9 +423,8 @@ export function PhoneOverview() {
   // battery and the lock state are not as old as the moment the parent opened the app.
   const setPhoneRef = useRef(setPhone);
   setPhoneRef.current = setPhone;
-  // A released phone is deleted once it has switched Plainphone off: the page then says so and leaves.
   const releasing = Boolean(phone.releaseRequestedAt);
-  const releasedText = t("phone.released");
+  const unavailableText = t("support.phoneUnavailable");
   useEffect(() => {
     let active = true;
     const refresh = () =>
@@ -436,7 +435,7 @@ export function PhoneOverview() {
         })
         .catch((err) => {
           if (active && err instanceof ApiError && err.status === 404) {
-            navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
+            navigate("/", { replace: true, state: releasing ? { notice: unavailableText } : null });
           }
         });
     void refresh();
@@ -445,7 +444,7 @@ export function PhoneOverview() {
       active = false;
       window.clearInterval(id);
     };
-  }, [phone.id, releasing, releasedText, navigate]);
+  }, [phone.id, releasing, unavailableText, navigate]);
   const groups = [
     {
       title: t("phone.rulesPeople"),
@@ -737,12 +736,11 @@ function ManagePhone() {
     const r = await run(() => api.post<ChangeResult>(`/phones/${phone.id}/release`), t("phone.releaseDone"));
     setConfirming(null);
     if (r?.status === "applied") {
-      // The phone stays in the list until it has switched Plainphone off.
       try {
         setPhone(await api.get<Phone>(`/phones/${phone.id}`));
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          navigate("/", { replace: true, state: { notice: t("phone.released") } });
+          navigate("/", { replace: true, state: { notice: t("support.phoneUnavailable") } });
         }
         // Other failures are retried by the overview refresh.
       }
