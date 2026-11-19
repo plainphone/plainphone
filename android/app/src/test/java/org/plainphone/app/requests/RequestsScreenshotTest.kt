@@ -53,7 +53,7 @@ class RequestsScreenshotTest {
             CompositionLocalProvider(LocalDensity provides Density(d.density, fontScale)) {
                 PlainphoneTheme {
                     // A dialog's window never goes idle under Robolectric: show the PIN form inline.
-                    if (ui.pin != null) PinForm(ui.pin, actions) else RequestsScreen(ui, actions)
+                    if (ui.pin != null) androidx.compose.material3.Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.surface) { PinForm(ui.pin, actions) } else RequestsScreen(ui, actions)
                 }
             }
         }

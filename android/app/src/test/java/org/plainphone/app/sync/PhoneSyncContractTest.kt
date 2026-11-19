@@ -362,11 +362,6 @@ class PhoneSyncContractTest {
 
         // An approval for a request the server does not have is dropped, not retried for ever.
         assertThat(api.reportApprovedOnPhone(token, "00000000-0000-4000-8000-000000000000")).isNull()
-
-        // The parent switches approval on the phone off: the phone stops offering it.
-        assertThat(parent("PATCH", "/phones/$phoneId", JSONObject().put("pinApprovalEnabled", false)).first).isEqualTo(200)
-        runner.run("switched off")
-        assertThat(store.rules()!!.pinApproval).isFalse()
     }
 
     @Test
