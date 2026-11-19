@@ -939,6 +939,8 @@ export const de: Messages = {
   "phoneLanguage.system": "Sprache des Telefons übernehmen",
   "phoneLanguage.help": "Die Sprache in Plainphone ändert sich, sobald das Telefon seine Regeln abruft.",
   "phoneLanguage.setup": "Im starken Modus für ein Kind legst du bei der Einrichtung auch die Android-Sprache fest.",
+  "phoneLanguage.lockSystem": "Android-Sprache sperren",
+  "phoneLanguage.lockSystemHelp": "Verhindert Änderungen der Systemsprache in den Android-Einstellungen.",
   "phoneLanguage.strong": "Starken Modus einrichten",
   "phoneLanguage.browser": "Im Browser fortfahren",
   "phoneLanguage.browserHelp": "Melde dich im Browser in der Verwaltung an, um den QR-Code für die Einrichtung zu erstellen.",

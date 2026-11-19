@@ -56,10 +56,12 @@ uses the QR language and time zone after setup, and that changing the system
 language in Settings is blocked. In the dashboard, switch **Plainphone language**
 and wait for sync. Check the launcher, calls, messages, contacts and Maintenance.
 Android Settings should still use the setup language. Select **Use phone language**
-and verify Plainphone returns to the system language. Check on Android 10–12 and
-Android 13 or newer. Repeat for Light and Myself and check that Android Settings
-still lets the user change the system language. After releasing the strong-mode
-Child phone, check that the system language can be changed again.
+and verify Plainphone returns to the system language. Turn off **Lock Android
+language**, wait for sync, and change the system language in Android Settings.
+Turn the lock back on and check that Android blocks changes again. Check on
+Android 10–12 and Android 13 or newer. Repeat for Light and Myself and check
+that Android Settings still lets the user change the system language. After
+releasing the strong-mode Child phone, check that the language can be changed again.
 
 1. Open the **Plainphone** app. It should say "Locked: Plainphone is Device Owner".
 2. The list below it shows each policy with `OK` or `FAIL`. Everything should say `OK`. `FAIL private DNS` right after setup usually means the phone was still offline. Open the app again later, and it tries again.

@@ -924,6 +924,8 @@ export const sv: Messages = {
   "phoneLanguage.system": "Följ telefonens språk",
   "phoneLanguage.help": "Språket i Plainphone ändras nästa gång telefonen hämtar sina regler.",
   "phoneLanguage.setup": "I starkt läge för ett barn ställer du även in Androids språk under installationen.",
+  "phoneLanguage.lockSystem": "Lås Androids språk",
+  "phoneLanguage.lockSystemHelp": "Hindrar ändringar av systemspråket i Androids inställningar.",
   "phoneLanguage.strong": "Ställ in starkt läge",
   "phoneLanguage.browser": "Fortsätt i webbläsaren",
   "phoneLanguage.browserHelp": "Logga in på kontrollpanelen i webbläsaren för att skapa QR-koden.",

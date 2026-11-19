@@ -11,7 +11,7 @@ for strong mode and on the phone for light mode.
 | --- | --- |
 | Choosing a mode | Ask about the phone's current state. The strong-mode guide explains backup and reset before any data is erased. The light-mode guide goes straight to its own dashboard flow. |
 | Household time zone | Choose the time zone where the phone will be used before generating the QR code. The dashboard uses it for schedules and includes it in the Android setup code. This step is in the browser for both parent apps. |
-| Choosing the language | In strong mode, choose the language before generating the QR code. From the parent app, save the choice and continue to the browser to create the QR code. On a Child phone, Android uses the chosen language during setup and Plainphone locks it. **Use phone language** leaves Android’s setup language in place. |
+| Choosing the language | In strong mode, choose the language before generating the QR code. From the parent app, save the choice and continue to the browser to create the QR code. On a Child phone, Android uses the chosen language during setup. **Lock Android language** is on by default and can be changed later. **Use phone language** leaves Android’s setup language in place. |
 | Choosing a PIN | Explain what the PIN is for. In strong mode, enter it twice in the dashboard. The salted hash is in the provisioning QR code. In light mode, enter it twice on the phone, where Plainphone hashes it locally. |
 | Strong mode and the first Android screen | Ask parents to stop at the first welcome screen and tap the same spot six times. The guide shows the spot and explains Android's organisation-management prompt. |
 | Strong mode and Wi-Fi | Offer Wi-Fi in the code or use Android's network picker. Hidden networks, WPA3-only networks and networks with sign-in pages need a separate connection. The QR code includes any entered password, so keep it private. |
@@ -28,10 +28,14 @@ for strong mode and on the phone for light mode.
 Changing the language or time zone invalidates any unused setup QR code or link for that
 phone immediately, even if the dashboard cannot create its replacement yet. An open
 dashboard page hides the old code on its next check and offers to make a new one. The
-parent app shows a reminder after saving a language change and opens QR setup in the browser.
+parent app shows a reminder after saving a language change and can open replacement setup
+for either mode in the browser. If a strong-mode phone has already scanned a QR code
+that the server rejects as outdated, the phone asks the parent to make a new code and
+reset the phone before scanning it during Android setup.
 
 The server binds each token to the server-controlled QR values, including the Android
-locale, time zone and calling code. The maintenance PIN hash and optional Wi-Fi details
+locale, time zone, calling code and provisioning DNS host. A server configuration
+change that makes the saved values stale also hides the QR on the dashboard. The maintenance PIN hash and optional Wi-Fi details
 stay in the browser and on the setup phone. Unused QR codes issued before this change
 also need to be regenerated. If the server already accepted a code and only its response
 was lost, the same phone can still recover the connection during the usual retry window.

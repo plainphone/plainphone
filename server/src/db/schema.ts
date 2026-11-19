@@ -196,6 +196,7 @@ export const phones = pgTable(
     selfScheduleContacts: boolean("self_schedule_contacts").default(false),
     mode: text("mode", { enum: ["strong", "light"] }).notNull().default("strong"),
     language: text("language", { enum: ["da", "en", "sv", "nb", "de"] }),
+    lockSystemLanguage: boolean("lock_system_language").notNull().default(true),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
     /** Opaque id used as the DNS-over-TLS ClientID (`<dnsClientId>.dns.plainphone.org`). */

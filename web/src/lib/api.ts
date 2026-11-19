@@ -79,6 +79,7 @@ export interface Phone {
   mode: "strong" | "light";
   timezone: string;
   language?: PhoneLanguage;
+  lockSystemLanguage?: boolean;
   locationEnabled: boolean;
   locationMode?: LocationMode;
   pairedAt: string | null;

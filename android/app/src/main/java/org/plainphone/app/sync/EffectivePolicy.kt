@@ -50,7 +50,7 @@ object EffectivePolicy {
                 locationRequired = rules.locationEnabled,
                 settings = rules.settings,
             ),
-            lockSystemLanguage = rules.profile != "self",
+            lockSystemLanguage = rules.profile == "child" && rules.lockSystemLanguage,
             timeBlocked = timeBlocked,
             installing = install,
         )

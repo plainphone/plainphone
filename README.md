@@ -39,7 +39,7 @@ The app is set up by QR code on a factory-reset phone (Android 10 or newer, see 
 - forces private DNS (DNS-over-TLS) to a filtering resolver and stops the user from changing private DNS, VPN, network reset and user certificates;
 - turns Chrome's own DNS-over-HTTPS and incognito mode off and forces SafeSearch;
 - hides every app that is not on the allowlist: phone, messages, camera, clock, contacts, settings, keyboard and launcher (found per device, so Samsung and Xiaomi keep their own apps), plus Chrome, Maps, calculator, calendar and gallery;
-- keeps the Android system language set during strong-mode Child setup;
+- lets parents lock or unlock the Android system language on strong-mode Child phones;
 - requires automatic date and time, blocks USB file transfer and SD cards, and blocks uninstalling Plainphone;
 - optionally sets a Factory Reset Protection policy for chosen Google accounts.
 

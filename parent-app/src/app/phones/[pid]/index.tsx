@@ -9,7 +9,7 @@ import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { SERVER_URL } from "../../../lib/config";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
@@ -109,14 +109,14 @@ function PhoneLanguageSettings() {
   const { phone, setPhone, notify } = usePhone();
   const [busy, setBusy] = useState(false);
 
-  async function save(language: PhoneLanguage) {
+  async function save(fields: { language: PhoneLanguage } | { lockSystemLanguage: boolean }) {
     setBusy(true);
     try {
       const updated = await unwrap<Phone>(client.PATCH("/phones/{pid}", {
-        params: { path: { pid: phone.id } }, body: { language },
+        params: { path: { pid: phone.id } }, body: fields,
       }));
       setPhone(updated);
-      if (updated.setupQrAvailable) {
+      if ("language" in fields && updated.setupQrAvailable) {
         notify({ tone: "info", text: t("add.setupChanged") });
       }
     } catch (err) {
@@ -130,10 +130,19 @@ function PhoneLanguageSettings() {
     <Card>
       <Disclosure title={`${t("phoneLanguage.label")} (${phone.language ? languageNames[phone.language] : t("phoneLanguage.system")})`}>
         <PhoneLanguagePicker value={phone.language ?? null} onChange={(value) => {
-          if (value !== (phone.language ?? null)) void save(value);
+          if (value !== (phone.language ?? null)) void save({ language: value });
         }} disabled={busy} />
       </Disclosure>
-      {phone.mode === "strong" && phone.setupQrAvailable && (
+      {phone.mode === "strong" && phone.profile === "child" && (
+        <Switch
+          label={t("phoneLanguage.lockSystem")}
+          help={t("phoneLanguage.lockSystemHelp")}
+          value={phone.lockSystemLanguage ?? true}
+          disabled={busy}
+          onValueChange={(lockSystemLanguage) => void save({ lockSystemLanguage })}
+        />
+      )}
+      {phone.setupQrAvailable && (
         <Button kind="secondary" title={t("phoneLanguage.browser")} onPress={() => {
           void Linking.openURL(`${SERVER_URL}/phones/${phone.id}/setup`).catch((err) => {
             notify({ tone: "error", text: errorMessage(err, t) });

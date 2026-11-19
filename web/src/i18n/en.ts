@@ -946,6 +946,8 @@ export const en = {
   "phoneLanguage.system": "Use phone language",
   "phoneLanguage.help": "This changes the language of Plainphone after the phone syncs.",
   "phoneLanguage.setup": "In strong mode for a child, this also sets the Android language during setup.",
+  "phoneLanguage.lockSystem": "Lock Android language",
+  "phoneLanguage.lockSystemHelp": "Prevents changes to the system language in Android Settings.",
   "phoneLanguage.strong": "Set up in strong mode",
   "phoneLanguage.browser": "Continue in the browser",
   "phoneLanguage.browserHelp": "Sign in to the dashboard in your browser to create the setup QR code.",

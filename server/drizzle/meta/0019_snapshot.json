@@ -1568,6 +1568,13 @@
           "notNull": true,
           "default": "'strong'"
         },
+        "lock_system_language": {
+          "name": "lock_system_language",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "language": {
           "name": "language",
           "type": "text",

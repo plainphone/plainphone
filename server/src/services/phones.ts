@@ -22,6 +22,7 @@ import {
 import { dnsClientId } from "../lib/crypto.js";
 import { fullHome, fullSettings, rulesSettings } from "../lib/phone-settings.js";
 import type { Ctx } from "./context.js";
+import { enrollmentMatches } from "./enrollment.js";
 import { isDnsReady, isRulesDnsReady } from "./dns.js";
 import { ATTESTATION_MAX_AGE_MS } from "./attestation.js";
 import { householdAccountIds } from "./reset-protection.js";
@@ -177,6 +178,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       mode: phone.mode,
       timezone: phone.timezone,
       language: phone.language,
+      lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
       locationEnabled: phone.locationEnabled,
@@ -213,6 +215,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     mode: phone.mode,
     timezone: phone.timezone,
     language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     apps: {
       allowed: sorted(apps.filter((a) => a.allowed || a.core).map((a) => a.packageName)),
       hidden: sorted(apps.filter((a) => !a.allowed && !a.core).map((a) => a.packageName)),
@@ -301,13 +304,21 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
   const [row] = await ctx.db.select({
     phone: phones,
     ...summaryFields(),
-    setupEnrollmentId: sql<string | null>`(select ${enrollments.id} from ${enrollments}
-      where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
-        and ${enrollments.invalidatedAt} is null and ${enrollments.provisioning} is not null)`,
+    setupEnrollment: sql<Pick<typeof enrollments.$inferSelect, "id" | "provisioning" | "invalidatedAt"> | null>`
+      (select jsonb_build_object('id', ${enrollments.id}, 'provisioning', ${enrollments.provisioning}, 'invalidatedAt', null)
+       from ${enrollments}
+       where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
+         and ${enrollments.invalidatedAt} is null and ${enrollments.usedAt} is null
+         and ${enrollments.provisioning} is not null
+         and ${enrollments.expiresAt} > ${ctx.now().toISOString()}::timestamptz
+       order by ${enrollments.createdAt} desc limit 1)`,
   }).from(phones).where(eq(phones.id, phone.id));
+  const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
   return {
-    ...summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false),
-    setupEnrollmentId: row?.setupEnrollmentId ?? null,
+    ...summary,
+    setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
+      ? row.setupEnrollment.id
+      : null,
   };
 }
 
@@ -364,6 +375,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     mode: phone.mode,
     timezone: phone.timezone,
     language: phone.language,
+    lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,

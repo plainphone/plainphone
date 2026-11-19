@@ -141,6 +141,8 @@
     <string name="blocked_sms_out">Utgående melding</string>
     <string name="pair_button">Par med en forelder</string>
     <string name="pairing_connecting">Kobler til dashbordet …</string>
+    <string name="pairing_outdated_qr_strong">QR-koden for oppsett er utdatert. Lag en ny i kontrollpanelet, tilbakestill telefonen og skann den nye koden under oppsettet.</string>
+    <string name="pairing_outdated_qr_light">Oppsettslenken er utdatert. Lag en ny i kontrollpanelet og åpne den på denne telefonen.</string>
     <string name="pairing_loading">Henter en sammenkoblingskode …</string>
     <string name="pairing_instructions">Skann denne koden med kameraet på foreldrenes telefon. Eller åpne app.plainphone.org, velg Legg til telefon og skriv inn koden.</string>
     <string name="pairing_waiting">Venter på dashbordet. Koden er gyldig i 15 minutter.</string>

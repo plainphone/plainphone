@@ -123,6 +123,37 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await enroll(enrollment.token)).status).toBe(409);
   });
 
+  it("clears the displayed QR when the configured provisioning DNS host changes", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const { phone, enrollment } = await addPhone(parent);
+    const path = `/api/phones/${phone.id}`;
+    expect((await parent.get(path)).json.setupEnrollmentId).toBe(enrollment.id);
+    const previous = h.ctx.cfg.PROVISIONING_DNS_HOST;
+    try {
+      h.ctx.cfg.PROVISIONING_DNS_HOST = "new-dns.example.org";
+      expect((await parent.get(path)).json.setupEnrollmentId).toBeNull();
+      expect((await enroll(enrollment.token)).status).toBe(409);
+    } finally {
+      h.ctx.cfg.PROVISIONING_DNS_HOST = previous;
+    }
+  });
+
+  it("syncs the strong Child system language lock independently of app language", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const { phone, enrollment } = await addPhone(parent);
+    const path = `/api/phones/${phone.id}`;
+    expect((await parent.get(path)).json.lockSystemLanguage).toBe(true);
+    const updated = await parent.patch(path, { lockSystemLanguage: false, language: null });
+    expect(updated.json).toMatchObject({ lockSystemLanguage: false, setupEnrollmentId: enrollment.id });
+    const paired = await enroll(enrollment.token);
+    expect(paired.status).toBe(200);
+    const device = new Client(h);
+    device.token = paired.json.deviceToken;
+    expect((await device.get("/api/device/rules")).json).toMatchObject({ lockSystemLanguage: false, language: null });
+    expect((await parent.patch(path, { lockSystemLanguage: true })).json.lockSystemLanguage).toBe(true);
+    expect((await device.get("/api/device/rules")).json.lockSystemLanguage).toBe(true);
+  });
+
   it("requires a new code for a token issued before snapshots were stored", async () => {
     const parent = await signIn(h, "p@example.org");
     const { enrollment } = await addPhone(parent);

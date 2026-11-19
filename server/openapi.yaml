@@ -469,6 +469,9 @@ components:
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
         language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
         timezone:
           type: string
           description: IANA time zone that schedule times are in.
@@ -710,6 +713,9 @@ components:
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
         language: { $ref: "#/components/schemas/PhoneLanguage" }
+        lockSystemLanguage:
+          type: boolean
+          description: Whether Android system language changes are blocked on a strong Child phone.
         timezone: { type: string }
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
@@ -720,7 +726,7 @@ components:
         setupEnrollmentId:
           type: [string, "null"]
           format: uuid
-          description: Identifier of the current setup QR in single-phone responses, if one was issued and has not been invalidated.
+          description: Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -2178,6 +2184,7 @@ paths:
                 name: { type: string }
                 locationEnabled: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
+                lockSystemLanguage: { type: boolean }
                 timezone:
                   type: string
                   description: IANA time zone for the household. Can be set before strong setup.

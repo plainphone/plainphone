@@ -36,12 +36,12 @@ export function PhoneSettingsPage() {
   const res = useLoad(() => getPhoneSettings(phone.id), [phone.id]);
   const light = phone.mode === "light";
   const [savingLanguage, setSavingLanguage] = useState(false);
-  async function saveLanguage(language: PhoneLanguage) {
+  async function saveLanguage(fields: { language: PhoneLanguage } | { lockSystemLanguage: boolean }) {
     setSavingLanguage(true);
     try {
-      const updated = await api.patch<Phone>(`/phones/${phone.id}`, { language });
+      const updated = await api.patch<Phone>(`/phones/${phone.id}`, fields);
       setPhone(updated);
-      notify({ tone: "success", text: t(updated.setupQrAvailable ? "add.setupChanged" : "app.saved") });
+      notify({ tone: "success", text: t("language" in fields && updated.setupQrAvailable ? "add.setupChanged" : "app.saved") });
     } catch {
       notify({ tone: "error", text: t("error.generic") });
     } finally {
@@ -71,7 +71,18 @@ export function PhoneSettingsPage() {
     <>
       <PageTitle sub={t("phoneSettings.intro")}>{t("phoneSettings.title")}</PageTitle>
       <section className="section">
-        <PhoneLanguagePicker value={phone.language ?? null} onChange={(language) => void saveLanguage(language)} disabled={savingLanguage} />
+        <PhoneLanguagePicker value={phone.language ?? null} onChange={(language) => void saveLanguage({ language })} disabled={savingLanguage} />
+        {!light && phone.profile === "child" && (
+          <>
+            <label className="item">
+              <span>{t("phoneLanguage.lockSystem")}</span>
+              <input type="checkbox" checked={phone.lockSystemLanguage ?? true} disabled={savingLanguage}
+                aria-describedby="system-language-help"
+                onChange={(event) => void saveLanguage({ lockSystemLanguage: event.currentTarget.checked })} />
+            </label>
+            <p className="help" id="system-language-help">{t("phoneLanguage.lockSystemHelp")}</p>
+          </>
+        )}
       </section>
       {light && (
         <p className="notice notice-info" role="status">

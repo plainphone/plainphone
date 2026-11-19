@@ -103,10 +103,10 @@ class PlainphoneApiReleaseTest {
     }
 
     @Test
-    fun `an outdated QR code is rejected without retrying the token`() {
+    fun `an outdated QR code is distinct from a rejected token`() {
         answer = 409
         responseBody = """{"error":"This QR code is out of date. Make a new one."}"""
-        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.OutdatedQr)
     }
 
     @Test

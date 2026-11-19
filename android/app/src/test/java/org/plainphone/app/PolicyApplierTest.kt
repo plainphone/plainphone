@@ -28,8 +28,10 @@ class PolicyApplierTest {
     }
 
     @Test
-    fun `light and Self phones do not add the locale restriction`() {
+    fun `turning off the locale lock clears it and light phones never add it`() {
         val localeRestriction = android.os.UserManager.DISALLOW_CONFIG_LOCALE
+        applier.apply(config)
+        assertThat(device.restrictions).contains(localeRestriction)
         applier.apply(config.copy(lockSystemLanguage = false))
         assertThat(device.restrictions).doesNotContain(localeRestriction)
         device.owner = false

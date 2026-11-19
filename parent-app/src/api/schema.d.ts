@@ -2206,6 +2206,8 @@ export interface components {
             /** @enum {unknown} */
             mode: "strong" | "light";
             language: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
             /**
              * @description IANA time zone that schedule times are in.
              * @example Europe/Copenhagen
@@ -2435,6 +2437,8 @@ export interface components {
             /** @enum {unknown} */
             mode?: "strong" | "light";
             language?: components["schemas"]["PhoneLanguage"];
+            /** @description Whether Android system language changes are blocked on a strong Child phone. */
+            lockSystemLanguage?: boolean;
             timezone?: string;
             locationEnabled?: boolean;
             locationMode?: components["schemas"]["LocationMode"];
@@ -2444,7 +2448,7 @@ export interface components {
             setupQrAvailable?: boolean;
             /**
              * Format: uuid
-             * @description Identifier of the current setup QR in single-phone responses, if one was issued and has not been invalidated.
+             * @description Identifier of the current unused and unexpired setup QR, if its provisioning values still match. Returned in single-phone responses.
              */
             setupEnrollmentId?: string | null;
             /**
@@ -4544,6 +4548,7 @@ export interface operations {
                     name?: string;
                     locationEnabled?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];
+                    lockSystemLanguage?: boolean;
                     /** @description IANA time zone for the household. Can be set before strong setup. */
                     timezone?: string;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */

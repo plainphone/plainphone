@@ -141,6 +141,8 @@
     <string name="blocked_sms_out">Ausgehende Nachricht</string>
     <string name="pair_button">Mit Eltern verbinden</string>
     <string name="pairing_connecting">Verbindung zum Dashboard herstellen…</string>
+    <string name="pairing_outdated_qr_strong">Dieser QR-Code ist veraltet. Erstelle einen neuen in der Verwaltung, setze dieses Telefon zurück und scanne den neuen Code bei der Einrichtung.</string>
+    <string name="pairing_outdated_qr_light">Dieser Einrichtungslink ist veraltet. Erstelle einen neuen in der Verwaltung und öffne ihn auf diesem Telefon.</string>
     <string name="pairing_loading">Einen Kopplungscode erhalten…</string>
     <string name="pairing_instructions">Scanne den Code mit dem Elterntelefon. Du kannst auch app.plainphone.org öffnen und „Telefon hinzufügen“, dann „Code eingeben“ wählen.</string>
     <string name="pairing_waiting">Warten auf das Dashboard. Der Code ist 15 Minuten lang gültig.</string>

@@ -141,6 +141,8 @@
     <string name="blocked_sms_out">Utgående meddelande</string>
     <string name="pair_button">Para ihop med en förälder</string>
     <string name="pairing_connecting">Ansluter till föräldrapanelen…</string>
+    <string name="pairing_outdated_qr_strong">QR-koden för installation är inaktuell. Skapa en ny på kontrollpanelen, återställ telefonen och skanna den nya koden under installationen.</string>
+    <string name="pairing_outdated_qr_light">Installationslänken är inaktuell. Skapa en ny på kontrollpanelen och öppna den på den här telefonen.</string>
     <string name="pairing_loading">Hämtar en kopplingskod…</string>
     <string name="pairing_instructions">Skanna den här koden med kameran på förälderns telefon. Eller öppna app.plainphone.org, välj Lägg till telefon och skriv sedan in koden.</string>
     <string name="pairing_waiting">Väntar på föräldrapanelen. Koden är giltig i 15 minuter.</string>

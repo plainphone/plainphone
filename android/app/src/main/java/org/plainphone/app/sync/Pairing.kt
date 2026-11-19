@@ -18,8 +18,9 @@ class PairingController(
     private val canRedeemEnrollment: () -> Boolean = { true },
 ) {
     /** Starts a new pairing (or keeps showing the current one). */
-    fun start(): Pairing {
+    fun start(): Pairing = synchronized(enrollmentLock) {
         check(!store.isPaired) { "already paired" }
+        check(!store.enrollmentOutdated) { "outdated setup QR" }
         // The server can still recover a claimed pairing after the displayed code expires.
         store.pairing()?.let { return it }
         return api.startConfirmedPairing(mode, deviceInfo, profile).also(store::savePairing)
@@ -28,7 +29,8 @@ class PairingController(
     /**
      * Pairs with the enrollment token from the provisioning QR code, if there is one: no code to type.
      * Returns null when there is no token (or the phone is already paired). A refused token is dropped,
-     * so the phone falls back to showing a code. Network errors throw and keep the token for a retry.
+     * so the phone falls back to showing a code, except when it must restart setup with a fresh QR.
+     * Network errors throw and keep the token for a retry.
      */
     fun enroll(): EnrollResult? = synchronized(enrollmentLock) {
         // One at a time per process: the pairing screen and EnrollWorker may both try. Two requests
@@ -38,11 +40,13 @@ class PairingController(
             store.saveEnrollToken(null)
             return null
         }
+        if (store.enrollmentOutdated) return EnrollResult.OutdatedQr
         if (!canRedeemEnrollment()) return null
         val token = store.enrollToken() ?: return null
         val result = api.enroll(token, store.installId(), deviceInfo)
         when (result) {
             is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
+            EnrollResult.OutdatedQr -> store.markEnrollmentOutdated()
             EnrollResult.Rejected -> store.saveEnrollToken(null)
             EnrollResult.InvalidKey -> store.clearEnrollmentConfirmation()
         }

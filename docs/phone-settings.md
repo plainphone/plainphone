@@ -29,8 +29,10 @@ same as `locked`, so the dashboard does not offer it.
 The per-phone language is saved independently of the lockable settings. Change
 it in the web dashboard or parent app, or choose **Use phone language** to follow
 Android. The legacy `language` lock setting remains in the API for older phone
-builds. Current Android builds manage the system-language restriction through
-the strong-mode Child policy described in [policies.md](policies.md).
+builds. On strong-mode Child phones, **Lock Android language** is on by default.
+Turn it off in the dashboard or parent app to allow language changes in Android
+Settings after the next sync. This switch is independent of the Plainphone
+language and is sent as `lockSystemLanguage` in the phone rules.
 
 ## The settings
 

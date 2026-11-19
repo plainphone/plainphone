@@ -139,6 +139,8 @@
     <string name="blocked_sms_out">Udgående besked</string>
     <string name="pair_button">Par med en forælder</string>
     <string name="pairing_connecting">Forbinder til dashboardet…</string>
+    <string name="pairing_outdated_qr_strong">QR-koden til opsætning er forældet. Lav en ny i betjeningspanelet, nulstil telefonen, og scan den nye kode under opsætningen.</string>
+    <string name="pairing_outdated_qr_light">Linket til opsætning er forældet. Lav et nyt i betjeningspanelet, og åbn det på denne telefon.</string>
     <string name="pairing_loading">Henter en parringskode …</string>
     <string name="pairing_instructions">Scan koden med kameraet på forælderens telefon. Eller åbn app.plainphone.org, vælg Tilføj telefon og derefter Indtast koden.</string>
     <string name="pairing_waiting">Venter på dashboardet. Koden gælder i 15 minutter.</string>

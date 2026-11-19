@@ -57,6 +57,21 @@ class RulesTest {
     }
 
     @Test
+    fun `the server can unlock and relock the system language independently of app language`() {
+        val now = Instant.parse("2027-01-04T11:00:00Z")
+        val legacy = ServerRules.parse(rulesJson())
+        assertThat(EffectivePolicy.merge(qr, legacy, now).lockSystemLanguage).isTrue()
+
+        val json = org.json.JSONObject(rulesJson()).put("language", "da").put("lockSystemLanguage", false)
+        val unlocked = EffectivePolicy.merge(qr, ServerRules.parse(json.toString()), now)
+        assertThat(unlocked.lockSystemLanguage).isFalse()
+        json.put("lockSystemLanguage", true)
+        val locked = EffectivePolicy.merge(qr, ServerRules.parse(json.toString()), now)
+        assertThat(locked.lockSystemLanguage).isTrue()
+        assertThat(EffectivePolicy.fingerprint(locked)).isNotEqualTo(EffectivePolicy.fingerprint(unlocked))
+    }
+
+    @Test
     fun `without server rules the QR code decides`() {
         assertThat(EffectivePolicy.merge(qr, null, Instant.now())).isSameInstanceAs(qr)
     }

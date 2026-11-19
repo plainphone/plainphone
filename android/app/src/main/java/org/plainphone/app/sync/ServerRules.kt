@@ -64,6 +64,7 @@ data class ServerRules(
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
     val language: String? = null,
+    val lockSystemLanguage: Boolean = true,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -88,6 +89,7 @@ data class ServerRules(
             return ServerRules(
                 phoneId = j.getString("phoneId"),
                 language = PhoneLanguage.supportedTag(j.optString("language", "")),
+                lockSystemLanguage = j.optBoolean("lockSystemLanguage", true),
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),

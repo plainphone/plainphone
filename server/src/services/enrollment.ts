@@ -27,7 +27,11 @@ export function enrollmentToken(): string {
   return ENROLLMENT_PREFIX + randomBytes(16).toString("base64url");
 }
 
-export function enrollmentMatches(ctx: Ctx, e: typeof enrollments.$inferSelect, phone: typeof phones.$inferSelect) {
+export function enrollmentMatches(
+  ctx: Ctx,
+  e: Pick<typeof enrollments.$inferSelect, "provisioning" | "invalidatedAt">,
+  phone: typeof phones.$inferSelect,
+) {
   return !e.invalidatedAt && isDeepStrictEqual(e.provisioning, provisioningInfo(ctx.cfg, phone));
 }
 
