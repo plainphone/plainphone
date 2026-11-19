@@ -79,6 +79,7 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
         HomeActivity.timeText(context, java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime())
     }
     var status by remember { mutableStateOf<String?>(null) }
+    var callMissed by remember { mutableStateOf(false) }
     var seenByName by rememberSaveable { mutableStateOf<String?>(null) }
     var seen by rememberSaveable { mutableStateOf(false) }
 
@@ -101,6 +102,7 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
         val sentId = id ?: return@LaunchedEffect
         while (true) {
             status = SosDelivery.status(context, sentId)
+            callMissed = SosDelivery.callMissed(context, sentId)
             if (!seen && (status == "online" || status == "sms")) {
                 val confirmation = withContext(Dispatchers.IO) {
                     runCatching {
@@ -165,6 +167,7 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
                 else -> null
             }
             message?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+            if (callMissed) Text(stringResource(R.string.sos_call_missed), Modifier.semantics { liveRegion = LiveRegionMode.Polite })
             if (callActive) Button(onClick = SosCalls::stop, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.sos_stop_call))
             }

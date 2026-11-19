@@ -7,6 +7,7 @@ import android.telecom.Call
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,8 +31,14 @@ internal object SosCalls {
     var callId by mutableStateOf<Int?>(null)
         private set
 
-    fun start(context: Context, phoneId: String, parents: List<ApprovedContact>) {
-        if (parents.isEmpty() || active.value || CallManager.state.value.isNotEmpty()) return
+    /**
+     * Starts calling the parents and returns once the first call has actually been placed (true), or
+     * once it is clear none can be (false: already in a call, no permission, number not allowed).
+     * [onPlaced] runs right after a call has started, so the caller can take its claim only then.
+     */
+    suspend fun start(context: Context, phoneId: String, parents: List<ApprovedContact>, onPlaced: () -> Unit = {}): Boolean {
+        if (parents.isEmpty() || active.value || CallManager.state.value.isNotEmpty()) return false
+        val placed = CompletableDeferred<Boolean>()
         val role = context.getSystemService(RoleManager::class.java)
         val canTrackCall = role?.isRoleHeld(RoleManager.ROLE_DIALER) == true
         stopped = false
@@ -47,6 +54,7 @@ internal object SosCalls {
                         return@callSosParents SosCallOutcome.UNANSWERED
                     }
                     if (placeCall(context, parent.number) != null) return@callSosParents SosCallOutcome.UNANSWERED
+                    if (placed.complete(true)) onPlaced()
                     if (!canTrackCall) return@callSosParents SosCallOutcome.STOPPED
                     // The in-call service is the authoritative source for the ID and connection state.
                     val country = ContactPolicySources.get(context).rules().country
@@ -63,10 +71,12 @@ internal object SosCalls {
                     awaitSosAnswer(call.id, CallManager.state, CallManager::disconnect).also { callId = null }
                 }
             } finally {
+                placed.complete(false)
                 callId = null
                 active.value = false
             }
         }
+        return placed.await()
     }
 
     fun stop() {

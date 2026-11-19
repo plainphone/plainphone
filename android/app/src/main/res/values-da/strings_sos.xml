@@ -21,4 +21,5 @@
     <string name="sos_confirm">Bekræft</string>
     <string name="sos_starting_in">Starter om %1$d sek.</string>
     <string name="sos_report_received">SOS sendt til Plainphone kl. %1$s</string>
+    <string name="sos_call_missed">Din SOS er sendt, men opkaldet til dine forældre kunne ikke starte. Ring selv til dem, eller brug Ring 112.</string>
 </resources>

@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 
+internal const val EMERGENCY_DIALER_ACTION = "com.android.phone.EmergencyDialer.DIAL"
+
 internal fun openEmergencyDialer(context: Context) {
-    val system = Intent("com.android.phone.EmergencyDialer.DIAL").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val system = Intent(EMERGENCY_DIALER_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     if (runCatching { context.startActivity(system) }.isSuccess) return
     runCatching { context.startActivity(emergencyKeypadIntent()) }
 }

@@ -30,6 +30,9 @@ import org.plainphone.app.sync.LocationReader
 import org.plainphone.app.sync.PlainphoneApi
 import org.plainphone.app.sync.SyncStore
 
+/** How long after pressing the button a call that could not start is retried before the child is told. */
+internal const val CALL_RETRY_WINDOW_MS = 10 * 60_000L
+
 internal enum class SosKind(val wire: String) { URGENT("urgent"), HELP("help") }
 
 internal object SosDelivery {
@@ -43,7 +46,7 @@ internal object SosDelivery {
             if (key.startsWith("time:") && value is Long && value <= cutoff) {
                 val expired = key.removePrefix("time:")
                 prune.remove(key).remove("status:$expired").remove("position:$expired").remove("sms-claim:$expired")
-                    .remove("sms-names:$expired").remove("call-claim:$expired")
+                    .remove("sms-names:$expired").remove("call-claim:$expired").remove("call-missed:$expired")
             }
         }
         val id = UUID.randomUUID().toString()
@@ -60,6 +63,7 @@ internal object SosDelivery {
     fun smsNames(context: Context, id: String): List<String> =
         prefs(context).getStringSet("sms-names:$id", emptySet()).orEmpty().sorted()
 
+    fun callMissed(context: Context, id: String) = prefs(context).getBoolean("call-missed:$id", false)
     fun status(context: Context, id: String): String? = prefs(context).getString("status:$id", null)
 }
 
@@ -96,20 +100,26 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         val payload = JSONObject().put("id", id).put("kind", kind).put("sentAt", Instant.ofEpochMilli(at).toString())
             .put("location", location).put("battery", AndroidSyncDevice(context).battery().first)
             .put("smsSubmitted", SosDelivery.status(context, id) == "sms")
-        suspend fun startUrgentCall() {
-            if (kind != SosKind.URGENT.wire || sos.parents.isEmpty()) return
-            withContext(Dispatchers.Main.immediate) {
-                if (SyncStore(context).phoneId == phone && claimSosAction(prefs, "call-claim:$id", at)) {
-                    SosCalls.start(context, phone, sos.parents)
-                }
+        // True while the required call to the parents is still outstanding and should be retried.
+        // The claim is taken only once a call has actually started, so a call that could not start
+        // (already in a call, no permission) is tried again instead of being skipped for good.
+        suspend fun urgentCallOutstanding(): Boolean {
+            if (kind != SosKind.URGENT.wire || sos.parents.isEmpty() || prefs.contains("call-claim:$id")) return false
+            val started = withContext(Dispatchers.Main.immediate) {
+                SyncStore(context).phoneId == phone &&
+                    SosCalls.start(context, phone, sos.parents) { claimSosAction(prefs, "call-claim:$id", at) }
             }
+            if (started) return false
+            if (System.currentTimeMillis() - at < CALL_RETRY_WINDOW_MS) return true
+            prefs.edit().putBoolean("call-missed:$id", true).apply()
+            return false
         }
 
         try {
-            SosDelivery.api(context).reportSos(token, payload)
-            startUrgentCall()
+            // A retry only to place the call must not report again.
+            if (SosDelivery.status(context, id) != "online") SosDelivery.api(context).reportSos(token, payload)
             prefs.edit().putString(key, "online").remove(positionKey).apply()
-            return@withContext Result.success()
+            return@withContext if (urgentCallOutstanding()) Result.retry() else Result.success()
         } catch (e: HttpError) {
             if (e.status in 400..499 && e.status != 404) {
                 if (SosDelivery.status(context, id) != "sms") prefs.edit().putString(key, "failed").apply()
@@ -132,7 +142,7 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             }
         }
         when (SosDelivery.status(context, id)) {
-            "sms" -> startUrgentCall()
+            "sms" -> urgentCallOutstanding()
             null -> prefs.edit().putString(key, "pending").apply()
         }
         Result.retry()

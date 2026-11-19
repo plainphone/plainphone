@@ -6,6 +6,10 @@ import android.Manifest
 import android.app.Application
 import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import org.plainphone.app.AndroidDeviceControls
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -90,6 +94,16 @@ class EmergencyNumbersTest {
         val telecom = shadowOf(context.getSystemService(TelecomManager::class.java))
         telecom.setCallPhonePermission(true)
         val own = context.packageName
+        // The system's emergency dialer, resolved the way the SOS screen opens it.
+        val emergencyPackage = "com.example.emergencydialer"
+        val emergencyActivity = ComponentName(emergencyPackage, "$emergencyPackage.Dial")
+        shadowOf(context.packageManager).addActivityIfNotPresent(emergencyActivity)
+        shadowOf(context.packageManager).addIntentFilterForActivity(
+            emergencyActivity,
+            IntentFilter(org.plainphone.app.sos.EMERGENCY_DIALER_ACTION).apply { addCategory(Intent.CATEGORY_DEFAULT) },
+        )
+        val core = AndroidDeviceControls(context).corePackages()
+        assertThat(core).contains(emergencyPackage)
         val game = "com.game"
         val school = """[{"id":"school","kind":"school","days":[1,2,3,4,5,6,7],"start":"06:00","end":"19:00","allowedPackages":[]}]"""
         val now = Instant.parse("2026-11-19T12:00:00Z")
@@ -101,19 +115,31 @@ class EmergencyNumbersTest {
             assertThat(config.server?.windowActive).isEqualTo(schedule == school)
             assertThat(config.timeBlocked).contains(game)
             if (strong) {
-                val device = FakeDevice(launchable = mutableSetOf(own, game), core = emptySet())
+                val device = FakeDevice(launchable = mutableSetOf(own, game, emergencyPackage), core = core)
                 PolicyApplier(device, MemoryHiddenStore(), sdkInt = 35).apply(config)
                 assertThat(device.hidden).doesNotContain(own)
                 assertThat(device.suspended).doesNotContain(own)
+                assertThat(device.hidden).doesNotContain(emergencyPackage)
+                assertThat(device.suspended).doesNotContain(emergencyPackage)
             } else {
-                val plan = LightPlan.build(setOf(own, game), emptySet(), config.allowedPackages, own,
+                val plan = LightPlan.build(setOf(own, game, emergencyPackage), core, config.allowedPackages, own,
                     telephony = emptySet(), timeBlocked = config.timeBlocked, installing = null)
                 assertThat(plan.why(own)).isNull()
+                assertThat(plan.why(emergencyPackage)).isNull()
                 assertThat(plan.why(game)).isNotNull()
             }
             val contacts = ContactPolicySources.get(context).rules()
             assertThat(contacts.enforced).isTrue()
             assertThat(context.contactPolicy().decide(contacts, Channel.SMS, Direction.OUTGOING, "+4512345678").allowed).isTrue()
+            // The SOS screen's own path to the emergency dialer, not just the policy that should allow it.
+            val launched = mutableListOf<String?>()
+            val sosScreen = object : ContextWrapper(context) {
+                override fun startActivity(intent: Intent) {
+                    launched.add(packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName)
+                }
+            }
+            org.plainphone.app.sos.openEmergencyDialer(sosScreen)
+            assertThat(launched).containsExactly(emergencyPackage)
             assertThat(placeCall(context, "112")).isNull()
             assertThat(placeCall(context, "+4512345678")).isNull()
         }
