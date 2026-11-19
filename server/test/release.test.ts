@@ -43,6 +43,7 @@ describe("release on a Child phone", () => {
 
   it("wakes the phone, so it does not wait for the next poll", async () => {
     const { parent, phoneId, device } = await setup("child");
+    expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);
     await device.put("/api/device/push-token", { fcmToken: "fcm-token-1" });
     await parent.post(`/api/phones/${phoneId}/release`);
     expect(h.push.sent).toContainEqual({ token: "fcm-token-1", reason: "rules" });

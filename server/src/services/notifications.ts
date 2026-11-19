@@ -153,9 +153,9 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string } = {},
+  opts: { subscriptionId?: string; urgent?: boolean } = {},
 ): Promise<number> {
-  if (userIds.length === 0 || !ctx.parentPush.webPublicKey) return 0;
+  if (userIds.length === 0) return 0;
   try {
     const subs = await ctx.db
       .select({ sub: pushSubscriptions, locale: users.locale })
@@ -167,7 +167,7 @@ export async function notifyUsers(
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
         ),
       );
-    const urgent = e.type === "protection";
+    const urgent = opts.urgent ?? e.type === "protection";
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
@@ -184,8 +184,8 @@ export async function notifyUsers(
             .where(eq(pushSubscriptions.id, sub.id));
           return 1;
         }
-        if (outcome === "gone" || (outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
-          await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+        if (outcome === "gone" || (outcome === "failed" && sub.platform === "web" && sub.failures + 1 >= MAX_FAILURES)) {
+          await ctx.db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.userId, sub.userId)));
         } else if (outcome === "failed") {
           await ctx.db
             .update(pushSubscriptions)
@@ -203,10 +203,10 @@ export async function notifyUsers(
 }
 
 /** Sends an event about a phone to the parents of its household who have not muted it. */
-export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent): Promise<number> {
+export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
   const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e);
+  return notifyHouseholdMembers(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);
 }
 
 type RecipientDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -227,6 +227,7 @@ export async function notifyHouseholdMembers(
   ctx: Ctx,
   members: Awaited<ReturnType<typeof phoneAlertRecipients>>,
   e: NotifyEvent,
+  opts: { urgent?: boolean } = {},
 ): Promise<number> {
   // A phone that went silent or lost its lock also gets a mail (issue #22), so parents
   // without push hear about it too. Requests are push only: they are frequent and not urgent.
@@ -253,6 +254,7 @@ export async function notifyHouseholdMembers(
     ctx,
     members.map((m) => m.id),
     e,
+    opts,
   );
 }
 

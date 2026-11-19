@@ -37,6 +37,7 @@ interface SyncApi {
     fun reportApps(token: String, apps: List<InstalledApp>)
     /** False when location is off for this phone (the server answers 409). */
     fun reportLocation(token: String, fix: LocationFix, purpose: String): Boolean
+    fun registerWakeup(token: String, fcm: String?, endpoint: String?): Boolean = false
     fun reportStatus(token: String, status: DeviceStatus)
     /**
      * Tells the server Plainphone is switched off after a release (POST /device/released). True when
@@ -121,6 +122,7 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val pushProvider: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -147,6 +149,7 @@ data class DeviceStatus(
             }
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
             installOverrunSequence?.let { put("installOverrunSequence", it) }
+            pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }
             update?.let { put("update", it.toJson()) }
         }
@@ -491,6 +494,12 @@ class PlainphoneApi private constructor(
             409 -> false
             else -> throw HttpError(r.status, r.body)
         }
+    }
+
+    override fun registerWakeup(token: String, fcm: String?, endpoint: String?): Boolean {
+        val body = JSONObject().put("fcmToken", fcm ?: JSONObject.NULL)
+            .put("unifiedPushEndpoint", endpoint ?: JSONObject.NULL)
+        return call("PUT", "/device/push-token", token, body).status == 204
     }
 
     override fun reportStatus(token: String, status: DeviceStatus) {

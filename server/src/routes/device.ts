@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { WAKE_PROVIDERS } from "../providers/push.js";
 import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
@@ -666,6 +667,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         deviceOwner: z.boolean(),
         lockIntact: z.boolean(),
         maintenance: z.boolean(),
+        pushProvider: z.enum(WAKE_PROVIDERS).optional(),
         failedPolicies: z.array(z.string().min(1).max(200)).max(50),
         installOverrunSequence: z.number().int().positive().optional(),
         rulesEtag: z.string().max(100).nullable(),
@@ -768,8 +770,23 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/requests", async (c) => c.json({ requests: await phoneRequestList(ctx, c.get("phone").id) }));
 
   app.put("/push-token", async (c) => {
-    const input = await body(c, z.object({ fcmToken: z.string().min(1).max(4096).nullable() }));
-    await ctx.db.update(phones).set({ fcmToken: input.fcmToken }).where(eq(phones.id, c.get("phone").id));
+    const input = await body(c, z.object({
+      fcmToken: z.string().min(1).max(4096).nullable(),
+      unifiedPushEndpoint: z.string().min(1).max(2048).nullable().optional(),
+    }));
+    if (input.fcmToken && !ctx.push.fcmAvailable) return c.json({ error: "FCM wakeups unavailable" }, 409);
+    if (input.unifiedPushEndpoint && (input.fcmToken || !ctx.push.acceptsEndpoint?.(input.unifiedPushEndpoint))) {
+      return c.json({ error: "unsupported wakeup endpoint" }, 400);
+    }
+    if (input.fcmToken || input.unifiedPushEndpoint) {
+      const updated = await ctx.db.update(phones)
+        .set({ fcmToken: input.fcmToken, unifiedPushEndpoint: input.unifiedPushEndpoint ?? null })
+        .where(and(eq(phones.id, c.get("phone").id), eq(phones.pushWakeups, true)))
+        .returning({ id: phones.id });
+      if (!updated.length) return c.json({ error: "wakeups disabled" }, 409);
+    } else {
+      await ctx.db.update(phones).set({ fcmToken: null, unifiedPushEndpoint: null }).where(eq(phones.id, c.get("phone").id));
+    }
     return c.body(null, 204);
   });
 

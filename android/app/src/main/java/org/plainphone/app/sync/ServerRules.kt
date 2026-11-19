@@ -61,6 +61,8 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val pushProvider: String = "none",
+    val unifiedPushAvailable: Boolean = false,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -88,6 +90,8 @@ data class ServerRules(
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),
                 lightContactRestriction = j.optBoolean("lightContactRestriction", false),
+                pushProvider = j.optString("pushProvider", "none"),
+                unifiedPushAvailable = j.optBoolean("unifiedPushAvailable"),
                 selfScheduleContacts = if (j.isNull("selfScheduleContacts")) null else j.getBoolean("selfScheduleContacts"),
                 allowedApps = strings(apps.getJSONArray("allowed")),
                 hiddenApps = strings(apps.getJSONArray("hidden")),

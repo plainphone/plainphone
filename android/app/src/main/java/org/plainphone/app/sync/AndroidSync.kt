@@ -58,6 +58,14 @@ object Sync {
 
 /** Real phone effects for [SyncRunner]. */
 class AndroidSyncDevice(private val context: Context) : SyncDevice {
+    override fun registerWakeup(api: SyncApi, token: String): String {
+        val selected = org.plainphone.app.push.PhoneWake.registration(context)
+        if (SyncStore(context).rules()?.pushProvider == "none") return "none"
+        val registered = api.registerWakeup(token, selected.address.takeIf { selected.provider == "fcm" },
+            selected.address.takeIf { selected.provider == "unifiedpush" })
+        return if (registered) selected.provider else "none"
+    }
+
     override fun nowMs() = System.currentTimeMillis()
 
     override fun pendingSetupCompletion(phoneId: String?) = LightSetup.pendingCompletion(context, phoneId)
@@ -465,7 +473,7 @@ internal fun isInteractive(context: Context) = context.getSystemService(PowerMan
  * - every 15 minutes (WorkManager's shortest period), whenever there is a network,
  * - right away after boot, an app update, pairing, the screen turning on and a network change,
  * - every `pollSeconds` (60 s) while the screen is on.
- * Push (FCM) can come later; polling stays the guarantee.
+ * Push can request an immediate sync; periodic polling remains active.
  */
 object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
@@ -493,6 +501,8 @@ object SyncScheduler {
     }
 
     fun now(context: Context, reason: String) = enqueueNow(context, reason, NOW)
+
+    fun pushRegistrationChanged(context: Context) = enqueueNow(context, "push registration", "plainphone-push-registration")
 
     fun recoverSetupUndoLocally(context: Context) {
         val request = OneTimeWorkRequestBuilder<LocalSetupUndoWorker>().build()

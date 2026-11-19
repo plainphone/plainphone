@@ -6,7 +6,8 @@ import { createDb, runMigrations } from "./db/client.js";
 import { HttpDnsProvider, MockDnsProvider } from "./providers/dns.js";
 import { LogMailProvider, NoMailProvider, SmtpMailProvider } from "./providers/mail.js";
 import { NoParentPushProvider, WebPushProvider } from "./providers/parent-push.js";
-import { NoPushProvider } from "./providers/push.js";
+import { configureNativePush, NativeParentPush } from "./providers/native-push.js";
+import { PhonePushProvider } from "./providers/push.js";
 import { validVapidKeys } from "./lib/webpush.js";
 import type { Ctx } from "./services/context.js";
 import { markUnconfirmedDnsDirty } from "./services/dns.js";
@@ -22,6 +23,8 @@ const vapid =
     : null;
 if (vapid && !validVapidKeys(vapid)) throw new Error("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are not a valid pair");
 
+const { fcm, apns } = configureNativePush(cfg);
+
 const ctx: Ctx = {
   db,
   cfg,
@@ -32,8 +35,10 @@ const ctx: Ctx = {
         ? new LogMailProvider()
         : new NoMailProvider(),
   dns: cfg.DNS_PROVIDER === "http" ? new HttpDnsProvider(cfg.DNS_API_URL!, cfg.DNS_API_TOKEN!) : new MockDnsProvider(),
-  push: new NoPushProvider(),
-  parentPush: vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(),
+  push: new PhonePushProvider(cfg, fcm),
+  parentPush: new NativeParentPush(
+    vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider(), fcm, apns,
+  ),
   now: () => new Date(),
 };
 

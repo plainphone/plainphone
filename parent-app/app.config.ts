@@ -28,6 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: BUNDLE_ID,
     appleTeamId: APPLE_TEAM_ID,
     buildNumber: "1",
+    entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
     supportsTablet: true,
     associatedDomains: [`applinks:${HOST}`],
     infoPlist: {
@@ -44,6 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: BUNDLE_ID,
+    googleServicesFile: process.env.PLAINPHONE_PARENT_GOOGLE_SERVICES_FILE,
     versionCode: 1,
     adaptiveIcon: {
       backgroundColor: "#24604a",
@@ -103,7 +105,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-notifications",
       {
         color: "#24604a",
-        defaultChannel: "approval",
+        defaultChannel: "normal",
+        mode: process.env.PLAINPHONE_APNS_ENVIRONMENT === "production" ? "production" : "development",
       },
     ],
   ],

@@ -17,6 +17,7 @@ interface SyncDevice {
     fun nowMs(): Long
     fun canReadContactSuggestions(): Boolean = true
     fun contactSuggestions(): List<DeviceContact>? = null
+    fun registerWakeup(api: SyncApi, token: String): String? = null
     fun appVersion(): String
     /** Core packages whose membership can change without a package event. */
     fun dynamicCorePackages(): Set<String> = emptySet()
@@ -492,6 +493,7 @@ class SyncRunner(
             protections = lock.protections,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
+            pushProvider = runCatching { device.registerWakeup(api, token) }.getOrNull(),
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.

@@ -67,3 +67,9 @@ in this table against the production source, including both branches of platform
 The manifest also registers system broadcasts, including boot and app replacement. A default-network
 callback can request immediate sync when connectivity returns. See [phone sync](phone-sync.md),
 [safety polling](location.md), and [self-updates](android-updates.md) for those triggers and their constraints.
+
+## Remote sync wakeups
+
+With **Faster rule updates** enabled for a phone, an FCM data message or UnifiedPush broadcast can enqueue a normal WorkManager sync. The phone checks the reason and its cached rules before scheduling work. This path adds no alarm or continuous service in Plainphone. UnifiedPush's distributor maintains its own delivery connection.
+
+The phone prefers FCM where configured and available, then a compatible UnifiedPush distributor, then its existing polling. Firebase can delay or deprioritize high-priority data messages that consistently produce no user-visible notifications. The periodic schedule and interactive long poll still provide delivery opportunities. See [Firebase's delivery behavior](https://firebase.google.com/docs/cloud-messaging/android-message-priority) and [the sync contract](sync-api.md#push-wakeups).

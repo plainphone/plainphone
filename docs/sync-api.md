@@ -276,12 +276,13 @@ decline. The phone UI for this is not built yet; the server side is.
   trusted person). Poll it when the request screen is open; the rules poll already brings the
   effect of an approval. After 30 days answered requests are deleted.
 
-### Push (later)
+### Push wakeups
 
-The server has a push abstraction. FCM is the planned layer: the phone registers its token with
-`PUT /device/push-token`, and the server sends a data message (`rules` or `locate`) that makes
-the phone poll at once. Polling stays the guarantee, so a phone without Google Play Services
-works, just slower. No Firebase project exists yet.
+`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. Older servers imply polling.
+
+The phone sends `PUT /device/push-token` with `{ "fcmToken": "…" }` for FCM, `{ "fcmToken": null, "unifiedPushEndpoint": "https://…" }` for UnifiedPush or `{ "fcmToken": null }` to clear both. UnifiedPush endpoints must use HTTPS and a configured service host. The phone reports the registered transport as `pushProvider` in `PUT /device/status`. The dashboard shows that report, and a disabled setting immediately clears the stored registration.
+
+FCM uses high-priority data messages. UnifiedPush uses a POST with the same JSON fields. The only payload is `{"wake":"rules"}` (or `locate`, `update`, `sos-ack`). A wake schedules the ordinary authenticated sync. It cannot apply a rule, request a fresh fix, or acknowledge an SOS by itself. The SOS branch can pass `{ urgent: true }` to `notifyHousehold` for parent delivery and use the reserved `sos-ack` reason after it stores the acknowledgement. Existing periodic and interactive polling remain active.
 
 ## The phone's implementation
 

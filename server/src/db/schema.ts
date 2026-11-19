@@ -106,6 +106,7 @@ export type StatusNotice = { id?: string; receivedAt: string };
 
 /** What the phone reports about itself and its lock (`PUT /device/status`). */
 export interface DeviceStatus {
+  pushProvider?: "none" | "fcm" | "unifiedpush";
   appVersion: string;
   appVersionCode?: number;
   update?: {
@@ -218,6 +219,8 @@ export const phones = pgTable(
     locationAlwaysUntil: timestamp("location_always_until", { withTimezone: true }),
     locateRequestedAt: timestamp("locate_requested_at", { withTimezone: true }),
     fcmToken: text("fcm_token"),
+    unifiedPushEndpoint: text("unified_push_endpoint"),
+    pushWakeups: boolean("push_wakeups").notNull().default(false),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
     setupUndoMinutes: integer("setup_undo_minutes"),

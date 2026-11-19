@@ -20,6 +20,7 @@ export interface Me {
 }
 /** What the phone last reported about itself (`PUT /device/status`). */
 export interface PhoneStatus {
+  pushProvider?: "none" | "fcm" | "unifiedpush";
   appVersion: string;
   appVersionCode?: number;
   update?: {
@@ -71,6 +72,7 @@ export const PROTECTIONS = [
 ] as const;
 export type Protection = (typeof PROTECTIONS)[number];
 export interface Phone {
+  pushWakeups?: boolean;
   id: string;
   name: string;
   profile: Profile;

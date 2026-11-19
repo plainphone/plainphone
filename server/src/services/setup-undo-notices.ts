@@ -2,6 +2,7 @@
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { householdMembers, phones, pushSubscriptions, setupUndoNotices, users } from "../db/schema.js";
 import { phoneAlertMail, toLocale } from "../lib/mail-templates.js";
+import { parentPushEnabled } from "../providers/parent-push.js";
 import type { Ctx } from "./context.js";
 import { phoneAlertRecipients, pushMessage } from "./notifications.js";
 
@@ -15,11 +16,14 @@ export async function queueSetupUndoNotices(ctx: Ctx, tx: Tx, phone: typeof phon
   if (ctx.mail.canSend) {
     for (const { id } of recipients) deliveries.push({ ...notice, userId: id });
   }
-  if (ctx.parentPush.webPublicKey) {
+  const platforms = (["web", "apns", "fcm"] as const).filter((platform) => parentPushEnabled(ctx.parentPush, platform));
+  if (platforms.length) {
     const subscriptions = await tx.select({ id: pushSubscriptions.id, userId: pushSubscriptions.userId })
-      .from(pushSubscriptions).where(and(eq(pushSubscriptions.platform, "web"),
+      .from(pushSubscriptions).where(and(inArray(pushSubscriptions.platform, platforms),
         inArray(pushSubscriptions.userId, recipients.map(({ id }) => id))));
-    for (const sub of subscriptions) deliveries.push({ ...notice, userId: sub.userId, subscriptionId: sub.id });
+    for (const sub of subscriptions) {
+      deliveries.push({ ...notice, userId: sub.userId, subscriptionId: sub.id });
+    }
   }
   if (deliveries.length > 0) await tx.insert(setupUndoNotices).values(deliveries);
 }
@@ -86,8 +90,9 @@ async function deliverBatch(ctx: Ctx, budgetExpired: () => boolean) {
         } as const;
         const locale = toLocale(recipient.locale);
         if ("sub" in recipient) {
-          if (!ctx.parentPush.webPublicKey) throw new Error("push unavailable");
+          if (!parentPushEnabled(ctx.parentPush, recipient.sub.platform)) throw new Error("push unavailable");
           const result = await ctx.parentPush.send(recipient.sub, pushMessage({ type: "protection", ...event }, locale), { urgent: true });
+          if (result === "gone") await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, recipient.sub.id));
           if (result === "failed") throw new Error("push delivery failed");
         } else {
           if (!ctx.mail.canSend) throw new Error("mail unavailable");

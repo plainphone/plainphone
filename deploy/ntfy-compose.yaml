@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Attach your HTTPS reverse proxy to this stack and point it at ntfy:80.
+services:
+  ntfy:
+    image: binwiederhier/ntfy:v2.37.2
+    command: serve
+    restart: unless-stopped
+    environment:
+      NTFY_BASE_URL: ${NTFY_BASE_URL:?set the external HTTPS URL}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    volumes:
+      - ntfy:/var/cache/ntfy
+    expose:
+      - "80"
+volumes:
+  ntfy:

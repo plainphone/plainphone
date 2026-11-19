@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createContext, type FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
-import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import {
@@ -695,6 +695,7 @@ function ManagePhone() {
   const navigate = useNavigate();
   const [name, setName] = useState(phone.name);
   const [saving, setSaving] = useState(false);
+  const [changingWakeups, setChangingWakeups] = useState(false);
   const [confirming, setConfirming] = useState<"release" | "remove" | null>(null);
   const [working, setWorking] = useState(false);
   const trimmed = name.trim();
@@ -718,6 +719,17 @@ function ManagePhone() {
       notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changeWakeups(pushWakeups: boolean) {
+    setChangingWakeups(true);
+    try {
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { pushWakeups }));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setChangingWakeups(false);
     }
   }
 
@@ -760,6 +772,16 @@ function ManagePhone() {
           {saving ? t("app.saving") : t("phone.rename")}
         </button>
       </form>
+      {phone.pushWakeups !== undefined && !phone.releaseRequestedAt ? (
+        <div className="stack-sm">
+          <Switch checked={phone.pushWakeups} busy={changingWakeups}
+            label={t("phone.pushWakeups")} description={t("phone.pushWakeupsHelp")}
+            onChange={(enabled) => void changeWakeups(enabled)} />
+          <p className="muted">{t(!phone.pushWakeups ? "phone.pushPolling" : phone.status?.pushProvider === "fcm"
+            ? "phone.pushFcm" : phone.status?.pushProvider === "unifiedpush" ? "phone.pushUnified"
+            : phone.status?.pushProvider === "none" ? "phone.pushPolling" : "phone.pushWaiting")}</p>
+        </div>
+      ) : null}
       <div className="danger-zone">
         {confirming ? (
           <div className="stack-sm" role="group" aria-labelledby="danger-q">

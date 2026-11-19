@@ -53,11 +53,30 @@ describe("push subscriptions", () => {
     expect(r.status).toBe(400);
   });
 
-  it("stores native tokens for the parent apps, but sends nothing to them yet", async () => {
+  it("refuses native registrations when their provider is off", async () => {
     const mum = await signIn(h, "mum@example.org");
-    expect((await mum.post("/api/notifications/subscriptions", { platform: "fcm", token: "f".repeat(40) })).status).toBe(201);
+    expect((await mum.post("/api/notifications/subscriptions", { platform: "fcm", token: "f".repeat(40) })).status).toBe(409);
     expect((await mum.post("/api/notifications/test", {})).json).toEqual({ sent: 0 });
-    expect((await mum.get("/api/notifications")).json.subscriptions).toHaveLength(1);
+    expect((await mum.get("/api/notifications")).json.subscriptions).toHaveLength(0);
+  });
+
+  it("replaces rotated native tokens and removes invalid registrations without VAPID", async () => {
+    const token = "f".repeat(40);
+    const replacement = "r".repeat(40);
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: (platform) => platform === "fcm",
+      async send(target) { return target.endpoint === replacement ? "gone" : "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const register = (value: string, replaces?: string) =>
+      parent.post("/api/notifications/subscriptions", { platform: "fcm", token: value, replaces });
+    expect((await register(token)).status).toBe(201);
+    expect((await parent.post("/api/notifications/test", {})).json).toEqual({ sent: 1 });
+    const rotated = await register(replacement, token);
+    expect(rotated.status).toBe(201);
+    expect((await parent.get("/api/notifications")).json.subscriptions).toEqual([expect.objectContaining({ id: rotated.json.id })]);
+    expect((await parent.post("/api/notifications/test", {})).json).toEqual({ sent: 0 });
+    expect((await parent.get("/api/notifications")).json.subscriptions).toHaveLength(0);
   });
 
   it("drops a subscription the push service says is gone", async () => {

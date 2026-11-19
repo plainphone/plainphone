@@ -26,7 +26,7 @@ import {
   selfKeys,
   users,
 } from "../db/schema.js";
-import { DEFAULT_PUSH_HOSTS, pushHostAllowed } from "../providers/parent-push.js";
+import { DEFAULT_PUSH_HOSTS, parentPushEnabled, pushHostAllowed } from "../providers/parent-push.js";
 import { notifyUsers } from "../services/notifications.js";
 import { approveRequest, openRequests, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
@@ -213,7 +213,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return c.json({ householdsDeleted: r.householdsDeleted, phonesRemoved: r.phonesRemoved });
   });
 
-  // --- Notifications (Web Push now; APNs/FCM tokens can be stored for the native apps) ---
+  // --- Notifications (Web Push, APNs and FCM) ---
 
   const pushHosts = [
     ...DEFAULT_PUSH_HOSTS,
@@ -266,10 +266,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           // The browser rotated the subscription: the old endpoint this one replaces.
           replaces: z.string().max(2000).optional(),
         }),
-        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label }),
+        z.object({
+          platform: z.enum(["apns", "fcm"]),
+          token: z.string().regex(/^[A-Za-z0-9_:.-]{16,1024}$/),
+          replaces: z.string().max(1024).optional(),
+          label,
+        }),
       ]),
     );
-    if (input.platform === "web" && !ctx.parentPush.webPublicKey) {
+    if (!parentPushEnabled(ctx.parentPush, input.platform)) {
       return c.json({ error: "notifications are not set up on this server" }, 409);
     }
     if (input.platform === "web" && !pushHostAllowed(input.endpoint, pushHosts)) {
@@ -294,10 +299,10 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         },
       })
       .returning();
-    if (input.platform === "web" && input.replaces && input.replaces !== input.endpoint) {
+    if (input.replaces && input.replaces !== values.endpoint) {
       const [old] = await ctx.db
         .delete(pushSubscriptions)
-        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces)))
+        .where(and(eq(pushSubscriptions.userId, user.id), eq(pushSubscriptions.endpoint, input.replaces), eq(pushSubscriptions.platform, input.platform)))
         .returning({ label: pushSubscriptions.label });
       // The service worker cannot tell the device's name; keep the one the old row had.
       if (old?.label && !row!.label) {
@@ -653,12 +658,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
+        pushWakeups: z.boolean().optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
     );
     const fields = {
       ...(input.name ? { name: input.name } : {}),
+      ...(input.pushWakeups === undefined ? {} : { pushWakeups: input.pushWakeups }),
+      ...(input.pushWakeups === false ? { fcmToken: null, unifiedPushEndpoint: null } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
     if (Object.keys(fields).length) await ctx.db.update(phones).set(fields).where(eq(phones.id, phone.id));
@@ -917,7 +925,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const requestedAt = ctx.now();
     await ctx.db.update(phones).set({ updateRequestedAt: requestedAt }).where(eq(phones.id, phone.id));
     updateWake.notify(phone.id, requestedAt.getTime());
-    await wakePhone(ctx, phone.id, "rules");
+    await wakePhone(ctx, phone.id, "update");
     return c.body(null, 202);
   });
 

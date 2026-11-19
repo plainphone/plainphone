@@ -248,6 +248,7 @@ describe("time limits", () => {
 
   it("wakes the phone when a limit changes", async () => {
     const { parent, phoneId, device } = await setup();
+    expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);
     await device.put("/api/device/push-token", { fcmToken: "fcm-1" });
     await parent.put(`/api/phones/${phoneId}/time-limits/total`, { minutes: 60 });
     expect(h.push.sent).toEqual([{ token: "fcm-1", reason: "rules" }]);

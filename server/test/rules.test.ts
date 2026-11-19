@@ -64,8 +64,24 @@ describe("rules delivery", () => {
     expect(after.headers.get("etag")).not.toBe(etag);
   });
 
+  it("uses polling by default and clears a registration when wakeups are switched off", async () => {
+    const { parent, phoneId, device } = await setup();
+    const path = `/api/phones/${phoneId}`;
+    const registration = { fcmToken: "phone-token" };
+    expect((await device.get("/api/device/rules")).json.pushProvider).toBe("none");
+    expect((await device.put("/api/device/push-token", registration)).status).toBe(409);
+    await parent.patch(path, { pushWakeups: true });
+    expect((await device.get("/api/device/rules")).json.pushProvider).toBe("fcm");
+    expect((await device.put("/api/device/push-token", registration)).status).toBe(204);
+    await parent.patch(path, { pushWakeups: false });
+    await parent.patch(path, { pushWakeups: true });
+    await parent.put(`${path}/apps/com.spotify.music`, { allowed: false });
+    expect(h.push.sent).toEqual([]);
+  });
+
   it("wakes the phone by push when it has a token", async () => {
     const { parent, phoneId, device } = await setup();
+    expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);
     await device.put("/api/device/push-token", { fcmToken: "fcm-123" });
     await parent.put(`/api/phones/${phoneId}/apps/com.spotify.music`, { allowed: false });
     expect(h.push.sent).toEqual([{ token: "fcm-123", reason: "rules" }]);

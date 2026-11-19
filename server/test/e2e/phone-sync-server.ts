@@ -17,7 +17,7 @@ import { createDb, runMigrations } from "../../src/db/client.js";
 import { HttpDnsProvider } from "../../src/providers/dns.js";
 import { MemoryMailProvider } from "../../src/providers/mail.js";
 import { MemoryParentPushProvider } from "../../src/providers/parent-push.js";
-import { RecordingPushProvider } from "../../src/providers/push.js";
+import { NoPushProvider } from "../../src/providers/push.js";
 import type { Ctx } from "../../src/services/context.js";
 
 const out = process.argv[2];
@@ -82,13 +82,14 @@ const ctx: Ctx = {
     DATABASE_URL: databaseUrl,
     PUBLIC_URL: publicUrl,
     NODE_ENV: "test",
+    PUSH_PROVIDER: "none",
     DNS_PROVIDER: "http",
     DNS_API_URL: dnsUrl,
     DNS_API_TOKEN: dnsToken,
   }),
   mail,
   dns: new HttpDnsProvider(dnsUrl, dnsToken),
-  push: new RecordingPushProvider(),
+  push: new NoPushProvider(),
   parentPush: new MemoryParentPushProvider(),
   now: () => new Date(),
 };

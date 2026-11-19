@@ -81,11 +81,11 @@ export function NotificationsSection() {
     }
   }
 
-  async function test() {
+  async function test(id: string | null) {
     setBusy(true);
     setNotice(null);
     try {
-      const r = await api.post<{ sent: number }>("/notifications/test", { subscriptionId: thisId ?? undefined });
+      const r = await api.post<{ sent: number }>("/notifications/test", { subscriptionId: id ?? undefined });
       setNotice(r.sent > 0 ? { tone: "success", text: t("notif.testSent") } : { tone: "error", text: t("notif.testFailed") });
     } catch (err) {
       setNotice({ tone: "error", text: errorMessage(err, t) });
@@ -137,7 +137,7 @@ export function NotificationsSection() {
           <>
             <p>{t("notif.onHere")}</p>
             <div className="actions">
-              <button type="button" className="btn btn-secondary" onClick={() => void test()} disabled={busy}>
+              <button type="button" className="btn btn-secondary" onClick={() => void test(thisId)} disabled={busy}>
                 {t("notif.test")}
               </button>
               <button type="button" className="btn-link" onClick={() => void turnOff(thisId)} disabled={busy}>
@@ -159,10 +159,15 @@ export function NotificationsSection() {
           <ul className="list item-list">
             {others.map((s) => (
               <li key={s.id} className="item">
-                <p className="row-title">{s.label ?? t("notif.unknownDevice")}</p>
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => void turnOff(s.id)} disabled={busy}>
-                  {t("app.remove")}
-                </button>
+                <p className="row-title">{s.label ?? (s.platform === "apns" ? "iOS" : s.platform === "fcm" ? "Android" : t("notif.unknownDevice"))}</p>
+                <div className="actions">
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => void test(s.id)} disabled={busy}>
+                    {t("notif.test")}
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => void turnOff(s.id)} disabled={busy}>
+                    {t("app.remove")}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

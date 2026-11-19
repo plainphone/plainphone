@@ -3,6 +3,7 @@
 // Core flows through the real router and screens, against a fake API.
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
@@ -43,10 +44,12 @@ describe("logging in", () => {
 
   it("opens the login link, keeps the session in the keychain and shows the phones", async () => {
     (Linking.getInitialURL as jest.Mock).mockResolvedValueOnce("https://app.plainphone.org/auth/app#token=pp_m_linktoken123");
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ granted: true });
     const api = fakeApi({
       "POST /auth/verify": { body: { user: ME.user, sessionToken: "pp_s_session" } },
       "GET /me": (c) => (c.auth === "Bearer pp_s_session" ? { body: ME } : { status: 401, body: { error: "sign in first" } }),
       "GET /phones": { body: { phones: [PHONE] } },
+      "POST /notifications/subscriptions": { status: 201, body: { id: "native-subscription" } },
     });
     await renderRouter(routes, { initialUrl: "/auth/app" });
     expect(await screen.findByText("Alma")).toBeTruthy();
@@ -59,6 +62,10 @@ describe("logging in", () => {
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.session", "pp_s_session");
     // Every later call carries the Bearer token, never a cookie.
     expect(api.calls.filter((c) => c.path === "/phones").every((c) => c.auth === "Bearer pp_s_session")).toBe(true);
+    await waitFor(() => expect(SecureStore.setItemAsync).toHaveBeenCalledWith("pp.push-registration", expect.any(String)));
+    expect(api.calls.find((call) => call.path === "/notifications/subscriptions")).toMatchObject({
+      auth: "Bearer pp_s_session", body: { platform: "fcm", token: "fcm-token" },
+    });
   });
 
   it("says so when the link is used up", async () => {
