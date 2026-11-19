@@ -278,9 +278,9 @@ decline. The phone UI for this is not built yet; the server side is.
 
 ### Push wakeups
 
-`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. Older servers imply polling.
+`GET /device/rules` includes the preferred `pushProvider` and whether `unifiedPushAvailable` is true. Both reflect the server policy and the per-phone **Faster rule updates** setting, which defaults to off. **Wakeups without Google** limits the phone to UnifiedPush or polling. Older servers imply polling.
 
-The phone sends `PUT /device/push-token` with `{ "fcmToken": "…" }` for FCM, `{ "fcmToken": null, "unifiedPushEndpoint": "https://…" }` for UnifiedPush or `{ "fcmToken": null }` to clear both. UnifiedPush endpoints must use HTTPS and a configured service host. The phone reports the registered transport as `pushProvider` in `PUT /device/status`. The dashboard shows that report, and a disabled setting immediately clears the stored registration.
+The phone sends `PUT /device/push-token` with `{ "fcmToken": "…" }` for FCM, `{ "unifiedPushEndpoint": "https://…" }` for UnifiedPush or `{ "fcmToken": null }` to clear both. The server validates a new FCM token before replacing the active registration. A definitive token rejection returns 422 so the phone can try UnifiedPush. A temporary validation failure returns 503 for retry. UnifiedPush endpoints must use HTTPS and a configured service host. The phone reports the registered transport as `pushProvider` in `PUT /device/status`. The dashboard shows that report, and a disabled setting immediately clears the stored registration.
 
 FCM uses high-priority data messages. UnifiedPush uses a POST with the same JSON fields. The only payload is `{"wake":"rules"}` (or `locate`, `update`, `sos-ack`). A wake schedules the ordinary authenticated sync. It cannot apply a rule, request a fresh fix, or acknowledge an SOS by itself. The SOS branch can pass `{ urgent: true }` to `notifyHousehold` for parent delivery and use the reserved `sos-ack` reason after it stores the acknowledgement. Existing periodic and interactive polling remain active.
 

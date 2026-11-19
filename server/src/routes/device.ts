@@ -770,23 +770,34 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.get("/requests", async (c) => c.json({ requests: await phoneRequestList(ctx, c.get("phone").id) }));
 
   app.put("/push-token", async (c) => {
-    const input = await body(c, z.object({
-      fcmToken: z.string().min(1).max(4096).nullable(),
+    const { fcmToken = null, unifiedPushEndpoint = null } = await body(c, z.object({
+      fcmToken: z.string().min(1).max(4096).nullable().optional(),
       unifiedPushEndpoint: z.string().min(1).max(2048).nullable().optional(),
     }));
-    if (input.fcmToken && !ctx.push.fcmAvailable) return c.json({ error: "FCM wakeups unavailable" }, 409);
-    if (input.unifiedPushEndpoint && (input.fcmToken || !ctx.push.acceptsEndpoint?.(input.unifiedPushEndpoint))) {
+    const phone = c.get("phone");
+    if (fcmToken && (!ctx.push.fcmAvailable || phone.preferUnifiedPush)) {
+      return c.json({ error: "FCM wakeups unavailable" }, 409);
+    }
+    if (unifiedPushEndpoint && (fcmToken || !ctx.push.acceptsEndpoint?.(unifiedPushEndpoint))) {
       return c.json({ error: "unsupported wakeup endpoint" }, 400);
     }
-    if (input.fcmToken || input.unifiedPushEndpoint) {
-      const updated = await ctx.db.update(phones)
-        .set({ fcmToken: input.fcmToken, unifiedPushEndpoint: input.unifiedPushEndpoint ?? null })
-        .where(and(eq(phones.id, c.get("phone").id), eq(phones.pushWakeups, true)))
-        .returning({ id: phones.id });
-      if (!updated.length) return c.json({ error: "wakeups disabled" }, 409);
-    } else {
-      await ctx.db.update(phones).set({ fcmToken: null, unifiedPushEndpoint: null }).where(eq(phones.id, c.get("phone").id));
+    if ((fcmToken || unifiedPushEndpoint) && !phone.pushWakeups) {
+      return c.json({ error: "wakeups disabled" }, 409);
     }
+    if (fcmToken === phone.fcmToken && unifiedPushEndpoint === phone.unifiedPushEndpoint) return c.body(null, 204);
+    if (fcmToken && ctx.push.validateFcmToken) {
+      const outcome = await ctx.push.validateFcmToken(fcmToken);
+      if (outcome === "gone") return c.json({ error: "FCM token rejected" }, 422);
+      if (outcome !== "sent") return c.json({ error: "FCM validation unavailable" }, 503);
+    }
+    const updated = await ctx.db.update(phones)
+      .set({ fcmToken, unifiedPushEndpoint })
+      .where(and(eq(phones.id, phone.id), eq(phones.pushWakeups, phone.pushWakeups),
+        eq(phones.preferUnifiedPush, phone.preferUnifiedPush),
+        phone.fcmToken === null ? isNull(phones.fcmToken) : eq(phones.fcmToken, phone.fcmToken),
+        phone.unifiedPushEndpoint === null ? isNull(phones.unifiedPushEndpoint) : eq(phones.unifiedPushEndpoint, phone.unifiedPushEndpoint)))
+      .returning({ id: phones.id });
+    if (!updated.length) return c.json({ error: "wakeups changed" }, 409);
     return c.body(null, 204);
   });
 

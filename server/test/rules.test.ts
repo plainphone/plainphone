@@ -79,6 +79,35 @@ describe("rules delivery", () => {
     expect(h.push.sent).toEqual([]);
   });
 
+  it("selects transports per phone and preserves UnifiedPush when Firebase rejects a token", async () => {
+    const validateFcmToken = vi.fn().mockResolvedValueOnce("gone").mockResolvedValueOnce("sent");
+    const wake = vi.fn();
+    h.ctx.push = {
+      name: "both", fcmAvailable: true, unifiedPushAvailable: true,
+      acceptsEndpoint: (url) => url === "https://push.example.org/test",
+      validateFcmToken, wake,
+    };
+    const { parent, phoneId, device } = await setup();
+    const other = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const registration = "/api/device/push-token";
+    await parent.patch(path, { pushWakeups: true });
+    await parent.patch(`/api/phones/${other.phoneId}`, { pushWakeups: true, preferUnifiedPush: true });
+    expect((await device.get("/api/device/rules")).json.pushProvider).toBe("fcm");
+    expect((await other.device.get("/api/device/rules")).json.pushProvider).toBe("unifiedpush");
+    expect((await other.device.put(registration, { fcmToken: "token" })).status).toBe(409);
+    const endpoint = "https://push.example.org/test";
+    expect((await device.put(registration, { unifiedPushEndpoint: endpoint })).status).toBe(204);
+    expect((await device.put(registration, { fcmToken: "wrong-project" })).status).toBe(422);
+    await parent.put(`${path}/apps/com.spotify.music`, { allowed: false });
+    expect(wake).toHaveBeenLastCalledWith(endpoint, "rules", "unifiedpush");
+    expect((await device.put(registration, { fcmToken: "valid" })).status).toBe(204);
+    expect((await device.put(registration, { fcmToken: "valid" })).status).toBe(204);
+    expect(validateFcmToken.mock.calls).toEqual([["wrong-project"], ["valid"]]);
+    await parent.put(`${path}/apps/com.spotify.music`, { allowed: true });
+    expect(wake).toHaveBeenLastCalledWith("valid", "rules", "fcm");
+  });
+
   it("wakes the phone by push when it has a token", async () => {
     const { parent, phoneId, device } = await setup();
     expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);

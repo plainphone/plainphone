@@ -499,7 +499,12 @@ class PlainphoneApi private constructor(
     override fun registerWakeup(token: String, fcm: String?, endpoint: String?): Boolean {
         val body = JSONObject().put("fcmToken", fcm ?: JSONObject.NULL)
             .put("unifiedPushEndpoint", endpoint ?: JSONObject.NULL)
-        return call("PUT", "/device/push-token", token, body).status == 204
+        val response = call("PUT", "/device/push-token", token, body)
+        return when (response.status) {
+            204 -> true
+            422 -> false
+            else -> throw HttpError(response.status, response.body)
+        }
     }
 
     override fun reportStatus(token: String, status: DeviceStatus) {

@@ -79,6 +79,24 @@ describe("push subscriptions", () => {
     expect((await parent.get("/api/notifications")).json.subscriptions).toHaveLength(0);
   });
 
+  it("rotates native tokens in place and refuses to refresh a removed subscription", async () => {
+    h.ctx.parentPush = {
+      name: "native-test", webPublicKey: null, enabled: (platform) => platform === "fcm",
+      async send() { return "sent"; },
+    };
+    const parent = await signIn(h, "parent@example.org");
+    const path = "/api/notifications/subscriptions";
+    const initial = await parent.post(path, { platform: "fcm", token: "a".repeat(40) });
+    expect(initial.status).toBe(201);
+    const rotation = { platform: "fcm", token: "b".repeat(40), subscriptionId: initial.json.id };
+    const rotated = await parent.post(path, rotation);
+    expect(rotated.status).toBe(201);
+    expect(rotated.json.id).toBe(initial.json.id);
+    expect((await parent.del(`${path}/${initial.json.id}`)).status).toBe(204);
+    expect((await parent.post(path, rotation)).status).toBe(404);
+    expect((await parent.get("/api/notifications")).json.subscriptions).toEqual([]);
+  });
+
   it("drops a subscription the push service says is gone", async () => {
     const mum = await signIn(h, "mum@example.org");
     await subscribe(mum, "old");

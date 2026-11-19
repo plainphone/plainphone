@@ -23,6 +23,7 @@ export interface Me {
 }
 export interface Phone {
   pushWakeups?: boolean;
+  preferUnifiedPush?: boolean;
   id: string;
   name: string;
   profile: Profile;

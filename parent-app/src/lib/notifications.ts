@@ -53,9 +53,9 @@ function permissionGranted(p: Notifications.NotificationPermissionsStatus) {
   return p.granted || p.ios?.status === IosAuthorizationStatus.PROVISIONAL;
 }
 
-async function sendNativeToken(token: Notifications.DevicePushToken, session: string) {
+async function sendNativeToken(token: Notifications.DevicePushToken, session: string, optIn = false) {
   if (typeof token.data === "string" && (token.type === "ios" || token.type === "android")) {
-    await registerNativeToken(token.type === "ios" ? "apns" : "fcm", token.data, session);
+    return registerNativeToken(token.type === "ios" ? "apns" : "fcm", token.data, session, optIn);
   }
 }
 
@@ -69,8 +69,8 @@ export async function syncNativePush(locale: "en" | "da", requestPermission = fa
       if (getSessionToken() === session) await unregisterNativeToken().catch(() => undefined);
       return p.canAskAgain ? "undetermined" : "denied";
     }
-    await sendNativeToken(await Notifications.getDevicePushTokenAsync(), session);
-    return "granted";
+    const registered = await sendNativeToken(await Notifications.getDevicePushTokenAsync(), session, requestPermission);
+    return registered === false ? "undetermined" : registered ? "granted" : "unavailable";
   } catch {
     return "unavailable";
   }

@@ -153,7 +153,7 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string; urgent?: boolean } = {},
+  opts: { subscriptionId?: string; urgent?: boolean; respectMuteFor?: string } = {},
 ): Promise<number> {
   if (userIds.length === 0) return 0;
   try {
@@ -165,11 +165,15 @@ export async function notifyUsers(
         and(
           inArray(pushSubscriptions.userId, userIds),
           opts.subscriptionId ? eq(pushSubscriptions.id, opts.subscriptionId) : undefined,
+          opts.respectMuteFor ? notInArray(pushSubscriptions.userId, ctx.db.select({ id: notificationMutes.userId })
+            .from(notificationMutes).where(eq(notificationMutes.phoneId, opts.respectMuteFor))) : undefined,
         ),
       );
     const urgent = opts.urgent ?? e.type === "protection";
     const results = await Promise.all(
       subs.map(async ({ sub, locale }) => {
+        const sameRegistration = and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.userId, sub.userId),
+          eq(pushSubscriptions.endpoint, sub.endpoint));
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
           outcome = await ctx.parentPush.send(sub, pushMessage(e, toLocale(locale)), { urgent });
@@ -181,16 +185,16 @@ export async function notifyUsers(
           await ctx.db
             .update(pushSubscriptions)
             .set({ lastSuccessAt: ctx.now(), failures: 0 })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameRegistration);
           return 1;
         }
         if (outcome === "gone" || (outcome === "failed" && sub.platform === "web" && sub.failures + 1 >= MAX_FAILURES)) {
-          await ctx.db.delete(pushSubscriptions).where(and(eq(pushSubscriptions.id, sub.id), eq(pushSubscriptions.userId, sub.userId)));
+          await ctx.db.delete(pushSubscriptions).where(sameRegistration);
         } else if (outcome === "failed") {
           await ctx.db
             .update(pushSubscriptions)
             .set({ failures: sql`${pushSubscriptions.failures} + 1` })
-            .where(eq(pushSubscriptions.id, sub.id));
+            .where(sameRegistration);
         }
         return 0;
       }),

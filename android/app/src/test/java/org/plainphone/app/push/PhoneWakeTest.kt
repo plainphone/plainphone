@@ -6,6 +6,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PhoneWakeTest {
+    @Test fun rejectedFcmTokenFallsBackToUnifiedPush() {
+        assertEquals(WakeRegistration("unifiedpush", "endpoint"),
+            selectWakeProvider("fcm", true, { "wrong-project" }, { "endpoint" }, { false }))
+    }
+
     @Test fun selectsFcmBeforeUnifiedPush() {
         assertEquals(WakeRegistration("fcm", "fcm-token"),
             selectWakeProvider("fcm", true, { "fcm-token" }, { error("fallback not needed") }))

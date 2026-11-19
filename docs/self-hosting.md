@@ -81,7 +81,7 @@ and commit the new file in `server/drizzle/`.
 
 Follow [push setup](push-setup.md) for Firebase and Apple credentials. Configure server secrets in the app container environment. To use the service-account file variant in Docker, add a read-only mount in a Compose override and set `FCM_SERVICE_ACCOUNT_FILE` to the container path. For example, mount a file from the host's secret directory at `/run/secrets/plainphone-fcm.json:ro`. The APK and parent app need their own Firebase client configuration only when building with FCM.
 
-`PUSH_PROVIDER=none` (the default) keeps phone sync on polling. `fcm` prefers FCM if the server has credentials and the APK can acquire a token, with UnifiedPush as a fallback when allowed. `unifiedpush` uses UnifiedPush only. The phone must also opt in via **Faster rule updates**. The server can send native parent alerts with any of these settings.
+`PUSH_PROVIDER=none` (the default) keeps phone sync on polling. `fcm` prefers FCM if the server has credentials and the APK can acquire a token, with UnifiedPush as a fallback when allowed. `unifiedpush` uses UnifiedPush only. The phone must also opt in via **Faster rule updates**. To skip FCM for just one phone, enable **Wakeups without Google** for that phone and keep the server on `fcm` with UnifiedPush configured. The server can send native parent alerts with any of these settings.
 
 ## UnifiedPush with ntfy
 

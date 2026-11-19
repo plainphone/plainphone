@@ -722,10 +722,10 @@ function ManagePhone() {
     }
   }
 
-  async function changeWakeups(pushWakeups: boolean) {
+  async function changeWakeups(settings: { pushWakeups: boolean } | { preferUnifiedPush: boolean }) {
     setChangingWakeups(true);
     try {
-      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { pushWakeups }));
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, settings));
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
@@ -776,7 +776,12 @@ function ManagePhone() {
         <div className="stack-sm">
           <Switch checked={phone.pushWakeups} busy={changingWakeups}
             label={t("phone.pushWakeups")} description={t("phone.pushWakeupsHelp")}
-            onChange={(enabled) => void changeWakeups(enabled)} />
+            onChange={(enabled) => void changeWakeups({ pushWakeups: enabled })} />
+          {phone.pushWakeups && phone.preferUnifiedPush !== undefined ? (
+            <Switch checked={phone.preferUnifiedPush} busy={changingWakeups}
+              label={t("phone.pushGoogleFree")} description={t("phone.pushGoogleFreeHelp")}
+              onChange={(enabled) => void changeWakeups({ preferUnifiedPush: enabled })} />
+          ) : null}
           <p className="muted">{t(!phone.pushWakeups ? "phone.pushPolling" : phone.status?.pushProvider === "fcm"
             ? "phone.pushFcm" : phone.status?.pushProvider === "unifiedpush" ? "phone.pushUnified"
             : phone.status?.pushProvider === "none" ? "phone.pushPolling" : "phone.pushWaiting")}</p>

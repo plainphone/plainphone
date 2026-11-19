@@ -42,7 +42,7 @@ export class Fcm {
     return access_token;
   }
 
-  async send(message: object): Promise<SendOutcome> {
+  async send(message: object, validateOnly = false): Promise<SendOutcome> {
     try {
       const access = this.access;
       const token = access && access.until > Date.now()
@@ -51,13 +51,16 @@ export class Fcm {
       const response = await this.http(`https://fcm.googleapis.com/v1/projects/${this.account.project_id}/messages:send`, {
         method: "POST", signal: timeout(), redirect: "error",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, ...(validateOnly && { validate_only: true }) }),
       });
       if (response.ok) return "sent";
       if (response.status === 401 && this.access?.token === token) this.access = undefined;
       const error = await response.json() as { error?: { details?: { "@type": string; errorCode?: string }[] } };
       return error.error?.details?.some((detail) =>
-        detail["@type"] === "type.googleapis.com/google.firebase.fcm.v1.FcmError" && detail.errorCode === "UNREGISTERED")
+        detail["@type"] === "type.googleapis.com/google.firebase.fcm.v1.FcmError" &&
+        ((response.status === 404 && detail.errorCode === "UNREGISTERED") ||
+          (response.status === 403 && detail.errorCode === "SENDER_ID_MISMATCH") ||
+          (response.status === 400 && detail.errorCode === "INVALID_ARGUMENT")))
         ? "gone" : "failed";
     } catch {
       return "failed";

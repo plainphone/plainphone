@@ -2448,6 +2448,7 @@ export interface components {
             /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
             offlineAlertHours?: number | null;
             pushWakeups?: boolean;
+            preferUnifiedPush?: boolean;
             offlineAlertHoursDefault?: number;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
@@ -3689,6 +3690,27 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Wakeup settings changed or the transport is unavailable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Firebase rejected the registration token */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Firebase token validation is temporarily unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     postAuthRequest: {
@@ -3932,6 +3954,11 @@ export interface operations {
                     platform: "apns" | "fcm";
                     token: string;
                     replaces?: string;
+                    /**
+                     * Format: uuid
+                     * @description Existing native subscription to refresh
+                     */
+                    subscriptionId?: string;
                     label?: string;
                 };
             };
@@ -3948,6 +3975,13 @@ export interface operations {
             };
             /** @description Unknown push service or invalid keys */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The native subscription was removed */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4518,6 +4552,7 @@ export interface operations {
                     name?: string;
                     locationEnabled?: boolean;
                     pushWakeups?: boolean;
+                    preferUnifiedPush?: boolean;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };

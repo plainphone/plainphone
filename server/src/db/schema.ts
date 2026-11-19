@@ -221,6 +221,7 @@ export const phones = pgTable(
     fcmToken: text("fcm_token"),
     unifiedPushEndpoint: text("unified_push_endpoint"),
     pushWakeups: boolean("push_wakeups").notNull().default(false),
+    preferUnifiedPush: boolean("prefer_unified_push").notNull().default(false),
     deviceInfo: jsonb("device_info").$type<Record<string, string>>(),
     pairedAt: timestamp("paired_at", { withTimezone: true }),
     setupUndoMinutes: integer("setup_undo_minutes"),

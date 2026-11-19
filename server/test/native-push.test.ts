@@ -30,7 +30,13 @@ describe("native push", () => {
       .mockResolvedValueOnce(Response.json({ error: { details: [{
         "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode: "UNREGISTERED",
       }] } }, { status: 404 }))
-      .mockResolvedValueOnce(Response.json({ error: { status: "INVALID_ARGUMENT" } }, { status: 400 }));
+      .mockResolvedValueOnce(Response.json({ error: { status: "INVALID_ARGUMENT" } }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json({ error: { details: [{
+        "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode: "INVALID_ARGUMENT",
+      }] } }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json({ error: { details: [{
+        "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", errorCode: "SENDER_ID_MISMATCH",
+      }] } }, { status: 403 }));
     const fcm = new Fcm(JSON.stringify({
       project_id: "demo-project", client_email: "demo@example.org",
       private_key: privateKey(generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey),
@@ -52,7 +58,11 @@ describe("native push", () => {
         android: { priority: "HIGH", ttl: "60s", collapse_key: "plainphone-sync" } },
     });
     expect(await send()).toBe("failed");
-    expect(http).toHaveBeenCalledTimes(4);
+    expect(await send()).toBe("gone");
+    expect(await wake.validateFcmToken(parentTarget.endpoint)).toBe("gone");
+    expect(JSON.parse(String(http.mock.calls[5]![1]?.body))).toEqual({
+      validate_only: true, message: { token: parentTarget.endpoint, data: { wake: "rules" } },
+    });
   });
 
   it("sends time-sensitive APNs alerts and treats an expired token as gone", async () => {

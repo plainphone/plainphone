@@ -177,7 +177,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
     phone: {
       id: phone.id,
       profile: phone.profile,
-      pushProvider: !phone.pushWakeups ? "none" : ctx.push.fcmAvailable ? "fcm"
+      pushProvider: !phone.pushWakeups ? "none" : !phone.preferUnifiedPush && ctx.push.fcmAvailable ? "fcm"
         : ctx.push.unifiedPushAvailable ? "unifiedpush" : "none",
       unifiedPushAvailable: phone.pushWakeups && Boolean(ctx.push.unifiedPushAvailable),
       suggestDeviceContacts: phone.suggestDeviceContacts,
@@ -388,6 +388,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
       : null,
     openRequests,
     pushWakeups: phone.pushWakeups,
+    preferUnifiedPush: phone.preferUnifiedPush,
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,

@@ -873,6 +873,8 @@ export const da: Messages = {
   "nav.settings": "Indstillinger",
   "phone.pushWakeups": "Hurtigere regelopdateringer",
   "phone.pushWakeupsHelp": "Lad pushbeskeder vække telefonen, når der er opdateringer at hente.",
+  "phone.pushGoogleFree": "Opdateringer uden Google",
+  "phone.pushGoogleFreeHelp": "Brug UnifiedPush på denne telefon. Uden en kompatibel app til levering tjekker telefonen for opdateringer som normalt.",
   "phone.pushPolling": "Synkroniserer med faste intervaller",
   "phone.pushFcm": "Bruger Firebase Cloud Messaging",
   "phone.pushUnified": "Bruger UnifiedPush",
@@ -944,6 +946,6 @@ export const da: Messages = {
   "phones.requestCount": "1 anmodning",
   "phones.requestCountMany": "{n} anmodninger",
 
-  "notif.serverOff": "Push-notifikationer er ikke sat op på denne server. Advarsler kommer stadig på mail.",
+  "notif.serverOff": "Browserbeskeder er ikke sat op på denne server.",
   "notif.neverDefault": "Aldrig (standard)",
 };

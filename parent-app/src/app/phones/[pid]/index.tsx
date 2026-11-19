@@ -70,7 +70,7 @@ function PushPreferences() {
     return () => { current = false; };
   }, [phone.id]));
 
-  async function save(field: "alerts" | "wakeups", enabled: boolean) {
+  async function save(field: "alerts" | "wakeups" | "googleFree", enabled: boolean) {
     setBusy(true);
     const params = { path: { pid: phone.id } };
     try {
@@ -78,7 +78,7 @@ function PushPreferences() {
         await unwrap(client.PUT("/phones/{pid}/notifications", { params, body: { enabled } }));
         setAlerts(enabled);
       } else {
-        setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", { params, body: { pushWakeups: enabled } })));
+        setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", { params, body: field === "wakeups" ? { pushWakeups: enabled } : { preferUnifiedPush: enabled } })));
       }
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
@@ -98,6 +98,16 @@ function PushPreferences() {
               disabled={busy} value={phone.pushWakeups} onValueChange={(value) => void save("wakeups", value)} />
           </Row>
           <Text variant="muted">{t("phone.pushWakeupsHelp")}</Text>
+          {phone.pushWakeups && phone.preferUnifiedPush !== undefined ? (
+            <>
+              <Row>
+                <Text variant="label" style={{ flex: 1 }}>{t("phone.pushGoogleFree")}</Text>
+                <Switch accessibilityLabel={t("phone.pushGoogleFree")} accessibilityHint={t("phone.pushGoogleFreeHelp")}
+                  disabled={busy} value={phone.preferUnifiedPush} onValueChange={(value) => void save("googleFree", value)} />
+              </Row>
+              <Text variant="muted">{t("phone.pushGoogleFreeHelp")}</Text>
+            </>
+          ) : null}
         </>
       ) : null}
       {alerts !== null ? (

@@ -270,6 +270,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           platform: z.enum(["apns", "fcm"]),
           token: z.string().regex(/^[A-Za-z0-9_:.-]{16,1024}$/),
           replaces: z.string().max(1024).optional(),
+          subscriptionId: z.uuid().optional(),
           label,
         }),
       ]),
@@ -284,6 +285,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       input.platform === "web"
         ? { endpoint: input.endpoint, p256dh: input.keys.p256dh, auth: input.keys.auth }
         : { endpoint: input.token, p256dh: null, auth: null };
+    if (input.platform !== "web" && input.subscriptionId) {
+      // Rotation keeps the subscription ID stable so removal wins even during a refresh.
+      const [existing] = await ctx.db.update(pushSubscriptions)
+        .set({ endpoint: input.token, failures: 0 })
+        .where(and(eq(pushSubscriptions.id, input.subscriptionId), eq(pushSubscriptions.userId, user.id),
+          eq(pushSubscriptions.platform, input.platform)))
+        .returning();
+      return existing ? c.json(subscriptionJson(existing), 201) : c.json({ error: "subscription removed" }, 404);
+    }
     // The same browser or app install signing in as someone else takes the row over.
     const [row] = await ctx.db
       .insert(pushSubscriptions)
@@ -659,6 +669,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
         pushWakeups: z.boolean().optional(),
+        preferUnifiedPush: z.boolean().optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
       }),
@@ -666,6 +677,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     const fields = {
       ...(input.name ? { name: input.name } : {}),
       ...(input.pushWakeups === undefined ? {} : { pushWakeups: input.pushWakeups }),
+      ...(input.preferUnifiedPush === undefined ? {} : { preferUnifiedPush: input.preferUnifiedPush }),
+      ...(input.preferUnifiedPush === true ? { fcmToken: null } : {}),
       ...(input.pushWakeups === false ? { fcmToken: null, unifiedPushEndpoint: null } : {}),
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };

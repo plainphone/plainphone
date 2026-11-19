@@ -728,6 +728,7 @@ components:
           type: [integer, "null"]
           description: Hours of silence before the parents are told. Null means the server default, 0 never.
         pushWakeups: { type: boolean }
+        preferUnifiedPush: { type: boolean }
         offlineAlertHoursDefault: { type: integer }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
@@ -1619,6 +1620,9 @@ paths:
                 unifiedPushEndpoint: { type: [string, "null"] }
       responses:
         "204": { description: "Stored" }
+        "409": { description: "Wakeup settings changed or the transport is unavailable" }
+        "422": { description: "Firebase rejected the registration token" }
+        "503": { description: "Firebase token validation is temporarily unavailable" }
 
   # ---------------------------------------------------------------- auth
   /auth/request:
@@ -1818,6 +1822,7 @@ paths:
                     platform: { enum: [apns, fcm] }
                     token: { type: string, minLength: 16, maxLength: 1024 }
                     replaces: { type: string, maxLength: 1024 }
+                    subscriptionId: { type: string, format: uuid, description: Existing native subscription to refresh }
                     label: { type: string, maxLength: 60 }
       responses:
         "201":
@@ -1826,6 +1831,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PushSubscription" }
         "400": { description: "Unknown push service or invalid keys" }
+        "404": { description: "The native subscription was removed" }
         "409": { description: "Notifications are not set up on this server" }
   /notifications/subscriptions/{sid}:
     delete:
@@ -2160,6 +2166,7 @@ paths:
                 name: { type: string }
                 locationEnabled: { type: boolean }
                 pushWakeups: { type: boolean }
+                preferUnifiedPush: { type: boolean }
                 offlineAlertHours:
                   type: [integer, "null"]
                   minimum: 0

@@ -13,6 +13,7 @@ export interface PushProvider {
   readonly fcmAvailable?: boolean;
   readonly unifiedPushAvailable?: boolean;
   acceptsEndpoint?(endpoint: string): boolean;
+  validateFcmToken?(token: string): ReturnType<Fcm["send"]>;
   wake(token: string, reason: WakeReason, transport?: WakeTransport): Promise<void | "gone">;
 }
 
@@ -31,6 +32,9 @@ export class PhonePushProvider implements PushProvider {
   get unifiedPushAvailable() { return this.name !== "none" && this.hosts.length > 0; }
   acceptsEndpoint(endpoint: string) {
     return this.unifiedPushAvailable && pushHostAllowed(endpoint, this.hosts) && !new URL(endpoint).hash;
+  }
+  validateFcmToken(token: string) {
+    return this.fcm?.send({ token, data: { wake: "rules" } }, true) ?? Promise.resolve("unsupported" as const);
   }
   async wake(token: string, reason: WakeReason, transport: WakeTransport = "fcm"): Promise<void | "gone"> {
     if (transport === "fcm" && this.fcmAvailable) {

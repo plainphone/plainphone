@@ -10,7 +10,7 @@ The web dashboard uses VAPID. The Android parent app uses Firebase Cloud Messagi
 4. Confirm the Firebase Cloud Messaging API is enabled for the project. Open **Project settings → Service accounts**, choose **Generate new private key**, and store the downloaded JSON in your server's secret store. Use an account permitted to send FCM HTTP v1 messages for this project. See [Firebase's HTTP v1 instructions](https://firebase.google.com/docs/cloud-messaging/send/v1-api).
 5. Set `FCM_SERVICE_ACCOUNT_JSON` to the complete JSON on one line, or mount the file read-only and set `FCM_SERVICE_ACCOUNT_FILE` to its path inside the server container. Inline JSON takes precedence. Keep the service-account JSON off both build machines and out of Git.
 6. Build the child app with `cd android && ./gradlew -PplainphoneFcm=true assembleDebug` for local testing. Production APK builds use that same flag with their existing signing setup. Without the flag, the build needs no Firebase config and can use UnifiedPush or polling.
-7. To allow FCM for child phones, set `PUSH_PROVIDER=fcm` on the server. For each test phone, switch on **Faster rule updates** from its overview in either parent interface. The child phone registers its transport after fetching the changed rules.
+7. To allow FCM for child phones, set `PUSH_PROVIDER=fcm` on the server. For each test phone, switch on **Faster rule updates** from its overview in either parent interface. The child phone registers its transport after fetching the changed rules. To test UnifiedPush on just one phone, configure the distributor and switch on **Wakeups without Google** for that phone.
 
 ## APNs for the iOS parent app
 

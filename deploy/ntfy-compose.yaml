@@ -2,7 +2,7 @@
 # Attach your HTTPS reverse proxy to this stack and point it at ntfy:80.
 services:
   ntfy:
-    image: binwiederhier/ntfy:v2.37.2
+    image: binwiederhier/ntfy:v2.38.1
     command: serve
     restart: unless-stopped
     environment:

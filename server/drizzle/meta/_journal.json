@@ -141,6 +141,13 @@
       "when": 1795086294578,
       "tag": "0032_push_wakeups",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795087902565,
+      "tag": "0033_phone_wake_transport",
+      "breakpoints": true
     }
   ]
 }
