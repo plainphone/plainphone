@@ -69,7 +69,9 @@ export function PhonesPage() {
             </section>
           ) : (
             <ul className="list phone-list">
-              {rows.map(({ phone, pending }) => (
+              {rows.map(({ phone, pending }) => {
+                const requests = phone.openRequests + (phone.openMoreTimeRequests ?? 0);
+                return (
                 <li key={phone.id}>
                   <Link to={`/phones/${phone.id}`} className="row-link">
                     <span className="row-main">
@@ -88,18 +90,19 @@ export function PhonesPage() {
                         </span>
                       )}
                     </span>
-                    {phone.openRequests > 0 && (
+                    {requests > 0 && (
                       <span className="count-badge">
-                        <span aria-hidden="true">{phone.openRequests}</span>
+                        <span aria-hidden="true">{requests}</span>
                         <span className="sr-only">
-                          {t(phone.openRequests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: phone.openRequests })}
+                          {t(requests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: requests })}
                         </span>
                       </span>
                     )}
                     <Chevron />
                   </Link>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )
         }

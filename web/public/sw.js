@@ -93,6 +93,20 @@ self.addEventListener("push", (event) => {
     msg = {};
   }
   const title = msg.title || "Plainphone";
+  // Action buttons (more-time requests): as many as this browser shows, in the order the server sent them.
+  const max = typeof Notification !== "undefined" && Number.isInteger(Notification.maxActions) ? Notification.maxActions : 2;
+  const actions = Array.isArray(msg.actions)
+    ? msg.actions
+        .filter((a) => a && typeof a.id === "string" && typeof a.title === "string")
+        .slice(0, max)
+        .map((a) => ({ action: a.id, title: a.title }))
+    : [];
+  const data = {
+    url: typeof msg.url === "string" && msg.url.startsWith("/") ? msg.url : "/",
+    type: msg.data?.type,
+    phoneId: msg.data?.phoneId,
+    requestId: msg.data?.requestId,
+  };
   event.waitUntil(
     self.registration.showNotification(title, {
       body: msg.body || "",
@@ -103,21 +117,47 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       // Android only reads the alpha of the badge: a white switch outline on transparent.
       badge: "/icons/badge-96.png",
-      data: { url: typeof msg.url === "string" && msg.url.startsWith("/") ? msg.url : "/" },
+      ...(actions.length > 0 ? { actions } : {}),
+      data,
     }),
   );
 });
 
+const MORE_TIME_ANSWERS = ["15", "60", "day", "no"];
+
+function openUrl(url) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+    const open = wins.find((w) => new URL(w.url).origin === self.location.origin);
+    if (open) return open.focus().then((w) => (w && "navigate" in w ? w.navigate(url) : undefined));
+    return self.clients.openWindow(url);
+  });
+}
+
+// Answers a request for more time straight from the notification. The session cookie goes along
+// (the worker cannot read localStorage). The server is idempotent: a second tap changes nothing.
+function answerMoreTime(data, answer) {
+  const path = `/api/phones/${encodeURIComponent(data.phoneId)}/more-time-requests/${encodeURIComponent(data.requestId)}/answer`;
+  return fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ answer }),
+  }).then((res) => {
+    if (!res.ok) throw new Error(`answer failed: ${res.status}`);
+  });
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      const open = wins.find((w) => new URL(w.url).origin === self.location.origin);
-      if (open) return open.focus().then((w) => (w && "navigate" in w ? w.navigate(url) : undefined));
-      return self.clients.openWindow(url);
-    }),
-  );
+  const data = event.notification.data || {};
+  const url = new URL(data.url || "/", self.location.origin).href;
+  const answer = event.action;
+  if (data.type === "more-time" && MORE_TIME_ANSWERS.includes(answer) && data.phoneId && data.requestId) {
+    // Not signed in or offline: open the phone page, where the parent can answer.
+    event.waitUntil(answerMoreTime(data, answer).catch(() => openUrl(url)));
+    return;
+  }
+  event.waitUntil(openUrl(url));
 });
 
 // The browser replaced the subscription (keys rotated or expired): register the new one.

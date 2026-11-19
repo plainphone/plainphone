@@ -100,6 +100,9 @@ export interface Phone {
   releaseRequestedAt: string | null;
   supportEnabled?: boolean;
   releaseWarningsEnabled?: boolean;
+  /** The phone may ask for more time, and warns shortly before a limit. Missing on old servers: both count as on. */
+  askMoreTimeEnabled?: boolean;
+  limitWarningEnabled?: boolean;
   releaseSyncCount?: number;
   androidVersion?: string | null;
   lastSeenAt: string | null;
@@ -117,6 +120,8 @@ export interface Phone {
   status: PhoneStatus | null;
   /** Open requests from the phone (apps, contacts). */
   openRequests: number;
+  /** Open requests for more time. Missing on old servers. */
+  openMoreTimeRequests?: number;
   /** Hours of silence before parents are told; null = the server default. */
   offlineAlertHours: number | null;
   offlineAlertHoursDefault: number;

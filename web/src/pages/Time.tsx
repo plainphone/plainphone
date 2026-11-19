@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { TimeSwitches } from "../components/TimeSwitches";
 import { LoadGate, PageTitle, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { T } from "../i18n/translate";
@@ -88,7 +89,7 @@ function daysSummary(limit: Limit, locale: Locale, t: T): string | null {
 
 export function TimePage() {
   const { t } = useI18n();
-  const { phone } = usePhone();
+  const { phone, setPhone, notify } = usePhone();
   const res = useLoad(async (): Promise<Data> => {
     const [limits, apps] = await Promise.all([
       api.get<TimeLimits>(`/phones/${phone.id}/time-limits`),
@@ -105,6 +106,7 @@ export function TimePage() {
           <>
             <TotalSection limits={d.limits} reload={res.reload} />
             <AppsSection limits={d.limits} apps={d.apps} reload={res.reload} />
+            <TimeSwitches phone={phone} setPhone={setPhone} notify={notify} />
           </>
         )}
       </LoadGate>
