@@ -7,6 +7,7 @@ import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
 import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
 import { ServerChoice } from "../components/ServerChoice";
+import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
 import { syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
@@ -60,6 +61,7 @@ function Settings() {
           )}
         </Card>
       ) : null}
+      <WeeklySummarySettings />
       <Card>
         <Text variant="heading">{t("native.server")}</Text>
         <ServerChoice signsOut />

@@ -793,6 +793,44 @@ export interface paths {
         patch: operations["updateHousehold"];
         trace?: never;
     };
+    "/households/{hid}/summary-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings of the weekly summary
+         * @description One calm summary a week instead of a stream of alerts (docs/weekly-summary.md).
+         */
+        get: operations["getHouseholdSummarySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change the weekly summary settings */
+        patch: operations["updateHouseholdSummarySettings"];
+        trace?: never;
+    };
+    "/households/{hid}/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The last 8 weekly summaries, newest first */
+        get: operations["getHouseholdSummaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/households/{hid}/members": {
         parameters: {
             query?: never;
@@ -2163,6 +2201,80 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SummarySettings: {
+            /** @description Send a weekly summary (default on). */
+            enabled: boolean;
+            byMail: boolean;
+            byPush: boolean;
+            /** @description Only alert me when I must act (default on): news that can wait goes into the summary. */
+            actNowOnly: boolean;
+            /** @description 0 = Sunday (default). */
+            day: number;
+            /** @description Default 18. */
+            hour: number;
+            minute: number;
+            /** @description IANA time zone the day and time are in (default Europe/Copenhagen). */
+            timeZone: string;
+            /** @description Whether this server can send mail. */
+            mailEnabled: boolean;
+        };
+        PhoneWeek: {
+            /** Format: uuid */
+            phoneId: string;
+            name: string;
+            /** @description Null when the phone reported no use. Use is reported when the phone has a time limit. */
+            usage: {
+                days?: {
+                    /** Format: date */
+                    day: string;
+                    minutes: number;
+                }[];
+                /** @description Over the days with a report. */
+                averageMinutes?: number;
+                topApps?: {
+                    packageName: string;
+                    label: string;
+                    minutes: number;
+                }[];
+            } | null;
+            requests: {
+                asked: number;
+                approved: number;
+                rejected: number;
+                byKind: {
+                    [key: string]: number;
+                };
+            };
+            changes: {
+                total: number;
+                /** @description time, apps, contacts, web, schedules or other */
+                byCategory: {
+                    [key: string]: number;
+                };
+            };
+            events: {
+                protection: number;
+                offline: number;
+                checkin: number;
+            };
+        };
+        WeeklySummary: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date
+             * @description Local date the summary was due.
+             */
+            weekEnd: string;
+            /** Format: date-time */
+            periodStart: string;
+            /** Format: date-time */
+            periodEnd: string;
+            data: {
+                version: number;
+                phones: components["schemas"]["PhoneWeek"][];
+            };
+        };
         SosPosition: {
             lat: number;
             lon: number;
@@ -2657,6 +2769,11 @@ export interface components {
              * @default true
              */
             healthBoardEnabled: boolean;
+            /**
+             * @description The server keeps this phone's daily use for the parents' weekly summary. The phone does not act on it.
+             * @default true
+             */
+            weeklySummaryEnabled: boolean;
             /** @description Enforce the approved list on a light Child phone. Missing means off in light mode. */
             lightContactRestriction?: boolean;
             /** @description True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone. */
@@ -2926,6 +3043,7 @@ export interface components {
             offlineAlertHoursDefault?: number;
             changeReceiptsEnabled?: boolean;
             healthBoardEnabled?: boolean;
+            weeklySummaryEnabled?: boolean;
             /** @description Confirmation for the current rules document. Null if disabled or unpaired. */
             ruleReceipt?: {
                 /** @description The phone still reports a fetched ETag without confirming successful application. */
@@ -4891,6 +5009,118 @@ export interface operations {
             };
         };
     };
+    getHouseholdSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The household's settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummarySettings"];
+                };
+            };
+            /** @description Not a member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateHouseholdSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    enabled?: boolean;
+                    byMail?: boolean;
+                    byPush?: boolean;
+                    /** @description With the summary on, news that can wait goes into it instead of a push or mail. */
+                    actNowOnly?: boolean;
+                    /** @description 0 = Sunday */
+                    day?: number;
+                    hour?: number;
+                    minute?: number;
+                    /** @description IANA time zone */
+                    timeZone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummarySettings"];
+                };
+            };
+            /** @description Invalid value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getHouseholdSummaries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        summaries: components["schemas"]["WeeklySummary"][];
+                    };
+                };
+            };
+            /** @description Not a member */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getHouseholdsMembers: {
         parameters: {
             query?: never;
@@ -5374,6 +5604,8 @@ export interface operations {
                     locationEnabled?: boolean;
                     changeReceiptsEnabled?: boolean;
                     healthBoardEnabled?: boolean;
+                    /** @description Include this phone in the weekly summary (default on). */
+                    weeklySummaryEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];

@@ -79,6 +79,9 @@ export function Shell() {
               <NavItem to="/household" active={loc.pathname === "/household"}>
                 {t("nav.household")}
               </NavItem>
+              <NavItem to="/summary" active={loc.pathname === "/summary"}>
+                {t("nav.summary")}
+              </NavItem>
               <NavItem to="/settings" active={loc.pathname === "/settings"}>
                 {t("nav.settings")}
               </NavItem>

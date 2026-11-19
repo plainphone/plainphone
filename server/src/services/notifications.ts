@@ -149,7 +149,7 @@ const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">
 export function pushMessage(e: NotifyEvent, locale: Locale, language: string = locale): PushMessage {
   if (e.type === "summary") {
     const w = summaryWords(toSummaryLocale(language));
-    return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary" };
+    return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
   }
   const t = text[locale](e);
   switch (e.type) {

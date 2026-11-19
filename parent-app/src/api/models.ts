@@ -67,6 +67,7 @@ export interface Phone {
   dnsReady?: boolean;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
+  weeklySummaryEnabled?: boolean;
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {

@@ -124,6 +124,7 @@ export interface Phone {
   offlineAlertHoursDefault: number;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
+  weeklySummaryEnabled?: boolean;
   ruleReceipt?: import("./phone-health").RuleReceipt | null;
 }
 

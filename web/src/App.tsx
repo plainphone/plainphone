@@ -25,6 +25,7 @@ import { PhoneSettingsPage } from "./pages/PhoneSettings";
 import { PhonesPage } from "./pages/Phones";
 import { SchedulesPage } from "./pages/Schedules";
 import { SettingsPage } from "./pages/Settings";
+import { SummaryPage } from "./pages/Summary";
 import { TimePage } from "./pages/Time";
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="/household" element={<RequireAuth><HouseholdPage /></RequireAuth>} />
         <Route path="/approvals" element={<RequireAuth><ApprovalsPage /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+        <Route path="/summary" element={<RequireAuth><SummaryPage /></RequireAuth>} />
         <Route path="/phones/:pid" element={<RequireAuth><PhoneLayout /></RequireAuth>}>
           <Route index element={<PhoneOverview />} />
           <Route path="apps" element={<AppsPage />} />

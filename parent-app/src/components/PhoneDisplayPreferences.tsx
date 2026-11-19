@@ -9,6 +9,7 @@ import { Card, errorMessage, Switch, Text } from "./ui";
 const preferences = [
   { key: "changeReceiptsEnabled", label: "health.receiptsToggle", help: "health.receiptsHelp" },
   { key: "healthBoardEnabled", label: "health.boardToggle", help: "health.boardHelp" },
+  { key: "weeklySummaryEnabled", label: "summary.phoneToggle", help: "summary.phoneHelp" },
 ] as const;
 
 export function PhoneDisplayPreferences() {

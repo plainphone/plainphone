@@ -913,6 +913,7 @@ export function usePendingWhere(pred: (c: PendingChange) => boolean): PendingCha
 const displayPreferences = [
   { key: "changeReceiptsEnabled", label: "health.receiptsToggle", help: "health.receiptsHelp" },
   { key: "healthBoardEnabled", label: "health.boardToggle", help: "health.boardHelp" },
+  { key: "weeklySummaryEnabled", label: "summary.phoneToggle", help: "summary.phoneHelp" },
 ] as const;
 
 function PhoneDisplayPreferences() {

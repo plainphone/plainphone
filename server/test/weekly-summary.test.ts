@@ -355,10 +355,10 @@ describe("summary mail", () => {
     expect(en.html).toContain("prefers-color-scheme: dark");
     expect(en.html).toContain('lang="en"');
     const da = weeklySummaryMail("a@example.org", "da", "https://app.example.test", "sid", data);
-    expect(da.text).toContain("Skærmtid: 2 t 15 min om dagen i gennemsnit.");
+    expect(da.text).toContain("Skærmtid: 2 t. 15 min. om dagen i gennemsnit.");
     expect(da.text).toContain("Reglerne blev ændret 3 gange (tidsgrænser 2, apps 1).");
     const de = weeklySummaryMail("a@example.org", "de", "https://app.example.test", "sid", data);
-    expect(de.text).toContain("Bildschirmzeit: durchschnittlich 2 Std. 15 Min. pro Tag.");
+    expect(de.text).toContain("Bildschirmzeit: durchschnittlich 2 h 15 min pro Tag.");
     expect(de.html).toContain("https://plainphone.org/de/privacy/");
   });
 

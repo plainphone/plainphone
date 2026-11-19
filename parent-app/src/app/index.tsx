@@ -104,6 +104,7 @@ function PhonesList() {
       </LoadGate>
       <VStack gap={space.sm}>
         <LinkRow title={t("nav.approvals")} onPress={() => router.push("/approvals")} testID="open-approvals" />
+        <LinkRow title={t("summary.title")} onPress={() => router.push("/summary")} testID="open-summary" />
         <LinkRow title={t("nav.household")} onPress={() => router.push("/household")} testID="open-household" />
       </VStack>
     </Screen>
