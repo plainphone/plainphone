@@ -693,7 +693,7 @@ export const nb: Messages = {
   "home.theme.light": "Lys",
   "home.theme.dark": "Mørk",
   "home.palette": "Farge",
-  "home.palette.grey": "Grå",
+  "home.palette.grey": "Grafitt",
   "home.palette.sage": "Sage",
   "home.palette.sand": "Sand",
   "home.freePromise": "Vis gratisløftet",
