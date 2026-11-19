@@ -112,6 +112,10 @@ class MainActivity : Activity() {
         }
         column.addView(report)
         column.addView(TextView(this).apply {
+            text = getString(R.string.free_promise)
+            textSize = 14f
+        })
+        column.addView(TextView(this).apply {
             text = getString(R.string.version_line, BuildConfigInfo.versionName(this@MainActivity))
             textSize = 13f
             alpha = 0.6f

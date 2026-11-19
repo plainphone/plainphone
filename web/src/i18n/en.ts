@@ -890,6 +890,8 @@ export const en = {
   "phone.releasing": "Releasing. The phone switches Plainphone off the next time it is online.",
   "phone.releasingTag": "Releasing",
   "phone.released": "Plainphone is switched off on the phone, and the phone is gone from the list.",
+  "settings.freeTitle": "Free to use",
+  "settings.freePromise": "Plainphone is free. There is no subscription and no sales pitch on your child’s phone. Donations are voluntary.",
   "settings.title": "Settings",
   "settings.account": "Account",
   "settings.signedInAs": "Signed in as {email}",

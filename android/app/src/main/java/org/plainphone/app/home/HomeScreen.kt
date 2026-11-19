@@ -338,13 +338,19 @@ private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> 
                 modifier = Modifier.semantics { heading() },
             )
         }
-        if (apps.isEmpty()) {
-            Text(stringResource(R.string.home_no_apps), color = c.muted, fontSize = 17.sp, modifier = Modifier.padding(28.dp))
-            return@Column
-        }
         // Grouped by first letter, quietly: the letter is a small muted label, not a heading bar.
         val groups = apps.groupBy { it.label.firstOrNull()?.uppercaseChar()?.takeIf(Char::isLetter) ?: '#' }
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 28.dp)) {
+            if (apps.isEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.home_no_apps),
+                        color = c.muted,
+                        fontSize = 17.sp,
+                        modifier = Modifier.padding(vertical = 28.dp),
+                    )
+                }
+            }
             groups.forEach { (letter, group) ->
                 item(key = "h$letter") {
                     Text(
@@ -357,7 +363,14 @@ private fun AllApps(apps: List<HomeApp>, onBack: () -> Unit, open: (HomeApp) -> 
                 }
                 items(group, key = { it.component }) { ListRow(it, big = false, open = open) }
             }
-            item { Spacer(Modifier.height(24.dp)) }
+            item {
+                Text(
+                    stringResource(R.string.free_promise),
+                    color = c.ink,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
         }
     }
 }

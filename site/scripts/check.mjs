@@ -39,7 +39,20 @@ for (const file of html) {
   if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
-  if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
+  const compatibilityPage = ["apps/index.html", "da/apps/index.html"].includes(name);
+  const scripts = [...src.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)];
+  if (scripts.length !== Number(compatibilityPage)) errors.push(`${name}: unexpected number of scripts`);
+  for (const [tag] of scripts) {
+    const search = /^<script type="module" src="\/app-search\.mjs" integrity="sha256-([^"]+)"><\/script>$/.exec(tag);
+    if (!compatibilityPage || !search) {
+      errors.push(`${name}: unexpected script`);
+      continue;
+    }
+    const hash = createHash("sha256").update(readFileSync(target("/app-search.mjs"))).digest("base64");
+    if (search[1] !== hash || !headers.includes(`script-src 'sha256-${hash}'`)) {
+      errors.push(`${name}: search script hash does not match the CSP and integrity attribute`);
+    }
+  }
   // Every inline <style> must be allowed by a hash in the CSP, or the page renders unstyled.
   for (const [, css] of src.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
     const h = createHash("sha256").update(css).digest("base64");

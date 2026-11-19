@@ -889,6 +889,8 @@ export const da: Messages = {
   "phone.releasing": "Frigives. Telefonen slår Plainphone fra, næste gang den har forbindelse.",
   "phone.releasingTag": "Frigives",
   "phone.released": "Plainphone er slået fra på telefonen, og telefonen er væk fra listen.",
+  "settings.freeTitle": "Gratis at bruge",
+  "settings.freePromise": "Plainphone er gratis. Der er intet abonnement, og vi forsøger aldrig at sælge noget på dit barns telefon. Det er frivilligt at donere.",
   "settings.title": "Indstillinger",
   "settings.account": "Konto",
   "settings.signedInAs": "Logget ind som {email}",

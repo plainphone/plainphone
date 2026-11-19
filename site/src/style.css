@@ -307,3 +307,36 @@ details p { padding-bottom: 0.5rem; }
   color: var(--ink);
   font-size: 0.9375em;
 }
+
+.compatibility-search {
+  max-width: var(--measure);
+  margin-top: 1.5rem;
+}
+.compatibility-search label {
+  display: block;
+  font-weight: 600;
+}
+.compatibility-search input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0 0.5rem;
+  border: 1px solid var(--pencil);
+  border-radius: 0.4rem;
+  background: var(--sheet);
+  color: var(--ink);
+  font: inherit;
+}
+.compatibility .compatibility-list {
+  list-style: none;
+  padding: 0;
+}
+.compatibility-list li {
+  border-top: 1px solid var(--rule);
+  margin: 0;
+  padding: 0.65rem 0;
+  overflow-wrap: anywhere;
+}
+.compatibility-list span:last-child { display: block; }
+.compatibility [role="status"] { margin: 0; }
+.doc.compatibility section { margin-top: 1.5rem; }
