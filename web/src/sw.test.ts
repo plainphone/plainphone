@@ -50,9 +50,15 @@ it("passes the actions the browser can show, and the request ids, to the notific
   load(3);
   await push(payload);
   expect(shown[0]!.options.actions).toEqual([
-    { action: "15", title: "15 min" }, { action: "60", title: "1 hour" }, { action: "day", title: "Rest of the day" },
+    { action: "15", title: "15 min" }, { action: "60", title: "1 hour" }, { action: "no", title: "No" },
   ]);
   expect(shown[0]!.options.data).toMatchObject({ url: "/phones/p1", type: "more-time", phoneId: "p1", requestId: "r1" });
+});
+
+it("keeps a quick yes and a quick no when the browser shows only two buttons", async () => {
+  load(2);
+  await push(payload);
+  expect(shown[0]!.options.actions).toEqual([{ action: "15", title: "15 min" }, { action: "no", title: "No" }]);
 });
 
 it("shows no actions on a plain message", async () => {

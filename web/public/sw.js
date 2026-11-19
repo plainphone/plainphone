@@ -95,10 +95,14 @@ self.addEventListener("push", (event) => {
   const title = msg.title || "Plainphone";
   // Action buttons (more-time requests): as many as this browser shows, in the order the server sent them.
   const max = typeof Notification !== "undefined" && Number.isInteger(Notification.maxActions) ? Notification.maxActions : 2;
+  // A browser that shows fewer than four keeps "15 min" and "No" (a quick yes and a quick no); the page has the rest.
+  const keep = ["15", "no", "60", "day"];
   const actions = Array.isArray(msg.actions)
     ? msg.actions
         .filter((a) => a && typeof a.id === "string" && typeof a.title === "string")
+        .sort((a, b) => keep.indexOf(a.id) - keep.indexOf(b.id))
         .slice(0, max)
+        .sort((a, b) => msg.actions.indexOf(a) - msg.actions.indexOf(b))
         .map((a) => ({ action: a.id, title: a.title }))
     : [];
   const data = {

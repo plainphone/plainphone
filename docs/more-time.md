@@ -76,8 +76,9 @@ request itself is only a question, so it can be refused (switched off, no such l
 | Parent app, Android (FCM) | A data message that the app turns into a notification with the same four buttons. |
 | Parent app, iOS (APNs) | The push has the category `more-time`; the app registers the four actions for it. |
 
-Browsers show a limited number of action buttons (`Notification.maxActions`); on a browser that
-shows fewer than four, the notification opens the phone's page instead.
+Browsers show a limited number of action buttons (`Notification.maxActions`). A browser that
+shows fewer than four keeps **15 min** and **No**; tapping the notification itself opens the
+phone's page, where all four choices are.
 Action buttons on native pushes need the parent app to have been opened once since it was
 installed (it registers the notification category then).
 
