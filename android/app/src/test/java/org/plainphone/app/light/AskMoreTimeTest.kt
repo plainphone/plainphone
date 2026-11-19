@@ -119,4 +119,15 @@ class AskMoreTimeTest {
         assertThat(state(JSONObject(base.toString()).put("askMoreTimeEnabled", false))).isNull()
         assertThat(state(JSONObject(base.toString()).put("profile", "self"))).isNull()
     }
+
+    @Test
+    fun `an ask made after the switch went off is not saved`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val limits = """{"apps":[{"packageName":"com.spotify.music","minutes":0}]}"""
+        val off = JSONObject(rulesJson(timeLimits = limits)).put("askMoreTimeEnabled", false)
+        SyncStore(context).saveRules("\"e\"", off.toString(), 0L)
+        assertThat(AskMoreTimeController(context, "com.spotify.music").ask("one more")).isNull()
+        val today = java.time.LocalDate.now()
+        assertThat(SyncStore(context).moreTime.all(today)).isEmpty()
+    }
 }
