@@ -12,6 +12,7 @@ CREATE TABLE "sos_events" (
 	"seen_at" timestamp with time zone,
 	"received_at" timestamp with time zone NOT NULL,
 	"notification_claimed_at" timestamp with time zone,
+	"notification_lease_until" timestamp with time zone,
 	CONSTRAINT "sos_events_phone_id_id_pk" PRIMARY KEY("phone_id","id")
 );
 --> statement-breakpoint

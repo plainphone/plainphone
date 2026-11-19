@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -76,7 +79,6 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
         HomeActivity.timeText(context, java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime())
     }
     var status by remember { mutableStateOf<String?>(null) }
-    var callOnDelivery by remember { mutableStateOf(false) }
     var seenByName by rememberSaveable { mutableStateOf<String?>(null) }
     var seen by rememberSaveable { mutableStateOf(false) }
 
@@ -90,7 +92,6 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
         val phoneId = sync.phoneId
         if (phoneId != null) {
             id = SosDelivery.enqueue(context, phoneId, kind)
-            callOnDelivery = kind == SosKind.URGENT
             seen = false
             seenByName = null
         }
@@ -100,13 +101,6 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
         val sentId = id ?: return@LaunchedEffect
         while (true) {
             status = SosDelivery.status(context, sentId)
-            if (callOnDelivery && status != null) {
-                callOnDelivery = false
-                if (status == "online" || status == "sms") {
-                    val phoneId = sync.phoneId
-                    if (phoneId != null) SosCalls.start(context.applicationContext, phoneId, sos?.parents.orEmpty())
-                }
-            }
             if (!seen && (status == "online" || status == "sms")) {
                 val confirmation = withContext(Dispatchers.IO) {
                     runCatching {
@@ -161,9 +155,10 @@ internal fun SosScreen(onBack: () -> Unit, emergency: () -> Unit) {
             val message = when {
                 seen -> seenByName?.let { stringResource(R.string.sos_seen_by, it) } ?: stringResource(R.string.sos_seen)
                 status == "online" || status == "sms" -> {
-                    val names = sos?.parents.orEmpty().map { it.name }
-                    if (names.isEmpty()) stringResource(R.string.sos_sent, sentAt.orEmpty())
-                    else stringResource(R.string.sos_sent_to, android.icu.text.ListFormatter.getInstance().format(names), sentAt.orEmpty())
+                    val names = id?.let { SosDelivery.smsNames(context, it) }.orEmpty()
+                    if (names.isNotEmpty()) stringResource(R.string.sos_sent_to, android.icu.text.ListFormatter.getInstance().format(names), sentAt.orEmpty())
+                    else if (status == "online") stringResource(R.string.sos_report_received, sentAt.orEmpty())
+                    else stringResource(R.string.sos_sent, sentAt.orEmpty())
                 }
                 status == "failed" -> stringResource(R.string.sos_failed)
                 id != null -> stringResource(R.string.sos_pending)
@@ -184,6 +179,47 @@ internal fun HoldAction(label: String, onTap: () -> Unit, onHeld: () -> Unit) {
     var start by remember { mutableLongStateOf(0L) }
     var elapsed by remember { mutableLongStateOf(0L) }
     var keyboardHeld by remember { mutableStateOf(false) }
+    var accessibleConfirmation by remember { mutableStateOf(false) }
+    var accessibleRunning by remember { mutableStateOf(false) }
+    var accessibleSeconds by remember { mutableLongStateOf(3L) }
+
+    LaunchedEffect(accessibleRunning) {
+        if (!accessibleRunning) return@LaunchedEffect
+        val started = withFrameNanos { it }
+        while (accessibleSeconds > 0 && accessibleRunning) {
+            val remaining = SOS_HOLD_MS - withFrameNanos { (it - started) / 1_000_000 }
+            accessibleSeconds = (remaining.coerceAtLeast(0) + 999) / 1_000
+        }
+        if (!accessibleRunning) return@LaunchedEffect
+        accessibleRunning = false
+        accessibleConfirmation = false
+        held()
+    }
+    if (accessibleConfirmation) {
+        fun dismiss() {
+            accessibleRunning = false
+            accessibleConfirmation = false
+        }
+        AlertDialog(
+            onDismissRequest = ::dismiss,
+            title = { Text(label) },
+            text = {
+                if (accessibleRunning) Text(
+                    stringResource(R.string.sos_starting_in, accessibleSeconds),
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            },
+            confirmButton = {
+                if (!accessibleRunning) TextButton(onClick = {
+                    accessibleSeconds = 3
+                    accessibleRunning = true
+                }) { Text(stringResource(R.string.sos_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = ::dismiss) { Text(stringResource(R.string.sos_undo)) }
+            },
+        )
+    }
     LaunchedEffect(start) {
         while (start != 0L) {
             elapsed = (SystemClock.elapsedRealtime() - start).coerceAtMost(SOS_HOLD_MS)
@@ -219,7 +255,7 @@ internal fun HoldAction(label: String, onTap: () -> Unit, onHeld: () -> Unit) {
             true
         }.semantics(mergeDescendants = true) {
             role = Role.Button
-            onClick { tap(); true }
+            onClick { accessibleConfirmation = true; true }
         }.focusable().pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)

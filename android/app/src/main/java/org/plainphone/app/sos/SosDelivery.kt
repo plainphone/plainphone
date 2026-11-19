@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Compat
+import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.Channel
 import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.Direction
@@ -42,6 +43,7 @@ internal object SosDelivery {
             if (key.startsWith("time:") && value is Long && value <= cutoff) {
                 val expired = key.removePrefix("time:")
                 prune.remove(key).remove("status:$expired").remove("position:$expired").remove("sms-claim:$expired")
+                    .remove("sms-names:$expired").remove("call-claim:$expired")
             }
         }
         val id = UUID.randomUUID().toString()
@@ -55,6 +57,9 @@ internal object SosDelivery {
     }
 
     fun prefs(context: Context) = context.getSharedPreferences("plainphone_sos", Context.MODE_PRIVATE)
+    fun smsNames(context: Context, id: String): List<String> =
+        prefs(context).getStringSet("sms-names:$id", emptySet()).orEmpty().sorted()
+
     fun status(context: Context, id: String): String? = prefs(context).getString("status:$id", null)
 }
 
@@ -77,13 +82,11 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             prefs.edit().putString(key, "failed").remove("position:$id").apply()
             return@withContext Result.failure()
         }
-        val claimKey = "sms-claim:$id"
-        val first = !prefs.contains(claimKey)
-        val fix = if (first && rules.locationEnabled && rules.locationMode != "off") {
+        val fix = if (runAttemptCount == 0 && System.currentTimeMillis() - at <= 120_000 &&
+            rules.locationEnabled && rules.locationMode != "off"
+        ) {
             runCatching {
-                LocationReader(context).current(
-                    precise = true, timeoutMs = 2_000, notBeforeMs = System.currentTimeMillis() - 120_000,
-                )
+                LocationReader(context).current(precise = true, timeoutMs = 2_000, notBeforeMs = at - 120_000)
             }.getOrNull()
         } else null
         val positionKey = "position:$id"
@@ -93,8 +96,18 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         val payload = JSONObject().put("id", id).put("kind", kind).put("sentAt", Instant.ofEpochMilli(at).toString())
             .put("location", location).put("battery", AndroidSyncDevice(context).battery().first)
             .put("smsSubmitted", SosDelivery.status(context, id) == "sms")
+        suspend fun startUrgentCall() {
+            if (kind != SosKind.URGENT.wire || sos.parents.isEmpty()) return
+            withContext(Dispatchers.Main.immediate) {
+                if (SyncStore(context).phoneId == phone && claimSosAction(prefs, "call-claim:$id", at)) {
+                    SosCalls.start(context, phone, sos.parents)
+                }
+            }
+        }
+
         try {
             SosDelivery.api(context).reportSos(token, payload)
+            startUrgentCall()
             prefs.edit().putString(key, "online").remove(positionKey).apply()
             return@withContext Result.success()
         } catch (e: HttpError) {
@@ -107,17 +120,20 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             // Try the carrier when the server cannot be reached.
         }
 
-        if (first && canSendSms(context) && claimSosSms(prefs, id, at)
-        ) {
+        if (!prefs.contains("sms-claim:$id") && canSendSms(context)) {
             val description = if (kind == "urgent") "akut" else "har brug for hjælp"
             val position = location?.let { "https://maps.google.com/?q=${it.getDouble("lat")},${it.getDouble("lon")}" } ?: "ukendt"
             val text = "SOS fra ${sos.name}: $description. Position: $position. Sendt via Plainphone."
-            val submitted = submitSosFallback(prefs, id, at, sos.parents.map { it.number }) { number ->
+            val submitted = submitSosFallback(prefs, id, at, sos.parents) { number ->
                 submitSosSms(context, number, text)
             }
-            prefs.edit().putString(key, if (submitted) "sms" else "pending").commit()
-        } else if (SosDelivery.status(context, id) == null) {
-            prefs.edit().putString(key, "pending").apply()
+            if (submitted.isNotEmpty()) {
+                prefs.edit().putString(key, "sms").putStringSet("sms-names:$id", submitted.map { it.name }.toSet()).commit()
+            }
+        }
+        when (SosDelivery.status(context, id)) {
+            "sms" -> startUrgentCall()
+            null -> prefs.edit().putString(key, "pending").apply()
         }
         Result.retry()
     }
@@ -128,22 +144,16 @@ internal fun submitSosFallback(
     prefs: SharedPreferences,
     id: String,
     at: Long,
-    numbers: List<String>,
+    parents: List<ApprovedContact>,
     send: (String) -> Boolean,
-): Boolean {
-    if (numbers.isEmpty() || !claimSosSms(prefs, id, at)) return false
-    var submitted = false
-    for (number in numbers.distinct()) {
-        if (send(number)) submitted = true
-    }
-    return submitted
+): List<ApprovedContact> {
+    if (parents.isEmpty() || !claimSosAction(prefs, "sms-claim:$id", at)) return emptyList()
+    return parents.distinctBy { it.number }.filter { send(it.number) }
 }
 
 @Synchronized
-private fun claimSosSms(prefs: SharedPreferences, id: String, at: Long): Boolean {
-    val key = "sms-claim:$id"
-    return !prefs.contains(key) && prefs.edit().putLong(key, at).commit()
-}
+private fun claimSosAction(prefs: SharedPreferences, key: String, at: Long): Boolean =
+    !prefs.contains(key) && prefs.edit().putLong(key, at).commit()
 
 private fun canSendSms(context: Context): Boolean =
     context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_SMS) == true &&

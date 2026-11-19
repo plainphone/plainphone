@@ -18,4 +18,7 @@
     <string name="sos_sent_to">Sent to %1$s at %2$s</string>
     <string name="sos_seen_by">Seen by %1$s</string>
     <string name="sos_location">Your position can be included.</string>
+    <string name="sos_confirm">Confirm</string>
+    <string name="sos_starting_in">Starting in %1$d s</string>
+    <string name="sos_report_received">SOS sent to Plainphone at %1$s</string>
 </resources>

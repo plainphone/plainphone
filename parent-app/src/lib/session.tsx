@@ -3,7 +3,8 @@
 // The signed-in parent. The session token (pp_s_…) lives in the Keychain/Keystore and
 // is sent as a Bearer token; the app never uses cookies.
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { clearSosPushRegistration } from "./notifications";
+import { AppState } from "react-native";
+import { clearLocalNotifications, retrySosLogout, revokeSosOnLogout } from "./notifications";
 import { ApiError, client, getSessionToken, setSessionToken, setUnauthorizedHandler, unwrap } from "../api/client";
 import type { Locale, Me } from "../api/models";
 import { useI18n } from "../i18n/I18n";
@@ -74,6 +75,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionToken(null);
     await removeItem(TOKEN_KEY).catch(() => undefined);
     setState({ status: "anon" });
+    await clearLocalNotifications().catch(() => undefined);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -150,14 +152,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [refresh, restore],
   );
 
+  useEffect(() => {
+    const retry = () => { void retrySosLogout().catch(() => undefined); };
+    retry();
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") retry();
+    });
+    return () => sub.remove();
+  }, []);
+
   const logout = useCallback(async () => {
+    const session = getSessionToken();
     try {
-      await clearSosPushRegistration().catch(() => undefined);
-      await unwrap(client.POST("/auth/logout"));
+      if (session) await revokeSosOnLogout(session);
     } catch {
-      // signed out locally either way
+      // The queued revocation can finish when the app is active and back online.
     } finally {
-      await signOutLocally();
+      if (getSessionToken() === session) await signOutLocally();
     }
   }, [signOutLocally]);
 

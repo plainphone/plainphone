@@ -18,4 +18,7 @@
     <string name="sos_sent_to">Sendt til %1$s kl. %2$s</string>
     <string name="sos_seen_by">Set af %1$s</string>
     <string name="sos_location">Din placering kan følge med.</string>
+    <string name="sos_confirm">Bekræft</string>
+    <string name="sos_starting_in">Starter om %1$d sek.</string>
+    <string name="sos_report_received">SOS sendt til Plainphone kl. %1$s</string>
 </resources>

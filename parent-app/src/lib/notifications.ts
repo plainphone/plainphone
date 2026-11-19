@@ -5,10 +5,49 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { client, unwrap } from "../api/client";
+import { ApiError, getSessionToken, makeClient, unwrap } from "../api/client";
 import { getItem, removeItem, setItem } from "./storage";
 
 const SOS_SUBSCRIPTION = "sos-push-subscription";
+const PENDING_LOGOUT = "sos-pending-logout";
+type PendingLogout = { sid: string; session: string };
+
+let logoutQueue = Promise.resolve();
+function serializeLogout(action: () => Promise<void>) {
+  const result = logoutQueue.then(action);
+  logoutQueue = result.catch(() => undefined);
+  return result;
+}
+
+async function withPushRequestTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5_000);
+  try {
+    return await request(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function revokePendingLogouts() {
+  const entries = JSON.parse(await getItem(PENDING_LOGOUT) ?? "[]") as PendingLogout[];
+  for (const [index, entry] of entries.entries()) {
+    const previous = makeClient(undefined, undefined, entry.session);
+    try {
+      await withPushRequestTimeout((signal) => unwrap(previous.DELETE("/notifications/subscriptions/{sid}", {
+        params: { path: { sid: entry.sid } }, signal,
+      })));
+      await withPushRequestTimeout((signal) => unwrap(previous.POST("/auth/logout", { signal })));
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    }
+    await setItem(PENDING_LOGOUT, JSON.stringify(entries.slice(index + 1)));
+  }
+}
+
+export function retrySosLogout() {
+  return serializeLogout(revokePendingLogouts);
+}
 
 export type PushKind = "approval" | "location" | "sos-urgent" | "sos-help";
 
@@ -62,28 +101,52 @@ export async function pushState(): Promise<PushState> {
 /** Requests permissions and registers this install for SOS. */
 export async function enablePush(locale: "en" | "da"): Promise<{ state: PushState; token: string | null }> {
   if (Platform.OS === "web") return { state: "unsupported", token: null };
+  const session = getSessionToken();
+  if (!session) throw new ApiError(401, "sign in first");
   await ensureChannels(locale);
   const p = await Notifications.requestPermissionsAsync();
   if (!p.granted) return { state: p.canAskAgain ? "undetermined" : "denied", token: null };
   const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
   if (!projectId) throw new Error("Missing Expo push project ID");
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  const sub = await unwrap<{ id: string }>(client.POST("/notifications/subscriptions", {
-    body: { platform: "expo", token, label: Platform.OS === "ios" ? "iOS" : "Android" },
-  }));
-  const previous = await getItem(SOS_SUBSCRIPTION);
-  await setItem(SOS_SUBSCRIPTION, sub.id);
-  if (previous && previous !== sub.id) {
-    await unwrap(client.DELETE("/notifications/subscriptions/{sid}", { params: { path: { sid: previous } } }));
-  }
+  await serializeLogout(async () => {
+    await revokePendingLogouts();
+    if (getSessionToken() !== session) throw new ApiError(401, "sign in again");
+    const signedIn = makeClient(undefined, undefined, session);
+    const sub = await withPushRequestTimeout((signal) => unwrap<{ id: string }>(signedIn.POST("/notifications/subscriptions", {
+      body: { platform: "expo", token, label: Platform.OS === "ios" ? "iOS" : "Android" }, signal,
+    })));
+    const previous = await getItem(SOS_SUBSCRIPTION);
+    await setItem(SOS_SUBSCRIPTION, sub.id);
+    if (previous && previous !== sub.id) {
+      await withPushRequestTimeout((signal) => unwrap(signedIn.DELETE("/notifications/subscriptions/{sid}", {
+        params: { path: { sid: previous } }, signal,
+      })));
+    }
+  });
   return { state: "granted", token };
 }
 
-export async function clearSosPushRegistration() {
-  const sid = await getItem(SOS_SUBSCRIPTION);
-  if (!sid) return;
-  await unwrap(client.DELETE("/notifications/subscriptions/{sid}", { params: { path: { sid } } }));
-  await removeItem(SOS_SUBSCRIPTION);
+/** Keep the former credential only to finish revoking its subscription and session. */
+export function revokeSosOnLogout(session: string) {
+  return serializeLogout(async () => {
+    const sid = await getItem(SOS_SUBSCRIPTION);
+    if (!sid) {
+      await withPushRequestTimeout((signal) => unwrap(makeClient(undefined, undefined, session).POST("/auth/logout", { signal })));
+      return;
+    }
+    const entries = JSON.parse(await getItem(PENDING_LOGOUT) ?? "[]") as PendingLogout[];
+    await setItem(PENDING_LOGOUT, JSON.stringify([...entries, { sid, session }]));
+    await removeItem(SOS_SUBSCRIPTION);
+    await revokePendingLogouts();
+  });
+}
+
+export async function clearLocalNotifications() {
+  if (Platform.OS !== "web") {
+    await Notifications.dismissAllNotificationsAsync();
+    Notifications.clearLastNotificationResponse();
+  }
 }
 
 /** Opens the right screen when the user taps a notification. */

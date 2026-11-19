@@ -5,6 +5,8 @@ import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
+import { retrySosLogout } from "../src/lib/notifications";
+import { getSessionToken } from "../src/api/client";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -207,6 +209,36 @@ describe("signed in", () => {
     await waitFor(() => expect(screen).toHavePathname("/login"));
     expect(api.calls.find((c) => c.path === "/auth/logout")!.auth).toBe("Bearer pp_s_saved");
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("signs out offline and revokes the old SOS subscription when back online", async () => {
+    const path = "/notifications/subscriptions/test-sos";
+    await SecureStore.setItemAsync("sos-push-subscription", "test-sos");
+    let offline = false;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      [`DELETE ${path}`]: () => {
+        if (offline) throw new Error("offline");
+        return { status: 204 };
+      },
+      "POST /auth/logout": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    const logout = await screen.findByTestId("logout");
+    offline = true;
+    await fireEvent.press(logout);
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    expect(getSessionToken()).toBeNull();
+    expect(api.calls.filter((call) => call.path === "/auth/logout")).toHaveLength(0);
+
+    offline = false;
+    await retrySosLogout();
+    expect(api.calls.filter((call) => call.path === path).map((call) => call.auth))
+      .toEqual(["Bearer pp_s_saved", "Bearer pp_s_saved"]);
+    expect(api.calls.find((call) => call.path === "/auth/logout")?.auth).toBe("Bearer pp_s_saved");
+    expect(await SecureStore.getItemAsync("sos-pending-logout")).toBe("[]");
+    expect(getSessionToken()).toBeNull();
   });
 
   it("switches the language and saves it on the account", async () => {

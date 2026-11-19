@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -59,26 +60,7 @@ internal object SosCalls {
                         CallManager.disconnect(call.id)
                         return@callSosParents SosCallOutcome.STOPPED
                     }
-                    val answered = withTimeoutOrNull(30_000) {
-                        CallManager.state.first { calls ->
-                            val current = calls.find { it.id == call.id }
-                            current == null || current.connectedAtMs != null || current.state == Call.STATE_ACTIVE
-                        }.any { it.id == call.id }
-                    }
-                    if (answered == true) return@callSosParents SosCallOutcome.ANSWERED
-                    if (answered == null) {
-                        val latest = CallManager.state.value.find { it.id == call.id }
-                        if (latest?.connectedAtMs != null || latest?.state == Call.STATE_ACTIVE) {
-                            return@callSosParents SosCallOutcome.ANSWERED
-                        }
-                        CallManager.disconnect(call.id)
-                        val ended = withTimeoutOrNull(5_000) {
-                            CallManager.state.first { calls -> calls.none { it.id == call.id } }
-                        }
-                        if (ended == null) return@callSosParents SosCallOutcome.STOPPED
-                    }
-                    callId = null
-                    SosCallOutcome.UNANSWERED
+                    awaitSosAnswer(call.id, CallManager.state, CallManager::disconnect).also { callId = null }
                 }
             } finally {
                 callId = null
@@ -91,4 +73,26 @@ internal object SosCalls {
         stopped = true
         callId?.let(CallManager::disconnect)
     }
+}
+
+
+internal suspend fun awaitSosAnswer(
+    id: Int,
+    state: StateFlow<List<CallUi>>,
+    disconnect: (Int) -> Unit,
+    ringMs: Long = 30_000,
+): SosCallOutcome {
+    fun CallUi.answered() = connectedAtMs != null || this.state == Call.STATE_ACTIVE
+    val answered = withTimeoutOrNull(ringMs) {
+        state.first { calls -> calls.find { it.id == id }?.answered() != false }.any { it.id == id }
+    }
+    if (answered == true || (answered == null && state.value.find { it.id == id }?.answered() == true)) {
+        return SosCallOutcome.ANSWERED
+    }
+    if (answered == null) {
+        disconnect(id)
+        val ended = withTimeoutOrNull(5_000) { state.first { calls -> calls.none { it.id == id } } }
+        if (ended == null) return SosCallOutcome.STOPPED
+    }
+    return SosCallOutcome.UNANSWERED
 }

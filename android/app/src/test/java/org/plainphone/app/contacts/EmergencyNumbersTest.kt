@@ -4,13 +4,29 @@ package org.plainphone.app.contacts
 
 import android.Manifest
 import android.app.Application
+import android.app.admin.DevicePolicyManager
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.telecom.TelecomManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
+import org.plainphone.app.FakeDevice
+import org.plainphone.app.MemoryHiddenStore
+import org.plainphone.app.PlainphoneAdminReceiver
+import org.plainphone.app.PolicyApplier
+import org.plainphone.app.PolicyConfig
+import org.plainphone.app.light.LightSetup
+import org.plainphone.app.light.LightPlan
+import org.plainphone.app.light.Mode
+import org.plainphone.app.sync.EffectivePolicy
+import org.plainphone.app.sync.ServerRules
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.rulesJson
 import org.plainphone.app.ui.placeCall
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -38,10 +54,71 @@ class EmergencyNumbersTest {
 
     @Test
     fun `the emergency dialer fallback opens the emergency number in the keypad`() {
-        val intent = org.plainphone.app.sos.emergencyKeypadIntent()
+        val launches = mutableListOf<Intent>()
+        val withoutSystemDialer = object : ContextWrapper(context) {
+            override fun startActivity(intent: Intent) {
+                launches.add(intent)
+                if (launches.size == 1) throw ActivityNotFoundException()
+            }
+        }
+        org.plainphone.app.sos.openEmergencyDialer(withoutSystemDialer)
+        assertThat(launches).hasSize(2)
+        assertThat(launches.first().action).isEqualTo("com.android.phone.EmergencyDialer.DIAL")
+        val intent = launches.last()
         assertThat(intent.action).isEqualTo(Intent.ACTION_DIAL)
         assertThat(intent.data?.schemeSpecificPart).isEqualTo("112")
         assertThat(EmergencyNumbers.forContext(context).isEmergency(intent.data!!.schemeSpecificPart)).isTrue()
+    }
+
+    @Test fun `strong mode can call 112 and an approved parent during school and after the time limit`() =
+        checkCallsDuringRestrictions(strong = true)
+
+    @Test fun `light mode can call 112 and an approved parent during school and after the time limit`() =
+        checkCallsDuringRestrictions(strong = false)
+
+    private fun checkCallsDuringRestrictions(strong: Boolean) {
+        if (strong) {
+            val admin = shadowOf(context.getSystemService(DevicePolicyManager::class.java))
+            assertThat(admin.setDeviceOwner(PlainphoneAdminReceiver.component(context))).isTrue()
+        } else {
+            context.getSharedPreferences("plainphone_light_setup", Context.MODE_PRIVATE)
+                .edit().putBoolean("complete", true).apply()
+            assertThat(LightSetup.isComplete(context)).isTrue()
+        }
+        assertThat(Mode.isStrong(context)).isEqualTo(strong)
+        shadowOf(ApplicationProvider.getApplicationContext<Application>()).grantPermissions(Manifest.permission.CALL_PHONE)
+        val telecom = shadowOf(context.getSystemService(TelecomManager::class.java))
+        telecom.setCallPhonePermission(true)
+        val own = context.packageName
+        val game = "com.game"
+        val school = """[{"id":"school","kind":"school","days":[1,2,3,4,5,6,7],"start":"06:00","end":"19:00","allowedPackages":[]}]"""
+        val now = Instant.parse("2026-11-19T12:00:00Z")
+        for (schedule in listOf(school, "[]")) {
+            val body = org.json.JSONObject(rulesJson(allowed = listOf(game), schedules = schedule, timezone = "UTC"))
+                .put("lightContactRestriction", true).toString()
+            SyncStore(context).saveRules("test", body, now.toEpochMilli())
+            val config = EffectivePolicy.merge(PolicyConfig(), ServerRules.parse(body), now, timeBlocked = setOf(game))
+            assertThat(config.server?.windowActive).isEqualTo(schedule == school)
+            assertThat(config.timeBlocked).contains(game)
+            if (strong) {
+                val device = FakeDevice(launchable = mutableSetOf(own, game), core = emptySet())
+                PolicyApplier(device, MemoryHiddenStore(), sdkInt = 35).apply(config)
+                assertThat(device.hidden).doesNotContain(own)
+                assertThat(device.suspended).doesNotContain(own)
+            } else {
+                val plan = LightPlan.build(setOf(own, game), emptySet(), config.allowedPackages, own,
+                    telephony = emptySet(), timeBlocked = config.timeBlocked, installing = null)
+                assertThat(plan.why(own)).isNull()
+                assertThat(plan.why(game)).isNotNull()
+            }
+            val contacts = ContactPolicySources.get(context).rules()
+            assertThat(contacts.enforced).isTrue()
+            assertThat(context.contactPolicy().decide(contacts, Channel.SMS, Direction.OUTGOING, "+4512345678").allowed).isTrue()
+            assertThat(placeCall(context, "112")).isNull()
+            assertThat(placeCall(context, "+4512345678")).isNull()
+        }
+        assertThat(telecom.allOutgoingCalls.map { it.address.schemeSpecificPart })
+            .containsExactly("112", "+4512345678", "112", "+4512345678").inOrder()
     }
 
     @Test

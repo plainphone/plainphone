@@ -42,33 +42,36 @@ export function setUnauthorizedHandler(fn: ((rejected: string | null) => void) |
   onUnauthorized = fn;
 }
 
-const auth: Middleware = {
-  onRequest({ request }) {
-    if (token) request.headers.set("authorization", `Bearer ${token}`);
-    request.headers.set("accept", "application/json");
-    // The server refuses writes without a JSON content type (415), even with an empty body.
-    if (request.method !== "GET" && !request.headers.has("content-type")) {
-      request.headers.set("content-type", "application/json");
-    }
-    return request;
-  },
-  onResponse({ request, response }) {
-    if (response.status === 401 && !new URL(request.url).pathname.includes("/auth/")) {
-      const sent = request.headers.get("authorization");
-      onUnauthorized?.(sent?.startsWith("Bearer ") ? sent.slice(7) : null);
-    }
-    return response;
-  },
-};
+function authMiddleware(session: () => string | null, handleUnauthorized: boolean): Middleware {
+  return {
+    onRequest({ request }) {
+      const current = session();
+      if (current) request.headers.set("authorization", `Bearer ${current}`);
+      request.headers.set("accept", "application/json");
+      // The server refuses writes without a JSON content type (415), even with an empty body.
+      if (request.method !== "GET" && !request.headers.has("content-type")) {
+        request.headers.set("content-type", "application/json");
+      }
+      return request;
+    },
+    onResponse({ request, response }) {
+      if (handleUnauthorized && response.status === 401 && !new URL(request.url).pathname.includes("/auth/")) {
+        const sent = request.headers.get("authorization");
+        onUnauthorized?.(sent?.startsWith("Bearer ") ? sent.slice(7) : null);
+      }
+      return response;
+    },
+  };
+}
 
-export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
+export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch, session?: string) {
   const c = createClient<paths>({
     baseUrl,
     credentials: "omit",
     // Late-bound, so tests can swap globalThis.fetch.
     fetch: fetchImpl ?? ((req: Request) => globalThis.fetch(req)),
   });
-  c.use(auth);
+  c.use(authMiddleware(session ? () => session : getSessionToken, session === undefined));
   return c;
 }
 

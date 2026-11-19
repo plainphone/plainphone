@@ -673,6 +673,7 @@ export const sosEvents = pgTable("sos_events", {
   seenAt: timestamp("seen_at", { withTimezone: true }),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
   notificationClaimedAt: timestamp("notification_claimed_at", { withTimezone: true }),
+  notificationLeaseUntil: timestamp("notification_lease_until", { withTimezone: true }),
 }, (t) => [
   primaryKey({ columns: [t.phoneId, t.id] }),
   index("sos_phone_created_idx").on(t.phoneId, t.createdAt),

@@ -163,7 +163,7 @@ export async function notifyUsers(
   ctx: Ctx,
   userIds: string[],
   e: NotifyEvent,
-  opts: { subscriptionId?: string } = {},
+  opts: { subscriptionId?: string; onFailure?: () => void } = {},
 ): Promise<number> {
   if (userIds.length === 0) return 0;
   try {
@@ -182,7 +182,17 @@ export async function notifyUsers(
       subs.map(async ({ sub, locale }) => {
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
-          outcome = await ctx.parentPush.send(sub, pushMessage(e, toLocale(locale)), { urgent });
+          const language = toLocale(locale);
+          const message = pushMessage(e, language);
+          if (e.type === "sos" && sub.platform === "expo") {
+            // A disconnected install can sign out before its subscription is revoked.
+            message.title = language === "da" && urgent ? "Akut SOS" : urgent ? "Urgent SOS" : "SOS";
+            message.body = language === "da" ? "Åbn Plainphone for at se beskeden." : "Open Plainphone to view the alert.";
+            message.url = "/";
+            message.tag = "sos";
+            message.data = { type: urgent ? "sos-urgent" : "sos-help" };
+          }
+          outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
           console.error(`push send failed: ${(err as Error).message}`);
           outcome = "failed";
@@ -194,6 +204,7 @@ export async function notifyUsers(
             .where(eq(pushSubscriptions.id, sub.id));
           return 1;
         }
+        if (outcome === "failed") opts.onFailure?.();
         if (outcome === "gone" || (outcome === "failed" && sub.failures + 1 >= MAX_FAILURES)) {
           await ctx.db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
         } else if (outcome === "failed") {
@@ -207,6 +218,7 @@ export async function notifyUsers(
     );
     return results.reduce<number>((a, b) => a + b, 0);
   } catch (err) {
+    opts.onFailure?.();
     console.error(`notification failed: ${(err as Error).message}`);
     return 0;
   }

@@ -61,3 +61,72 @@ it("alerts each household parent and their devices once, without retaining a dis
   expect((await parent.get(path)).json.events).toEqual([]);
   expect(await h.ctx.db.select().from(sosEvents)).toEqual([]);
 });
+
+it("retries an accepted urgent report after both notification providers fail", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId, device } = await pairPhone(h, parent, { profile: "child" });
+  const { user } = (await parent.get("/api/me")).json;
+  await h.ctx.db.insert(pushSubscriptions).values({
+    userId: user.id, platform: "web", endpoint: "https://example.test/retry",
+  });
+  const push = vi.spyOn(h.parentPush, "send").mockResolvedValue("failed");
+  const mail = vi.spyOn(h.mail, "send").mockRejectedValue(new Error("unavailable"));
+  const report = { id: randomUUID(), kind: "urgent" };
+  try {
+    expect((await device.post("/api/device/sos", report)).status).toBe(200);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(mail).toHaveBeenCalledTimes(1);
+  } finally {
+    push.mockRestore();
+    mail.mockRestore();
+  }
+  await vi.waitFor(async () => {
+    await sweep(h.ctx);
+    expect(h.parentPush.sent).toHaveLength(1);
+  });
+  await sweep(h.ctx);
+  expect(h.parentPush.sent).toHaveLength(1);
+  expect((await parent.get(`/api/phones/${phoneId}/sos`)).json.events).toHaveLength(1);
+});
+
+it("keeps child identity out of native push while preserving urgency", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { device } = await pairPhone(h, parent, { profile: "child" });
+  const { user } = (await parent.get("/api/me")).json;
+  await h.ctx.db.insert(pushSubscriptions).values({
+    userId: user.id, platform: "expo", endpoint: "ExpoPushToken[example1234567890]",
+  });
+  const push = vi.spyOn(h.parentPush, "send").mockResolvedValue("sent");
+  try {
+    expect((await device.post("/api/device/sos", { id: randomUUID(), kind: "urgent" })).status).toBe(200);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    const [, message, options] = push.mock.calls[0]!;
+    expect(options).toEqual({ urgent: true });
+    expect(message).toEqual({
+      title: "Urgent SOS", body: "Open Plainphone to view the alert.", url: "/", tag: "sos",
+      data: { type: "sos-urgent" },
+    });
+  } finally {
+    push.mockRestore();
+  }
+});
+
+it("reclaims dispatch after an interrupted worker's lease expires", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { phoneId } = await pairPhone(h, parent, { profile: "child" });
+  const { user } = (await parent.get("/api/me")).json;
+  await h.ctx.db.insert(pushSubscriptions).values({
+    userId: user.id, platform: "web", endpoint: "https://example.test/interrupted",
+  });
+  const now = h.ctx.now();
+  await h.ctx.db.insert(sosEvents).values({
+    id: randomUUID(), phoneId, kind: "urgent", createdAt: now, receivedAt: now,
+    notificationLeaseUntil: new Date(now.getTime() + 60_000),
+  });
+  await sweep(h.ctx);
+  expect(h.parentPush.sent).toHaveLength(0);
+  h.clock.advance(60_000);
+  await sweep(h.ctx);
+  await sweep(h.ctx);
+  expect(h.parentPush.sent).toHaveLength(1);
+});

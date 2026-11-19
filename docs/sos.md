@@ -2,9 +2,11 @@
 
 On a Child phone, open **SOS** from the Plainphone home screen, or from **Today**
 in light mode. Hold **Urgent** or **I need help** for three seconds. The ring
-shows progress. After the hold, you have five seconds to undo. Both kinds alert
-parents. Urgent uses higher-priority push and also starts a regular phone call
-after the report has been accepted or handed to the carrier for SMS sending.
+shows progress. With a screen reader, activate the action and choose **Confirm**
+to start the same timed countdown. After the hold, you have five seconds to
+undo. Both kinds alert parents. Urgent uses higher-priority push and also
+starts a regular phone call after the report has been accepted or handed to
+the carrier for SMS sending.
 
 **Call 112** opens Android's emergency dialer after a three-second hold. It
 also works without pairing, a data connection or an approved contact list.
@@ -25,8 +27,9 @@ SOS recipients in this release.
    parent account in the household is included in SOS push and email when
    those services are configured.
 
-The child sees the last send time and can see when a parent presses **I've
-seen it**. The phone polls for acknowledgment while SOS is open. Acknowledging
+The child sees when Plainphone accepted the report or which contacts the phone
+submitted SMS messages for. The child can also see when a parent presses
+**I've seen it**. The phone polls for acknowledgment while SOS is open. Acknowledging
 creates one timestamp per event and leaves the event in history.
 Parents can include the name their child knows them by when acknowledging.
 
@@ -41,8 +44,9 @@ from repeating it after a crash. A carrier handoff can fail, and neither an
 accepted online report nor a submitted SMS proves a parent has received it.
 A parent may receive an SMS plus the queued report's later email and push.
 
-Urgent tries the next parent after 30 seconds without an answer, or sooner
-when Android reports the first attempt ended. **Stop calling** cancels
+The background delivery job starts the urgent call even when the SOS screen
+is closed. Urgent tries the next parent after 30 seconds without an answer,
+or sooner when Android reports the first attempt ended. **Stop calling** cancels
 escalation. Escalation requires Plainphone to hold the dialer role. If Android
 does not let Plainphone observe the call, Plainphone only attempts the first
 parent. If voicemail answers, Android sees the call as answered and the phone
@@ -52,7 +56,10 @@ The server limits ordinary help reports to five reports per phone in ten
 minutes. When an over-limit help report was already submitted by SMS, the
 server keeps it in history. Urgent reports above the limit still create
 distinct events and run through delivery. A repeated client ID keeps its
-original event.
+original event. The server retries when all attempted notification providers
+fail or a dispatch reservation expires after an interruption. A provider may
+accept a notification just before the server stops, so recovery can deliver
+that notification again.
 
 ## Push configuration
 
@@ -67,13 +74,16 @@ build. Set `PLAINPHONE_EXPO_PROJECT_ID` for the app build and, on Android,
 `PLAINPHONE_GOOGLE_SERVICES_FILE` to the path to the FCM client config.
 `EXPO_ACCESS_TOKEN` on the server authenticates requests if the Expo project
 requires it. Browser push uses the existing VAPID config. Both kinds use the
-existing transactional email layout.
+existing transactional email layout. Native push shows the alarm type. The
+child’s details are visible inside the signed-in dashboard. After offline
+logout, the app retries subscription removal when it next runs online.
 
 ## Privacy
 
 SOS attaches a single position when local rules allow location, Android has
-location enabled and the phone can get a recent fix. The server checks sharing
-again before keeping the fix. SOS does not update the general location feed.
+location enabled and the first delivery attempt can get a recent fix near
+the original SOS. Later retries reuse that position when sharing still allows
+it. The server checks sharing again before keeping the fix. SOS does not update the general location feed.
 Coordinates are only in the alert history and the fallback SMS if it is sent.
 The dashboard opens Google Maps only after a parent taps the map link.
 The server deletes the event after 30 days or when the phone is removed.
