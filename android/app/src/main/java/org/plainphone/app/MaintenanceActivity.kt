@@ -319,6 +319,10 @@ class MaintenanceActivity : Activity() {
                     .show()
             }
         })
+        column.addView(TextView(this).apply {
+            val current = resources.configuration.locales[0]
+            text = getString(R.string.maintenance_language, current.getDisplayName(current))
+        })
         column.addView(output)
     }
 

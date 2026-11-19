@@ -15,6 +15,8 @@ export interface Ctx {
   push: PushProvider;
   /** Notifications to parents (Web Push, FCM and APNs). */
   parentPush: ParentPushProvider;
+  /** Optional integrations switched off at startup because their settings were invalid (reasons only). */
+  degraded?: { push: string[]; other: string[] };
   now: () => Date;
   /** Tests only: a fixed attestation challenge and revocation list. */
   attestation?: { challenge?: () => Buffer; revocations?: RevocationList };

@@ -103,6 +103,33 @@ class PlainphoneApiReleaseTest {
     }
 
     @Test
+    fun `an outdated QR code is distinct from a rejected token`() {
+        answer = 409
+        responseBody = """{"error":"This QR code is out of date. Make a new one."}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.OutdatedQr)
+        answer = 410
+        responseBody = """{"error":"This QR code is out of date. Make a new one.","code":"outdated_qr"}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.OutdatedQr)
+    }
+
+    @Test
+    fun `rejected Strong provisioning tokens block manual pairing across controller restarts`() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        for (status in listOf(404, 409, 410)) {
+            answer = status
+            val store = SyncStore(context, FakeSecretBox())
+            store.saveEnrollToken("pp_e_provisioning_$status")
+            val controller = PairingController(store, api(), emptyMap(), mode = "strong")
+            assertThat(controller.enroll()).isEqualTo(EnrollResult.OutdatedQr)
+            val reopened = SyncStore(context, FakeSecretBox())
+            assertThat(reopened.enrollToken()).isNull()
+            val next = PairingController(reopened, api(), emptyMap(), mode = "strong")
+            assertThrows(IllegalStateException::class.java) { next.start() }
+        }
+        assertThat(seen.map { it.second }).containsExactlyElementsIn(List(3) { "/api/device/enroll" })
+    }
+
+    @Test
     fun `approval choices and QR show the requested limit`() {
         val shorter = "Instagram: 15 → 30 min a day"
         val longer = "Instagram: 15 → 60 min a day"

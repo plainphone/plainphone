@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { messageLanguage } from "../lib/phone-language";
 import { useCallback, useEffect, useState } from "react";
 import { ApprovalScanner } from "../components/ApprovalScanner";
 import { errorMessage, LiveStatus, LoadGate, type Notice, PageTitle, useLoad } from "../components/ui";
@@ -46,14 +47,14 @@ export function ApprovalsPage() {
       {list.map((a) => (
         <li key={a.id} className="item item-stack">
           <div>
-            <p className="row-title">{a.summary[locale]}</p>
+            <p className="row-title">{a.summary[messageLanguage(locale)]}</p>
             {showOwner && <p className="row-meta">
               {a.requestedBy ? t("appr.from", { phone: a.phoneName, email: a.requestedBy }) : a.phoneName}
             </p>}
             <p className="row-meta">{t("appr.asked", { time: formatDateTime(a.createdAt, locale) })}</p>
           </div>
           <div className="actions">
-            <button type="button" className="btn btn-primary" onClick={() => void decide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[locale]}`} disabled={busy !== null}>
+            <button type="button" className="btn btn-primary" onClick={() => void decide(a, "approve")} aria-label={`${t("appr.approve")}: ${a.summary[messageLanguage(locale)]}`} disabled={busy !== null}>
               {t("appr.approve")}
             </button>
             {!code && <button type="button" className="btn btn-secondary" onClick={() => void decide(a, "reject")} disabled={busy !== null}>

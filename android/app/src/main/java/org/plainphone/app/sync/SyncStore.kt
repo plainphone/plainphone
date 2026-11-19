@@ -141,7 +141,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
                 .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
                 .remove(KEY_PAIRING)
-                .remove(KEY_ENROLL).remove("enroll_confirmed")
+                .remove(KEY_ENROLL).remove("enroll_confirmed").remove("enroll_outdated")
             if (!everPaired) pairing.putString(KEY_FAVOURITE_SETUP, phoneId)
             else if (this.phoneId != phoneId) pairing.remove(KEY_FAVOURITE_SETUP)
             synchronized(appReportLock) {
@@ -204,6 +204,13 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     /** The one-time enrollment token from the provisioning QR code, until it is used or refused. */
     fun enrollToken(): String? = prefs.getString(KEY_ENROLL, null)?.let(box::open)
 
+    val enrollmentOutdated: Boolean get() = prefs.getBoolean("enroll_outdated", false)
+
+    @SuppressLint("ApplySharedPref") // Remember a worker's rejection across process death.
+    fun markEnrollmentOutdated() {
+        prefs.edit().remove(KEY_ENROLL).remove("enroll_confirmed").putBoolean("enroll_outdated", true).commit()
+    }
+
     val enrollmentConfirmed: Boolean get() = prefs.getBoolean("enroll_confirmed", false)
 
     @SuppressLint("ApplySharedPref") // Worker may redeem the token after process death.
@@ -216,7 +223,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
     fun saveEnrollToken(token: String?) {
         if (token != null && token == enrollToken()) return
         prefs.edit().remove("enroll_confirmed").apply {
-            if (token == null) remove(KEY_ENROLL) else putString(KEY_ENROLL, box.seal(token))
+            if (token == null) remove(KEY_ENROLL) else putString(KEY_ENROLL, box.seal(token)).remove("enroll_outdated")
         }.commit()
     }
 

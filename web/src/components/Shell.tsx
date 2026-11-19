@@ -4,10 +4,11 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useI18n } from "../i18n/I18n";
 import { api, type Approval } from "../lib/api";
 import { clearNextIf, useSession } from "../lib/session";
+import { isLanguage, languageNames, languages } from "../lib/phone-language";
 import { Mark } from "./Mark";
 
 /** The privacy policy lives on the website, in the language of the app. */
-const privacyUrl = (locale: string) => (locale === "da" ? "https://plainphone.org/da/privacy/" : "https://plainphone.org/privacy/");
+const privacyUrl = (locale: string) => `https://plainphone.org${locale === "en" ? "" : `/${locale}`}/privacy/`;
 
 export function Shell() {
   const { t, locale } = useI18n();
@@ -35,7 +36,6 @@ export function Shell() {
     if (signedIn) clearNextIf(loc.pathname + loc.search + loc.hash);
   }, [signedIn, loc.pathname, loc.search, loc.hash]);
 
-  const other = locale === "en" ? "da" : "en";
   const phonesActive = loc.pathname === "/" || loc.pathname.startsWith("/phones") || loc.pathname === "/pair";
 
   return (
@@ -53,15 +53,12 @@ export function Shell() {
             <span>{t("app.name")}</span>
           </Link>
           <div className="header-tools">
-            <button
-              type="button"
-              className="btn-link lang-switch"
-              lang={other}
-              onClick={() => saveLocale(other)}
-              aria-label={`${t("nav.language")}: ${t(other === "da" ? "lang.da" : "lang.en")}`}
-            >
-              {t(other === "da" ? "lang.da" : "lang.en")}
-            </button>
+            <select className="lang-switch" aria-label={t("nav.language")} value={locale} onChange={(event) => {
+              const language = event.target.value;
+              if (isLanguage(language)) saveLocale(language);
+            }}>
+              {languages.map((language) => <option key={language} value={language} lang={language}>{languageNames[language]}</option>)}
+            </select>
             {signedIn && (
               <button
                 type="button"

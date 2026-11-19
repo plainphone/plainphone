@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { lightSetupIntent } from "../lib/light-setup";
 import { ApprovalScanner } from "../components/ApprovalScanner";
+import { isLanguage } from "../lib/phone-language";
 import { api } from "../lib/api";
 import { PageTitle } from "../components/ui";
 import "./add-phone.css";
@@ -28,7 +29,7 @@ export function InstallPhonePage() {
   }, [intent, url]);
   useEffect(() => {
     const lang = new URLSearchParams(url.hash.slice(1)).get("lang");
-    if (lang === "da" || lang === "en") setLocale(lang);
+    if (isLanguage(lang)) setLocale(lang);
   }, [setLocale, url]);
   if (!intent) return <PageTitle sub={t("add.invalidLink")}>{t("add.installTitle")}</PageTitle>;
   if (url.searchParams.get("scan") === "template") {

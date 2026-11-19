@@ -456,6 +456,7 @@ ${header(t)}
 </section>
 <section aria-labelledby="strong"><h2 id="strong">${p.strong}</h2>
 <p>${p.start}</p>
+<p>${p.strongLanguage}</p>
 <ol class="guide">
 ${p.steps
   .map((st) => `<li><h3>${st.title}</h3>${st.body.map((b) => `<p>${b}</p>`).join("")}${figure(st.fig)}</li>`)

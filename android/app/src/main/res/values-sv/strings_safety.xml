@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- "Ring the phone", "Are you okay?" and location notices (docs/location.md). -->
+<resources>
+    <string name="safety_channel_ring">Ring telefonen</string>
+    <string name="safety_channel_checkin">Är du okej?</string>
+    <string name="safety_channel_location">Plats delad</string>
+
+    <string name="ring_eyebrow">Från din förälder</string>
+    <string name="ring_title">Din förälder letar efter dig</string>
+    <string name="ring_body">Tryck på knappen så att din förälder vet att du hörde telefonen.</string>
+    <string name="ring_here">Jag är här</string>
+    <string name="ring_notice">Tryck för att öppna och tryck sedan på Jag är här.</string>
+    <string name="ring_thanks">Tack. Din förälder har fått svar.</string>
+    <string name="ring_keeps_going">Din förälder vill att telefonen fortsätter ringa. Den slutar om %1$s.</string>
+
+    <string name="checkin_eyebrow">Från din förälder</string>
+    <string name="checkin_title">Är du okej?</string>
+    <string name="checkin_body">Svara före %1$s.</string>
+    <string name="checkin_body_location">Svara före %1$s. Om du inte svarar i tid får din förälder se var du är vid det tillfället.</string>
+    <string name="checkin_ok">Ja, jag är okej</string>
+    <string name="checkin_call">Ring mig</string>
+    <string name="checkin_notice">Svara före %1$s.</string>
+
+    <string name="location_sent_title">Platsen har skickats</string>
+    <string name="location_sent_find">Din förälder tryckte på Sök. Din plats skickades kl. %1$s.</string>
+    <string name="location_sent_checkin">Du svarade inte på ”Är du okej?”. Din plats skickades till din förälder kl. %1$s.</string>
+    <string name="location_always_title">Din plats delas med din förälder</string>
+    <string name="location_always_body">Var femte minut tills din förälder stänger av platsdelning.</string>
+    <string name="location_always_body_until">Var femte minut fram till %1$s. Därefter bara när din förälder trycker på Sök eller du inte svarar på ”Är du okej?”.</string>
+    <string name="location_always_badge_until">Din plats delas till %1$s</string>
+
+    <string name="sharing_open">Vad kan mina föräldrar se?</string>
+    <string name="sharing_title">Vad kan mina föräldrar se?</string>
+    <string name="sharing_mode_off">Din förälder kan inte se var du är. Platsdelning är avstängd.</string>
+    <string name="sharing_mode_find">När din förälder trycker på Sök får din förälder se var du var just då. Du får ett meddelande varje gång.</string>
+    <string name="sharing_mode_checkin">Din förälder får se var du var just då om hen trycker på Sök eller om du inte svarar på ”Är du okej?” i tid. Du får ett meddelande varje gång.</string>
+    <string name="sharing_mode_always">Din plats delas var femte minut fram till %1$s. Därefter bara när din förälder trycker på Sök eller du inte svarar på ”Är du okej?”.</string>
+    <string name="sharing_mode_always_open">Din plats delas var femte minut. Det här meddelandet visas hela tiden.</string>
+    <string name="sharing_only_latest">Din förälder kan bara se din senaste position. Det finns ingen platshistorik.</string>
+    <string name="sharing_latest">När din plats skickades</string>
+    <string name="sharing_none">Din plats har inte skickats under de senaste 30 dagarna.</string>
+    <string name="sharing_why_find">Din förälder tryckte på Sök</string>
+    <string name="sharing_why_checkin">Inget svar på \"Är du okej?\"</string>
+    <string name="sharing_why_always">Alltid på</string>
+    <string name="sharing_range">%1$s till %2$s</string>
+    <string name="sharing_log_note">Den här listan finns bara på den här telefonen och gäller de senaste 30 dagarna.</string>
+</resources>

@@ -305,7 +305,7 @@ function Arrow({ dir }: { dir: "up" | "down" }) {
 }
 
 /** A small, still picture of the front page. It follows the choices and does nothing itself. */
-function HomePreview({ home, rows, locale }: { home: Home; rows: string[]; locale: "en" | "da" }) {
+function HomePreview({ home, rows, locale }: { home: Home; rows: string[]; locale: import("../lib/api").Locale }) {
   const { t } = useI18n();
   const date = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   // Until apps are chosen, the phone shows Phone and Messages.

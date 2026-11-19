@@ -7,8 +7,9 @@ import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { AddPhonePage } from "./AddPhone";
 
-const phone = { id: "test-phone", name: "Test phone", mode: "light", pairedAt: null };
+const phone = { id: "test-phone", name: "Test phone", mode: "light", pairedAt: null, setupEnrollmentId: "enr-1" };
 const provisioning = {
+  mode: "light",
   serverUrl: "https://my-plainphone.example.org",
   adminComponent: "org.plainphone.app/.PlainphoneAdminReceiver",
   downloadUrl: "https://my-plainphone.example.org/download/android",
@@ -23,7 +24,7 @@ it("puts the first instruction before the code and restarts an expired code for 
     const first = url === "/api/phones/enroll";
     // The first code is already about to run out.
     const expiresAt = new Date(Date.now() + (first ? 300 : 3_600_000)).toISOString();
-    return Response.json({ phone, enrollment: { token: tokens[first ? 0 : 1], expiresAt }, provisioning }, { status: 201 });
+    return Response.json({ phone, enrollment: { id: "enr-1", token: tokens[first ? 0 : 1], expiresAt }, provisioning }, { status: 201 });
   });
   vi.stubGlobal("fetch", fetch);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -73,7 +74,7 @@ it("shows the paired screen when restarting an expired code hits 409 because the
   const fetch = vi.fn(async (url: string, request: RequestInit) => {
     if (request.method === "GET") return Response.json({ ...phone, pairedAt: paired ? "2026-01-01T00:00:00Z" : null });
     if (url === "/api/phones/enroll") {
-      return Response.json({ phone, enrollment: { token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
+      return Response.json({ phone, enrollment: { id: "enr-1", token: "pp_e_3q2-7wEvR1q8aZ0sLx9Ywg", expiresAt: new Date(Date.now() + 300).toISOString() }, provisioning }, { status: 201 });
     }
     paired = true;
     return Response.json({ error: "conflict" }, { status: 409 });

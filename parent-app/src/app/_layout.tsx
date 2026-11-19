@@ -20,6 +20,7 @@ function AppStack() {
         <Stack.Screen name="index" options={{ title: t("phones.title") }} />
         <Stack.Screen name="login" options={{ title: t("login.title"), headerShown: false }} />
         <Stack.Screen name="auth/app" options={{ title: t("callback.title"), headerShown: false }} />
+        <Stack.Screen name="strong-setup" options={{ title: t("phoneLanguage.strong") }} />
         <Stack.Screen name="pair" options={{ title: t("pair.title") }} />
         <Stack.Screen name="invite" options={{ title: t("nav.household") }} />
         <Stack.Screen name="household" options={{ title: t("nav.household") }} />

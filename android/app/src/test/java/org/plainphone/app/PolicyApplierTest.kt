@@ -18,6 +18,28 @@ class PolicyApplierTest {
     private val config = PolicyConfig(dnsHost = "dns.example.org", allowedPackages = setOf("com.android.chrome"))
 
     @Test
+    fun `language is locked for a strong child phone and cleared on release`() {
+        val localeRestriction = android.os.UserManager.DISALLOW_CONFIG_LOCALE
+        assertThat(LockPolicy.restrictions(29)).contains(localeRestriction)
+        applier.apply(config)
+        assertThat(device.restrictions).contains(localeRestriction)
+        applier.release()
+        assertThat(device.restrictions).doesNotContain(localeRestriction)
+    }
+
+    @Test
+    fun `turning off the locale lock clears it and light phones never add it`() {
+        val localeRestriction = android.os.UserManager.DISALLOW_CONFIG_LOCALE
+        applier.apply(config)
+        assertThat(device.restrictions).contains(localeRestriction)
+        applier.apply(config.copy(lockSystemLanguage = false))
+        assertThat(device.restrictions).doesNotContain(localeRestriction)
+        device.owner = false
+        applier.apply(config)
+        assertThat(device.restrictions).doesNotContain(localeRestriction)
+    }
+
+    @Test
     fun `deadline recovery can relock while the policy clear has not returned`() {
         val cleared = java.util.concurrent.CountDownLatch(1)
         val resume = java.util.concurrent.CountDownLatch(1)

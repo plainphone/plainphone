@@ -18,6 +18,7 @@ it("puts the custom origin returned by enrollment in the Light setup link and QR
     return Response.json({
       phone, enrollment,
       provisioning: {
+        mode: "light", profile: "child", timezone: "UTC",
         serverUrl: origin,
         adminComponent: "org.plainphone.app/.PlainphoneAdminReceiver",
         downloadUrl: origin + "/download/android",

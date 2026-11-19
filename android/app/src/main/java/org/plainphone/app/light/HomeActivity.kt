@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
@@ -26,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +68,13 @@ class HomeActivity : ComponentActivity() {
         setContent {
             org.plainphone.app.ui.PlainphoneTheme {
                 @Suppress("UNUSED_EXPRESSION") refresh
-                Today()
+                var showSos by rememberSaveable { mutableStateOf(false) }
+                BackHandler(enabled = showSos) { showSos = false }
+                if (showSos) {
+                    org.plainphone.app.sos.SosScreen(onBack = { showSos = false }) {
+                        org.plainphone.app.sos.openEmergencyDialer(this@HomeActivity)
+                    }
+                } else Today { showSos = true }
             }
         }
     }
@@ -88,7 +97,7 @@ class HomeActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Today() {
+    private fun Today(openSos: () -> Unit) {
         val context = LocalContext.current
         if (Mode.isLight(context) && LightRelease.needsPrivateDnsReset(context)) {
             CalmScreen(
@@ -147,6 +156,9 @@ class HomeActivity : ComponentActivity() {
             },
         ) {
             SelfApprovalAction()
+            if (light && LightSetup.isComplete(context)) {
+                FilledTonalButton(onClick = openSos) { Text(stringResource(R.string.sos_title)) }
+            }
             if (light) UndoSetupAction(this@HomeActivity, refresh)
             androidx.compose.material3.TextButton(onClick = {
                 startActivity(Intent(context, org.plainphone.app.contacts.HelpActivity::class.java))
