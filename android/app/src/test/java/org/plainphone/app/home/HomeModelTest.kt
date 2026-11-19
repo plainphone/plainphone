@@ -104,7 +104,7 @@ class HomeModelTest {
         val bedtime = Schedule("b", "bedtime", (1..7).toSet(), LocalTime.of(21, 0), LocalTime.of(7, 0), emptySet())
         val night = Instant.parse("2027-01-04T21:30:00Z")
         assertThat(HomeModel.build(apps, rules(schedules = listOf(bedtime)), night).notice)
-            .isEqualTo(WindowNotice(WindowNotice.Kind.BEDTIME, LocalTime.of(7, 0)))
+            .isEqualTo(WindowNotice(WindowNotice.Kind.BEDTIME, LocalTime.of(7, 0), silent = true))
     }
 
     @Test
