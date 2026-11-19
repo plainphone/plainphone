@@ -106,6 +106,8 @@ describe("weekly summary settings", () => {
 
 describe("push route", () => {
   it("opens the summary from a summary notification", () => {
+    const id = "0b9f3b2e-6a52-4c1e-8f43-1f2d3c4b5a69";
+    expect(routeForPush({ type: "summary", url: `/summary?week=${id}` })).toEqual({ pathname: "/summary", params: { week: id } });
     expect(routeForPush({ type: "summary", url: "/summary?week=abc" })).toBe("/summary");
     expect(routeForPush({ url: "/summary?week=abc" })).toBe("/summary");
     expect(routeForPush({ url: "/summary" })).toBe("/summary");

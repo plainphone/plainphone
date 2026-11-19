@@ -41,7 +41,8 @@ export async function recordUsage(
     });
 }
 
-/** Notes news for the summary. Never throws: the news itself must still go out. */
+/** Notes news for the summary. Never throws: the news itself must still go out. The insert runs in a
+ * savepoint, so a failed insert cannot abort a surrounding transaction. */
 export async function recordSummaryEvent(
   db: Db,
   phoneId: string,
@@ -50,7 +51,7 @@ export async function recordSummaryEvent(
   detail?: string,
 ): Promise<void> {
   try {
-    await db.insert(summaryEvents).values({ phoneId, kind, at, detail: detail ?? null });
+    await db.transaction((sp) => sp.insert(summaryEvents).values({ phoneId, kind, at, detail: detail ?? null }));
   } catch (err) {
     console.error(`summary event not recorded: ${(err as Error).message}`);
   }

@@ -34,7 +34,10 @@ if (Platform.OS !== "web") {
 export function routeForPush(data: unknown): Href {
   const d = (data ?? {}) as { type?: unknown; phoneId?: unknown; url?: unknown };
   if (d.url === "/settings" || d.url === "/approvals") return d.url;
-  if (d.type === "summary" || (typeof d.url === "string" && /^\/summary(\?|$)/.test(d.url))) return "/summary";
+  if (d.type === "summary" || (typeof d.url === "string" && /^\/summary(\?|$)/.test(d.url))) {
+    const week = typeof d.url === "string" ? /^\/summary\?week=([0-9a-f-]{36})$/i.exec(d.url)?.[1] : undefined;
+    return week ? { pathname: "/summary", params: { week } } : "/summary";
+  }
   const path = typeof d.url === "string" ? /^\/phones\/([0-9a-f-]{36})(\/location)?$/i.exec(d.url) : null;
   if (path) return path[2]
     ? { pathname: "/phones/[pid]/location", params: { pid: path[1]! } }

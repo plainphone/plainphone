@@ -4,8 +4,9 @@
 // (docs/weekly-summary.md). The default is "act now": only what is plainly informational
 // may wait, and an alert that is missing is worse than one that is early.
 
-import { eq } from "drizzle-orm";
-import { households } from "../db/schema.js";
+import { and, eq } from "drizzle-orm";
+import { householdMembers, households, phones, pushSubscriptions } from "../db/schema.js";
+import { deliverablePushSubscription } from "./push-subscriptions.js";
 import type { Ctx } from "./context.js";
 import type { NotifyEvent } from "./notifications.js";
 
@@ -35,8 +36,8 @@ export function alertClass(e: NotifyEvent): AlertClass {
 
 /**
  * True when the event goes into the summary instead of a push or mail: the household has the
- * summary on (with a way to deliver it) and "only alert me when I must act" on. SOS is never
- * batched, whatever its class.
+ * summary on (with a way to deliver it), the phone itself is in the summary, and "only alert me
+ * when I must act" is on. SOS is never batched, whatever its class.
  */
 export async function batchedIntoSummary(ctx: Ctx, householdId: string, e: NotifyEvent): Promise<boolean> {
   if (e.type === "sos" || alertClass(e) !== "can-wait") return false;
@@ -44,6 +45,20 @@ export async function batchedIntoSummary(ctx: Ctx, householdId: string, e: Notif
     .select({ on: households.summaryEnabled, actNowOnly: households.actNowOnly, mail: households.summaryByMail, push: households.summaryByPush })
     .from(households)
     .where(eq(households.id, householdId));
+  if (!h || !h.on || !h.actNowOnly) return false;
+  // A phone left out of the summary would lose the news altogether.
+  if ("phoneId" in e) {
+    const [p] = await ctx.db.select({ on: phones.weeklySummaryEnabled }).from(phones).where(eq(phones.id, e.phoneId));
+    if (!p?.on) return false;
+  }
   // With no way to deliver the summary, holding news back would hide it.
-  return !!h && h.on && h.actNowOnly && (h.mail || h.push);
+  if (h.mail && ctx.mail.canSend) return true;
+  if (!h.push) return false;
+  const [sub] = await ctx.db
+    .select({ id: pushSubscriptions.id })
+    .from(pushSubscriptions)
+    .innerJoin(householdMembers, eq(householdMembers.userId, pushSubscriptions.userId))
+    .where(and(eq(householdMembers.householdId, householdId), deliverablePushSubscription()))
+    .limit(1);
+  return !!sub;
 }

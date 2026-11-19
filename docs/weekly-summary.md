@@ -6,7 +6,8 @@ the things a parent must act on.
 
 ## What a summary holds
 
-For each phone, for the seven days that end when the summary is due:
+For each phone, for the seven days that end when the summary is due (screen time counts the seven
+full days before the due day, because the due day itself is only partly over):
 
 | Line | Where it comes from |
 |---|---|
@@ -78,7 +79,7 @@ Per household (dashboard Settings, parent app Settings), all synced through the 
 
 Per phone (phone overview, "What to show for this phone"): **Weekly summary**, on by default.
 Off means the server keeps no daily use for the phone and leaves it out of the summary. The
-setting is in `GET /device/rules` as `weeklySummaryEnabled`, but the phone does not act on it:
+setting is in `GET /device/rules` as `weeklySummaryEnabled`, but the phone does not act on it, so changing it does not advance the rules revision or wake the phone:
 the phone still reports `timeUsed` for the parent's live "used today" view.
 
 ## API

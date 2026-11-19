@@ -35,6 +35,8 @@ Sign-in links, sessions and device tokens are stored only as SHA-256 hashes.
 | Push subscriptions (endpoint at the browser's push service, `p256dh` and `auth` keys, a label such as "Chrome · Android"; or an APNs/FCM token) | until the parent turns them off, removes the device or signs out on it, the push service answers 404/410, 20 sends in a row fail, or the account is deleted | `push_subscriptions`, `DELETE /api/notifications/subscriptions/{sid}` |
 | Per parent and phone: notifications muted (one row when off) | until switched back on, the phone is removed or the account is deleted | `notification_mutes` |
 | Per phone (shared by its parents): hours of silence before an alert, and when the last offline alert went out | until the phone is removed | `phones.offline_alert_hours`, `phones.offline_alerted_at` |
+| Weekly summary input: minutes of use per app and day, and counts of protection, offline, check-in and rule-change events (no free text). Only for phones whose "Weekly summary" switch is on | 21 days, or until the phone is removed | `phone_usage_days`, `summary_events`, sweeper |
+| Weekly summaries (per household and week: phone names, app labels and the counts above) | 8 weeks, or until the household is deleted. A removed phone's name and numbers stay in the summaries already built, until they expire | `household_summaries`, sweeper |
 | Household invitations | deleted when accepted; otherwise 1 day after they expire (7 days) | sweeper, `INVITE_GRACE_DAYS` |
 | Login links | 1 day after they expire | sweeper |
 | Sessions | until they expire (60 days) or the user logs out | sweeper |

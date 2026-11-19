@@ -302,9 +302,9 @@ export async function notifyUsers(
 
 /** Sends an event about a phone to the parents of its household who have not muted it. */
 export async function notifyHousehold(ctx: Ctx, phoneId: string, e: NotifyEvent, opts: { urgent?: boolean } = {}): Promise<number> {
-  const [phone] = await ctx.db.select({ householdId: phones.householdId }).from(phones).where(eq(phones.id, phoneId));
+  const [phone] = await ctx.db.select({ householdId: phones.householdId, summaryOn: phones.weeklySummaryEnabled }).from(phones).where(eq(phones.id, phoneId));
   if (!phone) return 0;
-  await noteForSummary(ctx, phoneId, e);
+  if (phone.summaryOn) await noteForSummary(ctx, phoneId, e);
   // "Can wait" news is in the summary instead (docs/weekly-summary.md); everything else goes now.
   if (await batchedIntoSummary(ctx, phone.householdId, e)) return 0;
   return notifyAlertRecipients(ctx, await phoneAlertRecipients(ctx.db, phoneId, phone.householdId), e, opts);

@@ -72,13 +72,15 @@ export async function buildSummary(
   const ids = included.map((p) => p.id);
   if (ids.length === 0) return { version: 1, phones: [] };
   const [y, m, d] = period.lastDate.split("-").map(Number) as [number, number, number];
-  const firstDay = dateKey(addDays({ year: y, month: m, day: d }, -6));
+  // The seven full days before the due day: the due day itself is only partly over.
+  const firstDay = dateKey(addDays({ year: y, month: m, day: d }, -7));
+  const lastDay = dateKey(addDays({ year: y, month: m, day: d }, -1));
   const inPeriod = (col: Parameters<typeof gte>[0]) => and(gte(col, period.start), lt(col, period.end));
 
   const usage = await db
     .select()
     .from(phoneUsageDays)
-    .where(and(inArray(phoneUsageDays.phoneId, ids), gte(phoneUsageDays.day, firstDay), sql`${phoneUsageDays.day} <= ${period.lastDate}`));
+    .where(and(inArray(phoneUsageDays.phoneId, ids), gte(phoneUsageDays.day, firstDay), sql`${phoneUsageDays.day} <= ${lastDay}`));
   const labels = await db
     .select({ phoneId: phoneApps.phoneId, packageName: phoneApps.packageName, label: phoneApps.label })
     .from(phoneApps)
@@ -184,13 +186,18 @@ export async function sweepSummaries(ctx: Ctx): Promise<{ built: number; deliver
     const [latest] = await ctx.db.select({ periodEnd: householdSummaries.periodEnd }).from(householdSummaries)
       .where(eq(householdSummaries.householdId, h.id)).orderBy(desc(householdSummaries.periodEnd)).limit(1);
     if (latest && occ.at.getTime() - latest.periodEnd.getTime() < MIN_GAP_MS) continue;
-    const data = await buildSummary(ctx.db, h.id, { start: occ.previous, end: occ.at, lastDate: occ.date });
-    const inserted = await ctx.db
-      .insert(householdSummaries)
-      .values({ householdId: h.id, weekEnd: occ.date, periodStart: occ.previous, periodEnd: occ.at, data })
-      .onConflictDoNothing()
-      .returning({ id: householdSummaries.id });
-    if (inserted.length > 0) built += 1;
+    try {
+      const data = await buildSummary(ctx.db, h.id, { start: occ.previous, end: occ.at, lastDate: occ.date });
+      const inserted = await ctx.db
+        .insert(householdSummaries)
+        .values({ householdId: h.id, weekEnd: occ.date, periodStart: occ.previous, periodEnd: occ.at, data })
+        .onConflictDoNothing()
+        .returning({ id: householdSummaries.id });
+      if (inserted.length > 0) built += 1;
+    } catch (err) {
+      // One household must not stop the others or the sweeps after this one; the next pass retries.
+      console.error(`weekly summary not built: ${(err as Error).message}`);
+    }
   }
   const delivered = await deliverSummaries(ctx);
   await pruneSummaries(ctx);

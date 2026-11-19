@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { householdMembers, householdSummaries, households, moreTimeRequests, phoneRequests, phones, phoneUsageDays } from "../src/db/schema.js";
 import { weeklySummaryMail } from "../src/lib/summary-mail.js";
 import { toSummaryLocale } from "../src/lib/summary-text.js";
@@ -192,6 +192,43 @@ describe("alert policy", () => {
     expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
     await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: true, byMail: false, byPush: false });
     expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+  });
+
+  it("does not hold back news for a phone that is left out of the summary", async () => {
+    const { phoneId, householdId } = await setup();
+    const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
+    await h.ctx.db.update(phones).set({ weeklySummaryEnabled: false }).where(eq(phones.id, phoneId));
+    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+  });
+
+  it("does not hold back news when mail cannot be sent and push is off", async () => {
+    const { mum, phoneId, householdId } = await setup();
+    const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+    const mailOff = vi.spyOn(h.mail, "canSend", "get").mockReturnValue(false as never);
+    try {
+      // Mail is on (the default) but the server cannot send it; push is on and mum has a subscription.
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
+      await mum.patch(`/api/households/${householdId}/summary-settings`, { byPush: false });
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+    } finally {
+      mailOff.mockRestore();
+    }
+  });
+
+  it("leaves the partly over due day out of the usage", async () => {
+    const { device, householdId } = await setup();
+    for (const d of ["16", "17", "18", "19", "20", "21"]) {
+      at(`2026-11-${d}T12:00:00Z`);
+      await device.put("/api/device/status", status({ timeUsed: { "*": 120 } }));
+    }
+    at("2026-11-22T07:00:00Z");
+    await device.put("/api/device/status", status({ timeUsed: { "*": 5 } }));
+    at(SUNDAY_1800_CET);
+    await sweepSummaries(h.ctx);
+    const usage = ((await summariesOf(householdId))[0]!.data as SummaryData).phones[0]!.usage!;
+    expect(usage.days).toHaveLength(6);
+    expect(usage.averageMinutes).toBe(120);
   });
 
   it("never batches SOS, requests or the answers to a ring", async () => {

@@ -706,7 +706,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
-      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined || weeklySummaryEnabled !== undefined ? nextRulesRevision() : {}),
+      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined ? nextRulesRevision() : {}),
       ...(weeklySummaryEnabled !== undefined ? { weeklySummaryEnabled } : {}),
       ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
@@ -749,7 +749,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
     }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
-    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined || weeklySummaryEnabled !== undefined) {
+    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined) {
       await wakePhone(ctx, phone.id, "rules");
     }
     return c.json(await phoneSummary(ctx, updated!));
