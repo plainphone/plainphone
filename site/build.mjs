@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Builds the static plainphone.org site into dist/. No dependencies, no client JS.
+// Builds the static plainphone.org site into dist/. No dependencies.
 import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -9,6 +9,7 @@ import da from "./content/da.mjs";
 import sv from "./content/sv.mjs";
 import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
+import { compatibilityContent } from "./compatibility.mjs";
 import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,8 @@ const css = readFileSync(join(src, "style.css"), "utf8")
   .replace(/\s*([{}:;,>])\s*/g, "$1")
   .replace(/;}/g, "}");
 const cssHash = createHash("sha256").update(css).digest("base64");
+const appSearchFile = "app-search.mjs";
+const appSearchHash = createHash("sha256").update(readFileSync(join(src, appSearchFile))).digest("base64");
 const wordmark = readFileSync(join(src, "wordmark.svg"), "utf8")
   .trim()
   .replace("<svg ", '<svg class="wordmark" ')
@@ -145,6 +148,7 @@ function footer(t, route = (p) => p.path) {
 <div class="foot-links">
 <section><h2>${l.help}</h2><ul>
 <li><a href="${t.setup.path}">${l.guide}</a></li>
+<li><a href="${t.compatibility.path}">${t.compatibility.title}</a></li>
 <li><a href="${t.path}#faq">${l.faq}</a></li>
 <li><a href="${t.why.path}">${t.why.h1}</a></li>
 <li><a href="${t.privacy.path}">${t.privacy.h1}</a></li>
@@ -179,10 +183,10 @@ function landingSchema(t, items) {
       inLanguage: t.lang,
     },
     {
-      "@type": "SoftwareApplication",
-      name: "Plainphone Parent",
+      "@type": "WebApplication",
+      name: "Plainphone Parent Dashboard",
       url: "https://app.plainphone.org/",
-      operatingSystem: "Web, iOS, Android",
+      browserRequirements: "Requires a web browser",
       applicationCategory: "UtilitiesApplication",
     },
     {
@@ -203,16 +207,18 @@ function page(t) {
   const [dayTitle, ...daySteps] = l.day;
   const [childTitle, childBody] = l.child;
   const [imageAlt, imageCaption] = l.visual;
-  const extra = l.questions.map(([q, a]) => ({ q, a }));
-  const [iphone, bypass, chat, ...otherQuestions] = t.faq.items;
-  const faqGroups = [
-    [extra[0], iphone, extra[1], extra[2]],
-    [bypass, extra[3], extra[4], extra[5], chat],
-    [extra[6], extra[7], extra[8]],
-    t.price.items,
-    [...extra.slice(9, 11), ...otherQuestions],
-    extra.slice(11),
+  const faqItems = [
+    ...t.faq.items,
+    ...l.questions.map(([group, q, a]) => ({ group, q, a })),
+    ...t.price.items.map((item) => ({ ...item, group: "price" })),
   ];
+  const faqGroups = Object.entries(l.groups).map(([group, title]) => ({
+    title,
+    items: faqItems.filter((item) => item.group === group),
+  }));
+  if (faqGroups.flatMap(({ items }) => items).length !== faqItems.length) {
+    throw new Error(`${t.lang}: FAQ question is missing a valid group`);
+  }
   const section = (id, title, body, cls = "") =>
     `<section class="block ${cls}" aria-labelledby="${id}"><h2 id="${id}">${title}</h2>${body}</section>`;
 
@@ -291,11 +297,11 @@ function page(t) {
   const privacySummary = section("privacy", privacy.title,
     `<p>${privacy.body}</p><p><a href="${t.privacy.path}">${privacy.link}</a></p>`);
 
-  const faq = section("faq", t.faq.title, faqGroups.map((items, i) =>
-    `<div class="faq-group"><h3>${esc(l.groups[i])}</h3><div>${questions(items)}</div></div>`,
+  const faq = section("faq", t.faq.title, faqGroups.map(({ title, items }) =>
+    `<div class="faq-group"><h3>${esc(title)}</h3><div>${questions(items)}</div></div>`,
   ).join(""));
 
-  return `${head(t, { path: t.path, schema: landingSchema(t, faqGroups.flat()) })}
+  return `${head(t, { path: t.path, schema: landingSchema(t, faqGroups.flatMap(({ items }) => items)) })}
 <body>
 ${header(t)}
 <main id="main" tabindex="-1">
@@ -312,6 +318,28 @@ ${price}
 ${faq}
 </main>
 ${footer(t)}
+</body>
+</html>
+`;
+}
+
+function compatibilityPage(t) {
+  const p = t.compatibility;
+  return `${head(t, {
+    path: p.path,
+    title: p.title,
+    description: p.lead,
+    ogTitle: p.title,
+    alternates: pages.map((page) => ({ lang: page.lang, path: page.compatibility.path })),
+    xDefault: en.compatibility.path,
+  })}
+<body>
+${header(t)}
+<main id="main" tabindex="-1" class="doc compatibility">
+${compatibilityContent(t, esc)}
+</main>
+${footer(t, (page) => page.compatibility.path)}
+<script type="module" src="/${appSearchFile}" integrity="sha256-${appSearchHash}"></script>
 </body>
 </html>
 `;
@@ -460,6 +488,8 @@ rmSync(dist, { recursive: true, force: true });
 for (const t of pages) {
   mkdirSync(join(dist, t.path), { recursive: true });
   writeFileSync(join(dist, t.path, "index.html"), page(t));
+  mkdirSync(join(dist, t.compatibility.path), { recursive: true });
+  writeFileSync(join(dist, t.compatibility.path, "index.html"), compatibilityPage(t));
   mkdirSync(join(dist, t.why.path), { recursive: true });
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
@@ -471,7 +501,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
-for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`), ...setupImages]) {
+for (const f of [appSearchFile, "favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`), ...setupImages]) {
   cpSync(join(src, f), join(dist, f));
 }
 writeFileSync(join(dist, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
@@ -479,7 +509,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => p.compatibility.path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -502,11 +532,11 @@ Canonical: ${ORIGIN}/.well-known/security.txt
 Policy: ${SECURITY_POLICY}
 `,
 );
-// Cloudflare Pages headers. The CSP allows only our own files plus the one inline stylesheet.
+// Cloudflare Pages headers. The CSP pins the shared inline stylesheet and compatibility search module.
 writeFileSync(
   join(dist, "_headers"),
   `/*
-  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; script-src 'none'; style-src-attr 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; style-src 'sha256-${cssHash}'; img-src 'self'; font-src 'self'; connect-src 'self'; script-src 'sha256-${appSearchHash}'; style-src-attr 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), browsing-topics=()
@@ -525,4 +555,4 @@ writeFileSync(
   Cross-Origin-Resource-Policy: cross-origin
 `,
 );
-console.log(`Built ${pages.length * 4} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 5} pages + 404 into dist/ (css ${css.length} bytes)`);

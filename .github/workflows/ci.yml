@@ -461,7 +461,7 @@ jobs:
 
       - name: Check pages, internal links and anchors
         if: needs.changes.outputs.site == 'true'
-        run: node scripts/check.mjs
+        run: npm run check
 
       - name: Check external links
         if: needs.changes.outputs.site == 'true'

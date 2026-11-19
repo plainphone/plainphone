@@ -31,7 +31,7 @@ The JavaScript parts are a pnpm workspace (Node 24 or newer, pnpm as pinned in `
 | `web/` | | `pnpm --filter @plainphone/web typecheck` and `test` |
 | `parent-app/` | See [docs/parent-app.md](docs/parent-app.md) | `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm check:api` and `pnpm check:shared` in `parent-app/` |
 | `dns/` | Python 3, Docker for the full stack | `python3 -m unittest discover -s dns/tests -p 'test_ppdns.py'` and `dns/tests/run-stack.sh` |
-| `site/` | Node only, no dependencies | `node build.mjs` and `node scripts/check.mjs` in `site/` |
+| `site/` | Node only, no dependencies | `node build.mjs` and `npm run check` in `site/` |
 | `scripts/` | Python 3 | `python3 -m unittest scripts/test_provisioning_qr.py` |
 
 CI selects which checks to run based on the files changed in each pull request. Checks for unaffected areas report success after skipping their build and test steps. See [CI and builds](docs/ci-build.md) for the workflow details.

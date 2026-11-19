@@ -13,7 +13,9 @@ const errors = [];
 const externalLinks = new Set();
 const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 const locales = Object.keys(ogLocales);
-const pagePaths = ["", "setup/", "privacy/", "why/"].map((page) =>
+const lookupRoute = "apps/";
+const routes = ["", "setup/", "privacy/", "why/", lookupRoute];
+const pagePaths = routes.map((page) =>
   Object.fromEntries(locales.map((lang) => [
     lang,
     `/${lang === "en" ? "" : `${lang}/`}${lang === "da" && page === "why/" ? "hvorfor/" : page}`,
@@ -26,7 +28,7 @@ const files = (dir) =>
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
-if (html.length !== locales.length * 4 + 1) errors.push("Expected four pages per locale and one 404 page");
+if (html.length !== locales.length * pagePaths.length + 1) errors.push("Expected every localized page and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
 const csp = headers.match(/^  Content-Security-Policy: (.+)$/m)?.[1] ?? "";
 const directives = new Map();
@@ -36,8 +38,15 @@ for (const line of csp.split(";").filter((line) => line.trim())) {
   directives.set(name, values);
 }
 const cspHashes = new Set((directives.get("style-src") ?? []).map((value) => value.match(/^'sha256-([A-Za-z0-9+/]+=)'$/)?.[1]));
+const searchPath = "/app-search.mjs";
+const searchFile = join(dist, searchPath);
+const searchHash = existsSync(searchFile) ? createHash("sha256").update(readFileSync(searchFile)).digest("base64") : null;
+if (!searchHash || directives.get("script-src")?.join(" ") !== `'sha256-${searchHash}'`) {
+  errors.push("_headers: script-src must pin only the published search module");
+}
+const lookupPaths = Object.values(pagePaths[routes.indexOf(lookupRoute)]);
 const seenHashes = new Set();
-for (const directive of ["default-src", "script-src", "style-src-attr", "frame-ancestors", "base-uri", "form-action"]) {
+for (const directive of ["default-src", "style-src-attr", "frame-ancestors", "base-uri", "form-action"]) {
   if (directives.get(directive)?.join(" ") !== "'none'") errors.push(`_headers: expected ${directive} 'none'`);
 }
 for (const directive of ["img-src", "font-src", "connect-src"]) {
@@ -79,17 +88,29 @@ for (const file of html) {
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
   const scripts = [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  const isLookup = lookupPaths.some((path) => target(path) === file);
+  const searchAttrs = ` type="module" src="${searchPath}" integrity="sha256-${searchHash}"`;
+  let searchCount = 0;
   for (const [, attrs, value] of scripts) {
+    if (searchHash && attrs === searchAttrs && value === "") {
+      searchCount++;
+      continue;
+    }
     try {
       if (attrs !== ' type="application/ld+json"') throw new Error();
       JSON.parse(value);
     } catch {
-      errors.push(`${name}: only valid inline JSON-LD is allowed in script elements`);
+      errors.push(`${name}: unexpected script or invalid JSON-LD`);
     }
   }
   if ((src.match(/<script\b/gi) ?? []).length !== scripts.length) errors.push(`${name}: malformed script`);
+  if (searchCount !== Number(isLookup)) errors.push(`${name}: expected search module only on lookup pages`);
   // Hash the exact published styles, and check CSS requests even if CSP would block them.
-  for (const [, css] of src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+  const styles = [...src.matchAll(/<style>([\s\S]*?)<\/style>/gi)];
+  if (styles.length !== 1 || (src.match(/<style\b/gi) ?? []).length !== 1 || !styles[0][1].trim()) {
+    errors.push(`${name}: expected one non-empty inline stylesheet`);
+  }
+  for (const [, css] of styles) {
     const h = createHash("sha256").update(css).digest("base64");
     seenHashes.add(h);
     if (!cspHashes.has(h)) errors.push(`${name}: inline <style> hash ${h} is not in the _headers CSP`);
