@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 32 px and up: the sun fills the tile so it survives small sizes. -->
+  <rect width="64" height="64" rx="14" fill="#1b2240"/>
+  <path d="M14 38a18 18 0 0 1 36 0z" fill="#f2b23a"/>
+  <rect x="14" y="42" width="36" height="5" rx="2.5" fill="#f2b23a"/>
+  <rect x="22" y="50" width="20" height="5" rx="2.5" fill="#f2b23a"/>
+</svg>

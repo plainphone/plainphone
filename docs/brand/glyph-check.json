@@ -1,0 +1,29 @@
+{
+  "required": "æøåÆØÅäöüÄÖÜßéèêÉ0123456789–—’“”„«»·€:",
+  "fonts": {
+    "a": {
+      "AtkinsonHyperlegibleNext[wght].ttf": {
+        "missing": []
+      },
+      "AtkinsonHyperlegibleMono[wght].ttf": {
+        "missing": []
+      }
+    },
+    "b": {
+      "BricolageGrotesque[opsz,wdth,wght].ttf": {
+        "missing": []
+      },
+      "Figtree[wght].ttf": {
+        "missing": []
+      }
+    },
+    "c": {
+      "SchibstedGrotesk[wght].ttf": {
+        "missing": []
+      },
+      "IBMPlexMono-Medium.ttf": {
+        "missing": []
+      }
+    }
+  }
+}

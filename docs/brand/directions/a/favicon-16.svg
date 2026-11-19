@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- 16 px: whole-pixel strokes, the line shrinks to a 2 px dash. -->
+  <rect width="16" height="16" rx="3.5" fill="#24604a"/>
+  <path fill="#ffffff" fill-rule="evenodd" shape-rendering="crispEdges" d="M4 2h8v12h-8zM6 4v8h4v-8z"/>
+  <rect x="7" y="7" width="2" height="2" fill="#ffffff" shape-rendering="crispEdges"/>
+</svg>

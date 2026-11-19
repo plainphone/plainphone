@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Status bar icon: white on transparent, Android only reads the alpha. -->
+  <rect x="6.5" y="2.5" width="11" height="19" rx="3" fill="none" stroke="#ffffff" stroke-width="2"/>
+  <rect x="9" y="11" width="6" height="2" rx="1" fill="#ffffff"/>
+</svg>
