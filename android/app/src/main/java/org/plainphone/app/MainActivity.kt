@@ -26,6 +26,7 @@ import org.plainphone.app.light.LightSetupActivity
 import org.plainphone.app.provisioning.BootloaderWarning
 import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.ui.PairingActivity
+import org.plainphone.app.update.UpdateBatteryExemption
 
 /**
  * Status screen. Tapping the version line [TAPS_TO_MAINTENANCE] times opens the
@@ -41,6 +42,9 @@ class MainActivity : Activity() {
     /** Roles asked for during this visit to the screen (phone app, and on Android 10 to 13 call screening and redirection). */
     private val askedRoles = mutableSetOf<String>()
     private var roleDialogOpen = false
+    private var askedBattery = false
+    private var batterySettingsOpen = false
+    private var batteryPrompt: AlertDialog? = null
     private var started = false
     private val localBootWarning by lazy { BootloaderWarning.reportsUnlocked() }
 
@@ -51,6 +55,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        batterySettingsOpen = savedInstanceState?.getBoolean("batterySettingsOpen") == true
+        askedBattery = batterySettingsOpen
         // Light mode (installed as an ordinary app): setup first, then the "Today" screen.
         if (!isDeviceOwner()) {
             val destination = if (LightSetup.isComplete(this)) HomeActivity.intent(this) else
@@ -145,7 +151,7 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     refresh()
                     // Android 10 to 13: the phone app (and the call screening and redirection roles) can only be set with the system dialog.
-                    if (askForRole()) return@runOnUiThread
+                    if (askForRole() || askForBatteryExemption()) return@runOnUiThread
                     if (setupForeground) {
                         readyForFavourites = true
                         enrollmentNotice.start()
@@ -186,6 +192,34 @@ class MainActivity : Activity() {
         return roleDialogOpen
     }
 
+    private fun askForBatteryExemption(): Boolean {
+        if (!setupForeground || !started) return false
+        if (batterySettingsOpen || batteryPrompt?.isShowing == true) return true
+        if (askedBattery) return false
+        val request = UpdateBatteryExemption.setupRequest(this) ?: return false
+        askedBattery = true
+        batteryPrompt = AlertDialog.Builder(this)
+            .setTitle(R.string.update_battery_required)
+            .setMessage(R.string.update_battery_reason)
+            .setPositiveButton(R.string.update_battery_continue) { _, _ ->
+                batterySettingsOpen = runCatching {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(request, REQUEST_BATTERY)
+                }.onFailure { Log.w("Plainphone", "could not open battery exemption settings", it) }.isSuccess
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setOnDismissListener {
+                if (setupForeground && !batterySettingsOpen) applyOnOpen()
+            }
+            .show()
+        return true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("batterySettingsOpen", batterySettingsOpen)
+    }
+
     override fun onPause() {
         setupForeground = false
         readyForFavourites = false
@@ -198,7 +232,11 @@ class MainActivity : Activity() {
         started = false
         // Ask again the next time Plainphone is opened (the activity is singleTask and survives Home),
         // but not when it is our own dialog that covers the screen.
-        if (!roleDialogOpen) askedRoles.clear()
+        if (!roleDialogOpen && !batterySettingsOpen) askedRoles.clear()
+        if (!batterySettingsOpen) {
+            batteryPrompt?.dismiss()
+            askedBattery = false
+        }
     }
 
     @Deprecated("Plain Activity result callback.")
@@ -206,6 +244,7 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         // onResume follows and re-applies the lock: with the role held the maker's phone apps get hidden.
+        if (requestCode == REQUEST_BATTERY) batterySettingsOpen = false
         if (requestCode == REQUEST_ROLE) roleDialogOpen = false
         if (requestCode == REQUEST_ROLE) Log.i("Plainphone", "role dialog: ${if (resultCode == RESULT_OK) "accepted" else "declined"}")
     }
@@ -269,6 +308,7 @@ class MainActivity : Activity() {
     companion object {
         const val TAPS_TO_MAINTENANCE = 7
         private const val REQUEST_ROLE = 1
+        private const val REQUEST_BATTERY = 2
     }
 }
 

@@ -3,6 +3,7 @@
 package org.plainphone.app.provisioning
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.role.RoleManager
 import android.content.Intent
 import android.os.Build
@@ -11,6 +12,8 @@ import org.plainphone.app.AndroidHardeningControls
 import org.plainphone.app.Hardening
 import org.plainphone.app.Lock
 import org.plainphone.app.PlainphoneAdminReceiver
+import org.plainphone.app.R
+import org.plainphone.app.update.UpdateBatteryExemption
 
 /**
  * Android 12+ provisioning hands over to the DPC before setup finishes.
@@ -18,17 +21,19 @@ import org.plainphone.app.PlainphoneAdminReceiver
  * reaches the home screen, then return RESULT_OK.
  */
 class PolicyComplianceActivity : Activity() {
+    private var batterySettingsOpen = false
     private val askedRoles = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PlainphoneAdminReceiver.saveConfigFrom(this, intent)
-        applyForProvisioning()
+        batterySettingsOpen = savedInstanceState?.getBoolean("batterySettingsOpen") == true
+        if (!batterySettingsOpen) applyForProvisioning()
     }
 
     private fun applyForProvisioning() {
         Lock.applyAsync(this, "provisioning (policy compliance)") {
-            runOnUiThread { if (!askForCallRole()) done() }
+            runOnUiThread { if (!isDestroyed && !isFinishing && !askForCallRole()) finishSetup() }
         }
     }
 
@@ -55,9 +60,37 @@ class PolicyComplianceActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_ROLE) return
-        if (askForCallRole()) return
-        Lock.applyAsync(this, "call role dialogs") { runOnUiThread { done() } }
+        when (requestCode) {
+            REQUEST_ROLE -> if (!askForCallRole()) {
+                Lock.applyAsync(this, "call role dialogs") { runOnUiThread { finishSetup() } }
+            }
+            REQUEST_BATTERY -> {
+                batterySettingsOpen = false
+                Lock.applyAsync(this, "battery exemption dialog") { runOnUiThread { done() } }
+            }
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("batterySettingsOpen", batterySettingsOpen)
+    }
+
+    private fun finishSetup() {
+        if (isDestroyed || isFinishing) return
+        val request = UpdateBatteryExemption.setupRequest(this) ?: return done()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.update_battery_required)
+            .setMessage(R.string.update_battery_reason)
+            .setPositiveButton(R.string.update_battery_continue) { _, _ ->
+                batterySettingsOpen = runCatching {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(request, REQUEST_BATTERY)
+                }.isSuccess
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setOnDismissListener { if (!batterySettingsOpen) done() }
+            .show()
     }
 
     private fun done() {
@@ -67,5 +100,6 @@ class PolicyComplianceActivity : Activity() {
 
     private companion object {
         const val REQUEST_ROLE = 1
+        const val REQUEST_BATTERY = 2
     }
 }

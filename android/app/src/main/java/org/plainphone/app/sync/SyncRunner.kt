@@ -8,6 +8,7 @@ import java.security.MessageDigest
 import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.contacts.DeviceContacts
+import org.plainphone.app.update.UpdateBatteryExemption
 
 internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
 
@@ -88,9 +89,11 @@ data class LockState(
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
-     * is a lock step, so a missing one is a failed policy.
+     * is a lock step, so a missing one is a failed policy. The strong-mode battery exemption
+     * gates self-update and can be reported while the lock is intact.
      */
-    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && failedPolicies.isEmpty() && appliedAtMs != null
+    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && appliedAtMs != null &&
+        failedPolicies.none { it != UpdateBatteryExemption.FAILED_POLICY }
 }
 
 /**

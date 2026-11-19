@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -92,6 +92,35 @@ describe("overview", () => {
     expect(screen.queryByTestId("section-key")).toBeNull();
     // Child phones have nothing waiting.
     expect(screen.queryByText("Waiting changes")).toBeNull();
+  });
+
+  it("shows the battery fix with the app version and can request an update", async () => {
+    const path = `/phones/${PHONE.id}/update`;
+    const api = phoneApi({
+      ...PHONE,
+      status: {
+        appVersion: "0.1.11",
+        appVersionCode: 11,
+        lockIntact: true,
+        failedPolicies: ["battery exemption missing: self-update cannot run"],
+      },
+    }, { [`POST ${path}`]: { status: 202 } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("App version 0.1.11")).toBeTruthy();
+    expect(screen.getByText(/tap the update notification or open Plainphone/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Update now" }));
+    expect(await screen.findByText("The phone will check the next time it is online.")).toBeTruthy();
+    expect(api.calls).toEqual(expect.arrayContaining([expect.objectContaining({ method: "POST", path })]));
+  });
+
+  it("replaces Update now with setup instructions across a signing key change", async () => {
+    phoneApi({
+      ...PHONE,
+      status: { appVersion: "0.1.9", appVersionCode: 9, deviceOwner: true, lockIntact: true, failedPolicies: [] },
+    }, { "GET /download/android/latest.json": { body: { versionName: "0.1.11", versionCode: 11 } } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/uses a new signing key/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
   });
 
   it("shows the installation warning even when the lock is intact", async () => {

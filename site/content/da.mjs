@@ -436,6 +436,10 @@ export default {
         ],
         fig: "dialog",
       },
+      {
+        title: "Tillad Plainphone at køre i baggrunden",
+        body: ["Tryk <strong>Fortsæt</strong>, og giv tilladelse i Android, så Plainphone kan opdatere sig selv sikkert. Springes trinnet over, vises det igen, næste gang du åbner Plainphone."],
+      },
     ],
     figs: {
       lightScan: "En telefonskærm med et kamera, der scanner en kode.",
@@ -449,6 +453,7 @@ export default {
     drawing: { taps: "6×", set: "Angiv som standard", cancel: "Annuller" },
     troubleTitle: "Hvis noget går galt",
     trouble: [
+      ["Opdateringer virker stadig ikke", "OnePlus, Oppo, Xiaomi og Samsung kan have ekstra batteriindstillinger. Tillad baggrundsaktivitet for Plainphone, og fjern appen fra listen over apps i dvale, hvis den findes. Find vejledningen til din model hos <a href=\"https://dontkillmyapp.com/\">Don’t kill my app!</a>."],
       [
         "QR-koden er udløbet eller virker ikke",
         "En kode virker én gang og i 24 timer. Åbn telefonen i dashboardet, og vælg <strong>Vis QR-koden til opsætning</strong> for at få en ny. En ny kode får den gamle til at holde op med at virke.",

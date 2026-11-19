@@ -164,6 +164,10 @@ link, then the phone asks who will use it and hashes the PIN locally. In both mo
 masked dashboard account on the phone before it redeems the one-time token. The server receives
 neither the PIN nor its hash.
 
+Strong-mode QR setup asks you to allow Plainphone to run in the background so it can update
+itself safely. If you skip this step, open Plainphone again to get the prompt. OnePlus, Oppo, Xiaomi
+and Samsung may have extra [battery settings](docs/dashboard-setup.md#battery-settings-for-updates).
+
 For self-hosting, tests and phones without an account there is a script with the same format:
 
 ```sh

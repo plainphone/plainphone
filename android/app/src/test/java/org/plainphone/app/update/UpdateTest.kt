@@ -81,6 +81,8 @@ class UpdateTest {
             override fun nowMs() = 100L
             override fun installed() = installed
             override fun isDeviceOwner() = true
+            override fun needsBatteryExemption() = false
+            override fun promptBatteryExemption() = error("unexpected battery prompt")
             override fun inMaintenance() = false
             override fun downloadAllowed() = true
             override fun fetchLatest(): ReleaseInfo? = null
@@ -112,6 +114,8 @@ class UpdateTest {
             override fun nowMs() = 100L
             override fun installed() = installed
             override fun isDeviceOwner() = true
+            override fun needsBatteryExemption() = false
+            override fun promptBatteryExemption() = error("unexpected battery prompt")
             override fun inMaintenance() = false
             override fun downloadAllowed() = true
             override fun fetchLatest(): ReleaseInfo? = null

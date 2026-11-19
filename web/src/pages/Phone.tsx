@@ -20,6 +20,7 @@ import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatP
 import { lockStepLabel } from "../lib/lock-steps";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
+import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 
 interface PhoneCtx {
@@ -324,6 +325,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   const failures = s?.failedPolicies ?? [];
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
+  const technicalSteps = failedSteps.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const when = (iso: string) => formatRelative(iso, now, locale);
   return (
     <section className="section" aria-labelledby="status-h">
@@ -356,13 +358,13 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           {overrun !== undefined && (
             <p className="notice notice-warn" role="status">{t("phone.installWindowOverrun")}</p>
           )}
-          {(overrun !== undefined || failedSteps.length > 0) && (
+          {(overrun !== undefined || technicalSteps.length > 0) && (
             <details className="details details-lead lock-details">
               <summary>{t("phone.lockDetails")}</summary>
               {overrun !== undefined && <p>{t("phone.installWindowOverrunDuration", { seconds: overrun })}</p>}
-              {failedSteps.length > 0 && (
+              {technicalSteps.length > 0 && (
                 <ul>
-                  {failedSteps.map((step, index) => <li key={index}><code>{step}</code></li>)}
+                  {technicalSteps.map((step, index) => <li key={index}><code>{step}</code></li>)}
                 </ul>
               )}
             </details>

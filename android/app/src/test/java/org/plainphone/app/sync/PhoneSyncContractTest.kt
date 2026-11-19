@@ -118,6 +118,23 @@ class PhoneSyncContractTest {
         assertThat(status.getBoolean("lockIntact")).isTrue()
         assertThat(status.getInt("batteryPct")).isEqualTo(64)
 
+        val batteryPolicy = "battery exemption missing: self-update cannot run"
+        val appliedLock = device.lock
+        device.lock = appliedLock.copy(failedPolicies = listOf(batteryPolicy))
+        runner.run("battery exemption removed")
+        val (_, missingBattery) = parent("GET", "/phones/$phoneId")
+        val missingStatus = missingBattery!!.getJSONObject("status")
+        assertThat(missingStatus.getJSONArray("failedPolicies").getString(0)).isEqualTo(batteryPolicy)
+        assertThat(missingStatus.getBoolean("lockIntact")).isTrue()
+        device.lock = appliedLock.copy(failedPolicies = listOf(batteryPolicy, "private DNS"))
+        runner.run("DNS policy failed")
+        val (_, brokenLock) = parent("GET", "/phones/$phoneId")
+        assertThat(brokenLock!!.getJSONObject("status").getBoolean("lockIntact")).isFalse()
+        device.lock = appliedLock
+        runner.run("battery exemption granted")
+        val (_, grantedBattery) = parent("GET", "/phones/$phoneId")
+        assertThat(grantedBattery!!.getJSONObject("status").getJSONArray("failedPolicies").length()).isEqualTo(0)
+
         // 3. The parent changes the rules; the next poll brings them, the one after is a 304.
         assertThat(parent("POST", "/phones/$phoneId/contacts", JSONObject().put("name", "Mum").put("number", "+4512345678")).first).isAnyOf(200, 201)
         assertThat(parent("PUT", "/phones/$phoneId/apps/com.example.game", JSONObject().put("allowed", true)).first).isAnyOf(200, 201, 204)

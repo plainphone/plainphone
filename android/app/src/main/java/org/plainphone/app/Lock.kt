@@ -29,6 +29,7 @@ import org.plainphone.app.light.Mode
 import org.plainphone.app.light.Protections
 import org.plainphone.app.time.TimeGuard
 import org.plainphone.app.update.InstallLease
+import org.plainphone.app.update.UpdateBatteryExemption
 
 /** Glue between Android entry points and [PolicyApplier]. */
 object Lock {
@@ -162,7 +163,8 @@ object Lock {
                 if (config.installing != null) onInstallsAllowed()
             }
         } else {
-            applier(context, onInstallsAllowed).apply(config) + usageAccessStep(context)
+            applier(context, onInstallsAllowed).apply(config) + usageAccessStep(context) +
+                listOfNotNull(UpdateBatteryExemption.failure(context))
         }
         clearMaintenanceWindow(context)
         saveReport(context, "apply ($reason)", results)
@@ -206,6 +208,8 @@ object Lock {
         val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
         val owner = dpm?.isDeviceOwnerApp(context.packageName) == true
         val hasLimits = SyncStore(context).rules()?.timeLimits?.isEmpty == false
+        val failed = p.getString("applied_failed", null)?.split('\n')
+            ?.filter { it.isNotEmpty() && it != UpdateBatteryExemption.FAILED_POLICY }.orEmpty()
         return LockState(
             mode = if (owner) Mode.STRONG else Mode.LIGHT,
             protections = runCatching {
@@ -213,7 +217,8 @@ object Lock {
             }.getOrNull(),
             deviceOwner = owner,
             maintenance = isInMaintenanceWindow(context),
-            failedPolicies = p.getString("applied_failed", null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty(),
+            failedPolicies = if (UpdateBatteryExemption.isMissing(context))
+                listOf(UpdateBatteryExemption.FAILED_POLICY) + failed else failed,
             appliedAtMs = p.getLong("applied_at", 0L).takeIf { it > 0 },
             dnsHost = p.getString("dns_in_use", null),
             resetProtection = p.getString("reset_protection", null),
