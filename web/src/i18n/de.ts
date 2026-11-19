@@ -726,7 +726,7 @@ export const de: Messages = {
   "home.theme.light": "Hell",
   "home.theme.dark": "Dunkel",
   "home.palette": "Farbe",
-  "home.palette.grey": "Grau",
+  "home.palette.grey": "Graphit",
   "home.palette.sage": "Salbei",
   "home.palette.sand": "Sand",
   "home.freePromise": "Gratisversprechen anzeigen",

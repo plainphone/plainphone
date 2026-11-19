@@ -145,7 +145,7 @@ export const HOME_THEMES = ["system", "light", "dark"] as const;
 export const HOME_PALETTES = ["grey", "sage", "sand"] as const;
 export const HOME_MAX_APPS = 8;
 
-export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "sage", apps: [] };
+export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "grey", apps: [] };
 
 /** Moves the item at `index` one step; out-of-range moves leave the list as it is. */
 export function moveItem<T>(list: readonly T[], index: number, delta: -1 | 1): T[] {

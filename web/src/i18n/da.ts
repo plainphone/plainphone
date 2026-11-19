@@ -762,7 +762,7 @@ export const da: Messages = {
   "home.theme.light": "Lys",
   "home.theme.dark": "Mørk",
   "home.palette": "Farve",
-  "home.palette.grey": "Grå",
+  "home.palette.grey": "Grafit",
   "home.palette.sage": "Salvie",
   "home.palette.sand": "Sand",
   "home.apps": "Apps på forsiden",

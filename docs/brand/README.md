@@ -72,7 +72,7 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 | Parent app | `parent-app/src/lib/theme.ts`, `assets/fonts/`, `components/Mark.tsx` | Done: C tokens incl. `brand`, Schibsted Grotesk and IBM Plex Mono |
 | Android | `res/mipmap-anydpi-v26/ic_launcher{,_round}.xml`, `res/drawable/ic_launcher_{foreground,background,monochrome}.xml`, `res/mipmap-{m,h,xh,xxh,xxxh}dpi/` (from `android/scripts/make-icons.mjs`) | Done: adaptive launcher icon with a themed-icon layer; also used by the messages launcher alias |
 | Android | `res/drawable/ic_notification.xml` as `setSmallIcon` in `telephony/CallNotifications.kt`, `safety/RingService.kt`, `safety/Safety.kt`, `update/AndroidUpdateHost.kt`, `update/UpdateBatteryExemption.kt` | Done: white switch outline on transparent (checked in `BrandIconsScreenshotTest`) |
-| Android | `ui/Tokens.kt`, `ui/Theme.kt`, `MaintenanceStyle.kt`, `res/font/`, `home/HomeColors.kt` | Done: C tokens, Schibsted Grotesk and IBM Plex Mono, ink call buttons. The grey launcher palette is C graphite; sage (default) and sand stay as softer choices |
+| Android | `ui/Tokens.kt`, `ui/Theme.kt`, `MaintenanceStyle.kt`, `res/font/`, `home/HomeColors.kt` | Done: C tokens, Schibsted Grotesk and IBM Plex Mono, ink call buttons. The grey (Graphite) launcher palette is C graphite and the default; sage and sand stay as softer choices |
 | README | `README.md` | Done: badge in `141414`. The hero image is `site/src/og-en.png` (site redesign) |
 | Store listing | none in the repo | No Play Store graphics yet (feature graphic 1024×500, icon 512) |
 

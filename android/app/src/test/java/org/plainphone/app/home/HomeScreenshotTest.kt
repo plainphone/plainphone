@@ -82,13 +82,16 @@ class HomeScreenshotTest {
     }
 
     @Test
-    fun `light, list, sage`() = shoot("home-light-list", ui(), HomePalette.SAGE, dark = false)
+    fun `light, list, graphite (the default)`() = shoot("home-light-list", ui(), HomePalette.GREY, dark = false)
+
+    @Test
+    fun `light, list, sage`() = shoot("home-light-list-sage", ui(), HomePalette.SAGE, dark = false)
 
     @Test
     fun `dark, list, school time`() = shoot(
         "home-dark-school",
         ui(notice = WindowNotice(WindowNotice.Kind.SCHOOL, LocalTime.of(14, 0)), time = "10:20"),
-        HomePalette.SAGE,
+        HomePalette.GREY,
         dark = true,
     )
 
@@ -100,17 +103,17 @@ class HomeScreenshotTest {
 
     @Test
     fun `large text keeps phone and SOS on screen`() =
-        shoot("home-light-large-text", ui(), HomePalette.SAGE, dark = false, fontScale = 1.6f)
+        shoot("home-light-large-text", ui(), HomePalette.GREY, dark = false, fontScale = 1.6f)
 
     @Test
     fun `large text, dark`() = shoot("home-dark-large-text", ui(), HomePalette.GREY, dark = true, fontScale = 1.6f)
 
     @Test
     fun `light mode offers to become the home screen`() =
-        shoot("home-light-offer", ui(offer = true), HomePalette.SAGE, dark = false)
+        shoot("home-light-offer", ui(offer = true), HomePalette.GREY, dark = false)
 
     @Test
-    fun `all apps, light`() = shoot("home-all-apps-light", ui(), HomePalette.SAGE, dark = false, showAll = true)
+    fun `all apps, light`() = shoot("home-all-apps-light", ui(), HomePalette.GREY, dark = false, showAll = true)
 
     @Test
     fun `all apps, dark`() = shoot("home-all-apps-dark", ui(), HomePalette.SAND, dark = true, showAll = true)
@@ -119,7 +122,7 @@ class HomeScreenshotTest {
     @Config(sdk = [35], qualifiers = "da-w393dp-h852dp-xxhdpi")
     fun `danish, bedtime`() {
         compose.setContent {
-            HomeTheme(homeColors(HomePalette.SAGE, dark = true)) {
+            HomeTheme(homeColors(HomePalette.GREY, dark = true)) {
                 HomeScreen(
                     ui(notice = WindowNotice(WindowNotice.Kind.BEDTIME, LocalTime.of(7, 0)), time = "21:40", date = "Tirsdag 17. november"),
                     showAll = false,
@@ -137,7 +140,7 @@ class HomeScreenshotTest {
     fun `tapping an app, the phone and SOS reaches the actions`() {
         val opened = mutableListOf<String>()
         compose.setContent {
-            HomeTheme(homeColors(HomePalette.SAGE, dark = false)) {
+            HomeTheme(homeColors(HomePalette.GREY, dark = false)) {
                 HomeScreen(
                     ui(),
                     showAll = false,

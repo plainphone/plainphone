@@ -726,7 +726,7 @@ export const sv: Messages = {
   "home.theme.light": "Ljus",
   "home.theme.dark": "Mörk",
   "home.palette": "Färg",
-  "home.palette.grey": "Grå",
+  "home.palette.grey": "Grafit",
   "home.palette.sage": "Salvia",
   "home.palette.sand": "Sand",
   "home.freePromise": "Visa gratislöftet",

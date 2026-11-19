@@ -764,7 +764,7 @@ export const en = {
   "home.theme.light": "Light",
   "home.theme.dark": "Dark",
   "home.palette": "Colour",
-  "home.palette.grey": "Grey",
+  "home.palette.grey": "Graphite",
   "home.palette.sage": "Sage",
   "home.palette.sand": "Sand",
   "home.apps": "Apps on the front page",

@@ -1,5 +1,5 @@
 {
-  "id": "2e924f14-a107-4a0e-9328-9a43046a1061",
+  "id": "a5af57b4-d6fa-4d26-87d9-177618f37329",
   "prevId": "441e3940-5163-4a60-93e5-ce3c631ded2b",
   "version": "7",
   "dialect": "postgresql",
@@ -58,9 +58,9 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "contact_suggestions_phone_group_idx": {
           "name": "contact_suggestions_phone_group_idx",
@@ -79,24 +79,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "contact_suggestions_phone_id_phones_id_fk": {
           "name": "contact_suggestions_phone_id_phones_id_fk",
           "tableFrom": "contact_suggestions",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -167,24 +167,24 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "contacts_phone_id_phones_id_fk": {
           "name": "contacts_phone_id_phones_id_fk",
           "tableFrom": "contacts",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -268,15 +268,15 @@
         "dns_settings_phone_id_phones_id_fk": {
           "name": "dns_settings_phone_id_phones_id_fk",
           "tableFrom": "dns_settings",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -364,47 +364,47 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "enrollments_phone_id_phones_id_fk": {
           "name": "enrollments_phone_id_phones_id_fk",
           "tableFrom": "enrollments",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "enrollments_created_by_users_id_fk": {
           "name": "enrollments_created_by_users_id_fk",
           "tableFrom": "enrollments",
-          "tableTo": "users",
           "columnsFrom": [
             "created_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "enrollments_token_hash_unique": {
           "name": "enrollments_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -446,28 +446,28 @@
         "frp_accounts_household_id_households_id_fk": {
           "name": "frp_accounts_household_id_households_id_fk",
           "tableFrom": "frp_accounts",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "frp_accounts_user_id_users_id_fk": {
           "name": "frp_accounts_user_id_users_id_fk",
           "tableFrom": "frp_accounts",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -550,51 +550,51 @@
         "household_invites_household_id_households_id_fk": {
           "name": "household_invites_household_id_households_id_fk",
           "tableFrom": "household_invites",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "household_invites_trusted_phone_id_phones_id_fk": {
           "name": "household_invites_trusted_phone_id_phones_id_fk",
           "tableFrom": "household_invites",
-          "tableTo": "phones",
           "columnsFrom": [
             "trusted_phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "household_invites_invited_by_users_id_fk": {
           "name": "household_invites_invited_by_users_id_fk",
           "tableFrom": "household_invites",
-          "tableTo": "users",
           "columnsFrom": [
             "invited_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "household_invites_token_hash_unique": {
           "name": "household_invites_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -636,28 +636,28 @@
         "household_members_household_id_households_id_fk": {
           "name": "household_members_household_id_households_id_fk",
           "tableFrom": "household_members",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "household_members_user_id_users_id_fk": {
           "name": "household_members_user_id_users_id_fk",
           "tableFrom": "household_members",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -754,15 +754,15 @@
         "locations_phone_id_phones_id_fk": {
           "name": "locations_phone_id_phones_id_fk",
           "tableFrom": "locations",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -826,9 +826,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -836,10 +836,10 @@
       "uniqueConstraints": {
         "magic_links_token_hash_unique": {
           "name": "magic_links_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -924,15 +924,15 @@
         "move_imports_household_id_households_id_fk": {
           "name": "move_imports_household_id_households_id_fk",
           "tableFrom": "move_imports",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -970,28 +970,28 @@
         "notification_mutes_user_id_users_id_fk": {
           "name": "notification_mutes_user_id_users_id_fk",
           "tableFrom": "notification_mutes",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "notification_mutes_phone_id_phones_id_fk": {
           "name": "notification_mutes_phone_id_phones_id_fk",
           "tableFrom": "notification_mutes",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -1105,38 +1105,38 @@
         "pairings_phone_id_phones_id_fk": {
           "name": "pairings_phone_id_phones_id_fk",
           "tableFrom": "pairings",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "pairings_claimed_by_users_id_fk": {
           "name": "pairings_claimed_by_users_id_fk",
           "tableFrom": "pairings",
-          "tableTo": "users",
           "columnsFrom": [
             "claimed_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "pairings_code_hash_unique": {
           "name": "pairings_code_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "code_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1249,9 +1249,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "pending_changes_due_idx": {
           "name": "pending_changes_due_idx",
@@ -1276,50 +1276,50 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "pending_changes_phone_id_phones_id_fk": {
           "name": "pending_changes_phone_id_phones_id_fk",
           "tableFrom": "pending_changes",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "pending_changes_requested_by_users_id_fk": {
           "name": "pending_changes_requested_by_users_id_fk",
           "tableFrom": "pending_changes",
-          "tableTo": "users",
           "columnsFrom": [
             "requested_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         },
         "pending_changes_decided_by_users_id_fk": {
           "name": "pending_changes_decided_by_users_id_fk",
           "tableFrom": "pending_changes",
-          "tableTo": "users",
           "columnsFrom": [
             "decided_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -1397,15 +1397,15 @@
         "phone_apps_phone_id_phones_id_fk": {
           "name": "phone_apps_phone_id_phones_id_fk",
           "tableFrom": "phone_apps",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -1501,34 +1501,34 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "phone_moves_phone_id_phones_id_fk": {
           "name": "phone_moves_phone_id_phones_id_fk",
           "tableFrom": "phone_moves",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "phone_moves_token_hash_unique": {
           "name": "phone_moves_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1627,50 +1627,50 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "phone_requests_phone_id_phones_id_fk": {
           "name": "phone_requests_phone_id_phones_id_fk",
           "tableFrom": "phone_requests",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "phone_requests_change_id_pending_changes_id_fk": {
           "name": "phone_requests_change_id_pending_changes_id_fk",
           "tableFrom": "phone_requests",
-          "tableTo": "pending_changes",
           "columnsFrom": [
             "change_id"
           ],
+          "tableTo": "pending_changes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         },
         "phone_requests_decided_by_users_id_fk": {
           "name": "phone_requests_decided_by_users_id_fk",
           "tableFrom": "phone_requests",
-          "tableTo": "users",
           "columnsFrom": [
             "decided_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -1709,15 +1709,15 @@
         "phone_settings_phone_id_phones_id_fk": {
           "name": "phone_settings_phone_id_phones_id_fk",
           "tableFrom": "phone_settings",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2037,34 +2037,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "change_receipts_enabled": {
-          "name": "change_receipts_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "health_board_enabled": {
-          "name": "health_board_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "rules_revision": {
-          "name": "rules_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "rules_await_dns": {
-          "name": "rules_await_dns",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2085,41 +2057,41 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "phones_household_id_households_id_fk": {
           "name": "phones_household_id_households_id_fk",
           "tableFrom": "phones",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "phones_device_token_hash_unique": {
           "name": "phones_device_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "device_token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "phones_dns_client_id_unique": {
           "name": "phones_dns_client_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "dns_client_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -2225,9 +2197,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "push_subscriptions_session_idx": {
           "name": "push_subscriptions_session_idx",
@@ -2240,54 +2212,54 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "push_subscriptions_user_id_users_id_fk": {
           "name": "push_subscriptions_user_id_users_id_fk",
           "tableFrom": "push_subscriptions",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "push_subscriptions_session_id_sessions_id_fk": {
           "name": "push_subscriptions_session_id_sessions_id_fk",
           "tableFrom": "push_subscriptions",
-          "tableTo": "sessions",
           "columnsFrom": [
             "session_id"
           ],
+          "tableTo": "sessions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "push_subscriptions_installation_hash_unique": {
           "name": "push_subscriptions_installation_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "installation_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "push_subscriptions_endpoint_unique": {
           "name": "push_subscriptions_endpoint_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "endpoint"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -2410,37 +2382,37 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "safety_requests_phone_id_phones_id_fk": {
           "name": "safety_requests_phone_id_phones_id_fk",
           "tableFrom": "safety_requests",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "safety_requests_created_by_users_id_fk": {
           "name": "safety_requests_created_by_users_id_fk",
           "tableFrom": "safety_requests",
-          "tableTo": "users",
           "columnsFrom": [
             "created_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -2517,24 +2489,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "schedules_phone_id_phones_id_fk": {
           "name": "schedules_phone_id_phones_id_fk",
           "tableFrom": "schedules",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2613,28 +2585,28 @@
         "self_keys_phone_id_phones_id_fk": {
           "name": "self_keys_phone_id_phones_id_fk",
           "tableFrom": "self_keys",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "self_keys_trusted_user_id_users_id_fk": {
           "name": "self_keys_trusted_user_id_users_id_fk",
           "tableFrom": "self_keys",
-          "tableTo": "users",
           "columnsFrom": [
             "trusted_user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -2723,9 +2695,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "sessions_expires_idx": {
           "name": "sessions_expires_idx",
@@ -2738,34 +2710,34 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "sessions_user_id_users_id_fk": {
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "sessions_token_hash_unique": {
           "name": "sessions_token_hash_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "token_hash"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -2839,50 +2811,50 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "setup_undo_notices_household_id_households_id_fk": {
           "name": "setup_undo_notices_household_id_households_id_fk",
           "tableFrom": "setup_undo_notices",
-          "tableTo": "households",
           "columnsFrom": [
             "household_id"
           ],
+          "tableTo": "households",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "setup_undo_notices_user_id_users_id_fk": {
           "name": "setup_undo_notices_user_id_users_id_fk",
           "tableFrom": "setup_undo_notices",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "setup_undo_notices_subscription_id_push_subscriptions_id_fk": {
           "name": "setup_undo_notices_subscription_id_push_subscriptions_id_fk",
           "tableFrom": "setup_undo_notices",
-          "tableTo": "push_subscriptions",
           "columnsFrom": [
             "subscription_id"
           ],
+          "tableTo": "push_subscriptions",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2937,30 +2909,30 @@
         "sos_deliveries_user_id_users_id_fk": {
           "name": "sos_deliveries_user_id_users_id_fk",
           "tableFrom": "sos_deliveries",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "sos_deliveries_phone_id_event_id_sos_events_phone_id_id_fk": {
           "name": "sos_deliveries_phone_id_event_id_sos_events_phone_id_id_fk",
           "tableFrom": "sos_deliveries",
-          "tableTo": "sos_events",
           "columnsFrom": [
             "phone_id",
             "event_id"
           ],
+          "tableTo": "sos_events",
           "columnsTo": [
             "phone_id",
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -3092,9 +3064,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "sos_created_idx": {
           "name": "sos_created_idx",
@@ -3107,37 +3079,37 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "sos_events_phone_id_phones_id_fk": {
           "name": "sos_events_phone_id_phones_id_fk",
           "tableFrom": "sos_events",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "sos_events_seen_by_users_id_fk": {
           "name": "sos_events_seen_by_users_id_fk",
           "tableFrom": "sos_events",
-          "tableTo": "users",
           "columnsFrom": [
             "seen_by"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {
@@ -3215,24 +3187,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "time_bonuses_phone_id_phones_id_fk": {
           "name": "time_bonuses_phone_id_phones_id_fk",
           "tableFrom": "time_bonuses",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3276,15 +3248,15 @@
         "time_limits_phone_id_phones_id_fk": {
           "name": "time_limits_phone_id_phones_id_fk",
           "tableFrom": "time_limits",
-          "tableTo": "phones",
           "columnsFrom": [
             "phone_id"
           ],
+          "tableTo": "phones",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -3367,15 +3339,15 @@
         "unlock_payments_pending_change_id_pending_changes_id_fk": {
           "name": "unlock_payments_pending_change_id_pending_changes_id_fk",
           "tableFrom": "unlock_payments",
-          "tableTo": "pending_changes",
           "columnsFrom": [
             "pending_change_id"
           ],
+          "tableTo": "pending_changes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -3422,10 +3394,10 @@
       "uniqueConstraints": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -3435,10 +3407,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

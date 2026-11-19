@@ -63,7 +63,7 @@ None of these work in light mode: they need Device Owner. The dashboard says so 
 |---|---|---|
 | `layout` | `"list"` or `"grid"` | `"list"` |
 | `theme` | `"system"`, `"light"` or `"dark"` | `"system"` |
-| `palette` | `"grey"`, `"sage"` or `"sand"` | `"sage"` |
+| `palette` | `"grey"` (shown as Graphite), `"sage"` or `"sand"` | `"grey"` for phones enrolled after migration 0039; phones that existed before keep `"sage"` |
 | `apps` | ordered package names on the front page, at most 8 | `[]` (the phone shows phone and messages) |
 | `showFreePromise` | `true` or `false` | `true` |
 
@@ -87,7 +87,7 @@ are on the front-page list.
     "screenTimeout": { "mode": "preset", "value": 60 },
     "wifi": { "mode": "locked" }
   },
-  "home": { "layout": "list", "theme": "system", "palette": "sage", "apps": ["com.spotify.music"], "showFreePromise": true }
+  "home": { "layout": "list", "theme": "system", "palette": "grey", "apps": ["com.spotify.music"], "showFreePromise": true }
 }
 ```
 
