@@ -1724,6 +1724,20 @@
           "notNull": true,
           "default": true
         },
+        "rules_revision": {
+          "name": "rules_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "rules_await_dns": {
+          "name": "rules_await_dns",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",

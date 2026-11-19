@@ -496,7 +496,9 @@ class SyncRunner(
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             mode = lock.mode,
-            protections = lock.protections,
+            protections = lock.protections?.let {
+                if (rules?.healthBoardEnabled == true) it else it - "usageAccessGranted"
+            },
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
         )

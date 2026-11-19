@@ -54,7 +54,7 @@ import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
-import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
+import { createPhone, loadPhoneSettings, nextRulesRevision, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
@@ -661,6 +661,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
     const { changeReceiptsEnabled, healthBoardEnabled } = input;
     const fields = {
+      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined ? nextRulesRevision() : {}),
       ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),

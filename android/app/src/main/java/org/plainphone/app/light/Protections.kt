@@ -31,12 +31,14 @@ data class Protections(
     val batteryUnrestricted: Boolean,
     /** False when the user set Private DNS to another resolver, which would go around the filter. */
     val privateDnsOk: Boolean,
+    val usageAccessGranted: Boolean = usageAccess,
 ) {
     fun toMap(): Map<String, Boolean> = mapOf(
         "deviceOwner" to deviceOwner,
         "deviceAdmin" to deviceAdmin,
         "accessibility" to accessibility,
         "usageAccess" to usageAccess,
+        "usageAccessGranted" to usageAccessGranted,
         "vpn" to vpn,
         "alwaysOnVpn" to alwaysOnVpn,
         "phoneRole" to phoneRole,
@@ -64,12 +66,14 @@ data class Protections(
         fun read(context: Context, filterHost: String?, needsUsageAccess: Boolean): Protections {
             val dpm = context.getSystemService(DevicePolicyManager::class.java)
             val roles = context.getSystemService(RoleManager::class.java)
+            val usageAccessGranted = TimeGuard.hasUsageAccess(context)
             return Protections(
                 deviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true,
                 deviceAdmin = dpm?.isAdminActive(LightAdminReceiver.component(context)) == true ||
                     dpm?.isDeviceOwnerApp(context.packageName) == true,
                 accessibility = isGuardEnabled(context),
-                usageAccess = !needsUsageAccess || TimeGuard.hasUsageAccess(context),
+                usageAccess = !needsUsageAccess || usageAccessGranted,
+                usageAccessGranted = usageAccessGranted,
                 vpn = PlainphoneVpnService.isRunning(),
                 alwaysOnVpn = PlainphoneVpnService.isAlwaysOn(context),
                 phoneRole = roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true,

@@ -191,7 +191,12 @@ object Lock {
         val etag = sync.etag
         val receiptPending = etag != null && sync.rules()?.changeReceiptsEnabled == true &&
             p.getString("receipt_attempt_etag", null) != etag
-        if (fresh && !receiptPending && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
+        val config = effectiveConfig(context)
+        val vpnRecovered = Mode.isLight(context) && LightLock.vpnUses(config.dnsHost) &&
+            p.getString("applied_failed", null)?.lineSequence()?.any { it == LightLock.DNS_STEP } == true
+        if (fresh && !receiptPending && !vpnRecovered &&
+            p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(config)
+        ) {
             // Back-to-back windows can leave the config unchanged: still arm the next change.
             scheduleNextWindowChange(context)
             return null
@@ -275,7 +280,7 @@ object Lock {
             .putLong("applied_at", now)
             .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
         // Android keeps the old host when the new one does not answer, so only a success changes it.
-        if (results.any { (it.name == "private DNS" || it.name == "DNS filter (VPN)") && it.ok }) edit.putString("dns_in_use", config.dnsHost)
+        if (results.any { (it.name == "private DNS" || it.name == LightLock.DNS_STEP) && it.ok }) edit.putString("dns_in_use", config.dnsHost)
         Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
         Hardening.accountTypes(results)?.let { edit.putStringSet("account_types", it.toSet()) }
         val wasOwner = results.none { it.name == "device owner" && !it.ok }

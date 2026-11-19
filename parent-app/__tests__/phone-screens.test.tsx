@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; callRoleActionNeeded?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -73,7 +73,10 @@ describe("pairing", () => {
 
 describe("overview", () => {
   it("updates the phone health preference independently of rule confirmations", async () => {
-    const phone = { ...PHONE, changeReceiptsEnabled: true, healthBoardEnabled: true };
+    const phone = {
+      ...PHONE, changeReceiptsEnabled: true, healthBoardEnabled: true,
+      status: { appVersion: "1.0", appVersionCode: 11, lockIntact: true, failedPolicies: [], lateGoogleAccount: true, callRoleActionNeeded: true },
+    };
     const path = `/phones/${PHONE.id}`;
     const api = phoneApi(phone, {
       [`PATCH ${path}`]: { body: { ...phone, healthBoardEnabled: false } },
@@ -83,6 +86,8 @@ describe("overview", () => {
     await fireEvent.press(screen.getByRole("switch", { name: "Phone health" }));
     await waitFor(() => expect(screen.queryByText("Last contact")).toBeNull());
     expect(screen.getByRole("switch", { name: "Rule confirmations", checked: true })).toBeTruthy();
+    expect(screen.getByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
+    expect(screen.getByText("Update now")).toBeTruthy();
     expect(api.calls).toContainEqual(expect.objectContaining({
       method: "PATCH", path, body: { healthBoardEnabled: false },
     }));

@@ -2043,7 +2043,10 @@ export interface components {
             deviceOwner?: boolean;
             deviceAdmin?: boolean;
             accessibility?: boolean;
+            /** @description Whether usage access is granted or time limits do not need it. */
             usageAccess?: boolean;
+            /** @description Whether Android actually grants access to usage data. */
+            usageAccessGranted?: boolean;
             vpn?: boolean;
             alwaysOnVpn?: boolean;
             phoneRole?: boolean;
@@ -2212,7 +2215,9 @@ export interface components {
             };
             /** @description Parent opt-in to send names and numbers from a Child phone. */
             suggestDeviceContacts?: boolean;
-            /** @description Opaque revision of the web filter's domain lists and resolver sync state. */
+            /** @description Advances on rule edits so restoring an earlier configuration still requires a new confirmation. */
+            rulesRevision?: number;
+            /** @description Opaque revision of domain lists and whether the latest rule edit is waiting for the resolver. */
             dnsRevision?: string;
             /**
              * @description Send confirmations when a rules document is applied.
@@ -2220,7 +2225,7 @@ export interface components {
              */
             changeReceiptsEnabled: boolean;
             /**
-             * @description Include live web filter checks in phone status.
+             * @description Include live web filter checks and the observed usage access permission in phone status.
              * @default true
              */
             healthBoardEnabled: boolean;

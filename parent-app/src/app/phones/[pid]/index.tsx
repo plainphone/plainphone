@@ -252,19 +252,21 @@ function Overview() {
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
-      {phone.healthBoardEnabled !== false && (
-        <Card>
-          <Text variant="heading">{t("health.title")}</Text>
-          {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
-            <VStack key={key} gap={space.xs}>
-              <Text variant="label">{label}</Text>
-              <Text variant={action ? "error" : "muted"}>{detail}</Text>
-            </VStack>
-          ))}
-          {phone.mode === "light" && <Text variant="small">{t("mode.lightNote")}</Text>}
-          <StatusDetails />
-        </Card>
-      )}
+      <Card>
+        <Text variant="heading">{t(phone.healthBoardEnabled !== false ? "health.title" : "phone.status")}</Text>
+        {phone.healthBoardEnabled !== false && (
+          <>
+            {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
+              <VStack key={key} gap={space.xs}>
+                <Text variant="label">{label}</Text>
+                <Text variant={action ? "error" : "muted"}>{detail}</Text>
+              </VStack>
+            ))}
+            {phone.mode === "light" && <Text variant="small">{t("mode.lightNote")}</Text>}
+          </>
+        )}
+        <StatusDetails />
+      </Card>
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>
@@ -316,6 +318,9 @@ function StatusDetails() {
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
   return (
     <>
+      {phone.healthBoardEnabled === false && phone.status?.callRoleActionNeeded
+        ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} />
+        : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {failedPolicies.length > 0 ? (

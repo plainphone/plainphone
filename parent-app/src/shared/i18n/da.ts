@@ -163,6 +163,7 @@ export const da: Messages = {
   "health.versionUnknown": "Telefonen har endnu ikke meldt sin appversion.",
   "health.fix.deviceAdmin": "Slå beskyttelse mod afinstallation til i Plainphone på telefonen.",
   "health.fix.accessibility": "Slå Plainphones tilgængelighedstjeneste til i Androids indstillinger.",
+  "health.usageAccessOff": "Slået fra. Bruges kun til tidsgrænser.",
   "health.fix.usageAccess": "Giv adgang til brugsdata i Androids indstillinger, så Plainphone kan tælle skærmtid.",
   "health.fix.smsRole": "Vælg Plainphone som standardapp til sms i Androids indstillinger.",
   "health.fix.alwaysOnVpn": "Du kan slå Altid aktiv VPN til i Androids indstillinger for at holde filteret i gang.",

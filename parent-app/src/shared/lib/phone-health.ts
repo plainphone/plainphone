@@ -90,13 +90,15 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
   ];
   if (phone.mode === "light") {
     for (const key of LIGHT_CHECKS) {
-      const value = status?.protections?.[key];
+      const protections = status?.protections;
+      const value = key === "usageAccess" ? protections?.usageAccessGranted : protections?.[key];
+      const usageNotRequired = key === "usageAccess" && protections?.usageAccess === true;
       rows.push({
         key,
         label: t(`prot.${key}` as MessageKey),
         detail: value === true ? t("health.on") : value === false ?
-          t(`health.fix.${key}`) : unknown,
-        action: value === false && key !== "alwaysOnVpn" && key !== "notifications" && key !== "batteryUnrestricted",
+          t(usageNotRequired ? "health.usageAccessOff" : `health.fix.${key}`) : unknown,
+        action: value === false && !usageNotRequired && key !== "alwaysOnVpn" && key !== "notifications" && key !== "batteryUnrestricted",
       });
     }
   }

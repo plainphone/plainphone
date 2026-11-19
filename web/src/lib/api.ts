@@ -61,6 +61,7 @@ export const PROTECTIONS = [
   "deviceAdmin",
   "accessibility",
   "usageAccess",
+  "usageAccessGranted",
   "vpn",
   "alwaysOnVpn",
   "phoneRole",

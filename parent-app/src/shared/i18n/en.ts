@@ -164,6 +164,7 @@ export const en = {
   "health.versionUnknown": "The phone has not reported its app version yet.",
   "health.fix.deviceAdmin": "Restore uninstall protection in Plainphone on the phone.",
   "health.fix.accessibility": "Turn on the Plainphone accessibility service in Android Settings.",
+  "health.usageAccessOff": "Off. Only needed for time limits.",
   "health.fix.usageAccess": "Allow usage access in Android Settings so Plainphone can count screen time.",
   "health.fix.smsRole": "Choose Plainphone as the default SMS app in Android Settings.",
   "health.fix.alwaysOnVpn": "You can turn on Always-on VPN in Android Settings to keep the filter running.",

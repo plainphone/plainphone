@@ -347,7 +347,6 @@ const RESET_PROTECTION_TEXT = {
   failed: "phone.frpFailed",
 } as const;
 
-/** What the phone reported about its battery, app and lock, and whether the web filter is live. */
 function RuleReceipt({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
   const now = useNow(30_000);
@@ -360,6 +359,7 @@ function RuleReceipt({ phone }: { phone: Phone }) {
   );
 }
 
+/** Existing device details and the optional health checks. */
 export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
@@ -369,26 +369,38 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
   const technicalSteps = failedSteps.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const when = (iso: string) => formatRelative(iso, now, locale);
-  const rows = healthRows(phone, now, locale, t);
-  const lockNeedsAction = rows.find((row) => row.key === "lock")?.action;
+  const showHealth = phone.healthBoardEnabled !== false;
+  const rows = showHealth ? healthRows(phone, now, locale, t) : [];
+  const lockNeedsAction = showHealth
+    ? rows.find((row) => row.key === "lock")?.action
+    : s?.lockIntact === false && !s.maintenance;
   return (
-    <section className="section panel phone-health" aria-labelledby="status-h">
-      <h2 id="status-h">{t("health.title")}</h2>
-      <dl className="health-rows">
-        {rows.map(({ key, label, detail, action }) => (
-          <div key={key} className={action ? "health-action" : undefined}>
-            <dt>{label}</dt>
-            <dd>{detail}</dd>
-          </div>
-        ))}
-      </dl>
-      {lockNeedsAction && failedSteps.length > 0 && (
+    <section className={showHealth ? "section panel phone-health" : "section panel"} aria-labelledby="status-h">
+      <h2 id="status-h">{t(showHealth ? "health.title" : "phone.status")}</h2>
+      {showHealth && (
+        <dl className="health-rows">
+          {rows.map(({ key, label, detail, action }) => (
+            <div key={key} className={action ? "health-action" : undefined}>
+              <dt>{label}</dt>
+              <dd>{detail}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {lockNeedsAction && (!showHealth || failedSteps.length > 0) && (
         <div className="notice notice-error" role="status">
           <div>
-            <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })}</p>
+            {!showHealth && <p className="row-title">{t("phone.lockBroken")}</p>}
+            {failedSteps.length > 0 && (
+              <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })}</p>
+            )}
           </div>
         </div>
       )}
+      {!showHealth && s?.callRoleActionNeeded && (
+        <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>
+      )}
+      {!showHealth && s?.maintenance && <p className="notice notice-warn" role="status">{t("phone.maintenance")}</p>}
       {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
       {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
@@ -434,7 +446,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         </>
       ) : (
         <>
-          <p className="muted">{t("health.versionUnknown")}</p>
+          <p className="muted">{t(showHealth ? "health.versionUnknown" : "phone.statusNone")}</p>
           {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
             <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
           )}
@@ -529,7 +541,7 @@ export function PhoneOverview() {
 
       {phone.openRequests > 0 && <RequestsSection />}
 
-      {phone.healthBoardEnabled !== false && <PhoneStatusBlock phone={phone} now={now} />}
+      <PhoneStatusBlock phone={phone} now={now} />
 
       {pending.length > 0 && (
         <section className="section" aria-labelledby="pending-h">

@@ -67,6 +67,53 @@ describe("rule confirmations", () => {
     });
   });
 
+  it("requires a fresh receipt after a domain edit is undone offline", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const firstEtag = (await device.get("/api/device/rules")).headers.get("etag")!;
+    const acknowledge = (etag: string) => device.put("/api/device/status", report({
+      rulesEtag: etag, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    await acknowledge(firstEtag);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+
+    h.clock.now = new Date(h.clock.now.getTime() + 60 * 60_000);
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    expect((await parent.del(`${path}/dns/block/example.org`)).status).toBe(200);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBeNull();
+
+    const changed = await device.get("/api/device/rules", { "if-none-match": firstEtag });
+    expect(changed.status).toBe(200);
+    await acknowledge(changed.headers.get("etag")!);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+  });
+
+  it("waits for the resolver on DNS edits and confirms a later bedtime during the outage", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const acknowledgeCurrent = async () => {
+      const rules = await device.get("/api/device/rules");
+      await device.put("/api/device/status", report({
+        rulesEtag: rules.headers.get("etag"), rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+      }));
+    };
+    h.dns.failNext = 1;
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    await acknowledgeCurrent();
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: false, ruleReceipt: { appliedAt: null } });
+
+    expect((await parent.post(`${path}/schedules`, {
+      kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 1260, endMinute: 420, allowedPackages: [],
+    })).status).toBe(200);
+    await acknowledgeCurrent();
+    const receipt = { appliedAt: h.clock.now.toISOString() };
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: false, ruleReceipt: receipt });
+    await sweep(h.ctx);
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: true, ruleReceipt: receipt });
+  });
+
   it("syncs both per-phone preferences without changing the other phone", async () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);

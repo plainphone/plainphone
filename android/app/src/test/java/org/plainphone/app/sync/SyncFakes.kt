@@ -177,7 +177,7 @@ fun rulesJson(
     val ready = dnsReady?.let { ""","ready":$it""" } ?: ""
     val req = requestedAt?.let { "\"$it\"" } ?: "null"
     return """
-    {"phoneId":"7f1c2b9e-0000-4000-8000-000000000001","profile":"child","mode":"strong","timezone":"$timezone",
+    {"phoneId":"7f1c2b9e-0000-4000-8000-000000000001","profile":"child","mode":"strong","timezone":"$timezone","healthBoardEnabled":true,
      "apps":{"allowed":${allowed.joinToString(",", "[", "]") { "\"$it\"" }},"hidden":${hidden.joinToString(",", "[", "]") { "\"$it\"" }}$install},
      "contacts":$contacts,
      "schedules":$schedules,

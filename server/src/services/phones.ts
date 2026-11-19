@@ -181,7 +181,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       healthBoardEnabled: phone.healthBoardEnabled,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
-      dnsSynced: !phone.dnsDirty,
+      rulesRevision: phone.rulesRevision,
+      rulesWaitingForDns: phone.rulesAwaitDns && phone.dnsDirty,
       locationEnabled: phone.locationEnabled,
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,
@@ -202,6 +203,15 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 }
 
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
+
+/** Advance in the same transaction as the edit, even if it restores an earlier rules document. */
+export function nextRulesRevision(dns = false) {
+  return {
+    rulesRevision: sql`${phones.rulesRevision} + 1`,
+    rulesAwaitDns: dns,
+    ...(dns ? { dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` } : {}),
+  };
+}
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
@@ -242,9 +252,11 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       ready: phone.dnsReady,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
-    // Domain rules are enforced at the resolver. The revision changes after a completed sync as well.
+    rulesRevision: phone.rulesRevision,
+    // A DNS edit needs a new acknowledgment once the resolver has accepted it.
+    // A resolver retry must not invalidate an acknowledgment of a later phone-side edit.
     dnsRevision: createHash("sha256").update(JSON.stringify([
-      sorted(dnsRow[0]?.allowDomains ?? []), sorted(dnsRow[0]?.blockDomains ?? []), phone.dnsSynced,
+      sorted(dnsRow[0]?.allowDomains ?? []), sorted(dnsRow[0]?.blockDomains ?? []), phone.rulesWaitingForDns,
     ])).digest("base64url"),
     location: {
       enabled: phone.locationEnabled,
@@ -311,7 +323,8 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     ? rulesDocument(await loadRulesInputs(ctx, phone))
     : null;
   const status = phone.deviceStatus;
-  const confirmed = current && !phone.dnsDirty && status?.rulesEtag === current.etag && status.rulesAppliedAt &&
+  const confirmed = current && !(phone.rulesAwaitDns && phone.dnsDirty) &&
+    status?.rulesEtag === current.etag && status.rulesAppliedAt &&
     status.rulesReceiptConfirmed === true;
   return {
     ...summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false),

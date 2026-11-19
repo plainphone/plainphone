@@ -16,7 +16,7 @@ import java.lang.ref.WeakReference
 import org.plainphone.app.light.LightRelease
 
 /** What the VPN tells the rest of the app about itself. */
-enum class VpnEvent { Started, Stopped }
+enum class VpnEvent { Started, HostChanged, Stopped }
 
 /** One hook for status reporting: set [listener] once (for example in Application.onCreate). Called on whatever thread the event happens on. */
 object VpnEvents {
@@ -77,7 +77,10 @@ class PlainphoneVpnService : VpnService() {
     private fun startTunnel(host: String): Boolean {
         val current = tunnel
         if (current != null && current.alive) {
-            current.useHost(host)
+            if (current.activeHost != host) {
+                current.useHost(host)
+                VpnEvents.emit(VpnEvent.HostChanged)
+            }
             return true
         }
         current?.stop()

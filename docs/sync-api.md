@@ -124,14 +124,16 @@ phone                                      server                         parent
    | `rulesReceiptConfirmed` | True when the ETag and timestamp represent a successful application. Older reports lack this confirmation because their ETag can refer to a fetched document. |
    | `webFilterActive` | The phone observed the configured filter in use (`true`), observed that it was absent (`false`), or could not check (omitted or `null`). |
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
-   | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
+   | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
 
    In light mode `lockIntact` means: `deviceAdmin`, `accessibility`, `usageAccess`, `vpn`,
    `phoneRole` and `smsRole` are all on, no policy failed and no maintenance unlock runs. For a
    phone paired in light mode, or a report with `mode: "light"`, the server stores
    `lockIntact: false` when `protections` is missing, one of those six is off or missing, a
-   policy failed or maintenance runs, whatever the phone sent. The parent sees the protections on the phone's page.
+   policy failed or maintenance runs, whatever the phone sent. For compatibility,
+   `usageAccess` is true when permission is granted or there are no time limits.
+   `usageAccessGranted` is the actual Android permission. Older phones omit it.
 
    The answer is `204`. Invalid bodies get `400`. A valid report with an ahead
    clock is still stored. The confirmation compares the reported ETag to the
@@ -140,10 +142,14 @@ phone                                      server                         parent
    The parent's per-phone `changeReceiptsEnabled` and `healthBoardEnabled`
    preferences default to true and sync in `GET /device/rules`. Android sends
    null rule confirmation fields when receipts are off and omits the extra
-   filter observation when the board is off. The phone continues sending
-   existing operational status and safety reports.
-   The DNS revision in the rules varies when domain lists change and when their
-   resolver sync completes, so a domain-only save also waits for confirmation.
+   filter and usage access observations when the board is off. The phone
+   continues sending existing operational status and safety reports.
+   Rule edits advance the revision even if they restore an earlier configuration.
+   A DNS edit waits for the resolver to accept it and for the phone to acknowledge
+   the resulting ETag. A later phone-side edit can be confirmed during a resolver
+   outage. The filter screen still shows the resolver's sync status.
+   In Light mode a VPN start request is provisional until the tunnel is running
+   with the requested resolver.
 6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again

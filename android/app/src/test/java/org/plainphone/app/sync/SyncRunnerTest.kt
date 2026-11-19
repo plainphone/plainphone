@@ -565,10 +565,13 @@ class SyncRunnerTest {
     fun `receipts are only sent for applied rules and can be turned off with the filter check`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson())
-        device.lock = device.lock.copy(webFilterActive = true)
+        device.lock = device.lock.copy(webFilterActive = true, protections = mapOf(
+            "usageAccess" to true, "usageAccessGranted" to false,
+        ))
         runner.run("fetched without applying")
         assertThat(api.statuses.last().rulesEtag).isNull()
         assertThat(api.statuses.last().webFilterActive).isTrue()
+        assertThat(api.statuses.last().protections).containsEntry("usageAccessGranted", false)
 
         device.lock = device.lock.copy(receipt = AppliedRulesReceipt("\"e1\"", device.now))
         api.rules = RulesResult.Unchanged
@@ -584,7 +587,18 @@ class SyncRunnerTest {
         assertThat(api.statuses.last().rulesEtag).isNull()
         assertThat(api.statuses.last().rulesAppliedAtMs).isNull()
         assertThat(api.statuses.last().webFilterActive).isNull()
+        assertThat(api.statuses.last().protections).containsExactly("usageAccess", true)
         assertThat(api.statuses.last().lockIntact).isTrue()
+    }
+
+    @Test
+    fun `rules from an older server keep the legacy protection report`() {
+        pair()
+        val legacy = org.json.JSONObject(rulesJson()).apply { remove("healthBoardEnabled") }
+        api.rules = RulesResult.Changed("\"old\"", legacy.toString())
+        device.lock = device.lock.copy(protections = mapOf("usageAccess" to true, "usageAccessGranted" to false))
+        runner.run("legacy server")
+        assertThat(api.statuses.last().protections).containsExactly("usageAccess", true)
     }
 
     @Test

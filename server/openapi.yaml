@@ -299,7 +299,8 @@ components:
         deviceOwner: { type: boolean }
         deviceAdmin: { type: boolean }
         accessibility: { type: boolean }
-        usageAccess: { type: boolean }
+        usageAccess: { type: boolean, description: Whether usage access is granted or time limits do not need it. }
+        usageAccessGranted: { type: boolean, description: Whether Android actually grants access to usage data. }
         vpn: { type: boolean }
         alwaysOnVpn: { type: boolean }
         phoneRole: { type: boolean }
@@ -503,9 +504,12 @@ components:
         suggestDeviceContacts:
           type: boolean
           description: Parent opt-in to send names and numbers from a Child phone.
+        rulesRevision:
+          type: integer
+          description: Advances on rule edits so restoring an earlier configuration still requires a new confirmation.
         dnsRevision:
           type: string
-          description: Opaque revision of the web filter's domain lists and resolver sync state.
+          description: Opaque revision of domain lists and whether the latest rule edit is waiting for the resolver.
         changeReceiptsEnabled:
           type: boolean
           default: true
@@ -513,7 +517,7 @@ components:
         healthBoardEnabled:
           type: boolean
           default: true
-          description: Include live web filter checks in phone status.
+          description: Include live web filter checks and the observed usage access permission in phone status.
         lightContactRestriction:
           type: boolean
           description: Enforce the approved list on a light Child phone. Missing means off in light mode.

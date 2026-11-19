@@ -39,7 +39,7 @@ import { getCatalog, phoneCountry } from "./catalog.js";
 import { queueDnsDeletions, retryDnsDeletions, syncDns } from "./dns.js";
 import { notifyUsers } from "./notifications.js";
 import { type Limit, limitLoosens, localDate, TOTAL } from "./limits.js";
-import { wakePhone } from "./phones.js";
+import { nextRulesRevision, wakePhone } from "./phones.js";
 
 export type Op =
   | { type: "app.set"; packageName: string; allowed: boolean }
@@ -551,6 +551,9 @@ export async function submitChange(
       return { status: "pending" as const, op, change: change!, notify };
     }
     const applied = await applyOp(ctx, tx, fresh, op);
+    if (op.type !== "phone.remove") {
+      await tx.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
+    }
     return { status: "applied" as const, op, dns: applied.dns };
   });
   if (result.status === "applied") {
@@ -650,7 +653,13 @@ export async function applyPending(
     try {
       // A savepoint, so a failed op (e.g. its target was deleted meanwhile) does not
       // abort the outer transaction that marks the change as handled.
-      dns = (await tx.transaction((sp) => applyOp(ctx, sp, phone, op, bonusDate))).dns;
+      dns = await tx.transaction(async (sp) => {
+        const applied = await applyOp(ctx, sp, phone, op, bonusDate);
+        if (op.type !== "phone.remove") {
+          await sp.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
+        }
+        return applied.dns;
+      });
     } catch (err) {
       console.error(`pending change ${change.id} could not be applied`, err);
       status = "failed";

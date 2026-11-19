@@ -22,6 +22,19 @@ describe("phone health", () => {
     expect(rows.find((row) => row.key === "smsRole")).toMatchObject({ action: false, detail: t("health.on") });
   });
 
+  it.each([
+    { protections: { usageAccess: true }, action: false, detail: "health.waitForReport" },
+    { protections: { usageAccess: true, usageAccessGranted: false }, action: false, detail: "health.usageAccessOff" },
+    { protections: { usageAccess: false, usageAccessGranted: false }, action: true, detail: "health.fix.usageAccess" },
+    { protections: { usageAccess: true, usageAccessGranted: true }, action: false, detail: "health.on" },
+  ] as const)("shows actual usage access with the correct urgency for $protections", ({ protections, action, detail }) => {
+    const rows = healthRows({ ...phone, status: { ...phone.status, protections } }, now, "en", t);
+    expect(rows.find((row) => row.key === "usageAccess")).toMatchObject({
+      action,
+      detail: t(detail),
+    });
+  });
+
   it("never treats a recent poll as a fresh protection report", () => {
     const rows = healthRows({ ...phone, status: { ...phone.status, reportedAt: at(30) } }, now, "en", t);
     expect(rows.some((row) => row.action)).toBe(false);
