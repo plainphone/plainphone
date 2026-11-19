@@ -99,7 +99,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
       {current.keyType === "trusted" && !current.trustedEmail ? (
         <Notice
           tone={current.trustedAccepted ? "success" : "info"}
-          text={t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting")}
+          text={t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting", { hours: current.delayHours })}
         />
       ) : null}
       <Choice<KeyInput["keyType"]>

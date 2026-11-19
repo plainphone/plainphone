@@ -85,7 +85,7 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
       )}
       {current.keyType === "trusted" && !current.trustedEmail && (
         <p className={`notice ${current.trustedAccepted ? "notice-success" : "notice-info"}`}>
-          {t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting")}
+          {t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting", { hours: current.delayHours })}
         </p>
       )}
       <fieldset className="choices">

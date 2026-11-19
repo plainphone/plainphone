@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import java.io.File
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -79,6 +80,40 @@ class LightSetupAudienceUiTest {
         compose.onNodeWithText("How long can you undo setup?").assertIsDisplayed()
         compose.onNodeWithText("10 minutes (default)").performClick()
         compose.onNodeWithText("Choose your key").assertIsDisplayed()
+    }
+
+    @Test fun waitThenTrustedEmailSavesTheTrustedKeyNotTheEarlierWait() {
+        compose.onNodeWithText("Myself").performClick()
+        compose.onNodeWithText("No, use Plainphone VPN").performClick()
+        compose.onNodeWithText("30 minutes").performClick()
+        compose.onNodeWithText("Wait 12 h").performClick()
+        compose.onNodeWithText("A person I trust").performClick()
+        compose.onNodeWithText("Their email address").performTextInput("friend@example.org")
+        compose.onNodeWithText("Continue").performClick()
+        compose.onNodeWithText("Set up protection on your own phone?").assertIsDisplayed()
+        compose.onNodeWithText("Continue").performClick()
+        compose.runOnIdle {
+            val key = checkNotNull(LightSetup.selfKey(compose.activity))
+            assertEquals("trusted", key.getString("keyType"))
+            assertEquals("friend@example.org", key.getString("trustedEmail"))
+        }
+    }
+
+    @Test fun refusedRuntimePermissionIsRememberedPerStepAndClearedWhenGranted() {
+        val activity = compose.activity
+        compose.runOnIdle {
+            activity.recordPermissionResult(mapOf(android.Manifest.permission.POST_NOTIFICATIONS to false))
+            assertEquals(1, PermissionRecovery.denials(activity, LightSetup.Step.RUNNING))
+            assertTrue(PermissionRecovery.blocked(activity, LightSetup.Step.RUNNING)) // Robolectric: no rationale left
+            assertEquals(0, PermissionRecovery.denials(activity, LightSetup.Step.LOCATION))
+
+            activity.recordPermissionResult(mapOf(android.Manifest.permission.ACCESS_FINE_LOCATION to false))
+            assertEquals(1, PermissionRecovery.denials(activity, LightSetup.Step.LOCATION))
+
+            activity.recordPermissionResult(mapOf(android.Manifest.permission.POST_NOTIFICATIONS to true))
+            assertEquals(0, PermissionRecovery.denials(activity, LightSetup.Step.RUNNING))
+            assertEquals(false, PermissionRecovery.blocked(activity, LightSetup.Step.RUNNING))
+        }
     }
 
     @Test fun backKeepsEveryChoiceAndTheSummaryNamesUndoWaitAndPendingHelper() {

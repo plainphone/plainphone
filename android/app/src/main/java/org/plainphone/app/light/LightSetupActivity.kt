@@ -79,7 +79,7 @@ class LightSetupActivity : ComponentActivity() {
     }
 
     /** Remember a refused runtime permission, so the help below survives leaving the app. */
-    private fun recordPermissionResult(granted: Map<String, Boolean>) {
+    internal fun recordPermissionResult(granted: Map<String, Boolean>) {
         val step = when {
             Manifest.permission.POST_NOTIFICATIONS in granted -> LightSetup.Step.RUNNING
             Manifest.permission.ACCESS_FINE_LOCATION in granted ||
@@ -289,7 +289,7 @@ class LightSetupActivity : ComponentActivity() {
                         if (myself) {
                             LightSetup.saveInitialFilterMethod(this, otherVpn)
                             undoMinutes?.let { LightSetup.saveUndoMinutes(this, it) }
-                            LightSetup.saveSelfKey(this, waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
+                            LightSetup.saveSelfKey(this, if (trusted) null else waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
                         }
                         LightSetup.saveProfile(this, checkNotNull(choice.profile))
                         refresh++

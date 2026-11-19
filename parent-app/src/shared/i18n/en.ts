@@ -498,7 +498,7 @@ export const en = {
   "key.emailInvalid": "Enter a valid email address of someone other than you.",
   "key.accepted": "{email} has logged in and can approve changes.",
   "key.notAccepted": "{email} has not logged in yet. Changes wait until they do.",
-  "key.qrWaiting": "Waiting for your helper to scan the invite. Until they accept, changes wait 24 hours.",
+  "key.qrWaiting": "Waiting for your helper to scan the invite. Until they accept, changes wait {hours} hours.",
   "key.qrAccepted": "Your helper has accepted the invite and can approve changes.",
   "key.qrExpiredHint": "Invite codes expire after 15 minutes. Show a new one if it has run out. An invite is not an approval.",
   "key.payTitle": "Pay to unlock",
