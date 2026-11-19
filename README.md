@@ -52,7 +52,7 @@ Adding a Play account during an approved app install needs the parent PIN. Plain
 
 ### Light mode: a phone already in use
 
-The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
+The same APK, installed as a normal app, without a reset. A local VPN that only carries DNS provides the default web filter, and an accessibility service keeps apps that are not allowed from opening. It is weaker than strong mode, and the dashboard says exactly how. The guard checks protected Settings windows when they open or regain focus. It verifies the active window before sending Back. It retries if Android rejects that action. On first launch, choose **Child**, **Parent**, or **Myself**. Parent opens the dashboard without
 requesting permissions. Child and Myself confirm the phone and check the dashboard account
 before Android asks for permissions. Light-mode setup can be undone without a PIN for ten
 minutes by default after finishing permissions. The dashboard shows the reported deadline. Rebooting closes the window. Undo switches off protection
@@ -60,6 +60,15 @@ even offline. The phone reports Undo when it reconnects, even before its first r
 The server removes the phone and notifies current household members whenever the report arrives.
 If a self-hosted server lacks the undo endpoint, the phone keeps retrying until it gets confirmation. See
 [docs/light-mode.md](docs/light-mode.md).
+
+### Tailscale and work VPNs
+
+Use **Private DNS** as the web filter on a light-mode phone if you need the Android
+VPN slot for Tailscale or a work VPN. In Tailscale, turn off **Use Tailscale DNS settings**.
+MagicDNS names will no longer resolve. Work VPN compatibility depends on its DNS
+policy. Follow the [Private DNS setup](docs/light-mode.md#tailscale-and-work-vpns)
+and check filter status with your VPN connected. Myself phones use their key
+when you switch filter methods after pairing.
 
 ### Myself keys and QR codes
 

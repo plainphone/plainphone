@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { errorMessage, Field, LiveStatus, PageTitle } from "../components/ui";
+import { errorMessage, Field, LiveStatus, PageTitle, Switch } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import { normaliseCode } from "../lib/format";
@@ -13,6 +13,8 @@ export function PairPage() {
   const [code, setCode] = useState(() => normaliseCode(params.get("code") ?? ""));
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>(() => params.get("profile") === "self" ? "self" : "child");
+  const [privateDns, setPrivateDns] = useState(false);
+  const [light, setLight] = useState(false);
   const [hint, setHint] = useState<Profile | null>(null);
   const [lookupPending, setLookupPending] = useState(false);
   const [awaitingPhone, setAwaitingPhone] = useState(false);
@@ -22,15 +24,17 @@ export function PairPage() {
 
   useEffect(() => {
     setHint(null);
+    setLight(false);
     if (code.replace(/-/g, "").length !== 8) {
       setLookupPending(false);
       return;
     }
     let current = true;
     setLookupPending(true);
-    api.post<{ profile: Profile | null }>("/phones/pairing-profile", { code }).then(({ profile: suggested }) => {
+    api.post<{ profile: Profile | null; mode?: "light" | "strong" }>("/phones/pairing-profile", { code }).then(({ profile: suggested, mode }) => {
       if (!current) return;
       setHint(suggested);
+      setLight(mode === "light");
       if (suggested) setProfile(suggested);
     }).catch(() => {
       // Claim still validates the code and selected profile on the server.
@@ -51,7 +55,7 @@ export function PairPage() {
     setBusy(true);
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone });
+      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone, ...(light && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}) });
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else navigate(`/phones/${phone.id}`, { replace: true });
     } catch (err) {
@@ -108,6 +112,10 @@ export function PairPage() {
             </label>
           ))}
         </fieldset>
+        {light && profile === "self" && (
+          <Switch label={t("filter.otherVpn")} checked={privateDns} onChange={setPrivateDns}
+            description={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
+        )}
         <LiveStatus notice={formError ? { tone: "error", text: formError } : null} />
         <div>
           <button type="submit" className="btn btn-primary" disabled={busy || lookupPending}>

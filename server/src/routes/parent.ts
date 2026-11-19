@@ -18,6 +18,7 @@ import {
   locations,
   notificationMutes,
   pairings,
+  FILTER_METHODS,
   pendingChanges,
   phoneApps,
   phones,
@@ -528,7 +529,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       throw new HTTPException(429, { message: "too many attempts; wait a few minutes" });
     }
     const { code } = await body(c, z.object({ code: z.string().max(20).transform(normalizePairingCode) }));
-    const [p] = await ctx.db.select({ profile: pairings.profileHint }).from(pairings)
+    const [p] = await ctx.db.select({ profile: pairings.profileHint, mode: pairings.mode }).from(pairings)
       .where(and(eq(pairings.codeHash, sha256(code)), isNull(pairings.claimedAt), gt(pairings.expiresAt, ctx.now())));
     if (!p) return c.json({ error: "code not found" }, 404);
     return c.json(p);
@@ -546,6 +547,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         profile: z.enum(["child", "self"]),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
+        filterMethod: z.enum(FILTER_METHODS).optional(),
       }),
     );
     const hids = await myHouseholdIds(c.get("user").id);
@@ -572,6 +574,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: input.name,
         profile: input.profile,
         mode: p.mode,
+        filterMethod: input.filterMethod,
         deviceTokenHash: p.requiresConfirmation ? null : sha256(deviceToken),
         deviceInfo: p.deviceInfo ?? null,
         timezone: input.timezone,
@@ -598,6 +601,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: z.string().trim().min(1).max(40),
         profile: z.enum(["child", "self"]),
         mode: z.enum(["strong", "light"]).default("strong"),
+        filterMethod: z.enum(FILTER_METHODS).optional(),
         template: templateCode.optional(),
         householdId: z.uuid().optional(),
         timezone: z.string().max(64).optional(),
@@ -618,6 +622,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         name: input.name,
         profile: input.profile,
         mode: input.mode,
+        filterMethod: input.filterMethod,
         deviceTokenHash: null,
         deviceInfo: null,
         timezone: input.timezone,
@@ -844,10 +849,18 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         ? `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`
         : null,
       synced: !phone.dnsDirty,
+      filterMethod: phone.filterMethod,
       blockedCategories: row?.blockedCategories ?? [],
       allowDomains: row?.allowDomains ?? [],
       blockDomains: row?.blockDomains ?? [],
     });
+  });
+
+  app.put("/phones/:pid/dns/method", async (c) => {
+    const phone = await requirePhone(c);
+    if (phone.mode !== "light") throw new HTTPException(409, { message: "only light phones can change filter method" });
+    const { method } = await body(c, z.strictObject({ method: z.enum(FILTER_METHODS) }));
+    return change(c, phone, { type: "dns.method", method });
   });
 
   app.put("/phones/:pid/dns/categories/:category", async (c) => {

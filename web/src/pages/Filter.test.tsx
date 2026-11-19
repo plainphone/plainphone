@@ -4,18 +4,19 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { makeT } from "../i18n/translate";
+import { filterStatusKey } from "../lib/filter-status";
 import { FilterPage } from "./Filter";
 
 const { host } = vi.hoisted(() => ({ host: "phone.dns.example.test" }));
 
 vi.mock("./Phone", () => ({
-  usePhone: () => ({ phone: { id: "phone", dnsReady: false, dnsConfigured: true }, pending: [] }),
+  usePhone: () => ({ phone: { id: "phone", mode: "light", dnsReady: false, dnsConfigured: true }, pending: [] }),
 }));
 
 vi.mock("../components/ui", async (importOriginal) => ({
   ...await importOriginal<typeof import("../components/ui")>(),
   useLoad: () => ({
-    data: { host, synced: false, blockedCategories: [], allowDomains: [], blockDomains: [] },
+    data: { host, filterMethod: "privateDns", synced: false, blockedCategories: [], allowDomains: [], blockDomains: [] },
   }),
 }));
 
@@ -34,9 +35,20 @@ it("shows a newly confirmed DNS address and its sync status despite a stale phon
     );
     const t = makeT("en");
     expect(html).toContain(host);
+    expect(html).toContain(t("filter.privateDns"));
+    expect(html).toMatch(/role="switch"[^>]*aria-checked="true"/);
     expect(html).toContain(t("filter.notSynced"));
     expect(html).not.toContain(t("filter.waitingDns"));
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it("uses a specific Private DNS instruction for each diagnosis", () => {
+  const status = { filterMethod: "privateDns", filterWorking: false } as const;
+  expect(filterStatusKey({ ...status, filterIssue: "off" })).toBe("filter.privateOff");
+  expect(filterStatusKey({ ...status, filterIssue: "automatic" })).toBe("filter.privateAutomatic");
+  expect(filterStatusKey({ ...status, filterIssue: "wrongHost" })).toBe("filter.privateWrongHost");
+  expect(filterStatusKey({ ...status, filterIssue: "unverified" })).toBe("filter.privateUnverified");
+  expect(makeT("da")(filterStatusKey({ ...status, filterWorking: true })!)).toBe("Filter virker (privat DNS)");
 });

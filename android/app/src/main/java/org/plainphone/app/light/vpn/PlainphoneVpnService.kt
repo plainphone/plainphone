@@ -13,6 +13,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.ref.WeakReference
+import org.plainphone.app.light.FilterMethod
+import org.plainphone.app.light.LightFilter
 import org.plainphone.app.light.LightRelease
 
 /** What the VPN tells the rest of the app about itself. */
@@ -59,7 +61,8 @@ class PlainphoneVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Android can restart an always-on VPN even after the app stopped it during release.
-        val host = if (LightRelease.isReleased(this)) null else chooseHost(intent?.getStringExtra(EXTRA_HOST), prefs(this))
+        val host = if (LightRelease.isReleased(this) ||
+            LightFilter.method(this) == FilterMethod.PRIVATE_DNS) null else chooseHost(intent?.getStringExtra(EXTRA_HOST), prefs(this))
         if (host == null) {
             // An intentional stop does not count as a revoked permission.
             stoppedByApp = true
@@ -241,7 +244,9 @@ class PlainphoneVpnService : VpnService() {
          * the service now (the app is in the background and not exempt) or [host] is not a host name.
          */
         fun start(context: Context, host: String): Boolean {
-            if (!isValidHost(host) || LightRelease.isReleased(context)) return false
+            if (!isValidHost(host) || LightRelease.isReleased(context) ||
+                LightFilter.method(context) == FilterMethod.PRIVATE_DNS
+            ) return false
             prefs(context).edit().putString(KEY_HOST, host).apply()
             val intent = Intent(context, PlainphoneVpnService::class.java).putExtra(EXTRA_HOST, host)
             return try {

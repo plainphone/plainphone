@@ -40,6 +40,7 @@ object EffectivePolicy {
             // The phone's own DNS address only once the DNS service knows it. Until then the
             // placeholder from the QR code stays, so the network never dies (an unknown ClientID
             // gets no answers at all).
+            filterMethod = rules.filterMethod,
             dnsHost = if (rules.dnsReady && rules.dnsHost != null && !removed) rules.dnsHost else qr.dnsHost,
             // During a window, an app needs both: the window allows it and the app list shows it.
             allowedPackages = windowAllowed?.let { it intersect allowed } ?: allowed,
@@ -59,6 +60,7 @@ object EffectivePolicy {
     fun fingerprint(config: PolicyConfig): String {
         val text = listOf(
             config.dnsHost,
+            config.filterMethod.wire,
             config.allowedPackages.sorted().joinToString(","),
             config.server?.windowActive.toString(),
             config.server?.locationRequired.toString(),

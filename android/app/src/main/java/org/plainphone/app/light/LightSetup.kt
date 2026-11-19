@@ -29,6 +29,27 @@ import org.plainphone.app.time.TimeGuard
  * says so, so the list heals itself: if the child switches something off, Plainphone asks again.
  */
 object LightSetup {
+    private var privateDnsSetupUntil = 0L
+    private var vpnSetupUntil = 0L
+
+    fun allowVpnSetup() {
+        vpnSetupUntil = SystemClock.elapsedRealtime() + 30_000L
+    }
+
+    fun finishVpnSetup() {
+        vpnSetupUntil = 0L
+    }
+
+    fun vpnSetupAllowed(): Boolean = SystemClock.elapsedRealtime() < vpnSetupUntil &&
+        !org.plainphone.app.light.vpn.PlainphoneVpnService.isRunning()
+
+    fun allowPrivateDnsSetup(context: Context) {
+        if (LightFilter.setupIssue(context) != null) privateDnsSetupUntil = SystemClock.elapsedRealtime() + 120_000L
+    }
+
+    fun privateDnsSetupAllowed(context: Context): Boolean =
+        SystemClock.elapsedRealtime() < privateDnsSetupUntil && LightFilter.setupIssue(context) != null
+
     private const val PREFS = "plainphone_light_setup"
 
     enum class Step(val title: Int, val body: Int, val action: Int, val optional: Boolean = false) {
@@ -49,7 +70,9 @@ object LightSetup {
         Step.PIN -> !ConfigStore(context).load().usesDefaultPin
         Step.PHONE -> roleHeld(context, android.app.role.RoleManager.ROLE_DIALER)
         Step.SMS -> roleHeld(context, android.app.role.RoleManager.ROLE_SMS)
-        Step.FILTER -> VpnService.prepare(context) == null
+        Step.FILTER -> if (LightFilter.method(context) == FilterMethod.PRIVATE_DNS) {
+            LightFilter.setupIssue(context) == null
+        } else VpnService.prepare(context) == null
         Step.USAGE -> TimeGuard.hasUsageAccess(context)
         Step.ADMIN -> context.getSystemService(DevicePolicyManager::class.java)?.isAdminActive(LightAdminReceiver.component(context)) == true
         Step.RUNNING -> notificationsAllowed(context) &&
@@ -57,7 +80,8 @@ object LightSetup {
         Step.LOCATION -> context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
             context.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
         Step.GUARD -> Protections.isGuardEnabled(context)
-        Step.ALWAYS_ON -> org.plainphone.app.light.vpn.PlainphoneVpnService.isAlwaysOn(context)
+        Step.ALWAYS_ON -> LightFilter.method(context) == FilterMethod.PRIVATE_DNS ||
+            org.plainphone.app.light.vpn.PlainphoneVpnService.isAlwaysOn(context)
         Step.PAIR -> SyncStore(context).let { store ->
             if (hasDashboardPin(context) && !isComplete(context)) hasDashboardRules(store) else store.isPaired
         }
@@ -65,6 +89,20 @@ object LightSetup {
 
     internal fun hasDashboardRules(store: SyncStore): Boolean =
         store.isPaired && store.etag != null && store.rules() != null
+
+    fun saveInitialFilterMethod(context: Context, privateDns: Boolean?) {
+        val method = when (privateDns) {
+            true -> FilterMethod.PRIVATE_DNS
+            false -> FilterMethod.VPN
+            null -> null
+        }
+        prefs(context).edit().putString("initialFilterMethod", method?.wire).apply()
+    }
+
+    fun initialFilterMethod(context: Context): String? =
+        if (Mode.isLight(context) && profile(context) == "self" && !isComplete(context)) {
+            prefs(context).getString("initialFilterMethod", null)
+        } else null
 
     fun profile(context: Context): String? = prefs(context).getString("profile", null)
 
@@ -264,7 +302,9 @@ object LightSetup {
         Step.PIN, Step.PAIR -> null
         Step.PHONE -> roleIntent(context, android.app.role.RoleManager.ROLE_DIALER)
         Step.SMS -> roleIntent(context, android.app.role.RoleManager.ROLE_SMS)
-        Step.FILTER -> VpnService.prepare(context)
+        Step.FILTER -> if (LightFilter.method(context) == FilterMethod.PRIVATE_DNS) {
+            Intent(Settings.ACTION_WIRELESS_SETTINGS)
+        } else VpnService.prepare(context)
         Step.USAGE -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${context.packageName}"))
         Step.ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
             .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, LightAdminReceiver.component(context))

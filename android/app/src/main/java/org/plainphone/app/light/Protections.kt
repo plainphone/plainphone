@@ -51,11 +51,15 @@ data class Protections(
      * false, so the parent sees it. Always-on VPN, notifications and battery are recommended
      * but not required (some phones do not offer them).
      */
-    fun missingForLight(): List<String> = buildList {
+    fun missingForLight(method: FilterMethod = FilterMethod.VPN, dnsIssue: String? = null): List<String> = buildList {
         if (!deviceAdmin) add("device admin")
         if (!accessibility) add("accessibility service")
-        if (!vpn) add("DNS filter (VPN)")
-        if (!privateDnsOk) add("private DNS points elsewhere")
+        if (method == FilterMethod.PRIVATE_DNS) {
+            if (dnsIssue != null) add("DNS filter (Private DNS)")
+        } else {
+            if (!vpn) add("DNS filter (VPN)")
+            if (!privateDnsOk) add("private DNS points elsewhere")
+        }
         if (!phoneRole) add("default phone app")
         if (!smsRole) add("default SMS app")
     }

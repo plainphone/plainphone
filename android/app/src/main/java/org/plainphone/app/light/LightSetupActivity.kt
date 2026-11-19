@@ -66,6 +66,7 @@ class LightSetupActivity : ComponentActivity() {
     }
 
     private fun permissionStepReturned() {
+        LightSetup.finishVpnSetup()
         val step = requestedStep
         requestedStep = null
         if (step != null && needsRestrictedSettingsHelp(Build.VERSION.SDK_INT, step, LightSetup.isDone(this, step))) {
@@ -128,6 +129,7 @@ class LightSetupActivity : ComponentActivity() {
     @Composable
     private fun AudienceScreen() {
         var audience by rememberSaveable { mutableStateOf<SetupAudience?>(null) }
+        var otherVpn by rememberSaveable { mutableStateOf<Boolean?>(null) }
         var undoMinutes by rememberSaveable { mutableStateOf<Int?>(null) }
         var keyChosen by rememberSaveable { mutableStateOf(false) }
         var waitHours by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -136,6 +138,7 @@ class LightSetupActivity : ComponentActivity() {
         var email by rememberSaveable { mutableStateOf("") }
         val back = {
             audience = null
+            otherVpn = null
             undoMinutes = null
             keyChosen = false
             waitHours = null
@@ -178,6 +181,18 @@ class LightSetupActivity : ComponentActivity() {
             }
             else -> {
                 val choice = checkNotNull(audience)
+                if (choice == SetupAudience.MYSELF && Mode.isLight(this) && otherVpn == null) {
+                    CalmScreen(
+                        eyebrow = null,
+                        title = stringResource(R.string.light_other_vpn),
+                        body = stringResource(R.string.light_other_vpn_tip),
+                        primary = stringResource(R.string.light_other_vpn_yes),
+                        onPrimary = { otherVpn = true },
+                        secondary = stringResource(R.string.light_other_vpn_no),
+                        onSecondary = { otherVpn = false },
+                    )
+                    return
+                }
                 if (choice == SetupAudience.MYSELF && Mode.isLight(this) && undoMinutes == null) {
                     CalmScreen(
                         eyebrow = null,
@@ -252,6 +267,7 @@ class LightSetupActivity : ComponentActivity() {
                     body = stringResource(if (choice == SetupAudience.MYSELF) R.string.setup_confirm_self_body else R.string.setup_confirm_child_body),
                     primary = stringResource(R.string.setup_continue),
                     onPrimary = {
+                        LightSetup.saveInitialFilterMethod(this, otherVpn)
                         undoMinutes?.let { LightSetup.saveUndoMinutes(this, it) }
                         if (choice == SetupAudience.MYSELF) {
                             LightSetup.saveSelfKey(this, waitHours, if (trusted) email.trim() else "", trusted && inviteByQr)
@@ -438,6 +454,10 @@ class LightSetupActivity : ComponentActivity() {
             PinStep(index, total)
             return
         }
+        if (step == LightSetup.Step.FILTER && LightFilter.method(this) == FilterMethod.PRIVATE_DNS) {
+            PrivateDnsStep(index, total)
+            return
+        }
         val batteryDone = step == LightSetup.Step.RUNNING && LightSetup.isDone(this, step)
         val batteryHelp = if (step == LightSetup.Step.RUNNING && LightSetup.notificationsAllowed(this) &&
             (batteryDone || batteryPromptOpened)
@@ -553,6 +573,11 @@ class LightSetupActivity : ComponentActivity() {
                 } else {
                     requestBatteryAccess()
                 }
+            LightSetup.Step.FILTER -> {
+                val request = LightSetup.intent(this, step)
+                if (request != null && LightFilter.method(this) == FilterMethod.VPN) LightSetup.allowVpnSetup()
+                open(request)
+            }
             LightSetup.Step.USAGE ->
                 open(LightSetup.intent(this, step), Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
             else -> {
@@ -577,6 +602,46 @@ class LightSetupActivity : ComponentActivity() {
             ))
             Build.VERSION.SDK_INT >= 30 -> open(LightSetup.appDetails(this))
             else -> permissions.launch(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+        }
+    }
+
+    @Composable
+    private fun PrivateDnsStep(index: Int, total: Int) {
+        val host = LightFilter.host(this)
+        LaunchedEffect(host) {
+            if (host == null) {
+                while (LightFilter.host(this@LightSetupActivity) == null) kotlinx.coroutines.delay(1_000)
+                refresh++
+            }
+        }
+        CalmScreen(
+            eyebrow = stringResource(R.string.light_step_counter, index + 1, total),
+            title = stringResource(R.string.light_private_dns_title),
+            body = if (host == null) stringResource(R.string.light_private_dns_waiting)
+                else stringResource(R.string.light_private_dns_body),
+            primary = stringResource(if (host == null) R.string.pairing_retry else R.string.light_private_dns_settings),
+            onPrimary = {
+                if (host == null) {
+                    org.plainphone.app.sync.SyncScheduler.now(this, "private DNS setup")
+                } else {
+                    LightSetup.allowPrivateDnsSetup(this)
+                    open(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS), Intent(android.provider.Settings.ACTION_SETTINGS))
+                }
+                refresh++
+            },
+            secondary = if (host != null) stringResource(R.string.light_private_dns_copy) else null,
+            onSecondary = {
+                if (host != null) getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("Private DNS", host))
+            },
+            progress = (index + 1f) / total,
+        ) {
+            if (host != null) {
+                OutlinedButton(onClick = { open(Intent(android.provider.Settings.ACTION_VPN_SETTINGS)) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.light_private_dns_vpn_settings))
+                }
+            }
         }
     }
 

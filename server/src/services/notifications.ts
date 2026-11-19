@@ -15,7 +15,7 @@ import type { Ctx } from "./context.js";
 const MAX_FAILURES = 20;
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
@@ -134,7 +134,7 @@ export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   const t = text[locale](e);
   switch (e.type) {
     case "protection":
-      return { ...t, url: e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
+      return { ...t, url: e.trusted ? "/approvals" : e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
     case "offline":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `offline-${e.phoneId}` };
     case "approval":

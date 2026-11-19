@@ -94,3 +94,18 @@ source-account identifier.
 - Evidence: no direct evidence, reason: two-minute approval codes and single-use invitations make temporary, scoped collaboration possible.
 - Evidence: no direct evidence, reason: reciprocal keys let adults choose mutual support and leave one direction independently.
 - Evidence: no direct evidence, reason: copying a small set of rules reduces repeated setup work while giving each person a chance to edit the result.
+
+## Private DNS with Tailscale or a work VPN
+
+Myself light-mode setup asks whether you use another VPN. The choice on Android
+replaces the dashboard draft when the phone first connects. Choose **Private DNS**
+and follow [the Android setup instructions](light-mode.md#tailscale-and-work-vpns).
+Tailscale needs **Use Tailscale DNS settings** off, which means MagicDNS names
+will no longer resolve. Check status once your VPN is connected, especially if
+work policies require a particular resolver.
+
+After pairing, switching between **Plainphone VPN** and **Private DNS** in the
+dashboard or parent app waits for your key. In Private DNS mode the Android
+guard protects the Private DNS editor while leaving network settings open.
+A report that a previously verified filter stopped working follows the
+protection alert flow and can reach your trusted person by push.

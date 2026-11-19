@@ -1,6 +1,6 @@
 # Light mode: the DNS-only VPN
 
-In light mode Plainphone is not Device Owner, so it cannot force Android's private DNS. It uses a local VPN instead, and the VPN carries **only DNS**. This page describes that VPN. The rest of light mode is in `light-mode.md`.
+In light mode Plainphone is not Device Owner, so it cannot force Android's private DNS. The default filter uses a local VPN that carries **only DNS**. This page describes that VPN and the [Private DNS option](#private-dns-and-other-vpns). The rest of light mode is in `light-mode.md`.
 
 Code: [`android/app/src/main/java/org/plainphone/app/light/vpn/`](../android/app/src/main/java/org/plainphone/app/light/vpn).
 
@@ -54,7 +54,7 @@ Plainphone cannot change this setting in light mode (that needs Device Owner or 
 
 ## Always-on VPN and "Block connections without VPN"
 
-Always-on VPN (Settings, Network, VPN, the gear next to "Plainphone filter") makes Android start the VPN at boot and restart it when it dies, with a null intent. In light mode, turn it on: without it the filter is off after a kill or a reboot until the app is next opened. The user can turn it off again; `isAlwaysOn()` lets Plainphone report that while the service runs.
+Always-on VPN (Settings, Network, VPN, the gear next to "Plainphone filter") makes Android start the VPN at boot and restart it when it dies, with a null intent. For Plainphone VPN, turn it on: without it the filter is off after a kill or a reboot until the app is next opened. The user can turn it off again; `isAlwaysOn()` lets Plainphone report that while the service runs.
 
 **Block connections without VPN** (lockdown) is a different matter. Android applies it to every packet of the phone's apps that does not leave through the VPN, and this VPN carries only DNS, so the expected result is that all other traffic is blocked and the phone has no internet. Plainphone itself is exempt. Do not tell parents to turn it on until it has been tested on a real phone (open question 2 in [dns-bypass.md](dns-bypass.md)). The Device Owner variant, `DevicePolicyManager.setAlwaysOnVpnPackage(admin, packageName, lockdownEnabled)`, has the same question.
 
@@ -72,3 +72,31 @@ Google Play only allows `VpnService` for apps whose core function needs it, and 
 4. Browsing, video and downloads do not slow down and do not pass through the VPN.
 5. Settings, Private DNS, a host name: Plainphone reports it. Turn the VPN off in settings: `vpn_revoked_at` is set and the parent is told.
 6. Kill the app from the recents list and reboot with always-on: the VPN comes back by itself.
+
+## Private DNS and other VPNs
+
+Light-mode phones can choose **Private DNS** in **Web filter**. Plainphone stops
+its local VPN. Copy the phone-specific hostname from Plainphone on Android and
+set it as the **Private DNS provider hostname** in **Network & internet**.
+Disable Plainphone’s Android always-on VPN and connection blocking if they
+were enabled. In Tailscale, turn off **Use Tailscale DNS settings**. MagicDNS
+names will be unavailable. A work VPN may enforce its own DNS or block access
+to the resolver. Check status with the intended VPN connected.
+
+Plainphone checks that Android is in strict hostname mode, that the active
+network shows the expected validated provider, and that Android can resolve a
+fresh test name to a dedicated Plainphone answer. The resolver serves this
+answer over its existing DNS-over-TLS endpoint on TCP 853. A working result
+covers the Android DNS path the app tested. VPN-internal DNS, an app’s own
+resolver, and direct IP connections can follow a different path.
+The dashboard distinguishes an off or automatic setting, a different hostname,
+an address still being provisioned, and a check that could not be confirmed.
+A phone without working network access reports its condition when it reconnects.
+
+When switching back to **Plainphone VPN**, disconnect the other VPN and open
+Plainphone to grant Android VPN permission if prompted. Restore Android Private
+DNS to **Automatic** after releasing or removing a phone that used its
+Plainphone hostname, since removing its ClientID can leave Android without DNS.
+
+See the [VPN coexistence research](research/vpn-coexistence.md) for test conditions
+and version-specific limits.

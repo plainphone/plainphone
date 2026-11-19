@@ -34,6 +34,20 @@ class RulesTest {
     }
 
     @Test
+    fun `the filter method changes the effective policy and defaults to VPN`() {
+        val now = Instant.EPOCH
+        val oldRules = ServerRules.parse(rulesJson())
+        val privateRules = ServerRules.parse(rulesJson().replace(
+            "\"dns\":{", "\"dns\":{\"filterMethod\":\"privateDns\",",
+        ))
+        val vpn = EffectivePolicy.merge(qr, oldRules, now)
+        val privateDns = EffectivePolicy.merge(qr, privateRules, now)
+        assertThat(vpn.filterMethod.wire).isEqualTo("vpn")
+        assertThat(privateDns.filterMethod.wire).isEqualTo("privateDns")
+        assertThat(EffectivePolicy.fingerprint(privateDns)).isNotEqualTo(EffectivePolicy.fingerprint(vpn))
+    }
+
+    @Test
     fun `release is false unless the server says so, so an older server never releases a phone`() {
         assertThat(ServerRules.parse(rulesJson()).release).isFalse()
         assertThat(ServerRules.parse(rulesJson(release = false)).release).isFalse()
