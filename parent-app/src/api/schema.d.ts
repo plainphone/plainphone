@@ -1009,6 +1009,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/phones/{pid}/open-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open mode, its blocked categories and the apps blocked one by one */
+        get: operations["getPhonesOpenMode"];
+        /**
+         * Turn open mode on or off
+         * @description Turning it on loosens the rules, so on a Self phone it waits for the key. Turning it off applies at once.
+         */
+        put: operations["putPhonesOpenMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/open-mode/categories/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block or allow a category in open mode
+         * @description Blocks the category's known apps and its web filter category in one action. Allowing it loosens, so on a Self phone it waits for the key.
+         */
+        put: operations["putPhonesOpenModeCategories"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/time-limits": {
         parameters: {
             query?: never;
@@ -1952,6 +1993,11 @@ export interface components {
         FilterMethod: "vpn" | "privateDns";
         /** @enum {string} */
         DnsCategory: "social" | "adult" | "gambling" | "games" | "dating" | "video";
+        /**
+         * @description A category open mode can block. "adult" is web filter only; the others also block known apps.
+         * @enum {string}
+         */
+        OpenCategory: "social" | "gambling" | "adult";
         /** @description A rule change, as stored for pending changes and shown on the phone. */
         Op: {
             /** @constant */
@@ -1981,6 +2027,15 @@ export interface components {
             type?: "dns.category";
             category?: components["schemas"]["DnsCategory"];
             blocked?: boolean;
+        } | {
+            /** @constant */
+            type: "openMode.set";
+            enabled: boolean;
+        } | {
+            /** @constant */
+            type: "openMode.category";
+            category: components["schemas"]["OpenCategory"];
+            blocked: boolean;
         } | {
             /** @enum {unknown} */
             type?: "dns.allowDomain" | "dns.blockDomain";
@@ -2224,8 +2279,12 @@ export interface components {
             timezone: string;
             apps: {
                 allowed?: components["schemas"]["PackageName"][];
-                /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default. */
+                /** @description Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default, unless `open` is true. */
                 hidden?: components["schemas"]["PackageName"][];
+                /** @description Open mode. Allow every app that is not in `blocked`, also apps the rules have never listed. Missing from older servers (false). */
+                open?: boolean;
+                /** @description The block list in open mode, also apps that are not installed yet (the known apps of blocked categories). Empty when `open` is false. */
+                blocked?: components["schemas"]["PackageName"][];
                 /** @description Apps the parent added from the catalog that the phone has not reported as installed. Treat them as allowed, so they are not hidden once installed, and offer to install them (strong mode via Play for that one app, light mode with a link to Play). */
                 toInstall?: {
                     packageName?: components["schemas"]["PackageName"];
@@ -2448,6 +2507,8 @@ export interface components {
             profile?: "child" | "self";
             /** @enum {unknown} */
             mode?: "strong" | "light";
+            /** @description Every app is allowed except the block list. */
+            openMode?: boolean;
             timezone?: string;
             locationEnabled?: boolean;
             locationMode?: components["schemas"]["LocationMode"];
@@ -4592,7 +4653,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Installed apps: packageName, label, allowed, core */
+            /** @description Installed apps: packageName, label, allowed, blocked (open mode block list, also via a category), blockedBy (the category, when a blocked category blocks it), core */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4628,6 +4689,82 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getPhonesOpenMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open mode state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        categories: {
+                            category: components["schemas"]["OpenCategory"];
+                            blocked: boolean;
+                            hasApps: boolean;
+                        }[];
+                        blockedApps: {
+                            packageName: components["schemas"]["PackageName"];
+                            label: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    putPhonesOpenMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    putPhonesOpenModeCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                category: components["schemas"]["OpenCategory"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    blocked: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
         };
     };
     getPhonesTimeLimits: {

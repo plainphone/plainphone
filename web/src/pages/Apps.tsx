@@ -48,7 +48,7 @@ export function AppsPage() {
           <Chevron />
         </Link>
       </div>
-      <OpenModePanel onChanged={() => void res.reload()} />
+      {phone.openMode !== undefined && <OpenModePanel onChanged={() => void res.reload()} />}
       <LoadGate res={res}>
         {(apps) => {
           if (apps.length === 0) return <p className="empty-inline">{t("apps.empty")}</p>;

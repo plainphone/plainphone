@@ -10,6 +10,13 @@ export type Locale = "en" | "da";
 export type Profile = "child" | "self";
 export type DnsCategory = "social" | "adult" | "gambling" | "games" | "dating" | "video";
 export const DNS_CATEGORIES: DnsCategory[] = ["social", "adult", "gambling", "games", "dating", "video"];
+/** Open mode: every app is allowed except the block list (docs/open-mode.md). */
+export type OpenCategory = "social" | "gambling" | "adult";
+export interface OpenModeState {
+  enabled: boolean;
+  categories: { category: OpenCategory; blocked: boolean; hasApps: boolean }[];
+  blockedApps: { packageName: string; label: string }[];
+}
 
 export interface User {
   id: string;
@@ -26,6 +33,8 @@ export interface Phone {
   name: string;
   profile: Profile;
   mode: "strong" | "light";
+  /** Every app is allowed except the block list. Missing on old servers. */
+  openMode?: boolean;
   timezone: string;
   locationEnabled: boolean;
   locationMode?: LocationMode;
@@ -41,6 +50,10 @@ export interface App {
   packageName: string;
   label: string;
   allowed: boolean;
+  /** Open mode: on the block list, one by one or with a category. */
+  blocked?: boolean;
+  /** Set when a blocked category blocks the app. */
+  blockedBy?: OpenCategory;
   core: boolean;
 }
 export interface Contact {
@@ -168,6 +181,8 @@ export type Op =
   | { type: "contact.schedule"; restricted: boolean }
   | { type: "dns.method"; method: components["schemas"]["FilterMethod"] }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
+  | { type: "openMode.set"; enabled: boolean }
+  | { type: "openMode.category"; category: OpenCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }
   | { type: "schedule.create"; schedule: ScheduleInput }
