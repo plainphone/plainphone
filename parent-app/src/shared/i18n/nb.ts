@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { statusEn } from "./status";
 
 export const nb: Messages = {
+  ...statusEn, // English until translated
+  "status.never.title": "Ikke tilkoblet ennå",
+  "status.stale.title": "Sist online {when}",
   "app.name": "Plainphone",
   "app.skip": "Gå til innhold",
   "app.loading": "Laster inn …",
@@ -75,8 +79,6 @@ export const nb: Messages = {
   "phones.add": "Legg til telefon",
   "phones.emptyTitle": "Ingen telefoner ennå",
   "phones.emptyBody": "Velg Legg til telefon. Du får en QR-kode som telefonen skanner når den settes opp.",
-  "phones.lastSeen": "Sist aktiv {when}",
-  "phones.neverSeen": "Ikke tilkoblet ennå",
   "phones.lockBroken": "Beskyttelsen er ikke helt aktiv",
   "phones.pendingCount": "{n} endring venter",
   "phones.pendingCountMany": "{n} endringer venter",
@@ -128,10 +130,7 @@ export const nb: Messages = {
   "phone.householdHint": "Foreldre som administrerer denne telefonen",
   "phone.pendingTitle": "Venter på endringer",
   "phone.pendingNone": "Ingen endringer venter.",
-  "phone.lastSeen": "Sist online {when}",
-  "phone.neverOnline": "Har ikke vært på nett ennå",
   "phone.status": "Telefonstatus",
-  "phone.statusNone": "Ingen status fra telefonen ennå",
   "phone.attCheckedAt": "System sjekket {when}",
   "phone.attLastFailedAt": "Den siste systemsjekken kunne ikke bekrefte telefonen ({when}).",
   "phone.attFindingAt": "Finner registrert {when}",

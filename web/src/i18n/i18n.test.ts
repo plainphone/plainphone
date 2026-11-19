@@ -35,8 +35,8 @@ describe("catalogues", () => {
 
 describe("translate", () => {
   it("fills placeholders and leaves unknown ones alone", () => {
-    expect(translate(en, "phones.lastSeen", { when: "5 minutes ago" })).toBe("Last seen 5 minutes ago");
-    expect(translate(en, "phones.lastSeen")).toBe("Last seen {when}");
+    expect(translate(en, "status.stale.title", { when: "5 minutes ago" })).toBe("Last online 5 minutes ago");
+    expect(translate(en, "status.stale.title")).toBe("Last online {when}");
     expect(makeT("da")("op.appShow", { app: "Instagram" })).toBe("Vis Instagram");
   });
 

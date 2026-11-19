@@ -1,0 +1,36 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Phone state and answered requests. Space, a divider and one quiet tint carry the state. */
+
+.phone-state-attention {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.queue-summary {
+  margin: 0;
+}
+
+.item-answered {
+  background: var(--tint);
+  border-color: transparent;
+}
+
+.item-answered .row-title:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.answered-outcome {
+  margin: 0.5rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--accent);
+  font-weight: 600;
+}
+
+.item-answered[data-outcome="cancelled"] .answered-outcome,
+.item-answered[data-outcome="failed"] .answered-outcome,
+.item-answered[data-outcome="declinedByYou"] .answered-outcome,
+.item-answered[data-outcome="declinedByOther"] .answered-outcome {
+  border-left-color: var(--border-strong);
+}

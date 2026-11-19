@@ -303,7 +303,8 @@ describe("Self profile with a trusted person", () => {
     expect((await approve(me, first, fresh)).status).toBe(404);
     expect((await approve(helper, second, fresh)).status).toBe(409);
     expect((await approve(helper, first, fresh)).status).toBe(204);
-    expect((await approve(helper, first, fresh)).status).toBe(409);
+    // Repeating the same answer is safe and changes nothing.
+    expect((await approve(helper, first, fresh)).status).toBe(204);
     expect((await helper.get("/api/approvals")).json.approvals.map((a: { id: string }) => a.id)).toEqual([second]);
   });
 

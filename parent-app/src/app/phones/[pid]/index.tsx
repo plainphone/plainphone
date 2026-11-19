@@ -16,6 +16,7 @@ import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
+import { phoneStateText } from "../../../lib/phoneStateText";
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
@@ -461,12 +462,13 @@ function Overview() {
     },
   ];
 
+  const state = phoneStateText(phone, now, t, locale);
   const filterStatus = filterStatusKey(phone.status);
   const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
     t(phone.profile === "child" ? "profile.child" : "profile.self"),
     t(phone.mode === "light" ? "mode.light" : "mode.strong"),
-    phone.lastSeenAt ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) }) : t("phone.neverOnline"),
+    state.title,
   ].join(", ");
 
   const failedPolicies = phone.status?.failedPolicies.filter((policy) => installWindowOverrunSeconds(policy) === undefined) ?? [];
@@ -479,6 +481,7 @@ function Overview() {
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
       {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
+      <Notice tone={state.attention ? "warn" : "info"} text={state.hint} />
       {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
       {filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}

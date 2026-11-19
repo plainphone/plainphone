@@ -441,6 +441,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/approval-challenge/{changeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the request behind a QR code on this Self phone has been answered */
+        get: operations["getDeviceApprovalState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/trusted-invite": {
         parameters: {
             query?: never;
@@ -2872,6 +2889,8 @@ export interface components {
             releaseRequestedAt?: string | null;
             /** Format: date-time */
             lastSeenAt?: string | null;
+            /** @description Only on a single phone. Whether the phone has confirmed the rules the server holds now. Null while it has confirmed none. */
+            rulesCurrent?: boolean | null;
             dnsHost?: string;
             dnsSynced?: boolean;
             /** @description Whether this server has a DNS filter service configured */
@@ -3032,6 +3051,19 @@ export interface components {
         };
     };
     responses: {
+        /** @description The request was answered already, withdrawn, or the preview or code no longer matches. Repeating your own earlier answer is not a conflict and gives 204. */
+        ApprovalConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    error: string;
+                    /** @enum {string} */
+                    outcome: "approvedByYou" | "approvedByOther" | "declinedByYou" | "declinedByOther" | "cancelled" | "failed" | "changed" | "codeExpired";
+                };
+            };
+        };
         /** @description Error */
         Error: {
             headers: {
@@ -4099,6 +4131,32 @@ export interface operations {
                         /** Format: uri */
                         url: string;
                         summary: components["schemas"]["ApprovalSummary"];
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    getDeviceApprovalState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                changeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of the request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "waiting" | "approved" | "declined" | "cancelled" | "failed";
                     };
                 };
             };
@@ -7069,13 +7127,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid code or stale preview */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
+            409: components["responses"]["ApprovalConflict"];
         };
     };
     postChangesApprove: {
@@ -7109,13 +7161,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Stale preview or request no longer pending */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
+            409: components["responses"]["ApprovalConflict"];
         };
     };
     postChangesReject: {
@@ -7129,13 +7175,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rejected */
+            /** @description Rejected, or already rejected by you */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            409: components["responses"]["ApprovalConflict"];
         };
     };
     postChangesPayUnlock: {

@@ -115,3 +115,11 @@ guard protects the Private DNS editor while leaving network settings open.
 A confirmed loss of a previously working filter can reach your trusted person
 by push and email. Setup after a method change and inconclusive DNS checks
 remain visible in status without sending a protection alert.
+
+## Answering a request: one result everywhere
+
+Answering a request is idempotent. Repeating your own answer (approve twice, reject twice) returns 204 and changes nothing. The opposite answer, a request that was withdrawn, or a stale preview or expired code returns 409 with an `outcome`: `approvedByYou`, `approvedByOther`, `declinedByYou`, `declinedByOther`, `cancelled`, `failed`, `changed` or `codeExpired`. The first five are final: the dashboard and the parent app keep the request in place with its result, without buttons, and announce it once. `changed` and `codeExpired` leave it open for a fresh preview or code.
+
+A Self phone showing an approval QR code polls `GET /device/approval-challenge/{changeId}` (`waiting`, `approved`, `declined`, `cancelled`, `failed`) and shows the result in place of the code. After two minutes it says the code expired and offers "Show a new code", which fetches a fresh code for the same request. A server without the route answers 404, and the phone keeps showing the code.
+
+Phone state wording is shared by web and Expo (`web/src/lib/phone-state.ts`, `web/src/i18n/status.ts`): never connected, last online (stale), online with no report, waiting for the phone and rules confirmed. `GET /phones/{pid}` adds `rulesCurrent` (the phone confirmed the rules the server holds now) so "waiting for the phone" is exact. Before/after screenshots: `docs/screenshots/ux-status-readable/` (regenerate the web ones with `web/scripts/status-screenshots.sh`; Android ones come from `SelfApprovalOutcomeTest`).

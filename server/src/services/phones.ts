@@ -362,21 +362,26 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [row] = await ctx.db.select({
-    phone: phones,
-    ...summaryFields(),
-    setupEnrollment: sql<Pick<typeof enrollments.$inferSelect, "id" | "provisioning" | "invalidatedAt"> | null>`
-      (select jsonb_build_object('id', ${enrollments.id}, 'provisioning', ${enrollments.provisioning}, 'invalidatedAt', null)
-       from ${enrollments}
-       where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
-         and ${enrollments.invalidatedAt} is null and ${enrollments.usedAt} is null
-         and ${enrollments.provisioning} is not null
-         and ${enrollments.expiresAt} > ${ctx.now().toISOString()}::timestamptz
-       order by ${enrollments.createdAt} desc limit 1)`,
-  }).from(phones).where(eq(phones.id, phone.id));
+  const [[row], current] = await Promise.all([
+    ctx.db.select({
+      phone: phones,
+      ...summaryFields(),
+      setupEnrollment: sql<Pick<typeof enrollments.$inferSelect, "id" | "provisioning" | "invalidatedAt"> | null>`
+        (select jsonb_build_object('id', ${enrollments.id}, 'provisioning', ${enrollments.provisioning}, 'invalidatedAt', null)
+         from ${enrollments}
+         where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
+           and ${enrollments.invalidatedAt} is null and ${enrollments.usedAt} is null
+           and ${enrollments.provisioning} is not null
+           and ${enrollments.expiresAt} > ${ctx.now().toISOString()}::timestamptz
+         order by ${enrollments.createdAt} desc limit 1)`,
+    }).from(phones).where(eq(phones.id, phone.id)),
+    respondWithRules(ctx, phone, []),
+  ]);
   const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
   return {
     ...summary,
+    /** Whether the phone has confirmed the rules the server holds now; null while it has confirmed none. */
+    rulesCurrent: phone.deviceStatus?.rulesEtag ? phone.deviceStatus.rulesEtag === current.etag : null,
     setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
       ? row.setupEnrollment.id
       : null,
