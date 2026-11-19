@@ -24,12 +24,19 @@ internal object UpdateBatteryExemption {
     fun isMissing(context: Context) =
         Mode.isStrong(context) && !InstallWatchdogService.hasBatteryExemption(context)
 
+    fun checkAndClearNotification(context: Context): Boolean {
+        val missing = isMissing(context)
+        if (!missing) context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+        return missing
+    }
+
     fun failure(context: Context): StepResult? =
-        if (isMissing(context)) StepResult(FAILED_POLICY, false, "Plainphone setup") else null
+        if (checkAndClearNotification(context)) StepResult(FAILED_POLICY, false, "Plainphone setup") else null
 
     fun setupRequest(context: Context): Intent? = if (isMissing(context)) batteryExemptionRequest(context) else null
 
     fun notify(context: Context) {
+        if (!checkAndClearNotification(context)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return

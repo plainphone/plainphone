@@ -40,7 +40,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
     override fun isDeviceOwner(): Boolean =
         context.getSystemService(android.app.admin.DevicePolicyManager::class.java)?.isDeviceOwnerApp(context.packageName) == true
 
-    override fun needsBatteryExemption() = UpdateBatteryExemption.isMissing(context)
+    override fun needsBatteryExemption() = UpdateBatteryExemption.checkAndClearNotification(context)
 
     override fun promptBatteryExemption() = UpdateBatteryExemption.notify(context)
 

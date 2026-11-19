@@ -111,12 +111,13 @@ class UpdateBatteryExemptionTest {
         assertEquals(UpdateErrorCode.BATTERY_EXEMPTION_MISSING, report.errorCode)
         assertEquals("Allow Plainphone to run in the background so it can update itself safely.", report.detail)
         assertEquals(SelfUpdater.Outcome.Failed(report.detail!!), outcome)
-        val notifications = shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications
-        val intent = shadowOf(notifications.single().contentIntent).savedIntent
+        val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val intent = shadowOf(notifications.allNotifications.single().contentIntent).savedIntent
         assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, intent.action)
         assertEquals("package:${context.packageName}", intent.dataString)
         grantExemption()
         assertNull(SelfUpdate.report(context))
+        assertTrue(notifications.allNotifications.isEmpty())
     }
 
     private fun grantExemption() {

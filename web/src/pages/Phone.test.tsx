@@ -181,7 +181,7 @@ it.each(["en", "da"] as const)("shows the battery fix by the version and Update 
       ...phone.status,
       appVersionCode: 11,
       failedPolicies: ["battery exemption missing: self-update cannot run"],
-      lockIntact: false,
+      lockIntact: true,
     },
   }, locale);
   const t = makeT(locale);
@@ -205,4 +205,21 @@ it("replaces a legacy battery update error with the fix text", () => {
   });
   expect(html).toContain(makeT("en")("phone.updateBatteryExemptionLegacy"));
   expect(html).not.toContain(detail);
+});
+
+it("keeps an independent update error visible alongside the battery fix", () => {
+  const detail = "Download timed out";
+  const html = renderPhone({
+    ...phone,
+    status: {
+      ...phone.status,
+      appVersionCode: 11,
+      failedPolicies: ["battery exemption missing: self-update cannot run"],
+      update: { state: "failed", errorCode: "network", detail, checkedAt: null, latestVersion: null },
+    },
+  });
+  const t = makeT("en");
+  expect(html).toContain(t("phone.updateBatteryExemptionMissing"));
+  expect(html).toContain(t("phone.updateNetwork"));
+  expect(html).toContain(detail);
 });

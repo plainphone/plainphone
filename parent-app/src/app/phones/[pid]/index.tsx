@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
@@ -8,11 +8,13 @@ import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
+import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
 import { formatAccountTypes, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../../../shared/lib/format";
 import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../../shared/lib/failedPolicies";
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { describeOp } from "../../../shared/lib/ops";
+import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
   const { t, locale } = useI18n();
@@ -165,6 +167,19 @@ function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNull
   const { notify } = usePhone();
   const [busy, setBusy] = useState(false);
   const batteryMessage = updateBatteryExemptionMessage(status);
+  const supported = status.appVersionCode !== undefined;
+  const checkSigningKey = supported && usesProductionKey(status.appVersion) === false;
+  const [latest, setLatest] = useState<LatestVersion | null>();
+  const signingKeyChange = hasPhoneSigningKeyChange(status, latest ?? undefined);
+
+  useEffect(() => {
+    if (!checkSigningKey) return;
+    let active = true;
+    void fetchLatestPhoneVersion(`${SERVER_URL}/download/android/latest.json`)
+      .catch(() => undefined)
+      .then((version) => { if (active) setLatest(version ?? null); });
+    return () => { active = false; };
+  }, [checkSigningKey]);
 
   async function requestUpdate() {
     setBusy(true);
@@ -182,10 +197,11 @@ function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNull
     <VStack gap={space.sm}>
       <Row>
         <Text>{t("phone.appVersion", { version: status.appVersion })}</Text>
-        {status.appVersionCode !== undefined ? (
-          <Button kind="secondary" title={t("phone.updateNow")} busy={busy} onPress={() => void requestUpdate()} />
+        {supported && !signingKeyChange ? (
+          <Button kind="secondary" title={t("phone.updateNow")} busy={busy || (checkSigningKey && latest === undefined)} onPress={() => void requestUpdate()} />
         ) : null}
       </Row>
+      {signingKeyChange ? <Notice tone="warn" text={t(status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight")} /> : null}
       {batteryMessage ? <Notice tone="warn" text={t(batteryMessage)} /> : null}
     </VStack>
   );

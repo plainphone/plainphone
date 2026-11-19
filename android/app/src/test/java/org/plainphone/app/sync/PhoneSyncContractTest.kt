@@ -125,7 +125,11 @@ class PhoneSyncContractTest {
         val (_, missingBattery) = parent("GET", "/phones/$phoneId")
         val missingStatus = missingBattery!!.getJSONObject("status")
         assertThat(missingStatus.getJSONArray("failedPolicies").getString(0)).isEqualTo(batteryPolicy)
-        assertThat(missingStatus.getBoolean("lockIntact")).isFalse()
+        assertThat(missingStatus.getBoolean("lockIntact")).isTrue()
+        device.lock = appliedLock.copy(failedPolicies = listOf(batteryPolicy, "private DNS"))
+        runner.run("DNS policy failed")
+        val (_, brokenLock) = parent("GET", "/phones/$phoneId")
+        assertThat(brokenLock!!.getJSONObject("status").getBoolean("lockIntact")).isFalse()
         device.lock = appliedLock
         runner.run("battery exemption granted")
         val (_, grantedBattery) = parent("GET", "/phones/$phoneId")

@@ -576,15 +576,21 @@ class SyncRunnerTest {
         runner.run("2")
         assertThat(api.statuses).hasSize(1)
 
-        device.lock = device.lock.copy(failedPolicies = listOf("private DNS"))
+        val batteryPolicy = "battery exemption missing: self-update cannot run"
+        device.lock = device.lock.copy(failedPolicies = listOf(batteryPolicy))
+        runner.run("battery exemption removed")
+        assertThat(api.statuses.last().failedPolicies).containsExactly(batteryPolicy)
+        assertThat(api.statuses.last().lockIntact).isTrue()
+
+        device.lock = device.lock.copy(failedPolicies = listOf(batteryPolicy, "private DNS"))
         runner.run("3")
-        assertThat(api.statuses).hasSize(2)
-        assertThat(api.statuses[1].lockIntact).isFalse()
-        assertThat(api.statuses[1].failedPolicies).containsExactly("private DNS")
+        assertThat(api.statuses).hasSize(3)
+        assertThat(api.statuses.last().lockIntact).isFalse()
+        assertThat(api.statuses.last().failedPolicies).containsExactly(batteryPolicy, "private DNS")
 
         device.now += SyncRunner.STATUS_EVERY_MS
         runner.run("4")
-        assertThat(api.statuses).hasSize(3)
+        assertThat(api.statuses).hasSize(4)
     }
 
     @Test

@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webSrc = join(here, "..", "..", "web", "src");
 const shared = join(here, "..", "src", "shared");
 
-export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/settings.ts"];
+export const FILES = ["i18n/en.ts", "i18n/da.ts", "i18n/translate.ts", "lib/format.ts", "lib/failedPolicies.ts", "lib/lock-steps.ts", "lib/ops.ts", "lib/phoneUpdate.ts", "lib/settings.ts"];
 
 const check = process.argv.includes("--check");
 let drift = 0;

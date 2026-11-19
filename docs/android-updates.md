@@ -37,7 +37,8 @@ If an update request finds the exemption missing, the phone shows a notification
 opens Android's permission dialog. Older builds may require **Open battery settings** on
 the parent PIN screen. The phone keeps the install
 restriction in place for self-updates and approved catalog installs until the exemption
-is enabled.
+is enabled. The parent can see the missing exemption next to the app version even when
+the lock is intact. The phone clears the update reminder when it detects the permission.
 
 ## Release assets
 
