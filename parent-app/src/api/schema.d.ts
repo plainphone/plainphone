@@ -126,6 +126,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Redeem a one-time move token into a phone-generated device credential. */
+        post: operations["redeemServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/move-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate the new rules before changing the phone's connection. */
+        get: operations["previewServerMoveRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/rules": {
         parameters: {
             query?: never;
@@ -1167,6 +1201,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/households/{hid}/server-move/phones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listHouseholdMovePhones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMoveSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["prepareServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["exportServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/households/{hid}/server-move/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/server-move/allow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setServerMovePermission"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/server-move/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startServerMove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/phones/{pid}/settings": {
         parameters: {
             query?: never;
@@ -2014,6 +2160,17 @@ export interface components {
             type?: "phone.release";
         } | {
             /** @constant */
+            type: "move.allow";
+            allowed: boolean;
+        } | {
+            /** @constant */
+            type: "move.start";
+            /** Format: uuid */
+            exportId: string;
+            /** Format: uri */
+            serverUrl: string;
+        } | {
+            /** @constant */
             type?: "timeLimit.set";
             packageName?: components["schemas"]["LimitTarget"];
             limit?: components["schemas"]["Limit"] | null;
@@ -2209,10 +2366,31 @@ export interface components {
             status: "pending";
             change: components["schemas"]["PendingChange"];
         };
+        MoveSource: {
+            /** @constant */
+            version: 1;
+            /** Format: uri */
+            serverUrl: string;
+            publicKey: string;
+        };
+        MoveTicket: components["schemas"]["MoveSource"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         /** @description Everything the phone enforces. Compare the ETag, not the content. */
         Rules: {
             /** Format: uuid */
             phoneId: string;
+            allowServerMove?: boolean;
+            /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
+            fallbackDnsHost?: string | null;
+            move?: {
+                /** Format: uri */
+                serverUrl: string;
+                token: string;
+            };
             /** @enum {unknown} */
             profile: "child" | "self";
             /** @enum {unknown} */
@@ -2462,6 +2640,8 @@ export interface components {
             locationMode?: components["schemas"]["LocationMode"];
             /** Format: date-time */
             pairedAt?: string | null;
+            allowServerMove?: boolean;
+            awaitingServerMove?: boolean;
             /** @description Whether the dashboard can issue a new setup QR code for this phone. */
             setupQrAvailable?: boolean;
             /**
@@ -2678,7 +2858,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}` */
+            /** @description OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}` */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3044,6 +3224,57 @@ export interface operations {
                 content?: never;
             };
             429: components["responses"]["Error"];
+        };
+    };
+    redeemServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    deviceToken: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Token consumed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    previewServerMoveRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Destination rules for the pending move */
+            200: {
+                headers: {
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rules"];
+                };
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     getDeviceRules: {
@@ -4947,6 +5178,191 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
+        };
+    };
+    listHouseholdMovePhones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Phones available to the household owner */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        phones?: components["schemas"]["PhoneSummary"][];
+                    };
+                };
+            };
+        };
+    };
+    getMoveSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Old server identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveSource"];
+                };
+            };
+        };
+    };
+    prepareServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveSource"];
+            };
+        };
+        responses: {
+            /** @description New server invitation */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoveTicket"];
+                };
+            };
+        };
+    };
+    exportServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ticket: components["schemas"]["MoveTicket"];
+                    /** Format: uuid */
+                    phoneId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed bundle encrypted to the destination */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bundle: string;
+                        /** Format: uuid */
+                        exportId: string;
+                        phoneIds: string[];
+                    };
+                };
+            };
+        };
+    };
+    importServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                hid: components["parameters"]["householdId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    ticketId: string;
+                    bundle: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Rules saved on the new server */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        phoneIds: string[];
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+        };
+    };
+    setServerMovePermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    allowed: boolean;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+        };
+    };
+    startServerMove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    exportId: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Change"];
+            202: components["responses"]["ChangePending"];
+            409: components["responses"]["Error"];
         };
     };
     getPhonesSettings: {

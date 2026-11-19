@@ -155,6 +155,13 @@
       "when": 1795087902565,
       "tag": "0033_phone_wake_transport",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795093813019,
+      "tag": "0034_server_move",
+      "breakpoints": true
     }
   ]
 }

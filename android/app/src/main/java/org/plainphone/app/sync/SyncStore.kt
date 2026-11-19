@@ -151,6 +151,37 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         }
     }
 
+    /** Single disk commit: the credentials, rules and resolver always belong to the same server. */
+    @SuppressLint("ApplySharedPref")
+    internal fun saveMoved(oldToken: String, server: String, token: String, rules: RulesResult.Changed, now: Long): Boolean =
+        synchronized(tokenLock) {
+            val parsed = ServerRules.parse(rules.body)
+            if (removed || released || setupUndoPending || deviceToken() != oldToken) return@synchronized false
+            synchronized(appReportLock) {
+                val saved = prefs.edit()
+                    .putString(KEY_MOVED_SERVER, server)
+                    // Only the new server's provisioning host. The per-phone host lives in the rules and is
+                    // never the emergency fallback: it stops answering once the phone is removed there.
+                    .apply { parsed.fallbackDnsHost?.let { putString(KEY_MOVED_FALLBACK_DNS, it) } }
+                    .putString(KEY_TOKEN, box.seal(token))
+                    .putString(KEY_PHONE_ID, parsed.phoneId)
+                    .putString(KEY_RULES, rules.body).putString(KEY_ETAG, rules.etag).putLong(KEY_SYNC_AT, now)
+                    .putLong(KEY_APPS_GENERATION, nextAppGeneration())
+                    .remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
+                    .remove(KEY_CONNECTED_EMAIL).remove(KEY_CONNECTED_HOUSEHOLD)
+                    .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
+                    .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
+                    .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
+                    .remove(KEY_FAVOURITE_SETUP)
+                    .commit()
+                if (saved) {
+                    tokenCache = null
+                    rulesCache = rules.body to parsed
+                }
+                saved
+            }
+        }
+
     internal fun setupUndoMinutes(): Int? = prefs.getInt("paired_setup_undo_minutes", -1)
         .takeIf { it in org.plainphone.app.light.SETUP_UNDO_CHOICES }
 
@@ -242,6 +273,10 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         rulesCache = body to parsed
         markAppsDirty()
     }
+
+    internal fun movedServer(): String? = prefs.getString(KEY_MOVED_SERVER, null)
+
+    internal fun rawRules(): String? = prefs.getString(KEY_RULES, null)
 
     fun markSynced(nowMs: Long) {
         prefs.edit().putLong(KEY_SYNC_AT, nowMs).apply()
@@ -408,6 +443,8 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_ACKED_INSTALL_OVERRUN = "acked_install_overrun"
         private const val INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000L
         const val PREFS = "plainphone_sync"
+        internal const val KEY_MOVED_SERVER = "moved_server"
+        internal const val KEY_MOVED_FALLBACK_DNS = "moved_fallback_dns"
         private const val KEY_TOKEN = "device_token"
         private const val KEY_PHONE_ID = "phone_id"
         private const val KEY_REMOVED = "removed"

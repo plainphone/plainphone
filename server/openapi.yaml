@@ -243,6 +243,17 @@ components:
           properties:
             type: { const: phone.release }
         - type: object
+          required: [type, allowed]
+          properties:
+            type: { const: move.allow }
+            allowed: { type: boolean }
+        - type: object
+          required: [type, exportId, serverUrl]
+          properties:
+            type: { const: move.start }
+            exportId: { type: string, format: uuid }
+            serverUrl: { type: string, format: uri }
+        - type: object
           description: Loosening when any weekday gets more minutes, or the limit is removed (limit null).
           properties:
             type: { const: timeLimit.set }
@@ -474,12 +485,38 @@ components:
         status: { const: pending }
         change: { $ref: "#/components/schemas/PendingChange" }
 
+    MoveSource:
+      type: object
+      required: [version, serverUrl, publicKey]
+      properties:
+        version: { const: 1 }
+        serverUrl: { type: string, format: uri }
+        publicKey: { type: string }
+    MoveTicket:
+      allOf:
+        - $ref: "#/components/schemas/MoveSource"
+        - type: object
+          required: [id, expiresAt]
+          properties:
+            id: { type: string, format: uuid }
+            expiresAt: { type: string, format: date-time }
+
     Rules:
       type: object
       description: Everything the phone enforces. Compare the ETag, not the content.
       required: [phoneId, profile, mode, timezone, apps, timeLimits, contacts, schedules, dns, location, settings, home, pendingChanges, release, pollSeconds]
       properties:
         phoneId: { type: string, format: uuid }
+        allowServerMove: { type: boolean }
+        fallbackDnsHost:
+          type: [string, "null"]
+          description: This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready.
+        move:
+          type: object
+          required: [serverUrl, token]
+          properties:
+            serverUrl: { type: string, format: uri }
+            token: { type: string }
         profile: { enum: [child, self] }
         mode: { enum: [strong, light] }
         timezone:
@@ -733,6 +770,8 @@ components:
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
         pairedAt: { type: [string, "null"], format: date-time }
+        allowServerMove: { type: boolean }
+        awaitingServerMove: { type: boolean }
         setupQrAvailable:
           type: boolean
           description: Whether the dashboard can issue a new setup QR code for this phone.
@@ -927,7 +966,7 @@ paths:
       summary: Liveness, database and DNS service check
       description: '`dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.'
       responses:
-        "200": { description: "OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}`" }
+        "200": { description: "OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}`" }
         "503": { description: "Database down" }
 
   # ---------------------------------------------------------------- device
@@ -1174,6 +1213,45 @@ paths:
         "404": { description: Unknown token. Fall back to pairing with a code. }
         "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
         "429": { $ref: "#/components/responses/Error" }
+
+  /device/move:
+    post:
+      operationId: redeemServerMove
+      tags: [device]
+      security: []
+      summary: Redeem a one-time move token into a phone-generated device credential.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, deviceToken]
+              properties:
+                token: { type: string }
+                deviceToken: { type: string }
+      responses:
+        "204": { description: Token consumed }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /device/move-rules:
+    get:
+      operationId: previewServerMoveRules
+      tags: [device]
+      security: [{ device: [] }]
+      summary: Validate the new rules before changing the phone's connection.
+      responses:
+        "200":
+          description: Destination rules for the pending move
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rules" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /device/rules:
     get:
@@ -2467,6 +2545,156 @@ paths:
       responses:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
+
+  /households/{hid}/server-move/phones:
+    get:
+      operationId: listHouseholdMovePhones
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Phones available to the household owner
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phones:
+                    type: array
+                    items: { $ref: "#/components/schemas/PhoneSummary" }
+
+  /households/{hid}/server-move/source:
+    get:
+      operationId: getMoveSource
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      responses:
+        "200":
+          description: Old server identity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoveSource" }
+
+  /households/{hid}/server-move/prepare:
+    post:
+      operationId: prepareServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MoveSource" }
+      responses:
+        "201":
+          description: New server invitation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MoveTicket" }
+
+  /households/{hid}/server-move/export:
+    post:
+      operationId: exportServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { $ref: "#/components/schemas/MoveTicket" }
+                phoneId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Signed bundle encrypted to the destination
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bundle, exportId, phoneIds]
+                properties:
+                  bundle: { type: string }
+                  exportId: { type: string, format: uuid }
+                  phoneIds:
+                    type: array
+                    items: { type: string, format: uuid }
+
+  /households/{hid}/server-move/import:
+    post:
+      operationId: importServerMove
+      tags: [household]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/householdId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticketId, bundle]
+              properties:
+                ticketId: { type: string, format: uuid }
+                bundle: { type: string }
+      responses:
+        "201":
+          description: Rules saved on the new server
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [phoneIds]
+                properties:
+                  phoneIds:
+                    type: array
+                    items: { type: string, format: uuid }
+        "400": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+
+  /phones/{pid}/server-move/allow:
+    put:
+      operationId: setServerMovePermission
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allowed]
+              properties:
+                allowed: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+
+  /phones/{pid}/server-move/start:
+    post:
+      operationId: startServerMove
+      tags: [phones]
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exportId]
+              properties:
+                exportId: { type: string, format: uuid }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+        "409": { $ref: "#/components/responses/Error" }
 
   /phones/{pid}/settings:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

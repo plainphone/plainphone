@@ -23,7 +23,7 @@ pnpm android          # needs the Android SDK; builds and starts on a device or 
 pnpm ios              # needs a Mac with Xcode
 ```
 
-The app talks to `https://app.plainphone.org`. For your own server, build with `PLAINPHONE_SERVER_URL=https://your.server` (see [docs/parent-app.md](../docs/parent-app.md)).
+The app talks to `https://app.plainphone.org` by default. Select **Use your own server** at sign-in to connect to a different server (see [docs/parent-app.md](../docs/parent-app.md)).
 
 ## Checks
 

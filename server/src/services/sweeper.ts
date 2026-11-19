@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
-import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneRequests, selfRuleTemplates, sessions } from "../db/schema.js";
+import { householdInvites, magicLinks, pairings, pendingChanges, phones, phoneMoves, moveImports, phoneRequests, selfRuleTemplates, sessions } from "../db/schema.js";
 import { REQUEST_HISTORY_DAYS } from "./requests.js";
 import { applyDueChanges, deletePhone } from "./changes.js";
 import type { Ctx } from "./context.js";
@@ -35,6 +35,17 @@ export function expiredMagicLinksDelete(db: Ctx["db"], now: Date) {
 export async function sweep(ctx: Ctx): Promise<SweepResult> {
   const now = ctx.now();
   await ctx.db.delete(selfRuleTemplates).where(lt(selfRuleTemplates.expiresAt, now));
+  // An imported phone whose move was never finished would stay "awaiting" for good: free it for normal setup.
+  // That includes a phone that redeemed its token (it holds a device token) but never synced and so was never
+  // activated, for example because the old server changed its rules meanwhile. Dropping the token is safe: the
+  // phone never completed a sync with it, and it can be set up again with a new QR code.
+  await ctx.db.update(phones).set({ awaitingServerMove: false, deviceTokenHash: null }).where(and(
+    eq(phones.awaitingServerMove, true), isNull(phones.pairedAt),
+    inArray(phones.id, ctx.db.select({ id: phoneMoves.phoneId }).from(phoneMoves)
+      .where(and(eq(phoneMoves.direction, "incoming"), lt(phoneMoves.expiresAt, now)))),
+  ));
+  await ctx.db.delete(phoneMoves).where(lt(phoneMoves.expiresAt, now));
+  await ctx.db.delete(moveImports).where(lt(moveImports.expiresAt, now));
   const applied = await applyDueChanges(ctx);
   const dns = await syncDirtyDns(ctx);
   const dnsDeleted = await retryDnsDeletions(ctx);

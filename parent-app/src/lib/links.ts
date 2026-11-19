@@ -4,6 +4,21 @@
 // URL fragment (#token=…), so it never reaches server logs; Expo Router drops the
 // fragment from route params, so screens read the raw URL instead.
 
+import { HOSTED_SERVER } from "./config";
+
+export function matchesServerLink(raw: string | null | undefined, server: string, path: string): boolean {
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    const target = new URL(server);
+    if (url.origin === target.origin && url.pathname === new URL(server + path).pathname) return true;
+    if (url.protocol !== "plainphone:" || `/${url.host}${url.pathname}` !== path) return false;
+    return (new URLSearchParams(url.hash.slice(1)).get("server") ?? HOSTED_SERVER) === target.origin;
+  } catch {
+    return false;
+  }
+}
+
 /** The token from a link like https://app.plainphone.org/auth/app#token=pp_m_… */
 export function tokenFromUrl(url: string | null | undefined): string | null {
   if (!url) return null;
