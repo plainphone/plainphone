@@ -10,7 +10,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -52,10 +51,15 @@ class RequestsScreenshotTest {
         compose.setContent {
             val d = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(d.density, fontScale)) {
-                PlainphoneTheme { RequestsScreen(ui, actions) }
+                PlainphoneTheme {
+                    // A dialog's window never goes idle under Robolectric: show the PIN form inline.
+                    if (ui.pin != null) PinForm(ui.pin, actions) else RequestsScreen(ui, actions)
+                }
             }
         }
     }
+
+    private fun settle() = Unit
 
     private fun save(name: String) {
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -77,7 +81,7 @@ class RequestsScreenshotTest {
     }
 
     @Test
-    @Config(qualifiers = "en-w393dp-h852dp-xxhdpi-night")
+    @Config(qualifiers = "+night")
     fun `dark, the list`() {
         show(RequestsUi(rows))
         compose.onNodeWithTag("parent-here-waiting").assertIsDisplayed()
@@ -135,6 +139,7 @@ class RequestsScreenshotTest {
     fun `the PIN box sends what is typed and clears it`() {
         var sent: String? = null
         show(RequestsUi(rows, pin = PinDialog("waiting")), RequestsActions(submitPin = { sent = it }))
+        settle()
         compose.onNodeWithTag("pin-approve").assertIsNotEnabled()
         compose.onNodeWithTag("pin-field").performTextInput("482913")
         compose.onNodeWithTag("pin-approve").assertIsEnabled()
@@ -146,24 +151,26 @@ class RequestsScreenshotTest {
     @Test
     fun `the PIN box shows a wrong PIN and cannot be used while it is working`() {
         show(RequestsUi(rows, pin = PinDialog("waiting", message = "That PIN is not right.")))
+        settle()
         compose.onNodeWithTag("pin-message").assertIsDisplayed()
-        compose.onNode(isDialog()).assertIsDisplayed()
-        write("requests-light-pin-wrong", compose.onNode(isDialog()).captureToImage().asAndroidBitmap())
+        write("requests-light-pin-wrong", compose.onRoot().captureToImage().asAndroidBitmap())
     }
 
     @Test
     fun `while a PIN is being checked the box is locked`() {
         show(RequestsUi(rows, pin = PinDialog("waiting", busy = true)))
+        settle()
         compose.onNodeWithTag("pin-approve").assertIsNotEnabled()
         compose.onNodeWithTag("pin-cancel").assertIsNotEnabled()
     }
 
     @Test
-    @Config(qualifiers = "en-w393dp-h852dp-xxhdpi-night")
+    @Config(qualifiers = "+night")
     fun `dark, the PIN box`() {
         show(RequestsUi(rows, pin = PinDialog("waiting")))
+        settle()
         compose.onNodeWithTag("pin-field").assertIsDisplayed()
-        write("requests-dark-pin", compose.onNode(isDialog()).captureToImage().asAndroidBitmap())
+        write("requests-dark-pin", compose.onRoot().captureToImage().asAndroidBitmap())
     }
 
     @Test

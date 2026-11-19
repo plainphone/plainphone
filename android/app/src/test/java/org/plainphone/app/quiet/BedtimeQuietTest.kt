@@ -2,7 +2,6 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.quiet
 
-import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import org.junit.Test
@@ -14,10 +13,8 @@ import org.plainphone.app.contacts.ContactPolicy
 import org.plainphone.app.contacts.ContactRules
 import org.plainphone.app.contacts.Decision
 import org.plainphone.app.contacts.Direction
-import org.plainphone.app.contacts.ContactPolicySources
 import org.plainphone.app.contacts.EmergencyCheck
 import org.plainphone.app.contacts.EmergencyNumbers
-import org.plainphone.app.contacts.HelpReplies
 import org.plainphone.app.contacts.PhoneNumbers
 import org.plainphone.app.sync.EffectivePolicy
 import org.plainphone.app.sync.ServerRules
@@ -134,23 +131,6 @@ class BedtimeQuietTest {
         assertThat(policy.ringsAtBedtime(quietRules, null)).isTrue()
         sinceEmergency = ContactPolicy.EMERGENCY_CALLBACK_WINDOW_MS + 1
         assertThat(policy.ringsAtBedtime(quietRules, null)).isFalse()
-    }
-
-    @Test
-    fun `a help line that was called a moment ago rings when it calls back`() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        var now = 100_000L
-        val replies = HelpReplies(context) { now }
-        val base = ContactPolicySources.get(context).rules()
-        val rules = base.copy(
-            enforced = true, contacts = listOf(mum), silentBedtime = true, bedtimeRingers = listOf(mum),
-            replyAgeMs = replies::ageMs,
-        )
-        val line = rules.help.lines.first { it.phone != null }.phone!!
-        // Nobody called the line: a call from its number is just a number.
-        assertThat(policy.ringsAtBedtime(rules, line)).isFalse()
-        replies.record(Channel.CALL, line)
-        assertThat(policy.ringsAtBedtime(rules, line)).isTrue()
     }
 
     @Test

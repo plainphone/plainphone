@@ -4,11 +4,11 @@ package org.plainphone.app.requests
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,7 +25,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -125,36 +127,48 @@ private fun statusText(state: RowState): Int = when (state) {
     RowState.WAITING_KEY -> R.string.requests_status_waiting_key
 }
 
-/** Asks for the parent PIN. The PIN lives only in this box and is cleared as soon as it is sent. */
+/** Asks for the parent PIN, in a dialog. The content is [PinForm], so tests can render it without a window. */
 @Composable
 private fun PinBox(pin: PinDialog, actions: RequestsActions) {
+    Dialog(onDismissRequest = { if (!pin.busy) actions.cancelPin() }) {
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
+            PinForm(pin, actions)
+        }
+    }
+}
+
+/** The PIN is typed here and cleared as soon as it is sent. It is never logged or kept. */
+@Composable
+internal fun PinForm(pin: PinDialog, actions: RequestsActions) {
     var entered by remember(pin.requestId) { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = { if (!pin.busy) actions.cancelPin() },
-        title = { Text(stringResource(R.string.requests_pin_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.requests_pin_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(
-                    value = entered,
-                    onValueChange = { entered = it.filter(Char::isDigit).take(12) },
-                    label = { Text(stringResource(R.string.requests_pin_hint)) },
-                    singleLine = true,
-                    enabled = !pin.busy,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    modifier = Modifier.fillMaxWidth().testTag("pin-field"),
-                )
-                pin.message?.let {
-                    Text(
-                        it,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("pin-message"),
-                    )
-                }
+    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            stringResource(R.string.requests_pin_title),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(stringResource(R.string.requests_pin_help), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = entered,
+            onValueChange = { entered = it.filter(Char::isDigit).take(12) },
+            label = { Text(stringResource(R.string.requests_pin_hint)) },
+            singleLine = true,
+            enabled = !pin.busy,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            modifier = Modifier.fillMaxWidth().testTag("pin-field"),
+        )
+        pin.message?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("pin-message"),
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = actions.cancelPin, enabled = !pin.busy, modifier = Modifier.testTag("pin-cancel")) {
+                Text(stringResource(R.string.requests_pin_cancel))
             }
-        },
-        confirmButton = {
             TextButton(
                 onClick = {
                     val sent = entered
@@ -164,11 +178,6 @@ private fun PinBox(pin: PinDialog, actions: RequestsActions) {
                 enabled = entered.isNotEmpty() && !pin.busy,
                 modifier = Modifier.testTag("pin-approve"),
             ) { Text(stringResource(R.string.requests_pin_approve)) }
-        },
-        dismissButton = {
-            TextButton(onClick = actions.cancelPin, enabled = !pin.busy, modifier = Modifier.testTag("pin-cancel")) {
-                Text(stringResource(R.string.requests_pin_cancel))
-            }
-        },
-    )
+        }
+    }
 }

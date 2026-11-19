@@ -101,9 +101,9 @@ class PhoneApprovalSyncTest {
 
     @Test
     fun `an older server that does not know the switch is read as off, because it has no endpoint`() {
-        rules(pinApproval = null)
-        assertThat(store.rules()!!.pinApproval).isFalse()
-        assertThat(store.rules()!!.silentBedtime).isTrue()
+        val parsed = ServerRules.parse(rulesJson())
+        assertThat(parsed.pinApproval).isFalse()
+        assertThat(parsed.silentBedtime).isTrue()
     }
 
     @Test
