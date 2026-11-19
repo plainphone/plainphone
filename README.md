@@ -19,6 +19,8 @@ It is meant for a parent setting up a child's first phone, and for adults who wa
 
 ## Why
 
+See the [family communication research](docs/research/family-comms.md) and [phased issue drafts](docs/research/family-comms-issues.md) for proposed messaging and calling work.
+
 Plainphone is built on a short list of [design principles](docs/design-principles.md), each tied to research, regulation or official guidance. The [evidence review](docs/evidence.md) lists the sources per feature and says where the evidence is weak. In short:
 
 - the child can see, on the phone, what the parent can see;
