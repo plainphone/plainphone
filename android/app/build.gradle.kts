@@ -26,8 +26,8 @@ android {
         applicationId = "org.plainphone.app"
         minSdk = 29
         targetSdk = 37
-        versionCode = 12
-        versionName = "0.1.11"
+        versionCode = 13
+        versionName = "0.1.12"
         if (fcmEnabled) {
             val config = providers.environmentVariable("PLAINPHONE_GOOGLE_SERVICES_FILE").orNull
                 ?.let { file(it) } ?: file("google-services.json")
