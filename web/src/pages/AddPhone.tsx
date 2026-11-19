@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams, useParams } from "react-router";
 import { Switch, errorMessage, Field, LiveStatus, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { encode } from "uqr";
+import { intlLocale } from "../lib/format";
 import { lightSetupLink } from "../lib/light-setup";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import {
-  countryCodeForTimezone,
   hashPin,
   isValidPin,
   newSalt,
@@ -17,23 +17,34 @@ import {
   provisioningPayload,
   provisioningQr,
 } from "../lib/provisioning";
+import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
+import type { PhoneLanguage } from "../lib/phone-language";
 import "./add-phone.css";
 
 interface EnrollmentOut {
   phone?: Phone;
-  enrollment: { token: string; expiresAt: string };
-  provisioning: ProvisioningInfo;
+  enrollment: { id: string; token: string; expiresAt: string };
+  provisioning: ProvisioningInfo & {
+    mode: Phone["mode"];
+    profile: Profile;
+    timezone: string;
+    locale: string | null;
+    countryCode: string | null;
+  };
 }
 
 type Mode = Phone["mode"];
 
 interface Qr {
+  enrollmentId: string;
   phoneId: string;
   name: string;
   mode: Mode;
   makeModules: (wifi?: SetupWifi) => boolean[][];
   link?: string;
   expiresAt: string;
+  /** A fresh code for the same phone (and the same PIN), so an expired code never costs the parent their place. */
+  restart: () => Promise<Qr>;
 }
 
 /** /add: a new phone. */
@@ -49,16 +60,17 @@ export function AddPhonePage() {
   const [mode, setMode] = useState<Mode | null>(choice === "light" || choice === "strong" ? choice : null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
+  const [language, setLanguage] = useState<PhoneLanguage>(null);
+  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [privateDns, setPrivateDns] = useState(false);
   const [profile, setProfile] = useState<Profile>(template ? "self" : "child");
   const [qr, setQr] = useState<Qr | null>(null);
 
   async function makeQr(pin?: string) {
     if (!mode) return;
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // Hash first: if it fails, no phone entry is left behind.
     const pinned = pin === undefined ? undefined : await hashForQr(pin);
-    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
+    const out = await api.post<EnrollmentOut>("/phones/enroll", { name: name.trim(), profile, timezone, mode, language, ...(mode === "light" && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}), ...(template ? { template } : {}) });
     if (template) {
       navigate(`/phones/${out.phone!.id}`, { replace: true });
       return;
@@ -89,8 +101,13 @@ export function AddPhonePage() {
           onBack={() => setMode(null)}
         />
       )}
-      {step === 2 && <PinStep onBack={() => setStep(1)} onDone={makeQr} />}
-      {step === 3 && qr && <QrStep qr={qr} />}
+      {step === 2 && (
+        <PinStep onBack={() => setStep(1)} onDone={makeQr}>
+          <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} />
+          <SetupTimezonePicker value={timezone} onChange={setTimezone} />
+        </PinStep>
+      )}
+      {step === 3 && qr && <QrStep key={qr.enrollmentId} qr={qr} />}
     </div>
   );
 }
@@ -101,6 +118,8 @@ export function SetupPhonePage() {
   const { pid = "" } = useParams();
   const res = useLoad(() => api.get<Phone>(`/phones/${pid}`), [pid]);
   const [qr, setQr] = useState<Qr | null>(null);
+  const [chosenLanguage, setChosenLanguage] = useState<PhoneLanguage>();
+  const [chosenTimezone, setChosenTimezone] = useState<string>();
 
   return (
     <div className={qr ? "setup" : "narrow"}>
@@ -119,20 +138,48 @@ export function SetupPhonePage() {
           ) : phone.setupQrAvailable === false ? (
             <PageTitle sub={t("setup.codePendingBody")}>{t("setup.pendingTitle")}</PageTitle>
           ) : qr ? (
-            <QrStep qr={qr} />
+            <QrStep key={qr.enrollmentId} qr={qr} />
           ) : (
             <PinStep
               light={phone.mode === "light"}
               onDone={async (pin) => {
                 const pinned = pin === undefined ? undefined : await hashForQr(pin);
+                const updated = chosenLanguage !== undefined || chosenTimezone !== undefined
+                  ? await api.patch<Phone>(`/phones/${phone.id}`, { language: chosenLanguage, timezone: chosenTimezone })
+                  : phone;
+                res.setData(() => updated);
                 const out = await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`);
-                setQr(buildQr(out, phone, pinned, locale));
+                setQr(buildQr(out, updated, pinned, locale));
               }}
-            />
+            >
+              {phone.mode === "strong" && (
+                <>
+                  <PhoneLanguagePicker value={chosenLanguage === undefined ? phone.language ?? null : chosenLanguage} onChange={setChosenLanguage} setup={phone.profile === "child"} />
+                  <SetupTimezonePicker value={chosenTimezone ?? phone.timezone} onChange={setChosenTimezone} />
+                </>
+              )}
+            </PinStep>
           )
         }
       </LoadGate>
     </div>
+  );
+}
+
+function SetupTimezonePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useI18n();
+  const zones = useMemo(
+    () => [...new Set(["UTC", ...Intl.supportedValuesOf("timeZone"), value])].sort(),
+    [value],
+  );
+  return (
+    <Field label={t("add.timezone")} help={t("add.timezoneHelp")}>
+      {(props) => (
+        <select {...props} value={value} onChange={(event) => onChange(event.target.value)}>
+          {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+        </select>
+      )}
+    </Field>
   );
 }
 
@@ -152,21 +199,27 @@ export function buildQr(
   locale: string,
 ): Qr {
   const enrollmentToken = out.enrollment.token;
-  const link = phone.mode === "light"
+  const { mode, profile, timezone, locale: setupLocale, countryCode } = out.provisioning;
+  const link = mode === "light"
     ? lightSetupLink(out.provisioning.serverUrl, enrollmentToken, out.provisioning.adminComponent, locale)
     : undefined;
   return {
+    enrollmentId: out.enrollment.id,
     phoneId: phone.id,
     name: phone.name,
-    mode: phone.mode,
+    mode,
     link,
     expiresAt: out.enrollment.expiresAt,
+    restart: async () => buildQr(await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`), phone, pinned, locale),
     makeModules: (wifi) => link
       ? encode(link, { ecc: "L", border: 0 }).data
       : provisioningQr(provisioningPayload(out.provisioning, {
         enrollmentToken,
         ...pinned!,
-        countryCode: countryCodeForTimezone(phone.timezone),
+        countryCode,
+        locale: setupLocale,
+        profile,
+        timezone,
         wifi,
       })).modules,
   };
@@ -187,7 +240,7 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
           <span className="choice-desc">{t("add.modeLightHelp")}</span>
         </button>
       </div>
-      <p className="muted small"><Link to="/pair">{t("add.useCode")}</Link></p>
+      <p><Link className="btn btn-secondary" to="/pair">{t("add.useCode")}</Link></p>
     </>
   );
 }
@@ -284,7 +337,7 @@ function WhoStep(props: {
   );
 }
 
-function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void> }) {
+function PinStep({ light = false, onBack, onDone, children }: { light?: boolean; onBack?: () => void; onDone: (pin?: string) => Promise<void>; children?: ReactNode }) {
   const { t } = useI18n();
   const [pin, setPin] = useState("");
   const [again, setAgain] = useState("");
@@ -317,6 +370,7 @@ function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: 
     <>
       <PageTitle sub={t(light ? "add.lightPinOnPhone" : "add.pinIntro")}>{t(light ? "add.newLink" : "add.pinTitle")}</PageTitle>
       <form onSubmit={submit} noValidate className="stack">
+        {children && <fieldset disabled={busy} className="choices">{children}</fieldset>}
         {!light && (
           <>
             <Field label={t("add.pin")} help={t("add.pinHelp")} error={errors.pin}>
@@ -367,8 +421,14 @@ function PinStep({ light = false, onBack, onDone }: { light?: boolean; onBack?: 
   );
 }
 
-function QrStep({ qr }: { qr: Qr }) {
+function QrStep({ qr: first }: { qr: Qr }) {
   const { t, locale } = useI18n();
+  const [qr, setQr] = useState(first);
+  const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const [restartPending, setRestartPending] = useState(false);
+  const restartRef = useRef<HTMLButtonElement>(null);
+  const startRef = useRef<HTMLParagraphElement>(null);
   const [paired, setPaired] = useState(false);
   const light = qr.mode === "light";
   const [wifi, setWifi] = useState<SetupWifi>();
@@ -376,32 +436,74 @@ function QrStep({ qr }: { qr: Qr }) {
   const [copyStatus, setCopyStatus] = useState<"copied" | "copyFailed">();
 
   // Wait for the phone: it pairs itself with the token as soon as setup is done.
-  const [gone, setGone] = useState<"expired" | "removed" | null>(null);
+  const [gone, setGone] = useState<"expired" | "outdated" | "removed" | null>(null);
   useEffect(() => {
     if (paired || gone) return;
     let stop = false;
     const expiresAt = Date.parse(qr.expiresAt);
     const expiryTimer = window.setTimeout(() => setGone("expired"), Math.max(0, expiresAt - Date.now()));
-    const id = window.setInterval(async () => {
+    let checking = false;
+    async function check() {
       // Only while someone looks at the page; stop for good once the code has run out.
-      if (document.hidden) return;
+      if (document.hidden || checking) return;
+      checking = true;
       try {
         const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
         if (stop) return;
         if (p.pairedAt) setPaired(true);
+        else if (p.setupEnrollmentId !== qr.enrollmentId) setGone("outdated");
       } catch (err) {
         if (!stop && err instanceof ApiError && err.status === 404) setGone("removed");
         // Anything else is a network hiccup: try again on the next tick.
+      } finally {
+        checking = false;
       }
-    }, 4_000);
+    }
+    void check();
+    const id = window.setInterval(check, 4_000);
+    document.addEventListener("visibilitychange", check);
     return () => {
       stop = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
       window.clearTimeout(expiryTimer);
     };
-  }, [qr.phoneId, qr.expiresAt, paired, gone]);
+  }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);
 
-  const expires = new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
+  // The focused element disappears with the code: move focus to the way forward.
+  useEffect(() => {
+    if (gone === "expired") restartRef.current?.focus();
+  }, [gone]);
+
+  async function restart() {
+    setRestarting(true);
+    setRestartError(null);
+    try {
+      setQr(await qr.restart());
+      setGone(null);
+      // Keep keyboard and screen-reader users at the first instruction of the new code.
+      window.setTimeout(() => startRef.current?.focus(), 0);
+    } catch (err) {
+      // 409: the phone paired (or waits for confirmation) in the meantime. Ask the server
+      // instead of showing a dead end.
+      if (err instanceof ApiError && err.status === 409) {
+        try {
+          const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
+          if (p.pairedAt) {
+            setPaired(true);
+            return;
+          }
+        } catch { /* fall through to the setup page link */ }
+        setRestartPending(true);
+      } else {
+        setRestartError(errorMessage(err, t));
+      }
+    } finally {
+      setRestarting(false);
+    }
+  }
+
+  const expires = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
     hour: "2-digit",
     minute: "2-digit",
@@ -425,18 +527,24 @@ function QrStep({ qr }: { qr: Qr }) {
     <>
       <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
+      {!gone && (
+        <p className="setup-first" ref={startRef} tabIndex={-1}>
+          <span className="setup-first-label">{t("add.startHere")}</span>
+          {t(light ? "add.light1" : "add.s1")}
+        </p>
+      )}
       <div className="setup-grid">
         {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}
         <div className="setup-side">
           {!gone && (
             <>
-              <ol className="setup-steps">
-                <li>{t(light ? "add.light1" : "add.s1")}</li>
+              <ol className="setup-steps setup-steps-after" start={2}>
                 <li>{t(light ? "add.light2" : "add.s2")}</li>
                 <li>{t(light ? "add.light3" : "add.s3")}</li>
               </ol>
               {qr.link ? (
                 <div className="actions">
+                  <span className="setup-fallback">{t("add.cantScan")}</span>
                   <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
                   {navigator.clipboard && (
                     <button type="button" className="btn btn-secondary" onClick={async () => {
@@ -454,10 +562,22 @@ function QrStep({ qr }: { qr: Qr }) {
             </>
           )}
           {gone ? (
-            <p className="notice notice-error" role="alert">
-              {t(gone === "expired" ? "add.expired" : "add.removed")}{" "}
-              {gone === "expired" && <Link to={`/phones/${qr.phoneId}/setup`} reloadDocument>{t(light ? "add.newLink" : "setup.showQr")}</Link>}
-            </p>
+            <div className="notice notice-error setup-gone">
+              <p role="alert">{t(({ expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const)[gone])}</p>
+              {restartError && <p>{restartError}</p>}
+              {restartPending && <p><Link to={`/phones/${qr.phoneId}/setup`}>{t("setup.open", { name: qr.name })}</Link></p>}
+              {gone === "expired" && !restartPending && (
+                <button ref={restartRef} type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
+                  {t(restarting ? "add.making" : light ? "add.newLink" : "add.newCode")}
+                </button>
+              )}
+              {gone === "outdated" && (
+                // A newer code exists elsewhere: restarting here would replace it, so open the setup page.
+                <Link className="btn btn-primary" to={`/phones/${qr.phoneId}/setup`} reloadDocument>
+                  {t(light ? "add.newLink" : "setup.showQr")}
+                </Link>
+              )}
+            </div>
           ) : (
             <p className="setup-wait" role="status">
               <span className="pulse" aria-hidden="true" />

@@ -779,6 +779,10 @@ select {
   font-size: 1rem;
 }
 
+.header-tools .lang-switch {
+  width: auto;
+}
+
 input[type="time"] {
   font-variant-numeric: tabular-nums;
 }
@@ -2216,4 +2220,28 @@ main {
 .seg > span,
 .check > span {
   min-width: 0;
+}
+
+.sos-alert {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.sos-alert[data-kind="urgent"] {
+  border-inline-start-color: var(--danger);
+}
+
+.sos-event-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+}
+
+.sos-alert .actions {
+  flex-wrap: wrap;
+  align-items: center;
 }

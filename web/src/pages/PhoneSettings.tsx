@@ -7,6 +7,7 @@ import {
   api,
   ApiError,
   getPhoneSettings,
+  type Phone,
   type PhoneSetting,
   putPhoneSetting,
   type SettingKey,
@@ -25,12 +26,28 @@ import {
   stateFor,
 } from "../lib/settings";
 import { usePhone } from "./Phone";
+import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
+import type { PhoneLanguage } from "../lib/phone-language";
+import { intlLocale } from "../lib/format";
 
 export function PhoneSettingsPage() {
   const { t } = useI18n();
-  const { phone, run, pending, notify } = usePhone();
+  const { phone, setPhone, run, pending, notify } = usePhone();
   const res = useLoad(() => getPhoneSettings(phone.id), [phone.id]);
   const light = phone.mode === "light";
+  const [savingLanguage, setSavingLanguage] = useState(false);
+  async function saveLanguage(fields: { language: PhoneLanguage } | { lockSystemLanguage: boolean }) {
+    setSavingLanguage(true);
+    try {
+      const updated = await api.patch<Phone>(`/phones/${phone.id}`, fields);
+      setPhone(updated);
+      notify({ tone: "success", text: t("language" in fields && updated.setupQrAvailable ? "add.setupChanged" : "app.saved") });
+    } catch {
+      notify({ tone: "error", text: t("error.generic") });
+    } finally {
+      setSavingLanguage(false);
+    }
+  }
 
   // A loosening change on a Self phone waits for the key; the row says so.
   const waiting = useMemo(
@@ -53,6 +70,20 @@ export function PhoneSettingsPage() {
   return (
     <>
       <PageTitle sub={t("phoneSettings.intro")}>{t("phoneSettings.title")}</PageTitle>
+      <section className="section">
+        <PhoneLanguagePicker value={phone.language ?? null} onChange={(language) => void saveLanguage({ language })} disabled={savingLanguage} />
+        {!light && phone.profile === "child" && (
+          <>
+            <label className="item">
+              <span>{t("phoneLanguage.lockSystem")}</span>
+              <input type="checkbox" checked={phone.lockSystemLanguage ?? true} disabled={savingLanguage}
+                aria-describedby="system-language-help"
+                onChange={(event) => void saveLanguage({ lockSystemLanguage: event.currentTarget.checked })} />
+            </label>
+            <p className="help" id="system-language-help">{t("phoneLanguage.lockSystemHelp")}</p>
+          </>
+        )}
+      </section>
       {light && (
         <p className="notice notice-info" role="status">
           {t("phoneSettings.lightNote")}
@@ -259,7 +290,7 @@ function SetupUndoDeadline({ undoUntil }: { undoUntil: string }) {
   }, [undoUntil]);
 
   return <p className="help">{deadline.getTime() > now
-    ? t("setupUndo.until", { time: deadline.toLocaleTimeString(locale === "da" ? "da-DK" : "en-GB", {
+    ? t("setupUndo.until", { time: deadline.toLocaleTimeString(intlLocale(locale), {
       hour: "2-digit", minute: "2-digit",
     }) })
     : t("setupUndo.ended")}</p>;

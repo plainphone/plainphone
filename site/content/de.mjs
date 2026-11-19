@@ -109,7 +109,7 @@ export default {
     ],
     guide: "Einrichtungsanleitung öffnen",
     available: "Sie können bereits erlaubte Kontakte auswählen, Websites nach Kategorien filtern und den Verlauf für SMS, Anrufe und Kontakte aktivieren. Die Filteradresse des Handys lässt sich auch auf einem Router oder mit einem VPN nutzen. Das Handy kann sich selbst aktualisieren und der Server kann Sicherungskopien erstellen.",
-    note: "Demnächst: SOS und die Möglichkeit für Eltern, die Sprache des Handys auszuwählen.",
+    note: "Demnächst: SOS.",
   },
   open: {
     title: "Offener Quellcode",
@@ -260,6 +260,7 @@ export default {
           "Ein Elternteil oder ein Erwachsener für sein eigenes Telefon fügt ein Telefon hinzu, indem er den angezeigten Code eingibt. Kinder erhalten kein Konto und werden nie nach einer E-Mail-Adresse gefragt. Für jedes Telefon speichern wir, was der Erwachsene einrichtet:",
           {
             list: [
+              "die in Plainphone auf dem Telefon verwendete Sprache, sofern die erwachsene Person eine ausgewählt hat",
               "den Namen, den der Erwachsene dem Telefon gibt, ob es sich um das Telefon eines Kindes oder eines Erwachsenen handelt, seine Zeitzone und wann es zuletzt den Server kontaktiert hat",
               "Ein paar kurze Fakten, die das Telefon beim Koppeln meldet, etwa sein Modell und seine Android-Version sowie seinen aktuellen Status: Akkustand, App-Version, ob die Sperre intakt ist und welche Webfilteradresse es verwendet. Jeder Bericht ersetzt den vorherigen",
               "Wenn Sie den Schutz vor Zurücksetzen aktivieren, behält Ihr Haushalt Ihre numerische Google-Konto-ID und den Zeitpunkt der Verknüpfung. Trennen Sie es in den Haushaltseinstellungen, um es zu löschen, oder löschen Sie Ihr Plainphone-Konto. Für diese Funktion speichern wir weder Ihre Google-E-Mail-Adresse noch Ihre Anmeldetokens",
@@ -388,6 +389,10 @@ export default {
                   "Einladungen",
                   "Wird bei Annahme gelöscht. Andernfalls funktionieren sie nach 7 Tagen nicht mehr und werden einen Tag später gelöscht. Sie können eine offene Einladung jederzeit zurückziehen",
                 ],
+                [
+                  "Hashwerte der Einrichtungscodes und gespeicherte Einrichtungseinstellungen",
+                  "Können 30 Tage nach Ablauf des Codes bereinigt werden. Beim Entfernen des Telefons werden sie gelöscht",
+                ],
                 ["Webfilterzähler", "24 Stunden"],
                 [
                   "Backups der Datenbank",
@@ -445,13 +450,13 @@ export default {
     question: "Ist das Telefon neu oder bereits in Gebrauch?",
     strong: "Es ist neu oder zurückgesetzt",
     strongHelp: "Empfohlen. Plainphone kann mehr Einstellungen auf einem neuen Telefon schützen.",
+    strongLanguage: "Wählen Sie vor dem Anzeigen des QR-Codes die Sprache des Telefons. Android verwendet sie bei der Einrichtung. Die Sprache in Plainphone können Sie später im Dashboard in den Telefoneinstellungen ändern.",
     light: "Es ist bereits im Einsatz",
     lightHelp: "Behalten Sie die Daten des Telefons und aktivieren Sie den Schutz in den Android-Einstellungen.",
     startStrong: "Starten Sie die Einrichtung für ein neues oder zurückgesetztes Telefon",
     startLight: "Starten Sie die Einrichtung für ein verwendetes Telefon",
+    stepsLink: "Schritte ansehen",
     start: "Geben Sie im Dashboard an, für wen das Telefon bestimmt ist, und erstellen Sie einen Einrichtungslink.",
-    strongTitle: "Neues oder zurückgesetztes Telefon",
-    lightTitle: "Telefon bereits in Gebrauch",
     lightSteps: [
       ["Öffnen Sie den Download auf dem Telefon", "Scannen Sie den Code im Dashboard mit der Kamera des Telefons oder öffnen Sie den privaten Link in Chrome auf diesem Telefon.", "lightScan"],
       ["Installieren Sie Plainphone", "Laden Sie die App herunter und öffnen Sie die Datei. Wenn Android es blockiert, tippen Sie auf „Einstellungen“, aktivieren Sie „Von dieser Quelle zulassen“, gehen Sie zurück und tippen Sie auf „Installieren“.", "download"],
