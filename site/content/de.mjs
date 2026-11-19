@@ -70,7 +70,7 @@ export default {
     ],
     guide: "Einrichtungsanleitung öffnen",
     available: "Sie können bereits erlaubte Kontakte auswählen, Websites nach Kategorien filtern und den Verlauf für SMS, Anrufe und Kontakte aktivieren. Die Filteradresse des Handys lässt sich auch auf einem Router oder mit einem VPN nutzen. Das Handy kann sich selbst aktualisieren und der Server kann Sicherungskopien erstellen.",
-    note: "Demnächst: SOS und die Möglichkeit für Eltern, die Sprache des Handys auszuwählen.",
+    note: "Demnächst: SOS.",
   },
   open: {
     title: "Offener Quellcode",

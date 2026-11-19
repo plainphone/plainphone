@@ -70,7 +70,7 @@ export default {
     ],
     guide: "Open the setup guide",
     available: "Available now: approved contacts, a web filter with categories, and optional text, call and contact history. You can also use the phone’s filter address on a router or VPN. Phone updates and server backups are supported.",
-    note: "Coming soon: SOS and a phone language parents can choose.",
+    note: "Coming soon: SOS.",
   },
   open: {
     title: "Open source",

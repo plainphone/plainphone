@@ -348,8 +348,8 @@ function Overview() {
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
-      {failedPolicies.length > 0 ? (
-        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(failedPolicies.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
+      {technicalSteps.length > 0 ? (
+        <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(technicalSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
       ) : null}
       {phone.mode === "strong" && phone.pairedAt ? (
         <VStack gap={space.sm}>

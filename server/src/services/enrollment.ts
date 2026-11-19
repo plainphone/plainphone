@@ -120,7 +120,8 @@ export async function redeemEnrollment(
     if (e.invalidatedAt) return { status: 410, error: OUTDATED_QR, code: "outdated_qr" };
     if (!enrollmentMatches(ctx, e, phone)) {
       await tx.update(enrollments).set({ invalidatedAt: now }).where(eq(enrollments.id, e.id));
-      return { status: 409, error: OUTDATED_QR };
+      // Same answer as for an already invalidated token, so a retry gives the same result.
+      return { status: 410, error: OUTDATED_QR, code: "outdated_qr" };
     }
     if (e.expiresAt <= now) return { status: 410, error: "this setup code has expired; make a new one in the dashboard" };
     // Paired some other way meanwhile (a pairing code): the entry is taken.

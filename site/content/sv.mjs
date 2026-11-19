@@ -70,7 +70,7 @@ export default {
     ],
     guide: "Öppna installationsguiden",
     available: "Du kan redan välja godkända kontakter, filtrera webbplatser efter kategori och aktivera historik för sms, samtal och kontakter. Telefonens filteradress går också att använda på en router eller med en VPN. Telefonen kan uppdatera sig själv och servern kan ta säkerhetskopior.",
-    note: "Kommer snart: SOS och möjlighet för föräldrar att välja språk på telefonen.",
+    note: "Kommer snart: SOS.",
   },
   open: {
     title: "Öppen källkod",

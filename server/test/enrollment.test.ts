@@ -136,7 +136,9 @@ describe("setup from the dashboard (enrollment)", () => {
     const parent = await signIn(h, "p@example.org");
     const { phone, enrollment } = await addPhone(parent);
     await h.ctx.db.update(phones).set({ timezone: "Europe/London" }).where(eq(phones.id, phone.id));
-    expect((await enroll(enrollment.token)).status).toBe(409);
+    const first = await enroll(enrollment.token);
+    expect([first.status, first.json.code]).toEqual([410, "outdated_qr"]);
+    expect((await enroll(enrollment.token)).status).toBe(410);
   });
 
   it("clears the displayed QR when the configured provisioning DNS host changes", async () => {
@@ -155,6 +157,22 @@ describe("setup from the dashboard (enrollment)", () => {
       expect(old?.invalidatedAt).toEqual(h.clock.now);
       expect((await enroll(enrollment.token)).status).toBe(410);
       expect((await enroll(fresh.json.enrollment.token)).status).toBe(200);
+    } finally {
+      h.ctx.cfg.PROVISIONING_DNS_HOST = previous;
+    }
+  });
+
+  it("answers 410 at the first scan of an old QR after the provisioning DNS host changed", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const { enrollment } = await addPhone(parent);
+    const previous = h.ctx.cfg.PROVISIONING_DNS_HOST;
+    try {
+      h.ctx.cfg.PROVISIONING_DNS_HOST = "newer-dns.example.org";
+      const first = await enroll(enrollment.token);
+      expect([first.status, first.json.code]).toEqual([410, "outdated_qr"]);
+      const [row] = await h.ctx.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id));
+      expect(row?.invalidatedAt).toEqual(h.clock.now);
+      expect((await enroll(enrollment.token)).status).toBe(410);
     } finally {
       h.ctx.cfg.PROVISIONING_DNS_HOST = previous;
     }
@@ -180,7 +198,7 @@ describe("setup from the dashboard (enrollment)", () => {
     const parent = await signIn(h, "p@example.org");
     const { enrollment } = await addPhone(parent);
     await h.ctx.db.update(enrollments).set({ provisioning: null }).where(eq(enrollments.id, enrollment.id));
-    expect((await enroll(enrollment.token)).status).toBe(409);
+    expect((await enroll(enrollment.token)).status).toBe(410);
   });
 
   it.each(["patch", "redeem"] as const)("serializes a time zone change and redemption when %s locks first", async (first) => {
