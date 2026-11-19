@@ -54,13 +54,13 @@ jobs:
           import os
           from pathlib import Path
 
-          keys = {"android", "e2e", "server", "parent", "dns", "site"}
+          keys = {"android", "e2e", "server", "parent", "dns", "site", "backup"}
           lines = Path(os.environ["GITHUB_OUTPUT"]).read_text(encoding="utf-8").splitlines()
           outputs = dict(line.split("=", 1) for line in lines)
           if len(lines) != len(keys) or outputs.keys() != keys or any(
               value not in {"true", "false"} for value in outputs.values()
           ):
-              raise SystemExit("::error::Expected one boolean output for each of the six CI checks.")
+              raise SystemExit("::error::Expected one boolean output for each of the seven CI checks.")
           PYTHON
 
   android:
