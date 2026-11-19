@@ -103,7 +103,7 @@ export default {
     ],
     guide: "Open the setup guide",
     available: "Available now: approved contacts, a web filter with categories, and optional text, call and contact history. You can also use the phone’s filter address on a router or VPN. Phone updates and server backups are supported.",
-    note: "Coming soon: SOS.",
+    note: "SOS: your child can hold a button to send an urgent SOS or a help request. Parents get the position when location sharing is on, and if the phone is offline it can send an SMS instead. 112 is on the same screen.",
   },
   open: {
     title: "Open source",
