@@ -5,12 +5,12 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { client, unwrap } from "../../../api/client";
-import type { App, ChangeResult, Limit } from "../../../api/models";
+import type { App, ChangeResult, Limit, Locale } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
 import { Button, Card, Choice, errorMessage, LoadGate, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useLoad } from "../../../components/ui";
-import { useI18n } from "../../../i18n/I18n";
+import { useI18n, type TFn } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
-import { formatMinutes, limitOn, todayIn } from "../../../shared/lib/format";
+import { formatMinutes, limitOn, todayIn, weekdayName } from "../../../shared/lib/format";
 import { minuteWords } from "../../../shared/lib/ops";
 
 /** Few, round choices, like the web dashboard. */
@@ -40,6 +40,17 @@ function durationOptions(current: number, w: ReturnType<typeof minuteWords>) {
   return all.map((m) => ({ value: String(m), label: formatMinutes(m, w) }));
 }
 
+/** Weekday overrides ("Sat 3 h"), read-only, so the parent app shows the same rule scope as the web page. */
+function daysSummary(limit: Limit | null | undefined, locale: Locale, t: TFn): string | null {
+  const entries = Object.entries(daysOf(limit));
+  if (entries.length === 0) return null;
+  const w = minuteWords(t);
+  return entries
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([d, m]) => `${weekdayName(Number(d), locale, "short")} ${m === 0 ? t("time.none").toLocaleLowerCase() : formatMinutes(m, w)}`)
+    .join(", ");
+}
+
 function Used({ used, allowed }: { used: number | undefined; allowed: number }) {
   const { t } = useI18n();
   const w = minuteWords(t);
@@ -54,7 +65,7 @@ function Used({ used, allowed }: { used: number | undefined; allowed: number }) 
 }
 
 function TotalSection({ data, reload }: { data: TimeData; reload: () => Promise<void> }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { phone, run, notify } = usePhone();
   const w = minuteWords(t);
   const current = data.total;
@@ -101,6 +112,7 @@ function TotalSection({ data, reload }: { data: TimeData; reload: () => Promise<
     <VStack>
       <Text variant="heading">{t("time.totalTitle")}</Text>
       {current ? <Used used={data.used?.[TOTAL]} allowed={allowedToday} /> : null}
+      {daysSummary(current, locale, t) ? <Text variant="small">{daysSummary(current, locale, t)}</Text> : null}
       <Card>
         <Switch label={t("time.totalSwitch")} help={on ? undefined : t("time.totalOff")} value={on} onValueChange={setOn} testID="time-total-switch" />
         {on ? <Choice label={t("time.perDayLabel")} value={minutes} options={durationOptions(Number(minutes), w)} onChange={setMinutes} testID="time-total-minutes" /> : null}
@@ -114,7 +126,7 @@ function TotalSection({ data, reload }: { data: TimeData; reload: () => Promise<
 }
 
 function AppRow({ item, data, reload }: { item: TimeData["apps"][number]; data: TimeData; reload: () => Promise<void> }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { phone, run, notify } = usePhone();
   const w = minuteWords(t);
   const [editing, setEditing] = useState(false);
@@ -143,6 +155,7 @@ function AppRow({ item, data, reload }: { item: TimeData["apps"][number]; data: 
       <View style={{ gap: 2 }}>
         <Text variant="label">{item.label}</Text>
         <Text>{t("time.perDay", { time: formatMinutes(item.limit.minutes, w) })}</Text>
+        {daysSummary(item.limit, locale, t) ? <Text variant="small">{daysSummary(item.limit, locale, t)}</Text> : null}
         {used !== undefined ? <Text variant="small">{t("time.usedShort", { used: formatMinutes(used, w), allowed: formatMinutes(allowed, w) })}</Text> : null}
       </View>
       {editing ? (

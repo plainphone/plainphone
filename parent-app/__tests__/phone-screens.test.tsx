@@ -415,6 +415,16 @@ describe("screen time", () => {
     expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ minutes: 60, days: {} });
   });
 
+  it("shows the weekday overrides of a limit, like the web page", async () => {
+    phoneApi(PHONE, {
+      [`GET /phones/${PHONE.id}/time-limits`]: {
+        body: { ...empty, apps: [{ packageName: "com.example.insta", label: "Instagram", limit: { minutes: 60, days: { "6": 180 } } }] },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "time") });
+    expect(await screen.findByText(/Sat 3 h/)).toBeTruthy();
+  });
+
   it("gives 15 extra minutes for today on a single app", async () => {
     const api = phoneApi(PHONE, {
       [`GET /phones/${PHONE.id}/time-limits`]: {

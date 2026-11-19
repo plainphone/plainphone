@@ -48,14 +48,14 @@ import org.plainphone.app.R
  * whole number aloud; each key is still announced as it is pressed.
  */
 @Composable
-internal fun KeypadScreen(initial: String, onCall: (String) -> Unit, onParents: () -> Unit = {}, onEmergency: () -> Unit = {}) {
+internal fun KeypadScreen(initial: String, onCall: (String) -> Unit, onParents: () -> Unit = {}, showParents: Boolean = true, onEmergency: () -> Unit = {}) {
     var number by remember(initial) { mutableStateOf(initial) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onParents, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+            if (showParents) OutlinedButton(onClick = onParents, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
                 Text(stringResource(R.string.dialer_call_parent), textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
             }
             OutlinedButton(onClick = onEmergency, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {

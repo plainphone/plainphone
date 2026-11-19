@@ -229,6 +229,13 @@ fun placeCall(context: Context, number: String): String? {
     }.getOrElse { context.getString(R.string.call_failed) }
 }
 
+/** Opens the emergency dialer with 112 ready; the child still presses call, so one stray tap never rings the centre. */
+private fun openEmergencyDialer(context: Context) {
+    val system = Intent("com.android.phone.EmergencyDialer.DIAL").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { context.startActivity(system) }.isSuccess) return
+    runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneApp(route: Route, resumed: Int) {
@@ -351,7 +358,8 @@ private fun PhoneApp(route: Route, resumed: Int) {
                     initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(),
                     onCall = call,
                     onParents = { tab = Tab.CONTACTS },
-                    onEmergency = call.let { place -> { place("112") } },
+                    showParents = !rules.selfProfile,
+                    onEmergency = { openEmergencyDialer(context) },
                 )
             }
         }
@@ -798,7 +806,7 @@ internal fun ConversationScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(messages, key = { it.id }) { m ->
-                    Bubble(m, onRetry = if (m.failed && m.outgoing && m.body.isNotBlank() && contact != null) ({ draft = draftAfterRetry(draft, m.body) }) else null)
+                    Bubble(m, onRetry = if (m.failed && m.outgoing && m.body.isNotBlank() && contact != null && thread.kind != SmsThreadKind.LEGACY) ({ draft = draftAfterRetry(draft, m.body) }) else null)
                 }
                 if (!loading && (hasMore || failed)) item {
                     MoreHistory(failed) {
