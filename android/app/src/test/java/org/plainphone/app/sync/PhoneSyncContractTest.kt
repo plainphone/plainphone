@@ -292,6 +292,84 @@ class PhoneSyncContractTest {
     }
 
     @Test
+    fun `a parent approves a request on the phone with the PIN, and the dashboard sees it as approved on the phone`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
+        val (_, out) = parent(
+            "POST", "/phones/enroll",
+            JSONObject().put("name", "Cleo").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+        )
+        val phoneId = out!!.getJSONObject("phone").getString("id")
+        val config = PolicyConfig.fromExtras(
+            android.os.PersistableBundle().apply { putString(PolicyConfig.KEY_ENROLL, out.getJSONObject("enrollment").getString("token")) },
+        )
+        store.saveEnrollToken(config.enrollToken)
+        assertThat(PairingController(store, api, mapOf("model" to "Contract test")).enroll()).isInstanceOf(EnrollResult.Paired::class.java)
+        val device = FakeSyncDevice(
+            apps = listOf(
+                InstalledApp("com.android.dialer", "Phone", core = true),
+                InstalledApp("com.example.game", "Game", core = false),
+            ),
+        ).apply {
+            now = System.currentTimeMillis()
+            lock = lock.copy(appliedAtMs = now)
+        }
+        val runner = SyncRunner(store, api, device)
+        runner.run("first")
+        // Both switches are on by default and reach the phone.
+        assertThat(store.rules()!!.pinApproval).isTrue()
+        assertThat(store.rules()!!.silentBedtime).isTrue()
+        assertThat(store.rules()!!.allowedApps).doesNotContain("com.example.game")
+
+        // The phone asks for the app (the API the phone's request screen will use).
+        val token = store.deviceToken()!!
+        val ask = URL("$url/api/device/requests").openConnection() as HttpURLConnection
+        ask.requestMethod = "POST"
+        ask.setRequestProperty("Authorization", "Bearer $token")
+        ask.setRequestProperty("Content-Type", "application/json")
+        ask.doOutput = true
+        ask.outputStream.use { it.write(JSONObject().put("kind", "app").put("packageName", "com.example.game").toString().toByteArray()) }
+        assertThat(ask.responseCode).isEqualTo(201)
+        ask.disconnect()
+        runner.run("count the waiting requests")
+        assertThat(store.openRequests).isEqualTo(1)
+        val waiting = api.phoneRequests(token).single()
+        assertThat(waiting.pending).isTrue()
+
+        // A parent next to the child types the PIN: the approval is saved on the phone and sent with the sync.
+        store.queuePhoneApproval(waiting.id)
+        runner.run("report the approval")
+        assertThat(store.pendingPhoneApprovals()).isEmpty()
+        val answered = api.phoneRequests(token).single()
+        assertThat(answered.approvedOnPhone).isTrue()
+        assertThat(store.openRequests).isEqualTo(0)
+        // The rules the phone fetched after the report carry the effect.
+        runner.run("after the approval")
+        assertThat(store.rules()!!.allowedApps).contains("com.example.game")
+
+        // Idempotent: a repeat changes nothing and says someone (here: the phone itself) was first.
+        val again = api.reportApprovedOnPhone(token, waiting.id)!!
+        assertThat(again.approvedOnPhone).isTrue()
+
+        // The dashboard shows where it came from, and a parent who answers late is told.
+        val (_, list) = parent("GET", "/phones/$phoneId/requests")
+        val recent = list!!.getJSONArray("recent").getJSONObject(0)
+        assertThat(recent.getString("decidedVia")).isEqualTo("phone")
+        val (late, lateBody) = parent("POST", "/phones/$phoneId/requests/${waiting.id}/approve", JSONObject())
+        assertThat(late).isEqualTo(409)
+        assertThat(lateBody!!.getString("outcome")).isEqualTo("approvedOnPhone")
+
+        // An approval for a request the server does not have is dropped, not retried for ever.
+        assertThat(api.reportApprovedOnPhone(token, "00000000-0000-4000-8000-000000000000")).isNull()
+
+        // The parent switches approval on the phone off: the phone stops offering it.
+        assertThat(parent("PATCH", "/phones/$phoneId", JSONObject().put("pinApprovalEnabled", false)).first).isEqualTo(200)
+        runner.run("switched off")
+        assertThat(store.rules()!!.pinApproval).isFalse()
+    }
+
+    @Test
     fun `release from the dashboard switches the phone off, deletes it on the server and ends the sync`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val store = SyncStore(context, FakeSecretBox())

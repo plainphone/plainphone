@@ -144,6 +144,10 @@ phone                                      server                         parent
    null rule confirmation fields when receipts are off and omits the extra
    filter and usage access observations when the board is off. The phone
    continues sending existing operational status and safety reports.
+   The per-phone `silentBedtime` (default on) and `pinApprovalEnabled` (default on, always false on a
+   Self phone) switches also sync in `GET /device/rules` ([bedtime.md](bedtime.md)). A missing
+   `silentBedtime` means on; a missing `pinApprovalEnabled` means off, because an older server has no
+   endpoint for the report below.
    Rule edits advance the revision even if they restore an earlier configuration.
    A DNS edit waits for the resolver to accept it and for the phone to acknowledge
    the resulting ETag. A later phone-side edit can be confirmed during a resolver
@@ -280,7 +284,8 @@ A phone that rebooted before reporting sends a null age.
 ### Requests (asking for an app or a contact)
 
 Spec 4 and 5: the person with the phone can ask for something the parents then approve or
-decline. The phone UI for this is not built yet; the server side is.
+decline. The phone lists its requests under **My requests** and can approve a waiting one with the
+parent PIN ([bedtime.md](bedtime.md)); asking from the phone is not built yet, the server side is.
 
 - `POST /api/device/requests` with `{ "kind": "app", "packageName": "com.spotify.music" }` or
   `{ "kind": "contact", "name": "Gran", "number": "+4512345678" }`.
@@ -299,7 +304,21 @@ decline. The phone UI for this is not built yet; the server side is.
   createdAt, decidedAt, waitingForKey, effectiveAt }`. `waitingForKey` is true for an approved
   request on a Self phone whose change still waits (`effectiveAt` is its time, or null for a
   trusted person). Poll it when the request screen is open; the rules poll already brings the
-  effect of an approval. After 30 days answered requests are deleted.
+  effect of an approval. After 30 days answered requests are deleted. `decidedVia` is `"phone"` for an
+  approval given on the phone with the PIN, `"parent"` for an answer from the dashboard or the parent app,
+  and null while the request is open.
+- `POST /api/device/requests/{id}/approve-on-phone` (no body) reports that a parent approved the request
+  on the phone with the parent PIN. The phone checked the PIN itself and is the authority for what it
+  did, so this is a report: it is applied like a parent's approval (the app is shown, the contact is
+  added), the parents are told it happened on the phone, and it is recorded even if the parent switched
+  `pinApprovalEnabled` off a moment ago. First answer wins and a repeat changes nothing: the answer is
+  `200` with the request as it stands and `won: false` if someone else answered first (for example a
+  parent in the dashboard). `404` for a request the phone does not have, `409` on a Self phone (no
+  parent PIN) or when the change could not be applied (the request stays open). Offline, the phone
+  keeps the approval and reports it with the next sync.
+- A parent who answers a request that was already answered gets `409` with `outcome`
+  (`approvedByYou`, `approvedByOther`, `approvedOnPhone`, `declinedByYou`, `declinedByOther`), the
+  same vocabulary as the approval outcomes in the dashboard and the parent app.
 
 ### Push wakeups
 
