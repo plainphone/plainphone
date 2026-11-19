@@ -3,9 +3,9 @@ import { SosPanel } from "../components/SosPanel";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { LiveStatus, LoadGate, type Notice, PageTitle, useLoad, useNow } from "../components/ui";
+import { PhoneStateTitle } from "../components/PhoneState";
 import { useI18n } from "../i18n/I18n";
 import { api, type PendingChange, type Phone } from "../lib/api";
-import { formatRelative } from "../lib/format";
 import { helpUrl, releaseState } from "../lib/phoneSupport";
 
 interface Row {
@@ -79,13 +79,7 @@ export function PhonesPage() {
                         {phone.mode === "light" && <span className="tag">{t("mode.light")}</span>}
                         {!phone.pairedAt && <span className="tag tag-waiting">{t("phones.notSetUp")}</span>}
                         {phone.status?.lockIntact === false && <span className="tag tag-alert">{t("phones.lockBroken")}</span>}
-                        {phone.pairedAt && (
-                          <span>
-                            {phone.lastSeenAt
-                              ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                              : t("phones.neverSeen")}
-                          </span>
-                        )}
+                        {phone.pairedAt && <PhoneStateTitle phone={phone} now={now} />}
                       </span>
                       <PhoneReleaseLabel phone={phone} />
                       {pending > 0 && (

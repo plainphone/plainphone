@@ -348,10 +348,9 @@
     <string name="light_skip_effect_alwayson">Wenn du das überspringst, kann der Webfilter in den VPN-Einstellungen ausgeschaltet werden.</string>
     <string name="light_skip_effect_location">Wenn du das überspringst, kannst du dieses Telefon nicht im Dashboard finden.</string>
     <string name="light_skip_effect_running">Wenn du das überspringst, kann Android Plainphone im Hintergrund beenden und der Schutz sich ausschalten.</string>
-    <string name="self_approval_expired">Der Code ist abgelaufen. Es wurde nichts genehmigt. Frage erneut an, um einen neuen zu erhalten.</string>
     <string name="self_approval_not_invite">Damit bittest du deine Freundin oder deinen Freund, eine Änderung zu prüfen. Scannen ist keine Zustimmung: Sie oder er entscheidet erst nach dem Lesen.</string>
     <string name="self_invite_expired">Diese Einladung ist abgelaufen. Zeige eine neue an.</string>
-    <string name="self_invite_new">Neuen Code anzeigen</string>
+    <string name="self_new_code">Neuen Code anzeigen</string>
     <string name="self_invite_not_approval">Das ist eine Einladung, keine Genehmigung. Sie macht deine Vertrauensperson zu deinem Schlüssel.</string>
     <string name="setup_denied_once">Diesmal nicht erlaubt. Tippe auf die Schaltfläche, um es erneut zu versuchen, oder überspringe es vorerst.</string>
     <string name="setup_recovery_denied_location">Der Standort wurde abgelehnt, daher fragt Android nicht mehr. Er kann nur in der App-Info erlaubt werden.</string>
@@ -371,4 +370,10 @@
     <string name="support_help_fallback">Öffnen Sie %1$s auf einem anderen Gerät.</string>
     <string name="support_copy_diagnostics">Technische Angaben kopieren</string>
     <string name="support_copied">Technische Angaben kopiert.</string>
+    <string name="self_approval_waiting">Warte auf deine Vertrauensperson.</string>
+    <string name="self_approval_outcome_approved">Genehmigt. Die neue Regel erreicht dieses Telefon gleich.</string>
+    <string name="self_approval_outcome_declined">Abgelehnt. Nichts wurde geändert.</string>
+    <string name="self_approval_outcome_cancelled">Diese Anfrage wurde zurückgezogen. Nichts wurde geändert.</string>
+    <string name="self_approval_outcome_failed">Die Änderung konnte nicht angewendet werden. Stelle eine neue Anfrage.</string>
+    <string name="self_approval_outcome_expired">Der Code ist abgelaufen. Nichts wurde genehmigt. Zeige einen neuen Code an.</string>
 </resources>

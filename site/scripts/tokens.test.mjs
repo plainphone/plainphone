@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// The web dashboard, the Expo parent app and Android use brand direction C ("Switch",
+// The site, the web dashboard, the Expo parent app and Android use brand direction C ("Switch",
 // docs/brand/README.md): the same value per role and theme, read from the guide's palette:c table,
-// and every text pair stays AA. The site keeps its own table until its redesign on direction C
-// lands (feat/site-redesign-switch); then it is checked against the same table.
+// and every text pair stays AA.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -21,12 +20,6 @@ function switchPalette() {
   };
 }
 const SWITCH = switchPalette();
-
-/** The site's palette before its direction C redesign. */
-const SITE = {
-  light: { paper: "#f2f3ef", sheet: "#ffffff", ink: "#1c2321", pencil: "#4d5753", divider: "#dfe3df", outline: "#7a8580", action: "#24604a", onAction: "#ffffff", attention: "#fbf1d9" },
-  dark: { paper: "#121816", sheet: "#1b2320", ink: "#e8ece9", pencil: "#a9b3ae", divider: "#2c3833", outline: "#6b7873", action: "#7fc4a2", onAction: "#0d1a14", attention: "#33301f" },
-};
 
 function lum(hex) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -49,11 +42,14 @@ test("the brand guide's palette:c table has every role", () => {
   for (const theme of ["light", "dark"]) assert.equal(Object.keys(SWITCH[theme]).length, 14, `palette:c ${theme} in docs/brand/README.md`);
 });
 
-test("site uses its tokens", () => {
-  const map = { paper: "paper", sheet: "sheet", ink: "ink", pencil: "pencil", divider: "rule", outline: "outline", action: "link", onAction: "on-link", attention: "mark" };
+test("site uses the direction C tokens", () => {
+  const map = {
+    paper: "paper", sheet: "sheet", ink: "ink", pencil: "pencil", divider: "divider", outline: "outline", action: "action",
+    onAction: "on-action", tint: "tint", attention: "attention", danger: "danger", brand: "brand", onBrand: "on-brand",
+  };
   const v = cssVars(read("site/src/style.css"));
   for (const theme of ["light", "dark"]) {
-    for (const [role, variable] of Object.entries(map)) assert.equal(v[theme][variable], SITE[theme][role], `site ${theme} --${variable} (${role})`);
+    for (const [role, variable] of Object.entries(map)) assert.equal(v[theme][variable], SWITCH[theme][role], `site ${theme} --${variable} (${role})`);
   }
 });
 

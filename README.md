@@ -6,7 +6,7 @@
 Plainphone turns an ordinary Android phone into a calm phone: calls, messages, maps, music and the apps you actually need, without social media, endless feeds, games and porn.
 
 <p align="center">
-  <img src="site/src/og-en.png" width="640" alt="Plainphone: your phone, minus the noise. Calls, messages and camera stay; social media feeds and ads go.">
+  <img src="site/src/og-en.png" width="640" alt="Plainphone: Your phone, minus the noise. Calls, messages and camera are switched on; social media and the app store are off.">
 </p>
 
 It is meant for a parent setting up a child's first phone, and for adults who want to hold themselves to their own rules. The rules work the same way in both cases. What changes is who holds the key.

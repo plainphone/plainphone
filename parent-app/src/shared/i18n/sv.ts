@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { statusEn } from "./status";
 
 export const sv: Messages = {
+  ...statusEn, // English until translated
+  "status.never.title": "Ännu inte ansluten",
+  "status.stale.title": "Senast online {when}",
   "app.name": "Plainphone",
   "app.skip": "Hoppa till innehållet",
   "app.loading": "Laddar…",
@@ -75,8 +79,6 @@ export const sv: Messages = {
   "phones.add": "Lägg till telefon",
   "phones.emptyTitle": "Inga telefoner än",
   "phones.emptyBody": "Välj Lägg till telefon. Du får en QR-kod som telefonen skannar när den är inställd.",
-  "phones.lastSeen": "Senast aktiv {when}",
-  "phones.neverSeen": "Ännu inte ansluten",
   "phones.lockBroken": "Skyddet är inte helt aktivt",
   "phones.pendingCount": "{n} ändring väntar",
   "phones.pendingCountMany": "{n} ändringar väntar",
@@ -128,10 +130,7 @@ export const sv: Messages = {
   "phone.householdHint": "Föräldrar som hanterar den här telefonen",
   "phone.pendingTitle": "Väntar på ändringar",
   "phone.pendingNone": "Inga ändringar väntar.",
-  "phone.lastSeen": "Senast online {when}",
-  "phone.neverOnline": "Har inte varit online än",
   "phone.status": "Telefonstatus",
-  "phone.statusNone": "Ingen status från telefonen ännu",
   "phone.attCheckedAt": "Systemet kontrollerat {when}",
   "phone.attLastFailedAt": "Den senaste systemkontrollen kunde inte verifiera telefonen ({when}).",
   "phone.attFindingAt": "Hitta inspelade {when}",

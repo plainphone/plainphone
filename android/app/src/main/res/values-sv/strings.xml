@@ -348,10 +348,9 @@
     <string name="light_skip_effect_alwayson">Om du hoppar över detta kan webbfiltret stängas av i VPN-inställningarna.</string>
     <string name="light_skip_effect_location">Om du hoppar över detta kan du inte hitta den här telefonen från kontrollpanelen.</string>
     <string name="light_skip_effect_running">Om du hoppar över detta kan Android stoppa Plainphone i bakgrunden och skyddet kan stängas av.</string>
-    <string name="self_approval_expired">Koden har upphört. Inget godkändes. Be om en ny kod.</string>
     <string name="self_approval_not_invite">Det här ber din vän granska en ändring. Att skanna är inte ett samtycke: de bestämmer efter att ha läst den.</string>
     <string name="self_invite_expired">Inbjudan har upphört. Visa en ny.</string>
-    <string name="self_invite_new">Visa en ny kod</string>
+    <string name="self_new_code">Visa en ny kod</string>
     <string name="self_invite_not_approval">Det här är en inbjudan, inte ett godkännande. Den gör din vän till din nyckel.</string>
     <string name="setup_denied_once">Inte tillåtet den här gången. Tryck på knappen för att försöka igen, eller hoppa över det för nu.</string>
     <string name="setup_recovery_denied_location">Plats nekades, så Android frågar inte längre. Den kan bara tillåtas i Appinformation.</string>
@@ -371,4 +370,10 @@
     <string name="support_help_fallback">Öppna %1$s på en annan enhet.</string>
     <string name="support_copy_diagnostics">Kopiera tekniska uppgifter</string>
     <string name="support_copied">Tekniska uppgifter kopierade.</string>
+    <string name="self_approval_waiting">Väntar på din betrodda person.</string>
+    <string name="self_approval_outcome_approved">Godkänd. Den nya regeln når telefonen om en stund.</string>
+    <string name="self_approval_outcome_declined">Avslagen. Inget har ändrats.</string>
+    <string name="self_approval_outcome_cancelled">Förfrågan har dragits tillbaka. Inget har ändrats.</string>
+    <string name="self_approval_outcome_failed">Ändringen kunde inte genomföras. Gör en ny förfrågan.</string>
+    <string name="self_approval_outcome_expired">Koden har upphört. Inget godkändes. Visa en ny kod.</string>
 </resources>

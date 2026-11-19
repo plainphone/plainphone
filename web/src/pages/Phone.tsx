@@ -27,6 +27,7 @@ import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
 import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
 import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { ServerMoveToggle } from "../components/ServerMoveToggle";
+import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 
 interface PhoneCtx {
@@ -338,6 +339,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   return (
     <section className="section" aria-labelledby="status-h">
       <h2 id="status-h">{t("phone.status")}</h2>
+      <PhoneStateHint phone={phone} now={now} />
       {filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
       {s && !s.lockIntact && (
         <div className="notice notice-error" role="status">
@@ -401,7 +403,6 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
         </>
       ) : (
         <>
-          <p className="muted">{t("phone.statusNone")}</p>
           {(phone.attestation?.state === "verified" || phone.attestation?.state === "unverifiable") && (
             <p>{t(ATTESTATION_TEXT[phone.attestation.state])}</p>
           )}
@@ -419,7 +420,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
 }
 
 export function PhoneOverview() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { phone, pending, setPhone, notify } = usePhone();
   const navigate = useNavigate();
   const now = useNow(60_000);
@@ -490,11 +491,7 @@ export function PhoneOverview() {
           <span className="row-meta">
             <span className={`tag tag-${phone.profile}`}>{t(phone.profile === "child" ? "profile.child" : "profile.self")}</span>
             <span className="tag">{t(phone.mode === "light" ? "mode.light" : "mode.strong")}</span>
-            <span>
-              {phone.lastSeenAt
-                ? t("phone.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                : t("phone.neverOnline")}
-            </span>
+            <PhoneStateTitle phone={phone} now={now} />
           </span>
         }
       >

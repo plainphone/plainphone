@@ -2,7 +2,7 @@
 
 One logo, one favicon and one look on every surface: the site, the web dashboard, the parent app, the phone and the mails.
 
-**Status: direction C chosen (19 November 2026).** This guide proposed three visual directions (A, B, C), and C, Switch, was chosen. The web dashboard, the parent app, Android and the mails use it (see the [inventory](#asset-inventory)); the site moves to it in its own redesign.
+**Status: direction C chosen (19 November 2026).** This guide proposed three visual directions (A, B, C), and C, Switch, was chosen. Every surface uses it: the site (plainphone.org), the web dashboard, the parent app, Android and the mails (see the [inventory](#asset-inventory)).
 
 | | A · Paper | B · Daylight | C · Switch |
 | --- | --- | --- | --- |
@@ -58,11 +58,10 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 
 | Surface | File | What it is today |
 | --- | --- | --- |
-| Site | `site/src/favicon.svg`, `favicon-32.png`, `apple-touch-icon.png` | Mark 1: slate circle `#1d2a30` with a white bar ("minus") |
-| Site | `site/src/wordmark.svg` (from `site/tools/make-wordmark.py`) | "plainphone", Atkinson Hyperlegible Next 640, circle-bar mark |
-| Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Share images, paper `#f3f5f2`, ink `#1d2a30` |
-| Site | `site/build.mjs` `theme-color` | `#f3f5f2` / `#172025` (slate, not the token values) |
-| Site | `site/src/style.css`, `site/src/fonts/` | Site palette and Atkinson Hyperlegible Next (OFL) |
+| Site | `site/src/brand/` (copies of `directions/c/`), `favicon-32.png`, `apple-touch-icon.png` | Done: direction C mark, wordmark, favicon and apple-touch icon |
+| Site | `site/src/og-{en,da,sv,nb,de}.png` (from `site/tools/make-images.mjs`) | Done: direction C share images with the hero switch panel |
+| Site | `site/build.mjs` `theme-color` | Done: C paper, `#f5f5f3` / `#0f0f0f` |
+| Site | `site/src/style.css`, `site/src/fonts/` | Done: C palette, Schibsted Grotesk and IBM Plex Mono (OFL) |
 | Mail | `web/public/mail/lockup@2x.png`, `lockup-dark@2x.png` (from `web/scripts/make-icons.mjs`), served by each instance at `<PUBLIC_URL>/mail/` | Done: direction C lockup (outlined wordmark), 130 × 32 shown, 2× PNG. The site's old `site/src/mail/logo*.png` are no longer used by the server |
 | Mail | `server/src/lib/mail-templates.ts` | Done: C palette light and dark, ink card edge, pill button (signal green in dark), Schibsted Grotesk with system fallback |
 | Web dashboard | `web/public/icon.svg`, `web/public/icons/{favicon-16,favicon-32,icon-192,icon-512,maskable-192,maskable-512,apple-touch-icon,badge-96}.png` (from `web/scripts/make-icons.mjs`) | Done: C favicon (16 px drawing below 24 px), app icon, maskable icon and a white push badge |

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { statusEn } from "./status";
 
 export const de: Messages = {
+  ...statusEn, // English until translated
+  "status.never.title": "Noch keine Verbindung",
+  "status.stale.title": "Zuletzt online {when}",
   "app.name": "Plainphone",
   "app.skip": "Zum Inhalt springen",
   "app.loading": "Laden…",
@@ -75,8 +79,6 @@ export const de: Messages = {
   "phones.add": "Telefon hinzufügen",
   "phones.emptyTitle": "Noch keine Telefone",
   "phones.emptyBody": "Wählen Sie Telefon hinzufügen. Sie erhalten einen QR-Code, den das Telefon bei der Einrichtung scannt.",
-  "phones.lastSeen": "Zuletzt aktiv {when}",
-  "phones.neverSeen": "Noch keine Verbindung",
   "phones.lockBroken": "Schutz nicht vollständig aktiv",
   "phones.pendingCount": "{n} Änderung wartet",
   "phones.pendingCountMany": "{n} Änderungen warten",
@@ -128,10 +130,7 @@ export const de: Messages = {
   "phone.householdHint": "Eltern, die dieses Telefon verwalten",
   "phone.pendingTitle": "Warten auf Veränderungen",
   "phone.pendingNone": "Es warten keine Änderungen.",
-  "phone.lastSeen": "Zuletzt online {when}",
-  "phone.neverOnline": "War noch nicht online",
   "phone.status": "Telefonstatus",
-  "phone.statusNone": "Noch kein Status vom Telefon",
   "phone.attCheckedAt": "System überprüft {when}",
   "phone.attLastFailedAt": "Bei der letzten Systemprüfung konnte das Telefon nicht überprüft werden ({when}).",
   "phone.attFindingAt": "Suche nach aufgezeichnetem {when}",

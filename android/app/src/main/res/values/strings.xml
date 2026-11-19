@@ -324,6 +324,12 @@
     <string name="self_approval_scan">Ask your trusted person to scan this code. It expires after two minutes.</string>
     <string name="self_approval_loading">Loading requests…</string>
     <string name="self_approval_empty">No changes are waiting for your trusted person.</string>
+    <string name="self_approval_waiting">Waiting for your trusted person.</string>
+    <string name="self_approval_outcome_approved">Approved. The new rule reaches this phone in a moment.</string>
+    <string name="self_approval_outcome_declined">Declined. Nothing changed.</string>
+    <string name="self_approval_outcome_cancelled">This request was withdrawn. Nothing changed.</string>
+    <string name="self_approval_outcome_failed">The change could not be applied. Ask for a new request.</string>
+    <string name="self_approval_outcome_expired">The code has expired. Nothing was approved. Show a new code to try again.</string>
     <string name="setup_key_invalid">Use another email address. Your helper needs a separate household.</string>
     <string name="setup_key_qr">Invite by QR code</string>
     <string name="setup_key_qr_help">You can show the invite code as soon as your phone connects.</string>
@@ -379,8 +385,7 @@
     <string name="setup_summary_qr">A person you invite by QR code approves looser rules. Until they accept, changes wait %1$d h.</string>
     <string name="setup_summary_email">%1$s approves looser rules. Until they accept, changes wait %2$d h.</string>
     <string name="self_invite_expired">This invitation has expired. Show a new one.</string>
-    <string name="self_invite_new">Show a new code</string>
-    <string name="self_approval_expired">The code has expired. Nothing was approved. Ask again to get a new one.</string>
+    <string name="self_new_code">Show a new code</string>
     <string name="self_invite_not_approval">This is an invitation, not an approval. It lets your friend become your key.</string>
     <string name="self_approval_not_invite">This asks your friend to review one change. Scanning is not consent: they decide after reading it.</string>
 </resources>
