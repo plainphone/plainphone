@@ -17,7 +17,9 @@ A **limit** is
 and `"7"` is Sunday. A limit of 0 blocks the app for the day.
 
 A **bonus** adds minutes to one local date, for one package or for the total (`"*"`). The
-"+15 min today" button in the parent app creates one.
+"+15 min today" button in the web dashboard and the parent app creates one. Both show the same
+rule list (what and who, when, the phone) with a "Screen time" page next to "School time and
+bedtime".
 
 The limit for a date is `days[isoWeekday] ?? minutes`, plus the sum of that date's bonuses for
 the same package. A day starts at local midnight in the phone's `timezone`.
