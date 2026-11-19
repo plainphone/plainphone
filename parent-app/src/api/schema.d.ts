@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Liveness, database and DNS service check
-         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`.
+         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`, and `push.errors`: short reasons (never secrets) for push providers switched off because their settings were invalid, e.g. `fcm: invalid service account`. Top-level `errors` does the same for other optional integrations such as SMTP. Both are empty arrays when all is well.
          */
         get: operations["getHealth"];
         put?: never;
