@@ -143,4 +143,23 @@ class BrandIconsScreenshotTest {
         }
         save("brand-icons", compose.onRoot().captureToImage().asAndroidBitmap())
     }
+
+    /** The call button is ink with a paper glyph in both themes: signal green is never a call button. */
+    private fun keypad(name: String, night: Boolean) {
+        RuntimeEnvironment.setQualifiers(if (night) "+night" else "+notnight")
+        compose.setContent {
+            PlainphoneTheme {
+                Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)) { KeypadScreen(initial = "112", onCall = {}) }
+            }
+        }
+        save(name, compose.onRoot().captureToImage().asAndroidBitmap())
+    }
+
+    @Test
+    @Config(qualifiers = "w393dp-h852dp-xxhdpi")
+    fun `keypad, light`() = keypad("keypad-light", night = false)
+
+    @Test
+    @Config(qualifiers = "w393dp-h852dp-xxhdpi")
+    fun `keypad, dark`() = keypad("keypad-dark", night = true)
 }

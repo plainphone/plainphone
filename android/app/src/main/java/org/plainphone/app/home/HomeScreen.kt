@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,6 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.plainphone.app.R
+import org.plainphone.app.ui.PlainMono
+import org.plainphone.app.ui.PlainSans
 
 /** Everything the home screen draws, already formatted, so previews and screenshot tests are exact. */
 data class HomeUi(
@@ -73,7 +76,12 @@ class HomeActions(
 
 @Composable
 fun HomeTheme(colors: HomeColors, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalHomeColors provides colors, content = content)
+    // The home screen is not inside PlainphoneTheme, so it sets the brand font itself.
+    CompositionLocalProvider(
+        LocalHomeColors provides colors,
+        LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = PlainSans),
+        content = content,
+    )
 }
 
 @Composable
@@ -149,10 +157,12 @@ private fun Clock(time: String, date: String) {
             time,
             color = c.ink,
             style = TextStyle(
+                fontFamily = PlainMono,
                 fontSize = clockSize,
                 lineHeight = clockSize,
-                fontWeight = FontWeight.Light,
-                letterSpacing = (-2).sp,
+                fontWeight = FontWeight.Medium,
+                // IBM Plex Mono is 0.6 em per digit: -4 sp keeps "00:00" under 260 dp, so it fits a 320 dp screen.
+                letterSpacing = (-4).sp,
                 fontFeatureSettings = "tnum",
             ),
         )
