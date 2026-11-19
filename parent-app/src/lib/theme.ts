@@ -40,7 +40,9 @@ export const dark: Colors = {
   dangerBg: "#3a2321",
 };
 
+/** Grouped surfaces (cards, rows) use 12, controls (buttons, inputs, segments) 10. */
 export const radius = 12;
+export const radiusControl = 10;
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 /** Minimum touch target (Apple 44 pt, Material 48 dp). */
 export const touch = 48;

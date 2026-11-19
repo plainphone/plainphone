@@ -79,12 +79,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -344,7 +347,13 @@ private fun PhoneApp(route: Route, resumed: Int) {
                     },
                     onOpen = { conversationWith = it },
                 )
-                Tab.KEYPAD -> KeypadScreen(initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(), onCall = call)
+                Tab.KEYPAD -> KeypadScreen(
+                    initial = route.number.takeIf { route.tab == Tab.KEYPAD }.orEmpty(),
+                    onCall = call,
+                    onParents = { tab = Tab.CONTACTS },
+                    showParents = !rules.selfProfile,
+                    onEmergency = { org.plainphone.app.sos.openEmergencyDialer(context) },
+                )
             }
         }
     }
@@ -704,7 +713,7 @@ internal fun ConversationScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var draft by remember(thread) { mutableStateOf(initialDraft) }
+    var draft by rememberSaveable(thread) { mutableStateOf(initialDraft) }
     var error by remember { mutableStateOf<String?>(null) }
     val sendFailed = stringResource(R.string.message_send_failed)
     var messages by remember(thread) { mutableStateOf(emptyList<SmsMessage>()) }
@@ -789,7 +798,9 @@ internal fun ConversationScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(messages, key = { it.id }) { Bubble(it) }
+                items(messages, key = { it.id }) { m ->
+                    Bubble(m, onRetry = if (m.failed && m.outgoing && m.body.isNotBlank() && contact != null && thread.kind != SmsThreadKind.LEGACY) ({ draft = draftAfterRetry(draft, m.body) }) else null)
+                }
                 if (!loading && (hasMore || failed)) item {
                     MoreHistory(failed) {
                         if (!failed) after = messages.lastOrNull()
@@ -802,7 +813,11 @@ internal fun ConversationScreen(
                 return@Column
             }
             error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -837,7 +852,7 @@ internal fun ConversationScreen(
 }
 
 @Composable
-private fun Bubble(m: SmsMessage) {
+internal fun Bubble(m: SmsMessage, onRetry: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.outgoing) Arrangement.End else Arrangement.Start) {
         Surface(
             shape = RoundedCornerShape(18.dp),
@@ -851,6 +866,7 @@ private fun Bubble(m: SmsMessage) {
                     style = MaterialTheme.typography.labelSmall,
                     color = if (m.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.message_retry)) }
             }
         }
     }
@@ -882,45 +898,6 @@ internal fun MessageBody(body: String) {
     Text(text, style = MaterialTheme.typography.bodyLarge)
 }
 
-@Composable
-private fun KeypadScreen(initial: String, onCall: (String) -> Unit) {
-    var number by remember(initial) { mutableStateOf(initial) }
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            number.ifEmpty { " " },
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Light,
-            maxLines = 1,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            stringResource(R.string.keypad_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(16.dp))
-        Keypad(onKey = { number += it }, modifier = Modifier.widthIn(max = 320.dp))
-        Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.size(64.dp))
-            FilledIconButton(
-                onClick = { if (number.isNotBlank()) onCall(number) },
-                modifier = Modifier.size(72.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = AnswerGreen),
-            ) {
-                Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.action_call, number), modifier = Modifier.size(32.dp))
-            }
-            TextButton(onClick = { number = number.dropLast(1) }, modifier = Modifier.size(64.dp)) {
-                Text("⌫", fontSize = 22.sp)
-            }
-        }
-    }
-}
 
 /** 3x4 phone keypad, shared by the keypad tab and the in-call screen (DTMF). */
 @Composable

@@ -8,7 +8,7 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import android.graphics.Typeface
+import androidx.compose.ui.graphics.toArgb
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,6 +17,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.text.InputType
+import java.util.Date
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -45,27 +46,24 @@ class MaintenanceActivity : Activity() {
     private lateinit var output: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var checkFallbackExpiry: Runnable? = null
+    private var stateView: TextView? = null
+    private var reapplyButton: Button? = null
     private val installPackage by lazy { intent.getStringExtra(EXTRA_INSTALL_PACKAGE) }
+    private val style by lazy { MaintenanceStyle(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        val pad = (20 * resources.displayMetrics.density).toInt()
-        column = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad * 2, pad, pad)
-        }
-        column.addView(TextView(this).apply {
+        column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        style.screen(column)
+        column.addView(style.title(TextView(this).apply {
             text = getString(if (installPackage == null) R.string.maintenance_title else R.string.today_install_with_account)
-            textSize = 24f
-            setTypeface(typeface, Typeface.BOLD)
+        }))
+        output = style.log(TextView(this))
+        setContentView(android.widget.ScrollView(this).apply {
+            isFillViewport = true
+            addView(column)
         })
-        output = TextView(this).apply {
-            typeface = Typeface.MONOSPACE
-            textSize = 12f
-            setPadding(0, pad, 0, pad)
-        }
-        setContentView(android.widget.ScrollView(this).apply { addView(column) })
         showPinPrompt()
     }
 
@@ -85,24 +83,26 @@ class MaintenanceActivity : Activity() {
     }
 
     private fun showPinPrompt() {
-        val pin = EditText(this).apply {
+        val pin = style.field(EditText(this).apply {
             hint = getString(R.string.maintenance_pin_hint)
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
-        val message = TextView(this).apply { accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE }
-        val button = Button(this).apply { text = getString(R.string.maintenance_unlock) }
-        val fallback = Button(this).apply {
+        })
+        val message = style.message(TextView(this).apply { accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE })
+        val button = style.button(Button(this).apply { text = getString(R.string.maintenance_unlock) }, MaintenanceStyle.Kind.PRIMARY)
+        val fallback = style.button(Button(this).apply {
             id = R.id.maintenance_allow_accounts
             setText(R.string.maintenance_allow_accounts)
             visibility = View.GONE
-        }
+        })
         val throttle = PinThrottle.forContext(this)
         button.setOnClickListener {
             val waitSeconds = ((throttle.remainingMs() + 999) / 1000).toInt()
             if (waitSeconds > 0) {
+                style.tone(message, error = false)
                 message.text = resources.getQuantityString(R.plurals.maintenance_wait, waitSeconds, waitSeconds)
                 return@setOnClickListener
             }
+            style.tone(message, error = true)
             val entered = pin.text.toString()
             fallback.visibility = View.GONE
             cancelFallbackExpiry()
@@ -149,6 +149,7 @@ class MaintenanceActivity : Activity() {
                         showActions()
                     } else {
                         message.text = getString(R.string.maintenance_wrong_pin)
+                        pin.requestFocus()
                     }
                 }
             }.start()
@@ -194,6 +195,7 @@ class MaintenanceActivity : Activity() {
                 cancelFallbackExpiry()
                 fallback.visibility = View.GONE
                 button.isEnabled = false
+                style.tone(message, error = true)
                 message.text = ""
                 Thread {
                     val lease = InstallLease.android(app)
@@ -222,6 +224,7 @@ class MaintenanceActivity : Activity() {
         }
         if (request == null) {
             fallbackId?.let { InstallLease.android(app).finishCatalogAccounts(it) }
+            style.tone(message, error = false)
             message.setText(R.string.maintenance_install_account_pending)
             button.isEnabled = true
             return
@@ -251,29 +254,37 @@ class MaintenanceActivity : Activity() {
 
     private fun showActions() {
         val config = ConfigStore(this).load()
-        column.addView(TextView(this).apply { text = getString(R.string.server_current, config.serverUrl) })
+        stateView = style.body(TextView(this)).apply {
+            textSize = 18f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        column.addView(stateView)
+        column.addView(style.body(TextView(this).apply { text = getString(R.string.server_current, config.serverUrl) }))
         org.plainphone.app.sync.SyncStore(this).rules()?.let { rules ->
-            column.addView(TextView(this).apply {
+            column.addView(style.body(TextView(this).apply {
                 text = getString(if (rules.allowServerMove) R.string.server_move_allowed else R.string.server_move_blocked)
-            })
+            }))
         }
         val minutes = config.relockMinutes
-        column.addView(Button(this).apply {
+        column.addView(action {
             text = resources.getQuantityString(R.plurals.maintenance_lift, minutes, minutes)
             setOnClickListener { Lock.liftAsync(this@MaintenanceActivity, ::show) }
         })
-        column.addView(Button(this).apply {
+        reapplyButton = action(MaintenanceStyle.Kind.PRIMARY) {
             text = getString(R.string.maintenance_reapply)
             setOnClickListener { Lock.applyAsync(this@MaintenanceActivity, "maintenance screen", ::show) }
-        })
-        column.addView(Button(this).apply {
+        }
+        column.addView(reapplyButton)
+        refreshState()
+        column.addView(action {
             text = getString(R.string.maintenance_contacts)
             setOnClickListener {
                 startActivity(Intent(this@MaintenanceActivity, ApprovedContactsActivity::class.java))
             }
         })
         if (!SyncStore(this).isPaired) {
-            column.addView(Button(this).apply {
+            column.addView(action {
                 text = getString(R.string.maintenance_pair)
                 setOnClickListener {
                     startActivity(PairingActivity.intent(this@MaintenanceActivity, authorized = true))
@@ -281,7 +292,7 @@ class MaintenanceActivity : Activity() {
                 }
             })
         } else {
-            column.addView(Button(this).apply {
+            column.addView(action {
                 text = getString(R.string.maintenance_sync_now)
                 setOnClickListener {
                     SyncScheduler.now(this@MaintenanceActivity, "maintenance screen")
@@ -291,7 +302,7 @@ class MaintenanceActivity : Activity() {
         }
         val light = org.plainphone.app.light.Mode.isLight(this)
         if (!light && !InstallWatchdogService.hasBatteryExemption(this)) {
-            column.addView(Button(this).apply {
+            column.addView(action {
                 text = getString(R.string.light_battery_settings)
                 setOnClickListener {
                     val settings = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
@@ -301,7 +312,7 @@ class MaintenanceActivity : Activity() {
             })
         }
         if (!light && Build.VERSION.SDK_INT >= 31 && !UpdateReceiver.canScheduleExactExpiry(this)) {
-            column.addView(Button(this).apply {
+            column.addView(action {
                 text = getString(R.string.maintenance_install_alarm_access)
                 setOnClickListener {
                     runCatching {
@@ -311,15 +322,27 @@ class MaintenanceActivity : Activity() {
             })
         }
         val releaseTitle = if (light) R.string.maintenance_release_light else R.string.maintenance_release
-        column.addView(Button(this).apply {
+        column.addView(action(MaintenanceStyle.Kind.DANGER) {
             text = getString(releaseTitle)
             setOnClickListener {
-                AlertDialog.Builder(this@MaintenanceActivity)
+                val dialog = AlertDialog.Builder(this@MaintenanceActivity)
                     .setTitle(releaseTitle)
                     .setMessage(if (light) R.string.maintenance_release_light_confirm else R.string.maintenance_release_confirm)
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(android.R.string.ok) { _, _ -> Lock.releaseAsync(this@MaintenanceActivity, ::show) }
-                    .show()
+                    .setNegativeButton(R.string.maintenance_release_keep, null)
+                    .setPositiveButton(if (light) R.string.maintenance_release_light_go else R.string.maintenance_release_go) { _, _ ->
+                        Lock.releaseAsync(this@MaintenanceActivity, ::show)
+                    }
+                    .create()
+                // The destructive answer is named for what it does and is red; the safe one is on the tokens too.
+                // Keyboard/D-pad focus starts on the safe one (in touch mode a button cannot take focus).
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(style.tokens.danger.toArgb())
+                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).apply {
+                        setTextColor(style.actionColor)
+                        requestFocus()
+                    }
+                }
+                dialog.show()
             }
         })
         column.addView(TextView(this).apply {
@@ -367,7 +390,22 @@ class MaintenanceActivity : Activity() {
         const val EXTRA_INSTALL_PACKAGE = "org.plainphone.app.INSTALL_PACKAGE"
     }
 
+    private fun action(kind: MaintenanceStyle.Kind = MaintenanceStyle.Kind.SECONDARY, init: Button.() -> Unit) =
+        style.button(Button(this).apply(init), kind)
+
     private fun show(results: List<StepResult>) = runOnUiThread {
         output.text = results.joinToString("\n")
+        refreshState()
+    }
+
+    /** Leads with the lock state and, while an unlock is open, when it ends and how to end it now. */
+    private fun refreshState() {
+        val endsAt = Lock.maintenanceEndsAtMs(this)
+        stateView?.text = if (endsAt == null) {
+            getString(R.string.maintenance_state_locked)
+        } else {
+            getString(R.string.maintenance_state_lifted, android.text.format.DateFormat.getTimeFormat(this).format(Date(endsAt)))
+        }
+        reapplyButton?.setText(if (endsAt == null) R.string.maintenance_reapply else R.string.maintenance_lock_now)
     }
 }

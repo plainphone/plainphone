@@ -1056,4 +1056,7 @@ export const nb: Messages = {
   "move.startPhone": "Flytt {name}",
   "move.invalid": "Sjekk koden, eller velg den krypterte filen på nytt.",
   "move.allowed": "Tillatelsen til å flytte er lagret.",
+  "key.qrWaiting": "Venter på at hjelperen din skanner invitasjonen. Til de aksepterer, venter endringer {hours} timer.",
+  "key.qrAccepted": "Hjelperen din har akseptert invitasjonen og kan godkjenne endringer.",
+  "key.qrExpiredHint": "Invitasjonskoder utløper etter 15 minutter. Vis en ny hvis den har gått ut. En invitasjon er ikke en godkjenning.",
 };

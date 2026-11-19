@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Redirect } from "expo-router";
 import { useState } from "react";
+import { Share } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, KeyInput, SelfKey } from "../../../api/models";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
@@ -38,21 +39,33 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
   const [keyType, setKeyType] = useState(current.keyType);
   const [hours, setHours] = useState(String(current.delayHours));
   const [email, setEmail] = useState(current.trustedEmail ?? "");
+  const [qrInvite, setQrInvite] = useState(current.keyType === "trusted" && !current.trustedEmail);
   const [errors, setErrors] = useState<{ hours?: string; email?: string }>({});
   const [saving, setSaving] = useState(false);
+  const waitingForInvite = current.keyType === "trusted" && !current.trustedEmail && !current.trustedAccepted;
+
+  async function shareInvite() {
+    try {
+      const invite = await unwrap<{ url: string }>(client.POST("/phones/{pid}/trusted-invite", { params: { path: { pid: phone.id } } }));
+      if (invite) await Share.share({ message: invite.url });
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    }
+  }
 
   async function submit() {
     const h = Number(hours);
     const mail = email.trim().toLowerCase();
     const next: typeof errors = {};
     if (!Number.isInteger(h) || h < 1 || h > 72) next.hours = t("key.hoursInvalid");
-    if (keyType === "trusted" && (!EMAIL_RE.test(mail) || mail === me.user.email)) next.email = t("key.emailInvalid");
+    if (keyType === "trusted" && !qrInvite && (!EMAIL_RE.test(mail) || mail === me.user.email)) next.email = t("key.emailInvalid");
     setErrors(next);
     if (next.hours || next.email) return;
     const body: KeyInput = {
       keyType,
       delayHours: h,
-      trustedEmail: keyType === "trusted" ? mail : null,
+      trustedEmail: keyType === "trusted" && !qrInvite ? mail : null,
+      ...(keyType === "trusted" && qrInvite ? { qrInvite: true } : {}),
       // Pay to unlock is not offered yet: send the stored values back unchanged.
       payUnlockEnabled: current.payUnlockEnabled,
       payUnlockAmount: current.payUnlockAmount,
@@ -83,6 +96,12 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           text={t(current.trustedAccepted ? "key.accepted" : "key.notAccepted", { email: current.trustedEmail })}
         />
       ) : null}
+      {current.keyType === "trusted" && !current.trustedEmail ? (
+        <Notice
+          tone={current.trustedAccepted ? "success" : "info"}
+          text={t(current.trustedAccepted ? "key.qrAccepted" : "key.qrWaiting", { hours: current.delayHours })}
+        />
+      ) : null}
       <Choice<KeyInput["keyType"]>
         label={t("key.type")}
         value={keyType}
@@ -105,6 +124,9 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           autoComplete="off"
         />
       ) : (
+        <Switch testID="key-qr-invite" label={t("key.qrInvite")} value={qrInvite} onValueChange={setQrInvite} />
+      )}
+      {keyType === "trusted" && !qrInvite ? (
         <Field
           testID="key-email"
           label={t("key.email")}
@@ -117,7 +139,13 @@ function KeyForm({ current, onSaved }: { current: SelfKey; onSaved: () => void }
           autoCorrect={false}
           autoComplete="off"
         />
-      )}
+      ) : null}
+      {waitingForInvite && keyType === "trusted" && qrInvite ? (
+        <VStack>
+          <Button testID="key-share-invite" title={t("key.openInvite")} onPress={() => void shareInvite()} />
+          <Text variant="small">{t("key.qrExpiredHint")}</Text>
+        </VStack>
+      ) : null}
 
       {/* Pay to unlock only ever applies to the delay key (D13). */}
       {keyType === "delay" ? (
