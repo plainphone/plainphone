@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!-- Android adaptive icon, 108 dp canvas. The artwork stays inside the 66 dp safe circle. -->
+  <path d="M39 53a15 15 0 0 1 30 0z" fill="#f2b23a"/>
+  <rect x="39" y="57" width="30" height="5" rx="2.5" fill="#f2b23a"/>
+  <rect x="46" y="65" width="16" height="5" rx="2.5" fill="#f2b23a"/>
+</svg>
