@@ -5,6 +5,7 @@ import { statusEn } from "./status";
 
 export const de: Messages = {
   ...statusEn, // English until translated
+  "status.outcome.approvedOnPhone": "Das wurde bereits am Telefon mit der PIN bestätigt.",
   "status.never.title": "Noch keine Verbindung",
   "status.stale.title": "Zuletzt online {when}",
   "app.name": "Plainphone",
@@ -163,6 +164,18 @@ export const de: Messages = {
   "health.receiptsHelp": "Das Telefon soll bestätigen, wenn es die aktuellen Regeln angewendet hat.",
   "health.boardToggle": "Telefonstatus",
   "health.boardHelp": "Zeigt die Prüfungen des Telefons hier an und lässt es seinen Webfilter prüfen.",
+  "bedtime.silent": "Stille Schlafenszeit",
+  "bedtime.silentHelp": "Zur Schlafenszeit gibt das Telefon keine Töne von sich und zeigt keine Benachrichtigungen an. Anrufe von Eltern, 112 und Hilfetelefonen klingeln weiterhin.",
+  "bedtime.tipTitle": "Das Telefon außerhalb des Schlafzimmers schlafen lassen",
+  "bedtime.tipBody": "Telefone im Schlafzimmer gehen mit kürzerem und schlechterem Schlaf einher. Die dänische Gesundheitsbehörde empfiehlt, sie nicht mit ins Schlafzimmer zu nehmen.",
+  "bedtime.tipSource": "Empfehlung lesen",
+  "bedtime.tipDismiss": "Verstanden",
+  "pin.toggle": "Mit der PIN am Telefon bestätigen",
+  "pin.help": "Wenn ein Elternteil neben dem Kind steht, kann eine Anfrage direkt am Telefon mit der Eltern-PIN bestätigt werden.",
+  "requests.recentTitle": "Kürzlich beantwortet",
+  "requests.tagApproved": "Bestätigt",
+  "requests.tagRejected": "Abgelehnt",
+  "requests.tagOnPhone": "Am Telefon bestätigt",
   "phone.status": "Telefonstatus",
   "phone.attCheckedAt": "System überprüft {when}",
   "phone.attLastFailedAt": "Bei der letzten Systemprüfung konnte das Telefon nicht überprüft werden ({when}).",
