@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Field, LoadGate, PageTitle, PickGroup, type PickOption, useLoad } from "../components/ui";
+import { Field, LoadGate, PageTitle, PickGroup, type PickOption, Switch, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey } from "../i18n/translate";
-import { api, ApiError, type App, getHome, type Home, putHome } from "../lib/api";
+import { api, ApiError, type App, getHome, type Home, putHome, setHomeFreePromise } from "../lib/api";
 import { formatClock, intlLocale } from "../lib/format";
 import { HOME_LAYOUTS, HOME_MAX_APPS, HOME_PALETTES, HOME_THEMES, moveItem } from "../lib/settings";
 import { usePhone } from "./Phone";
 
 interface Data {
-  home: Home;
+  home: Awaited<ReturnType<typeof getHome>>;
   apps: App[];
 }
 
@@ -24,7 +24,7 @@ export function HomeScreenPage() {
   return (
     <>
       <PageTitle sub={t("home.intro")}>{t("home.title")}</PageTitle>
-      <LoadGate res={res}>{({ home, apps }) => <HomeEditor initial={home} apps={apps} />}</LoadGate>
+      <LoadGate res={res}>{({ home, apps }) => <HomeEditor key={phone.id} initial={home} apps={apps} />}</LoadGate>
     </>
   );
 }
@@ -32,10 +32,12 @@ export function HomeScreenPage() {
 /** Where keyboard focus goes after the list changes, so moving an app does not drop it. */
 type FocusTarget = { pkg: string; dir: "up" | "down" | "remove" } | "add";
 
-function HomeEditor({ initial, apps }: { initial: Home; apps: App[] }) {
+function HomeEditor({ initial, apps }: { initial: Data["home"]; apps: App[] }) {
   const { t, locale } = useI18n();
   const { phone, run, notify } = usePhone();
   const [home, setHome] = useState<Home>(initial);
+  const [showFreePromise, setShowFreePromise] = useState(initial.showFreePromise ?? true);
+  const [savingPromise, setSavingPromise] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [toAdd, setToAdd] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
@@ -44,7 +46,7 @@ function HomeEditor({ initial, apps }: { initial: Home; apps: App[] }) {
 
   // Every change is saved at once. Quick changes are sent one after the other, newest last,
   // so a slow answer can never overwrite a newer choice.
-  const latest = useRef(initial);
+  const latest = useRef<Home>(initial);
   const dirty = useRef(false);
   const sending = useRef(false);
 
@@ -83,6 +85,18 @@ function HomeEditor({ initial, apps }: { initial: Home; apps: App[] }) {
     setHome(next);
     dirty.current = true;
     void flush();
+  }
+
+  async function saveFreePromise(value: boolean) {
+    setSavingPromise(true);
+    try {
+      const result = await run(() => setHomeFreePromise(phone.id, value), t("app.saved"));
+      if (result?.status === "applied") setShowFreePromise(value);
+    } catch (err) {
+      if (err instanceof ApiError) notify({ tone: "error", text: t("error.generic") });
+    } finally {
+      setSavingPromise(false);
+    }
   }
 
   const byPackage = useMemo(() => new Map(apps.map((a) => [a.packageName, a])), [apps]);
@@ -182,6 +196,15 @@ function HomeEditor({ initial, apps }: { initial: Home; apps: App[] }) {
             {t("home.palette")}
           </p>
           <PickGroup name="home-palette" value={home.palette} options={paletteOptions} onChange={(palette) => update({ palette })} labelledBy={paletteId} />
+        </li>
+        <li className="setting">
+          <Switch
+            label={t("home.freePromise")}
+            description={t("home.freePromiseHelp")}
+            checked={showFreePromise}
+            busy={savingPromise}
+            onChange={(value) => void saveFreePromise(value)}
+          />
         </li>
       </ul>
 

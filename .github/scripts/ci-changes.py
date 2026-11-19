@@ -33,7 +33,7 @@ FILTERS = {
         "web/src/lib/settings.ts",
     ),
     "dns": ("dns/*", "server/catalog/helplines/*", "server/src/db/schema.ts", "server/src/lib/validation.ts"),
-    "site": ("site/*",),
+    "site": ("site/*", "server/catalog/??.json"),
     "backup": (
         "compose.yaml", "deploy/dokploy-compose.yaml", "deploy/backup.Dockerfile*",
         "scripts/backup*.sh", "scripts/restore-backup.sh", "scripts/restore-service.py",

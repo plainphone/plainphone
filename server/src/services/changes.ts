@@ -25,8 +25,8 @@ import { matchesApprovalChallenge } from "../lib/approval-challenge.js";
 import { approvalRequestMail, inviteMail, toLocale } from "../lib/mail-templates.js";
 import {
   checkSetting,
-  type Home,
-  homeInput,
+  type HomeUpdate,
+  homeUpdateInput,
   isSettingKey,
   type SettingKey,
   type SettingState,
@@ -53,7 +53,7 @@ export type Op =
   | { type: "schedule.update"; scheduleId: string; schedule: ScheduleInput }
   | { type: "schedule.delete"; scheduleId: string }
   | { type: "setting.set"; key: SettingKey; setting: SettingState }
-  | { type: "home.set"; home: Home }
+  | { type: "home.set"; home: HomeUpdate }
   | { type: "key.set"; key: KeyInput }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
@@ -239,7 +239,7 @@ async function validateOp(db: DbLike, phone: Phone, op: Op) {
       return;
     }
     case "home.set":
-      if (!homeInput.safeParse(op.home).success) throw new ChangeError(400, "invalid home screen");
+      if (!homeUpdateInput.safeParse(op.home).success) throw new ChangeError(400, "invalid home screen");
       return;
     case "timeLimit.set":
     case "timeLimit.bonus": {
@@ -412,7 +412,10 @@ export async function applyOp(ctx: Ctx, db: DbLike, phone: Phone, op: Op, bonusD
       await db
         .insert(phoneSettings)
         .values({ phoneId: phone.id, home: op.home })
-        .onConflictDoUpdate({ target: phoneSettings.phoneId, set: { home: op.home } });
+        .onConflictDoUpdate({
+          target: phoneSettings.phoneId,
+          set: { home: sql`${phoneSettings.home} || ${JSON.stringify(op.home)}::jsonb` },
+        });
       return { dns: false };
     case "phone.remove":
       await deletePhone(db, phone.id);

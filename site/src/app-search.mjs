@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+const fold = (value) => value.toLowerCase().replace(/\s+/g, " ").trim();
+
+export function matches(terms, query) {
+  let needle = fold(query);
+  if (!needle) return true;
+  if (/^(?:https?:\/\/|[^\s/]+\.\w+\/)/.test(needle)) {
+    try {
+      const url = new URL(needle.includes("://") ? needle : `https://${needle}`);
+      needle = url.hostname === "play.google.com" && url.pathname === "/store/apps/details"
+        ? (url.searchParams.get("id") || url.hostname)
+        : url.hostname;
+    } catch {
+      return false;
+    }
+  }
+  const values = terms.split("\n").map(fold);
+  if (!needle.includes(".")) return values.some((value) => value.includes(needle));
+  const bare = (value) => value.replace(/^www\./, "").replace(/\.$/, "");
+  const identifier = bare(needle);
+  return values.some((value) => {
+    const candidate = bare(value);
+    return candidate === identifier || candidate.startsWith(`${identifier} (`);
+  });
+}
+
+if (typeof document !== "undefined") {
+  const search = document.querySelector("#app-search");
+  const groups = [...document.querySelectorAll("[data-results]")].map((element) => ({
+    rows: [...element.querySelectorAll("[data-search]")],
+    empty: element.querySelector("[data-empty]"),
+  }));
+
+  function filter() {
+    for (const { rows, empty } of groups) {
+      let found = false;
+      for (const row of rows) {
+        row.hidden = !matches(row.dataset.search, search.value);
+        found ||= !row.hidden;
+      }
+      empty.hidden = found;
+    }
+  }
+
+  search.closest("[hidden]").hidden = false;
+  search.addEventListener("input", filter);
+  window.addEventListener("pageshow", filter);
+  filter();
+}

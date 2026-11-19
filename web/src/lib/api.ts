@@ -431,7 +431,9 @@ export const getPhoneSettings = (pid: string) =>
 /** A loosening change on a Self phone answers `pending`; everything else is `applied` at once. */
 export const putPhoneSetting = (pid: string, key: SettingKey, setting: PhoneSetting) =>
   api.put<ChangeResult>(`/phones/${pid}/settings/${key}`, setting);
-export const getHome = (pid: string) => api.get<Home>(`/phones/${pid}/home`);
+export const getHome = (pid: string) => api.get<Home & { showFreePromise?: boolean }>(`/phones/${pid}/home`);
+export const setHomeFreePromise = (pid: string, showFreePromise: boolean) =>
+  api.patch<ChangeResult>(`/phones/${pid}/home`, { showFreePromise });
 /** Never waits for the key. Send the whole object. */
 export const putHome = (pid: string, home: Home) => api.put<ChangeResult>(`/phones/${pid}/home`, home);
 
