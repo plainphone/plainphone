@@ -53,8 +53,18 @@ data class PolicyConfig(
     val installing: String? = null,
     /** Strong Child phones keep the system language chosen during provisioning. */
     val lockSystemLanguage: Boolean = true,
+    /**
+     * Open mode: when not null, every app is allowed except these, also ones installed after the
+     * last sync. Null means the allow-list in [allowedPackages] decides (always during school
+     * time and bedtime, whose windows list what is allowed).
+     */
+    val openBlocked: Set<String>? = null,
 ) {
     val usesDefaultPin: Boolean get() = pinHashHex == null || pinSaltHex == null
+
+    /** The apps among [launchable] that stay visible under the app rules (the allow-list or open mode). */
+    fun visibleAmong(launchable: Set<String>): Set<String> =
+        openBlocked?.let { launchable - it } ?: allowedPackages
 
     companion object {
         const val DEFAULT_DNS_HOST = "family.adguard-dns.com"

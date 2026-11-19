@@ -169,6 +169,13 @@
       "when": 1795094057308,
       "tag": "0035_sos",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795094205267,
+      "tag": "0036_open_mode",
+      "breakpoints": true
     }
   ]
 }

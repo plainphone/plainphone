@@ -210,6 +210,10 @@ export const phones = pgTable(
     language: text("language", { enum: ["da", "en", "sv", "nb", "de"] }),
     lockSystemLanguage: boolean("lock_system_language").notNull().default(true),
     filterMethod: text("filter_method", { enum: FILTER_METHODS }).notNull().default("vpn"),
+    /** Open mode (docs/open-mode.md): all apps allowed except the block list. */
+    openMode: boolean("open_mode").notNull().default(false),
+    /** App categories ("social", "gambling") whose known apps are on the block list in open mode. */
+    blockedAppCategories: text("blocked_app_categories").array().notNull().default(sql`'{}'::text[]`),
     timezone: text("timezone").notNull().default("Europe/Copenhagen"),
     deviceTokenHash: text("device_token_hash").unique(),
     /** Opaque id used as the DNS-over-TLS ClientID (`<dnsClientId>.dns.plainphone.org`). */

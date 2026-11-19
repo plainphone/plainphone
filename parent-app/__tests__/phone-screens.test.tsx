@@ -313,6 +313,44 @@ describe("apps", () => {
   });
 });
 
+describe("open mode", () => {
+  const OPEN_SELF = { ...SELF, openMode: true };
+  const state = (blocked: boolean) => ({
+    enabled: true,
+    categories: [
+      { category: "social", blocked, hasApps: true },
+      { category: "gambling", blocked: true, hasApps: true },
+      { category: "adult", blocked: true, hasApps: false },
+    ],
+    blockedApps: [],
+  });
+
+  it("summarises what is blocked and blocks a category at once", async () => {
+    const api = phoneApi(OPEN_SELF, {
+      [`GET /phones/${SELF_ID}/open-mode`]: { body: state(false) },
+      [`PUT /phones/${SELF_ID}/open-mode/categories/social`]: { body: { status: "applied" } },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "apps") });
+    expect(await screen.findByText("Open: everything is allowed except gambling and adult content.")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("open-category-social"));
+    expect(await screen.findByText("Social media is blocked.")).toBeTruthy();
+    expect(api.calls.find((c) => c.method === "PUT")!.body).toEqual({ blocked: true });
+  });
+
+  it("explains that allowing a category again waits for the key", async () => {
+    phoneApi(OPEN_SELF, {
+      [`GET /phones/${SELF_ID}/open-mode`]: { body: state(true) },
+      [`PUT /phones/${SELF_ID}/open-mode/categories/social`]: {
+        status: 202,
+        body: { status: "pending", change: { id: "c9", op: { type: "openMode.category", category: "social", blocked: false }, keyType: "delay", effectiveAt: FUTURE } },
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(SELF, "apps") });
+    await fireEvent.press(await screen.findByTestId("open-category-social"));
+    expect(await screen.findByText(/Allow social media \(apps and websites\)\. This takes effect/)).toBeTruthy();
+  });
+});
+
 describe("contacts", () => {
   it("shows favourites for a Self phone", async () => {
     phoneApi(SELF, { [`GET /phones/${SELF.id}/contacts`]: { body: { contacts: [], selfScheduleContacts: false } } });

@@ -205,6 +205,10 @@ components:
     DnsCategory:
       type: string
       enum: [social, adult, gambling, games, dating, video]
+    OpenCategory:
+      type: string
+      description: A category open mode can block. "adult" is web filter only; the others also block known apps.
+      enum: [social, gambling, adult]
 
     Op:
       description: A rule change, as stored for pending changes and shown on the phone.
@@ -236,6 +240,19 @@ components:
           properties:
             type: { const: dns.category }
             category: { $ref: "#/components/schemas/DnsCategory" }
+            blocked: { type: boolean }
+        - type: object
+          description: Loosening when turned on while it was off (it lets every app in).
+          required: [type, enabled]
+          properties:
+            type: { const: openMode.set }
+            enabled: { type: boolean }
+        - type: object
+          description: Blocks or allows a category's known apps and the DNS category together. Loosening when allowing.
+          required: [type, category, blocked]
+          properties:
+            type: { const: openMode.category }
+            category: { $ref: "#/components/schemas/OpenCategory" }
             blocked: { type: boolean }
         - type: object
           properties:
@@ -544,7 +561,14 @@ components:
               items: { $ref: "#/components/schemas/PackageName" }
             hidden:
               type: array
-              description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default.
+              description: Installed apps to hide. Apps never reported are not listed; the phone hides unknown apps by default, unless `open` is true.
+              items: { $ref: "#/components/schemas/PackageName" }
+            open:
+              type: boolean
+              description: Open mode. Allow every app that is not in `blocked`, also apps the rules have never listed. Missing from older servers (false).
+            blocked:
+              type: array
+              description: The block list in open mode, also apps that are not installed yet (the known apps of blocked categories). Empty when `open` is false.
               items: { $ref: "#/components/schemas/PackageName" }
             toInstall:
               type: array
@@ -783,6 +807,7 @@ components:
         lockSystemLanguage:
           type: boolean
           description: Whether Android system language changes are blocked on a strong Child phone.
+        openMode: { type: boolean, description: Every app is allowed except the block list. }
         timezone: { type: string }
         locationEnabled: { type: boolean }
         locationMode: { $ref: "#/components/schemas/LocationMode" }
@@ -2461,7 +2486,7 @@ paths:
       tags: [rules]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "Installed apps: packageName, label, allowed, core" }
+        "200": { description: "Installed apps: packageName, label, allowed, blocked (open mode block list, also via a category), blockedBy (the category, when a blocked category blocks it), core" }
   /phones/{pid}/apps/{package}:
     put:
       operationId: putPhonesApps
@@ -2479,6 +2504,74 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { description: "Core apps cannot be hidden" }
+
+  /phones/{pid}/open-mode:
+    get:
+      operationId: getPhonesOpenMode
+      tags: [rules]
+      summary: Open mode, its blocked categories and the apps blocked one by one
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      responses:
+        "200":
+          description: Open mode state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, categories, blockedApps]
+                properties:
+                  enabled: { type: boolean }
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required: [category, blocked, hasApps]
+                      properties:
+                        category: { $ref: "#/components/schemas/OpenCategory" }
+                        blocked: { type: boolean }
+                        hasApps: { type: boolean }
+                  blockedApps:
+                    type: array
+                    items:
+                      type: object
+                      required: [packageName, label]
+                      properties:
+                        packageName: { $ref: "#/components/schemas/PackageName" }
+                        label: { type: string }
+    put:
+      operationId: putPhonesOpenMode
+      tags: [rules]
+      summary: Turn open mode on or off
+      description: Turning it on loosens the rules, so on a Self phone it waits for the key. Turning it off applies at once.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/phoneId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
+  /phones/{pid}/open-mode/categories/{category}:
+    put:
+      operationId: putPhonesOpenModeCategories
+      tags: [rules]
+      summary: Block or allow a category in open mode
+      description: Blocks the category's known apps and its web filter category in one action. Allowing it loosens, so on a Self phone it waits for the key.
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/phoneId" }
+        - { name: category, in: path, required: true, schema: { $ref: "#/components/schemas/OpenCategory" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [blocked], properties: { blocked: { type: boolean } } }
+      responses:
+        "200": { $ref: "#/components/responses/Change" }
+        "202": { $ref: "#/components/responses/ChangePending" }
 
   /phones/{pid}/time-limits:
     get:

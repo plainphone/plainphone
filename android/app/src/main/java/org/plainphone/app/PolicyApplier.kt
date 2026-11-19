@@ -223,9 +223,10 @@ class PolicyApplier(
         ) - parentAllowed
         // During school time and bedtime config.allowedPackages is already narrowed to the window's
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
-        val keep = protectedCallPackages() + device.corePackages() + config.allowedPackages - telephony +
+        val launchable = device.launchablePackages() + previously
+        val keep = protectedCallPackages() + device.corePackages() + config.visibleAmong(launchable) - telephony +
             listOfNotNull(config.installing?.let { PolicyConfig.PLAY_STORE })
-        val plan = LockPolicy.hidePlan(device.launchablePackages() + previously, keep, previously)
+        val plan = LockPolicy.hidePlan(launchable, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()
         for (pkg in plan.unhide) {

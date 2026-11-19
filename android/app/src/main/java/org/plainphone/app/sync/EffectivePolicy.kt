@@ -54,6 +54,8 @@ object EffectivePolicy {
             lockSystemLanguage = rules.profile == "child" && rules.lockSystemLanguage,
             timeBlocked = timeBlocked,
             installing = install,
+            // A window (school time, bedtime) lists exactly what is allowed, so it wins over open mode.
+            openBlocked = rules.blockedApps.takeIf { rules.openApps && windowAllowed == null },
         )
     }
 
@@ -70,6 +72,7 @@ object EffectivePolicy {
             config.timeBlocked.sorted().joinToString(","),
             config.installing.toString(),
             config.lockSystemLanguage.toString(),
+            config.openBlocked?.sorted()?.joinToString(",") ?: "-",
         ).joinToString("|")
         return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
     }

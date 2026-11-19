@@ -40,6 +40,7 @@ import { DEFAULT_SETUP_UNDO_MINUTES, setupUndoDeadline, undoMinutesInput } from 
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
 import { applySelfTemplate, readSelfTemplate, shareSelfTemplate, templateCode } from "../services/self-template.js";
 import * as v from "../lib/validation.js";
+import { categoryOf, isAppCategory, OPEN_CATEGORIES } from "../lib/open-mode.js";
 import { deleteAccount } from "../services/account.js";
 import { endSession, requestMagicLink, SESSION_DAYS, resolveSession, verifyMagicLink } from "../services/auth.js";
 import {
@@ -791,8 +792,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .from(phoneApps)
       .where(and(eq(phoneApps.phoneId, phone.id), (phone.pairedAt ? eq(phoneApps.installed, true) : undefined)))
       .orderBy(phoneApps.label);
+    // In open mode an app is blocked one by one (`blocked`) or with its category (`blockedBy`).
+    const via = (pkg: string) => (phone.openMode ? categoryOf(pkg, phone.blockedAppCategories) : undefined);
     return c.json({
-      apps: rows.map((a) => ({ packageName: a.packageName, label: a.label, allowed: a.allowed, core: a.core })),
+      apps: rows.map((a) => ({
+        packageName: a.packageName,
+        label: a.label,
+        allowed: a.allowed,
+        blocked: !a.core && (a.explicitlyBlocked || via(a.packageName) !== undefined),
+        ...(!a.core && via(a.packageName) ? { blockedBy: via(a.packageName) } : {}),
+        core: a.core,
+      })),
     });
   });
 
@@ -802,6 +812,44 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (!pkg.success) throw new HTTPException(404, { message: "not found" });
     const input = await body(c, z.object({ allowed: z.boolean() }));
     return change(c, phone, { type: "app.set", packageName: pkg.data, allowed: input.allowed });
+  });
+
+  // Open mode: every app allowed except the block list (docs/open-mode.md)
+  app.get("/phones/:pid/open-mode", async (c) => {
+    const phone = await requirePhone(c);
+    const [dns] = await ctx.db.select().from(dnsSettings).where(eq(dnsSettings.phoneId, phone.id));
+    const apps = await ctx.db
+      .select({ packageName: phoneApps.packageName, label: phoneApps.label })
+      .from(phoneApps)
+      .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.installed, true), eq(phoneApps.explicitlyBlocked, true), eq(phoneApps.core, false)))
+      .orderBy(phoneApps.label);
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      enabled: phone.openMode,
+      categories: OPEN_CATEGORIES.map((category) => ({
+        category,
+        // Blocked when either half is: the DNS category or the apps (the apps half also marks
+        // the app list). Turning it off clears both, so the switch never hides a block.
+        blocked: (dns?.blockedCategories ?? []).includes(category) ||
+          (isAppCategory(category) && phone.blockedAppCategories.includes(category)),
+        hasApps: isAppCategory(category),
+      })),
+      blockedApps: apps,
+    });
+  });
+
+  app.put("/phones/:pid/open-mode", async (c) => {
+    const phone = await requirePhone(c);
+    const { enabled } = await body(c, z.strictObject({ enabled: z.boolean() }));
+    return change(c, phone, { type: "openMode.set", enabled });
+  });
+
+  app.put("/phones/:pid/open-mode/categories/:category", async (c) => {
+    const phone = await requirePhone(c);
+    const category = z.enum(OPEN_CATEGORIES).safeParse(c.req.param("category"));
+    if (!category.success) throw new HTTPException(404, { message: "unknown category" });
+    const input = await body(c, z.strictObject({ blocked: z.boolean() }));
+    return change(c, phone, { type: "openMode.category", category: category.data, blocked: input.blocked });
   });
 
   // Phone settings and the home screen (docs/phone-settings.md)

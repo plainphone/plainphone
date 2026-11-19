@@ -174,6 +174,16 @@ object Lock {
     }
 
     /**
+     * The config fingerprint plus, in open mode, the blocked apps that are on the phone right now:
+     * installing one later changes it, so the lock re-applies within seconds, not after the max age.
+     */
+    private fun appliedFingerprint(context: Context, config: PolicyConfig): String {
+        val installedBlocked = config.openBlocked
+            ?.let { blocked -> AndroidDeviceControls(context).launchablePackages().filter { it in blocked }.sorted().joinToString(",") }
+        return EffectivePolicy.fingerprint(config) + "|" + (installedBlocked ?: "-")
+    }
+
+    /**
      * Applies the lock if the merged config differs from the last applied one (new rules, a
      * school-time window starting or ending) or the last run is older than [maxAgeMs].
      * Does nothing during a maintenance unlock. Blocking.
@@ -185,7 +195,7 @@ object Lock {
         recoverInstall(context, reason)
         val p = prefs(context)
         val fresh = System.currentTimeMillis() - p.getLong("applied_at", 0L) < maxAgeMs
-        if (fresh && p.getString("applied_fingerprint", null) == EffectivePolicy.fingerprint(effectiveConfig(context))) {
+        if (fresh && p.getString("applied_fingerprint", null) == appliedFingerprint(context, effectiveConfig(context))) {
             // Back-to-back windows can leave the config unchanged: still arm the next change.
             scheduleNextWindowChange(context)
             return null
@@ -251,7 +261,7 @@ object Lock {
         }
         edit.remove("owner_release_started")
             .putLong("applied_at", now)
-            .putString("applied_fingerprint", EffectivePolicy.fingerprint(config))
+            .putString("applied_fingerprint", appliedFingerprint(context, config))
         // Android keeps the old host when the new one does not answer, so only a success changes it.
         if (results.any { (it.name == "private DNS" || it.name == "DNS filter (VPN)") && it.ok }) edit.putString("dns_in_use", config.dnsHost)
         Hardening.resetProtectionState(results)?.let { edit.putString("reset_protection", it.wire) }
