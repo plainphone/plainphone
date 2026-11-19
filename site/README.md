@@ -1,6 +1,10 @@
 # plainphone.org
 
-The landing page for Plainphone, in English (`/`) and Danish (`/da/`).
+The Plainphone website is available in English (`/`), Danish (`/da/`), Swedish
+(`/sv/`), Norwegian Bokmål (`/nb/`) and German (`/de/`). Each language has a home
+page, setup guide, privacy policy, app and website lookup, and page about the research behind Plainphone.
+The language menu keeps readers on the equivalent page. The build adds canonical
+URLs, hreflang tags, Open Graph locales and a localized share image for each language.
 
 The dependency-free build produces plain HTML and CSS. The app and website lookup
 adds a small, integrity-pinned script to filter the results in the browser. Everything
@@ -12,7 +16,7 @@ or network requests for search terms.
 ```sh
 cd site
 node build.mjs                    # writes dist/
-npm run check                     # search tests, links, anchors and CSP
+npm run check                     # search tests, links, language counterparts, anchors and CSP
 node scripts/check.mjs --external # also fetches external links
 ```
 
@@ -22,11 +26,11 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 
 | Path | What |
 |---|---|
-| `content/en.mjs`, `content/da.mjs` | All copy. Change text here, keep the two languages in step. |
+| `content/{en,da,sv,nb,de}.mjs` | All website copy. Keep the five languages in step and see [translation review](../docs/translations.md). |
 | `why` in the same files | The research and design page (`/why/`, `/da/hvorfor/`). See the [evidence review](../docs/evidence.md) for source checks and limitations. |
 | `privacy` in the same files | The privacy policy (`/privacy/`, `/da/privacy/`). Change it in the same pull request as anything that changes what the server stores, and update the date in `updated`. The technical basis is [`docs/privacy.md`](../docs/privacy.md) |
 | `setup` in the same files | The setup guide (`/setup/`, `/da/setup/`). The dashboard links to exactly these two addresses, so they must keep existing. Change the steps in the same pull request as anything in the dashboard's Add phone flow or the setup QR code |
-| `compatibility.mjs` | Renders the lookup (`/apps/`, `/da/apps/`) from the country files in `server/catalog/` and a curated DNS reference. Update the reference alongside changes to the covered defaults. |
+| `compatibility.mjs` | Renders the lookup (`/apps/`, `/da/apps/`, `/sv/apps/`, `/nb/apps/`, `/de/apps/`) from the country files in `server/catalog/` and a curated DNS reference. Update the reference alongside changes to the covered defaults. |
 | `src/app-search.mjs` | Filters the rendered results locally by name, Android package, domain or pasted URL |
 | `figures.mjs` | The schematic phone drawings in the guide: inline SVG, coloured by the page's own custom properties |
 | `src/style.css` | The only stylesheet. It is inlined into each page and pinned by a CSP hash. |
@@ -37,6 +41,9 @@ Preview with any static server, e.g. `python3 -m http.server -d dist 4321`.
 
 The files in `tools/` are only needed when the logo or images change. They need
 `fonttools` + `brotli` and `Pillow` (Python) and `playwright` (Node); their output is committed.
+
+Regenerate the share images with `NODE_PATH=<directory containing playwright> node tools/make-images.mjs`
+from `site/` when the hero copy changes. The output is checked into `src/`.
 
 ## Design notes
 

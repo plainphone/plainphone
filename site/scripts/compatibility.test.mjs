@@ -4,6 +4,9 @@ import test from "node:test";
 import { compatibilityContent } from "../compatibility.mjs";
 import en from "../content/en.mjs";
 import da from "../content/da.mjs";
+import sv from "../content/sv.mjs";
+import nb from "../content/nb.mjs";
+import de from "../content/de.mjs";
 import { matches } from "../src/app-search.mjs";
 
 test("finds an app by name or by package in a Play Store link", () => {
@@ -24,10 +27,13 @@ test("finds dotted app names that have a qualifier in the catalog", () => {
   assert.ok(matches("Sundhed.dk (MinSundhed)\ndk.example", "sundhed.dk"));
 });
 
-test("describes the initial filter for both profiles in both languages", () => {
+test("describes the initial filter for both profiles in all five languages", () => {
   for (const [copy, blocked, strict, moderate] of [
     [en, /blocked by default on both profiles/i, /strict Restricted Mode/i, /moderate Restricted Mode/i],
     [da, /blokeret som standard på begge telefontyper/i, /streng begrænset tilstand/i, /moderat begrænset tilstand/i],
+    [sv, /blockeras som standard på båda telefontyperna/i, /strikt begränsat läge/i, /måttligt begränsat läge/i],
+    [nb, /blokkeres som standard på begge telefontypene/i, /strengt begrenset modus/i, /moderat begrenset modus/i],
+    [de, /auf beiden Telefontypen standardmäßig blockiert/i, /streng eingeschränkter Modus/i, /moderat eingeschränkter Modus/i],
   ]) {
     const page = compatibilityContent(copy, (value) => value);
     const detail = (host) => page.split("</li>").find((row) => row.includes(`<span class="note">${host}</span>`));

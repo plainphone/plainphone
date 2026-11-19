@@ -4,13 +4,11 @@ export default {
   lang: "en",
   path: "/",
   title: "Plainphone: a calm phone made from an ordinary Android",
-  description:
-    "Free, open-source software for an Android phone with calls, messages, a camera and the apps you choose.",
+  description: "Plainphone turns an Android phone into a phone with calls, texts and the apps you choose.",
   ogAlt: "Plainphone: your phone, minus the noise.",
   skip: "Skip to content",
-  nav: { label: "Main", source: "Source code", switchLabel: "Dansk", switchLang: "da" },
-  status: "Early. Open source. Not ready for daily use yet.",
-  promise: "Plainphone is free. There is no subscription and no sales pitch on your child’s phone. Donations are voluntary.",
+  nav: { label: "Main", source: "Source code", language: "Language" },
+  status: "Early version for testing.",
   compatibility: {
     path: "/apps/",
     title: "Does my app work with Plainphone?",
@@ -36,96 +34,91 @@ export default {
   },
   hero: {
     title: "Your phone, minus the noise.",
-    lead:
-      "Plainphone turns an ordinary Android phone into a calm one. Choose which apps stay available.",
+    lead: "Plainphone turns an Android phone into a phone with calls, texts and the apps you choose.",
     staysLabel: "What stays",
-    stays: ["Calls", "Messages", "Camera", "Maps, music and the apps you choose"],
+    stays: ["Calls", "Messages", "Camera"],
     goesLabel: "What goes",
     goes: ["Social media apps and games you leave off the list", "Selected websites, with the web filter", "App stores, unless you allow them"],
   },
   who: {
-    title: "Who it is for",
-    lead: "Families and adults who want to choose what’s available on their phone. The rules are the same; what changes is who holds the key. This is what Plainphone is being built to do.",
+    title: "Who it’s for",
     paths: [
       {
         id: "child",
         title: "For my child",
-        body:
-          "A first phone that can call, text, find the way home and play music. You hold the key: you will choose the apps and the contacts, and open things up as your child grows.",
+        body: "Choose the apps and approved contacts together. Give your child more freedom as they grow.",
       },
       {
         id: "self",
         title: "For myself",
-        body:
-          "Keep maps, banking and your camera available. Set a delay before changes that loosen your rules take effect. Or let a person you trust approve it.",
+        body: "Use Myself to put a delay on rule changes or ask someone you trust to approve them, including by QR code. You can cancel a pending change.",
       },
     ],
   },
   how: {
     title: "How it works",
+    lead: "You’ll need Android 10 or later. Choose a setup mode for your phone.",
     steps: [
       {
-        title: "Choose how to set up",
-        body: "An Android phone with Android 10 or newer (see tested phones below). You can set up a phone already in use without erasing it.",
+        title: "Strong mode",
+        body: "Start with a new or reset phone to make the rules harder to bypass.",
       },
       {
-        title: "Install and connect",
-        body: "On a phone already in use, open the setup link, install Plainphone and follow the prompts. On a new or reset phone, tap the welcome screen six times and scan the setup code.",
-      },
-      {
-        title: "Choose the rules",
-        body: "Pick which apps show, who can call, and when school time or bedtime starts. The phone applies changes when it next syncs with the server.",
+        title: "Light mode",
+        body: "Keep your existing setup and use app limits with gentler protection.",
       },
     ],
-    guide: "Want to try it? <a href=\"/setup/\">Follow the step-by-step guide</a>.",
-    note:
-      "Today, steps 1 and 2 work on test phones. The place where you choose the rules is being built.",
+    guide: "Open the setup guide",
+    available: "Available now: approved contacts, a web filter with categories, and optional text, call and contact history. You can also use the phone’s filter address on a router or VPN. Phone updates and server backups are supported.",
+    note: "Coming soon: SOS and a phone language parents can choose.",
   },
-  compare: {
-    title: "Compared with the usual options",
-    lead:
-      "Each option is a fair choice for someone. This is where Plainphone sits among them. The Plainphone column includes features still in development.",
-    caption: "Plainphone compared with a basic phone, a kids’ smartwatch and built-in parental controls",
-    cols: ["Basic phone", "Kids’ smartwatch", "Built-in parental controls", "Plainphone"],
-    rows: [
-      ["Maps, music, banking and school apps", "No", "No", "Yes", "Yes, the ones you pick (planned)"],
-      ["Web filter for selected domains", "No internet", "No internet", "Partly", "Blocks matching web addresses once configured"],
-      ["Only approved people can call", "Some models", "Yes", "Partly", "Yes, calls and texts (planned)"],
-      ["Works on a phone you already own", "No", "No", "Yes", "Yes, Android 10+"],
-      ["For adults too", "Yes", "No", "Mostly for children", "Yes (planned)"],
-      ["Price", "A new phone", "A new device, often a subscription", "Free", "Free"],
+  open: {
+    title: "Open source",
+    body: "Plainphone’s source code is public under the Apache-2.0 licence.",
+    github: "View the code on GitHub",
+    issues: "Report a bug publicly or suggest a change",
+    privateReport: "Report a security or privacy flaw privately",
+    contribute: "Read the contribution guide",
+  },
+  hosting: {
+    title: "Run it on your own server",
+    body: "You’ll need Docker with PostgreSQL, an HTTPS address and SMTP for sign-in emails. The Android phone connects to your server during setup. Open the parent dashboard at your own address, or build the native parent app with that address. Run a separate DNS service if you want web filtering.",
+    guide: "Read the self-hosting guide",
+  },
+  price: {
+    title: "Price",
+    body: "Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.",
+    items: [
+      {
+        q: "What does it cost?",
+        a: "It’s free today. Later, only additional phones on our hosted service will cost money.",
+      },
+      {
+        q: "What will always be free?",
+        a: "Self-hosting and one fully protected phone on our hosted service.",
+      },
+      {
+        q: "What if I run it on my own server?",
+        a: "Plainphone won’t charge you. You cover your own server and any services you use.",
+      },
     ],
+  },
+  privacySummary: {
+    title: "Privacy",
+    body: "This website uses no cookies or analytics. Plainphone shows no ads and never sells your data.",
+    link: "Read the privacy policy",
   },
   phones: {
     title: "Tested phones",
     body:
       "One so far: a OnePlus 5T on Android 10. Setup, the lock and the connection to the dashboard work, as the <a href=\"/setup/#tested\">setup guide</a> shows. It has not been through our <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">bypass checklist</a> on real hardware yet, and a phone counts as fully tested only after it has passed every test on that list. Until then, please treat Plainphone as an experiment.",
   },
-  open: {
-    title: "Free and open source",
-    body: [
-      "Plainphone is free and will stay free. The code is public under the Apache-2.0 license, so anyone can read it, check it and build on it.",
-      "It is being built so you can run the whole service on your own server. A shared server, hosted in the EU, is planned too.",
-    ],
-    follow:
-      "There is no mailing list. To follow along, star or watch the project on GitHub.",
-    github: "Follow on GitHub",
-    donate: "Donations will open later. There is no payment link yet.",
-  },
   faq: {
     title: "Questions",
     items: [
       {
         q: "Does it work on iPhone?",
-        a: "Not yet. Apple does not let an app lock an iPhone the way Android does. A lighter version built on Apple’s Screen Time is planned for later; Android will stay the strong option.",
-      },
-      {
-        q: "What does Plainphone know about me or my child?",
-        a: "A paired phone reports device status to the server so you can see things like its battery level. When location is on, the phone sends its position periodically and when you use Find. The server keeps only the latest position. Location starts on for child profiles and off for Self profiles. We store your account email address and the rules you set. We show no ads and sell no data. The <a href=\"/privacy/\">privacy policy</a> has the details.",
-      },
-      {
-        q: "What does it cost?",
-        a: "Nothing. You use a phone you already have, and the software is free. Donations will help pay for the servers later.",
+        a: "Plainphone’s phone protection runs on Android. A parent can manage it from an iPhone.",
       },
       {
         q: "Can it be bypassed?",
@@ -133,7 +126,7 @@ export default {
       },
       {
         q: "What about WhatsApp, Snapchat and other chat apps?",
-        a: "Chat apps stay hidden unless you allow them, and approved contacts will cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
+        a: "Chat apps stay hidden unless you allow them, and approved contacts cover calls and texts, not what happens inside those apps. If a whole class is on one app, software will not fix that. Talking with the other parents often does.",
       },
     ],
   },

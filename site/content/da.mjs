@@ -4,13 +4,11 @@ export default {
   lang: "da",
   path: "/da/",
   title: "Plainphone: en rolig telefon lavet af en almindelig Android",
-  description:
-    "Gratis open source-software til en Android-telefon med opkald, sms, kamera og de apps, du vælger.",
+  description: "Plainphone gør en Android-telefon til en telefon med opkald, sms og de apps, du selv vælger.",
   ogAlt: "Plainphone: din telefon, uden støjen.",
   skip: "Gå til indholdet",
-  nav: { label: "Hovedmenu", source: "Kildekode", switchLabel: "English", switchLang: "en" },
-  status: "Tidlig udgave. Open source. Endnu ikke klar til daglig brug.",
-  promise: "Plainphone er gratis. Der er intet abonnement, og vi forsøger aldrig at sælge noget på dit barns telefon. Det er frivilligt at donere.",
+  nav: { label: "Hovedmenu", source: "Kildekode", language: "Sprog" },
+  status: "Tidlig udgave til afprøvning.",
   compatibility: {
     path: "/da/apps/",
     title: "Virker min app med Plainphone?",
@@ -36,94 +34,91 @@ export default {
   },
   hero: {
     title: "Din telefon, uden støjen.",
-    lead:
-      "Plainphone gør en almindelig Android-telefon rolig. Du vælger, hvilke apps der er tilgængelige.",
+    lead: "Plainphone gør en Android-telefon til en telefon med opkald, sms og de apps, du selv vælger.",
     staysLabel: "Det beholder du",
-    stays: ["Opkald", "Sms", "Kamera", "Kort, musik og de apps, du vælger"],
+    stays: ["Opkald", "Sms", "Kamera"],
     goesLabel: "Det ryger",
     goes: ["Sociale medier og spil, du ikke giver adgang til", "Udvalgte hjemmesider, med webfilteret", "App-butikker, medmindre du giver adgang"],
   },
   who: {
-    title: "Hvem det er til",
-    lead: "Familier og voksne, der vil vælge, hvad der er tilgængeligt på telefonen. Reglerne er de samme. Forskellen er, hvem der har nøglen. Det er det, Plainphone er ved at blive bygget til.",
+    title: "Hvem er det til?",
     paths: [
       {
         id: "child",
         title: "Til mit barn",
-        body:
-          "En første telefon, der kan ringe, skrive, finde vej hjem og spille musik. Du har nøglen: du kommer til at vælge apps og kontakter og kan åbne mere op, efterhånden som barnet bliver ældre.",
+        body: "Vælg apps og godkendte kontakter sammen. Giv dit barn mere frihed, efterhånden som det bliver ældre.",
       },
       {
         id: "self",
         title: "Til mig selv",
-        body:
-          "Behold kort, netbank og kamera. Vælg, hvor længe der skal gå, før en lempelse af dine regler træder i kraft. Eller lad en, du stoler på, godkende det.",
+        body: "Når du styrer din egen telefon, kan du vente med at lempe en regel eller lade en, du stoler på, godkende ændringen, fx med en QR-kode. Du kan fortryde, mens du venter.",
       },
     ],
   },
   how: {
     title: "Sådan virker det",
+    lead: "Du skal bruge Android 10 eller nyere. Vælg, hvordan du vil sætte telefonen op.",
     steps: [
       {
-        title: "Vælg, hvordan du vil sætte telefonen op",
-        body: "Du skal bruge Android 10 eller nyere. Du kan sætte en telefon i brug op uden at slette den.",
+        title: "Stærk tilstand",
+        body: "Start med en ny eller nulstillet telefon for at gøre reglerne sværere at omgå.",
       },
       {
-        title: "Installér og forbind",
-        body: "På en telefon i brug åbner du opsætningslinket, installerer Plainphone og følger trinene. På en ny eller nulstillet telefon trykker du seks gange på velkomstskærmen og scanner opsætningskoden.",
-      },
-      {
-        title: "Vælg reglerne",
-        body: "Vælg hvilke apps der vises, hvem der kan ringe, og hvornår skoletid eller ro om aftenen begynder. Telefonen bruger de nye regler, næste gang den synkroniserer med serveren.",
+        title: "Let tilstand",
+        body: "Behold din opsætning, og begræns adgangen til apps med en lettere beskyttelse.",
       },
     ],
-    guide: "Har du lyst til at prøve? <a href=\"/da/setup/\">Følg trin-for-trin-guiden</a>.",
-    note:
-      "I dag virker trin 1 og 2 på testtelefoner. Stedet, hvor du vælger reglerne, er ved at blive bygget.",
+    guide: "Åbn opsætningsvejledningen",
+    available: "Du kan allerede vælge godkendte kontakter, filtrere hjemmesider efter kategori og slå historik for sms, opkald og kontakter til. Telefonens filteradresse kan også bruges på en router eller med en VPN. Telefonen kan opdatere sig selv, og serveren kan tage sikkerhedskopier.",
+    note: "Kommer snart: SOS og mulighed for at vælge telefonens sprog som forælder.",
   },
-  compare: {
-    title: "Sammenlignet med de typiske alternativer",
-    lead: "Hver løsning er et fornuftigt valg for nogen. Sådan placerer Plainphone sig. Kolonnen for Plainphone omfatter også funktioner under udvikling.",
-    caption: "Plainphone sammenlignet med en simpel telefon, et børneur og indbygget forældrekontrol",
-    cols: ["Simpel telefon", "Børneur", "Indbygget forældrekontrol", "Plainphone"],
-    rows: [
-      ["Kort, musik, netbank og skoleapps", "Nej", "Nej", "Ja", "Ja, dem du vælger (planlagt)"],
-      ["Webfilter til udvalgte domæner", "Intet internet", "Intet internet", "Delvist", "Blokerer tilsvarende webadresser efter opsætning"],
-      ["Kun godkendte kan ringe", "Nogle modeller", "Ja", "Delvist", "Ja, opkald og sms (planlagt)"],
-      ["Virker på en telefon, du allerede har", "Nej", "Nej", "Ja", "Ja, Android 10+"],
-      ["Også til voksne", "Ja", "Nej", "Mest til børn", "Ja (planlagt)"],
-      ["Pris", "En ny telefon", "Et nyt ur, ofte med abonnement", "Gratis", "Gratis"],
+  open: {
+    title: "Åben kildekode",
+    body: "Plainphones kildekode er offentlig under Apache-2.0-licensen.",
+    github: "Se kildekoden på GitHub",
+    issues: "Meld en fejl offentligt eller foreslå en ændring",
+    privateReport: "Meld en sikkerheds- eller privatlivsfejl privat",
+    contribute: "Læs, hvordan du bidrager",
+  },
+  hosting: {
+    title: "Kør Plainphone på din egen server",
+    body: "Du skal bruge Docker med PostgreSQL, en HTTPS-adresse og SMTP til e-mails, så du kan logge ind. Android-telefonen kobles til din server under opsætningen. Åbn forældrenes oversigt på din egen adresse, eller byg forældreappen med adressen. Webfilteret kræver en særskilt DNS-tjeneste.",
+    guide: "Læs vejledningen til egen server",
+  },
+  price: {
+    title: "Pris",
+    body: "Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.",
+    items: [
+      {
+        q: "Hvad koster det?",
+        a: "Det er gratis nu. Senere koster det kun noget at have ekstra telefoner på vores server.",
+      },
+      {
+        q: "Hvad er altid gratis?",
+        a: "At køre Plainphone på egen server og at have én telefon med fuld beskyttelse på vores server.",
+      },
+      {
+        q: "Hvad hvis jeg kører Plainphone på min egen server?",
+        a: "Du betaler intet til Plainphone. Du betaler selv for serveren og de tjenester, du bruger.",
+      },
     ],
+  },
+  privacySummary: {
+    title: "Privatliv",
+    body: "Hjemmesiden bruger ingen cookies og måler ingen besøg. Plainphone viser ingen reklamer og sælger aldrig dine oplysninger.",
+    link: "Læs privatlivspolitikken",
   },
   phones: {
     title: "Testede telefoner",
     body:
-      "Én indtil videre: en OnePlus 5T med Android 10. Opsætning, låsen og forbindelsen til dashboardet virker, som <a href=\"/da/setup/#tested\">opsætningsguiden</a> viser. Den har endnu ikke været igennem vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware, og en telefon regnes først for helt testet, når den har klaret alle test på den liste. Indtil da er Plainphone et eksperiment.",
-  },
-  open: {
-    title: "Gratis og open source",
-    body: [
-      "Plainphone er gratis og bliver ved med at være det. Koden er offentlig under Apache-2.0-licensen, så alle kan læse den, tjekke den og bygge videre på den.",
-      "Den bliver bygget, så du kan køre hele tjenesten på din egen server. En fælles server, placeret i EU, er også planlagt.",
-    ],
-    follow: "Der er intet nyhedsbrev. Vil du følge med, så giv projektet en stjerne eller følg det på GitHub.",
-    github: "Følg med på GitHub",
-    donate: "Det bliver muligt at donere senere. Der er ikke noget betalingslink endnu.",
+      "Én indtil videre: en OnePlus 5T med Android 10. Opsætning, låsen og forbindelsen til forældrenes oversigt virker, som <a href=\"/da/setup/#tested\">opsætningsguiden</a> viser. Den har endnu ikke været igennem vores <a href=\"https://github.com/plainphone/plainphone/blob/main/docs/bypass-checklist.md\">tjekliste over omgåelser</a> på rigtig hardware, og en telefon regnes først for helt testet, når den har klaret alle test på den liste. Indtil da er Plainphone et eksperiment.",
   },
   faq: {
     title: "Spørgsmål",
     items: [
       {
         q: "Virker det på iPhone?",
-        a: "Ikke endnu. Apple lader ikke en app låse en iPhone, sådan som Android gør. En lettere udgave bygget på Apples Skærmtid kommer senere. Android forbliver den stærke løsning.",
-      },
-      {
-        q: "Hvad ved Plainphone om mig eller mit barn?",
-        a: "Når du har tilknyttet en telefon, sender den status til serveren, så du f.eks. kan se batteriniveauet. Når placering er slået til, sender telefonen sin position med jævne mellemrum, og når du bruger Find. Serveren gemmer kun den seneste position. Placering er som standard slået til for børneprofiler og fra, hvis du styrer din egen telefon. Vi gemmer din kontos e-mailadresse og de regler, du vælger. Vi viser ingen reklamer og sælger ingen data. <a href=\"/da/privacy/\">Privatlivspolitikken</a> har detaljerne.",
-      },
-      {
-        q: "Hvad koster det?",
-        a: "Ingenting. Du bruger en telefon, du allerede har, og softwaren er gratis. Senere kan donationer hjælpe med at betale for serverne.",
+        a: "Plainphone beskytter Android-telefoner. Forældre kan styre dem fra en iPhone.",
       },
       {
         q: "Kan man komme uden om det?",
@@ -131,7 +126,7 @@ export default {
       },
       {
         q: "Hvad med WhatsApp, Snapchat og de andre chatapps?",
-        a: "Chatapps er skjult, medmindre du giver adgang til dem, og godkendte kontakter kommer til at dække opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software det ikke. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
+        a: "Chatapps er skjult, medmindre du giver adgang til dem, og godkendte kontakter gælder for opkald og sms, ikke det, der sker inde i de apps. Er hele klassen på én app, løser software det ikke. En snak med de andre forældre gør det ofte, fx gennem <a href=\"https://udskydsammen.dk/\">#UdskydSammen</a>.",
       },
     ],
   },
@@ -189,7 +184,7 @@ export default {
         id: "ansvarlig",
         title: "Hvem er ansvarlig",
         body: [
-          `Plainphone er et open source-projekt, som <a href="https://mahoje.dk">Mahoje</a> vedligeholder i Danmark. Vi er dataansvarlige for den tjeneste, vi driver: forældreappen på app.plainphone.org og webfilteret på dns.plainphone.org.`,
+          `Plainphone er et projekt med åben kildekode, som <a href="https://mahoje.dk">Mahoje</a> vedligeholder i Danmark. Vi er dataansvarlige for den tjeneste, vi driver: forældreappen på app.plainphone.org og webfilteret på dns.plainphone.org.`,
           `Har du spørgsmål om dine oplysninger, fx hvis du vil have en kopi eller have dem slettet, så skriv til <a href="mailto:privacy@plainphone.org">privacy@plainphone.org</a>. Spørgsmål, der ikke er personlige, kan du også stille ved at oprette en sag (issue) på <a href="https://github.com/plainphone/plainphone/issues">github.com/plainphone/plainphone/issues</a>, men sager er offentlige, så skriv ikke personoplysninger som din e-mailadresse i dem. Sikkerhedsfejl meldes privat som beskrevet i <a href="https://github.com/plainphone/plainphone/blob/main/SECURITY.md">SECURITY.md</a>.`,
         ],
       },
@@ -502,7 +497,7 @@ export default {
       cols: ["Telefon", "Android", "Resultat"],
       rows: [["OnePlus 5T (A5010)", "Android 10", "Virker"]],
       body: [
-        "Virker betyder, at opsætning, låsen og forbindelsen til dashboardet er bekræftet på denne telefon. Den har endnu ikke været igennem hele tjeklisten over omgåelser.",
+        "Virker betyder, at opsætning, låsen og forbindelsen til forældrenes oversigt er bekræftet på denne telefon. Den har endnu ikke været igennem hele tjeklisten over omgåelser.",
         "Android 14 eller nyere anbefales. Den klarer alt selv og låser telefonappen i Indstillinger.",
         "På Android 10 til 13 er der ét kendt hul: barnet kan skifte til den indbyggede telefonapp i Indstillinger. Så bliver opkald ikke filtreret, før Plainphone er valgt igen. Dashboardet viser det inden for 15 minutter.",
       ],

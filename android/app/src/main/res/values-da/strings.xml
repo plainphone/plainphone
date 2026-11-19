@@ -315,5 +315,5 @@
     <string name="self_template_share">Sæt op som mig</string>
     <string name="self_template_help">Del dine tidsgrænser, tidsrum, appvalg og webfilterets kategorier. Koden udløber efter 15 minutter.</string>
     <string name="self_tools">Hjælp hinanden</string>
-    <string name="free_promise">Plainphone er gratis. Der er intet abonnement. Vi forsøger aldrig at sælge dig noget på denne telefon. Det er frivilligt at donere.</string>
+    <string name="free_promise">Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.</string>
 </resources>

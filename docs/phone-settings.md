@@ -59,7 +59,8 @@ None of these work in light mode: they need Device Owner. The dashboard says so 
 | `showFreePromise` | `true` or `false` | `true` |
 
 Choose **Show the free promise** under Home screen in the web dashboard or under Manage in the
-parent app. It controls the note on the phone in both strong and light mode.
+parent app. It controls the note on the phone in both strong and light mode. The note
+uses the same wording as the [website price section](https://plainphone.org/#price).
 
 The front page shows the clock, the date, today's school time or bedtime if one applies, the
 chosen apps in the chosen order and a quiet "All apps" link. Phone and the emergency call are
