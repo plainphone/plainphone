@@ -456,9 +456,8 @@ export default {
     lightHelp: "Keep the phone’s data and turn protection on in Android settings.",
     startStrong: "Start setup for a new or reset phone",
     startLight: "Start setup for a phone in use",
+    stepsLink: "See the steps",
     start: "In the dashboard, say who the phone is for and create a setup link.",
-    strongTitle: "New or reset phone",
-    lightTitle: "Phone already in use",
     lightSteps: [
       ["Open the download on the phone", "Scan the code from the dashboard with the phone’s camera, or open the private link in Chrome on that phone.", "lightScan"],
       ["Install Plainphone", "Download the app and open the file. If Android blocks it, tap Settings, turn on Allow from this source, go back and tap Install.", "download"],

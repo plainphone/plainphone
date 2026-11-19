@@ -327,6 +327,10 @@
     <string name="self_template_share">Sæt op som mig</string>
     <string name="self_template_help">Del dine tidsgrænser, tidsrum, appvalg og webfilterets kategorier. Koden udløber efter 15 minutter.</string>
     <string name="self_tools">Hjælp hinanden</string>
+    <string name="support_open_help">Åbn hjælpesiden</string>
+    <string name="support_help_fallback">Åbn %1$s på en anden enhed.</string>
+    <string name="support_copy_diagnostics">Kopiér tekniske oplysninger</string>
+    <string name="support_copied">Tekniske oplysninger kopieret.</string>
     <string name="maintenance_language">Plainphones sprog: %1$s</string>
     <string name="server_current">Server: %1$s</string>
     <string name="server_custom">Brug egen server</string>

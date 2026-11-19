@@ -95,6 +95,43 @@
   align-self: start;
 }
 
+/* The first instruction comes before the code, and the checklist carries on from step 2. */
+.setup-first {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 0 1.5rem;
+  max-width: 34rem;
+  font-size: 1.125rem;
+  line-height: 1.45;
+}
+
+.setup-first-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.setup-steps-after {
+  counter-reset: step 1;
+}
+
+.setup-fallback {
+  flex-basis: 100%;
+  font-weight: 600;
+}
+
+.notice.setup-gone {
+  display: block;
+}
+
+.setup-gone p {
+  margin: 0;
+}
+
+.notice .btn {
+  margin-top: 0.75rem;
+}
+
 .setup-wait {
   display: flex;
   align-items: center;

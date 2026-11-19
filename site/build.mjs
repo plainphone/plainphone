@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import en from "./content/en.mjs";
 import da from "./content/da.mjs";
+import { help } from "./content/help.mjs";
 import sv from "./content/sv.mjs";
 import nb from "./content/nb.mjs";
 import de from "./content/de.mjs";
@@ -149,6 +150,7 @@ function footer(t, route = (p) => p.path) {
 <section><h2>${l.help}</h2><ul>
 <li><a href="${t.setup.path}">${l.guide}</a></li>
 <li><a href="${t.compatibility.path}">${t.compatibility.title}</a></li>
+<li><a href="${help[t.lang].path}">${help[t.lang].title}</a></li>
 <li><a href="${t.path}#faq">${l.faq}</a></li>
 <li><a href="${t.why.path}">${t.why.h1}</a></li>
 <li><a href="${t.privacy.path}">${t.privacy.h1}</a></li>
@@ -299,7 +301,7 @@ function page(t) {
 
   const faq = section("faq", t.faq.title, faqGroups.map(({ title, items }) =>
     `<div class="faq-group"><h3>${esc(title)}</h3><div>${questions(items)}</div></div>`,
-  ).join(""));
+  ).join("") + `<p><a href="${help[t.lang].path}">${help[t.lang].title}</a></p>`);
 
   return `${head(t, { path: t.path, schema: landingSchema(t, faqGroups.flatMap(({ items }) => items)) })}
 <body>
@@ -389,6 +391,40 @@ ${footer(t, (p) => p.why.path)}
 `;
 }
 
+function helpPage(t) {
+  const p = help[t.lang];
+  const alternatives = pages.map(({ lang }) => ({ lang, path: help[lang].path }));
+  const section = ({ id, title, body }) => `<section id="${id}" aria-labelledby="${id}-title">
+<h2 id="${id}-title">${esc(title)}</h2>
+${body.map((block) => typeof block === "string"
+    ? `<p>${block}</p>`
+    : `<ol>${block.steps.map((step) => `<li>${step}</li>`).join("")}</ol>`).join("\n")}
+</section>`;
+  return `${head(t, {
+    path: p.path, title: `${p.title} | Plainphone`, description: p.lead, ogTitle: p.title,
+    alternates: alternatives, xDefault: help.en.path,
+  })}
+<body>
+${header(t)}
+<main id="main" tabindex="-1" class="doc">
+<h1>${esc(p.title)}</h1>
+<p class="lead">${esc(p.lead)}</p>
+<nav class="toc" aria-label="${esc(p.topics)}">
+<ul>${[...p.sections, { id: "contact", title: p.contact }].map(({ id, title }) =>
+    `<li><a href="#${id}">${esc(title)}</a></li>`).join("")}</ul>
+</nav>
+${p.sections.map(section).join("\n")}
+<section id="contact" aria-labelledby="contact-title">
+<h2 id="contact-title">${esc(p.contact)}</h2>
+<p>${esc(p.contactText)}</p>
+<p><a href="mailto:support@plainphone.org">support@plainphone.org</a></p>
+</section>
+</main>
+${footer(t, (x) => help[x.lang].path)}
+</body>
+</html>`;
+}
+
 // The privacy policy: long-form text in content/*.mjs under `privacy`.
 // A block is a string (paragraph), { list: [...] } or { table: { caption, cols, rows } }.
 function privacyPage(t) {
@@ -450,22 +486,20 @@ ${header(t)}
 <section aria-labelledby="phone-choice">
 <h2 id="phone-choice">${p.question}</h2>
 <div class="setup-paths">
-  <a href="#strong"><strong>${p.strong}</strong><span>${p.strongHelp}</span></a>
-  <a href="#light"><strong>${p.light}</strong><span>${p.lightHelp}</span></a>
+  <div><strong>${p.strong}</strong><span>${p.strongHelp}</span><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a><a href="#strong">${p.stepsLink}</a></div>
+  <div><strong>${p.light}</strong><span>${p.lightHelp}</span><a class="button" href="https://app.plainphone.org/add?mode=light">${p.startLight}</a><a href="#light">${p.stepsLink}</a></div>
 </div>
 </section>
-<section aria-labelledby="strong"><h2 id="strong">${p.strongTitle}</h2>
+<section aria-labelledby="strong"><h2 id="strong">${p.strong}</h2>
 <p>${p.start}</p>
 <p>${p.strongLanguage}</p>
-<p><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a></p>
 <ol class="guide">
 ${p.steps
   .map((st) => `<li><h3>${st.title}</h3>${st.body.map((b) => `<p>${b}</p>`).join("")}${figure(st.fig)}</li>`)
   .join("\n")}
 </ol></section>
-<section aria-labelledby="light"><h2 id="light">${p.lightTitle}</h2>
+<section aria-labelledby="light"><h2 id="light">${p.light}</h2>
 <p>${p.start}</p>
-<p><a class="button" href="https://app.plainphone.org/add?mode=light">${p.startLight}</a></p>
 <ol class="guide">
 ${p.lightSteps.map(([title, body, fig]) => `<li><h3>${title}</h3><p>${body}</p>${figure(fig)}</li>`).join("\n")}
 </ol></section>
@@ -487,6 +521,8 @@ ${footer(t, (p) => p.setup.path)}
 
 rmSync(dist, { recursive: true, force: true });
 for (const t of pages) {
+  mkdirSync(join(dist, help[t.lang].path), { recursive: true });
+  writeFileSync(join(dist, help[t.lang].path, "index.html"), helpPage(t));
   mkdirSync(join(dist, t.path), { recursive: true });
   writeFileSync(join(dist, t.path, "index.html"), page(t));
   mkdirSync(join(dist, t.compatibility.path), { recursive: true });
@@ -510,7 +546,7 @@ writeFileSync(
   join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => p.compatibility.path]
+${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path, (p) => p.compatibility.path, (p) => help[p.lang].path]
   .flatMap((route) =>
     pages.map(
       (p) =>
@@ -556,4 +592,4 @@ writeFileSync(
   Cross-Origin-Resource-Policy: cross-origin
 `,
 );
-console.log(`Built ${pages.length * 5} pages + 404 into dist/ (css ${css.length} bytes)`);
+console.log(`Built ${pages.length * 6} pages + 404 into dist/ (css ${css.length} bytes)`);

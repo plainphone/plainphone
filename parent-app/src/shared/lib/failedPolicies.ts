@@ -17,6 +17,7 @@ export function updateBatteryExemptionMessage(
 }
 
 add(BATTERY_EXEMPTION_POLICY, "allow Plainphone to run in the background for updates", "tillad Plainphone at køre i baggrunden for at opdatere");
+add("remote release", "switch Plainphone off", "slå Plainphone fra");
 add("bootloader warning", "confirm the system warning on the phone", "bekræft advarslen om telefonens system");
 add("device owner", "give Plainphone control of the phone", "giv Plainphone kontrol over telefonen");
 add("default phone app", "make Plainphone the phone app", "brug Plainphone til opkald");
@@ -92,4 +93,12 @@ export function failedPolicyLabel(step: string, locale: Locale): string | undefi
   const key = step.startsWith("extra users and profiles:") ? "extra users and profiles" : step;
   return labels.get(key)?.[locale === "da" ? "da" : "en"] ??
     (key.startsWith("hardware attestation:") ? labels.get("hardware attestation")?.[locale === "da" ? "da" : "en"] : undefined);
+}
+
+/** Export known policy names only. Reports can contain free text from older phones. */
+export function diagnosticPolicy(step: string): string {
+  if (labels.has(step)) return step;
+  if (step.startsWith("extra users and profiles:")) return "extra users and profiles";
+  if (step.startsWith("install window overran:")) return "install window overran";
+  return "other";
 }

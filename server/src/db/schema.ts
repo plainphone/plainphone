@@ -120,6 +120,7 @@ export interface DeviceStatus {
   lastConfirmedFilterWorking?: boolean;
   lockIntactWithoutFilter?: boolean;
   appVersion: string;
+  androidVersion?: string;
   appVersionCode?: number;
   update?: {
     state: "upToDate" | "available" | "installing" | "prompted" | "refused" | "failed";
@@ -254,6 +255,9 @@ export const phones = pgTable(
      * document carries `release: true`.
      */
     releaseRequestedAt: timestamp("release_requested_at", { withTimezone: true }),
+    releaseSyncCount: integer("release_sync_count").notNull().default(0),
+    supportEnabled: boolean("support_enabled").notNull().default(true),
+    releaseWarningsEnabled: boolean("release_warnings_enabled").notNull().default(true),
     sosCallbackNumber: text("sos_callback_number"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     /** The phone's own report from `PUT /device/status`; null until it has reported once. */

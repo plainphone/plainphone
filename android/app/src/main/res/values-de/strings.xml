@@ -342,4 +342,8 @@
     <string name="server_connect">Verbinden</string>
     <string name="server_move_allowed">Der Umzug auf einen anderen Server ist im Dashboard erlaubt.</string>
     <string name="server_move_blocked">Der Umzug auf einen anderen Server ist im Dashboard ausgeschaltet.</string>
+    <string name="support_open_help">Hilfe öffnen</string>
+    <string name="support_help_fallback">Öffnen Sie %1$s auf einem anderen Gerät.</string>
+    <string name="support_copy_diagnostics">Technische Angaben kopieren</string>
+    <string name="support_copied">Technische Angaben kopiert.</string>
 </resources>

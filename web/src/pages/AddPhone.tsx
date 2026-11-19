@@ -43,6 +43,8 @@ interface Qr {
   makeModules: (wifi?: SetupWifi) => boolean[][];
   link?: string;
   expiresAt: string;
+  /** A fresh code for the same phone (and the same PIN), so an expired code never costs the parent their place. */
+  restart: () => Promise<Qr>;
 }
 
 /** /add: a new phone. */
@@ -208,6 +210,7 @@ export function buildQr(
     mode,
     link,
     expiresAt: out.enrollment.expiresAt,
+    restart: async () => buildQr(await api.post<EnrollmentOut>(`/phones/${phone.id}/enrollment`), phone, pinned, locale),
     makeModules: (wifi) => link
       ? encode(link, { ecc: "L", border: 0 }).data
       : provisioningQr(provisioningPayload(out.provisioning, {
@@ -237,7 +240,7 @@ function ModeStep({ onChoose }: { onChoose: (mode: Mode) => void }) {
           <span className="choice-desc">{t("add.modeLightHelp")}</span>
         </button>
       </div>
-      <p className="muted small"><Link to="/pair">{t("add.useCode")}</Link></p>
+      <p><Link className="btn btn-secondary" to="/pair">{t("add.useCode")}</Link></p>
     </>
   );
 }
@@ -418,8 +421,14 @@ function PinStep({ light = false, onBack, onDone, children }: { light?: boolean;
   );
 }
 
-function QrStep({ qr }: { qr: Qr }) {
+function QrStep({ qr: first }: { qr: Qr }) {
   const { t, locale } = useI18n();
+  const [qr, setQr] = useState(first);
+  const [restarting, setRestarting] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const [restartPending, setRestartPending] = useState(false);
+  const restartRef = useRef<HTMLButtonElement>(null);
+  const startRef = useRef<HTMLParagraphElement>(null);
   const [paired, setPaired] = useState(false);
   const light = qr.mode === "light";
   const [wifi, setWifi] = useState<SetupWifi>();
@@ -461,6 +470,39 @@ function QrStep({ qr }: { qr: Qr }) {
     };
   }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);
 
+  // The focused element disappears with the code: move focus to the way forward.
+  useEffect(() => {
+    if (gone === "expired") restartRef.current?.focus();
+  }, [gone]);
+
+  async function restart() {
+    setRestarting(true);
+    setRestartError(null);
+    try {
+      setQr(await qr.restart());
+      setGone(null);
+      // Keep keyboard and screen-reader users at the first instruction of the new code.
+      window.setTimeout(() => startRef.current?.focus(), 0);
+    } catch (err) {
+      // 409: the phone paired (or waits for confirmation) in the meantime. Ask the server
+      // instead of showing a dead end.
+      if (err instanceof ApiError && err.status === 409) {
+        try {
+          const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
+          if (p.pairedAt) {
+            setPaired(true);
+            return;
+          }
+        } catch { /* fall through to the setup page link */ }
+        setRestartPending(true);
+      } else {
+        setRestartError(errorMessage(err, t));
+      }
+    } finally {
+      setRestarting(false);
+    }
+  }
+
   const expires = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
     hour: "2-digit",
@@ -481,54 +523,68 @@ function QrStep({ qr }: { qr: Qr }) {
     );
   }
 
-  if (gone) {
-    const message = { expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const;
-    return (
-      <>
-        <PageTitle>{t("add.qrTitle", { name: qr.name })}</PageTitle>
-        <p className="notice notice-error" role="alert">{t(message[gone])}</p>
-        {gone !== "removed" && (
-          <Link className="btn btn-primary" to={`/phones/${qr.phoneId}/setup`} reloadDocument>
-            {t(light ? "add.newLink" : "setup.showQr")}
-          </Link>
-        )}
-      </>
-    );
-  }
-
   return (
     <>
       <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
+      {!gone && (
+        <p className="setup-first" ref={startRef} tabIndex={-1}>
+          <span className="setup-first-label">{t("add.startHere")}</span>
+          {t(light ? "add.light1" : "add.s1")}
+        </p>
+      )}
       <div className="setup-grid">
-        <QrImage modules={modules} label={t("add.qrAlt")} />
+        {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}
         <div className="setup-side">
-          <ol className="setup-steps">
-            <li>{t(light ? "add.light1" : "add.s1")}</li>
-            <li>{t(light ? "add.light2" : "add.s2")}</li>
-            <li>{t(light ? "add.light3" : "add.s3")}</li>
-          </ol>
-          {qr.link ? (
-            <div className="actions">
-              <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
-              {navigator.clipboard && (
-                <button type="button" className="btn btn-secondary" onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(qr.link!);
-                    setCopyStatus("copied");
-                  } catch {
-                    setCopyStatus("copyFailed");
-                  }
-                }}>{t("add.copyLink")}</button>
+          {!gone && (
+            <>
+              <ol className="setup-steps setup-steps-after" start={2}>
+                <li>{t(light ? "add.light2" : "add.s2")}</li>
+                <li>{t(light ? "add.light3" : "add.s3")}</li>
+              </ol>
+              {qr.link ? (
+                <div className="actions">
+                  <span className="setup-fallback">{t("add.cantScan")}</span>
+                  <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
+                  {navigator.clipboard && (
+                    <button type="button" className="btn btn-secondary" onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(qr.link!);
+                        setCopyStatus("copied");
+                      } catch {
+                        setCopyStatus("copyFailed");
+                      }
+                    }}>{t("add.copyLink")}</button>
+                  )}
+                  {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
+                </div>
+              ) : <WifiForm wifi={wifi} onChange={setWifi} />}
+            </>
+          )}
+          {gone ? (
+            <div className="notice notice-error setup-gone">
+              <p role="alert">{t(({ expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const)[gone])}</p>
+              {restartError && <p>{restartError}</p>}
+              {restartPending && <p><Link to={`/phones/${qr.phoneId}/setup`}>{t("setup.open", { name: qr.name })}</Link></p>}
+              {gone === "expired" && !restartPending && (
+                <button ref={restartRef} type="button" className="btn btn-primary" onClick={() => void restart()} disabled={restarting}>
+                  {t(restarting ? "add.making" : light ? "add.newLink" : "add.newCode")}
+                </button>
               )}
-              {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
+              {gone === "outdated" && (
+                // A newer code exists elsewhere: restarting here would replace it, so open the setup page.
+                <Link className="btn btn-primary" to={`/phones/${qr.phoneId}/setup`} reloadDocument>
+                  {t(light ? "add.newLink" : "setup.showQr")}
+                </Link>
+              )}
             </div>
-          ) : <WifiForm wifi={wifi} onChange={setWifi} />}
-          <p className="setup-wait" role="status">
-            <span className="pulse" aria-hidden="true" />
-            {t("add.waiting")}
-          </p>
-          <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>
+          ) : (
+            <p className="setup-wait" role="status">
+              <span className="pulse" aria-hidden="true" />
+              {t("add.waiting")}
+            </p>
+          )}
+          {!gone && <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>}
           <p className="small">
             <a href={t("add.guideUrl")} target="_blank" rel="noreferrer">
               {t("add.guide")}
