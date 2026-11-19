@@ -41,6 +41,10 @@ internal class ServerMove(
         val rules = ServerRules.parse(response.body)
         if (rules.release || !rules.dnsReady || !sameProtection(oldRules, response.body)) return false
         checkDns(requireNotNull(rules.dnsHost))
+        // Last check before the commit. A parent who turns moving off on the old server in the few
+        // milliseconds after this still sees the move complete. That is accepted: the phone only
+        // moves into rules verified identical above (including the filter method), so it is no less
+        // protected, and it stays on the old server until this call returns. See docs/self-hosting.md.
         if (!sourceStillOffersMove()) return false
         return store.saveMoved(oldToken, instruction.serverUrl, token, response, now)
     }
@@ -56,6 +60,7 @@ internal class ServerMove(
             doc.getJSONObject("location").remove("requestedAt")
             doc.getJSONObject("dns").remove("host")
             doc.getJSONObject("dns").remove("ready")
+            doc.getJSONObject("dns").remove("privateDnsReady")
             val schedules = doc.getJSONArray("schedules")
             for (i in 0 until schedules.length()) schedules.getJSONObject(i).remove("id")
         }

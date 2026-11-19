@@ -2401,6 +2401,8 @@ export interface components {
             /** Format: uuid */
             phoneId: string;
             allowServerMove?: boolean;
+            /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
+            fallbackDnsHost?: string | null;
             move?: {
                 /** Format: uri */
                 serverUrl: string;

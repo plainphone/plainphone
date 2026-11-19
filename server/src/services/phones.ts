@@ -204,13 +204,16 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
     allowServerMove: phone.allowServerMove,
     ...(move && { move }),
+    // This server's provisioning host, which answers for any ClientID. A phone falls back to it when its own
+    // filter host stops answering (removed, deleted, or not ready), also after moving here from another server.
+    fallbackDnsHost: fallbackDnsHost ?? null,
     profile: phone.profile,
     suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
     lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
@@ -279,7 +282,7 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
   const [inputs, move] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone)]);
-  const { body, etag } = rulesDocument(inputs, move);
+  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST);
   return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 

@@ -66,6 +66,22 @@ its old server still offers the move. It verifies the new rules and tests the ne
 before committing the new connection. Turn off **Allow moving this phone to another server**
 on the old server to stop offering a pending move.
 
+- **Filter method.** A Light phone's choice between the VPN filter and Private DNS travels with
+  the move and is part of the checked rules, so a Private DNS phone moves like any other.
+- **Emergency fallback.** After a move the phone's fallback DNS host is the new server's
+  provisioning host (`PROVISIONING_DNS_HOST`, sent as `fallbackDnsHost` in the rules), or the
+  original one if the new server has none. It is never the phone's own per-phone host, which stops
+  answering if the phone is removed on the new server. Set `PROVISIONING_DNS_HOST` on the new server.
+- **Abandoned moves.** If a phone redeems its move but never finishes (the old server changed the
+  rules or stopped offering the move meanwhile), the imported copy is freed when the invitation
+  expires: the background sweep clears its pending state and a normal setup QR code works again.
+- **Last-moment switch-off.** The phone checks that the old server still offers the move just before
+  it commits. A switch-off in the few milliseconds after that check cannot stop the move, but
+  the phone only moves into rules verified identical to the old ones, so it is no less protected.
+- **Import limits.** An imported file is validated with the same rules as the dashboard (name length,
+  phone numbers, package names, domains, key delay and pay-to-unlock values). The signature only
+  proves which server sent it, not that its values are sensible.
+
 The file contains phone profiles, contacts, app rules, schedules, time limits, DNS preferences,
 and phone settings. It excludes login credentials, locations, status and activity history.
 Household members sign in and can be invited separately on the new server. The old server

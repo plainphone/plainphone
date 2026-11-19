@@ -508,6 +508,9 @@ components:
       properties:
         phoneId: { type: string, format: uuid }
         allowServerMove: { type: boolean }
+        fallbackDnsHost:
+          type: [string, "null"]
+          description: This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready.
         move:
           type: object
           required: [serverUrl, token]

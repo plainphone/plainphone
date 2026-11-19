@@ -40,7 +40,7 @@ const payload = z.object({
   sourceUrl: httpsOrigin,
   destinationUrl: httpsOrigin,
   expiresAt: time,
-  phones: z.array(z.object({ name: z.string(), policy: portablePolicy, token: moveToken.nullable() })).min(1).max(100),
+  phones: z.array(z.object({ name: z.string().trim().min(1).max(40), policy: portablePolicy, token: moveToken.nullable() })).min(1).max(100),
 });
 
 export class MoveError extends Error {
@@ -155,7 +155,7 @@ export async function importMove(ctx: Ctx, householdId: string, ticketId: string
 
     const newIds: string[] = [];
     for (const { name, policy, token } of imported.phones) {
-      const { profile, mode, timezone, suggestDeviceContacts, lightContactRestriction, selfScheduleContacts,
+      const { profile, mode, filterMethod, timezone, suggestDeviceContacts, lightContactRestriction, selfScheduleContacts,
         allowServerMove, locationMode, locationAlwaysUntil } = policy;
       const helper = policy.key?.trustedEmail;
       const [trusted] = helper ? await tx.select({ id: users.id }).from(users).where(eq(users.email, helper)) : [];
@@ -169,7 +169,7 @@ export async function importMove(ctx: Ctx, householdId: string, ticketId: string
         throw new MoveError(409, "ask the trusted helper to sign in on this server before importing");
       }
       const [phone] = await tx.insert(phones).values({
-        householdId, name, profile, mode, timezone, suggestDeviceContacts, lightContactRestriction,
+        householdId, name, profile, mode, filterMethod, timezone, suggestDeviceContacts, lightContactRestriction,
         selfScheduleContacts, allowServerMove, dnsClientId: dnsClientId(), awaitingServerMove: token !== null,
         locationMode, locationEnabled: locationMode !== "off",
         locationAlwaysUntil: locationAlwaysUntil ? new Date(locationAlwaysUntil) : null,

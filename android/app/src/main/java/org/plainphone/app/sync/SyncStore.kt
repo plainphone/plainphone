@@ -160,7 +160,9 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
             synchronized(appReportLock) {
                 val saved = prefs.edit()
                     .putString(KEY_MOVED_SERVER, server)
-                    .putString(KEY_MOVED_DNS, requireNotNull(parsed.dnsHost))
+                    // Only the new server's provisioning host. The per-phone host lives in the rules and is
+                    // never the emergency fallback: it stops answering once the phone is removed there.
+                    .apply { parsed.fallbackDnsHost?.let { putString(KEY_MOVED_FALLBACK_DNS, it) } }
                     .putString(KEY_TOKEN, box.seal(token))
                     .putString(KEY_PHONE_ID, parsed.phoneId)
                     .putString(KEY_RULES, rules.body).putString(KEY_ETAG, rules.etag).putLong(KEY_SYNC_AT, now)
@@ -442,7 +444,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val INSTALL_OVERRUN_TTL_MS = 7 * 24 * 60 * 60_000L
         const val PREFS = "plainphone_sync"
         internal const val KEY_MOVED_SERVER = "moved_server"
-        internal const val KEY_MOVED_DNS = "moved_dns"
+        internal const val KEY_MOVED_FALLBACK_DNS = "moved_fallback_dns"
         private const val KEY_TOKEN = "device_token"
         private const val KEY_PHONE_ID = "phone_id"
         private const val KEY_REMOVED = "removed"

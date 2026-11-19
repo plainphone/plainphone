@@ -3,11 +3,12 @@ import { eq, gte, and, type AnyColumn } from "drizzle-orm";
 import { z } from "zod";
 import {
   contacts, dnsSettings, DNS_CATEGORIES, phoneApps, phoneSettings, phones, schedules, selfKeys,
-  timeBonuses, timeLimits, users, LOCATION_MODES,
+  timeBonuses, timeLimits, users, FILTER_METHODS, LOCATION_MODES,
 } from "../db/schema.js";
 import { sha256 } from "../lib/crypto.js";
 import { fullHome, homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
-import { localDate } from "./limits.js";
+import { domain, keyInput, packageName, phoneNumber, scheduleInput } from "../lib/validation.js";
+import { limitInput, limitTarget, localDate } from "./limits.js";
 import type { Ctx } from "./context.js";
 
 export type MoveDb = Ctx["db"] | Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -19,10 +20,14 @@ export function allowsServerMove(phone: Pick<MovePhone, "allowServerMove" | "pro
 
 const strings = z.array(z.string());
 const setting = z.object({ mode: z.enum(["preset", "locked"]), value: z.union([z.string(), z.number()]).optional() });
+// Every imported field goes through the same validators as the normal endpoints:
+// the bundle signature only proves which server sent it, not that its values are sane.
 export const portablePolicy = z.object({
   profile: z.enum(["child", "self"]),
   mode: z.enum(["strong", "light"]),
-  timezone: z.string().refine((v) => {
+  /** How a light phone filters DNS. Part of the policy hash so both servers agree on it. */
+  filterMethod: z.enum(FILTER_METHODS),
+  timezone: z.string().max(64).refine((v) => {
     try { new Intl.DateTimeFormat("en", { timeZone: v }); return true; } catch { return false; }
   }),
   suggestDeviceContacts: z.boolean(),
@@ -32,26 +37,20 @@ export const portablePolicy = z.object({
   locationMode: z.enum(LOCATION_MODES),
   locationAlwaysUntil: z.iso.datetime().nullable(),
   apps: z.array(z.object({
-    packageName: z.string(), label: z.string(), allowed: z.boolean(), core: z.boolean(),
+    packageName, label: z.string().max(200), allowed: z.boolean(), core: z.boolean(),
     explicitlyBlocked: z.boolean(), installed: z.boolean(), requested: z.boolean(),
-  })),
-  contacts: z.array(z.object({ name: z.string(), number: z.string() })),
-  schedules: z.array(z.object({
-    kind: z.enum(["school", "bedtime"]), days: z.array(z.int().min(1).max(7)),
-    startMinute: z.int().min(0).max(1439), endMinute: z.int().min(0).max(1439), allowedPackages: strings,
-  })),
-  limits: z.array(z.object({
-    packageName: z.string(), minutes: z.int().nonnegative(), days: z.partialRecord(z.enum(["1","2","3","4","5","6","7"]), z.int().nonnegative()),
-  })),
-  bonuses: z.array(z.object({ packageName: z.string(), day: z.iso.date(), minutes: z.int() })),
-  dns: z.object({ blockedCategories: z.array(z.enum(DNS_CATEGORIES)), allowDomains: strings, blockDomains: strings }),
+  })).max(5000),
+  contacts: z.array(z.object({ name: z.string().trim().min(1).max(60), number: phoneNumber })).max(1000),
+  schedules: z.array(scheduleInput).max(200),
+  limits: z.array(limitInput.extend({ packageName: limitTarget })).max(1000),
+  bonuses: z.array(z.object({ packageName: limitTarget, day: z.iso.date(), minutes: z.int().min(1).max(1440) })).max(1000),
+  dns: z.object({
+    blockedCategories: z.array(z.enum(DNS_CATEGORIES)), allowDomains: z.array(domain).max(5000), blockDomains: z.array(domain).max(5000),
+  }),
   settings: z.record(z.string(), setting).refine((v) =>
     Object.entries(v).every(([key, s]) => isSettingKey(key) && settingBody(key).safeParse(s).success)),
   home: homeInput,
-  key: z.object({
-    keyType: z.enum(["delay", "trusted"]), delayHours: z.int().positive(), trustedEmail: z.email().nullable(),
-    payUnlockEnabled: z.boolean(), payUnlockAmount: z.int(), payUnlockCurrency: z.string(), payUnlockRecipient: z.string(),
-  }).nullable(),
+  key: keyInput.and(z.object({ payUnlockCurrency: z.string().regex(/^[A-Z]{3}$/) })).nullable(),
 });
 type Policy = z.infer<typeof portablePolicy>;
 

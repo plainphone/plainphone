@@ -156,7 +156,8 @@ class ConfigStore(context: Context) {
         )
         return base.copy(
             serverUrl = sync.getString(SyncStore.KEY_MOVED_SERVER, null) ?: base.serverUrl,
-            dnsHost = sync.getString(SyncStore.KEY_MOVED_DNS, null) ?: base.dnsHost,
+            // The fallback only (the provisioning host), never the phone-specific ClientID host.
+            dnsHost = sync.getString(SyncStore.KEY_MOVED_FALLBACK_DNS, null) ?: base.dnsHost,
         )
     }
 
@@ -174,7 +175,7 @@ class ConfigStore(context: Context) {
             .apply()
         // The saved config is now the truth (built from load() or a new enrolment), so a pin left by an
         // earlier move must not override it.
-        sync.edit().remove(SyncStore.KEY_MOVED_SERVER).remove(SyncStore.KEY_MOVED_DNS).apply()
+        sync.edit().remove(SyncStore.KEY_MOVED_SERVER).remove(SyncStore.KEY_MOVED_FALLBACK_DNS).apply()
     }
 }
 

@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { contacts, dnsSettings, moveIdentity, phones, phoneSettings, schedules, selfKeys } from "../src/db/schema.js";
 import { randomToken } from "../src/lib/crypto.js";
+import { portablePolicy, readMovePolicy } from "../src/services/move-policy.js";
 import { sweep } from "../src/services/sweeper.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
@@ -16,7 +17,7 @@ async function servers() {
   const sourceHousehold = (await parent.get("/api/me")).json.households[0].id;
   // The harness shares Postgres, but distinct households, app contexts and URL/DNS
   // settings test the transfer boundary without letting either access the other's routes.
-  const cfg = { ...h.ctx.cfg, PUBLIC_URL: destinationUrl, DNS_HOST_SUFFIX: "filter.example.test", DNS_PROVIDER: "http" as const };
+  const cfg = { ...h.ctx.cfg, PUBLIC_URL: destinationUrl, DNS_HOST_SUFFIX: "filter.example.test", DNS_PROVIDER: "http" as const, PROVISIONING_DNS_HOST: "family.example.test" };
   const ctx = { ...h.ctx, cfg };
   const destination = { ...h, ctx, app: createApp(ctx) };
   const newParent = await signIn(destination, "destination@example.org");
@@ -118,6 +119,9 @@ it("consumes a token once, keeps the old pairing during an outage, and provision
   const preview = await first.get("/api/device/move-rules");
   expect(preview.json.dns).toMatchObject({ ready: true, blockedCategories: original.json.dns.blockedCategories });
   expect(preview.json.dns.host).toMatch(/\.filter\.example\.test$/);
+  // The phone falls back to this host, never to its per-phone host, if it is later removed.
+  expect(preview.json.fallbackDnsHost).toBe("family.example.test");
+  expect(original.json.fallbackDnsHost).not.toBe("family.example.test");
   const second = new Client(s.destination);
   second.token = randomToken("pp_d_");
   expect((await second.post(endpoint, { token: instruction.token, deviceToken: second.token })).status).toBe(410);
@@ -183,4 +187,64 @@ it("frees an imported phone for normal setup when its move expires unused", asyn
   await sweep(h.ctx);
   expect((await s.newParent.get(`/api/phones/${importedId}`)).json.awaitingServerMove).toBe(false);
   expect((await s.newParent.post(`/api/phones/${importedId}/enrollment`)).status).not.toBe(409);
+});
+
+it("carries the Private DNS filter method across a move", async () => {
+  const s = await servers();
+  const { device, phoneId } = await pairPhone(h, s.parent, { mode: "light" });
+  await h.ctx.db.update(phones).set({ filterMethod: "privateDns" }).where(eq(phones.id, phoneId));
+  const original = await device.get("/api/device/rules");
+  expect(original.json.dns.filterMethod).toBe("privateDns");
+  const transfer = await exportPhone(s, phoneId);
+  expect((await s.parent.post(`/api/phones/${phoneId}/server-move/start`, { exportId: transfer.exportId })).status).toBe(200);
+  const instruction = (await device.get("/api/device/rules")).json.move;
+  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
+  const importedId = imported.json.phoneIds[0] as string;
+  expect((await h.ctx.db.select().from(phones).where(eq(phones.id, importedId)))[0]?.filterMethod).toBe("privateDns");
+  const moved = new Client(s.destination);
+  moved.token = randomToken("pp_d_");
+  expect((await moved.post("/api/device/move", { token: instruction.token, deviceToken: moved.token })).status).toBe(204);
+  expect((await moved.get("/api/device/move-rules")).json.dns.filterMethod).toBe("privateDns");
+});
+
+it("refuses imported values the normal endpoints would reject", async () => {
+  const s = await servers();
+  const { phoneId } = await pairPhone(h, s.parent);
+  await h.ctx.db.update(phones).set({ name: "x".repeat(41) }).where(eq(phones.id, phoneId));
+  const longName = await exportPhone(s, phoneId);
+  expect((await s.newParent.post(s.destinationPath + "/import", longName)).status).toBe(400);
+  const mine = await pairPhone(h, s.parent, { profile: "self", name: "Mine" });
+  await mine.device.get("/api/device/rules");
+  const [row] = await h.ctx.db.select().from(phones).where(eq(phones.id, mine.phoneId));
+  const policy = await readMovePolicy(h.ctx.db, row!, h.ctx.now());
+  expect(portablePolicy.safeParse(policy).success).toBe(true);
+  const key = policy.key!;
+  const bad = [
+    { ...policy, key: { ...key, delayHours: 100 } },
+    { ...policy, key: { ...key, payUnlockRecipient: "someone-else" } },
+    { ...policy, key: { ...key, payUnlockAmount: 1 } },
+    { ...policy, key: { ...key, payUnlockCurrency: "dkk and more" } },
+    { ...policy, contacts: [{ name: "x", number: "not a number" }] },
+    { ...policy, contacts: [{ name: "x".repeat(61), number: "+15550100001" }] },
+    { ...policy, apps: [{ packageName: "bad package", label: "x", allowed: true, core: false, explicitlyBlocked: false, installed: true, requested: false }] },
+    { ...policy, dns: { ...policy.dns, blockDomains: ["not a domain"] } },
+    { ...policy, filterMethod: "other" },
+  ];
+  for (const candidate of bad) expect(portablePolicy.safeParse(candidate).success).toBe(false);
+});
+
+it("frees a phone whose move was redeemed but never activated", async () => {
+  const s = await servers();
+  const { phoneId } = await pairPhone(h, s.parent);
+  const transfer = await exportPhone(s, phoneId);
+  const imported = await s.newParent.post(s.destinationPath + "/import", transfer);
+  const importedId = imported.json.phoneIds[0] as string;
+  await h.ctx.db.update(phones).set({ deviceTokenHash: "a".repeat(64) }).where(eq(phones.id, importedId));
+  h.clock.advance(8 * 24 * 60 * 60_000);
+  await sweep(h.ctx);
+  const [row] = await h.ctx.db.select().from(phones).where(eq(phones.id, importedId));
+  expect(row).toMatchObject({ awaitingServerMove: false, deviceTokenHash: null });
+  const summary = (await s.newParent.get(`/api/phones/${importedId}`)).json;
+  expect(summary.setupQrAvailable).toBe(true);
+  expect((await s.newParent.post(`/api/phones/${importedId}/enrollment`)).status).toBe(201);
 });

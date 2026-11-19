@@ -18,6 +18,7 @@ class ServerMoveTest {
     private val oldServer = ConfigStore(context).load().serverUrl
     private val newServer = "https://destination.example.test:8443"
     private val newDns = "device.filter.example.test"
+    private val newFallback = "family.example.test"
     private val oldToken = "pp_d_test"
     private val instruction = JSONObject().put("serverUrl", newServer).put("token", "pp_m_" + "x".repeat(43))
 
@@ -34,6 +35,7 @@ class ServerMoveTest {
         var receivedCredential: String? = null
         val newRules = document().put("phoneId", "7f1c2b9e-0000-4000-8000-000000000002")
         newRules.getJSONObject("dns").put("host", newDns)
+        newRules.put("fallbackDnsHost", newFallback)
         val remote = object : MoveApi {
             override fun redeemMove(token: String, deviceToken: String) {
                 assertThat(token).isEqualTo(instruction.getString("token"))
@@ -89,13 +91,42 @@ class ServerMoveTest {
         assertThat(store.deviceToken()).isEqualTo(receivedCredential)
         assertThat(store.phoneId).isEqualTo(newRules.getString("phoneId"))
         assertThat(ConfigStore(context).load().serverUrl).isEqualTo(newServer)
-        assertThat(ConfigStore(context).load().dnsHost).isEqualTo(newDns)
+        // The emergency fallback is the new server's provisioning host, not the per-phone host.
+        assertThat(ConfigStore(context).load().dnsHost).isEqualTo(newFallback)
         assertThat(store.rules()!!.hiddenApps).containsExactly("com.example.game")
         assertThat(device.applies.last()).isEqualTo("server move")
         // A previously constructed worker can never send the new credential to the old server.
         source.rules = RulesResult.Unpaired
         sync.run("stale worker")
         assertThat(store.isPaired).isTrue()
+    }
+
+    @Test
+    fun `after a move a removed phone falls back to a host that answers, also after a save`() {
+        val oldRules = document().put("allowServerMove", true).put("move", instruction)
+        store.savePaired(oldRules.getString("phoneId"), oldToken)
+        store.saveRules("old", oldRules.toString(), 0L)
+        val newRules = document().put("phoneId", "7f1c2b9e-0000-4000-8000-000000000002").put("fallbackDnsHost", newFallback)
+        newRules.getJSONObject("dns").put("host", newDns)
+        val remote = object : MoveApi {
+            override fun redeemMove(token: String, deviceToken: String) = Unit
+            override fun moveRules(deviceToken: String) = RulesResult.Changed("new", newRules.toString())
+        }
+        val moved = ServerMove(store, { remote }, {}).attempt(
+            oldToken, ServerMoveInstruction.parse(newServer, instruction.getString("token"))!!, 1L,
+        ) { true }
+        assertThat(moved).isTrue()
+        // Any later save (a new PIN, say) must not turn the per-phone host into the fallback.
+        val config = ConfigStore(context)
+        config.save(config.load())
+        val qr = config.load()
+        assertThat(qr.dnsHost).isEqualTo(newFallback)
+        val rules = store.rules()!!
+        assertThat(EffectivePolicy.merge(qr, rules, java.time.Instant.EPOCH).dnsHost).isEqualTo(newDns)
+        // Removed on the new server: its ClientID is deleted and answers nothing.
+        assertThat(EffectivePolicy.merge(qr, rules, java.time.Instant.EPOCH, removed = true).dnsHost).isEqualTo(newFallback)
+        val notReady = ServerRules.parse(JSONObject(newRules.toString()).also { it.getJSONObject("dns").put("ready", false) }.toString())
+        assertThat(EffectivePolicy.merge(qr, notReady, java.time.Instant.EPOCH).dnsHost).isEqualTo(newFallback)
     }
 
     @Test
