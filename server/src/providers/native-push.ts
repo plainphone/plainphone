@@ -216,8 +216,8 @@ export class NativeParentPush implements ParentPushProvider {
     if (category) {
       return this.fcm?.send({
         token: target.endpoint,
-        data: { ...data, title, message: body, body: JSON.stringify(data), categoryId: category, channelId: "normal" },
-        android: { priority: urgent ? "HIGH" : "NORMAL" },
+        data: { ...data, title, message: body, body: JSON.stringify(data), categoryId: category, channelId: "normal", tag },
+        android: { priority: "HIGH" }, // an answer someone waits for; normal priority can sit in Doze
       }) ?? "unsupported";
     }
     return this.fcm?.send({

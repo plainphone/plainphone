@@ -87,11 +87,13 @@ function PhonesList() {
                   ]
                     .filter(Boolean)
                     .join(", ")}
-                  badge={
-                    pending > 0
-                      ? t(pending === 1 ? "phones.pendingCount" : "phones.pendingCountMany", { n: pending })
-                      : undefined
-                  }
+                  badge={[
+                    pending > 0 ? t(pending === 1 ? "phones.pendingCount" : "phones.pendingCountMany", { n: pending }) : null,
+                    // Children asking for more time: the answer is waiting on the phone's screen.
+                    (phone.openMoreTimeRequests ?? 0) > 0
+                      ? t(phone.openMoreTimeRequests === 1 ? "phones.requestCount" : "phones.requestCountMany", { n: phone.openMoreTimeRequests ?? 0 })
+                      : null,
+                  ].filter(Boolean).join(", ") || undefined}
                   onPress={() => router.push({ pathname: "/phones/[pid]", params: { pid: phone.id } })}
                 />
               ))}

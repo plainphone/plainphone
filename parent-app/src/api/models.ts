@@ -47,6 +47,11 @@ export interface Phone {
   pairedAt: string | null;
   supportEnabled?: boolean;
   releaseWarningsEnabled?: boolean;
+  /** The stop screen offers "Ask for more time", and the phone warns shortly before a limit. Missing on old servers: treat as on. */
+  askMoreTimeEnabled?: boolean;
+  limitWarningEnabled?: boolean;
+  /** Requests for more time nobody has answered yet. */
+  openMoreTimeRequests?: number;
   releaseSyncCount?: number;
   androidVersion?: string | null;
   releaseRequestedAt?: string | null;

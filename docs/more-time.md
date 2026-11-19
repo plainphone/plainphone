@@ -79,7 +79,7 @@ request itself is only a question, so it can be refused (switched off, no such l
 Browsers show a limited number of action buttons (`Notification.maxActions`). A browser that
 shows fewer than four keeps **15 min** and **No**; tapping the notification itself opens the
 phone's page, where all four choices are.
-Action buttons on native pushes need the parent app to have been opened once since it was
+On Android the button opens the app briefly to send the answer (Android cannot run the app's code in the background without extra packages). Action buttons on native pushes need the parent app to have been opened once since it was
 installed (it registers the notification category then).
 
 ## API

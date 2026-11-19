@@ -987,7 +987,7 @@ export const de: Messages = {
   "requests.approved": "Erlaubt. Wird wirksam, wenn das Telefon das nächste Mal online ist (normalerweise innerhalb einer Minute).",
   "requests.rejected": "Abgelehnt. Das Telefon zeigt die Antwort an.",
   "phones.requestCount": "1 Anfrage",
-  "phones.requestCountMany": "{n}-Anfragen",
+  "phones.requestCountMany": "{n} Anfragen",
 
   "notif.serverOff": "Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet. Benachrichtigungen kommen weiterhin per E-Mail.",
   "notif.neverDefault": "Nie (Standard)",
