@@ -7,7 +7,6 @@ export default {
   description: "Richten Sie ein Android-Handy für Ihr Kind oder als einfaches Handy für sich selbst ein. Behalten Sie Anrufe und wichtige Apps und wählen Sie, welche Apps und Webseiten Sie begrenzen.",
   ogAlt: "Plainphone: Ihr Telefon ohne Ablenkung. Anrufe, SMS und Kamera sind an, soziale Medien und der App-Store sind aus.",
   landing: {
-    product: "Produkt",
     setup: "Einrichtung",
     faq: "Fragen",
     menu: "Menü",
@@ -21,7 +20,6 @@ export default {
     day: ["Der erste Tag mit Plainphone", "Wählen Sie im Elternbereich den starken oder den leichten Modus.", "Wählen Sie, wer das Handy benutzt.", "Folgen Sie der Anleitung und verbinden Sie das Handy.", "Vereinbaren Sie die Regeln gemeinsam und probieren Sie einen Anruf und die Apps aus, die Sie brauchen."],
     child: ["Das sieht Ihr Kind", "Auf dem Handy sieht Ihr Kind, welche Apps verfügbar sind und wie viel Zeit für Apps mit einem Zeitlimit übrig ist. Das Handy meldet, wenn die Zeit abgelaufen ist, und zeigt eine Benachrichtigung an, wenn es seinen Standort sendet."],
     visual: ["Plainphone-Einrichtung mit der Wahl zwischen starkem und leichtem Modus", "Einrichtung im Elternbereich (auf Dänisch).", "Diese Website verwendet keine Cookies, keine Besuchsstatistik, kein Tracking und keine Anfragen an Drittanbieter."],
-    diagram: "Android 10 oder neuer",
     groups: {
       gettingStarted: "Einstieg",
       safety: "Sicherheit",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Ihr Telefon ohne Ablenkung.",
     lead: "Mit Plainphone wird ein Android-Handy zum Telefon für Anrufe, SMS und die Apps, die Sie auswählen.",
-    staysLabel: "Was bleibt",
-    stays: ["Anrufe", "Nachrichten", "Kamera"],
-    goesLabel: "Was Sie weglassen können",
-    goes: ["Social-Media-Apps und Spiele, die Sie weglassen", "Ausgewählte Websites mit dem Webfilter", "App-Stores, die Sie nicht erlauben"],
   },
   who: {
     title: "Für wen ist Plainphone gedacht?",

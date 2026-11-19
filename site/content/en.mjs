@@ -7,7 +7,6 @@ export default {
   description: "Set up an Android as your child’s first phone or a simpler phone for yourself. Keep calls and essential apps, and choose which apps and websites to limit.",
   ogAlt: "Plainphone: Your phone, minus the noise. Calls, messages and camera are switched on; social media and the app store are off.",
   landing: {
-    product: "Product",
     setup: "Setup",
     faq: "FAQ",
     menu: "Menu",
@@ -21,7 +20,6 @@ export default {
     day: ["Day one with Plainphone", "Pick Strong or Light mode in the parent dashboard.", "Choose who will use the phone.", "Follow the setup guide and connect the phone.", "Agree on the rules together and try a call and the apps you need."],
     child: ["What your child sees", "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location."],
     visual: ["Plainphone setup screen for choosing between Strong and Light mode", "Setup in the parent dashboard (shown in Danish).", "No cookies, analytics, tracking or third-party requests on this website."],
-    diagram: "Android 10 or later",
     groups: {
       gettingStarted: "Getting started",
       safety: "Safety",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Your phone, minus the noise.",
     lead: "Plainphone turns an Android phone into a phone with calls, texts and the apps you choose.",
-    staysLabel: "What stays",
-    stays: ["Calls", "Messages", "Camera"],
-    goesLabel: "What goes",
-    goes: ["Social media apps and games you leave off the list", "Selected websites, with the web filter", "App stores, unless you allow them"],
   },
   who: {
     title: "Who it’s for",

@@ -7,7 +7,6 @@ export default {
   description: "Gør en Android til barnets første mobil eller en enkel telefon til dig selv. Behold opkald og de nødvendige apps, og vælg, hvilke apps og sider du vil begrænse.",
   ogAlt: "Plainphone: Din telefon, uden støjen. Opkald, sms og kamera er slået til, sociale medier og app-butikken er slået fra.",
   landing: {
-    product: "Produkt",
     setup: "Opsætning",
     faq: "Spørgsmål",
     menu: "Menu",
@@ -21,7 +20,6 @@ export default {
     day: ["Den første dag med Plainphone", "Vælg stærk eller let tilstand i forældrepanelet.", "Vælg, hvem der skal bruge telefonen.", "Følg vejledningen, og forbind telefonen.", "Aftal reglerne sammen, og prøv et opkald og de apps, I har brug for."],
     child: ["Det ser dit barn", "På telefonen kan barnet se, hvilke apps der er tilgængelige, og hvor meget tid der er tilbage til apps med en tidsgrænse. Telefonen siger til, når tiden er brugt, og viser en besked, når den sender sin placering."],
     visual: ["Plainphones opsætning med valget mellem stærk og let tilstand", "Opsætningen i forældrepanelet.", "Dette websted har ingen cookies, besøgsmåling, sporing eller forespørgsler til tredjeparter."],
-    diagram: "Android 10 eller nyere",
     groups: {
       gettingStarted: "Kom godt i gang",
       safety: "Sikkerhed",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Din telefon, uden støjen.",
     lead: "Plainphone gør en Android-telefon til en telefon med opkald, sms og de apps, du selv vælger.",
-    staysLabel: "Det beholder du",
-    stays: ["Opkald", "Sms", "Kamera"],
-    goesLabel: "Det ryger",
-    goes: ["Sociale medier og spil, du ikke giver adgang til", "Udvalgte hjemmesider, med webfilteret", "App-butikker, medmindre du giver adgang"],
   },
   who: {
     title: "Hvem er det til?",

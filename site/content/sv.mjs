@@ -7,7 +7,6 @@ export default {
   description: "Gör en Android till barnets första mobil eller en enkel telefon för dig själv. Behåll samtal och viktiga appar och välj vilka appar och webbplatser du vill begränsa.",
   ogAlt: "Plainphone: Din telefon utan allt brus. Samtal, sms och kamera är på, sociala medier och appbutiken är av.",
   landing: {
-    product: "Produkt",
     setup: "Installation",
     faq: "Frågor",
     menu: "Meny",
@@ -21,7 +20,6 @@ export default {
     day: ["Första dagen med Plainphone", "Välj starkt eller lätt läge i föräldrapanelen.", "Välj vem som ska använda telefonen.", "Följ guiden och anslut telefonen.", "Kom överens om reglerna och testa samtal och de appar ni behöver."],
     child: ["Det här ser ditt barn", "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats."],
     visual: ["Plainphones installationsskärm med val av starkt eller lätt läge", "Installationen i föräldrapanelen (visas på danska).", "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part."],
-    diagram: "Android 10 eller senare",
     groups: {
       gettingStarted: "Kom igång",
       safety: "Säkerhet",
@@ -74,10 +72,6 @@ export default {
   hero: {
     title: "Din telefon utan allt brus.",
     lead: "Plainphone gör en Android-telefon till en telefon med samtal, sms och de appar du väljer.",
-    staysLabel: "Det som är kvar",
-    stays: ["Samtal", "Meddelanden", "Kamera"],
-    goesLabel: "Det du kan välja bort",
-    goes: ["Sociala medier och spel som du väljer bort", "Utvalda webbplatser, med webbfiltret", "Appbutiker, om du inte tillåter dem"],
   },
   who: {
     title: "Vem är det till för?",
