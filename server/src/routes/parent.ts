@@ -32,7 +32,7 @@ import { approveRequest, openRequests, rejectRequest, RequestError } from "../se
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
-import { homeInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
+import { homeInput, homePromiseInput, isSettingKey, settingBody } from "../lib/phone-settings.js";
 import { approvalAppLabel, approvalBonusDate, approvalRevision, formatApprovalSummary, loadApprovalSummaries } from "../services/approval-summary.js";
 import { DEFAULT_SETUP_UNDO_MINUTES, setupUndoDeadline, undoMinutesInput } from "../lib/setup-undo.js";
 import { acceptTrustedInvite, issueTrustedInvite, TRUSTED_INVITE_PREFIX } from "../services/trusted-invites.js";
@@ -773,6 +773,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.put("/phones/:pid/home", async (c) => {
     const phone = await requirePhone(c);
     const home = await body(c, homeInput);
+    return change(c, phone, { type: "home.set", home });
+  });
+  app.patch("/phones/:pid/home", async (c) => {
+    const phone = await requirePhone(c);
+    const home = await body(c, homePromiseInput);
     return change(c, phone, { type: "home.set", home });
   });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)

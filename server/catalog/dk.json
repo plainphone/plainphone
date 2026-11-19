@@ -2,7 +2,10 @@
   "country": "dk",
   "name": {
     "en": "Denmark",
-    "da": "Danmark"
+    "da": "Danmark",
+    "sv": "Danmark",
+    "nb": "Danmark",
+    "de": "Dänemark"
   },
   "verifiedAt": "2026-11-17",
   "categories": [
@@ -10,49 +13,70 @@
       "id": "bank",
       "name": {
         "en": "Banking and payments",
-        "da": "Bank og betaling"
+        "da": "Bank og betaling",
+        "sv": "Bank och betalningar",
+        "nb": "Bank og betaling",
+        "de": "Bank und Zahlungen"
       }
     },
     {
       "id": "public",
       "name": {
         "en": "MitID and public services",
-        "da": "MitID og det offentlige"
+        "da": "MitID og det offentlige",
+        "sv": "MitID och offentliga tjänster",
+        "nb": "MitID og offentlige tjenester",
+        "de": "MitID und öffentliche Dienste"
       }
     },
     {
       "id": "transport",
       "name": {
         "en": "Transport",
-        "da": "Transport"
+        "da": "Transport",
+        "sv": "Transport",
+        "nb": "Transport",
+        "de": "Verkehr"
       }
     },
     {
       "id": "school",
       "name": {
         "en": "School",
-        "da": "Skole"
+        "da": "Skole",
+        "sv": "Skola",
+        "nb": "Skole",
+        "de": "Schule"
       }
     },
     {
       "id": "music",
       "name": {
         "en": "Music and audio",
-        "da": "Musik og lyd"
+        "da": "Musik og lyd",
+        "sv": "Musik och ljud",
+        "nb": "Musikk og lyd",
+        "de": "Musik und Audio"
       }
     },
     {
       "id": "health",
       "name": {
         "en": "Health",
-        "da": "Sundhed"
+        "da": "Sundhed",
+        "sv": "Hälsa",
+        "nb": "Helse",
+        "de": "Gesundheit"
       }
     },
     {
       "id": "everyday",
       "name": {
         "en": "Everyday",
-        "da": "Hverdag"
+        "da": "Hverdag",
+        "sv": "Vardag",
+        "nb": "Hverdag",
+        "de": "Alltag"
       }
     }
   ],

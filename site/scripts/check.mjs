@@ -13,7 +13,9 @@ const errors = [];
 const externalLinks = new Set();
 const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 const locales = Object.keys(ogLocales);
-const pagePaths = ["", "setup/", "privacy/", "why/"].map((page) =>
+const lookupRoute = "apps/";
+const routes = ["", "setup/", "privacy/", "why/", lookupRoute];
+const pagePaths = routes.map((page) =>
   Object.fromEntries(locales.map((lang) => [
     lang,
     `/${lang === "en" ? "" : `${lang}/`}${lang === "da" && page === "why/" ? "hvorfor/" : page}`,
@@ -26,7 +28,7 @@ const files = (dir) =>
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
-if (html.length !== locales.length * 4 + 1) errors.push("Expected four pages per locale and one 404 page");
+if (html.length !== locales.length * pagePaths.length + 1) errors.push("Expected every localized page and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
 const cspHashes = new Set([...headers.matchAll(/'sha256-([^']+)'/g)].map((m) => m[1]));
 
@@ -48,7 +50,20 @@ for (const file of html) {
   if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
-  if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
+  const compatibilityPage = Object.values(pagePaths[routes.indexOf(lookupRoute)]).some((path) => target(path) === file);
+  const scripts = [...src.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)];
+  if (scripts.length !== Number(compatibilityPage)) errors.push(`${name}: unexpected number of scripts`);
+  for (const [tag] of scripts) {
+    const search = /^<script type="module" src="\/app-search\.mjs" integrity="sha256-([^"]+)"><\/script>$/.exec(tag);
+    if (!compatibilityPage || !search) {
+      errors.push(`${name}: unexpected script`);
+      continue;
+    }
+    const hash = createHash("sha256").update(readFileSync(target("/app-search.mjs"))).digest("base64");
+    if (search[1] !== hash || !headers.includes(`script-src 'sha256-${hash}'`)) {
+      errors.push(`${name}: search script hash does not match the CSP and integrity attribute`);
+    }
+  }
   // Every inline <style> must be allowed by a hash in the CSP, or the page renders unstyled.
   for (const [, css] of src.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
     const h = createHash("sha256").update(css).digest("base64");
