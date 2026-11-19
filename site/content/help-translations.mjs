@@ -102,19 +102,19 @@ export const translations = {
     path: "/de/help/",
     title: "Hilfe und Support",
     topics: "Hilfethemen",
-    lead: "Hier findest du Hilfe beim Installieren von Plainphone sowie beim Freigeben oder Zurücksetzen eines Handys.",
+    lead: "Hier finden Sie Hilfe beim Installieren von Plainphone sowie beim Freigeben oder Zurücksetzen eines Handys.",
     sections: [
       {
         id: "recovery",
         title: "Ich kann das Handy nicht freigeben oder auf Werkseinstellungen zurücksetzen",
         body: [
-          "Wenn du die Wartung mit der Eltern-PIN öffnen kannst, versuche im starken Modus, das Handy freizugeben, oder schalte Plainphone im leichten Modus aus. Falls das fehlschlägt oder Android das Zurücksetzen über die Einstellungen blockiert, kannst du den Wiederherstellungsmodus versuchen.",
-          "<strong>Beim Zurücksetzen auf Werkseinstellungen werden die Daten auf dem Handy gelöscht.</strong> Sichere, was du kannst, und prüfe, ob du den Bildschirm entsperren und dich bei einem Google-Konto anmelden kannst, das zuvor mit dem Handy synchronisiert wurde. Android kann bei der Einrichtung danach fragen.",
-          "Wenn du unter Haushalt → Vor dem Zurücksetzen schützen ein Google-Konto eines Elternteils hinterlegt hast, kann Android dieses Konto verlangen, auch wenn es auf dem Handy nie verwendet wurde. Prüfe, ob du dich anmelden kannst, warte bis zum angezeigten Zeitpunkt und sieh auf der Geräteseite im Dashboard nach, ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist. Wende dich vor dem Zurücksetzen an den Support, wenn du dir beim Zugriff auf ein zum Entsperren geeignetes Konto unsicher bist.",
+          "Wenn Sie die Wartung mit der Eltern-PIN öffnen können, versuchen Sie im starken Modus, das Handy freizugeben, oder schalten Sie Plainphone im leichten Modus aus. Falls das fehlschlägt oder Android das Zurücksetzen über die Einstellungen blockiert, können Sie den Wiederherstellungsmodus versuchen.",
+          "<strong>Beim Zurücksetzen auf Werkseinstellungen werden die Daten auf dem Handy gelöscht.</strong> Sichern Sie, was Sie können, und prüfen Sie, ob Sie den Bildschirm entsperren und sich bei einem Google-Konto anmelden können, das zuvor mit dem Handy synchronisiert wurde. Android kann bei der Einrichtung danach fragen.",
+          "Wenn Sie unter Haushalt → Vor dem Zurücksetzen schützen ein Google-Konto eines Elternteils hinterlegt haben, kann Android dieses Konto verlangen, auch wenn es auf dem Handy nie verwendet wurde. Prüfen Sie, ob Sie sich anmelden können, warten Sie bis zum angezeigten Zeitpunkt und sehen Sie auf der Geräteseite im Dashboard nach, ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist. Wenden Sie sich vor dem Zurücksetzen an den Support, wenn Sie sich beim Zugriff auf ein zum Entsperren geeignetes Konto unsicher bist.",
           { steps: [
-            "Schalte das Handy aus. Sieh auf der Supportseite des Herstellers nach, wie du den Wiederherstellungsmodus für dein Modell startest. Die Tasten hängen vom Modell ab.",
-            "Wähle im Wiederherstellungsmenü <strong>Wipe data/factory reset</strong> oder die entsprechende Option und bestätige das Löschen. Folge den Anweisungen auf dem Bildschirm.",
-            "Wähle <strong>Reboot system now</strong> oder die entsprechende Option. Folge der Android-Einrichtung. Entferne das alte Handy aus dem Dashboard, falls es dort noch angezeigt wird. Wenn du Plainphone wieder verwenden möchtest, installiere die aktuelle Version und kopple das Handy erneut.",
+            "Schalten Sie das Handy aus. Sehen Sie auf der Supportseite des Herstellers nach, wie Sie den Wiederherstellungsmodus für Ihr Modell starten. Die Tasten hängen vom Modell ab.",
+            "Wähle im Wiederherstellungsmenü <strong>Wipe data/factory reset</strong> oder die entsprechende Option und bestätige das Löschen. Folgen Sie den Anweisungen auf dem Bildschirm.",
+            "Wählen Sie <strong>Reboot system now</strong> oder die entsprechende Option. Folgen Sie der Android-Einrichtung. Entfernen Sie das alte Handy aus dem Dashboard, falls es dort noch angezeigt wird. Wenn Sie Plainphone wieder verwenden möchten, installieren Sie die aktuelle Version und koppeln Sie das Handy erneut.",
           ] },
           '<a href="https://support.google.com/android/answer/6088915?hl=de">Googles Anleitung zur Vorbereitung auf das Zurücksetzen</a>',
         ],
@@ -123,28 +123,28 @@ export const translations = {
         id: "play-protect",
         title: "Play Protect blockiert die Installation",
         body: [
-          'Verwende die <a href="/de/setup/">offizielle Einrichtungsanleitung für Plainphone</a> und lade die App über den dortigen Link erneut herunter. Wenn Play Protect anbietet, die App zu prüfen, warte den Abschluss der Prüfung ab.',
-          "Wenn Android die App weiterhin blockiert oder als schädlich einstuft, lass Play Protect eingeschaltet und kontaktiere den Support von einem anderen Gerät. Gib den Wortlaut der Meldung wieder und lass Kontodaten weg.",
+          'Verwenden Sie die <a href="/de/setup/">offizielle Einrichtungsanleitung für Plainphone</a> und laden Sie die App über den dortigen Link erneut herunter. Wenn Play Protect anbietet, die App zu prüfen, warten Sie den Abschluss der Prüfung ab.',
+          "Wenn Android die App weiterhin blockiert oder als schädlich einstuft, lassen Sie Play Protect eingeschaltet und kontaktieren Sie den Support von einem anderen Gerät. Geben Sie den Wortlaut der Meldung wieder und lassen Sie Kontodaten weg.",
         ],
       },
       {
         id: "restricted-settings",
         title: "Android 13 oder neuer meldet, dass eine Einstellung eingeschränkt ist",
         body: [
-          "Öffne die Einstellungen, wähle Apps und dann Plainphone. Öffne in der App-Info das Dreipunkt-Menü und wähle Eingeschränkte Einstellungen zulassen. Bestätige die Rückfrage von Android, falls sie erscheint. Kehre zu Plainphone zurück und versuche es erneut.",
-          "Erlaube eingeschränkte Einstellungen nur für Apps, denen du vertraust. Wenn der Menüpunkt fehlt, wende dich an den Support.",
+          "Öffnen Sie die Einstellungen, wählen Sie Apps und dann Plainphone. Öffnen Sie in der App-Info das Dreipunkt-Menü und wählen Sie Eingeschränkte Einstellungen zulassen. Bestätigen Sie die Rückfrage von Android, falls sie erscheint. Kehren Sie zu Plainphone zurück und versuchen Sie es erneut.",
+          "Erlauben Sie eingeschränkte Einstellungen nur für Apps, denen Sie vertrauen. Wenn der Menüpunkt fehlt, wenden Sie sich an den Support.",
         ],
       },
       {
         id: "vpn",
         title: "Der Webfilter funktioniert mit einem anderen VPN nicht mehr",
         body: [
-          "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trenne das andere VPN, deaktiviere dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalte den Webfilter in Plainphone wieder ein. Muss das andere VPN eingeschaltet bleiben, kann Plainphone stattdessen das private DNS von Android für den Webfilter verwenden. Im Dashboard oder in der Eltern-App öffnest du den Webfilter des Telefons und schaltest Privates DNS ein. Bei der ersten Einrichtung wählst du es, wenn Plainphone nach einem anderen VPN fragt.",
-          "Im starken Modus verwendet Plainphone die Funktion Privates DNS von Android. Ein VPN kann einen eigenen DNS-Dienst verwenden. Trenne es, um zu prüfen, ob der Filter wieder funktioniert.",
+          "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trennen Sie das andere VPN, deaktivieren Sie dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalten Sie den Webfilter in Plainphone wieder ein. Muss das andere VPN eingeschaltet bleiben, kann Plainphone stattdessen das private DNS von Android für den Webfilter verwenden. Im Dashboard oder in der Eltern-App öffnen Sie den Webfilter des Telefons und schalten Privates DNS ein. Bei der ersten Einrichtung wählen Sie es, wenn Plainphone nach einem anderen VPN fragt.",
+          "Im starken Modus verwendet Plainphone die Funktion Privates DNS von Android. Ein VPN kann einen eigenen DNS-Dienst verwenden. Trennen Sie es, um zu prüfen, ob der Filter wieder funktioniert.",
         ],
       },
     ],
     contact: "Support kontaktieren",
-    contactText: "Beschreibe, was du versucht hast und was passiert ist. Du kannst Diagnosedaten aus der Wartung oder dem Dashboard einfügen. Lass Namen, Kontodaten und andere personenbezogene Daten weg.",
+    contactText: "Beschreiben Sie, was Sie versucht haben und was passiert ist. Sie können Diagnosedaten aus der Wartung oder dem Dashboard einfügen. Lassen Sie Namen, Kontodaten und andere personenbezogene Daten weg.",
   },
 };

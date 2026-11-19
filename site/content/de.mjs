@@ -109,7 +109,7 @@ export default {
     ],
     guide: "Einrichtungsanleitung öffnen",
     available: "Sie können bereits erlaubte Kontakte auswählen, Websites nach Kategorien filtern und den Verlauf für SMS, Anrufe und Kontakte aktivieren. Die Filteradresse des Handys lässt sich auch auf einem Router oder mit einem VPN nutzen. Das Handy kann sich selbst aktualisieren und der Server kann Sicherungskopien erstellen.",
-    note: "Demnächst: SOS.",
+    note: "SOS: Ihr Kind kann eine Taste gedrückt halten, um einen dringenden SOS-Ruf oder eine Hilfeanfrage zu senden. Die Eltern erhalten den Standort, wenn die Standortfreigabe aktiviert ist. Ist das Handy offline, wird stattdessen eine SMS gesendet. Die 112 ist auf demselben Bildschirm.",
   },
   open: {
     title: "Offener Quellcode",

@@ -57,13 +57,13 @@
     <string name="phone_app_name">Telefon</string>
     <string name="messages_app_name">Meldinger</string>
     <string name="tab_contacts">Kontakter</string>
-    <string name="tab_recents">Nylig</string>
+    <string name="tab_recents">Siste</string>
     <string name="tab_messages">Meldinger</string>
     <string name="tab_keypad">Tastatur</string>
     <string name="action_call">Ring %1$s</string>
     <string name="action_message">Melding %1$s</string>
     <string name="action_back">Tilbake</string>
-    <string name="action_send">Sende</string>
+    <string name="action_send">Send</string>
     <string name="action_done">Ferdig</string>
     <string name="role_banner_text">Gjør Plainphone til telefon- og SMS-appen, så anrop og meldinger er begrenset til godkjente kontakter.</string>
     <string name="role_make_phone">Bruk som telefonapp</string>
@@ -73,8 +73,8 @@
     <string name="recents_empty">Ingen anrop ennå.</string>
     <string name="recent_incoming">Innkommende</string>
     <string name="recent_outgoing">Utgående</string>
-    <string name="recent_missed">Savnet</string>
-    <string name="recent_other">Ringe</string>
+    <string name="recent_missed">Ubesvart</string>
+    <string name="recent_other">Samtale</string>
     <string name="messages_empty">Ingen meldinger ennå.</string>
     <string name="messages_footnote">Noen samtaler er skrivebeskyttet. Eksisterende bilde- og gruppemeldinger vises som plassholdere.</string>
     <string name="contacts_child_sharing">Forelderen din kan se på navnene og numrene som er lagret i denne telefonens kontakter.</string>
@@ -86,8 +86,8 @@
     <string name="contacts_favourites_hint">Favoritter kan ringe og sende deg tekstmeldinger under en tidsplan som begrenser anrop og tekstmeldinger. Du kan nå dem også.</string>
     <string name="contacts_self_empty">Ingen tilgjengelige kontakter.</string>
     <string name="contacts_favourite">Favoritt</string>
-    <string name="contacts_favourite_add">Legge til</string>
-    <string name="contacts_favourite_remove">Fjerne</string>
+    <string name="contacts_favourite_add">Legg til</string>
+    <string name="contacts_favourite_remove">Fjern</string>
     <string name="contacts_favourite_waiting">Denne endringen venter på nøkkelen din.</string>
     <string name="contacts_favourite_failed">Kunne ikke endre favoritten. Prøv igjen.</string>
     <string name="history_load_failed">Meldingsloggen kunne ikke lastes.</string>
@@ -95,7 +95,7 @@
     <string name="history_read_only">Skrivebeskyttet</string>
     <string name="history_load_older">Last eldre</string>
     <string name="message_new">Ny melding</string>
-    <string name="message_new_continue">Fortsette</string>
+    <string name="message_new_continue">Fortsett</string>
     <string name="history_unknown">Ukjent nummer</string>
     <string name="history_mms">Bilde eller gruppesamtale</string>
     <string name="history_mms_placeholder">Bilde- eller gruppemelding. Innholdet kan ikke vises.</string>
@@ -112,7 +112,7 @@
     <string name="call_dialing">Ringer …</string>
     <string name="call_on_hold">På vent</string>
     <string name="call_ended">Samtalen ble avsluttet</string>
-    <string name="call_answer">Svare</string>
+    <string name="call_answer">Svar</string>
     <string name="call_decline">Avslå</string>
     <string name="call_hang_up">Legg på</string>
     <string name="call_ongoing">Samtale pågår</string>
@@ -181,7 +181,7 @@
     <string name="light_battery_xiaomi">I appinfo åpner du Batterisparing og velger Ingen begrensninger for Plainphone.</string>
     <string name="light_battery_samsung">Legg Plainphone til Never sleeping-apper. Du finner listen under Batteri, deretter Bakgrunnsbruksgrenser.</string>
     <string name="light_battery_settings">Åpne batteriinnstillinger</string>
-    <string name="light_battery_continue">Fortsette</string>
+    <string name="light_battery_continue">Fortsett</string>
     <string name="light_link_expired">Få en ny oppsettlink fra dashbordet og åpne den på denne telefonen.</string>
     <string name="light_link_network">Sjekk at telefonen er tilkoblet, og prøv på nytt.</string>
     <string name="light_link_retry">Prøv igjen</string>
@@ -213,7 +213,7 @@
     <string name="light_step_admin_action">Slå på</string>
     <string name="light_step_running_title">Hold Plainphone i gang</string>
     <string name="light_step_running_body">Tillat varsler og la Plainphone kjøre i bakgrunnen slik at beskyttelsen forblir på.</string>
-    <string name="light_step_running_action">Tillate</string>
+    <string name="light_step_running_action">Tillat</string>
     <string name="light_skip_options">Fortsett uten ekstrautstyr</string>
     <string name="light_step_location_settings">I Appinfo, gå til Tillatelser, deretter Plassering, og velg Tillat hele tiden.</string>
     <string name="light_step_location_title">Plassering for Finn</string>
@@ -271,7 +271,7 @@
     <string name="setup_dashboard">Åpne dashbordet</string>
     <string name="setup_parent_try_self">Vil du bruke din egen telefon mindre? Sett opp Plainphone for deg selv.</string>
     <string name="setup_back">Tilbake</string>
-    <string name="setup_continue">Fortsette</string>
+    <string name="setup_continue">Fortsett</string>
     <string name="setup_confirm_child">Er dette barnets telefon?</string>
     <string name="setup_confirm_child_body">En forelder vil administrere hvilke apper og nettsteder denne telefonen kan bruke. Android vil be deg om å tillate disse beskyttelsene under oppsett.</string>
     <string name="setup_confirm_self">Sette opp beskyttelse på din egen telefon?</string>
@@ -280,7 +280,7 @@
     <string name="setup_pair_account">Koble denne telefonen til %1$s?</string>
     <string name="setup_pair_household">Husstand: %1$s</string>
     <string name="setup_connect">Koble til telefonen</string>
-    <string name="setup_not_you">Ikke deg? Kansellere</string>
+    <string name="setup_not_you">Ikke deg? Avbryt</string>
     <string name="setup_pair_self">Åpne app.plainphone.org for å koble til telefonen. Velg Meg selv i dashbordet, og sjekk deretter kontoen som vises på denne telefonen.</string>
     <string name="setup_profile_mismatch">Denne lenken bruker en annen profil. Gå tilbake for å endre valget ditt, eller avbryt for å bruke en annen lenke.</string>
     <string name="setup_connected_account">Koblet til %1$s</string>
