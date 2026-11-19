@@ -3,31 +3,25 @@
 package org.plainphone.app
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
-import org.plainphone.app.light.CalmScreen
+import org.plainphone.app.light.BlockedActivity
+import org.plainphone.app.light.BlockedScreen
 import org.plainphone.app.ui.KeypadScreen
 
+/** Synthetic fixtures shared by the screenshot and behaviour tests of UX package 3. */
 object GuardFixture {
     @Composable
-    fun timeUsedUp() = CalmScreen(
-        eyebrow = "Spotify",
-        title = stringResource(R.string.blocked_time_title),
-        body = stringResource(R.string.blocked_time_body),
-        primary = stringResource(R.string.blocked_ok),
-        onPrimary = {},
-    )
+    fun screen(reason: BlockedActivity.Reason, onHome: () -> Unit = {}, onParent: () -> Unit = {}) =
+        BlockedScreen(reason, appLabel = "Spotify", onHome = onHome, onReachParent = onParent, onEnterPin = {})
 
     @Composable
-    fun notAllowed() = CalmScreen(
-        eyebrow = "Spotify",
-        title = stringResource(R.string.blocked_not_allowed_title),
-        body = stringResource(R.string.blocked_not_allowed_body),
-        primary = stringResource(R.string.blocked_ok),
-        onPrimary = {},
-    )
+    fun timeUsedUp() = screen(BlockedActivity.Reason.TIME_USED_UP)
+
+    @Composable
+    fun notAllowed() = screen(BlockedActivity.Reason.NOT_ALLOWED)
 }
 
 object DialerFixture {
     @Composable
-    fun keypad() = KeypadScreen(initial = "2012", onCall = {})
+    fun keypad(onCall: (String) -> Unit = {}, onParents: () -> Unit = {}, onEmergency: () -> Unit = {}) =
+        KeypadScreen(initial = "2012", onCall = onCall, onParents = onParents, onEmergency = onEmergency)
 }

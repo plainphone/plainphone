@@ -53,7 +53,7 @@ class ChildNextActionScreenshotTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                PlainphoneTheme { content() }
+                PlainphoneTheme { androidx.compose.material3.Surface(color = androidx.compose.material3.MaterialTheme.colorScheme.background) { content() } }
             }
         }
         save(name, compose.onRoot().captureToImage().asAndroidBitmap())

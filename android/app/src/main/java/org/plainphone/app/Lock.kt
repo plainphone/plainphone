@@ -364,6 +364,10 @@ object Lock {
         listOf(StepResult(name, false, "${e.javaClass.simpleName}: ${e.message}"))
     }
 
+    /** When the maintenance unlock ends (wall clock), or null when no unlock is open. */
+    fun maintenanceEndsAtMs(context: Context): Long? =
+        prefs(context).getLong("relock_at_wall", 0L).takeIf { it > System.currentTimeMillis() }
+
     fun isInMaintenanceWindow(context: Context): Boolean =
         prefs(context).getLong("relock_at_wall", 0L) > System.currentTimeMillis()
 

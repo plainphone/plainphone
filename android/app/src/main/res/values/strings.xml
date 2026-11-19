@@ -15,7 +15,7 @@
     <string name="maintenance_title">Maintenance</string>
     <string name="maintenance_pin_hint">Parent PIN</string>
     <string name="maintenance_unlock">Open</string>
-    <string name="maintenance_wrong_pin">Wrong PIN.</string>
+    <string name="maintenance_wrong_pin">The PIN does not match. Try again.</string>
     <string name="maintenance_install_limit">All installation windows for today have been used. Try again tomorrow.</string>
     <string name="maintenance_install_unavailable">This app is no longer waiting to be installed.</string>
     <string name="maintenance_install_battery">Allow Plainphone to run without battery restrictions, then try again.</string>
@@ -100,7 +100,7 @@
     <string name="history_mms_placeholder">Picture or group message. The contents cannot be displayed.</string>
     <string name="message_hint">Message</string>
     <string name="message_failed">Not sent</string>
-    <string name="message_send_failed">The message could not be sent.</string>
+    <string name="message_send_failed">The message could not be sent. Your text is still here.</string>
     <string name="message_not_approved">%1$s is not an approved contact, so messages cannot be sent.</string>
     <string name="keypad_hint">Approved contacts and emergency numbers (112) only.</string>
     <string name="call_not_allowed">Only approved contacts can be called. Emergency numbers always work.</string>
@@ -234,7 +234,17 @@
     <string name="blocked_time_body">It opens again tomorrow. Calls and messages work as always.</string>
     <string name="blocked_protection_title">This setting is locked</string>
     <string name="blocked_protection_body">Use the parent\'s PIN to change this setting.</string>
-    <string name="blocked_ok">OK</string>
+    <string name="blocked_ok">Back to start</string>
+    <string name="blocked_reach_parent">Call or message a parent</string>
+    <string name="blocked_other_title">This is not available right now</string>
+    <string name="blocked_other_body">Go back to the start screen. You can always call or message a parent.</string>
+    <string name="dialer_call_parent">Call a parent</string>
+    <string name="action_call_plain">Call</string>
+    <string name="action_delete_digit">Delete last digit</string>
+    <string name="message_retry">Write it again</string>
+    <string name="maintenance_state_locked">The phone is locked.</string>
+    <string name="maintenance_state_lifted">The lock is lifted until %1$s.</string>
+    <string name="maintenance_lock_now">Lock the phone now</string>
     <string name="blocked_enter_pin">Enter PIN</string>
     <string name="today_title">Today</string>
     <string name="today_no_limits">No time limits today.</string>
