@@ -3006,7 +3006,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
-            /** @description Unknown token. Fall back to pairing with a code. */
+            /** @description Unknown token. Strong setup requires a fresh QR and a factory reset. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3022,12 +3022,21 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Token expired */
+            /** @description Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset. */
             410: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        error: string;
+                        /**
+                         * @description Present for superseded tokens.
+                         * @constant
+                         */
+                        code?: "outdated_qr";
+                    };
+                };
             };
             429: components["responses"]["Error"];
         };

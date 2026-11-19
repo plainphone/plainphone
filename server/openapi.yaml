@@ -1154,13 +1154,22 @@ paths:
                       maskedEmail: { type: string }
                       householdName: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/Error" }
-        "404": { description: Unknown token. Fall back to pairing with a code. }
+        "404": { description: Unknown token. Strong setup requires a fresh QR and a factory reset. }
         "409":
           description: "This QR code is out of date. Make a new one."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-        "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
+        "410":
+          description: Token superseded, expired, already used by another phone, or the phone entry is already paired. Strong setup requires a fresh QR and a factory reset.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+                  code: { const: outdated_qr, description: Present for superseded tokens. }
         "429": { $ref: "#/components/responses/Error" }
 
   /device/rules:

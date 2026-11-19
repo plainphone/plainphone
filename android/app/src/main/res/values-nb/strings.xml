@@ -141,7 +141,7 @@
     <string name="blocked_sms_out">Utgående melding</string>
     <string name="pair_button">Par med en forelder</string>
     <string name="pairing_connecting">Kobler til dashbordet …</string>
-    <string name="pairing_outdated_qr_strong">QR-koden for oppsett er utdatert. Lag en ny i kontrollpanelet, tilbakestill telefonen og skann den nye koden under oppsettet.</string>
+    <string name="pairing_outdated_qr_strong">Be forelderen din om en ny QR-kode for oppsett. Tilbakestill telefonen til fabrikkinnstillingene og skann den nye koden under Android-oppsettet.</string>
     <string name="pairing_outdated_qr_light">Oppsettslenken er utdatert. Lag en ny i kontrollpanelet og åpne den på denne telefonen.</string>
     <string name="pairing_loading">Henter en sammenkoblingskode …</string>
     <string name="pairing_instructions">Skann denne koden med kameraet på foreldrenes telefon. Eller åpne app.plainphone.org, velg Legg til telefon og skriv inn koden.</string>
@@ -252,6 +252,9 @@
     <string name="maintenance_release_light">Slå av Plainphone</string>
     <string name="maintenance_release_light_confirm">Dette slår av vakt, nettfilter og enhetsadministrator, slik at Plainphone kan avinstalleres. Forelderen blir fortalt. Fortsette?</string>
     <string name="channel_updates">Appoppdateringer</string>
+    <string name="update_battery_required">Batteritillatelse kreves for oppdateringer</string>
+    <string name="update_battery_reason">La Plainphone kjøre i bakgrunnen slik at appen kan oppdatere seg trygt.</string>
+    <string name="update_battery_continue">Fortsett</string>
     <string name="update_prompt_title">Plainphone-oppdatering tilgjengelig</string>
     <string name="update_prompt_text">Versjon %1$s er klar. Trykk for å åpne nedlastingen.</string>
     <string name="update_prompt_action">Åpne nedlasting</string>

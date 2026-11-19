@@ -150,7 +150,8 @@ class PairingControllerTest {
     }
 
     @Test
-    fun `a refused token is dropped so the phone shows a code instead`() {
+    fun `a refused Light token is dropped so the phone shows a code instead`() {
+        val controller = PairingController(store, api, emptyMap(), mode = "light")
         store.saveEnrollToken("pp_e_used")
         api.enrollResult = EnrollResult.Rejected
         assertThat(controller.enroll()).isEqualTo(EnrollResult.Rejected)

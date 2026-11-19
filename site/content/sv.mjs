@@ -324,6 +324,10 @@ export default {
                   "Inbjudningar",
                   "Raderad när den accepteras. Annars slutar de fungera efter 7 dagar och raderas en dag senare. Du kan när som helst dra tillbaka en öppen inbjudan",
                 ],
+                [
+                  "Hashvärden för installationskoder och sparade installationsinställningar",
+                  "Kan rensas bort 30 dagar efter att koden har gått ut. De raderas när telefonen tas bort",
+                ],
                 ["Webbfilterräknare", "24 timmar"],
                 [
                   "Säkerhetskopiering av databasen",

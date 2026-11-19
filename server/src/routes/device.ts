@@ -238,7 +238,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       }),
     );
     const r = await redeemEnrollment(ctx, { ...input, deviceInfo: input.deviceInfo ?? null }, DEVICE_PREFIX);
-    if (r.status !== 200) return c.json({ error: r.error }, r.status);
+    if (r.status !== 200) return c.json({ error: r.error, ...(r.code && { code: r.code }) }, r.status);
     const { phoneId, deviceToken, account, setupUndoMinutes } = r;
     return c.json({ status: "paired", phoneId, deviceToken, ...(setupUndoMinutes != null && { setupUndoMinutes }), ...(account && { account }) }, 200);
   });

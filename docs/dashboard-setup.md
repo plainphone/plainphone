@@ -31,12 +31,14 @@ phone immediately, even if the dashboard cannot create its replacement yet. An o
 dashboard page hides the old code on its next check and offers to make a new one. The
 parent app shows a reminder after saving a language change and can open replacement setup
 for either mode in the browser. If a strong-mode phone has already scanned a QR code
-that the server rejects as outdated, the phone asks the parent to make a new code and
-reset the phone before scanning it during Android setup.
+that the server rejects, the phone asks the parent for a new code and a factory reset
+before scanning it during Android setup. This also applies if the server no longer
+recognizes the token.
 
 The server binds each token to the server-controlled QR values, including the Android
 locale, time zone, calling code and provisioning DNS host. A server configuration
-change that makes the saved values stale also hides the QR on the dashboard. The maintenance PIN hash and optional Wi-Fi details
+change that makes the saved values stale also hides the QR on the dashboard. Generating a
+replacement invalidates the earlier token. The maintenance PIN hash and optional Wi-Fi details
 stay in the browser and on the setup phone. Unused QR codes issued before this change
 also need to be regenerated. If the server already accepted a code and only its response
 was lost, the same phone can still recover the connection during the usual retry window.

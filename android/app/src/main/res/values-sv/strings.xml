@@ -141,7 +141,7 @@
     <string name="blocked_sms_out">Utgående meddelande</string>
     <string name="pair_button">Para ihop med en förälder</string>
     <string name="pairing_connecting">Ansluter till föräldrapanelen…</string>
-    <string name="pairing_outdated_qr_strong">QR-koden för installation är inaktuell. Skapa en ny på kontrollpanelen, återställ telefonen och skanna den nya koden under installationen.</string>
+    <string name="pairing_outdated_qr_strong">Be din förälder om en ny QR-kod för installationen. Fabriksåterställ telefonen och skanna den nya koden när du konfigurerar Android.</string>
     <string name="pairing_outdated_qr_light">Installationslänken är inaktuell. Skapa en ny på kontrollpanelen och öppna den på den här telefonen.</string>
     <string name="pairing_loading">Hämtar en kopplingskod…</string>
     <string name="pairing_instructions">Skanna den här koden med kameran på förälderns telefon. Eller öppna app.plainphone.org, välj Lägg till telefon och skriv sedan in koden.</string>
@@ -252,6 +252,9 @@
     <string name="maintenance_release_light">Stäng av Plainphone</string>
     <string name="maintenance_release_light_confirm">Detta stänger av skyddet, webbfiltret och enhetsadministratören, så att Plainphone kan avinstalleras. Föräldern får veta. Fortsätta?</string>
     <string name="channel_updates">Appuppdateringar</string>
+    <string name="update_battery_required">Batteribehörighet krävs för uppdateringar</string>
+    <string name="update_battery_reason">Tillåt Plainphone att köras i bakgrunden så att appen kan uppdateras säkert.</string>
+    <string name="update_battery_continue">Fortsätt</string>
     <string name="update_prompt_title">Plainphone-uppdatering tillgänglig</string>
     <string name="update_prompt_text">Version %1$s är klar. Tryck för att öppna nedladdningen.</string>
     <string name="update_prompt_action">Öppna nedladdningen</string>

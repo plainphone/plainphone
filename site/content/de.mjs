@@ -324,6 +324,10 @@ export default {
                   "Einladungen",
                   "Wird bei Annahme gelöscht. Andernfalls funktionieren sie nach 7 Tagen nicht mehr und werden einen Tag später gelöscht. Sie können eine offene Einladung jederzeit zurückziehen",
                 ],
+                [
+                  "Hashwerte der Einrichtungscodes und gespeicherte Einrichtungseinstellungen",
+                  "Können 30 Tage nach Ablauf des Codes bereinigt werden. Beim Entfernen des Telefons werden sie gelöscht",
+                ],
                 ["Webfilterzähler", "24 Stunden"],
                 [
                   "Backups der Datenbank",

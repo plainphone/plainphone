@@ -141,7 +141,7 @@
     <string name="blocked_sms_out">Ausgehende Nachricht</string>
     <string name="pair_button">Mit Eltern verbinden</string>
     <string name="pairing_connecting">Verbindung zum Dashboard herstellen…</string>
-    <string name="pairing_outdated_qr_strong">Dieser QR-Code ist veraltet. Erstelle einen neuen in der Verwaltung, setze dieses Telefon zurück und scanne den neuen Code bei der Einrichtung.</string>
+    <string name="pairing_outdated_qr_strong">Bitte deine Eltern um einen neuen QR-Code für die Einrichtung. Setze das Telefon auf die Werkseinstellungen zurück und scanne den neuen Code bei der Android-Einrichtung.</string>
     <string name="pairing_outdated_qr_light">Dieser Einrichtungslink ist veraltet. Erstelle einen neuen in der Verwaltung und öffne ihn auf diesem Telefon.</string>
     <string name="pairing_loading">Einen Kopplungscode erhalten…</string>
     <string name="pairing_instructions">Scanne den Code mit dem Elterntelefon. Du kannst auch app.plainphone.org öffnen und „Telefon hinzufügen“, dann „Code eingeben“ wählen.</string>
@@ -252,6 +252,9 @@
     <string name="maintenance_release_light">Plainphone ausschalten</string>
     <string name="maintenance_release_light_confirm">Dadurch werden der Guard, der Webfilter und die Geräteverwaltung ausgeschaltet, sodass Plainphone deinstalliert werden kann. Den Eltern wird es mitgeteilt. Weitermachen?</string>
     <string name="channel_updates">App-Updates</string>
+    <string name="update_battery_required">Batterieberechtigung für Updates erforderlich</string>
+    <string name="update_battery_reason">Erlaube Plainphone die Ausführung im Hintergrund, damit sich die App sicher aktualisieren kann.</string>
+    <string name="update_battery_continue">Weiter</string>
     <string name="update_prompt_title">Plainphone-Update verfügbar</string>
     <string name="update_prompt_text">Version %1$s ist verfügbar. Tippe hier, um den Download zu öffnen.</string>
     <string name="update_prompt_action">Download öffnen</string>

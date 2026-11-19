@@ -143,7 +143,7 @@
     <string name="blocked_sms_out">Outgoing message</string>
     <string name="pair_button">Pair with a parent</string>
     <string name="pairing_connecting">Connecting to the dashboard…</string>
-    <string name="pairing_outdated_qr_strong">This setup QR code is out of date. Make a new one in the dashboard, then reset this phone and scan the new code during setup.</string>
+    <string name="pairing_outdated_qr_strong">Ask your parent for a new setup QR code. Factory-reset this phone, then scan the new code during Android setup.</string>
     <string name="pairing_outdated_qr_light">This setup link is out of date. Make a new one in the dashboard and open it on this phone.</string>
     <string name="pairing_loading">Getting a pairing code…</string>
     <string name="pairing_instructions">Scan this code with the camera on the parent\'s phone. Or open app.plainphone.org, choose Add phone, then Type the code.</string>

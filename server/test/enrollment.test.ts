@@ -98,9 +98,25 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await parent.patch(path, { timezone: "Europe/Copenhagen" })).status).toBe(200);
     expect((await parent.post(`${path}/enrollment`)).status).toBe(429);
     expect(await enroll(current.token)).toMatchObject({
-      status: 409,
-      json: { error: "This QR code is out of date. Make a new one." },
+      status: 410,
+      json: { error: "This QR code is out of date. Make a new one.", code: "outdated_qr" },
     });
+  });
+
+  it("retains a superseded QR through cleanup after its expiry", async () => {
+    const parent = await signIn(h, "p@example.org");
+    const out = await parent.post("/api/phones/enroll", {
+      name: "Test phone", profile: "child", language: "en", timezone: "Europe/London",
+    });
+    expect(out.status).toBe(201);
+    const path = `/api/phones/${out.json.phone.id}`;
+    expect((await parent.patch(path, { timezone: "Europe/Copenhagen" })).status).toBe(200);
+    h.clock.advance(25 * 3_600_000 + 1);
+    const fresh = await parent.post(`${path}/enrollment`);
+    expect(fresh.status).toBe(201);
+    expect(fresh.json.provisioning.timezone).toBe("Europe/Copenhagen");
+    expect((await enroll(out.json.enrollment.token)).status).toBe(410);
+    expect((await enroll(fresh.json.enrollment.token)).status).toBe(200);
   });
 
   it("invalidates an outstanding QR permanently when the language changes", async () => {
@@ -112,7 +128,7 @@ describe("setup from the dashboard (enrollment)", () => {
     expect((await parent.patch(path, { language: null })).status).toBe(200);
     const fresh = await parent.post(`${path}/enrollment`);
     expect(fresh.status).toBe(201);
-    expect((await enroll(enrollment.token)).status).toBe(409);
+    expect((await enroll(enrollment.token)).status).toBe(410);
     expect((await enroll(fresh.json.enrollment.token)).status).toBe(200);
   });
 
@@ -132,7 +148,13 @@ describe("setup from the dashboard (enrollment)", () => {
     try {
       h.ctx.cfg.PROVISIONING_DNS_HOST = "new-dns.example.org";
       expect((await parent.get(path)).json.setupEnrollmentId).toBeNull();
-      expect((await enroll(enrollment.token)).status).toBe(409);
+      const fresh = await parent.post(`${path}/enrollment`);
+      expect(fresh.status).toBe(201);
+      expect(fresh.json.provisioning.dnsHost).toBe("new-dns.example.org");
+      const [old] = await h.ctx.db.select().from(enrollments).where(eq(enrollments.id, enrollment.id));
+      expect(old?.invalidatedAt).toEqual(h.clock.now);
+      expect((await enroll(enrollment.token)).status).toBe(410);
+      expect((await enroll(fresh.json.enrollment.token)).status).toBe(200);
     } finally {
       h.ctx.cfg.PROVISIONING_DNS_HOST = previous;
     }
@@ -199,7 +221,7 @@ describe("setup from the dashboard (enrollment)", () => {
     }
     const [winner, loser] = await Promise.all(pending);
     expect(winner!.status).toBe(200);
-    expect(loser!.status).toBe(409);
+    expect(loser!.status).toBe(patchFirst ? 410 : 409);
     const summary = (await parent.get(path)).json;
     expect(summary.timezone).toBe(patchFirst ? "Europe/London" : "Europe/Copenhagen");
     expect(Boolean(summary.pairedAt)).toBe(!patchFirst);
@@ -258,7 +280,7 @@ describe("setup from the dashboard (enrollment)", () => {
     const fresh = await parent.post(`/api/phones/${phone.id}/enrollment`);
     expect(fresh.status).toBe(201);
     expect(fresh.json.provisioning.downloadUrl).toBe(`${PUBLIC_URL}/download/android`);
-    expect((await enroll(enrollment.token)).status).toBe(404);
+    expect((await enroll(enrollment.token)).status).toBe(410);
     expect((await enroll(fresh.json.enrollment.token)).status).toBe(200);
   });
 

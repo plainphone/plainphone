@@ -434,7 +434,10 @@ class PlainphoneApi private constructor(
             }
             400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
             409 -> EnrollResult.OutdatedQr
-            404, 410 -> EnrollResult.Rejected
+            410 -> if (runCatching { JSONObject(r.body).optString("code") }.getOrNull() == "outdated_qr") {
+                EnrollResult.OutdatedQr
+            } else EnrollResult.Rejected
+            404 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }

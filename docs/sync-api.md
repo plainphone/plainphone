@@ -173,9 +173,13 @@ parent (PWA)                                server                          phon
 - The token (`pp_e_` + 128 random bits) is stored as a SHA-256 hash, works once, expires after
   24 hours and is bound to the phone entry. `POST /phones/{pid}/enrollment` makes a new one for a
   phone that is not set up yet; older tokens for it stop working.
-- `404` (unknown) and `410` (used, expired, or the entry is already paired) are final: the phone
-  drops the token. Strong setup falls back to code pairing. A phone using the light setup link asks the parent for a new link. If the `200` answer is lost, the same
-  phone (same `installId`) may ask again for 60 minutes and gets a new device token.
+- Superseded tokens return `410` with `code: outdated_qr`. When redemption first detects
+  a configuration mismatch it invalidates the token and returns `409`. Enrollment cleanup
+  can remove token hashes and their snapshots starting 30 days after expiry.
+- If a strong provisioning token receives `404`, `409` or `410`, the phone saves the rejection
+  and asks for a factory reset and a new QR code. A superseded light setup link asks for a
+  new link. If the `200` answer is lost, the same phone (same `installId`) may ask again
+  for 60 minutes and gets a new device token.
 - Code pairing keeps working, for QR codes made with the script and for self-hosters.
 - A phone entry that was never set up can be removed at once, also on a Self phone (there is no
   key to escape from yet).

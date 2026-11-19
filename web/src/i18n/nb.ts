@@ -199,6 +199,7 @@ export const nb: Messages = {
   "phone.updateFailed": "Oppdatering mislyktes",
   "phone.updateDetails": "Vis tekniske detaljer",
   "phone.updateBatteryExemptionMissing": "La Plainphone kjøre i bakgrunnen, og prøv på nytt.",
+  "phone.updateBatteryExemptionLegacy": "Trykk sju ganger på Versjon på telefonen og skriv inn foreldre-PIN-koden. Velg Åpne batteriinnstillinger, la Plainphone kjøre i bakgrunnen og trykk på Oppdater nå igjen.",
   "phone.updateNetwork": "Telefonen kunne ikke laste ned oppdateringen.",
   "phone.updateSignatureMismatch": "Oppdateringen bruker en annen signeringsnøkkel, eller telefonen kunne ikke bekrefte den. Hvis du flytter fra Plainphone v0.1.9 eller tidligere til v0.1.10 eller nyere, setter du opp telefonen på nytt. I lett modus slår du av Plainphone før du avinstallerer og installerer den på nytt. I sterk modus, sikkerhetskopier dataene dine og tilbakestill telefonen til fabrikkstandard.",
   "phone.updateVersionNotNewer": "Oppdateringen er ikke nyere enn den installerte appen.",

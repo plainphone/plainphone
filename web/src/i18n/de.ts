@@ -199,6 +199,7 @@ export const de: Messages = {
   "phone.updateFailed": "Update fehlgeschlagen",
   "phone.updateDetails": "Technische Details anzeigen",
   "phone.updateBatteryExemptionMissing": "Lassen Sie Plainphone im Hintergrund laufen und versuchen Sie es dann erneut.",
+  "phone.updateBatteryExemptionLegacy": "Tippen Sie auf dem Telefon siebenmal auf Version und geben Sie die Eltern-PIN ein. Wählen Sie Batterieeinstellungen öffnen, erlauben Sie Plainphone die Ausführung im Hintergrund und tippen Sie erneut auf Jetzt aktualisieren.",
   "phone.updateNetwork": "Das Telefon konnte das Update nicht herunterladen.",
   "phone.updateSignatureMismatch": "Das Update verwendet einen anderen Signaturschlüssel oder das Telefon konnte ihn nicht überprüfen. Wenn Sie von Plainphone v0.1.9 oder früher auf v0.1.10 oder höher wechseln, richten Sie das Telefon erneut ein. Schalten Sie Plainphone im einfachen Modus aus, bevor Sie es deinstallieren und erneut installieren. Sichern Sie im starken Modus Ihre Daten und setzen Sie das Telefon auf die Werkseinstellungen zurück.",
   "phone.updateVersionNotNewer": "Das Update ist nicht neuer als die installierte App.",

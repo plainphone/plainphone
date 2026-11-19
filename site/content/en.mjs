@@ -324,6 +324,10 @@ export default {
                   "Invitations",
                   "Deleted when accepted. Otherwise they stop working after 7 days and are deleted a day later. You can withdraw an open invitation at any time",
                 ],
+                [
+                  "Setup code hashes and saved setup settings",
+                  "Eligible for cleanup 30 days after the code expires. Removing the phone deletes them",
+                ],
                 ["Web filter counters", "24 hours"],
                 [
                   "Backups of the database",

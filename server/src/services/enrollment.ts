@@ -7,7 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { and, eq, isNull, lt, ne } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { enrollments, households, phones, users } from "../db/schema.js";
 import { randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { provisioningInfo } from "../lib/provisioning.js";
@@ -18,6 +18,8 @@ import { pairingAccount } from "./pairing-account.js";
 export const ENROLLMENT_HOURS = 24;
 /** A phone whose answer got lost may ask again with the same token and install id this long. */
 export const ENROLLMENT_RETRY_MINUTES = 60;
+/** Keep expired rows as tombstones long enough to distinguish stale codes from unknown ones. */
+const ENROLLMENT_RETENTION_DAYS = 30;
 export const ENROLLMENT_PREFIX = "pp_e_";
 const OUTDATED_QR = "This QR code is out of date. Make a new one.";
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -58,12 +60,13 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
   const now = ctx.now();
   const expiresAt = new Date(now.getTime() + ENROLLMENT_HOURS * 3_600_000);
   // Prune outside the phone transaction so cleanup never locks other phones' tokens under that lock.
-  await ctx.db.delete(enrollments).where(lt(enrollments.expiresAt, new Date(now.getTime() - 3_600_000)));
+  const cutoff = new Date(now.getTime() - ENROLLMENT_RETENTION_DAYS * 24 * 3_600_000);
+  await ctx.db.delete(enrollments).where(lt(enrollments.expiresAt, cutoff));
   return ctx.db.transaction(async (tx) => {
     const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
     if (!phone || phone.pairedAt || phone.deviceTokenHash) return null;
     const provisioning = provisioningInfo(ctx.cfg, phone);
-    await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phoneId), isNull(enrollments.invalidatedAt)));
+    await invalidateEnrollments(tx, phoneId, now);
     const [row] = await tx.insert(enrollments).values({
       tokenHash: sha256(token), phoneId, createdBy: userId, expiresAt, provisioning,
     }).returning({ id: enrollments.id });
@@ -73,7 +76,7 @@ export async function issueEnrollment(ctx: Ctx, phoneId: string, userId: string)
 
 export type EnrollResult =
   | { status: 200; phoneId: string; deviceToken: string; setupUndoMinutes: number | null; account: ReturnType<typeof pairingAccount> }
-  | { status: 400 | 404 | 409 | 410; error: string };
+  | { status: 400 | 404 | 409 | 410; error: string; code?: "outdated_qr" };
 
 /**
  * Redeems a token. One-time: the first phone wins. The same phone (same install id) may ask again
@@ -114,7 +117,11 @@ export async function redeemEnrollment(
       await tx.update(phones).set({ deviceTokenHash: sha256(deviceToken) }).where(eq(phones.id, phone.id));
       return paired();
     }
-    if (!enrollmentMatches(ctx, e, phone)) return { status: 409, error: OUTDATED_QR };
+    if (e.invalidatedAt) return { status: 410, error: OUTDATED_QR, code: "outdated_qr" };
+    if (!enrollmentMatches(ctx, e, phone)) {
+      await tx.update(enrollments).set({ invalidatedAt: now }).where(eq(enrollments.id, e.id));
+      return { status: 409, error: OUTDATED_QR };
+    }
     if (e.expiresAt <= now) return { status: 410, error: "this setup code has expired; make a new one in the dashboard" };
     // Paired some other way meanwhile (a pairing code): the entry is taken.
     if (phone.deviceTokenHash !== null) return { status: 410, error: "this phone is already paired" };
@@ -126,7 +133,7 @@ export async function redeemEnrollment(
       .set({ deviceTokenHash: sha256(deviceToken), pairedAt: now, deviceInfo: input.deviceInfo })
       .where(and(eq(phones.id, phone.id), isNull(phones.deviceTokenHash)));
     await tx.update(enrollments).set({ usedAt: now, installIdHash: installHash }).where(eq(enrollments.id, e.id));
-    await tx.delete(enrollments).where(and(eq(enrollments.phoneId, phone.id), ne(enrollments.id, e.id), isNull(enrollments.invalidatedAt)));
+    await invalidateEnrollments(tx, phone.id, now);
     return { ...(await paired()), ownerId: e.createdBy };
   });
   if ("ownerId" in result && result.ownerId) await sendInitialKeyInvite(ctx, input.key, result.ownerId);

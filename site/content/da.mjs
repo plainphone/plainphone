@@ -324,6 +324,10 @@ export default {
                   "Invitationer",
                   "Slettes, når de tages imod. Ellers holder de op med at virke efter 7 dage og slettes et døgn senere. Du kan altid trække en åben invitation tilbage",
                 ],
+                [
+                  "Hashværdier for opsætningskoder og gemte opsætningsindstillinger",
+                  "Kan ryddes op 30 dage efter kodens udløb. De slettes, når telefonen fjernes",
+                ],
                 ["Webfilterets tællere", "24 timer"],
                 [
                   "Sikkerhedskopier af databasen",

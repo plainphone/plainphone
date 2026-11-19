@@ -43,7 +43,8 @@ class PairingController(
         if (store.enrollmentOutdated) return EnrollResult.OutdatedQr
         if (!canRedeemEnrollment()) return null
         val token = store.enrollToken() ?: return null
-        val result = api.enroll(token, store.installId(), deviceInfo)
+        val response = api.enroll(token, store.installId(), deviceInfo)
+        val result = if (mode == "strong" && response == EnrollResult.Rejected) EnrollResult.OutdatedQr else response
         when (result) {
             is EnrollResult.Paired -> store.savePaired(result.phoneId, result.deviceToken, result.account.takeIf { mode == "strong" }, result.setupUndoMinutes)
             EnrollResult.OutdatedQr -> store.markEnrollmentOutdated()
