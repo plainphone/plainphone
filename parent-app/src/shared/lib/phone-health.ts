@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { MessageKey, T } from "../i18n/translate";
 import { formatRelative } from "./format";
+import { filterStatusKey } from "./filter-status";
 
 const PHONE_STATUS_STALE_MS = 20 * 60_000;
 
@@ -15,6 +16,9 @@ type PhoneHealth = {
     maintenance: boolean;
     callRoleActionNeeded?: boolean;
     webFilterActive?: boolean | null;
+    filterMethod?: "vpn" | "privateDns";
+    filterWorking?: boolean;
+    filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
     protections?: Partial<Record<string, boolean>>;
   } | null;
 };
@@ -57,7 +61,10 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
   // A recent rules poll can arrive without a new status report. Use each timestamp separately.
   const status = seen && recent(phone.status?.reportedAt, now) ? phone.status : undefined;
   const unknown = t(seen ? "health.waitForReport" : "health.reconnect");
-  const filter = status?.webFilterActive;
+  // A light-mode phone checks the method it was set up with (VPN or Private DNS); others report webFilterActive.
+  const filterKey = filterStatusKey(status);
+  const filter = filterKey ? status?.filterWorking : status?.webFilterActive;
+  const inconclusive = status?.filterIssue === "waiting" || status?.filterIssue === "unverified";
   const role = status?.protections?.phoneRole ?? (status?.callRoleActionNeeded ? false : undefined);
   const rows: HealthRow[] = [
     {
@@ -70,9 +77,9 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
       key: "filter", label: t("health.filter"),
       detail: phone.dnsConfigured === false ? t("health.noFilterService") :
         phone.dnsReady === false ? t("health.filterWaiting") :
-        !status ? unknown : filter === true ? t("health.filterOn") :
+        !status ? unknown : filterKey ? t(filterKey) : filter === true ? t("health.filterOn") :
         filter === false ? t("health.fixFilter") : t("health.filterUnknown"),
-      action: phone.dnsReady === true && filter === false,
+      action: phone.dnsReady === true && filter === false && !inconclusive,
     },
     {
       key: "dialer", label: t("prot.phoneRole"),
@@ -90,6 +97,8 @@ export function healthRows(phone: PhoneHealth, now: number, locale: "da" | "en",
   ];
   if (phone.mode === "light") {
     for (const key of LIGHT_CHECKS) {
+      // Private DNS does not use the VPN, so Always-on VPN advice would only confuse.
+      if (key === "alwaysOnVpn" && status?.filterMethod === "privateDns") continue;
       const protections = status?.protections;
       const value = key === "usageAccess" ? protections?.usageAccessGranted : protections?.[key];
       const usageNotRequired = key === "usageAccess" && protections?.usageAccess === true;

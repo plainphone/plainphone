@@ -168,7 +168,9 @@ fun rulesJson(
     locationMode: String? = null,
     ring: String? = null,
     checkIn: String? = null,
+    filterMethod: String? = null,
 ): String {
+    val method = filterMethod?.let { ""","filterMethod":"$it"""" } ?: ""
     val mode = locationMode?.let { ""","mode":"$it"""" } ?: ""
     val safety = (ring?.let { ""","ring":$it""" } ?: "") + (checkIn?.let { ""","checkIn":$it""" } ?: "")
     val install = toInstall?.let { ""","toInstall":$it""" } ?: ""
@@ -181,7 +183,7 @@ fun rulesJson(
      "apps":{"allowed":${allowed.joinToString(",", "[", "]") { "\"$it\"" }},"hidden":${hidden.joinToString(",", "[", "]") { "\"$it\"" }}$install},
      "contacts":$contacts,
      "schedules":$schedules,
-     "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready,"blockedCategories":["adult"]},
+     "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready$method,"blockedCategories":["adult"]},
      "location":{"enabled":$locationEnabled$mode,"intervalMinutes":5,"requestedAt":$req}$safety,
      "pendingChanges":[]$rel,
      "pollSeconds":60$limits}

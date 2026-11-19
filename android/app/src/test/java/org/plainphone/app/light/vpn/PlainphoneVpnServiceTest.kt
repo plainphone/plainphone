@@ -9,6 +9,8 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import org.plainphone.app.light.LightRelease
+import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.rulesJson
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -119,6 +121,23 @@ class PlainphoneVpnServiceTest {
         assertThat(result).isEqualTo(Service.START_NOT_STICKY)
         controller.destroy()
         assertThat(PlainphoneVpnService.lastRevokedAt(context)).isEqualTo(0L)
+    }
+
+    @Test
+    fun `private DNS rules stop explicit starts and Android restarts`() {
+        val store = SyncStore(context)
+        val rules = rulesJson()
+        store.saveRules("private", rules.replace("\"dns\":{", "\"dns\":{\"filterMethod\":\"privateDns\","), 0)
+        assertThat(PlainphoneVpnService.start(context, "abc123.dns.plainphone.org")).isFalse()
+        val prefs = context.getSharedPreferences(PlainphoneVpnService.PREFS, Context.MODE_PRIVATE)
+        PlainphoneVpnService.chooseHost("abc123.dns.plainphone.org", prefs)
+        val controller = Robolectric.buildService(PlainphoneVpnService::class.java).create()
+        assertThat(controller.get().onStartCommand(null, 0, 1)).isEqualTo(Service.START_NOT_STICKY)
+        assertThat(PlainphoneVpnService.isRunning()).isFalse()
+        controller.destroy()
+        assertThat(PlainphoneVpnService.lastRevokedAt(context)).isEqualTo(0L)
+        store.saveRules("vpn", rules, 1)
+        assertThat(PlainphoneVpnService.start(context, "abc123.dns.plainphone.org")).isTrue()
     }
 
     @Test

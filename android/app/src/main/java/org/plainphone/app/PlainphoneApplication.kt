@@ -105,6 +105,16 @@ class PlainphoneApplication : Application() {
                     org.plainphone.app.light.vpn.VpnEvent.Stopped -> SyncScheduler.now(this, "DNS filter stopped")
                 }
             }
+            val dnsObserver = object : android.database.ContentObserver(android.os.Handler(mainLooper)) {
+                override fun onChange(selfChange: Boolean) {
+                    if (org.plainphone.app.light.Mode.isLight(this@PlainphoneApplication)) {
+                        SyncScheduler.soon(this@PlainphoneApplication, 2)
+                    }
+                }
+            }
+            for (key in listOf("private_dns_mode", "private_dns_specifier")) {
+                contentResolver.registerContentObserver(android.provider.Settings.Global.getUriFor(key), false, dnsObserver)
+            }
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
                 object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {

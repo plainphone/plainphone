@@ -23,6 +23,18 @@ describe("phone health", () => {
   });
 
   it.each([
+    { filterWorking: true, filterIssue: undefined, action: false, detail: "filter.privateWorking" },
+    { filterWorking: false, filterIssue: "wrongHost", action: true, detail: "filter.privateWrongHost" },
+    { filterWorking: false, filterIssue: "unverified", action: false, detail: "filter.privateUnverified" },
+  ] as const)("shows the Private DNS filter state (%#)", ({ filterWorking, filterIssue, action, detail }) => {
+    const status = { ...phone.status, webFilterActive: undefined, filterMethod: "privateDns" as const, filterWorking, filterIssue,
+      protections: { alwaysOnVpn: false, phoneRole: true } };
+    const rows = healthRows({ ...phone, status }, now, "en", t);
+    expect(rows.find((row) => row.key === "filter")).toMatchObject({ action, detail: t(detail) });
+    expect(rows.some((row) => row.key === "alwaysOnVpn")).toBe(false);
+  });
+
+  it.each([
     { protections: { usageAccess: true }, action: false, detail: "health.waitForReport" },
     { protections: { usageAccess: true, usageAccessGranted: false }, action: false, detail: "health.usageAccessOff" },
     { protections: { usageAccess: false, usageAccessGranted: false }, action: true, detail: "health.fix.usageAccess" },

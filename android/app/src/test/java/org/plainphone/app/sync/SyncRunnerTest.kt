@@ -11,6 +11,8 @@ import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.StepResult
+import org.plainphone.app.light.FilterHealth
+import org.plainphone.app.light.FilterMethod
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.contacts.SyncedContactPolicySource
 import org.robolectric.RobolectricTestRunner
@@ -589,6 +591,34 @@ class SyncRunnerTest {
         assertThat(api.statuses.last().webFilterActive).isNull()
         assertThat(api.statuses.last().protections).containsExactly("usageAccess", true)
         assertThat(api.statuses.last().lockIntact).isTrue()
+    }
+
+    @Test
+    fun `a new Private DNS filter is only confirmed once the phone has verified it`() {
+        pair()
+        device.lock = device.lock.copy(mode = "light")
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(filterMethod = "privateDns"))
+        device.lock = device.lock.copy(
+            receipt = AppliedRulesReceipt("\"e1\"", device.now),
+            filter = FilterHealth(FilterMethod.PRIVATE_DNS, false, "unverified"),
+        )
+        runner.run("applied, not verified")
+        assertThat(api.statuses.last().rulesEtag).isNull()
+        assertThat(api.statuses.last().rulesReceiptConfirmed).isFalse()
+
+        device.lock = device.lock.copy(filter = FilterHealth(FilterMethod.PRIVATE_DNS, true))
+        api.rules = RulesResult.Unchanged
+        runner.run("verified")
+        assertThat(api.statuses.last().rulesEtag).isEqualTo("\"e1\"")
+
+        // A later rule change is confirmed even while the filter has a problem: the phone applied it.
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(filterMethod = "privateDns", locationEnabled = false))
+        device.lock = device.lock.copy(
+            receipt = AppliedRulesReceipt("\"e2\"", device.now),
+            filter = FilterHealth(FilterMethod.PRIVATE_DNS, false, "unverified"),
+        )
+        runner.run("unrelated change")
+        assertThat(api.statuses.last().rulesEtag).isEqualTo("\"e2\"")
     }
 
     @Test

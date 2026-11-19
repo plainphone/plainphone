@@ -52,6 +52,7 @@ export async function createPhone(
     deviceTokenHash: string | null;
     deviceInfo: Record<string, string> | null;
     timezone?: string;
+    filterMethod?: Phone["filterMethod"];
   },
 ): Promise<Phone> {
   // Runs inside the caller's transaction, together with the pairing it claims.
@@ -62,6 +63,7 @@ export async function createPhone(
       name: input.name,
       profile: input.profile,
       mode: input.mode,
+      filterMethod: input.mode === "light" ? input.filterMethod : "vpn",
       deviceTokenHash: input.deviceTokenHash,
       deviceInfo: input.deviceInfo,
       dnsClientId: dnsClientId(),
@@ -181,6 +183,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       healthBoardEnabled: phone.healthBoardEnabled,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
+      privateDnsReady: isDnsReady(ctx, phone),
+      filterMethod: phone.filterMethod,
       rulesRevision: phone.rulesRevision,
       rulesWaitingForDns: phone.rulesAwaitDns && phone.dnsDirty,
       locationEnabled: phone.locationEnabled,
@@ -250,6 +254,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       // The phone switches to `host` only when this is true: the DNS service refuses ClientIDs
       // it has not accepted yet, and a phone on a refusing resolver has no DNS at all.
       ready: phone.dnsReady,
+      ...(phone.mode === "light" ? { privateDnsReady: phone.privateDnsReady } : {}),
+      filterMethod: phone.filterMethod,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
     rulesRevision: phone.rulesRevision,
@@ -368,7 +374,8 @@ function visibleNotice(notice: StatusNotice | undefined, now: Date): true | unde
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
-    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt, ...status } = phone.deviceStatus;
+    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
+    lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
   const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));

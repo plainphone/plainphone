@@ -50,6 +50,8 @@ export function describeOp(op: Op, t: T, locale: Locale, appLabel: (pkg: string)
       return t(op.restricted ? "contacts.restrictOn" : "contacts.restrictOff");
     case "contact.remove":
       return t("op.contactRemove");
+    case "dns.method":
+      return t(op.method === "privateDns" ? "filter.privateDns" : "filter.vpn");
     case "dns.category":
       return t(op.blocked ? "op.categoryOn" : "op.categoryOff", {
         category: categoryLabel(op.category, t).toLocaleLowerCase(locale === "da" ? "da-DK" : "en-GB"),

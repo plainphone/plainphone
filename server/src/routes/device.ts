@@ -7,7 +7,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
+import { contacts, householdMembers, enrollments, households, pairings, pendingChanges, phoneApps, phones, selfKeys, users, notificationMutes, FILTER_METHODS, PRIVATE_DNS_ISSUES, PROTECTIONS, safetyRequests, UPDATE_ERROR_CODES } from "../db/schema.js";
 import { pairingCode, randomToken, safeEqualHex, sha256 } from "../lib/crypto.js";
 import { body, clientIp, RateLimiter } from "../lib/http.js";
 import { approvalChallengeHash, issueApprovalChallenge } from "../lib/approval-challenge.js";
@@ -25,7 +25,7 @@ import { selfFavouriteInput, suggestContacts, suggestedContactsInput } from "../
 import type { Ctx } from "../services/context.js";
 import { phoneCountry, STARTER_PACKS } from "../services/catalog.js";
 import { limitTarget } from "../services/limits.js";
-import { notifyHousehold, protectionLost } from "../services/notifications.js";
+import { notifyHousehold, notifyAlertRecipients, protectionLost } from "../services/notifications.js";
 import { queueSetupUndoNotices } from "../services/setup-undo-notices.js";
 import { installOverrunFromStatus, isInstallOverrun, parallelAppsRemovalFromStatus, respondWithRules, withAttestation } from "../services/phones.js";
 import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety, storeLatestLocation } from "../services/safety.js";
@@ -52,6 +52,7 @@ function starterPack(timezone: string): Set<string> {
   return new Set(country ? STARTER_PACKS[country] : []);
 }
 
+const LIGHT_FILTER_POLICIES = new Set(["DNS filter (VPN)", "private DNS not pointing elsewhere"]);
 /** Light mode cannot be intact without these (docs/sync-api.md). */
 const LIGHT_LOCK = ["deviceAdmin", "accessibility", "usageAccess", "vpn", "phoneRole", "smsRole"] as const;
 
@@ -105,7 +106,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     );
   });
 
-  const pairingPoll = async (id: string, secret: string, action?: "confirm" | "cancel", key?: InitialSelfKey) => {
+  const pairingPoll = async (id: string, secret: string, action?: "confirm" | "cancel", key?: InitialSelfKey, filterMethod?: Phone["filterMethod"]) => {
     if (!z.uuid().safeParse(id).success) return { status: 404 as const };
     return ctx.db.transaction(async (tx) => {
       const [p] = await tx.select().from(pairings).where(eq(pairings.id, id)).for("update");
@@ -138,7 +139,13 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           const [phone] = await tx.select().from(phones).where(eq(phones.id, p.phoneId)).for("update");
           if (!phone || !(await setInitialSelfKey(tx, phone, key, now))) return { status: 400 as const };
         }
-        await tx.update(phones).set({ deviceTokenHash: sha256(p.pendingDeviceToken) })
+        await tx.update(phones).set({
+          deviceTokenHash: sha256(p.pendingDeviceToken),
+          ...(filterMethod ? {
+            filterMethod: sql`case when ${phones.profile} = 'self' and ${phones.mode} = 'light'
+              then ${filterMethod} else ${phones.filterMethod} end`,
+          } : {}),
+        })
           .where(eq(phones.id, p.phoneId));
       }
       const [setup] = p.mode === "light" ? await tx.select({ setupUndoMinutes: phones.setupUndoMinutes })
@@ -152,8 +159,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   app.on(["GET", "POST"], "/pairings/:id", async (c) => {
     const id = c.req.param("id");
     if (!pairPollLimit.take(`${clientIp(c, ctx.cfg.TRUST_PROXY)}:${id}`)) throw new HTTPException(429, { message: "slow down" });
-    const decision = c.req.method === "POST" ? await body(c, z.object({ action: z.enum(["confirm", "cancel"]), key: initialSelfKey.optional() })) : undefined;
-    const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", decision?.action, decision?.key);
+    const decision = c.req.method === "POST" ? await body(c, z.object({ action: z.enum(["confirm", "cancel"]), key: initialSelfKey.optional(), filterMethod: z.enum(FILTER_METHODS).optional() })) : undefined;
+    const result = await pairingPoll(id, c.req.header("x-poll-secret") ?? "", decision?.action, decision?.key, decision?.filterMethod);
     c.header("Cache-Control", "no-store");
     if (result.status === 404) throw new HTTPException(404, { message: "not found" });
     if (result.status === 410) return c.json({ error: "expired" }, 410);
@@ -232,6 +239,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         token: z.string().startsWith(ENROLLMENT_PREFIX).max(100),
         installId: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
         key: initialSelfKey.optional(),
+        filterMethod: z.enum(FILTER_METHODS).optional(),
         deviceInfo: deviceInfo.optional(),
       }),
     );
@@ -681,6 +689,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         lateGoogleAccountId: z.uuid().optional(),
         mode: z.enum(["strong", "light"]).optional(),
         protections: protections.optional(),
+        filterMethod: z.enum(FILTER_METHODS).optional(),
+        filterWorking: z.boolean().optional(),
+        filterIssue: z.enum(PRIVATE_DNS_ISSUES).optional(),
         timeUsed: z
           .record(limitTarget, z.number().int().min(0).max(1440))
           .refine((r) => Object.keys(r).length <= 200, "at most 200 entries")
@@ -697,12 +708,19 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       input.lockIntact &&
       (!light ||
         (p !== undefined &&
-          LIGHT_LOCK.every((k) => p[k] === true) &&
+          LIGHT_LOCK.every((k) => k === "vpn" && input.filterMethod === "privateDns"
+            ? input.filterWorking === true : p[k] === true) && input.filterWorking !== false &&
           input.failedPolicies.length === 0 &&
           !input.maintenance));
     const { installOverrunSequence: sequence, parallelAppsRemoved, parallelAppsRemovedId,
       lateGoogleAccountId, ...reportedStatus } = input;
     const status = { ...reportedStatus, lockIntact, rulesAppliedAt: appliedAt?.toISOString() ?? null };
+    const reportsFilter = light && input.filterMethod !== undefined && input.filterWorking !== undefined;
+    // Filter setup and inconclusive canaries should not mask losses of other light protections.
+    const lockIntactWithoutFilter = reportsFilter
+      ? !input.maintenance && LIGHT_LOCK.every((k) => k === "vpn" || p?.[k] === true) &&
+        input.failedPolicies.every((step) => LIGHT_FILTER_POLICIES.has(step))
+      : undefined;
     const policy = input.failedPolicies.find(isInstallOverrun);
     const lost = await ctx.db.transaction(async (tx) => {
       // Serialize reports so retries keep the original expiry and only one report sees protection lost.
@@ -738,17 +756,45 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const rulesReceiptReceivedAt = status.rulesReceiptConfirmed === true && status.rulesEtag && status.rulesAppliedAt
         ? (sameReceipt ? previous?.rulesReceiptReceivedAt ?? prev.reportedAt?.toISOString() : undefined) ?? now.toISOString()
         : undefined;
+      const previousFilter = reportsFilter && prev.status?.filterMethod === input.filterMethod
+        ? prev.status?.lastConfirmedFilterWorking ?? (prev.status?.filterWorking === true ? true : undefined)
+        : undefined;
+      const confirmedLoss = input.filterWorking === false && (input.filterMethod === "vpn" ||
+        (input.filterMethod === "privateDns" &&
+          (input.filterIssue === "off" || input.filterIssue === "automatic" || input.filterIssue === "wrongHost")));
+      const lastConfirmedFilterWorking = !reportsFilter || input.maintenance ? previousFilter
+        : input.filterWorking === true ? true : confirmedLoss ? false : previousFilter;
       await tx.update(phones).set({
-        deviceStatus: { ...status, rulesReceiptReceivedAt, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice },
+        deviceStatus: {
+          ...status, rulesReceiptReceivedAt, installOverrun, parallelAppsRemovedNotice, lateGoogleAccountNotice,
+          lastConfirmedFilterWorking, lockIntactWithoutFilter,
+        },
         statusReportedAt: now,
       }).where(eq(phones.id, phone.id));
-      return protectionLost(
-        prev.status ? withAttestation(prev.status, prev.attestation) : null,
-        withAttestation(status, prev.attestation),
+      const filterLost = previousFilter === true && confirmedLoss && !input.maintenance;
+      const lockLost = protectionLost(
+        prev.status ? withAttestation({
+          ...prev.status, lockIntact: prev.status.lockIntactWithoutFilter ?? prev.status.lockIntact,
+        }, prev.attestation) : null,
+        withAttestation({ ...status, lockIntact: lockIntactWithoutFilter ?? status.lockIntact }, prev.attestation),
       );
+      return { reason: lockLost ?? (filterLost ? "lock" as const : null), filterLost };
     });
-    if (lost) {
-      await notifyHousehold(ctx, phone.id, { type: "protection", phoneId: phone.id, phoneName: phone.name, reason: lost });
+    if (lost?.reason) {
+      const event = { type: "protection" as const, phoneId: phone.id, phoneName: phone.name, reason: lost.reason };
+      await notifyHousehold(ctx, phone.id, event);
+      if (lost.filterLost && phone.profile === "self") {
+        const household = ctx.db.select({ id: householdMembers.userId }).from(householdMembers)
+          .where(eq(householdMembers.householdId, phone.householdId));
+        const muted = ctx.db.select({ id: notificationMutes.userId }).from(notificationMutes)
+          .where(eq(notificationMutes.phoneId, phone.id));
+        const recipients = await ctx.db.select({ id: users.id, email: users.email, locale: users.locale })
+          .from(selfKeys).innerJoin(users, eq(users.id, selfKeys.trustedUserId)).where(and(
+            eq(selfKeys.phoneId, phone.id), eq(selfKeys.keyType, "trusted"),
+            notInArray(selfKeys.trustedUserId, household), notInArray(selfKeys.trustedUserId, muted),
+          ));
+        await notifyAlertRecipients(ctx, recipients, { ...event, trusted: true });
+      }
     }
     return c.body(null, 204);
   });

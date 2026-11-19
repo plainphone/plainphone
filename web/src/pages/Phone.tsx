@@ -16,6 +16,7 @@ import {
 } from "../lib/api";
 import { formatAccountTypes, formatDateTime, formatDuration, formatList, formatPatchMonth, formatRelative, installWindowOverrunSeconds } from "../lib/format";
 import { lockStepLabel } from "../lib/lock-steps";
+import { filterStatusKey } from "../lib/filter-status";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
@@ -363,6 +364,7 @@ function RuleReceipt({ phone }: { phone: Phone }) {
 export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
+  const filterStatus = filterStatusKey(s);
   const patchMonth = formatPatchMonth(phone.attestation?.osPatchLevel, locale);
   const failures = s?.failedPolicies ?? [];
   const overrun = failures.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
@@ -387,6 +389,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           ))}
         </dl>
       )}
+      {!showHealth && filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
       {lockNeedsAction && (!showHealth || failedSteps.length > 0) && (
         <div className="notice notice-error" role="status">
           <div>

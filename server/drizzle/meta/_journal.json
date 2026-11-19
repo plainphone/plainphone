@@ -136,7 +136,14 @@
       "breakpoints": true
     },
     {
-      "idx": 19,
+      "idx": 22,
+      "version": "7",
+      "when": 1795085561043,
+      "tag": "0022_filter_method",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
       "version": "7",
       "when": 1795087121399,
       "tag": "0026_receipts_health",

@@ -5,9 +5,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { phoneApps, phones } from "../src/db/schema.js";
+import { phoneApps, phones, selfKeys, users } from "../src/db/schema.js";
 import { catalogDir, catalogFile, loadCatalogs, PLAY_URL, STARTER_PACKS } from "../src/services/catalog.js";
 import { addDays, limitLoosens, localDate } from "../src/services/limits.js";
+import { syncDns } from "../src/services/dns.js";
 import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
@@ -97,6 +98,122 @@ describe("rules document", () => {
     r = await rules(device);
     expect(r.apps.toInstall).toEqual([]);
     expect(r.apps.allowed).toContain("dk.mitid.app.android");
+  });
+});
+
+describe("Private DNS filter", () => {
+  it("switches both ways for a light child and publishes the method in rules", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent, { mode: "light" });
+    const endpoint = `/api/phones/${phoneId}/dns/method`;
+    expect((await rules(device)).dns.filterMethod).toBe("vpn");
+    for (const method of ["privateDns", "vpn"]) {
+      expect((await parent.put(endpoint, { method })).json.status).toBe("applied");
+      expect((await rules(device)).dns.filterMethod).toBe(method);
+    }
+  });
+
+  it("requires confirmation from the configured DoT provider before offering Android setup", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent, { mode: "light" });
+    expect((await rules(device)).dns).toMatchObject({ ready: true, privateDnsReady: false });
+    Object.assign(h.ctx.cfg, { DNS_PROVIDER: "http", DNS_API_URL: "https://resolver.example.org" });
+    expect((await rules(device)).dns.privateDnsReady).toBe(false);
+    await syncDns(h.ctx, phoneId);
+    expect((await rules(device)).dns.privateDnsReady).toBe(true);
+    h.ctx.cfg.DNS_API_URL = "https://replacement.example.org";
+    expect((await rules(device)).dns.privateDnsReady).toBe(false);
+  });
+
+  it("stores Private DNS health without a VPN and alerts once on loss", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent, { mode: "light" });
+    await parent.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/fcm/send/parent",
+      keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) },
+    });
+    const status = { mode: "light", protections: { ...allOn, vpn: false }, filterMethod: "privateDns" };
+    const phoneStatus = async () => (await parent.get(`/api/phones/${phoneId}`)).json.status;
+    expect((await device.put("/api/device/status", report({ ...status, filterWorking: true }))).status).toBe(204);
+    expect(await phoneStatus()).toMatchObject({ lockIntact: true, filterMethod: "privateDns", filterWorking: true });
+    for (const filterIssue of ["off", "wrongHost", "automatic", "unverified"]) {
+      expect((await device.put("/api/device/status", report({ ...status, filterWorking: false, filterIssue }))).status).toBe(204);
+      expect(await phoneStatus()).toMatchObject({ lockIntact: false, filterWorking: false, filterIssue });
+    }
+    expect(h.parentPush.sent.map((s) => s.msg.tag)).toEqual([expect.stringMatching(/^lock-/)]);
+  });
+
+  it.each([true, false])("alerts the trusted person after confirmed Myself filter loss (push enabled: %s)", async (pushEnabled) => {
+    const owner = await signIn(h, "self@example.org");
+    const helper = await signIn(h, "helper@example.org");
+    const { phoneId, device } = await pairPhone(h, owner, { mode: "light", profile: "self" });
+    const [person] = await h.ctx.db.select({ id: users.id }).from(users).where(eq(users.email, "helper@example.org"));
+    await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedUserId: person!.id }).where(eq(selfKeys.phoneId, phoneId));
+    if (pushEnabled) await helper.post("/api/notifications/subscriptions", {
+      platform: "web", endpoint: "https://fcm.googleapis.com/fcm/send/helper",
+      keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) },
+    });
+    const status = { mode: "light", protections: { ...allOn, vpn: false }, filterMethod: "privateDns" };
+    const send = (over: Record<string, unknown>) => device.put("/api/device/status", report({ ...status, ...over }));
+    const protectionMail = () => h.mail.outbox.filter((m) => /Protection removed|Beskyttelsen er fjernet/.test(m.subject));
+    await send({ filterMethod: "vpn", filterWorking: true, protections: allOn });
+    await send({ filterWorking: false, filterIssue: "off", lockIntact: false });
+    await send({ filterWorking: true });
+    await send({ filterWorking: false, filterIssue: "unverified", lockIntact: false });
+    expect(h.parentPush.sent).toHaveLength(0);
+    expect(protectionMail()).toHaveLength(0);
+    await send({ filterWorking: false, filterIssue: "off", lockIntact: false });
+    await device.put("/api/device/status", report({ ...status, filterWorking: false, filterIssue: "off" }));
+    expect(h.parentPush.sent.map((s) => s.msg.url)).toEqual(pushEnabled ? ["/approvals"] : []);
+    expect(protectionMail().map((m) => m.to).sort()).toEqual(["helper@example.org", "self@example.org"]);
+    expect(protectionMail().find((m) => m.to === "helper@example.org")?.text).toContain("/approvals");
+  });
+
+  it("still alerts when another light protection is lost during an inconclusive DNS check", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { device } = await pairPhone(h, parent, { mode: "light" });
+    const status = { mode: "light", protections: { ...allOn, vpn: false }, filterMethod: "privateDns" };
+    await device.put("/api/device/status", report({ ...status, filterWorking: true }));
+    const uncertain = { ...status, filterWorking: false, filterIssue: "unverified", lockIntact: false };
+    await device.put("/api/device/status", report(uncertain));
+    const countAlerts = () => h.mail.outbox.filter((m) => /Protection removed|Beskyttelsen er fjernet/.test(m.subject)).length;
+    expect(countAlerts()).toBe(0);
+    await device.put("/api/device/status", report({
+      ...uncertain, protections: { ...status.protections, accessibility: false },
+    }));
+    expect(countAlerts()).toBe(1);
+  });
+
+  it("shows the trusted person both filter methods and rejects a stale preview", async () => {
+    const owner = await signIn(h, "self@example.org");
+    const helper = await signIn(h, "helper@example.org");
+    const { phoneId, device } = await pairPhone(h, owner, { mode: "light", profile: "self" });
+    const [person] = await h.ctx.db.select({ id: users.id }).from(users).where(eq(users.email, "helper@example.org"));
+    await h.ctx.db.update(selfKeys).set({ keyType: "trusted", trustedUserId: person!.id }).where(eq(selfKeys.phoneId, phoneId));
+    const requested = await owner.put(`/api/phones/${phoneId}/dns/method`, { method: "privateDns" });
+    expect(requested.json.change.keyType).toBe("trusted");
+    const preview = async () => (await helper.get("/api/approvals")).json.approvals[0];
+    const before = await preview();
+    expect(before.summary.en).toBe("Plainphone VPN → Private DNS");
+    expect((await rules(device)).dns.filterMethod).toBe("vpn");
+    await h.ctx.db.update(phones).set({ filterMethod: "privateDns" }).where(eq(phones.id, phoneId));
+    const approve = (revision: string) => helper.post(`/api/changes/${before.id}/approve`, { revision });
+    expect((await approve(before.revision)).status).toBe(409);
+    expect((await approve((await preview()).revision)).status).toBe(204);
+  });
+
+  it("queues both filter method changes on a paired Myself phone", async () => {
+    const parent = await signIn(h, "self@example.org");
+    const { phoneId, device } = await pairPhone(h, parent, { mode: "light", profile: "self" });
+    const endpoint = `/api/phones/${phoneId}/dns/method`;
+    const requested = await parent.put(endpoint, { method: "privateDns" });
+    expect(requested.status).toBe(202);
+    expect(requested.json.change).toMatchObject({ op: { type: "dns.method", method: "privateDns" }, keyType: "delay" });
+    expect((await rules(device)).dns.filterMethod).toBe("vpn");
+    h.clock.advance(25 * 60 * 60_000);
+    expect((await rules(device)).dns.filterMethod).toBe("privateDns");
+    expect((await parent.put(endpoint, { method: "vpn" })).status).toBe(202);
+    expect((await rules(device)).dns.filterMethod).toBe("privateDns");
   });
 });
 

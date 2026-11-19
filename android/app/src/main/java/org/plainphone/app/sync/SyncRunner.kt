@@ -8,6 +8,8 @@ import java.security.MessageDigest
 import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.contacts.DeviceContacts
+import org.plainphone.app.light.FilterHealth
+import org.plainphone.app.light.FilterMethod
 import org.plainphone.app.update.UpdateBatteryExemption
 
 internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
@@ -90,13 +92,14 @@ data class LockState(
     val callRoleActionNeeded: Boolean = false,
     val receipt: AppliedRulesReceipt? = null,
     val webFilterActive: Boolean? = null,
+    val filter: FilterHealth? = null,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
      * is a lock step, so a missing one is a failed policy. The strong-mode battery exemption
      * gates self-update and can be reported while the lock is intact.
      */
-    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && appliedAtMs != null &&
+    val intact: Boolean get() = (deviceOwner || mode == "light") && !maintenance && appliedAtMs != null && filter?.working != false &&
         failedPolicies.none { it != UpdateBatteryExemption.FAILED_POLICY }
 }
 
@@ -465,9 +468,27 @@ class SyncRunner(
         return true
     }
 
+    /**
+     * A new Private DNS filter is only confirmed once the phone has seen it work: applying the
+     * rules is not enough, because Android keeps the old DNS when the new host does not answer.
+     * Other rule changes are not held back by a filter that broke later; the health card shows that.
+     */
+    private fun filterVerified(rules: ServerRules, filter: FilterHealth?): Boolean {
+        val method = rules.filterMethod
+        if (store.filterMethodSeen != method.wire) {
+            store.filterMethodSeen = method.wire
+            store.filterVerified = false
+        }
+        if (filter?.working == true && filter.method == method && !store.filterVerified) store.filterVerified = true
+        return method != FilterMethod.PRIVATE_DNS || store.filterVerified
+    }
+
     private fun reportStatus(token: String, rules: ServerRules?) {
         val lock = device.lockState()
-        val receipt = lock.receipt?.takeIf { rules?.changeReceiptsEnabled == true && it.etag == store.etag }
+        val awaitingFilter = rules != null && lock.mode == "light" && !filterVerified(rules, lock.filter)
+        val receipt = lock.receipt?.takeIf {
+            rules?.changeReceiptsEnabled == true && it.etag == store.etag && !awaitingFilter
+        }
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
         val notices = store.statusNotices
@@ -499,6 +520,7 @@ class SyncRunner(
             protections = lock.protections?.let {
                 if (rules?.healthBoardEnabled == true) it else it - "usageAccessGranted"
             },
+            filter = lock.filter,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
         )

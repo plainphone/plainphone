@@ -121,8 +121,8 @@ phone                                      server                         parent
 
    | Field | Meaning |
    |---|---|
-   | `rulesReceiptConfirmed` | True when the ETag and timestamp represent a successful application. Older reports lack this confirmation because their ETag can refer to a fetched document. |
-   | `webFilterActive` | The phone observed the configured filter in use (`true`), observed that it was absent (`false`), or could not check (omitted or `null`). |
+   | `rulesReceiptConfirmed` | True when the ETag and timestamp represent a successful application. Older reports lack this confirmation because their ETag can refer to a fetched document. In light mode with the Private DNS filter, a phone holds the confirmation back until its own check has verified the filter (`filterWorking: true` for `privateDns`) after the parents chose that method. Later rule changes are confirmed even if the filter then breaks, because the phone did apply them; the health card shows the filter problem separately. |
+   | `webFilterActive` | The phone observed the configured filter in use (`true`), observed that it was absent (`false`), or could not check (omitted or `null`). Light-mode phones report the method they use in `filterMethod`, `filterWorking` and `filterIssue` instead, and the health card shows that result. Strong-mode phones keep using `webFilterActive`. |
    | `mode` | `strong` or `light`; missing means strong. It does not change the phone's mode, which is decided at pairing |
    | `protections` | What is active now, all booleans: `deviceOwner`, `deviceAdmin`, `accessibility`, `usageAccess`, `usageAccessGranted`, `vpn`, `alwaysOnVpn`, `phoneRole`, `smsRole`, `notifications`, `batteryUnrestricted`, `privateDnsOk`. Any other key is a `400` |
    | `timeUsed` | Minutes used today per limited package, `"*"` for the total; at most 200 entries, each 0 to 1440 |
@@ -224,6 +224,7 @@ releases signed with the same key.
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |
 | `dns.host`, `dns.ready` | Switch with `setGlobalPrivateDnsModeSpecifiedHost(host)` only when `dns.ready` is `true`. Until then keep the current (placeholder) host. The DNS service answers REFUSED for a ClientID it has not accepted yet, so switching early would leave the phone without DNS. `ready` stays `true` for previously confirmed phones during upgrades and retries. A confirmation from the mock provider requires a fresh sync when switching to HTTP DNS |
+| `dns.privateDnsReady` | Required before offering manual Private DNS setup. True only when the currently configured DoT service has accepted this phone’s ClientID. Mock confirmations and older rules without this field leave setup waiting |
 | `location` | `enabled`, `mode`, `intervalMinutes`, `requestedAt`; see above |
 | `ring`, `checkIn` | See above and [location.md](location.md) |
 | `settings` | Phone settings that are not free (camera, screen timeout, Bluetooth and so on), keys in alphabetical order. Applied only in strong mode. See [phone-settings.md](phone-settings.md) |

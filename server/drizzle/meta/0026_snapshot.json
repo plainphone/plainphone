@@ -1,6 +1,6 @@
 {
   "id": "f4415036-fec7-43a5-b569-b69647ec6409",
-  "prevId": "817ce7af-7232-4806-90fc-39207bea8f08",
+  "prevId": "61a1d02e-4f25-4560-9f94-78bf65357715",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1556,6 +1556,13 @@
           "notNull": true,
           "default": "'strong'"
         },
+        "filter_method": {
+          "name": "filter_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vpn'"
+        },
         "timezone": {
           "name": "timezone",
           "type": "text",
@@ -1710,6 +1717,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "change_receipts_enabled": {
           "name": "change_receipts_enabled",
           "type": "boolean",
@@ -1737,13 +1751,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {

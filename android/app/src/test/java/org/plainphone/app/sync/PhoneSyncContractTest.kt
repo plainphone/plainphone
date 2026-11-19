@@ -17,6 +17,8 @@ import org.junit.runner.RunWith
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.SyncedContactPolicySource
+import org.plainphone.app.light.FilterHealth
+import org.plainphone.app.light.FilterMethod
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -187,15 +189,17 @@ class PhoneSyncContractTest {
     fun `light mode shows the account and waits for confirmation before pairing`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
         val pairing = PairingController(
-            store, PlainphoneApi(url), emptyMap(), mode = "light", profile = "child",
+            store, api, emptyMap(), mode = "light", profile = "self",
         )
         val started = pairing.start()
         assertThat(started.requiresConfirmation).isTrue()
         assertThat(pairing.poll()).isEqualTo(PairPoll.Waiting)
         val (status, claimed) = parent(
             "POST", "/phones/claim",
-            JSONObject().put("code", started.code).put("name", "Light phone").put("profile", "child"),
+            JSONObject().put("code", started.code).put("name", "Light phone").put("profile", "self")
+                .put("filterMethod", "privateDns"),
         )
         assertThat(status).isEqualTo(201)
         assertThat(claimed!!.isNull("pairedAt")).isTrue()
@@ -205,6 +209,34 @@ class PhoneSyncContractTest {
         assertThat(pairing.decide(confirm = true)).isInstanceOf(PairPoll.Paired::class.java)
         assertThat(store.phoneId).isEqualTo(claimed.getString("id"))
         assertThat(store.enrollmentAccount()).isNull()
+        val phonePath = "/phones/${store.phoneId}"
+        val device = FakeSyncDevice().apply {
+            now = System.currentTimeMillis()
+            lock = lock.copy(
+                appliedAtMs = now,
+                mode = "light",
+                deviceOwner = false,
+                protections = listOf("deviceAdmin", "accessibility", "usageAccess", "phoneRole", "smsRole")
+                    .associateWith { true } + ("vpn" to false),
+                filter = FilterHealth(FilterMethod.PRIVATE_DNS, true),
+            )
+        }
+        val runner = SyncRunner(store, api, device)
+        assertThat(runner.run("private DNS")).isInstanceOf(SyncRunner.Outcome.Synced::class.java)
+        assertThat(store.rules()!!.filterMethod).isEqualTo(FilterMethod.PRIVATE_DNS)
+        val green = parent("GET", phonePath).second!!.getJSONObject("status")
+        assertThat(green.getString("filterMethod")).isEqualTo("privateDns")
+        assertThat(green.getBoolean("filterWorking")).isTrue()
+        val (pendingStatus, pending) = parent("PUT", "$phonePath/dns/method", JSONObject().put("method", "vpn"))
+        assertThat(pendingStatus).isEqualTo(202)
+        assertThat(pending!!.getString("status")).isEqualTo("pending")
+        runner.run("filter switch is waiting for the key")
+        assertThat(store.rules()!!.filterMethod).isEqualTo(FilterMethod.PRIVATE_DNS)
+        device.lock = device.lock.copy(filter = FilterHealth(FilterMethod.PRIVATE_DNS, false, "wrongHost"))
+        runner.run("Private DNS host changed")
+        val broken = parent("GET", phonePath).second!!.getJSONObject("status")
+        assertThat(broken.getBoolean("filterWorking")).isFalse()
+        assertThat(broken.getString("filterIssue")).isEqualTo("wrongHost")
     }
 
     @Test
