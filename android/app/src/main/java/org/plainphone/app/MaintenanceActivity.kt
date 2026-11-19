@@ -247,7 +247,9 @@ class MaintenanceActivity : Activity() {
     }
 
     private fun showActions() {
-        val minutes = ConfigStore(this).load().relockMinutes
+        val config = ConfigStore(this).load()
+        column.addView(TextView(this).apply { text = getString(R.string.server_current, config.serverUrl) })
+        val minutes = config.relockMinutes
         column.addView(Button(this).apply {
             text = resources.getQuantityString(R.plurals.maintenance_lift, minutes, minutes)
             setOnClickListener { Lock.liftAsync(this@MaintenanceActivity, ::show) }

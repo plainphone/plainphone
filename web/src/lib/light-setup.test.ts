@@ -17,6 +17,15 @@ describe("light setup handoff", () => {
     expect(lightSetupIntent(url)).toBe(androidIntent.trim());
   });
 
+  it("carries a self-hosted origin and port through the dashboard link into Android", () => {
+    const custom = "https://my-plainphone.example.org:8443";
+    const link = new URL(lightSetupLink(custom, token, component, "en"));
+    expect(link.origin).toBe(custom);
+    const intent = lightSetupIntent(link);
+    expect(intent).toContain(`&server=${encodeURIComponent(custom)}#Intent;`);
+    expect(intent).toContain(encodeURIComponent(custom + "/download/android"));
+  });
+
   it("derives the package from the configured admin component", () => {
     const url = new URL(lightSetupLink(origin, token, "org.example.phone/.Admin", "en"));
     expect(lightSetupIntent(url)).toContain(";package=org.example.phone;");

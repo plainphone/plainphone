@@ -315,4 +315,10 @@
     <string name="self_template_share">Sæt op som mig</string>
     <string name="self_template_help">Del dine tidsgrænser, tidsrum, appvalg og webfilterets kategorier. Koden udløber efter 15 minutter.</string>
     <string name="self_tools">Hjælp hinanden</string>
+    <string name="server_current">Server: %1$s</string>
+    <string name="server_custom">Brug egen server</string>
+    <string name="server_address">Serveradresse</string>
+    <string name="server_error">Tjek adressen og den version af Plainphone, der kører på serveren.</string>
+    <string name="server_checking">Tjekker serveren…</string>
+    <string name="server_connect">Forbind</string>
 </resources>

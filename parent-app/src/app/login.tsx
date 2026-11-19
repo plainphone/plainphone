@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, client, unwrap } from "../api/client";
+import { ServerChoice } from "../components/ServerChoice";
 import { Mark } from "../components/Mark";
 import { Disclosure } from "../components/parts";
 import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Screen, Text } from "../components/ui";
@@ -16,7 +17,7 @@ export { EMAIL_RE };
 
 export default function LoginScreen() {
   const { t, locale } = useI18n();
-  const { state, next, takeNext } = useSession();
+  const { state, next, takeNext, serverUrl } = useSession();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,10 +27,12 @@ export default function LoginScreen() {
   const [mail, setMail] = useState<boolean | null>(null);
 
   useEffect(() => {
+    let active = true;
     unwrap<{ mail?: string }>(client.GET("/health"))
-      .then((h) => setMail(h?.mail ? h.mail !== "none" : null))
-      .catch(() => setMail(null));
-  }, []);
+      .then((h) => { if (active) setMail(h?.mail ? h.mail !== "none" : null); })
+      .catch(() => { if (active) setMail(null); });
+    return () => { active = false; };
+  }, [serverUrl]);
 
   const signedIn = state.status === "in";
   // Only while this screen is in front: a login link may have opened on top of it.
@@ -79,6 +82,7 @@ export default function LoginScreen() {
           <Mark size={36} />
           <Text variant="heading">{t("app.name")}</Text>
         </View>
+        <ServerChoice disabled={busy || !!sentTo} />
         {sentTo && mail !== false ? (
           <>
             <PageTitle>{t("login.sentTitle")}</PageTitle>

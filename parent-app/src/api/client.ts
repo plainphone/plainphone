@@ -4,7 +4,7 @@
 // (`pnpm gen:api` writes src/api/schema.d.ts). Native apps authenticate with
 // `Authorization: Bearer pp_s_…` and never send cookies.
 import createClient, { type Middleware } from "openapi-fetch";
-import { API_URL } from "../lib/config";
+import { SERVER_URL } from "../lib/config";
 import type { paths } from "./schema";
 
 export interface Issue {
@@ -61,10 +61,11 @@ const auth: Middleware = {
   },
 };
 
-export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
+export function makeClient(baseUrl = `${SERVER_URL}/api`, fetchImpl?: typeof fetch) {
   const c = createClient<paths>({
     baseUrl,
     credentials: "omit",
+    redirect: "error",
     // Late-bound, so tests can swap globalThis.fetch.
     fetch: fetchImpl ?? ((req: Request) => globalThis.fetch(req)),
   });
@@ -72,7 +73,11 @@ export function makeClient(baseUrl = API_URL, fetchImpl?: typeof fetch) {
   return c;
 }
 
-export const client = makeClient();
+export let client = makeClient();
+
+export function configureApiServer() {
+  client = makeClient();
+}
 
 type Result = { data?: unknown; error?: unknown; response: Response };
 

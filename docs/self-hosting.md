@@ -4,9 +4,6 @@ Plainphone's server and the parent web app (PWA) ship as one Docker image. Postg
 the data. The filtering DNS service is separate; see [self-hosting-dns.md](self-hosting-dns.md)
 when it exists, or run without it (`DNS_PROVIDER=mock`).
 
-> Status: early. It runs and is tested, but phones do not yet use the server (phase 4 connects
-> them). Do not rely on it for a real child's phone yet.
-
 ## Quick start
 
 ```sh
@@ -21,6 +18,29 @@ Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front and point y
 it. Then set `TRUST_PROXY=true` and stop publishing port 8080 to the internet, so rate limits
 see each client's own address. `PUBLIC_URL` must be the address parents open, because it goes into sign-in mails and the
 pairing QR code.
+
+## Connect the apps
+
+In the native parent app, select **Use your own server** at sign-in or in Settings.
+Enter the same HTTPS origin you set as `PUBLIC_URL`. The server must return
+`ok: true` and `compatibility: 1` from `/api/health`. Sign in again after changing servers.
+
+For a new Light setup without a dashboard QR, choose **Use your own server** on
+the pairing step before generating the pairing code. When you use a setup link or
+QR from your dashboard, the address is already included. Strong uses the address
+from its provisioning QR. On Android, the address is shown under Maintenance
+after the parent PIN is entered.
+
+## Move to your own server
+
+Selecting a different server in the parent app changes which account and dashboard
+you open. Household export and transfer of already paired phones are not available yet.
+
+If you are relocating a self-hosted instance you already operate, use a full
+[database backup](#backups) and keep its existing HTTPS address and filter DNS
+hostnames. Phones connect to the addresses they already know. Follow the
+[DNS backup and restore guide](self-hosting-dns.md) if you are also relocating
+the resolver.
 
 ## Configuration
 

@@ -102,7 +102,7 @@ export function createApp(ctx: Ctx) {
       await ctx.db.execute(sql`select 1`);
       // "mock" means no DNS service is configured; otherwise "ok" or "down" from its /healthz.
       const dns = ctx.cfg.DNS_PROVIDER === "mock" ? "mock" : (await dnsHealthy()) ? "ok" : "down";
-      return c.json({ ok: true, db: "ok", mail: ctx.mail.name, dns });
+      return c.json({ ok: true, compatibility: 1, db: "ok", mail: ctx.mail.name, dns });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

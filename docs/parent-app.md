@@ -101,7 +101,19 @@ EAS Build would do both in the cloud, but needs an Expo account; the project doe
 
 ## Your own server
 
-Build the app with your server and ids:
+Select **Use your own server** on the sign-in screen or in Settings, enter the HTTPS origin
+(e.g. `https://plainphone.example.org`), and select **Connect**. The app checks
+`/api/health` for `ok: true` and `compatibility: 1` before saving the address.
+Changing servers clears the session and you sign in again. Select **Use plainphone.org**
+to return to the hosted service. If the sign-in link opens your browser, choose **Open in the app**
+from the page served by your server.
+
+Native notification registration goes to the selected server when you enable notifications
+in Settings. Your build must provide a native APNs or FCM token. The built-in server provider
+delivers Web Push to the dashboard and stores native tokens for future delivery.
+
+To set a custom default and have the OS open your domain's links directly, build with
+your own address and app identifiers:
 
 ```sh
 PLAINPHONE_SERVER_URL=https://plainphone.example.org \

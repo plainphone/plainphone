@@ -38,7 +38,7 @@ async function health(dnsProvider: "mock" | "http") {
 
 describe("/api/health", () => {
   it("says mock when no DNS service is configured", async () => {
-    expect(await health("mock")).toEqual({ status: 200, json: { ok: true, db: "ok", mail: "memory", dns: "mock" } });
+    expect(await health("mock")).toEqual({ status: 200, json: { ok: true, compatibility: 1, db: "ok", mail: "memory", dns: "mock" } });
   });
 
   it("reports whether the DNS service answers", async () => {

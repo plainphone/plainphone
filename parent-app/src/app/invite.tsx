@@ -20,8 +20,8 @@ const inflight = new Map<string, Promise<unknown>>();
 export default function InviteScreen() {
   const { t } = useI18n();
   const router = useRouter();
-  const { state, refresh, setNext } = useSession();
-  const { token: linkToken, ready } = useLaunchToken();
+  const { state, refresh, setNext, serverUrl } = useSession();
+  const { token: linkToken, ready } = useLaunchToken(serverUrl);
   // The token kept from before the login. undefined: not looked up yet; null: none.
   const [kept, setKept] = useState<string | null | undefined>(undefined);
   const [outcome, setOutcome] = useState<{ token: string; result: "ok" | string } | null>(null);

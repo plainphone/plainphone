@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Push notifications, prepared but not yet delivered by the server:
-// - "approval": a change waits for your approval (trusted person) or a delay ended,
-// - "location": the position you asked for with Find is ready.
-//
-// The server will send these straight through APNs and FCM (no Expo push service),
-// with `data: { type: "approval" | "location", phoneId?: string }`. The app asks for
-// permission, creates the Android channels and reads the native device token. Until
-// the server has APNs/FCM keys and an endpoint to register the token, nothing is sent.
-// On Android, FCM also needs google-services.json at build time; without it the
-// token call fails and the app carries on without push.
 import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
+import { client, getSessionToken, unwrap } from "../api/client";
+import { SERVER_URL } from "./config";
 
 export type PushKind = "approval" | "location";
 
@@ -61,21 +53,21 @@ export async function pushState(): Promise<PushState> {
   return p.granted ? "granted" : p.canAskAgain ? "undetermined" : "denied";
 }
 
-/**
- * Asks for permission and returns the native push token (APNs or FCM), or null when
- * push is not available in this build. The token is not sent anywhere yet.
- */
-export async function enablePush(locale: "en" | "da"): Promise<{ state: PushState; token: string | null }> {
-  if (Platform.OS === "web") return { state: "unsupported", token: null };
+/** Requests permission and registers the native device on the signed-in server. */
+export async function enablePush(locale: "en" | "da"): Promise<PushState> {
+  const session = getSessionToken();
+  const server = SERVER_URL;
+  if (Platform.OS === "web") return "unsupported";
   await ensureChannels(locale);
-  const p = await Notifications.requestPermissionsAsync();
-  if (!p.granted) return { state: p.canAskAgain ? "undetermined" : "denied", token: null };
-  try {
-    const t = await Notifications.getDevicePushTokenAsync();
-    return { state: "granted", token: typeof t.data === "string" ? t.data : null };
-  } catch {
-    return { state: "granted", token: null };
-  }
+  const permission = await Notifications.requestPermissionsAsync();
+  if (!permission.granted) return permission.canAskAgain ? "undetermined" : "denied";
+  const { data: token } = await Notifications.getDevicePushTokenAsync();
+  if (typeof token !== "string") throw new Error("Native push token unavailable");
+  if (!session || session !== getSessionToken() || server !== SERVER_URL) throw new Error("Session changed");
+  await unwrap(client.POST("/notifications/subscriptions", {
+    body: { platform: Platform.OS === "ios" ? "apns" : "fcm", token },
+  }));
+  return "granted";
 }
 
 /** Opens the right screen when the user taps a notification. */

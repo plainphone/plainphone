@@ -6,7 +6,7 @@ import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { SERVER_HOST } from "../lib/config";
+import { ServerChoice } from "../components/ServerChoice";
 import { enablePush, pushState, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
@@ -17,6 +17,8 @@ function Settings() {
   const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pushRegistered, setPushRegistered] = useState(false);
+  const [pushError, setPushError] = useState(false);
 
   useEffect(() => {
     void pushState().then(setPush).catch(() => setPush("unsupported"));
@@ -40,8 +42,8 @@ function Settings() {
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
-          {push === "granted" ? (
-            <Notice tone="success" text={`${t("native.notificationsOn")} ${t("native.notificationsLater")}`} />
+          {pushRegistered ? (
+            <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
           ) : (
@@ -51,17 +53,20 @@ function Settings() {
               busy={busy}
               onPress={() => {
                 setBusy(true);
+                setPushError(false);
                 void enablePush(locale)
-                  .then((r) => setPush(r.state))
+                  .then((result) => { setPush(result); setPushRegistered(result === "granted"); })
+                  .catch(() => setPushError(true))
                   .finally(() => setBusy(false));
               }}
             />
           )}
+          {pushError ? <Notice tone="error" text={t("native.pushRegistrationError")} /> : null}
         </Card>
       ) : null}
       <Card>
         <Text variant="heading">{t("native.server")}</Text>
-        <Text variant="muted">{t("native.serverHelp", { host: SERVER_HOST })}</Text>
+        <ServerChoice signsOut />
         <Text variant="small">{t("native.version", { version: Constants.expoConfig?.version ?? "0" })}</Text>
       </Card>
       <Button

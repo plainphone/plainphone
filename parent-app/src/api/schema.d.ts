@@ -2626,7 +2626,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK, e.g. `{ok: true, db: ok, mail: smtp, dns: ok}` */
+            /** @description OK, e.g. `{ok: true, compatibility: 1, db: ok, mail: smtp, dns: ok}` */
             200: {
                 headers: {
                     [name: string]: unknown;

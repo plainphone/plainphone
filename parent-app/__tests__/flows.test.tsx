@@ -2,6 +2,7 @@
 //
 // Core flows through the real router and screens, against a fake API.
 import * as SecureStore from "expo-secure-store";
+import * as Notifications from "expo-notifications";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
@@ -33,6 +34,52 @@ describe("logging in", () => {
     expect(await screen.findByText("Check your mail")).toBeTruthy();
     const req = api.calls.find((c) => c.path === "/auth/request")!;
     expect(req.body).toEqual({ email: "parent@example.org", locale: "en", client: "native" });
+  });
+
+  it("uses the selected server for sign-in and can return to the hosted service", async () => {
+    const custom = "https://plainphone.example.org";
+    const api = fakeApi({
+      "GET /health": { body: { ok: true, compatibility: 1, mail: "smtp" } },
+      "POST /auth/request": { status: 202, body: { mailEnabled: true } },
+    });
+    await renderRouter(routes, { initialUrl: "/login" });
+    await fireEvent.press(await screen.findByText("Use your own server"));
+    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+    await fireEvent.press(screen.getByText("Connect"));
+    await screen.findByText(`This app talks to ${custom}.`);
+    expect(await SecureStore.getItemAsync("pp.server")).toBe(custom);
+    await fireEvent.changeText(screen.getByLabelText("Email address"), "parent@example.org");
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("Check your mail")).toBeTruthy();
+    expect(api.calls.find((call) => call.path === "/auth/request")?.origin).toBe(custom);
+
+    await fireEvent.press(screen.getByText("Use another address"));
+    await fireEvent.press(screen.getByText("Use plainphone.org"));
+    await screen.findByText("This app talks to https://app.plainphone.org.");
+    expect(await SecureStore.getItemAsync("pp.server")).toBe("https://app.plainphone.org");
+  });
+
+  it("restores a custom session and registers push on that server", async () => {
+    const server = "https://plainphone.example.org";
+    await SecureStore.setItemAsync("pp.server", server);
+    await SecureStore.setItemAsync("pp.session", "pp_s_hosted");
+    await SecureStore.setItemAsync("pp.customSession", JSON.stringify({ server, token: "pp_s_custom" }));
+    jest.mocked(Notifications.getDevicePushTokenAsync)
+      .mockResolvedValueOnce({ type: "ios", data: "native-test-token-123456789" });
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "POST /notifications/subscriptions": { status: 201, body: { id: "fixture" } },
+    });
+
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByText("Turn on notifications"));
+    expect(await screen.findByText("Notifications are registered on this server.")).toBeTruthy();
+    expect(api.calls.find((call) => call.path === "/notifications/subscriptions")).toMatchObject({
+      origin: server,
+      auth: "Bearer pp_s_custom",
+      body: { token: "native-test-token-123456789" },
+    });
+    expect(api.calls.every((call) => call.auth !== "Bearer pp_s_hosted")).toBe(true);
   });
 
   it("warns when the server cannot send mail", async () => {
