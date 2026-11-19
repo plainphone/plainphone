@@ -6,7 +6,7 @@ import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useNow } from "../../../components/ui";
+import { Button, Card, errorMessage, Field, LinkRow, Notice, PageTitle, Row, Screen, Stack as VStack, Switch, Text, useNow } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { SERVER_URL } from "../../../lib/config";
 import { space } from "../../../lib/theme";
@@ -53,6 +53,34 @@ function PendingList() {
         );
       })}
     </VStack>
+  );
+}
+
+function ServerMoveToggle() {
+  const { t } = useI18n();
+  const { phone, pending, run, setPhone } = usePhone();
+  const [working, setWorking] = useState(false);
+  const waiting = pending.some((change) => change.op.type === "move.allow");
+
+  async function update(allowed: boolean) {
+    setWorking(true);
+    try {
+      const result = await run(() => unwrap(client.PUT("/phones/{pid}/server-move/allow", {
+        params: { path: { pid: phone.id } },
+        body: { allowed },
+      })), t("move.allowed"));
+      if (result?.status === "applied") setPhone({ ...phone, allowServerMove: allowed });
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <Card>
+      <Switch label={t("move.allow")} value={phone.allowServerMove ?? phone.profile === "child"}
+        disabled={working || waiting} onValueChange={(allowed) => void update(allowed)} />
+      <Text variant="muted">{t("move.help")}</Text>
+    </Card>
   );
 }
 
@@ -255,6 +283,7 @@ function Overview() {
   return (
     <Screen testID="phone-overview" onRefresh={() => void refresh()} refreshing={refreshing}>
       <PageTitle sub={status}>{phone.name}</PageTitle>
+      {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
       {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
@@ -317,6 +346,7 @@ function Overview() {
 
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
+        {phone.pairedAt ? <ServerMoveToggle /> : null}
         <RenamePhone />
         <RemovePhone />
       </VStack>

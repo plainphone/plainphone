@@ -134,6 +134,13 @@
       "when": 1795017866226,
       "tag": "0018_setup_undo_notice_lateness",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795089538166,
+      "tag": "0031_server_move",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app
 
+import org.plainphone.app.sync.SyncStore
 import android.content.Context
 import android.os.BaseBundle
 import org.plainphone.app.contacts.ApprovedContact
@@ -137,9 +138,10 @@ data class PolicyConfig(
 class ConfigStore(context: Context) {
     private val prefs = context.getSharedPreferences("plainphone_config", Context.MODE_PRIVATE)
 
+    private val sync = context.getSharedPreferences(SyncStore.PREFS, Context.MODE_PRIVATE)
+
     fun load(): PolicyConfig {
-        if (!prefs.getBoolean("saved", false)) return PolicyConfig.DEFAULT
-        return PolicyConfig(
+        val base = if (!prefs.getBoolean("saved", false)) PolicyConfig.DEFAULT else PolicyConfig(
             dnsHost = prefs.getString("dns_host", null) ?: PolicyConfig.DEFAULT_DNS_HOST,
             allowedPackages = prefs.getStringSet("allowed", null) ?: PolicyConfig.DEFAULT_ALLOWED_PACKAGES,
             frpAccountIds = prefs.getStringSet("frp", null) ?: emptySet(),
@@ -148,6 +150,10 @@ class ConfigStore(context: Context) {
             relockMinutes = prefs.getInt("relock_minutes", PolicyConfig.DEFAULT_RELOCK_MINUTES),
             countryCallingCode = prefs.getString("country_code", null),
             serverUrl = prefs.getString("server_url", null) ?: PolicyConfig.DEFAULT_SERVER_URL,
+        )
+        return base.copy(
+            serverUrl = sync.getString(SyncStore.KEY_MOVED_SERVER, null) ?: base.serverUrl,
+            dnsHost = sync.getString(SyncStore.KEY_MOVED_DNS, null) ?: base.dnsHost,
         )
     }
 
@@ -163,6 +169,9 @@ class ConfigStore(context: Context) {
             .putString("country_code", config.countryCallingCode)
             .putString("server_url", config.serverUrl)
             .apply()
+        // The saved config is now the truth (built from load() or a new enrolment), so a pin left by an
+        // earlier move must not override it.
+        sync.edit().remove(SyncStore.KEY_MOVED_SERVER).remove(SyncStore.KEY_MOVED_DNS).apply()
     }
 }
 

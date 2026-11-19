@@ -249,6 +249,11 @@ class MaintenanceActivity : Activity() {
     private fun showActions() {
         val config = ConfigStore(this).load()
         column.addView(TextView(this).apply { text = getString(R.string.server_current, config.serverUrl) })
+        org.plainphone.app.sync.SyncStore(this).rules()?.let { rules ->
+            column.addView(TextView(this).apply {
+                text = getString(if (rules.allowServerMove) R.string.server_move_allowed else R.string.server_move_blocked)
+            })
+        }
         val minutes = config.relockMinutes
         column.addView(Button(this).apply {
             text = resources.getQuantityString(R.plurals.maintenance_lift, minutes, minutes)

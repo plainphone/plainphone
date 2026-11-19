@@ -37,14 +37,43 @@ after the parent PIN is entered.
 
 ## Move to your own server
 
-Selecting a different server in the parent app changes which account and dashboard
-you open. Household export and transfer of already paired phones are not available yet.
+A household owner can copy one phone or a whole household's phone list and rules, then
+switch the paired phones without resetting them. Both servers need the move feature and a
+valid HTTPS address. Update the phone app before starting. The destination needs a working
+[filter DNS service](self-hosting-dns.md) with `DNS_PROVIDER=http`. If a Strong phone has
+factory reset protection, connect the same Google accounts on the new server first. If a
+Myself phone uses a trusted helper, ask the helper to sign in on the new server in a separate
+household before importing.
 
-If you are relocating a self-hosted instance you already operate, use a full
-[database backup](#backups) and keep its existing HTTPS address and filter DNS
-hostnames. Phones connect to the addresses they already know. Follow the
-[DNS backup and restore guide](self-hosting-dns.md) if you are also relocating
-the resolver.
+1. On the current server, open **Household → Move to another server**. Enable **Allow moving
+   this phone to another server** on the overview of each phone you want to switch. It is on
+   by default for Child phones. A Myself phone needs its key when enabling moving and again
+   when starting the move.
+2. Open **Household → Move to another server** on the new server in another tab. Copy the old
+   server's code from the first tab into the second, then create an invitation.
+3. Paste the invitation into the old server's tab. Select one phone or the entire household
+   and download the encrypted file. Keep both tabs open.
+4. In the new server's tab, select the file and import it. The invitation and file expire
+   after seven days. Each invitation accepts one import. Make a fresh invitation if the
+   export expires or the rules change before the phone switches.
+5. Back on the old server, start the move for each phone you want to switch. Keep the old
+   server and DNS service running until the phone checks in on the new server and shows the
+   new server address in Android's **Maintenance** screen. You can then remove the old copy.
+
+The phone keeps its Device Owner or Light setup, maintenance PIN, and lock. If the new
+server or filter is unavailable, the phone keeps its current protection and retries while
+its old server still offers the move. It verifies the new rules and tests the new DNS host
+before committing the new connection. Turn off **Allow moving this phone to another server**
+on the old server to stop offering a pending move.
+
+The file contains phone profiles, contacts, app rules, schedules, time limits, DNS preferences,
+and phone settings. It excludes login credentials, locations, status and activity history.
+Household members sign in and can be invited separately on the new server. The old server
+signs the export with Ed25519. Only the invitation's new server can decrypt it using JWE
+(ECDH-ES and AES-256-GCM), and that server verifies the signature against the old server's code.
+
+To relocate a self-hosted instance while keeping its existing URL, use a full
+[database backup](#backups) and follow the [DNS backup and restore guide](self-hosting-dns.md).
 
 ## Configuration
 

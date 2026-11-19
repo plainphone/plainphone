@@ -55,6 +55,7 @@ import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
 import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
+import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
@@ -62,7 +63,7 @@ import { locationRoutes, setLocationMode } from "./location.js";
 
 type User = typeof users.$inferSelect;
 type Phone = typeof phones.$inferSelect;
-type Env = { Variables: { user: User; viaCookie: boolean } };
+export type ParentEnv = { Variables: { user: User; viaCookie: boolean } };
 
 export const SESSION_COOKIE = "pp_session";
 const INVITE_DAYS = 7;
@@ -81,8 +82,8 @@ function changeJson(r: ChangeResult) {
       };
 }
 
-export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<Env>) => void) {
-  const app = new Hono<Env>();
+export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hono<ParentEnv>) => void) {
+  const app = new Hono<ParentEnv>();
   const secureCookie = ctx.cfg.PUBLIC_URL.startsWith("https://");
   const publicOrigin = new URL(ctx.cfg.PUBLIC_URL).origin;
   const loginIpLimit = new RateLimiter(20, 60 * 60_000);
@@ -341,7 +342,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // --- Households -------------------------------------------------------------
 
-  async function requireMember(c: Context<Env>, householdId: string) {
+  async function requireMember(c: Context<ParentEnv>, householdId: string) {
     const [m] = await ctx.db
       .select()
       .from(householdMembers)
@@ -509,7 +510,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return rows.map((r) => r.id);
   }
 
-  async function requirePhone(c: Context<Env>): Promise<Phone> {
+  async function requirePhone(c: Context<ParentEnv>): Promise<Phone> {
     const pid = param(c, "pid");
     const [row] = await ctx.db
       .select({ phone: phones })
@@ -523,7 +524,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     return row.phone;
   }
 
-  async function change(c: Context<Env>, phone: Phone, op: Op) {
+  async function change(c: Context<ParentEnv>, phone: Phone, op: Op) {
     try {
       const r = await submitChange(ctx, phone, c.get("user").id, op);
       return c.json(changeJson(r), r.status === "applied" ? 200 : 202);
@@ -532,6 +533,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       throw err;
     }
   }
+
+  mountServerMoveRoutes(app, ctx, { requireMember, requirePhone, change });
 
   app.get("/phones", async (c) => {
     const hids = await myHouseholdIds(c.get("user").id);
@@ -654,7 +657,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     if (phone.pairedAt !== null) return c.json({ error: "this phone is already set up" }, 409);
     const [pending] = await ctx.db.select({ id: pairings.id }).from(pairings)
       .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
-    if (pending || phone.deviceTokenHash !== null) return c.json({ error: "confirm the account on the phone" }, 409);
+    if (pending || phone.deviceTokenHash !== null || phone.awaitingServerMove) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
     const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
     return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);
@@ -1024,7 +1027,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
 
   // Requests for a trusted person
-  async function requireTrusted(c: Context<Env>) {
+  async function requireTrusted(c: Context<ParentEnv>) {
     const cid = param(c, "cid");
     const [row] = await ctx.db
       .select({ change: pendingChanges })

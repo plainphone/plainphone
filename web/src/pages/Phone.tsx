@@ -21,6 +21,7 @@ import { lockStepLabel } from "../lib/lock-steps";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
+import { ServerMoveToggle } from "../components/ServerMoveToggle";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 
 interface PhoneCtx {
@@ -493,7 +494,8 @@ export function PhoneOverview() {
         {phone.name}
       </PageTitle>
       {releasing && <p className="notice notice-info status-release">{t("phone.releasing")}</p>}
-      {!phone.pairedAt && (
+      {phone.awaitingServerMove && <p className="notice notice-info">{t("move.waiting")}</p>}
+      {!phone.pairedAt && !phone.awaitingServerMove && (
         <section className="section panel" aria-labelledby="setup-h">
           <h2 id="setup-h">{t("setup.pendingTitle")}</h2>
           <p className="muted">{t(phone.setupQrAvailable === false ? "setup.codePendingBody" : "setup.pendingBody")}</p>
@@ -507,6 +509,7 @@ export function PhoneOverview() {
         </section>
       )}
 
+      {phone.pairedAt && <ServerMoveToggle />}
       {phone.openRequests > 0 && <RequestsSection />}
 
       {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}

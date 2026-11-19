@@ -325,4 +325,6 @@
     <string name="server_error">Check the address and the version of Plainphone running on the server.</string>
     <string name="server_checking">Checking server…</string>
     <string name="server_connect">Connect</string>
+    <string name="server_move_allowed">Moving to another server is allowed by the dashboard.</string>
+    <string name="server_move_blocked">Moving to another server is off in the dashboard.</string>
 </resources>

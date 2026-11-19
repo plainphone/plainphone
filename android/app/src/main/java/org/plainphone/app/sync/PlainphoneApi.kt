@@ -166,7 +166,7 @@ class PlainphoneApi private constructor(
     private val openConnection: (URL) -> HttpURLConnection,
     private val openFreshConnection: (URL) -> HttpURLConnection,
     private val setupKey: () -> JSONObject? = { null },
-) : SyncApi {
+) : SyncApi, MoveApi {
     internal constructor(baseUrl: String) : this(baseUrl, { it.openConnection() as HttpURLConnection })
 
     internal constructor(baseUrl: String, openConnection: (URL) -> HttpURLConnection) :
@@ -445,6 +445,20 @@ class PlainphoneApi private constructor(
         val email = account.optString("maskedEmail")
         val household = if (account.isNull("householdName")) null else account.optString("householdName")
         return email.takeIf(String::isNotBlank)?.let { PollAccount(it, household) }
+    }
+
+    override fun redeemMove(token: String, deviceToken: String) {
+        val body = JSONObject().put("token", token).put("deviceToken", deviceToken)
+        val response = call("POST", "/device/move", body = body, readTimeoutMs = 8_000)
+        // A response might have been lost after redemption. Only the same credential
+        // can fetch move rules in that case; no token can create a second pairing.
+        if (response.status != 204 && response.status != 410) throw HttpError(response.status, response.body)
+    }
+
+    override fun moveRules(deviceToken: String): RulesResult.Changed {
+        val response = call("GET", "/device/move-rules", deviceToken, readTimeoutMs = 8_000)
+        if (response.status != 200) throw HttpError(response.status, response.body)
+        return RulesResult.Changed(response.etag ?: throw IOException("missing move rules ETag"), response.body)
     }
 
     override fun fetchRules(token: String, etag: String?): RulesResult {

@@ -61,6 +61,8 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val allowServerMove: Boolean = false,
+    val serverMove: ServerMoveInstruction? = null,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -84,6 +86,10 @@ data class ServerRules(
             val host = dns.optString("host", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) }
             return ServerRules(
                 phoneId = j.getString("phoneId"),
+                allowServerMove = j.optBoolean("allowServerMove", false),
+                serverMove = j.optJSONObject("move")?.let {
+                    ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))
+                },
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),

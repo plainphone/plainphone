@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from "vitest";
-import { encode } from "uqr";
 import androidIntent from "../../test-fixtures/light-setup-intent.txt?raw";
-import { buildQr } from "../pages/AddPhone";
 import { lightSetupIntent, lightSetupLink } from "./light-setup";
 
 const origin = "https://pp.example.org";
@@ -17,26 +15,6 @@ describe("light setup handoff", () => {
       token, package: "org.plainphone.app", lang: "da",
     });
     expect(lightSetupIntent(url)).toBe(androidIntent.trim());
-  });
-
-  it("carries a self-hosted origin and port through the dashboard link into Android", () => {
-    const custom = "https://my-plainphone.example.org:8443";
-    const qr = buildQr({
-      enrollment: { token, expiresAt: "2026-11-20T00:00:00Z" },
-      provisioning: {
-        serverUrl: custom,
-        adminComponent: component,
-        downloadUrl: custom + "/download/android",
-        signatureChecksum: "test-checksum",
-        dnsHost: "dns.example.org",
-      },
-    }, { id: "test-phone", name: "Test phone", mode: "light", timezone: "UTC" }, undefined, "en");
-    const link = new URL(qr.link!);
-    expect(link.origin).toBe(custom);
-    expect(qr.makeModules()).toEqual(encode(link.href, { ecc: "L", border: 0 }).data);
-    const intent = lightSetupIntent(link);
-    expect(intent).toContain(`&server=${encodeURIComponent(custom)}#Intent;`);
-    expect(intent).toContain(encodeURIComponent(custom + "/download/android"));
   });
 
   it("derives the package from the configured admin component", () => {

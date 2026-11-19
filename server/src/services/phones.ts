@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import { allowsServerMove } from "./move-policy.js";
+import { moveInstruction } from "./server-move.js";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
@@ -143,7 +145,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       })
       .from(schedules)
       .where(eq(schedules.phoneId, phone.id))
-      .orderBy(schedules.createdAt),
+      .orderBy(schedules.createdAt, schedules.id),
     ctx.db
       .select({ blockedCategories: dnsSettings.blockedCategories })
       .from(dnsSettings)
@@ -167,6 +169,7 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
   return {
     phone: {
       id: phone.id,
+      allowServerMove: allowsServerMove(phone),
       profile: phone.profile,
       suggestDeviceContacts: phone.suggestDeviceContacts,
       lightContactRestriction: phone.lightContactRestriction,
@@ -197,11 +200,13 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>) {
   const apps = allApps.filter((a) => a.installed);
   const sorted = (xs: string[]) => [...xs].sort();
   const doc = {
     phoneId: phone.id,
+    allowServerMove: phone.allowServerMove,
+    ...(move && { move }),
     profile: phone.profile,
     suggestDeviceContacts: phone.profile === "child" && phone.suggestDeviceContacts,
     lightContactRestriction: phone.mode === "light" && phone.profile === "child" && phone.lightContactRestriction,
@@ -267,8 +272,9 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
 }
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
-  const { body, etag } = rulesDocument(await loadRulesInputs(ctx, phone));
-  return { etag, body: candidates.includes(etag) ? null : body };
+  const [inputs, move] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone)]);
+  const { body, etag } = rulesDocument(inputs, move);
+  return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 
 function summaryFields() {
@@ -352,7 +358,9 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     locationEnabled: phone.locationEnabled,
     locationMode: phone.locationMode,
     pairedAt: phone.pairedAt?.toISOString() ?? null,
-    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim,
+    allowServerMove: allowsServerMove(phone),
+    awaitingServerMove: phone.awaitingServerMove,
+    setupQrAvailable: phone.pairedAt === null && phone.deviceTokenHash === null && !hasCodeClaim && !phone.awaitingServerMove,
     /** Set while the phone has been asked to switch Plainphone off and has not done so yet. */
     releaseRequestedAt: phone.releaseRequestedAt?.toISOString() ?? null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,

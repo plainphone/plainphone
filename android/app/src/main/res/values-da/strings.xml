@@ -321,4 +321,6 @@
     <string name="server_error">Tjek adressen og den version af Plainphone, der kører på serveren.</string>
     <string name="server_checking">Tjekker serveren…</string>
     <string name="server_connect">Forbind</string>
+    <string name="server_move_allowed">Flytning til en anden server er tilladt i kontrolpanelet.</string>
+    <string name="server_move_blocked">Flytning til en anden server er slået fra i kontrolpanelet.</string>
 </resources>
