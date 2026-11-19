@@ -5,14 +5,15 @@ import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { I18nProvider, useI18n } from "../i18n/I18n";
 import { useNotificationRouting } from "../lib/notifications";
-import { SessionProvider } from "../lib/session";
+import { SessionProvider, useSession } from "../lib/session";
 import { useStackOptions } from "../lib/stackOptions";
 
 function AppStack() {
   const options = useStackOptions();
   const { t } = useI18n();
   const scheme = useColorScheme();
-  useNotificationRouting();
+  const { state } = useSession();
+  useNotificationRouting(state.status);
   return (
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />

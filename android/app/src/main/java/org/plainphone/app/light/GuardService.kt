@@ -18,6 +18,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import org.plainphone.app.Lock
 import org.plainphone.app.R
 import org.plainphone.app.sync.SyncScheduler
+import org.plainphone.app.time.LimitWarningNotifier
 import org.plainphone.app.time.TimeGuard
 
 /**
@@ -268,7 +269,10 @@ class GuardService : AccessibilityService() {
         // Reading a day of usage events is slow; this process also shows the in-call screen.
         runCatching { worker.execute {
             val snap = runCatching { TimeGuard.snapshot(this) }.getOrNull() ?: return@execute
-            if (pkg !in snap.blocked) return@execute
+            if (pkg !in snap.blocked) {
+                runCatching { LimitWarningNotifier.check(this, snap, pkg) }
+                return@execute
+            }
             main.post {
                 if (foreground != pkg) return@post
                 block(pkg, BlockedActivity.Reason.TIME_USED_UP)

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Asking for more time and the 5-minute warning (docs/time-limits.md). Child-facing: short, calm, no urgency. -->
+<resources>
+    <string name="more_time_ask">Ask for more time</string>
+    <string name="more_time_reason_hint">Tell your parent why (optional)</string>
+    <string name="more_time_send">Send</string>
+    <string name="more_time_saved_title">Saved</string>
+    <string name="more_time_saved_body">It is sent when the phone is online.</string>
+    <string name="more_time_waiting_title">Sent to a parent</string>
+    <string name="more_time_waiting_body">Waiting for an answer.</string>
+    <string name="more_time_no_answer_title">No answer yet</string>
+    <string name="more_time_reach_parent_body">You can still call or message a parent.</string>
+    <string name="more_time_approved_title">A parent said yes</string>
+    <string name="more_time_approved_until">Until %1$s</string>
+    <string name="more_time_approved_rest_of_day">For the rest of the day</string>
+    <string name="more_time_declined_title">A parent said no this time</string>
+    <string name="more_time_expired_title">Nobody answered in time</string>
+    <string name="more_time_tomorrow_body">It opens again tomorrow. Calls and messages still work.</string>
+    <string name="more_time_unavailable_title">Asking is not possible right now</string>
+
+    <string name="limit_warning_channel">Time limit notices</string>
+    <plurals name="limit_warning_app">
+        <item quantity="one">Less than %1$d minute left in %2$s today</item>
+        <item quantity="other">Less than %1$d minutes left in %2$s today</item>
+    </plurals>
+    <plurals name="limit_warning_total">
+        <item quantity="one">Less than %1$d minute left of today\'s screen time</item>
+        <item quantity="other">Less than %1$d minutes left of today\'s screen time</item>
+    </plurals>
+</resources>

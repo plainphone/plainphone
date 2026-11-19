@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
+import { MoreTimeRequests } from "../../../components/MoreTimeRequests";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneSwitch } from "../../../components/BedtimeSettings";
 import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
@@ -563,6 +564,8 @@ function Overview() {
           {technicalSteps.map((step, index) => <Text key={index}>{step}</Text>)}
         </Disclosure>
       ) : null}
+
+      {phone.profile === "child" && phone.pairedAt ? <MoreTimeRequests key={`more-time-${phone.id}`} /> : null}
 
       {phone.profile === "self" || pending.length > 0 ? (
         <VStack>

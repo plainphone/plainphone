@@ -19,6 +19,9 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
 
     internal val statusNotices = StatusNotices(app)
 
+    /** The child's asks for more time, until the server has answered them (time/MoreTime.kt). */
+    internal val moreTime = org.plainphone.app.time.MoreTimeAsks(prefs)
+
     internal fun installWindowOverrun(nowMs: Long) =
         org.plainphone.app.update.InstallLease.latestOverrun(app, nowMs)?.takeIf {
             it.sequence > prefs.getLong(KEY_ACKED_INSTALL_OVERRUN, 0) &&

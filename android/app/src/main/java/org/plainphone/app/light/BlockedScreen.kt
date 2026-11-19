@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.plainphone.app.R
+import org.plainphone.app.time.MoreTime
 
 /**
  * What the guard shows instead of a blocked app: the reason, the next available step, and a
@@ -27,6 +28,10 @@ fun BlockedScreen(
     onReachParent: () -> Unit,
     onEnterPin: () -> Unit,
     showParent: Boolean = true,
+    /** "Ask for more time" (time used up, a parent to ask, switched on); null shows nothing. */
+    ask: MoreTime.Ui? = null,
+    onAsk: () -> Unit = {},
+    onSendAsk: (String) -> Unit = {},
 ) {
     val title: Int
     val body: Int
@@ -46,6 +51,7 @@ fun BlockedScreen(
         secondary = if (pin) stringResource(R.string.blocked_enter_pin) else null,
         onSecondary = onEnterPin,
     ) {
+        if (showParent && ask != null && reason == BlockedActivity.Reason.TIME_USED_UP) AskMoreTime(ask, onAsk, onSendAsk)
         // Not for the Self profile: there is no parent, and the button would open the user's own favourites.
         if (showParent) OutlinedButton(
             onClick = onReachParent,

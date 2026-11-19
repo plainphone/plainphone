@@ -226,7 +226,8 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTask"
-            android:taskAffinity="org.plainphone.app.blocked" />
+            android:taskAffinity="org.plainphone.app.blocked"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".requests.RequestsActivity"

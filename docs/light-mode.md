@@ -53,6 +53,9 @@ available step, **Call or message a parent** above the main action, **Back to st
 The parent route cannot be switched off. A missing or unknown reason gets the neutral "This is not
 available right now" instead of blaming the child. The screen is static: no animation, countdown
 or vibration. Daily time limits reset at local midnight, so the screen says "tomorrow".
+When the time is used up, the screen also offers one friendly action, **Ask for more time**,
+with an optional short reason, and then shows what became of the request. The parents can switch
+it off per phone. See [more-time.md](more-time.md).
 
 ## Releasing from the dashboard
 

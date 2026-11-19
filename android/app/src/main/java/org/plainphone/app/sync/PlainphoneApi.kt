@@ -63,6 +63,15 @@ interface SyncApi {
      * phone tries again.
      */
     fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? = null
+    /**
+     * Asks the parents for more time on an app or the daily cap ([TimeLimits.TOTAL]). Returns the new
+     * request (201) or today's open one for the same target (200). Other answers throw [HttpError]:
+     * 403 switched off, 409 not possible (no limit, not a child phone), 429 too many, 400 bad input.
+     */
+    fun askMoreTime(token: String, packageName: String, reason: String?): MoreTimeRequest =
+        throw IOException("asking for more time unavailable")
+    /** This phone's asks from the last 24 hours, newest first. */
+    fun moreTimeRequests(token: String): List<MoreTimeRequest> = throw IOException("asking for more time unavailable")
 }
 
 data class Pairing(
@@ -632,4 +641,30 @@ class PlainphoneApi private constructor(
             else -> throw HttpError(r.status, r.body)
         }
     }
+
+    override fun askMoreTime(token: String, packageName: String, reason: String?): MoreTimeRequest {
+        val body = JSONObject().put("packageName", packageName)
+        reason?.trim()?.take(MORE_TIME_REASON_MAX)?.takeIf(String::isNotEmpty)?.let { body.put("reason", it) }
+        // Safe to repeat: the server returns the open request for the same target.
+        val r = call("POST", "/device/more-time-requests", token, body, replayable = true)
+        if (r.status != 200 && r.status != 201) throw HttpError(r.status, r.body)
+        return readMoreTime { MoreTimeRequest.parse(JSONObject(r.body)) }
+    }
+
+    override fun moreTimeRequests(token: String): List<MoreTimeRequest> {
+        val r = call("GET", "/device/more-time-requests", token)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readMoreTime { MoreTimeRequest.parseList(r.body) }
+    }
+
+    private fun <T> readMoreTime(read: () -> T): T = try {
+        read()
+    } catch (error: JSONException) {
+        throw IOException("Invalid more-time response", error)
+    } catch (error: RuntimeException) {
+        throw IOException("Invalid more-time response", error)
+    }
 }
+
+/** The server's limit for the child's optional reason. */
+const val MORE_TIME_REASON_MAX = 140

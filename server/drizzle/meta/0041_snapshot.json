@@ -1,5 +1,5 @@
 {
-  "id": "e2bd35be-1183-4f4b-a86d-cab90df57019",
+  "id": "df2a6831-9b5f-4498-aa7e-2e2395f85993",
   "prevId": "06d8c8dd-4a74-46cb-84d2-f7d24c4a0fa7",
   "version": "7",
   "dialect": "postgresql",
@@ -846,6 +846,159 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.more_time_requests": {
+      "name": "more_time_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "phone_id": {
+          "name": "phone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "package_name": {
+          "name": "package_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "answer": {
+          "name": "answer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "granted_minutes": {
+          "name": "granted_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "more_time_requests_phone_idx": {
+          "name": "more_time_requests_phone_idx",
+          "columns": [
+            {
+              "expression": "phone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "more_time_requests_one_open_idx": {
+          "name": "more_time_requests_one_open_idx",
+          "columns": [
+            {
+              "expression": "phone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "package_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"more_time_requests\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "more_time_requests_phone_id_phones_id_fk": {
+          "name": "more_time_requests_phone_id_phones_id_fk",
+          "tableFrom": "more_time_requests",
+          "tableTo": "phones",
+          "columnsFrom": [
+            "phone_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "more_time_requests_decided_by_users_id_fk": {
+          "name": "more_time_requests_decided_by_users_id_fk",
+          "tableFrom": "more_time_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "decided_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.move_identity": {
       "name": "move_identity",
       "schema": "",
@@ -1595,12 +1748,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "decided_via": {
-          "name": "decided_via",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "decided_at": {
           "name": "decided_at",
           "type": "timestamp with time zone",
@@ -1995,6 +2142,20 @@
           "notNull": true,
           "default": true
         },
+        "ask_more_time_enabled": {
+          "name": "ask_more_time_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "limit_warning_enabled": {
+          "name": "limit_warning_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "sos_callback_number": {
           "name": "sos_callback_number",
           "type": "text",
@@ -2052,20 +2213,6 @@
         },
         "health_board_enabled": {
           "name": "health_board_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "silent_bedtime": {
-          "name": "silent_bedtime",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "pin_approval_enabled": {
-          "name": "pin_approval_enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

@@ -3,6 +3,17 @@ import type { Mail } from "../providers/mail.js";
 
 export type Locale = "en" | "da";
 
+/** Push text exists in more languages than the mails: the "more time" strings also in sv, nb and de. */
+export type PushLocale = Locale | "sv" | "nb" | "de";
+
+export function toPushLocale(value: string | undefined | null): PushLocale {
+  const v = value?.toLowerCase() ?? "";
+  if (v.startsWith("sv")) return "sv";
+  if (v.startsWith("nb") || v.startsWith("no") || v.startsWith("nn")) return "nb";
+  if (v.startsWith("de")) return "de";
+  return toLocale(value);
+}
+
 export function toLocale(value: string | undefined | null): Locale {
   return value?.toLowerCase().startsWith("da") ? "da" : "en";
 }

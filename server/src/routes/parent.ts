@@ -63,6 +63,7 @@ import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
 import { limitRoutes } from "./limits.js";
+import { parentMoreTimeRoutes } from "./more-time.js";
 import { locationRoutes, setLocationMode } from "./location.js";
 import { parentSosRoutes } from "./sos.js";
 
@@ -685,6 +686,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         locationEnabled: z.boolean().optional(),
         supportEnabled: z.boolean().optional(),
         releaseWarningsEnabled: z.boolean().optional(),
+        askMoreTimeEnabled: z.boolean().optional(),
+        limitWarningEnabled: z.boolean().optional(),
         pushWakeups: z.boolean().optional(),
         preferUnifiedPush: z.boolean().optional(),
         language: v.phoneLanguage.optional(),
@@ -713,6 +716,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ...(input.name ? { name: input.name } : {}),
       ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
       ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
+      ...(input.askMoreTimeEnabled !== undefined ? { askMoreTimeEnabled: input.askMoreTimeEnabled } : {}),
+      ...(input.limitWarningEnabled !== undefined ? { limitWarningEnabled: input.limitWarningEnabled } : {}),
       ...(input.pushWakeups === undefined ? {} : { pushWakeups: input.pushWakeups }),
       ...(input.preferUnifiedPush === undefined ? {} : { preferUnifiedPush: input.preferUnifiedPush }),
       ...(input.preferUnifiedPush === true ? { fcmToken: null, fcmValidationKey: null } : {}),
@@ -736,6 +741,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         return true;
       });
       if (input.timezone !== undefined && !updated) return c.json({ error: "time zone can only be set before strong setup" }, 409);
+    }
+    // The time-limit switches reach the phone's stop screen, so tell it now.
+    if ((input.askMoreTimeEnabled !== undefined && input.askMoreTimeEnabled !== phone.askMoreTimeEnabled) ||
+        (input.limitWarningEnabled !== undefined && input.limitWarningEnabled !== phone.limitWarningEnabled)) {
+      await wakePhone(ctx, phone.id, "rules");
     }
     // The boolean predates the location modes: on means the child default, off means off.
     if (input.locationEnabled !== undefined && input.locationEnabled !== phone.locationEnabled) {
@@ -908,6 +918,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   });
   // Time limits and the app catalog (routes/limits.ts, routes/catalog.ts)
   limitRoutes(app, ctx, { requirePhone, change });
+  parentMoreTimeRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   locationRoutes(app, ctx, { requirePhone, userId: (c) => c.get("user").id });
   parentSosRoutes(app, ctx, requirePhone);
   phoneCatalogRoutes(app, ctx, { requirePhone, change });

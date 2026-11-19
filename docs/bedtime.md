@@ -127,7 +127,7 @@ the parent turned it off is still recorded, because the phone has already done i
 | `GET /api/phones/{pid}/requests` | Now also returns `recent`: the answers from the last 3 days with `decidedVia` |
 | `POST /api/phones/{pid}/requests/{rid}/approve` and `/reject` | A late answer gets `409` with `outcome`: `approvedByYou`, `approvedByOther`, `approvedOnPhone`, `declinedByYou` or `declinedByOther` |
 
-Migration `0041_bedtime_pin_approval` adds `phones.silent_bedtime`, `phones.pin_approval_enabled` (both
+Migration `0042_bedtime_pin_approval` adds `phones.silent_bedtime`, `phones.pin_approval_enabled` (both
 default true) and `phone_requests.decided_via`.
 
 ## Not covered

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="more_time_ask">Be om mer tid</string>
+    <string name="more_time_reason_hint">Fortell forelderen din hvorfor (valgfritt)</string>
+    <string name="more_time_send">Send</string>
+    <string name="more_time_saved_title">Lagret</string>
+    <string name="more_time_saved_body">Den sendes når telefonen er på nett.</string>
+    <string name="more_time_waiting_title">Sendt til en forelder</string>
+    <string name="more_time_waiting_body">Venter på svar.</string>
+    <string name="more_time_no_answer_title">Ikke noe svar ennå</string>
+    <string name="more_time_reach_parent_body">Du kan fortsatt ringe eller skrive til en forelder.</string>
+    <string name="more_time_approved_title">En forelder sa ja</string>
+    <string name="more_time_approved_until">Til %1$s</string>
+    <string name="more_time_approved_rest_of_day">Resten av dagen</string>
+    <string name="more_time_declined_title">En forelder sa nei denne gangen</string>
+    <string name="more_time_expired_title">Ingen svarte i tide</string>
+    <string name="more_time_tomorrow_body">Den åpner igjen i morgen. Samtaler og meldinger fungerer fortsatt.</string>
+    <string name="more_time_unavailable_title">Det går ikke å be om mer tid akkurat nå</string>
+
+    <string name="limit_warning_channel">Varsler om tidsgrenser</string>
+    <plurals name="limit_warning_app">
+        <item quantity="one">Mindre enn %1$d minutt igjen i %2$s i dag</item>
+        <item quantity="other">Mindre enn %1$d minutter igjen i %2$s i dag</item>
+    </plurals>
+    <plurals name="limit_warning_total">
+        <item quantity="one">Mindre enn %1$d minutt igjen av dagens skjermtid</item>
+        <item quantity="other">Mindre enn %1$d minutter igjen av dagens skjermtid</item>
+    </plurals>
+</resources>

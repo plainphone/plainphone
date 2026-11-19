@@ -165,6 +165,23 @@ class FakeSyncApi : SyncApi {
         ackFailure?.let { throw it }
         return ackResult
     }
+
+    /** Asks for more time that reached the server (target, reason) and what it answers. */
+    val moreTimeAsked = mutableListOf<Pair<String, String?>>()
+    var moreTimeFailure: IOException? = null
+    var moreTimeList: List<MoreTimeRequest> = emptyList()
+    override fun askMoreTime(token: String, packageName: String, reason: String?): MoreTimeRequest {
+        moreTimeFailure?.let { throw it }
+        moreTimeAsked += packageName to reason
+        return MoreTimeRequest(
+            "r${moreTimeAsked.size}", packageName, reason, java.time.LocalDate.of(2027, 1, 4),
+            MoreTimeRequest.Status.PENDING, null, null, java.time.Instant.parse("2027-01-04T10:00:00Z"), null,
+        )
+    }
+    override fun moreTimeRequests(token: String): List<MoreTimeRequest> {
+        moreTimeFailure?.let { throw it }
+        return moreTimeList
+    }
 }
 
 /** A rules document like the server's (server/src/services/phones.ts). */

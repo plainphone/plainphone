@@ -11,7 +11,12 @@ export interface PushMessage {
   url: string;
   /** Same tag = the newer notification replaces the older one on the device. */
   tag: string;
-  data?: { type: string; phoneId?: string };
+  data?: { type: string; phoneId?: string; requestId?: string };
+  /**
+   * Buttons on the notification (Web Push actions, FCM/APNs categories). The id is the answer sent back
+   * to the server; the title is already in the parent's language. Max 4, titles short.
+   */
+  actions?: { id: string; title: string }[];
 }
 
 export interface PushTarget {

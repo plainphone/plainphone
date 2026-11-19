@@ -64,6 +64,8 @@ data class HomeUi(
     val offerDefaultHome: Boolean = false,
     /** Requests the parents have not answered yet, when approval on the phone with the PIN is on. */
     val openRequests: Int = 0,
+    /** The 5-minute warning, already worded (time/LimitWarning.kt). */
+    val limitWarning: String? = null,
 )
 
 class HomeActions(
@@ -110,7 +112,11 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp),
         ) {
-            Spacer(Modifier.height(56.dp))
+            ui.limitWarning?.let {
+                Spacer(Modifier.height(16.dp))
+                LimitWarningNotice(it)
+            }
+            Spacer(Modifier.height(if (ui.limitWarning != null) 24.dp else 56.dp))
             Clock(ui.time, ui.date)
             ui.noticeUntil?.let { until ->
                 Spacer(Modifier.height(20.dp))

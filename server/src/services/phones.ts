@@ -17,6 +17,7 @@ import {
   phoneApps,
   phoneSettings,
   phoneRequests,
+  moreTimeRequests,
   phones,
   schedules,
   selfKeys,
@@ -232,6 +233,8 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       releaseRequestedAt: phone.releaseRequestedAt,
       supportEnabled: phone.supportEnabled,
       releaseWarningsEnabled: phone.releaseWarningsEnabled,
+      askMoreTimeEnabled: phone.askMoreTimeEnabled,
+      limitWarningEnabled: phone.limitWarningEnabled,
       name: phone.name,
     },
     allApps,
@@ -356,6 +359,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     release: phone.releaseRequestedAt !== null,
     supportEnabled: phone.supportEnabled,
     releaseWarningsEnabled: phone.releaseWarningsEnabled,
+    askMoreTimeEnabled: phone.askMoreTimeEnabled,
+    limitWarningEnabled: phone.limitWarningEnabled,
     pollSeconds: safety.fast ? FAST_POLL_SECONDS : POLL_SECONDS,
   };
   const body = JSON.stringify(doc);
@@ -378,6 +383,8 @@ function summaryFields() {
     hasLocation: sql<boolean>`exists (select 1 from ${locations} where ${locations.phoneId} = ${phoneId})`,
     openRequests: sql<number>`(select count(*)::int from ${phoneRequests}
       where ${phoneRequests.phoneId} = ${phoneId} and ${phoneRequests.status} = 'pending')`,
+    openMoreTimeRequests: sql<number>`(select count(*)::int from ${moreTimeRequests}
+      where ${moreTimeRequests.phoneId} = ${phoneId} and ${moreTimeRequests.status} = 'pending')`,
   };
 }
 
@@ -387,7 +394,8 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
     .from(phones)
     .where(inArray(phones.householdId, householdIds))
     .orderBy(phones.createdAt);
-  return rows.map(({ phone, hasLocation, openRequests, hasCodeClaim }) => summaryJson(ctx, phone, hasLocation, openRequests, hasCodeClaim));
+  return rows.map(({ phone, hasLocation, openRequests, openMoreTimeRequests, hasCodeClaim }) =>
+    summaryJson(ctx, phone, hasLocation, openRequests, hasCodeClaim, openMoreTimeRequests));
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
@@ -406,7 +414,7 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     }).from(phones).where(eq(phones.id, phone.id)),
     respondWithRules(ctx, phone, []),
   ]);
-  const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false, row?.openMoreTimeRequests ?? 0);
   const status = phone.deviceStatus;
   const confirmed = phone.changeReceiptsEnabled && phone.pairedAt && !(phone.rulesAwaitDns && phone.dnsDirty) &&
     status?.rulesEtag === current.etag && status.rulesAppliedAt &&
@@ -477,7 +485,7 @@ function summaryStatus(phone: Phone, now: Date) {
   };
 }
 
-function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number, hasCodeClaim: boolean) {
+function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests: number, hasCodeClaim: boolean, openMoreTimeRequests = 0) {
   return {
     id: phone.id,
     name: phone.name,
@@ -498,6 +506,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     releaseSyncCount: phone.releaseSyncCount,
     supportEnabled: phone.supportEnabled,
     releaseWarningsEnabled: phone.releaseWarningsEnabled,
+    askMoreTimeEnabled: phone.askMoreTimeEnabled,
+    limitWarningEnabled: phone.limitWarningEnabled,
     androidVersion: phone.supportEnabled ? phone.deviceStatus?.androidVersion ?? phone.deviceInfo?.android ?? null : null,
     lastSeenAt: phone.lastSeenAt?.toISOString() ?? null,
     dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
@@ -517,6 +527,7 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
         }
       : null,
     openRequests,
+    openMoreTimeRequests,
     pushWakeups: phone.pushWakeups,
     preferUnifiedPush: phone.preferUnifiedPush,
     /** Null means the server default (`offlineAlertHoursDefault`). */
