@@ -967,6 +967,7 @@ export const en = {
   "sos.call": "Call back",
   "sos.seen": "I’ve seen it",
   "sos.acknowledged": "Seen",
+  "sos.notDelivered": "This alert could not be delivered to every parent. Call the child to check.",
   "sos.error": "Could not save. Try again.",
   "sos.unavailable": "Could not load SOS.",
   "sos.callback": "Child’s number for SOS callbacks",

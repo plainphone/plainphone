@@ -90,6 +90,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   const loginIpLimit = new RateLimiter(20, 60 * 60_000);
   const loginEmailLimit = new RateLimiter(5, 60 * 60_000);
   const verifyLimit = new RateLimiter(30, 15 * 60_000);
+  const revokeLimit = new RateLimiter(30, 15 * 60_000);
   const claimLimit = new RateLimiter(20, 15 * 60_000);
   const selfTemplateLimit = new RateLimiter(20, 60 * 60_000);
   const enrollLimit = new RateLimiter(30, 24 * 60 * 60_000);
@@ -140,6 +141,17 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       user: userJson(out.user),
       ...(input.client === "native" ? { sessionToken: out.sessionToken } : {}),
     });
+  });
+
+  // An install that signed out offline may find its session expired when it comes back. Its push
+  // token is the proof of ownership (a secret only that install knows), so it can still remove its
+  // own registration; otherwise generic SOS alerts would keep reaching a device nobody is signed in on.
+  app.post("/notifications/subscriptions/revoke", async (c) => {
+    if (!revokeLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "slow down" });
+    const input = await body(c, z.object({ token: z.string().min(16).max(1024) }));
+    await ctx.db.delete(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.endpoint, input.token), inArray(pushSubscriptions.platform, ["expo", "apns", "fcm"])));
+    return c.body(null, 204);
   });
 
   // --- Everything below needs a session ---------------------------------------

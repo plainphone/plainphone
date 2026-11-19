@@ -47,6 +47,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
         {phoneName !== undefined && <Text variant="heading">{phoneName}</Text>}
         <Text variant="heading">{t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}</Text>
         <Text>{new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}</Text>
+        {event.deliveryFailedAt && !event.seenAt && <Text accessibilityRole="alert">{t("sos.notDelivered")}</Text>}
         {map && <Button kind="secondary" title={t("sos.map")} onPress={() => void Linking.openURL(map).catch(() => setError(true))} />}
         {callback && <Button kind="secondary" title={t("sos.call")} onPress={() => void Linking.openURL(`tel:${callback}`).catch(() => setError(true))} />}
         {event.seenAt ? <Text>{event.seenByName ? t("sos.seenBy", { name: event.seenByName }) : t("sos.acknowledged")}</Text> : (

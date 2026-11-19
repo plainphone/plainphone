@@ -966,6 +966,7 @@ export const da: Messages = {
   "sos.call": "Ring op",
   "sos.seen": "Jeg har set den",
   "sos.acknowledged": "Set",
+  "sos.notDelivered": "Beskeden nåede ikke frem til alle forældre. Ring til barnet for at tjekke.",
   "sos.error": "Kunne ikke gemme. Prøv igen.",
   "sos.unavailable": "Kunne ikke hente SOS.",
   "sos.callback": "Barnets nummer til SOS-opkald",

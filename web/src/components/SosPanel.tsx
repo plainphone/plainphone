@@ -11,6 +11,7 @@ interface SosEvent {
   createdAt: string;
   seenAt: string | null;
   seenByName?: string | null;
+  deliveryFailedAt?: string | null;
   location: { lat: number; lon: number } | null;
 }
 
@@ -70,6 +71,7 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
             {new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(new Date(event.createdAt))}
           </time>
         </div>
+        {event.deliveryFailedAt && !event.seenAt && <p role="alert">{t("sos.notDelivered")}</p>}
         <div className="actions">
           {event.location && <a className="btn btn-secondary" href={`https://maps.google.com/?q=${event.location.lat},${event.location.lon}`}>{t("sos.map")}</a>}
           {res.data?.callbackNumber && <a className="btn btn-secondary" href={`tel:${res.data.callbackNumber}`}>{t("sos.call")}</a>}

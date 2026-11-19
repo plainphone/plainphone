@@ -691,6 +691,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/subscriptions/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove an app install's push registration without a session
+         * @description For an install that signed out while offline and whose session expired before it could
+         *     tell the server. The push token (known only to that install) is the proof. Always answers
+         *     204, whether or not a registration existed. Web subscriptions cannot be removed this way.
+         */
+        post: operations["postNotificationSubscriptionRevoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/subscriptions/{sid}": {
         parameters: {
             query?: never;
@@ -1975,6 +1997,11 @@ export interface components {
             seenByName: string | null;
             /** @enum {unknown} */
             deliveredVia: "push" | "sms" | null;
+            /**
+             * Format: date-time
+             * @description Set when the alert still had not reached every parent at the final timeout.
+             */
+            deliveryFailedAt: string | null;
             battery: number | null;
             location: components["schemas"]["SosPosition"] | null;
         };
@@ -4310,6 +4337,37 @@ export interface operations {
             };
             /** @description Notifications are not set up on this server */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postNotificationSubscriptionRevoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

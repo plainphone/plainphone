@@ -5,7 +5,7 @@ import { expect, it, vi } from "vitest";
 import { householdMembers, phones, pushSubscriptions, sosDeliveries, sosEvents } from "../src/db/schema.js";
 import { deliverSos } from "../src/services/sos.js";
 import { sweep } from "../src/services/sweeper.js";
-import { pairPhone, signIn, useHarness } from "./harness.js";
+import { Client, pairPhone, signIn, useHarness } from "./harness.js";
 
 const h = useHarness();
 
@@ -94,6 +94,22 @@ it("does not let temporary push errors delete a subscription, even over many ret
     push.mockRestore();
     mailOff.mockRestore();
   }
+});
+
+it("lets an install whose session expired remove its own app token, but not a web subscription", async () => {
+  const parent = await signIn(h, "parent@example.org");
+  const { user } = (await parent.get("/api/me")).json;
+  const token = "ExponentPushToken[example1234567890]";
+  await h.ctx.db.insert(pushSubscriptions).values([
+    { userId: user.id, platform: "expo", endpoint: token },
+    { userId: user.id, platform: "web", endpoint: "https://example.test/browser" },
+  ]);
+  const anonymous = new Client(h);
+  expect((await anonymous.post("/api/notifications/subscriptions/revoke", { token: "https://example.test/browser" })).status).toBe(204);
+  expect(await h.ctx.db.select().from(pushSubscriptions)).toHaveLength(2);
+  expect((await anonymous.post("/api/notifications/subscriptions/revoke", { token })).status).toBe(204);
+  expect((await h.ctx.db.select().from(pushSubscriptions)).map((row) => row.platform)).toEqual(["web"]);
+  expect((await anonymous.post("/api/notifications/subscriptions/revoke", { token })).status).toBe(204);
 });
 
 it("still deletes a subscription the provider reports as gone", async () => {

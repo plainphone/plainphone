@@ -241,6 +241,31 @@ describe("signed in", () => {
     expect(getSessionToken()).toBeNull();
   });
 
+  it("removes the SOS registration by its token when the old session expired before going online", async () => {
+    const token = "ExponentPushToken[example1234567890]";
+    await SecureStore.setItemAsync("sos-push-subscription", "test-sos");
+    await SecureStore.setItemAsync("sos-push-token", token);
+    let offline = false;
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, mail: "smtp" } },
+      "DELETE /notifications/subscriptions/test-sos": () => {
+        if (offline) throw new Error("offline");
+        return { status: 401, body: { error: "sign in first" } };
+      },
+      "POST /notifications/subscriptions/revoke": { status: 204 },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    const logout = await screen.findByTestId("logout");
+    offline = true;
+    await fireEvent.press(logout);
+    await waitFor(() => expect(screen).toHavePathname("/login"));
+    offline = false;
+    await retrySosLogout();
+    expect(api.calls.find((call) => call.path === "/notifications/subscriptions/revoke")?.body).toEqual({ token });
+    expect(await SecureStore.getItemAsync("sos-pending-logout")).toBe("[]");
+  });
+
   it("switches the language and saves it on the account", async () => {
     const api = fakeApi({ "GET /me": { body: ME }, "PATCH /me": { status: 204 } });
     await renderRouter(routes, { initialUrl: "/settings" });

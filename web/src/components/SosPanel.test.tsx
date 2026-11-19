@@ -25,6 +25,14 @@ it("shows the urgent banner with map, callback and acknowledgment", () => {
   expect(html).toContain("I’ve seen it");
 });
 
+it("warns that an alert did not reach every parent", () => {
+  vi.stubGlobal("localStorage", { getItem: () => "en" });
+  vi.stubGlobal("navigator", { languages: ["en"] });
+  state.response = { events: [{ ...report, deliveryFailedAt: "2026-11-19T20:32:00Z" }], callbackNumber: null };
+  const html = renderToStaticMarkup(<I18nProvider><SosPanel pid="phone" /></I18nProvider>);
+  expect(html).toContain("could not be delivered to every parent");
+});
+
 it("acknowledges the correct event and sends the optional label", async () => {
   const reply = { ...report, seenAt: "2026-11-19T14:33:00Z", seenByName: "Mum" };
   const send = vi.fn(async () => Response.json(reply));

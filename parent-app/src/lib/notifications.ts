@@ -9,8 +9,9 @@ import { ApiError, getSessionToken, makeClient, unwrap } from "../api/client";
 import { getItem, removeItem, setItem } from "./storage";
 
 const SOS_SUBSCRIPTION = "sos-push-subscription";
+const SOS_TOKEN = "sos-push-token";
 const PENDING_LOGOUT = "sos-pending-logout";
-type PendingLogout = { sid: string; session: string };
+type PendingLogout = { sid: string; session: string; token?: string };
 
 let logoutQueue = Promise.resolve();
 function serializeLogout(action: () => Promise<void>) {
@@ -40,6 +41,14 @@ async function revokePendingLogouts() {
       await withPushRequestTimeout((signal) => unwrap(previous.POST("/auth/logout", { signal })));
     } catch (err) {
       if (!(err instanceof ApiError) || err.status !== 401) throw err;
+      // The old session has expired, so the subscription cannot be deleted by id. The push token
+      // proves it is ours; without it the alerts would keep reaching this install after sign-out.
+      if (entry.token) {
+        const token = entry.token;
+        await withPushRequestTimeout((signal) => unwrap(makeClient().POST("/notifications/subscriptions/revoke", {
+          body: { token }, signal,
+        })));
+      }
     }
     await setItem(PENDING_LOGOUT, JSON.stringify(entries.slice(index + 1)));
   }
@@ -118,6 +127,7 @@ export async function enablePush(locale: "en" | "da"): Promise<{ state: PushStat
     })));
     const previous = await getItem(SOS_SUBSCRIPTION);
     await setItem(SOS_SUBSCRIPTION, sub.id);
+    await setItem(SOS_TOKEN, token);
     if (previous && previous !== sub.id) {
       await withPushRequestTimeout((signal) => unwrap(signedIn.DELETE("/notifications/subscriptions/{sid}", {
         params: { path: { sid: previous } }, signal,
@@ -136,8 +146,10 @@ export function revokeSosOnLogout(session: string) {
       return;
     }
     const entries = JSON.parse(await getItem(PENDING_LOGOUT) ?? "[]") as PendingLogout[];
-    await setItem(PENDING_LOGOUT, JSON.stringify([...entries, { sid, session }]));
+    const token = await getItem(SOS_TOKEN) ?? undefined;
+    await setItem(PENDING_LOGOUT, JSON.stringify([...entries, { sid, session, token }]));
     await removeItem(SOS_SUBSCRIPTION);
+    await removeItem(SOS_TOKEN);
     await revokePendingLogouts();
   });
 }
