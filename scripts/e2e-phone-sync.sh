@@ -52,4 +52,4 @@ grep -q 'tests="4" skipped="0" failures="0" errors="0"' "$report" || {
   head -c 4000 "$report" >&2
   exit 1
 }
-echo "phone sync end-to-end test passed"
+echo "phone sync and SOS end-to-end test passed"

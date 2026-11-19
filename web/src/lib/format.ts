@@ -4,7 +4,7 @@
 
 import type { Locale } from "./api";
 
-export const intlLocale = (l: Locale) => (l === "da" ? "da-DK" : "en-GB");
+export const intlLocale = (l: Locale) => (l === "en" ? "en-GB" : l);
 
 export function minutesToHHMM(minute: number): string {
   const m = ((minute % 1440) + 1440) % 1440;

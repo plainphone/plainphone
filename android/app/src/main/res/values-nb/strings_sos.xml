@@ -1,0 +1,25 @@
+<resources>
+    <string name="sos_title">SOS</string>
+    <string name="sos_back">Tilbake</string>
+    <string name="sos_intro">Hold inne en knapp i 3 sekunder.</string>
+    <string name="sos_urgent">Akutt: jeg trenger hjelp nå</string>
+    <string name="sos_help">Jeg trenger hjelp</string>
+    <string name="sos_emergency">Ring 112</string>
+    <string name="sos_hold">Hold inne for å sende en SOS.</string>
+    <string name="sos_hold_emergency">Hold inne for å ringe 112.</string>
+    <string name="sos_undo">Angre</string>
+    <string name="sos_sending_in">Sendes om %1$d s</string>
+    <string name="sos_stop_call">Slutt å ringe</string>
+    <string name="sos_sent">SOS sendt kl. %1$s</string>
+    <string name="sos_seen">Sett av en forelder</string>
+    <string name="sos_pending">Prøver å sende SOS …</string>
+    <string name="sos_failed">SOS kunne ikke sendes.</string>
+    <string name="sos_no_parents">Foreldrene dine kan legge til numre for samtaler og SMS i kontrollpanelet sitt.</string>
+    <string name="sos_sent_to">Sendt til %1$s kl. %2$s</string>
+    <string name="sos_seen_by">Sett av %1$s</string>
+    <string name="sos_location">Posisjonen din kan sendes med.</string>
+    <string name="sos_confirm">Bekreft</string>
+    <string name="sos_starting_in">Starter om %1$d s</string>
+    <string name="sos_report_received">SOS sendt til Plainphone kl. %1$s</string>
+    <string name="sos_call_missed">SOS-en din ble sendt, men samtalen til foreldrene dine kunne ikke starte. Ring dem selv, eller bruk Ring 112.</string>
+</resources>

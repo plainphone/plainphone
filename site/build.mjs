@@ -456,6 +456,7 @@ ${header(t)}
 </section>
 <section aria-labelledby="strong"><h2 id="strong">${p.strongTitle}</h2>
 <p>${p.start}</p>
+<p>${p.strongLanguage}</p>
 <p><a class="button" href="https://app.plainphone.org/add?mode=strong">${p.startStrong}</a></p>
 <ol class="guide">
 ${p.steps

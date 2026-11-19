@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- "Ring the phone", "Are you okay?" and location notices (docs/location.md). -->
+<resources>
+    <string name="safety_channel_ring">Telefon klingeln lassen</string>
+    <string name="safety_channel_checkin">Geht es dir gut?</string>
+    <string name="safety_channel_location">Standort geteilt</string>
+
+    <string name="ring_eyebrow">Von deinen Eltern</string>
+    <string name="ring_title">Deine Eltern suchen dich</string>
+    <string name="ring_body">Tippe auf die Schaltfläche. Dann wissen deine Eltern, dass du es gehört hast.</string>
+    <string name="ring_here">Ich bin hier</string>
+    <string name="ring_notice">Zum Öffnen tippen und dann auf „Ich bin hier“ tippen.</string>
+    <string name="ring_thanks">Danke. Deine Eltern wissen es.</string>
+    <string name="ring_keeps_going">Deine Eltern möchten, dass es weiterklingelt. In %1$s hört es auf.</string>
+
+    <string name="checkin_eyebrow">Von deinen Eltern</string>
+    <string name="checkin_title">Geht es dir gut?</string>
+    <string name="checkin_body">Antworte bitte bis %1$s.</string>
+    <string name="checkin_body_location">Antworte bitte bis %1$s. Wenn du bis dahin nicht antwortest, wird dein Standort einmal an deine Eltern gesendet.</string>
+    <string name="checkin_ok">Ja, mir geht es gut</string>
+    <string name="checkin_call">Ruf mich an</string>
+    <string name="checkin_notice">Antworte bitte bis %1$s.</string>
+
+    <string name="location_sent_title">Standort gesendet</string>
+    <string name="location_sent_find">Deine Eltern haben auf „Suchen“ getippt. Dein Standort wurde um %1$s gesendet.</string>
+    <string name="location_sent_checkin">Du hast auf „Geht es dir gut?“ nicht geantwortet. Deshalb wurde dein Standort um %1$s an deine Eltern gesendet.</string>
+    <string name="location_always_title">Dein Standort wird mit deinen Eltern geteilt</string>
+    <string name="location_always_body">Alle 5 Minuten, bis deine Eltern es ausschalten.</string>
+    <string name="location_always_body_until">Alle 5 Minuten bis %1$s. Danach nur, wenn deine Eltern auf „Suchen“ tippen oder du auf „Geht es dir gut?“ nicht antwortest.</string>
+    <string name="location_always_badge_until">Dein Standort wird bis %1$s geteilt</string>
+
+    <string name="sharing_open">Was können meine Eltern sehen?</string>
+    <string name="sharing_title">Was können meine Eltern sehen?</string>
+    <string name="sharing_mode_off">Deine Eltern können nicht sehen, wo du bist. Der Standort ist deaktiviert.</string>
+    <string name="sharing_mode_find">Deine Eltern bekommen deinen Standort nur, wenn sie auf „Suchen“ tippen. Sie sehen, wo du in dem Moment warst. Du bekommst jedes Mal eine Meldung.</string>
+    <string name="sharing_mode_checkin">Deine Eltern bekommen deinen Standort, wenn sie auf „Suchen“ tippen oder wenn du auf „Geht es dir gut?“ nicht rechtzeitig antwortest. Sie sehen, wo du in dem Moment warst. Du bekommst jedes Mal eine Meldung.</string>
+    <string name="sharing_mode_always">Bis %1$s wird dein Standort alle 5 Minuten geteilt. Danach nur, wenn deine Eltern auf „Suchen“ tippen oder du auf „Geht es dir gut?“ nicht antwortest.</string>
+    <string name="sharing_mode_always_open">Dein Standort wird alle 5 Minuten geteilt. Der Hinweis bleibt die ganze Zeit sichtbar.</string>
+    <string name="sharing_only_latest">Deine Eltern sehen nur deinen letzten Standort. Es gibt keinen Standortverlauf.</string>
+    <string name="sharing_latest">Wann dein Standort gesendet wurde</string>
+    <string name="sharing_none">Dein Standort wurde in den letzten 30 Tagen nicht gesendet.</string>
+    <string name="sharing_why_find">Deine Eltern haben auf „Suchen“ getippt</string>
+    <string name="sharing_why_checkin">Keine Antwort auf „Geht es dir gut?“</string>
+    <string name="sharing_why_always">Immer an</string>
+    <string name="sharing_range">%1$s bis %2$s</string>
+    <string name="sharing_log_note">Diese Liste bleibt auf deinem Telefon und zeigt die letzten 30 Tage.</string>
+</resources>

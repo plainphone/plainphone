@@ -10,6 +10,8 @@ for strong mode and on the phone for light mode.
 | Point in the flow | What the setup now says or does |
 | --- | --- |
 | Choosing a mode | Ask about the phone's current state. The strong-mode guide explains backup and reset before any data is erased. The light-mode guide goes straight to its own dashboard flow. |
+| Household time zone | Choose the time zone where the phone will be used before generating the QR code. The dashboard uses it for schedules and includes it in the Android setup code. This step is in the browser for both parent apps. |
+| Choosing the language | In strong mode, choose the language before generating the QR code. From the parent app, save the choice and continue to the browser to create the QR code. On a Child phone, Android uses the chosen language during setup. **Lock Android language** is on by default and can be changed later. **Use phone language** leaves Android’s setup language in place. |
 | Choosing a PIN | Explain what the PIN is for. In strong mode, enter it twice in the dashboard. The salted hash is in the provisioning QR code. In light mode, enter it twice on the phone, where Plainphone hashes it locally. |
 | Strong mode and the first Android screen | Ask parents to stop at the first welcome screen and tap the same spot six times. The guide shows the spot and explains Android's organisation-management prompt. |
 | Strong mode and Wi-Fi | Offer Wi-Fi in the code or use Android's network picker. Hidden networks, WPA3-only networks and networks with sign-in pages need a separate connection. The QR code includes any entered password, so keep it private. |
@@ -21,6 +23,25 @@ for strong mode and on the phone for light mode.
 | Background operation, location and always-on filter | Put these after the required permissions, with a single action to continue without extras. Battery exemption uses the Android prompt. OnePlus and Xiaomi point to their battery controls in App info. Samsung opens Never sleeping apps when its settings app supports that link. |
 | Handoff, weak Wi-Fi and an expired link | The dashboard waits for the phone. In light mode the phone offers a retry if enrollment or the first rules fetch fails, or asks for a new link when the server rejects an unused token. It shows the finish screen after storing the first rules. The dashboard checks expiry locally, including when offline, and can issue a new link. A new link replaces the pending token and PIN after confirmation on a phone that has not paired. |
 | After connecting | Offer three direct links for contacts, catalog apps and school hours. |
+
+## When setup settings change
+
+Changing the language or time zone invalidates any unused setup QR code or link for that
+phone immediately, even if the dashboard cannot create its replacement yet. An open
+dashboard page hides the old code on its next check and offers to make a new one. The
+parent app shows a reminder after saving a language change and can open replacement setup
+for either mode in the browser. If a strong-mode phone has already scanned a QR code
+that the server rejects, the phone asks the parent for a new code and a factory reset
+before scanning it during Android setup. This also applies if the server no longer
+recognizes the token.
+
+The server binds each token to the server-controlled QR values, including the Android
+locale, time zone, calling code and provisioning DNS host. A server configuration
+change that makes the saved values stale also hides the QR on the dashboard. Generating a
+replacement invalidates the earlier token. The maintenance PIN hash and optional Wi-Fi details
+stay in the browser and on the setup phone. Unused QR codes issued before this change
+also need to be regenerated. If the server already accepted a code and only its response
+was lost, the same phone can still recover the connection during the usual retry window.
 
 ## Previous setup walkthrough
 

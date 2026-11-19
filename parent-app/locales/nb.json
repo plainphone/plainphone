@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Plainphone",
+    "NSCameraUsageDescription": "Plainphone bruker kameraet til å skanne sammenkoblingskoden som vises på telefonen."
+  }
+}

@@ -3,6 +3,7 @@
 // The phone being managed, loaded once for all its screens (overview, apps, contacts, ...):
 // the phone itself, the changes waiting for its key, the apps' names, and run(), which
 // reports what a rule change did. Same job as PhoneLayout in web/src/pages/Phone.tsx.
+import { messageLanguage } from "../shared/lib/phone-language";
 import { usePathname } from "expo-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Keyboard, View } from "react-native";
@@ -218,7 +219,7 @@ function ChangeBar({
 
   let text: string | null = null;
   if (banner) {
-    const what = banner.summary?.[locale] ?? describeOp(banner.op, t, locale, appLabel);
+    const what = banner.summary?.[messageLanguage(locale)] ?? describeOp(banner.op, t, locale, appLabel);
     let when: string;
     if (banner.keyType === "trusted" || !banner.effectiveAt) when = t("pending.trustedBanner");
     else {
