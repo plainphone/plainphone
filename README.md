@@ -159,8 +159,9 @@ In the dashboard, **Add phone** starts with a new or reset phone (strong mode) o
 already in use (light mode). Strong mode uses Android's welcome screen and can include Wi-Fi in
 the provisioning code. Choose the phone's language before creating the QR code. For a
 Child phone in strong mode, Android uses that language at setup and Plainphone locks it.
-Choose the household time zone in the browser. The same setting is used for Android setup and schedules. Later, use **Plainphone
-language** in either parent app to change the app language or return to the phone's language.
+Choose the household time zone in the browser. The same setting is used for Android setup and schedules.
+If you change the language or the time zone before pairing, make a new QR code or setup link.
+Later, use **Plainphone language** in either parent app to change the app language or return to the phone's language.
 Light and Myself phones only apply the app language. The browser hashes the maintenance PIN before adding it to the
 code. Light mode keeps the phone's existing data. Chrome installs the app and opens the setup
 link, then the phone asks who will use it and hashes the PIN locally. In both modes, check the

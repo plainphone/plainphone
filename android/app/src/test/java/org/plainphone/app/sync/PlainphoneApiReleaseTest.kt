@@ -103,6 +103,13 @@ class PlainphoneApiReleaseTest {
     }
 
     @Test
+    fun `an outdated QR code is rejected without retrying the token`() {
+        answer = 409
+        responseBody = """{"error":"This QR code is out of date. Make a new one."}"""
+        assertThat(api().enroll("pp_e_test", "install-id-123456", emptyMap())).isEqualTo(EnrollResult.Rejected)
+    }
+
+    @Test
     fun `approval choices and QR show the requested limit`() {
         val shorter = "Instagram: 15 → 30 min a day"
         val longer = "Instagram: 15 → 60 min a day"

@@ -53,7 +53,7 @@ import { childContactSettingsInput, pendingContactSuggestions, reviewContactSugg
 import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
-import { issueEnrollment, provisioningInfo } from "../services/enrollment.js";
+import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
 import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
@@ -630,10 +630,11 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       return created;
     });
     if (!phone) return c.json({ error: "the setup template has expired" }, 404);
-    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    if (!setup) return c.json({ error: "this phone is already set up" }, 409);
     // Register the DNS ClientID now, so the filter host is ready by the time the phone is set up.
     await syncDns(ctx, phone.id);
-    return c.json({ phone: await phoneSummary(ctx, phone), enrollment, provisioning: provisioningInfo(ctx) }, 201);
+    return c.json({ phone: await phoneSummary(ctx, phone), ...setup }, 201);
   });
 
   // A new QR code for a phone that has not been set up yet (the old one expired or got lost).
@@ -644,11 +645,15 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       .where(and(eq(pairings.phoneId, phone.id), eq(pairings.requiresConfirmation, true)));
     if (pending || phone.deviceTokenHash !== null) return c.json({ error: "confirm the account on the phone" }, 409);
     if (!enrollLimit.take(c.get("user").id)) throw new HTTPException(429, { message: "too many setup codes today" });
-    const enrollment = await issueEnrollment(ctx, phone.id, c.get("user").id);
-    return c.json({ enrollment, provisioning: provisioningInfo(ctx) }, 201);
+    const setup = await issueEnrollment(ctx, phone.id, c.get("user").id);
+    if (!setup) return c.json({ error: "this phone is already set up" }, 409);
+    return c.json(setup, 201);
   });
 
-  app.get("/phones/:pid", async (c) => c.json(await phoneSummary(ctx, await requirePhone(c))));
+  app.get("/phones/:pid", async (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json(await phoneSummary(ctx, await requirePhone(c)));
+  });
 
   app.patch("/phones/:pid", async (c) => {
     const phone = await requirePhone(c);
@@ -673,10 +678,18 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       ...(input.offlineAlertHours !== undefined ? { offlineAlertHours: input.offlineAlertHours } : {}),
     };
     if (Object.keys(fields).length) {
-      const [updated] = await ctx.db.update(phones).set(fields).where(and(
-        eq(phones.id, phone.id),
-        input.timezone !== undefined ? and(eq(phones.mode, "strong"), isNull(phones.pairedAt), isNull(phones.deviceTokenHash)) : undefined,
-      )).returning({ id: phones.id });
+      const updated = await ctx.db.transaction(async (tx) => {
+        const [current] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
+        if (!current || (input.timezone !== undefined && (
+          current.mode !== "strong" || current.pairedAt !== null || current.deviceTokenHash !== null
+        ))) return false;
+        await tx.update(phones).set(fields).where(eq(phones.id, phone.id));
+        if ((input.language !== undefined && input.language !== current.language)
+          || (input.timezone !== undefined && input.timezone !== current.timezone)) {
+          await invalidateEnrollments(tx, phone.id, ctx.now());
+        }
+        return true;
+      });
       if (input.timezone !== undefined && !updated) return c.json({ error: "time zone can only be set before strong setup" }, 409);
     }
     // The boolean predates the location modes: on means the child default, off means off.

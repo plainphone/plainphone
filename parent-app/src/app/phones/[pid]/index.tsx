@@ -112,9 +112,13 @@ function PhoneLanguageSettings() {
   async function save(language: PhoneLanguage) {
     setBusy(true);
     try {
-      setPhone(await unwrap<Phone>(client.PATCH("/phones/{pid}", {
+      const updated = await unwrap<Phone>(client.PATCH("/phones/{pid}", {
         params: { path: { pid: phone.id } }, body: { language },
-      })));
+      }));
+      setPhone(updated);
+      if (updated.setupQrAvailable) {
+        notify({ tone: "info", text: t("add.setupChanged") });
+      }
     } catch (err) {
       notify({ tone: "error", text: errorMessage(err, t) });
     } finally {

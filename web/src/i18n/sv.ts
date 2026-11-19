@@ -856,6 +856,8 @@ export const sv: Messages = {
   "add.pairedBody": "Telefonen följer dina regler från och med nu. Välj sedan dess appar och kontakter.",
   "add.noCrypto": "Den här webbläsaren kan inte skapa koden här. Öppna instrumentpanelen över https i en uppdaterad webbläsare.",
   "add.expired": "Koden har tagit slut.",
+  "add.outdatedQr": "Den här QR-koden är inaktuell. Skapa en ny.",
+  "add.setupChanged": "Inställningarna för konfigurationen har ändrats. Om du redan har skapat en QR-kod behöver du skapa en ny.",
   "add.removed": "Den här telefonen togs bort från instrumentpanelen.",
   "setup.open": "Öppna {name}",
   "setup.alreadyTitle": "Den här telefonen är konfigurerad",

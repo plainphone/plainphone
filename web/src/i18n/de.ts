@@ -856,6 +856,8 @@ export const de: Messages = {
   "add.pairedBody": "Das Telefon folgt von nun an Ihren Regeln. Wählen Sie als Nächstes die Apps und Kontakte aus.",
   "add.noCrypto": "Dieser Browser kann den Code hier nicht erstellen. Öffnen Sie das Dashboard über https in einem aktuellen Browser.",
   "add.expired": "Der Code ist abgelaufen.",
+  "add.outdatedQr": "Dieser QR-Code ist veraltet. Erstelle einen neuen.",
+  "add.setupChanged": "Die Einstellungen für die Einrichtung wurden geändert. Wenn du bereits einen QR-Code erstellt hast, erstelle einen neuen.",
   "add.removed": "Dieses Telefon wurde aus dem Dashboard entfernt.",
   "setup.open": "Öffnen Sie {name}",
   "setup.alreadyTitle": "Dieses Telefon ist eingerichtet",

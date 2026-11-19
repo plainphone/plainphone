@@ -432,7 +432,7 @@ class PlainphoneApi private constructor(
                 EnrollResult.Paired(it.getString("phoneId"), it.getString("deviceToken"), readPairingAccount(it), readSetupUndoMinutes(it))
             }
             400 -> if (invalidSetupKey(r)) EnrollResult.InvalidKey else EnrollResult.Rejected
-            404, 410 -> EnrollResult.Rejected
+            404, 409, 410 -> EnrollResult.Rejected
             else -> throw HttpError(r.status, r.body) // 429, 5xx: keep the token and try again later
         }
     }

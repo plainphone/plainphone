@@ -9,7 +9,6 @@ import { intlLocale } from "../lib/format";
 import { lightSetupLink } from "../lib/light-setup";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import {
-  countryCodeForTimezone,
   hashPin,
   isValidPin,
   newSalt,
@@ -24,13 +23,20 @@ import "./add-phone.css";
 
 interface EnrollmentOut {
   phone?: Phone;
-  enrollment: { token: string; expiresAt: string };
-  provisioning: ProvisioningInfo;
+  enrollment: { id: string; token: string; expiresAt: string };
+  provisioning: ProvisioningInfo & {
+    mode: Phone["mode"];
+    profile: Profile;
+    timezone: string;
+    locale: string | null;
+    countryCode: string | null;
+  };
 }
 
 type Mode = Phone["mode"];
 
 interface Qr {
+  enrollmentId: string;
   phoneId: string;
   name: string;
   mode: Mode;
@@ -96,7 +102,7 @@ export function AddPhonePage() {
           <SetupTimezonePicker value={timezone} onChange={setTimezone} />
         </PinStep>
       )}
-      {step === 3 && qr && <QrStep qr={qr} />}
+      {step === 3 && qr && <QrStep key={qr.enrollmentId} qr={qr} />}
     </div>
   );
 }
@@ -127,7 +133,7 @@ export function SetupPhonePage() {
           ) : phone.setupQrAvailable === false ? (
             <PageTitle sub={t("setup.codePendingBody")}>{t("setup.pendingTitle")}</PageTitle>
           ) : qr ? (
-            <QrStep qr={qr} />
+            <QrStep key={qr.enrollmentId} qr={qr} />
           ) : (
             <PinStep
               light={phone.mode === "light"}
@@ -188,13 +194,15 @@ function buildQr(
   locale: string,
 ): Qr {
   const enrollmentToken = out.enrollment.token;
-  const link = phone.mode === "light"
+  const { mode, profile, timezone, locale: setupLocale, countryCode } = out.provisioning;
+  const link = mode === "light"
     ? lightSetupLink(out.provisioning.serverUrl, enrollmentToken, out.provisioning.adminComponent, locale)
     : undefined;
   return {
+    enrollmentId: out.enrollment.id,
     phoneId: phone.id,
     name: phone.name,
-    mode: phone.mode,
+    mode,
     link,
     expiresAt: out.enrollment.expiresAt,
     makeModules: (wifi) => link
@@ -202,10 +210,10 @@ function buildQr(
       : provisioningQr(provisioningPayload(out.provisioning, {
         enrollmentToken,
         ...pinned!,
-        countryCode: countryCodeForTimezone(phone.timezone),
-        language: phone.language,
-        profile: phone.profile,
-        timezone: phone.timezone,
+        countryCode,
+        locale: setupLocale,
+        profile,
+        timezone,
         wifi,
       })).modules,
   };
@@ -410,30 +418,39 @@ function QrStep({ qr }: { qr: Qr }) {
   const [copyStatus, setCopyStatus] = useState<"copied" | "copyFailed">();
 
   // Wait for the phone: it pairs itself with the token as soon as setup is done.
-  const [gone, setGone] = useState<"expired" | "removed" | null>(null);
+  const [gone, setGone] = useState<"expired" | "outdated" | "removed" | null>(null);
   useEffect(() => {
     if (paired || gone) return;
     let stop = false;
     const expiresAt = Date.parse(qr.expiresAt);
     const expiryTimer = window.setTimeout(() => setGone("expired"), Math.max(0, expiresAt - Date.now()));
-    const id = window.setInterval(async () => {
+    let checking = false;
+    async function check() {
       // Only while someone looks at the page; stop for good once the code has run out.
-      if (document.hidden) return;
+      if (document.hidden || checking) return;
+      checking = true;
       try {
         const p = await api.get<Phone>(`/phones/${qr.phoneId}`);
         if (stop) return;
         if (p.pairedAt) setPaired(true);
+        else if (p.setupEnrollmentId !== qr.enrollmentId) setGone("outdated");
       } catch (err) {
         if (!stop && err instanceof ApiError && err.status === 404) setGone("removed");
         // Anything else is a network hiccup: try again on the next tick.
+      } finally {
+        checking = false;
       }
-    }, 4_000);
+    }
+    void check();
+    const id = window.setInterval(check, 4_000);
+    document.addEventListener("visibilitychange", check);
     return () => {
       stop = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
       window.clearTimeout(expiryTimer);
     };
-  }, [qr.phoneId, qr.expiresAt, paired, gone]);
+  }, [qr.phoneId, qr.enrollmentId, qr.expiresAt, paired, gone]);
 
   const expires = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
@@ -455,50 +472,54 @@ function QrStep({ qr }: { qr: Qr }) {
     );
   }
 
+  if (gone) {
+    const message = { expired: "add.expired", outdated: "add.outdatedQr", removed: "add.removed" } as const;
+    return (
+      <>
+        <PageTitle>{t("add.qrTitle", { name: qr.name })}</PageTitle>
+        <p className="notice notice-error" role="alert">{t(message[gone])}</p>
+        {gone !== "removed" && (
+          <Link className="btn btn-primary" to={`/phones/${qr.phoneId}/setup`} reloadDocument>
+            {t(light ? "add.newLink" : "setup.showQr")}
+          </Link>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <Progress step={light ? 2 : 3} total={light ? 2 : 3} />
       <PageTitle sub={t(light ? "add.lightQrIntro" : "add.qrIntro")}>{t("add.qrTitle", { name: qr.name })}</PageTitle>
       <div className="setup-grid">
-        {!gone && <QrImage modules={modules} label={t("add.qrAlt")} />}
+        <QrImage modules={modules} label={t("add.qrAlt")} />
         <div className="setup-side">
-          {!gone && (
-            <>
-              <ol className="setup-steps">
-                <li>{t(light ? "add.light1" : "add.s1")}</li>
-                <li>{t(light ? "add.light2" : "add.s2")}</li>
-                <li>{t(light ? "add.light3" : "add.s3")}</li>
-              </ol>
-              {qr.link ? (
-                <div className="actions">
-                  <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
-                  {navigator.clipboard && (
-                    <button type="button" className="btn btn-secondary" onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(qr.link!);
-                        setCopyStatus("copied");
-                      } catch {
-                        setCopyStatus("copyFailed");
-                      }
-                    }}>{t("add.copyLink")}</button>
-                  )}
-                  {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
-                </div>
-              ) : <WifiForm wifi={wifi} onChange={setWifi} />}
-            </>
-          )}
-          {gone ? (
-            <p className="notice notice-error" role="alert">
-              {t(gone === "expired" ? "add.expired" : "add.removed")}{" "}
-              {gone === "expired" && <Link to={`/phones/${qr.phoneId}/setup`} reloadDocument>{t(light ? "add.newLink" : "setup.showQr")}</Link>}
-            </p>
-          ) : (
-            <p className="setup-wait" role="status">
-              <span className="pulse" aria-hidden="true" />
-              {t("add.waiting")}
-            </p>
-          )}
-          {!gone && <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>}
+          <ol className="setup-steps">
+            <li>{t(light ? "add.light1" : "add.s1")}</li>
+            <li>{t(light ? "add.light2" : "add.s2")}</li>
+            <li>{t(light ? "add.light3" : "add.s3")}</li>
+          </ol>
+          {qr.link ? (
+            <div className="actions">
+              <a href={qr.link} target="_blank" rel="noreferrer">{t("add.setupLink")}</a>
+              {navigator.clipboard && (
+                <button type="button" className="btn btn-secondary" onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(qr.link!);
+                    setCopyStatus("copied");
+                  } catch {
+                    setCopyStatus("copyFailed");
+                  }
+                }}>{t("add.copyLink")}</button>
+              )}
+              {copyStatus && <span role="status">{t(`add.${copyStatus}`)}</span>}
+            </div>
+          ) : <WifiForm wifi={wifi} onChange={setWifi} />}
+          <p className="setup-wait" role="status">
+            <span className="pulse" aria-hidden="true" />
+            {t("add.waiting")}
+          </p>
+          <p className="muted small">{t("add.qrPrivate", { when: expires })}</p>
           <p className="small">
             <a href={t("add.guideUrl")} target="_blank" rel="noreferrer">
               {t("add.guide")}

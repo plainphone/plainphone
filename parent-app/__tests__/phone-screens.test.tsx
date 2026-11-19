@@ -24,7 +24,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt"> & { lastSeenAt: string | null; attestation?: unknown; status?: { lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; status?: { lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -96,6 +96,18 @@ describe("overview", () => {
     await fireEvent.press(screen.getByRole("radio", { name: "Deutsch" }));
     await waitFor(() => expect(screen.getByRole("radio", { name: "Deutsch" })).toBeChecked());
     expect(api.calls.find((c) => c.method === "PATCH")?.body).toEqual({ language: "de" });
+  });
+
+  it("asks for a new setup QR after changing an unpaired phone's language", async () => {
+    const draft = { ...PHONE, pairedAt: null, setupQrAvailable: true };
+    phoneApi(draft, {
+      [`PATCH /phones/${PHONE.id}`]: { body: { ...draft, language: "de", setupEnrollmentId: null } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await fireEvent.press(await screen.findByRole("button", { name: /Plainphone language/ }));
+    await fireEvent.press(screen.getByRole("radio", { name: "Deutsch" }));
+    expect(await screen.findByText("Setup settings changed. If you already made a QR code, make a new one.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue in the browser" })).toBeTruthy();
   });
 
   it("shows the system check's own date even after a newer phone sync", async () => {

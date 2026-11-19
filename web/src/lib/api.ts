@@ -83,6 +83,7 @@ export interface Phone {
   locationMode?: LocationMode;
   pairedAt: string | null;
   setupQrAvailable?: boolean;
+  setupEnrollmentId?: string | null;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
   lastSeenAt: string | null;

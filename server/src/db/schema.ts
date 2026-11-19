@@ -16,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ProvisioningInfo } from "../lib/provisioning.js";
 import type { Home, StoredSettings } from "../lib/phone-settings.js";
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -624,6 +625,8 @@ export const enrollments = pgTable(
       .references(() => phones.id, { onDelete: "cascade" }),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    provisioning: jsonb("provisioning").$type<ProvisioningInfo>(),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
     usedAt: timestamp("used_at", { withTimezone: true }),
     /** SHA-256 of the phone's install id, so a lost answer can be retried by the same phone. */
     installIdHash: text("install_id_hash"),

@@ -39,8 +39,9 @@ export function PhoneSettingsPage() {
   async function saveLanguage(language: PhoneLanguage) {
     setSavingLanguage(true);
     try {
-      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { language }));
-      notify({ tone: "success", text: t("app.saved") });
+      const updated = await api.patch<Phone>(`/phones/${phone.id}`, { language });
+      setPhone(updated);
+      notify({ tone: "success", text: t(updated.setupQrAvailable ? "add.setupChanged" : "app.saved") });
     } catch {
       notify({ tone: "error", text: t("error.generic") });
     } finally {

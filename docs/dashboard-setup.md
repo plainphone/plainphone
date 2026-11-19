@@ -23,6 +23,19 @@ for strong mode and on the phone for light mode.
 | Handoff, weak Wi-Fi and an expired link | The dashboard waits for the phone. In light mode the phone offers a retry if enrollment or the first rules fetch fails, or asks for a new link when the server rejects an unused token. It shows the finish screen after storing the first rules. The dashboard checks expiry locally, including when offline, and can issue a new link. A new link replaces the pending token and PIN after confirmation on a phone that has not paired. |
 | After connecting | Offer three direct links for contacts, catalog apps and school hours. |
 
+## When setup settings change
+
+Changing the language or time zone invalidates any unused setup QR code or link for that
+phone immediately, even if the dashboard cannot create its replacement yet. An open
+dashboard page hides the old code on its next check and offers to make a new one. The
+parent app shows a reminder after saving a language change and opens QR setup in the browser.
+
+The server binds each token to the server-controlled QR values, including the Android
+locale, time zone and calling code. The maintenance PIN hash and optional Wi-Fi details
+stay in the browser and on the setup phone. Unused QR codes issued before this change
+also need to be regenerated. If the server already accepted a code and only its response
+was lost, the same phone can still recover the connection during the usual retry window.
+
 ## Previous setup walkthrough
 
 The figures below predate phone-side role selection and account review.

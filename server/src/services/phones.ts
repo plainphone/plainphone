@@ -9,6 +9,7 @@ import {
   DNS_CATEGORIES,
   dnsSettings,
   locations,
+  enrollments,
   pairings,
   pendingChanges,
   phoneApps,
@@ -297,8 +298,17 @@ export async function phoneSummaries(ctx: Ctx, householdIds: string[]) {
 }
 
 export async function phoneSummary(ctx: Ctx, phone: Phone) {
-  const [row] = await ctx.db.select(summaryFields()).from(phones).where(eq(phones.id, phone.id));
-  return summaryJson(ctx, phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false);
+  const [row] = await ctx.db.select({
+    phone: phones,
+    ...summaryFields(),
+    setupEnrollmentId: sql<string | null>`(select ${enrollments.id} from ${enrollments}
+      where ${enrollments.phoneId} = ${phones}.${sql.identifier(phones.id.name)}
+        and ${enrollments.invalidatedAt} is null and ${enrollments.provisioning} is not null)`,
+  }).from(phones).where(eq(phones.id, phone.id));
+  return {
+    ...summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false),
+    setupEnrollmentId: row?.setupEnrollmentId ?? null,
+  };
 }
 
 const STATUS_NOTICE_TTL_MS = 7 * 24 * 60 * 60_000;

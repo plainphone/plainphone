@@ -848,6 +848,8 @@ export const en = {
   "add.pairedBody": "The phone follows your rules from now on. Choose its apps and contacts next.",
   "add.noCrypto": "This browser cannot make the code here. Open the dashboard over https in an up-to-date browser.",
   "add.expired": "The code has run out.",
+  "add.outdatedQr": "This QR code is out of date. Make a new one.",
+  "add.setupChanged": "Setup settings changed. If you already made a QR code, make a new one.",
   "add.removed": "This phone was removed from the dashboard.",
   "setup.open": "Open {name}",
   "setup.alreadyTitle": "This phone is set up",

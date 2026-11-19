@@ -856,6 +856,8 @@ export const nb: Messages = {
   "add.pairedBody": "Telefonen følger reglene dine fra nå av. Velg appene og kontaktene neste.",
   "add.noCrypto": "Denne nettleseren kan ikke lage koden her. Åpne dashbordet over https i en oppdatert nettleser.",
   "add.expired": "Koden har gått tom.",
+  "add.outdatedQr": "Denne QR-koden er utdatert. Lag en ny.",
+  "add.setupChanged": "Innstillingene for oppsett er endret. Hvis du allerede har laget en QR-kode, må du lage en ny.",
   "add.removed": "Denne telefonen ble fjernet fra dashbordet.",
   "setup.open": "Åpne {name}",
   "setup.alreadyTitle": "Denne telefonen er konfigurert",

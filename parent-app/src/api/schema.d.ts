@@ -941,7 +941,7 @@ export interface paths {
         head?: never;
         /**
          * Update a phone
-         * @description Turning location off deletes the stored position.
+         * @description Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
          */
         patch: operations["updatePhone"];
         trace?: never;
@@ -1897,6 +1897,11 @@ export interface components {
         Enrollment: {
             phone?: components["schemas"]["PhoneSummary"];
             enrollment?: {
+                /**
+                 * Format: uuid
+                 * @description Public identifier used by the dashboard to check whether the QR is still current.
+                 */
+                id?: string;
                 /** @example pp_e_3q2-7wEvR1q8aZ0sLx9Ywg */
                 token?: string;
                 /** Format: date-time */
@@ -1917,6 +1922,16 @@ export interface components {
                 serverUrl?: string;
                 /** @description Private DNS until the phone's own filter host is ready */
                 dnsHost?: string;
+                /** @enum {unknown} */
+                mode?: "strong" | "light";
+                /** @enum {unknown} */
+                profile?: "child" | "self";
+                language?: components["schemas"]["PhoneLanguage"];
+                timezone?: string;
+                /** @description Android setup locale for a strong Child phone */
+                locale?: string | null;
+                /** @description Calling code inferred from the strong setup time zone. */
+                countryCode?: string | null;
             };
         };
         Error: {
@@ -2427,6 +2442,11 @@ export interface components {
             pairedAt?: string | null;
             /** @description Whether the dashboard can issue a new setup QR code for this phone. */
             setupQrAvailable?: boolean;
+            /**
+             * Format: uuid
+             * @description Identifier of the current setup QR in single-phone responses, if one was issued and has not been invalidated.
+             */
+            setupEnrollmentId?: string | null;
             /**
              * Format: date-time
              * @description When the parents released the phone, while the phone has not yet switched Plainphone off. Null otherwise. The phone disappears from the dashboard once it has.
@@ -2988,6 +3008,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description This QR code is out of date. Make a new one. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
             };
             /** @description Token expired */
             410: {

@@ -7,9 +7,6 @@
 
 import { encode } from "uqr";
 import type { Profile } from "./api";
-import type { Language, PhoneLanguage } from "./phone-language";
-
-const provisioningLocales: Record<Language, string> = { da: "da_DK", en: "en_GB", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 
 export const PBKDF2_ITERATIONS = 120_000; // must match MaintenancePin.kt and provisioning-qr.py
 export const MIN_PIN_LENGTH = 6;
@@ -60,7 +57,7 @@ export interface SetupWifi {
 
 export function provisioningPayload(
   info: ProvisioningInfo,
-  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null; language?: PhoneLanguage; profile?: Profile; timezone?: string; wifi?: SetupWifi },
+  opts: { enrollmentToken: string; pinHash: string; pinSalt: string; countryCode?: string | null; locale?: string | null; profile?: Profile; timezone?: string; wifi?: SetupWifi },
 ) {
   const extras: Record<string, string> = {
     "plainphone.pin_hash": opts.pinHash,
@@ -79,7 +76,7 @@ export function provisioningPayload(
     // Keep the maker's dialer, messages, camera and clock installed; Plainphone hides the rest.
     [PREFIX + "PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED"]: true,
     [PREFIX + "PROVISIONING_ADMIN_EXTRAS_BUNDLE"]: extras,
-    ...(opts.language && opts.profile !== "self" && { [PREFIX + "PROVISIONING_LOCALE"]: provisioningLocales[opts.language] }),
+    ...(opts.locale && { [PREFIX + "PROVISIONING_LOCALE"]: opts.locale }),
     ...(opts.timezone && { [PREFIX + "PROVISIONING_TIME_ZONE"]: opts.timezone }),
     ...(opts.wifi && {
       [PREFIX + "PROVISIONING_WIFI_SSID"]: opts.wifi.ssid,
@@ -94,18 +91,4 @@ export function provisioningQr(payload: ReturnType<typeof provisioningPayload>) 
   const text = JSON.stringify(payload);
   const qr = encode(text, { ecc: "L", border: 0 });
   return { text, size: qr.size, version: qr.version, modules: qr.data };
-}
-
-/** Calling code guessed from the browser's time zone; the phone falls back to its SIM. */
-export function countryCodeForTimezone(tz: string): string | null {
-  const map: Record<string, string> = {
-    "Europe/Copenhagen": "45",
-    "Europe/Oslo": "47",
-    "Europe/Stockholm": "46",
-    "Europe/Helsinki": "358",
-    "Europe/Berlin": "49",
-    "Europe/London": "44",
-    "Europe/Amsterdam": "31",
-  };
-  return map[tz] ?? null;
 }

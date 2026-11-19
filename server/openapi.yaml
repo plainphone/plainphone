@@ -133,6 +133,7 @@ components:
         enrollment:
           type: object
           properties:
+            id: { type: string, format: uuid, description: Public identifier used by the dashboard to check whether the QR is still current. }
             token: { type: string, examples: ["pp_e_3q2-7wEvR1q8aZ0sLx9Ywg"] }
             expiresAt: { type: string, format: date-time }
         provisioning:
@@ -147,6 +148,12 @@ components:
             signatureChecksum: { type: string, description: base64url SHA-256 of the app's signing certificate }
             serverUrl: { type: string, format: uri }
             dnsHost: { type: string, description: Private DNS until the phone's own filter host is ready }
+            mode: { enum: [strong, light] }
+            profile: { enum: [child, self] }
+            language: { $ref: "#/components/schemas/PhoneLanguage" }
+            timezone: { type: string }
+            locale: { type: [string, "null"], description: Android setup locale for a strong Child phone, if chosen. }
+            countryCode: { type: [string, "null"], description: Calling code inferred from the strong setup time zone. }
     Error:
       type: object
       required: [error]
@@ -710,6 +717,10 @@ components:
         setupQrAvailable:
           type: boolean
           description: Whether the dashboard can issue a new setup QR code for this phone.
+        setupEnrollmentId:
+          type: [string, "null"]
+          format: uuid
+          description: Identifier of the current setup QR in single-phone responses, if one was issued and has not been invalidated.
         releaseRequestedAt:
           type: [string, "null"]
           format: date-time
@@ -1138,6 +1149,11 @@ paths:
                       householdName: { type: [string, "null"] }
         "400": { $ref: "#/components/responses/Error" }
         "404": { description: Unknown token. Fall back to pairing with a code. }
+        "409":
+          description: "This QR code is out of date. Make a new one."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "410": { description: Token expired, already used by another phone, or the phone entry is already paired. Fall back to pairing with a code. }
         "429": { $ref: "#/components/responses/Error" }
 
@@ -2151,7 +2167,7 @@ paths:
       operationId: updatePhone
       summary: Update a phone
       tags: [phones]
-      description: Turning location off deletes the stored position.
+      description: Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
       security: [{ session: [] }, { cookie: [] }]
       requestBody:
         content:

@@ -847,6 +847,8 @@ export const da: Messages = {
   "add.pairedBody": "Telefonen følger dine regler fra nu af. Vælg dens apps og kontakter som det næste.",
   "add.noCrypto": "Browseren kan ikke lave koden her. Åbn dashboardet over https i en opdateret browser.",
   "add.expired": "Koden er udløbet.",
+  "add.outdatedQr": "QR-koden er forældet. Opret en ny.",
+  "add.setupChanged": "Indstillingerne for opsætning er ændret. Hvis du allerede har oprettet en QR-kode, skal du oprette en ny.",
   "add.removed": "Telefonen er fjernet fra dashboardet.",
   "setup.open": "Åbn {name}",
   "setup.alreadyTitle": "Telefonen er sat op",

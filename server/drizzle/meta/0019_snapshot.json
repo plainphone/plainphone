@@ -313,6 +313,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "provisioning": {
+          "name": "provisioning",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invalidated_at": {
+          "name": "invalidated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "used_at": {
           "name": "used_at",
           "type": "timestamp with time zone",
