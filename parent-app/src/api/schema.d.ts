@@ -2911,10 +2911,11 @@ export interface components {
              */
             healthBoardEnabled: boolean;
             /**
-             * @description The server keeps this phone's daily use for the parents' weekly summary. The phone does not act on it.
+             * @description The server keeps this phone's daily use for the parents' weekly summary. The phone only uses it to tell the child on "What can my parents see?". Missing means on.
              * @default true
              */
             weeklySummaryEnabled: boolean;
+            /**
              * @description During bedtime the phone is silent except calls from parents, 112 and help lines. Missing means on.
              * @default true
              */
@@ -5321,6 +5322,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         summaries: components["schemas"]["WeeklySummary"][];
+                        /**
+                         * Format: date
+                         * @description Local date the first summary comes, while there is none yet. The first summary waits for a full week of history. Null once one exists, when the summary is off, or when the date has passed.
+                         */
+                        firstSummaryOn: string | null;
                     };
                 };
             };

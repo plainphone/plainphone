@@ -9,9 +9,9 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { households } from "../db/schema.js";
 import { body, param } from "../lib/http.js";
-import { validTimeZone } from "../lib/zoned-time.js";
+import { dateKey, localTime, validTimeZone } from "../lib/zoned-time.js";
 import type { Ctx } from "../services/context.js";
-import { listSummaries } from "../services/weekly-summary.js";
+import { firstSummaryAt, listSummaries } from "../services/weekly-summary.js";
 
 type Household = typeof households.$inferSelect;
 
@@ -79,7 +79,11 @@ export function summaryRoutes<E extends Env>(
   app.get("/households/:hid/summaries", async (c) => {
     const h = await household(c);
     const rows = await listSummaries(ctx.db, h.id);
+    // Until the first summary exists, say when it comes (it waits for a full week of history).
+    const first = rows.length === 0 && h.summaryEnabled ? await firstSummaryAt(ctx.db, h) : null;
+    const tz = validTimeZone(h.timeZone) ? h.timeZone : "UTC";
     return c.json({
+      firstSummaryOn: first && first.getTime() > ctx.now().getTime() ? dateKey(localTime(first, tz)) : null,
       summaries: rows.map((s) => ({
         id: s.id,
         weekEnd: s.weekEnd,

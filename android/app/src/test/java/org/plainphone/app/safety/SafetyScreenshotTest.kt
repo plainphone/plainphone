@@ -147,6 +147,28 @@ class SafetyScreenshotTest {
     }
 
     @Test
+    fun `what can my parents see tells the child about the weekly summary`() {
+        compose.setContent { PlainphoneTheme { SharingScreen("find", null, log, fmt, weeklySummary = true) {} } }
+        compose.onNodeWithText("Once a week your parents get a summary", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("It never shows messages, calls or what you do inside apps.", substring = true).assertExists()
+        shoot("sharing-weekly-summary-en-light")
+    }
+
+    @Test
+    fun `the weekly summary notice is in Danish and dark, and absent when the summary is off`() {
+        qualifiers(night = true, danish = true)
+        compose.setContent { PlainphoneTheme { SharingScreen("off", null, emptyList(), fmt, weeklySummary = true) {} } }
+        compose.onNodeWithText("En gang om ugen får dine forældre en oversigt", substring = true).assertExists()
+        shoot("sharing-weekly-summary-da-dark")
+    }
+
+    @Test
+    fun `no weekly summary notice when the summary is switched off`() {
+        compose.setContent { PlainphoneTheme { SharingScreen("find", null, log, fmt, weeklySummary = false) {} } }
+        compose.onNodeWithText("Once a week your parents get a summary", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `the sharing log keeps always in one line and forgets after 30 days`() {
         val store = SafetyStore(RuntimeEnvironment.getApplication())
         store.logPosition("find", now - 40L * 86_400_000L)

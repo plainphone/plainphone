@@ -13,25 +13,21 @@ import type { NotifyEvent } from "./notifications.js";
 export type AlertClass = "act-now" | "can-wait";
 
 /**
- * - Act now: SOS, a request or approval waiting for an answer, protection removed, the answer to a
- *   ring or "Are you okay?" the parent just started, and the test notification.
- * - Can wait: a phone that has been out of contact for a long time (it is often just flat or
- *   switched off). The same news is in the summary, so it is not lost.
+ * Event types that may wait for the weekly summary. Empty today: everything is "act now". A phone
+ * out of contact may not wait either (Mads 19/11-26: "Offline altid med det samme"), because a
+ * reset or switched-off child phone also shows as offline. Add a type here only for news that is
+ * purely informational. Exported so tests can exercise the batching with a stand-in type.
+ */
+export const CAN_WAIT: Set<NotifyEvent["type"]> = new Set();
+
+/**
+ * - Act now: SOS, a request or approval waiting for an answer, protection removed, a phone out of
+ *   contact, the answer to a ring or "Are you okay?" the parent just started, and the test
+ *   notification.
+ * - Can wait: nothing yet (see CAN_WAIT).
  */
 export function alertClass(e: NotifyEvent): AlertClass {
-  switch (e.type) {
-    case "offline":
-      return "can-wait";
-    case "protection":
-    case "approval":
-    case "moreTime":
-    case "request":
-    case "safety":
-    case "sos":
-    case "test":
-    case "summary":
-      return "act-now";
-  }
+  return CAN_WAIT.has(e.type) ? "can-wait" : "act-now";
 }
 
 /**

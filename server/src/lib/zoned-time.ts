@@ -113,6 +113,18 @@ export interface Occurrence {
   previous: Date;
 }
 
+/** The first time at or after [from] when the weekly schedule is due. */
+export function nextOccurrence(from: Date, s: Schedule): Date {
+  const today = localTime(from, s.timeZone);
+  for (let ahead = 0; ahead <= 8; ahead++) {
+    const date = addDays(today, ahead);
+    if (weekdayOf(date) !== s.day) continue;
+    const at = zonedTimeToUtc({ ...date, hour: s.hour, minute: s.minute }, s.timeZone);
+    if (at.getTime() >= from.getTime()) return at;
+  }
+  throw new Error("no occurrence found");
+}
+
 /** The most recent time at or before [now] when the weekly schedule is due. */
 export function lastOccurrence(now: Date, s: Schedule): Occurrence {
   const today = localTime(now, s.timeZone);

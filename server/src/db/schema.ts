@@ -72,6 +72,8 @@ export const households = pgTable("households", {
   summaryHour: smallint("summary_hour").notNull().default(18),
   summaryMinute: smallint("summary_minute").notNull().default(0),
   timeZone: text("time_zone").notNull().default("Europe/Copenhagen"),
+  /** When the weekly summary went live for this household: no summary before it has a full week of history behind it. */
+  summarySince: timestamp("summary_since", { withTimezone: true }).notNull().defaultNow(),
   createdAt: createdAt(),
 });
 

@@ -1,5 +1,5 @@
 {
-  "id": "4fc1cd4e-b4f8-413b-a937-a163795bb0b5",
+  "id": "7d2e8b18-c10e-454a-8c86-1563016d5036",
   "prevId": "ae3b4d60-9dde-4589-9cb8-74cd2e6d1a82",
   "version": "7",
   "dialect": "postgresql",
@@ -845,6 +845,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'Europe/Copenhagen'"
+        },
+        "summary_since": {
+          "name": "summary_since",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         },
         "created_at": {
           "name": "created_at",

@@ -38,6 +38,7 @@
     <string name="sharing_mode_always">Bis %1$s wird dein Standort alle 5 Minuten geteilt. Danach nur, wenn deine Eltern auf „Suchen“ tippen oder du auf „Geht es dir gut?“ nicht antwortest.</string>
     <string name="sharing_mode_always_open">Dein Standort wird alle 5 Minuten geteilt. Der Hinweis bleibt die ganze Zeit sichtbar.</string>
     <string name="sharing_only_latest">Deine Eltern sehen nur deinen letzten Standort. Es gibt keinen Standortverlauf.</string>
+    <string name="sharing_weekly_summary">Einmal pro Woche bekommen deine Eltern eine Zusammenfassung: deine Bildschirmzeit für jeden Tag, deine meistgenutzten Apps, deine Anfragen, Änderungen an den Regeln und Zeiten, in denen das Telefon keinen Kontakt hatte. Sie zeigt nie Nachrichten, Anrufe oder was du in Apps machst.</string>
     <string name="sharing_latest">Wann dein Standort gesendet wurde</string>
     <string name="sharing_none">Dein Standort wurde in den letzten 30 Tagen nicht gesendet.</string>
     <string name="sharing_why_find">Deine Eltern haben auf „Suchen“ getippt</string>

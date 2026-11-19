@@ -37,6 +37,7 @@
     <string name="sharing_mode_always">Din placering deles hvert 5. minut indtil %1$s. Derefter kun når din forælder trykker Find, eller du ikke svarer på »Er du okay?«.</string>
     <string name="sharing_mode_always_open">Din placering deles hvert 5. minut. Du ser beskeden hele tiden.</string>
     <string name="sharing_only_latest">Din forælder ser kun den seneste placering, aldrig en historik.</string>
+    <string name="sharing_weekly_summary">En gang om ugen får dine forældre en oversigt: din skærmtid for hver dag, dine mest brugte apps, dine anmodninger, ændringer i reglerne og de gange, telefonen ikke var i kontakt. Den viser aldrig beskeder, opkald eller hvad du laver i apps.</string>
     <string name="sharing_latest">Hvornår din placering blev sendt</string>
     <string name="sharing_none">Din placering er ikke sendt de sidste 30 dage.</string>
     <string name="sharing_why_find">Din forælder trykkede Find</string>

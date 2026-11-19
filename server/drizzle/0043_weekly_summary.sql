@@ -33,6 +33,7 @@ ALTER TABLE "households" ADD COLUMN "summary_day" smallint DEFAULT 0 NOT NULL;--
 ALTER TABLE "households" ADD COLUMN "summary_hour" smallint DEFAULT 18 NOT NULL;--> statement-breakpoint
 ALTER TABLE "households" ADD COLUMN "summary_minute" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "households" ADD COLUMN "time_zone" text DEFAULT 'Europe/Copenhagen' NOT NULL;--> statement-breakpoint
+ALTER TABLE "households" ADD COLUMN "summary_since" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
 ALTER TABLE "phones" ADD COLUMN "weekly_summary_enabled" boolean DEFAULT true NOT NULL;--> statement-breakpoint
 ALTER TABLE "household_summaries" ADD CONSTRAINT "household_summaries_household_id_households_id_fk" FOREIGN KEY ("household_id") REFERENCES "public"."households"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "phone_usage_days" ADD CONSTRAINT "phone_usage_days_phone_id_phones_id_fk" FOREIGN KEY ("phone_id") REFERENCES "public"."phones"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

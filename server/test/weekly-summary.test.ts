@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
-import { householdMembers, householdSummaries, households, moreTimeRequests, phoneRequests, phones, phoneUsageDays } from "../src/db/schema.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { householdMembers, householdSummaries, households, moreTimeRequests, phoneRequests, phones, phoneUsageDays, summaryEvents } from "../src/db/schema.js";
 import { weeklySummaryMail } from "../src/lib/summary-mail.js";
 import { toSummaryLocale } from "../src/lib/summary-text.js";
-import { alertClass, batchedIntoSummary } from "../src/services/alert-policy.js";
+import { alertClass, batchedIntoSummary, CAN_WAIT } from "../src/services/alert-policy.js";
 import { sweep } from "../src/services/sweeper.js";
 import { type SummaryData, sweepSummaries } from "../src/services/weekly-summary.js";
 import { type Client, pairPhone, signIn, useHarness } from "./harness.js";
@@ -39,6 +39,13 @@ const at = (iso: string) => {
   h.clock.now = new Date(iso);
 };
 
+/** Makes a household, its feature go-live and its phones start at [iso], so a week of history can be there. */
+async function startedAt(householdId: string, iso: string) {
+  const d = new Date(iso);
+  await h.ctx.db.update(households).set({ createdAt: d, summarySince: d }).where(eq(households.id, householdId));
+  await h.ctx.db.update(phones).set({ createdAt: d }).where(eq(phones.householdId, householdId));
+}
+
 /** A household with one parent (push on), set old enough that a week can be summed up. */
 async function setup(name = "Phone A") {
   const mum = await signIn(h, "mum@example.org");
@@ -46,7 +53,7 @@ async function setup(name = "Phone A") {
   const { phoneId, device } = await pairPhone(h, mum, { name });
   const [phone] = await h.ctx.db.select().from(phones).where(eq(phones.id, phoneId));
   const householdId = phone!.householdId;
-  await h.ctx.db.update(households).set({ createdAt: new Date("2026-11-01T00:00:00Z") }).where(eq(households.id, householdId));
+  await startedAt(householdId, "2026-11-01T00:00:00Z");
   return { mum, phoneId, device, householdId };
 }
 
@@ -144,29 +151,41 @@ describe("summary numbers", () => {
     at(MONDAY);
     await device.put("/api/device/status", status({ timeUsed: { "*": 60 } }));
     expect(await h.ctx.db.select().from(phoneUsageDays)).toHaveLength(0);
+    // The only phone is out of the summary: there is nothing to sum up, so no summary and no mail.
     at(SUNDAY_1800_CET);
     await sweepSummaries(h.ctx);
-    expect(((await summariesOf(householdId))[0]!.data as SummaryData).phones).toEqual([]);
-    // No phone to talk about: nothing is mailed.
+    expect(await summariesOf(householdId)).toEqual([]);
     expect(h.mail.outbox.filter((m) => m.subject === "Your week with Plainphone")).toHaveLength(0);
   });
 });
 
+describe("rule changes in the summary", () => {
+  it("records a change for a phone in the summary, and none for a phone that is left out", async () => {
+    const { mum, phoneId } = await setup();
+    const limit = { minutes: 120, days: { "7": 180, "6": 180 } };
+    expect((await mum.put(`/api/phones/${phoneId}/time-limits/total`, limit)).status).toBe(200);
+    expect(await h.ctx.db.select().from(summaryEvents)).toMatchObject([{ phoneId, kind: "change", detail: "time" }]);
+    await mum.patch(`/api/phones/${phoneId}`, { weeklySummaryEnabled: false });
+    expect((await mum.put(`/api/phones/${phoneId}/time-limits/total`, { ...limit, minutes: 90 })).status).toBe(200);
+    expect(await h.ctx.db.select().from(summaryEvents)).toHaveLength(1);
+  });
+});
+
 describe("alert policy", () => {
-  it("holds back an offline alert for the summary by default, and still sends protection news at once", async () => {
+  it("sends an offline alert at once although 'Only alert me when I must act' is on, and still counts it in the summary", async () => {
     const { phoneId, device, householdId } = await setup();
-    expect(alertClass({ type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" })).toBe("can-wait");
+    expect(alertClass({ type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" })).toBe("act-now");
     // Thursday: too long after last Sunday for that week to be built late.
     at("2026-11-19T12:00:00Z");
     await device.get("/api/device/rules");
     at("2026-11-20T01:00:00Z");
     await sweep(h.ctx);
-    expect(alerts()).toHaveLength(0);
-    expect(h.mail.outbox.filter((m) => m.subject.includes("has not been in touch"))).toHaveLength(0);
-    // Protection removed is "act now": it is sent although the toggle is on.
+    // A reset or switched-off child phone also looks offline, so the parent hears about it now.
+    expect(alerts().map((s) => s.msg.title)).toEqual(["Phone A has not been in touch for 13 hours"]);
+    expect(h.mail.outbox.filter((m) => m.subject.includes("has not been in touch"))).toHaveLength(1);
     await device.put("/api/device/status", status());
     await device.put("/api/device/status", status({ lockIntact: false }));
-    expect(alerts().map((s) => s.msg.title)).toEqual(["Protection removed on Phone A"]);
+    expect(alerts().map((s) => s.msg.title)).toEqual(["Phone A has not been in touch for 13 hours", "Protection removed on Phone A"]);
     at(SUNDAY_1800_CET);
     await device.put("/api/device/status", status());
     await sweepSummaries(h.ctx);
@@ -174,46 +193,66 @@ describe("alert policy", () => {
     expect(data.phones[0]!.events).toEqual({ protection: 1, offline: 1, checkin: 0 });
   });
 
-  it("sends the offline alert at once when 'Only alert me when I must act' is off", async () => {
-    const { mum, householdId } = await setup();
-    expect((await mum.patch(`/api/households/${householdId}/summary-settings`, { actNowOnly: false })).status).toBe(200);
-    const { device } = await pairPhone(h, mum, { name: "Phone B" });
-    await device.get("/api/device/rules");
-    h.clock.advance(13 * 3_600_000);
-    await sweep(h.ctx);
-    expect(alerts().map((s) => s.msg.title)).toEqual(["Phone B has not been in touch for 13 hours"]);
-  });
+  describe("with a type that can wait (stand-in: the real policy has none yet)", () => {
+    beforeEach(() => CAN_WAIT.add("offline"));
+    afterEach(() => CAN_WAIT.delete("offline"));
 
-  it("does not hold anything back when the summary is off or cannot be delivered", async () => {
-    const { mum, phoneId, householdId } = await setup();
-    const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
-    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
-    await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: false });
-    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
-    await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: true, byMail: false, byPush: false });
-    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
-  });
+    it("sends the news at once when 'Only alert me when I must act' is off", async () => {
+      const { mum, householdId } = await setup();
+      expect((await mum.patch(`/api/households/${householdId}/summary-settings`, { actNowOnly: false })).status).toBe(200);
+      const { device } = await pairPhone(h, mum, { name: "Phone B" });
+      await device.get("/api/device/rules");
+      h.clock.advance(13 * 3_600_000);
+      await sweep(h.ctx);
+      expect(alerts().map((s) => s.msg.title)).toEqual(["Phone B has not been in touch for 13 hours"]);
+    });
 
-  it("does not hold back news for a phone that is left out of the summary", async () => {
-    const { phoneId, householdId } = await setup();
-    const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
-    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
-    await h.ctx.db.update(phones).set({ weeklySummaryEnabled: false }).where(eq(phones.id, phoneId));
-    expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
-  });
-
-  it("does not hold back news when mail cannot be sent and push is off", async () => {
-    const { mum, phoneId, householdId } = await setup();
-    const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
-    const mailOff = vi.spyOn(h.mail, "canSend", "get").mockReturnValue(false as never);
-    try {
-      // Mail is on (the default) but the server cannot send it; push is on and mum has a subscription.
+    it("holds back news that can wait, and sends the rest at once", async () => {
+      const { phoneId, device, householdId } = await setup();
+      const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+      expect(alertClass(event)).toBe("can-wait");
       expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
-      await mum.patch(`/api/households/${householdId}/summary-settings`, { byPush: false });
+      at("2026-11-19T12:00:00Z");
+      await device.get("/api/device/rules");
+      at("2026-11-20T01:00:00Z");
+      await sweep(h.ctx);
+      expect(alerts()).toHaveLength(0);
+      await device.put("/api/device/status", status());
+      await device.put("/api/device/status", status({ lockIntact: false }));
+      expect(alerts().map((s) => s.msg.title)).toEqual(["Protection removed on Phone A"]);
+    });
+
+    it("does not hold anything back when the summary is off or cannot be delivered", async () => {
+      const { mum, phoneId, householdId } = await setup();
+      const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
+      await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: false });
       expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
-    } finally {
-      mailOff.mockRestore();
-    }
+      await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: true, byMail: false, byPush: false });
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+    });
+
+    it("does not hold back news for a phone that is left out of the summary", async () => {
+      const { phoneId, householdId } = await setup();
+      const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
+      await h.ctx.db.update(phones).set({ weeklySummaryEnabled: false }).where(eq(phones.id, phoneId));
+      expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+    });
+
+    it("does not hold back news when mail cannot be sent and push is off", async () => {
+      const { mum, phoneId, householdId } = await setup();
+      const event = { type: "offline", phoneId, phoneName: "x", hours: 12, lastSeenAt: new Date(), timezone: "UTC" } as const;
+      const mailOff = vi.spyOn(h.mail, "canSend", "get").mockReturnValue(false as never);
+      try {
+        // Mail is on (the default) but the server cannot send it; push is on and mum has a subscription.
+        expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(true);
+        await mum.patch(`/api/households/${householdId}/summary-settings`, { byPush: false });
+        expect(await batchedIntoSummary(h.ctx, householdId, event)).toBe(false);
+      } finally {
+        mailOff.mockRestore();
+      }
+    });
   });
 
   it("leaves the partly over due day out of the usage", async () => {
@@ -291,7 +330,7 @@ describe("scheduling and delivery", () => {
     const { mum, householdId } = await setup();
     // Clocks go forward in Copenhagen on 2026-03-29: Sunday 18:00 is then 16:00 UTC, not 17:00.
     at("2026-03-29T15:59:00Z");
-    await h.ctx.db.update(households).set({ createdAt: new Date("2026-03-01T00:00:00Z") }).where(eq(households.id, householdId));
+    await startedAt(householdId, "2026-03-01T00:00:00Z");
     expect((await sweepSummaries(h.ctx)).built).toBe(0);
     at("2026-03-29T16:00:00Z");
     expect((await sweepSummaries(h.ctx)).built).toBe(1);
@@ -340,14 +379,45 @@ describe("scheduling and delivery", () => {
     expect((await sweepSummaries(h.ctx)).built).toBe(1);
   });
 
-  it("waits for a household that is only a day old, and gives up on a summary missed for days", async () => {
-    const { householdId } = await setup();
-    await h.ctx.db.update(households).set({ createdAt: new Date("2026-11-21T12:00:00Z") }).where(eq(households.id, householdId));
-    at(SUNDAY_1800_CET);
-    expect((await sweepSummaries(h.ctx)).built).toBe(0);
-    await h.ctx.db.update(households).set({ createdAt: new Date("2026-11-01T12:00:00Z") }).where(eq(households.id, householdId));
+  it("gives up on a summary missed for days", async () => {
+    await setup();
     at("2026-11-26T12:00:00Z");
     expect((await sweepSummaries(h.ctx)).built).toBe(0);
+  });
+
+  it("sends no summary until a phone has a full week of history, then the first one on the next due time", async () => {
+    const { householdId } = await setup();
+    // The phone enrolled on Monday 16 Nov: Sunday 22 Nov is only six days later.
+    await startedAt(householdId, "2026-11-16T12:00:00Z");
+    at(SUNDAY_1800_CET);
+    expect((await sweepSummaries(h.ctx)).built).toBe(0);
+    expect(await summariesOf(householdId)).toEqual([]);
+    at("2026-11-29T17:00:00Z");
+    expect((await sweepSummaries(h.ctx)).built).toBe(1);
+  });
+
+  it("counts from when the feature went live for an older phone", async () => {
+    const { householdId } = await setup();
+    await h.ctx.db.update(phones).set({ createdAt: new Date("2026-06-01T00:00:00Z") }).where(eq(phones.householdId, householdId));
+    await h.ctx.db.update(households).set({ summarySince: new Date("2026-11-18T12:00:00Z") }).where(eq(households.id, householdId));
+    at(SUNDAY_1800_CET);
+    expect((await sweepSummaries(h.ctx)).built).toBe(0);
+    at("2026-11-29T17:00:00Z");
+    expect((await sweepSummaries(h.ctx)).built).toBe(1);
+  });
+
+  it("starts the first week from the oldest phone that is in the summary", async () => {
+    const { phoneId, householdId } = await setup();
+    await startedAt(householdId, "2026-11-01T00:00:00Z");
+    await h.ctx.db.update(phones).set({ weeklySummaryEnabled: false }).where(eq(phones.id, phoneId));
+    // A newer phone is the only one in the summary: its week has not passed.
+    const mum = await signIn(h, "mum@example.org");
+    const second = await pairPhone(h, mum, { name: "Phone B" });
+    await h.ctx.db.update(phones).set({ createdAt: new Date("2026-11-20T00:00:00Z") }).where(eq(phones.id, second.phoneId));
+    at(SUNDAY_1800_CET);
+    expect((await sweepSummaries(h.ctx)).built).toBe(0);
+    await h.ctx.db.update(phones).set({ weeklySummaryEnabled: true }).where(eq(phones.id, phoneId));
+    expect((await sweepSummaries(h.ctx)).built).toBe(1);
   });
 });
 
@@ -364,6 +434,25 @@ describe("summary API", () => {
     expect((await mum.patch(api, { day: 7 })).status).toBe(400);
     expect((await mum.patch(api, { hour: 24 })).status).toBe(400);
     expect((await mum.patch(api, { timeZone: "Mars/Base" })).status).toBe(400);
+  });
+
+  it("says when the first summary comes, until there is one", async () => {
+    const { mum, householdId } = await setup();
+    const api = `/api/households/${householdId}/summaries`;
+    await startedAt(householdId, "2026-11-16T12:00:00Z");
+    at("2026-11-20T12:00:00Z");
+    expect((await mum.get(api)).json).toEqual({ summaries: [], firstSummaryOn: "2026-11-29" });
+    // The day moves with the parents' choice (Friday 07:30 -> Friday 27 Nov, the first one after a week).
+    await mum.patch(`/api/households/${householdId}/summary-settings`, { day: 5, hour: 7, minute: 30 });
+    expect((await mum.get(api)).json.firstSummaryOn).toBe("2026-11-27");
+    await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: false });
+    expect((await mum.get(api)).json.firstSummaryOn).toBeNull();
+    await mum.patch(`/api/households/${householdId}/summary-settings`, { enabled: true, day: 0, hour: 18, minute: 0 });
+    at("2026-11-29T17:00:00Z");
+    await sweepSummaries(h.ctx);
+    const after = (await mum.get(api)).json;
+    expect(after.summaries).toHaveLength(1);
+    expect(after.firstSummaryOn).toBeNull();
   });
 
   it("is only for members, and lists the last 8 weeks newest first", async () => {

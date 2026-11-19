@@ -103,6 +103,11 @@ data class ServerRules(
      * have no endpoint for it, so missing means off.
      */
     val pinApproval: Boolean = false,
+    /**
+     * The server keeps this phone's daily use for the parents' weekly summary (docs/weekly-summary.md).
+     * The phone only tells the child so on "What can my parents see?". Old servers send nothing: off.
+     */
+    val weeklySummaryEnabled: Boolean = false,
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -130,6 +135,7 @@ data class ServerRules(
                 lockSystemLanguage = j.optBoolean("lockSystemLanguage", true),
                 silentBedtime = j.optBoolean("silentBedtime", true),
                 pinApproval = j.optBoolean("pinApprovalEnabled", false),
+                weeklySummaryEnabled = j.optBoolean("weeklySummaryEnabled", false),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))

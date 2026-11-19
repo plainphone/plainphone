@@ -38,6 +38,7 @@
     <string name="sharing_mode_always">Din plats delas var femte minut fram till %1$s. Därefter bara när din förälder trycker på Sök eller du inte svarar på ”Är du okej?”.</string>
     <string name="sharing_mode_always_open">Din plats delas var femte minut. Det här meddelandet visas hela tiden.</string>
     <string name="sharing_only_latest">Din förälder kan bara se din senaste position. Det finns ingen platshistorik.</string>
+    <string name="sharing_weekly_summary">En gång i veckan får dina föräldrar en sammanfattning: din skärmtid för varje dag, dina mest använda appar, dina förfrågningar, ändringar i reglerna och tillfällen då telefonen inte hade kontakt. Den visar aldrig meddelanden, samtal eller vad du gör i appar.</string>
     <string name="sharing_latest">När din plats skickades</string>
     <string name="sharing_none">Din plats har inte skickats under de senaste 30 dagarna.</string>
     <string name="sharing_why_find">Din förälder tryckte på Sök</string>

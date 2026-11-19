@@ -9,6 +9,7 @@ import {
   phoneWeekLines,
   type SummarySettings,
   summaryDayName,
+  summaryFirstDate,
   summaryRange,
   summaryTime,
   type WeeklySummary,
@@ -25,9 +26,9 @@ export function SummaryPage() {
     if (!household) return null;
     const [settings, list] = await Promise.all([
       api.get<SummarySettings>(`/households/${household.id}/summary-settings`),
-      api.get<{ summaries: WeeklySummary[] }>(`/households/${household.id}/summaries`),
+      api.get<{ summaries: WeeklySummary[]; firstSummaryOn?: string | null }>(`/households/${household.id}/summaries`),
     ]);
-    return { settings, summaries: list.summaries };
+    return { settings, summaries: list.summaries, firstSummaryOn: list.firstSummaryOn ?? null };
   }, [household?.id]);
 
   const loaded = res.data?.summaries.length;
@@ -44,9 +45,11 @@ export function SummaryPage() {
             <>
               {data.summaries.length === 0 && (
                 <p className="empty-inline">
-                  {data.settings.enabled
-                    ? t("summary.empty", { day: summaryDayName(data.settings.day, locale), time: summaryTime(data.settings.hour, data.settings.minute) })
-                    : t("summary.settingsIntro")}
+                  {!data.settings.enabled
+                    ? t("summary.settingsIntro")
+                    : data.firstSummaryOn
+                      ? t("summary.firstOn", { date: summaryFirstDate(data.firstSummaryOn, locale) })
+                      : t("summary.empty", { day: summaryDayName(data.settings.day, locale), time: summaryTime(data.settings.hour, data.settings.minute) })}
                 </p>
               )}
               {data.summaries.map((s) => (

@@ -142,7 +142,9 @@ phone                                      server                         parent
    The parent's per-phone `changeReceiptsEnabled` and `healthBoardEnabled`
    preferences default to true and sync in `GET /device/rules`. So does
    `weeklySummaryEnabled` (docs/weekly-summary.md): the server keeps this phone's
-   daily `timeUsed` for the weekly summary only while it is true. The phone does not act on it, so changing it does not advance the revision. Android sends
+   daily `timeUsed` for the weekly summary only while it is true. The phone keeps reporting as before and
+   uses it only to tell the child on "What can my parents see?"; a change advances the revision so the
+   notice follows. Android sends
    null rule confirmation fields when receipts are off and omits the extra
    filter and usage access observations when the board is off. The phone
    continues sending existing operational status and safety reports.

@@ -87,6 +87,13 @@ export function summaryTime(hour: number, minute: number): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/** "Sunday 29 Nov", from the local date the first summary comes. */
+export function summaryFirstDate(date: string, locale: Locale): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const fmt = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" });
+  return fmt.format(new Date(Date.UTC(y, m - 1, d, 12)));
+}
+
 /** The seven days a summary covers as "9 Nov to 15 Nov", from the local date it was due. */
 export function summaryRange(weekEnd: string, locale: Locale, t: T): string {
   const [y, m, d] = weekEnd.split("-").map(Number) as [number, number, number];

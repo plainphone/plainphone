@@ -36,7 +36,12 @@ at 18:00.
 
 - The sweeper builds the summary when the time arrives. A summary missed for more than three
   days (server down) is skipped.
-- A household younger than two days waits for the next one.
+- **No near-empty first summary.** A household gets its first summary at the first due time after
+  a full week of history. History starts when the feature went live for the household
+  (`households.summary_since`, set to the migration time for households that existed then) or when
+  the phone enrolled, whichever is later; the oldest phone that is in the summary counts. Until
+  then the summary page says "Your first summary comes on <date>" (`firstSummaryOn` in
+  `GET /households/{hid}/summaries`).
 - One row per household and week is the idempotency key. Delivery is claimed before it is
   sent, so a restart can skip a delivery but never repeat one. The summary stays on the
   summary page either way.
@@ -55,13 +60,16 @@ German. Alert pushes and mails are still English and Danish only.
 
 | Class | Events |
 |---|---|
-| Act now (always sent at once) | SOS (calls to 112 never go through the server), a request or approval waiting for an answer, protection removed (lock lost, Plainphone no longer in control, set-up undone), the answer to a ring or "Are you okay?" the parent started, the test notification |
-| Can wait | A phone that has been out of contact for a long time |
+| Act now (always sent at once) | SOS (calls to 112 never go through the server), a request or approval waiting for an answer, protection removed (lock lost, Plainphone no longer in control, set-up undone), a phone that has been out of contact (a reset or switched-off child phone also looks offline), the answer to a ring or "Are you okay?" the parent started, the test notification |
+| Can wait | Nothing yet |
 
-With **Only alert me when I must act** on (default), "can wait" news is not sent as a push or
-mail. It is counted in the summary. SOS is never batched, and neither is anything classed
-"act now". The setting has no effect when the summary is off or has no delivery channel (both
-mail and push off), so news is never held back with no way to reach the parent.
+Offline alerts stay immediate (Mads 19/11-26: "Offline altid med det samme"). The policy and the
+**Only alert me when I must act** switch stay in place for future purely informational news
+(`CAN_WAIT` in `alert-policy.ts`); until such news exists the switch changes nothing, and its
+explanation in the dashboard and the parent app says so. When something is added, it goes into the
+summary instead of a push or mail. The setting has no effect when the summary is off or has no
+delivery channel (both mail and push off), so news is never held back with no way to reach the
+parent. Out-of-contact news is still counted in the summary.
 
 The policy lives in `server/src/services/alert-policy.ts`.
 
@@ -78,9 +86,18 @@ Per household (dashboard Settings, parent app Settings), all synced through the 
 | Time zone | Europe/Copenhagen |
 
 Per phone (phone overview, "What to show for this phone"): **Weekly summary**, on by default.
-Off means the server keeps no daily use for the phone and leaves it out of the summary. The
-setting is in `GET /device/rules` as `weeklySummaryEnabled`, but the phone does not act on it, so changing it does not advance the rules revision or wake the phone:
-the phone still reports `timeUsed` for the parent's live "used today" view.
+Off means the server keeps no daily use and no rule-change news for the phone and leaves it out of
+the summary. The setting is in `GET /device/rules` as `weeklySummaryEnabled`. The phone does not
+change what it reports (it still sends `timeUsed` for the parent's live "used today" view), but it
+uses the setting to tell the child.
+
+## What the child is told
+
+Design principle 1: the phone says what parents can see. When `weeklySummaryEnabled` is on, "What
+can my parents see?" on the child's phone adds that once a week the parents get a summary of screen
+time per day, the most used apps, requests, rule changes and times the phone was out of contact, and
+never messages, calls or what the child does inside apps. The notice is shown on child phones only
+and in all five languages. Screenshots: `docs/screenshots/weekly-summary/sharing-*.png`.
 
 ## API
 
@@ -88,7 +105,7 @@ the phone still reports `timeUsed` for the parent's live "used today" view.
 |---|---|
 | `GET /households/{hid}/summary-settings` | The settings above, and whether the server can send mail |
 | `PATCH /households/{hid}/summary-settings` | Change any of `enabled`, `byMail`, `byPush`, `actNowOnly`, `day` (0 = Sunday), `hour`, `minute`, `timeZone` |
-| `GET /households/{hid}/summaries` | The last 8 summaries, newest first |
+| `GET /households/{hid}/summaries` | The last 8 summaries, newest first, and `firstSummaryOn` (the local date of the first summary while there is none yet) |
 | `PATCH /phones/{pid}` | `weeklySummaryEnabled` |
 
 ## Evidence

@@ -628,7 +628,7 @@ export async function submitChange(
     const applied = await applyOp(ctx, tx, fresh, op);
     if (op.type !== "phone.remove") {
       await tx.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
-      await recordSummaryEvent(tx, phone.id, "change", ctx.now(), changeCategory(op));
+      if (fresh.weeklySummaryEnabled) await recordSummaryEvent(tx, phone.id, "change", ctx.now(), changeCategory(op));
     }
     return { status: "applied" as const, op, dns: applied.dns };
   });
@@ -733,7 +733,7 @@ export async function applyPending(
         const applied = await applyOp(ctx, sp, phone, op, bonusDate);
         if (op.type !== "phone.remove") {
           await sp.update(phones).set(nextRulesRevision(applied.dns)).where(eq(phones.id, phone.id));
-          await recordSummaryEvent(sp, phone.id, "change", ctx.now(), changeCategory(op));
+          if (phone.weeklySummaryEnabled) await recordSummaryEvent(sp, phone.id, "change", ctx.now(), changeCategory(op));
         }
         return applied.dns;
       });

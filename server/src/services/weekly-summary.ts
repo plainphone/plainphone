@@ -18,7 +18,7 @@ import {
   summaryEvents,
   users,
 } from "../db/schema.js";
-import { addDays, dateKey, lastOccurrence, localTime, validTimeZone } from "../lib/zoned-time.js";
+import { addDays, dateKey, lastOccurrence, localTime, nextOccurrence, validTimeZone } from "../lib/zoned-time.js";
 import { weeklySummaryMail } from "../lib/summary-mail.js";
 import { toSummaryLocale, type ChangeCategory } from "../lib/summary-text.js";
 import type { Ctx } from "./context.js";
@@ -35,6 +35,8 @@ export const SUMMARY_CATCH_UP_MS = 3 * 86_400_000;
 export const SUMMARY_RAW_KEEP_DAYS = 21;
 /** Two summaries of a household are at least this far apart, whatever day the parents move it to. */
 const MIN_GAP_MS = 5 * 86_400_000;
+/** The first summary waits for this much history, so it is never nearly empty. */
+const FIRST_SUMMARY_MIN_MS = 7 * 86_400_000;
 const TOP_APPS = 3;
 
 export interface PhoneSummary {
@@ -160,6 +162,26 @@ export async function buildSummary(
   };
 }
 
+/**
+ * When a household gets its first summary: the first due time after a full week of history. History
+ * starts when the feature went live for the household or when the phone enrolled, whichever is later,
+ * and the earliest phone that is in the summary counts. Null when no phone is in the summary.
+ */
+export async function firstSummaryAt(db: Db, h: typeof households.$inferSelect): Promise<Date | null> {
+  const rows = await db
+    .select({ createdAt: phones.createdAt })
+    .from(phones)
+    .where(and(eq(phones.householdId, h.id), eq(phones.weeklySummaryEnabled, true)));
+  if (rows.length === 0) return null;
+  const start = Math.min(...rows.map((r) => Math.max(r.createdAt.getTime(), h.summarySince.getTime())));
+  return nextOccurrence(new Date(start + FIRST_SUMMARY_MIN_MS), {
+    day: h.summaryDay,
+    hour: h.summaryHour,
+    minute: h.summaryMinute,
+    timeZone: zoneOf(h),
+  });
+}
+
 function zoneOf(h: { timeZone: string }): string {
   return validTimeZone(h.timeZone) ? h.timeZone : "UTC";
 }
@@ -177,8 +199,9 @@ export async function sweepSummaries(ctx: Ctx): Promise<{ built: number; deliver
     const tz = zoneOf(h);
     const occ = lastOccurrence(now, { day: h.summaryDay, hour: h.summaryHour, minute: h.summaryMinute, timeZone: tz });
     if (now.getTime() - occ.at.getTime() > SUMMARY_CATCH_UP_MS) continue;
-    // A household younger than two days has nothing to sum up yet.
-    if (h.createdAt.getTime() > occ.at.getTime() - 2 * 86_400_000) continue;
+    // The first summary waits for a full week of history (see firstSummaryAt).
+    const first = await firstSummaryAt(ctx.db, h);
+    if (!first || occ.at.getTime() < first.getTime()) continue;
     const [known] = await ctx.db.select({ id: householdSummaries.id }).from(householdSummaries)
       .where(and(eq(householdSummaries.householdId, h.id), eq(householdSummaries.weekEnd, occ.date)));
     if (known) continue;

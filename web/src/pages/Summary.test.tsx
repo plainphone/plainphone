@@ -46,8 +46,15 @@ it("lists the weeks with each phone's numbers", () => {
   expect(html).toContain("Rule changes: 3 (time limits 2, apps 1)");
 });
 
-it("says when the first summary comes", () => {
-  state.response = { settings, summaries: [] };
+it("says on which date the first summary comes, when it waits for a full week", () => {
+  state.response = { settings, summaries: [], firstSummaryOn: "2026-11-29" };
+  const html = render(<SummaryPage />);
+  expect(html).toContain("Your first summary comes on Sunday 29 Nov.");
+  expect(html).not.toContain("arrives on");
+});
+
+it("falls back to the weekly time when no date is known", () => {
+  state.response = { settings, summaries: [], firstSummaryOn: null };
   expect(render(<SummaryPage />)).toContain("Your first summary arrives on Sunday at 18:00.");
 });
 
