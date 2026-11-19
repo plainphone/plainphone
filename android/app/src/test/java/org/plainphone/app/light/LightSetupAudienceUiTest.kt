@@ -48,6 +48,9 @@ class LightSetupAudienceUiTest {
             assertNull(shadowOf(activity).nextStartedActivityForResult)
         }
         compose.onNodeWithText("Want to use your own phone less? Set up Plainphone for yourself.").performClick()
+        compose.onNodeWithText("Do you use another VPN, such as Tailscale or a work VPN?").assertIsDisplayed()
+        capture("setup-other-vpn")
+        compose.onNodeWithText("No, use Plainphone VPN").performClick()
         compose.onNodeWithText("How long can you undo setup?").assertIsDisplayed()
         compose.onNodeWithText("10 minutes (default)").performClick()
         compose.onNodeWithText("Choose your key").assertIsDisplayed()
@@ -67,6 +70,7 @@ class LightSetupAudienceUiTest {
         compose.onNodeWithText("Continue").performClick()
         compose.onNodeWithText("Back").performClick()
         compose.onNodeWithText("Myself").performClick()
+        compose.onNodeWithText("Yes, use Private DNS").performClick()
         compose.onNodeWithText("How long can you undo setup?").assertIsDisplayed()
         compose.onNodeWithText("10 minutes (default)").performClick()
         compose.onNodeWithText("Choose your key").assertIsDisplayed()

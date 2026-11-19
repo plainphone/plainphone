@@ -19,7 +19,11 @@ export interface Me {
   mailEnabled: boolean;
 }
 /** What the phone last reported about itself (`PUT /device/status`). */
+export type FilterMethod = "vpn" | "privateDns";
 export interface PhoneStatus {
+  filterMethod?: FilterMethod;
+  filterWorking?: boolean;
+  filterIssue?: "off" | "automatic" | "wrongHost" | "waiting" | "unverified" | "alwaysOn" | "strictDns";
   appVersion: string;
   appVersionCode?: number;
   update?: {
@@ -181,6 +185,7 @@ export interface Contact {
   number: string;
 }
 export interface DnsState {
+  filterMethod?: FilterMethod;
   host: string | null;
   synced: boolean;
   blockedCategories: DnsCategory[];
@@ -297,6 +302,7 @@ export type Op =
   | { type: "contact.add"; name: string; number: string }
   | { type: "contact.remove"; contactId: string }
   | { type: "contact.schedule"; restricted: boolean }
+  | { type: "dns.method"; method: FilterMethod }
   | { type: "dns.category"; category: DnsCategory; blocked: boolean }
   | { type: "dns.allowDomain"; domain: string; present: boolean }
   | { type: "dns.blockDomain"; domain: string; present: boolean }

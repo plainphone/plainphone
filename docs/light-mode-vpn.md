@@ -1,6 +1,6 @@
 # Light mode: the DNS-only VPN
 
-In light mode Plainphone is not Device Owner, so it cannot force Android's private DNS. It uses a local VPN instead, and the VPN carries **only DNS**. This page describes that VPN. The rest of light mode is in `light-mode.md`.
+In light mode Plainphone is not Device Owner, so it cannot force Android's private DNS. The default filter uses a local VPN that carries **only DNS**. This page describes that VPN and the [Private DNS option](#private-dns-and-other-vpns). The rest of light mode is in `light-mode.md`.
 
 Code: [`android/app/src/main/java/org/plainphone/app/light/vpn/`](../android/app/src/main/java/org/plainphone/app/light/vpn).
 
@@ -50,11 +50,15 @@ Android's Private DNS (Settings, Network, Private DNS) has three modes:
 - **Off**, or **Automatic**: the VPN works as described. In Automatic mode Android tries DNS-over-TLS to our fake servers, the tunnel drops the connection, and Android uses plain DNS to them.
 - **A host name** (strict mode): Android sends the lookups of that network as DNS-over-TLS to the host the user typed, **instead of** to the DNS servers of the VPN. If the user types a resolver that the filter does not know, every lookup bypasses Plainphone. If the host is one of the well-known resolvers, its address is routed into the tunnel and dropped; strict mode does not fall back, so lookups then fail altogether.
 
-Plainphone cannot change this setting in light mode (that needs Device Owner or `WRITE_SECURE_SETTINGS`), so it must **detect and report** it. `LinkProperties.getPrivateDnsServerName()` (API 28) returns the host in strict mode and null in Off and Automatic; `LinkProperties.isPrivateDnsActive()` says whether private DNS is in use at all. Read both for the active network (`ConnectivityManager.getLinkProperties(getActiveNetwork())`) and for the VPN network, whenever the network changes and on every sync. A non-null name that is not the phone's own `<id>.dns.plainphone.org` means `privateDnsOk = false`, and the parent should be told which setting to change back. Do not log or send the host name itself: it can be the child's own choice of server.
+Plainphone cannot change this setting in light mode. In VPN mode it checks
+Android’s Private DNS mode and the active network’s strict DNS hostname.
+Any strict hostname, including the phone’s Plainphone address, means
+`privateDnsOk = false`. The dashboard tells the user to choose **Automatic**
+or **Off**. The phone does not report the hostname found in Android settings.
 
 ## Always-on VPN and "Block connections without VPN"
 
-Always-on VPN (Settings, Network, VPN, the gear next to "Plainphone filter") makes Android start the VPN at boot and restart it when it dies, with a null intent. In light mode, turn it on: without it the filter is off after a kill or a reboot until the app is next opened. The user can turn it off again; `isAlwaysOn()` lets Plainphone report that while the service runs.
+Always-on VPN (Settings, Network, VPN, the gear next to "Plainphone filter") makes Android start the VPN at boot and restart it when it dies, with a null intent. For Plainphone VPN, turn it on: without it the filter is off after a kill or a reboot until the app is next opened. The user can turn it off again; `isAlwaysOn()` lets Plainphone report that while the service runs.
 
 **Block connections without VPN** (lockdown) is a different matter. Android applies it to every packet of the phone's apps that does not leave through the VPN, and this VPN carries only DNS, so the expected result is that all other traffic is blocked and the phone has no internet. Plainphone itself is exempt. Do not tell parents to turn it on until it has been tested on a real phone (open question 2 in [dns-bypass.md](dns-bypass.md)). The Device Owner variant, `DevicePolicyManager.setAlwaysOnVpnPackage(admin, packageName, lockdownEnabled)`, has the same question.
 
@@ -72,3 +76,34 @@ Google Play only allows `VpnService` for apps whose core function needs it, and 
 4. Browsing, video and downloads do not slow down and do not pass through the VPN.
 5. Settings, Private DNS, a host name: Plainphone reports it. Turn the VPN off in settings: `vpn_revoked_at` is set and the parent is told.
 6. Kill the app from the recents list and reboot with always-on: the VPN comes back by itself.
+
+## Private DNS and other VPNs
+
+Light-mode phones can choose **Private DNS** in **Web filter**. If Plainphone
+is the always-on VPN, turn off **Block connections without VPN** and
+**Always-on VPN** for Plainphone in Android’s VPN settings. The app keeps the
+tunnel running until both are off. After the configured DoT resolver confirms
+the phone’s address, copy it from Plainphone and set it as the **Private DNS
+provider hostname** in **Network & internet**. In Tailscale, turn off **Use Tailscale DNS settings**. MagicDNS
+names will be unavailable. A work VPN may enforce its own DNS or block access
+to the resolver. Check status with the intended VPN connected.
+
+Plainphone checks that Android is in strict hostname mode, that the active
+network shows the expected validated provider, and that Android can resolve a
+fresh test name to a dedicated Plainphone answer. The resolver serves this
+answer over its existing DNS-over-TLS endpoint on TCP 853. A working result
+covers the Android DNS path the app tested. VPN-internal DNS, an app’s own
+resolver, and direct IP connections can follow a different path.
+The dashboard distinguishes an off or automatic setting, a different hostname,
+an address still being provisioned, and a check that could not be confirmed.
+A phone without working network access reports its condition when it reconnects.
+
+When switching back to **Plainphone VPN**, clear any always-on setting for the
+other VPN and disconnect it. Set Android Private DNS to **Automatic** or **Off**,
+then return to Plainphone and grant Android VPN permission if prompted.
+After releasing or removing a phone that used its Plainphone hostname, restore
+Android Private DNS to **Automatic**. Removing its ClientID can leave Android
+without DNS.
+
+See the [VPN coexistence research](research/vpn-coexistence.md) for test conditions
+and version-specific limits.

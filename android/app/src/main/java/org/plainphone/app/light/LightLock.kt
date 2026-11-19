@@ -30,16 +30,20 @@ object LightLock {
         val hasLimits = SyncStore(context).rules()?.timeLimits?.isEmpty == false
 
         results += planSteps(context, config)
-        results += vpnStep(context, config.dnsHost)
+        if (config.filterMethod == FilterMethod.VPN) {
+            results += vpnStep(context, config.dnsHost)
+        } else if (!LightFilter.vpnHandoffBlocked(context)) {
+            PlainphoneVpnService.stop(context)
+        }
         val now = Protections.read(context, config.dnsHost, needsUsageAccess = hasLimits)
         results += StepResult("device admin (uninstall needs it switched off first)", now.deviceAdmin)
         results += StepResult("accessibility service (closes blocked apps)", now.accessibility)
         results += StepResult("default phone app", now.phoneRole)
         results += StepResult("default SMS app", now.smsRole)
-        results += StepResult("private DNS not pointing elsewhere", now.privateDnsOk)
+        if (config.filterMethod == FilterMethod.VPN) results += StepResult("private DNS not pointing elsewhere", now.privateDnsOk)
         if (hasLimits) results += StepResult("usage access (time limits)", now.usageAccess)
         // Recommended, not required: reported as OK with a note so the lock stays intact without them.
-        results += StepResult("always-on VPN", true, if (now.alwaysOnVpn) "on" else "off: switch it on in Settings > VPN")
+        if (config.filterMethod == FilterMethod.VPN) results += StepResult("always-on VPN", true, if (now.alwaysOnVpn) "on" else "off: switch it on in Settings > VPN")
         results += StepResult("battery: not optimised", true, if (now.batteryUnrestricted) "yes" else "no: Android may stop Plainphone")
         return results
     }

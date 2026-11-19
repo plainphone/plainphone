@@ -247,7 +247,7 @@ export function phoneAlertMail(
   locale: Locale,
   publicUrl: string,
   alert:
-    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean }
+    | { kind: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
     | { kind: "offline"; phoneId: string; phoneName: string; hours: number; lastSeen: string },
 ): Mail {
   const da = locale === "da";
@@ -293,10 +293,12 @@ export function phoneAlertMail(
     preheader: paragraphs[0]!,
     heading: subject,
     paragraphs,
-    button: undone
-      ? { label: da ? "Åbn Plainphone" : "Open Plainphone", url: publicUrl }
-      : { label: da ? "Åbn telefonen" : "Open the phone", url: `${publicUrl}/phones/${alert.phoneId}` },
-    afterButton: undone ? [] : [
+    button: alert.kind === "protection" && alert.trusted
+      ? { label: da ? "Åbn Plainphone" : "Open Plainphone", url: `${publicUrl}/approvals` }
+      : undone
+        ? { label: da ? "Åbn Plainphone" : "Open Plainphone", url: publicUrl }
+        : { label: da ? "Åbn telefonen" : "Open the phone", url: `${publicUrl}/phones/${alert.phoneId}` },
+    afterButton: undone || (alert.kind === "protection" && alert.trusted) ? [] : [
       da
         ? "Du kan slå disse beskeder fra for telefonen under Indstillinger i Plainphone."
         : "You can turn these messages off for this phone under Settings in Plainphone.",

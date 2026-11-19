@@ -2,6 +2,8 @@
 // Copyright 2026 The Plainphone authors
 package org.plainphone.app.sync
 
+import org.plainphone.app.light.FilterMethod
+
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -33,6 +35,8 @@ data class ServerRules(
     val locateRequestedAt: Instant?,
     val pollSeconds: Int,
     /** #20: the parents' Google account IDs for factory reset protection. Empty clears the policy. */
+    val filterMethod: FilterMethod = FilterMethod.VPN,
+    val privateDnsReady: Boolean = false,
     val frpAccountIds: Set<String> = emptySet(),
     /** Phone settings the parent set or locked (docs/phone-settings.md). Empty from older servers. */
     val settings: PhoneSettings = PhoneSettings.NONE,
@@ -98,8 +102,10 @@ data class ServerRules(
                 },
                 schedules = objects(j.getJSONArray("schedules")).map(::schedule),
                 dnsHost = host,
+                filterMethod = FilterMethod.fromWire(dns.optString("filterMethod")),
                 // Old servers did not send "ready": then the host is not trusted yet.
                 dnsReady = host != null && dns.optBoolean("ready", false),
+                privateDnsReady = host != null && dns.optBoolean("privateDnsReady", false),
                 locationEnabled = location.getBoolean("enabled"),
                 locationIntervalMinutes = location.optInt("intervalMinutes", 5).coerceIn(1, 24 * 60),
                 locateRequestedAt = location.optString("requestedAt", "")

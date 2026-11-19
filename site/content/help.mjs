@@ -44,7 +44,7 @@ export const help = {
         id: "vpn",
         title: "The web filter stops working with another VPN",
         body: [
-          "In light mode, Plainphone uses Android’s VPN slot for its web filter. Android allows one active VPN per profile. Disconnect the other VPN, turn off Always-on VPN for it if enabled, then return to Plainphone and turn the web filter back on.",
+          "In light mode, Plainphone uses Android’s VPN slot for its web filter. Android allows one active VPN per profile. Disconnect the other VPN, turn off Always-on VPN for it if enabled, then return to Plainphone and turn the web filter back on. If you need to keep the other VPN on, Plainphone can use Android’s Private DNS for the web filter instead. Choose it when Plainphone asks about another VPN.",
           "In strong mode, Plainphone uses Android Private DNS. A VPN can use its own DNS instead. Disconnect it to check whether the filter starts working again.",
         ],
       },
@@ -93,7 +93,7 @@ export const help = {
         id: "vpn",
         title: "Webfilteret holder op med at virke med en anden VPN",
         body: [
-          "I let tilstand bruger webfilteret Androids VPN-forbindelse. Android tillader én aktiv VPN pr. profil. Afbryd den anden VPN, slå Altid aktiv VPN fra for den, hvis den er slået til, og åbn Plainphone for at slå webfilteret til igen.",
+          "I let tilstand bruger webfilteret Androids VPN-forbindelse. Android tillader én aktiv VPN pr. profil. Afbryd den anden VPN, slå Altid aktiv VPN fra for den, hvis den er slået til, og åbn Plainphone for at slå webfilteret til igen. Skal den anden VPN blive ved med at køre, kan Plainphone bruge Androids private DNS til webfilteret i stedet. Vælg det, når Plainphone spørger om en anden VPN.",
           "I stærk tilstand bruger Plainphone Androids Private DNS. En VPN kan bruge sin egen DNS. Afbryd den for at se, om filteret virker igen.",
         ],
       },

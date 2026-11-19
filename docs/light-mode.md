@@ -29,7 +29,7 @@ the code is already split so that is a build setting, not a rewrite.
 
 | Protection | How | Without it |
 |---|---|---|
-| Web filter | A local `VpnService` that only carries DNS. Lookups go to the phone's own ClientID at `<id>.dns.plainphone.org` over DNS-over-TLS. Packets to well-known public resolvers (Google, Cloudflare, Quad9, AdGuard, NextDNS…) are routed into the tunnel and dropped, so apps fall back to the filter. No other traffic touches the VPN ([light-mode-vpn.md](light-mode-vpn.md)) | No filter. The parent is told |
+| Web filter | The default Plainphone VPN carries only DNS and intercepts well-known public resolvers. Private DNS uses Android’s system resolver and keeps the VPN slot free. Both use the phone’s own DNS-over-TLS address ([light-mode-vpn.md](light-mode-vpn.md)) | Missing or unverified filter. The dashboard shows the phone’s report |
 | App list | An accessibility service (Plainphone guard) sees which app comes to the front. An app the parent has not allowed, or whose time is used up, is sent home and a calm Plainphone screen is shown instead | Apps open freely. The parent is told |
 | Guarding Plainphone itself | The same service closes Plainphone's own Settings screens: its accessibility, VPN, device admin, usage access and default-app pages, its app info page (uninstall, force stop, clear data), the uninstall dialog (not the update dialog, so new Plainphone APKs install), and the VPN disconnect dialog. It matches actions (uninstall, deactivate, always-on…) next to Plainphone's name, not page titles, so Network & internet and the Apps list stay usable. The maintenance PIN opens a 30-minute window; repairing a protection (Today > Fix it) asks for it first | Plainphone can be switched off from Settings |
 | Uninstall | A device admin receiver (`LightAdminReceiver`). Android will not uninstall an active device admin, so it has to be switched off first, and that screen is guarded | Plainphone can be uninstalled from the launcher |
@@ -57,6 +57,7 @@ about the protections going, since the parent asked for it. See
 
 - **VPN switched off:** `onRevoke` fires in the running app, which syncs at once and reports the
   missing filter.
+- **Private DNS changed:** Plainphone checks the new settings on sync and reports when the filter can no longer be verified.
 - **Guard switched off:** the service's `onUnbind` starts a sync with the new status.
 - **Device admin switched off:** `onDisabled` starts a sync.
 - **Plainphone uninstalled, force stopped or the phone in safe mode:** the phone stops reporting.
@@ -81,7 +82,7 @@ Light mode adds friction. It is not a lock, and the dashboard says so:
 6. **Default phone and SMS app** can be changed in Settings > Default apps (the guard closes that
    screen when it shows Plainphone). Then calls and SMS are unfiltered until Plainphone is chosen
    again; the parent sees it.
-7. **Private DNS** set to another resolver in strict mode sends lookups past the VPN. Plainphone
+7. **Private DNS** set to a hostname in strict mode sends lookups past the VPN. Plainphone
    detects it (`LinkProperties.getPrivateDnsServerName`) and reports it as a missing protection.
 8. **Incognito and other browsers.** Chrome's managed configuration (no incognito, no secure-DNS
    bypass) needs Device Owner. In light mode only the DNS filter applies; other browsers are blocked
@@ -163,3 +164,23 @@ Not submitted (needs the organisation verification and Mads' go). What each part
 
 R3 in the spec stays: a review can take weeks and may be refused, which is why the APK path ships
 first.
+
+## Tailscale and work VPNs
+
+Plainphone VPN is the default light-mode web filter. Turn on **Private DNS** in
+the phone’s **Web filter** settings in the dashboard or parent app to free
+Android’s VPN slot. A light-mode Myself setup also asks about other VPNs.
+A paired Myself phone uses its key to approve a switch in either direction.
+
+On the phone, open Plainphone setup. If Plainphone was the always-on VPN, turn
+off **Block connections without VPN** and **Always-on VPN** for Plainphone in
+Android’s VPN settings. Return to Plainphone and copy the filter address once
+the configured DNS service has confirmed it. Open Android
+**Settings**, then **Network & internet**, then **Private DNS**. Choose
+**Private DNS provider hostname**, paste the address and save. Keep the
+address private. It gives anyone who knows it access to that filtering policy.
+
+In Tailscale, turn off **Use Tailscale DNS settings**. MagicDNS names will no
+longer resolve. Check the phone’s reported filter status while your other VPN
+is connected. Work VPNs may use their own DNS or prevent Android from reaching
+the filter. See [how the check works](light-mode-vpn.md#private-dns-and-other-vpns).

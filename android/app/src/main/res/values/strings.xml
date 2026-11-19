@@ -323,5 +323,18 @@
     <string name="support_help_fallback">Open %1$s on another device.</string>
     <string name="support_copy_diagnostics">Copy diagnostics</string>
     <string name="support_copied">Diagnostics copied.</string>
+    <string name="light_private_dns_title">Private DNS</string>
+    <string name="light_private_dns_body">Copy the address, then open Settings. In Network &amp; internet, choose Private DNS, select Private DNS provider hostname, paste the address and save. In Tailscale, turn off “Use Tailscale DNS settings”. MagicDNS names will no longer resolve.</string>
+    <string name="light_private_dns_waiting">Waiting for your phone’s filter address. Try again in a moment.</string>
+    <string name="light_private_dns_settings">Open network settings</string>
+    <string name="light_private_dns_copy">Copy filter address</string>
+    <string name="light_other_vpn">Do you use another VPN, such as Tailscale or a work VPN?</string>
+    <string name="light_other_vpn_tip">Private DNS leaves room for your other VPN. In Tailscale, turn off “Use Tailscale DNS settings”. MagicDNS names will no longer resolve.</string>
+    <string name="light_other_vpn_yes">Yes, use Private DNS</string>
+    <string name="light_other_vpn_no">No, use Plainphone VPN</string>
+    <string name="light_private_dns_reset">Plainphone has been switched off. In Network &amp; internet, change Private DNS back to Automatic to restore internet access.</string>
+    <string name="light_private_dns_vpn_settings">Open VPN settings</string>
+    <string name="light_private_dns_vpn_handoff">In Android’s VPN settings, open Plainphone and turn off Block connections without VPN and Always-on VPN. Then return here to set up Private DNS.</string>
+    <string name="light_vpn_restore_dns">In Network &amp; internet, set Private DNS to Automatic or Off. Then return here to reconnect Plainphone VPN.</string>
     <string name="free_promise">Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.</string>
 </resources>
