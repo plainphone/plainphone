@@ -13,7 +13,7 @@
     <string name="maintenance_title">Wartung</string>
     <string name="maintenance_pin_hint">Eltern-PIN</string>
     <string name="maintenance_unlock">Offen</string>
-    <string name="maintenance_wrong_pin">Falsche PIN.</string>
+    <string name="maintenance_wrong_pin">Diese PIN stimmt nicht. Versuche es noch einmal.</string>
     <string name="maintenance_install_limit">Heute sind keine weiteren Installationen möglich. Versuch es morgen noch einmal.</string>
     <string name="maintenance_install_unavailable">Diese App wartet nicht mehr auf die Installation.</string>
     <string name="maintenance_install_battery">Erlaube Plainphone den Betrieb ohne Akkubeschränkungen und versuch es erneut.</string>
@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Jetzt wieder sperren</string>
     <string name="maintenance_release">Gerätebesitzer freigeben (Testtelefone)</string>
     <string name="maintenance_release_confirm">Dadurch werden alle Einschränkungen aufgehoben und der Geräteeigentümer aufgegeben. Anschließend kann Plainphone deinstalliert und das Telefon normal zurückgesetzt werden. Weitermachen?</string>
+    <string name="maintenance_release_go">Telefon freigeben</string>
+    <string name="maintenance_release_light_go">Ausschalten</string>
+    <string name="maintenance_release_keep">Eingeschaltet lassen</string>
     <string name="maintenance_contacts">Genehmigte Kontakte und blockiertes Protokoll</string>
     <string name="status_phone_role_ok">Telefon-App: Plainphone.</string>
     <string name="status_phone_role_missing">Telefon-App: nicht Plainphone. Anrufe werden nicht gefiltert.</string>

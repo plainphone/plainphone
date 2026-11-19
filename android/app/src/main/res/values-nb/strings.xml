@@ -13,7 +13,7 @@
     <string name="maintenance_title">Vedlikehold</string>
     <string name="maintenance_pin_hint">PIN-kode for foreldre</string>
     <string name="maintenance_unlock">Åpne</string>
-    <string name="maintenance_wrong_pin">Feil PIN-kode.</string>
+    <string name="maintenance_wrong_pin">Den PIN-koden stemmer ikke. Prøv igjen.</string>
     <string name="maintenance_install_limit">Alle installasjonsvinduer for i dag er brukt. Prøv igjen i morgen.</string>
     <string name="maintenance_install_unavailable">Denne appen venter ikke lenger på å bli installert.</string>
     <string name="maintenance_install_battery">La Plainphone kjøre uten batteribegrensninger, og prøv på nytt.</string>
@@ -35,6 +35,9 @@
     <string name="maintenance_reapply">Sett på låsen nå</string>
     <string name="maintenance_release">Slipp enhetseier (testtelefoner)</string>
     <string name="maintenance_release_confirm">Dette fjerner alle begrensninger og gir opp enhetseier. Plainphone kan deretter avinstalleres og telefonen tilbakestilles normalt. Fortsette?</string>
+    <string name="maintenance_release_go">Slipp telefonen</string>
+    <string name="maintenance_release_light_go">Slå av</string>
+    <string name="maintenance_release_keep">Behold det på</string>
     <string name="maintenance_contacts">Godkjente kontakter og blokkert logg</string>
     <string name="status_phone_role_ok">Telefonapp: Plainphone.</string>
     <string name="status_phone_role_missing">Telefonapp: ikke Plainphone. Samtaler filtreres ikke.</string>
