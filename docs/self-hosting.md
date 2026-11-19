@@ -24,6 +24,8 @@ pairing QR code.
 In the native parent app, select **Use your own server** at sign-in or in Settings.
 Enter the same HTTPS origin you set as `PUBLIC_URL`. The server must return
 `ok: true` and `compatibility: 1` from `/api/health`. Sign in again after changing servers.
+If your server cannot send sign-in mail, you can still select **Use plainphone.org**
+from the same sign-in screen.
 
 For a new Light setup without a dashboard QR, choose **Use your own server** on
 the pairing step before generating the pairing code. When you use a setup link or

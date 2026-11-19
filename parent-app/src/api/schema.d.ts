@@ -603,6 +603,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/subscriptions/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check whether this native token is registered for the signed-in user */
+        post: operations["postNativeNotificationSubscriptionStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/subscriptions/{sid}": {
         parameters: {
             query?: never;
@@ -3947,6 +3964,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    postNativeNotificationSubscriptionStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {unknown} */
+                    platform: "apns" | "fcm";
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Native subscription status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        registered: boolean;
+                    };
+                };
             };
         };
     };

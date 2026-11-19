@@ -6,7 +6,11 @@ import { useSession } from "../lib/session";
 import { Disclosure } from "./parts";
 import { Button, Field, LiveStatus, Text } from "./ui";
 
-export function ServerChoice({ disabled, signsOut }: { disabled?: boolean; signsOut?: boolean }) {
+export function ServerChoice({ disabled, signsOut, onSelect }: {
+  disabled?: boolean;
+  signsOut?: boolean;
+  onSelect?: (value: string | null) => Promise<void>;
+}) {
   const { t } = useI18n();
   const { serverUrl, changeServer } = useSession();
   const [address, setAddress] = useState("");
@@ -14,10 +18,11 @@ export function ServerChoice({ disabled, signsOut }: { disabled?: boolean; signs
   const [failed, setFailed] = useState(false);
 
   async function select(value: string | null) {
+    if (disabled || busy) return;
     setBusy(true);
     setFailed(false);
     try {
-      await changeServer(value);
+      await (onSelect ?? changeServer)(value);
       setAddress("");
     } catch {
       setFailed(true);

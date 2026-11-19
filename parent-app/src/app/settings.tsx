@@ -17,11 +17,17 @@ function Settings() {
   const router = useRouter();
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pushRegistered, setPushRegistered] = useState(false);
   const [pushError, setPushError] = useState(false);
 
   useEffect(() => {
-    void pushState().then(setPush).catch(() => setPush("unsupported"));
+    let active = true;
+    void pushState().then((result) => { if (active) setPush(result); }).catch(() => {
+      if (active) {
+        setPush("granted");
+        setPushError(true);
+      }
+    });
+    return () => { active = false; };
   }, []);
 
   return (
@@ -42,7 +48,7 @@ function Settings() {
         <Card>
           <Text variant="heading">{t("native.notifications")}</Text>
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
-          {pushRegistered ? (
+          {push === "registered" ? (
             <Notice tone="success" text={t("native.notificationsOn")} />
           ) : push === "denied" ? (
             <Notice tone="warn" text={t("native.notificationsOff")} />
@@ -55,7 +61,7 @@ function Settings() {
                 setBusy(true);
                 setPushError(false);
                 void enablePush(locale)
-                  .then((result) => { setPush(result); setPushRegistered(result === "granted"); })
+                  .then(setPush)
                   .catch(() => setPushError(true))
                   .finally(() => setBusy(false));
               }}

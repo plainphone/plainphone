@@ -86,7 +86,7 @@ See [Self keys](docs/self-keys.md).
 
 **As a parent:** sign in at [app.plainphone.org](https://app.plainphone.org), choose **Add phone** and follow the [illustrated setup guide](https://plainphone.org/setup/). [docs/dashboard-setup.md](docs/dashboard-setup.md) covers both modes in detail. The hosted service is a test version.
 
-**Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. The native parent app and manual Light setup both offer **Use your own server**. Dashboard setup links and Strong provisioning codes carry the server address. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
+**Self-hosting:** the server and the parent web app ship as one Docker image with PostgreSQL. The native parent app and manual Light setup both offer **Use your own server**. The parent app can return to plainphone.org from the sign-in screen. Dashboard setup links and Strong provisioning codes carry the server address. See [docs/self-hosting.md](docs/self-hosting.md), and [docs/self-hosting-dns.md](docs/self-hosting-dns.md) for the filter DNS, including how to preserve existing HTTP DNS confirmations when upgrading.
 
 See [Operations](docs/operations.md) for encrypted off-site backups, monitoring and restore drills.
 

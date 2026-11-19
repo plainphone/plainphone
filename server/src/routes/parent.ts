@@ -252,6 +252,22 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     });
   });
 
+  const nativePush = z.object({
+    platform: z.enum(["apns", "fcm"]),
+    token: z.string().min(16).max(1024),
+  });
+
+  app.post("/notifications/subscriptions/status", async (c) => {
+    const { platform, token } = await body(c, nativePush);
+    const [subscription] = await ctx.db.select({ id: pushSubscriptions.id }).from(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.endpoint, token),
+        eq(pushSubscriptions.platform, platform),
+        eq(pushSubscriptions.userId, c.get("user").id),
+      ));
+    return c.json({ registered: Boolean(subscription) });
+  });
+
   app.post("/notifications/subscriptions", async (c) => {
     const user = c.get("user");
     const label = z.string().trim().max(60).optional();
@@ -266,7 +282,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
           // The browser rotated the subscription: the old endpoint this one replaces.
           replaces: z.string().max(2000).optional(),
         }),
-        z.object({ platform: z.enum(["apns", "fcm"]), token: z.string().min(16).max(1024), label }),
+        nativePush.extend({ label }),
       ]),
     );
     if (input.platform === "web" && !ctx.parentPush.webPublicKey) {

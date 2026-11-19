@@ -60,6 +60,19 @@ describe("push subscriptions", () => {
     expect((await mum.get("/api/notifications")).json.subscriptions).toHaveLength(1);
   });
 
+  it("checks the current user's exact native token without registering it", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    const dad = await signIn(h, "dad@example.org");
+    const subscription = { platform: "fcm", token: "f".repeat(40) };
+    const status = (c: Client, body = subscription) => c.post("/api/notifications/subscriptions/status", body);
+    expect((await status(mum)).json).toEqual({ registered: false });
+    expect((await mum.get("/api/notifications")).json.subscriptions).toHaveLength(0);
+    await mum.post("/api/notifications/subscriptions", subscription);
+    expect((await status(mum)).json).toEqual({ registered: true });
+    expect((await status(mum, { ...subscription, platform: "apns" })).json).toEqual({ registered: false });
+    expect((await status(dad)).json).toEqual({ registered: false });
+  });
+
   it("drops a subscription the push service says is gone", async () => {
     const mum = await signIn(h, "mum@example.org");
     await subscribe(mum, "old");

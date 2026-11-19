@@ -1821,6 +1821,32 @@ paths:
               schema: { $ref: "#/components/schemas/PushSubscription" }
         "400": { description: "Unknown push service or invalid keys" }
         "409": { description: "Notifications are not set up on this server" }
+  /notifications/subscriptions/status:
+    post:
+      operationId: postNativeNotificationSubscriptionStatus
+      tags: [notifications]
+      summary: Check whether this native token is registered for the signed-in user
+      security: [{ session: [] }, { cookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform, token]
+              properties:
+                platform: { enum: [apns, fcm] }
+                token: { type: string, minLength: 16, maxLength: 1024 }
+      responses:
+        "200":
+          description: Native subscription status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [registered]
+                properties:
+                  registered: { type: boolean }
   /notifications/subscriptions/{sid}:
     delete:
       operationId: deleteNotificationSubscription

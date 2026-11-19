@@ -38,7 +38,7 @@ The app is ready for two notifications: a change waiting for your approval, and 
 Still missing before notifications arrive:
 
 1. An APNs key (`.p8`) from the Apple developer account and a Firebase project for FCM, with `google-services.json` added to the Android build (`android.googleServicesFile` in `app.config.ts`).
-2. A server endpoint where the app registers its token, and a push provider in `server/src/providers/push.ts` that sends through APNs and FCM.
+2. A server-side provider that sends through APNs and FCM. The registration endpoint already stores the tokens.
 3. The payload the app already understands: `data: { type: "approval" | "location", phoneId?: "<uuid>" }`. Tapping it opens the phone (or the approvals list) or the phone's location.
 
 ## Location screen
@@ -109,8 +109,10 @@ to return to the hosted service. If the sign-in link opens your browser, choose 
 from the page served by your server.
 
 Native notification registration goes to the selected server when you enable notifications
-in Settings. Your build must provide a native APNs or FCM token. The built-in server provider
-delivers Web Push to the dashboard and stores native tokens for future delivery.
+in Settings. When you reopen Settings, the app checks whether this device's APNs or FCM
+token is still registered for your account on that server. Older servers without the status
+endpoint may ask you to enable notifications again. The built-in server provider delivers
+Web Push to the dashboard and stores native tokens for future delivery.
 
 To set a custom default and have the OS open your domain's links directly, build with
 your own address and app identifiers:

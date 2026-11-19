@@ -142,9 +142,9 @@ async function hashForQr(pin: string): Promise<{ pinHash: string; pinSalt: strin
   return { pinHash: await hashPin(pin, pinSalt), pinSalt };
 }
 
-function buildQr(
+export function buildQr(
   out: EnrollmentOut,
-  phone: Phone,
+  phone: Pick<Phone, "id" | "name" | "mode" | "timezone">,
   pinned: { pinHash: string; pinSalt: string } | undefined,
   locale: string,
 ): Qr {

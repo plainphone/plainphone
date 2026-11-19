@@ -36,6 +36,7 @@ type State = { status: "loading" } | { status: "anon"; error?: unknown } | { sta
 interface SessionValue {
   state: State;
   serverUrl: string;
+  serverChanging: boolean;
   changeServer: (value: string | null) => Promise<void>;
   refresh: () => Promise<Me | null>;
   /** Exchanges a magic-link token for a session. Throws ApiError(400) for a used/expired link. */
@@ -59,6 +60,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [serverUrl, setServerUrl] = useState(SERVER_URL);
   const [serverReady, setServerReady] = useState(false);
+  const [serverChanging, setServerChanging] = useState(false);
   const switching = useRef(false);
   const serverRevision = useRef(0);
   const [next, setNextState] = useState<string | null>(null);
@@ -199,6 +201,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const target = value === null ? HOSTED_SERVER : normalizeServerUrl(value);
     if (target === SERVER_URL) return;
     switching.current = true;
+    setServerChanging(true);
     try {
       if (value !== null) await checkServer(target);
       serverRevision.current++;
@@ -217,6 +220,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setServerUrl(target);
     } finally {
       switching.current = false;
+      setServerChanging(false);
     }
   }, []);
 
@@ -232,8 +236,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, serverUrl, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
-    [state, serverUrl, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext],
+    () => ({ state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext }),
+    [state, serverUrl, serverChanging, changeServer, refresh, verify, logout, saveLocale, next, setNext, takeNext],
   );
   return <SessionContext.Provider value={value}>{serverReady ? children : null}</SessionContext.Provider>;
 }

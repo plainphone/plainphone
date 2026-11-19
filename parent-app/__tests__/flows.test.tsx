@@ -82,10 +82,74 @@ describe("logging in", () => {
     expect(api.calls.every((call) => call.auth !== "Bearer pp_s_hosted")).toBe(true);
   });
 
+  it("recognises a native subscription already stored on the current server", async () => {
+    const server = "https://plainphone.example.org";
+    await SecureStore.setItemAsync("pp.server", server);
+    await SecureStore.setItemAsync("pp.customSession", JSON.stringify({ server, token: "pp_s_custom" }));
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce({
+      ...await Notifications.getPermissionsAsync(), granted: true,
+    });
+    jest.mocked(Notifications.getDevicePushTokenAsync)
+      .mockResolvedValueOnce({ type: "ios", data: "native-test-token-123456789" });
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "POST /notifications/subscriptions/status": { body: { registered: true } },
+    });
+
+    await renderRouter(routes, { initialUrl: "/settings" });
+    expect(await screen.findByText("Notifications are registered on this server.")).toBeTruthy();
+    expect(api.calls.find((call) => call.path === "/notifications/subscriptions/status")).toMatchObject({
+      origin: server,
+      auth: "Bearer pp_s_custom",
+      body: { token: "native-test-token-123456789" },
+    });
+    expect(api.calls.some((call) => call.path === "/notifications/subscriptions")).toBe(false);
+  });
+
   it("warns when the server cannot send mail", async () => {
-    fakeApi({ "GET /health": { body: { ok: true, mail: "none" } } });
+    await SecureStore.setItemAsync("pp.server", "https://plainphone.example.org");
+    fakeApi({
+      "GET /health": ({ origin }) => ({ body: { ok: true, mail: origin.includes("example.org") ? "none" : "smtp" } }),
+      "POST /auth/request": { status: 202, body: { mailEnabled: false } },
+    });
     await renderRouter(routes, { initialUrl: "/login" });
     expect(await screen.findByText("The server can’t send sign-in links.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText("Email address"), "parent@example.org");
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    await fireEvent.press(screen.getByText("Use your own server"));
+    await fireEvent.press(screen.getByText("Use plainphone.org"));
+    expect(await screen.findByText("This app talks to https://app.plainphone.org.")).toBeTruthy();
+  });
+
+  it("holds login submissions until server validation finishes", async () => {
+    const custom = "https://plainphone.example.org";
+    const api = fakeApi({
+      "GET /health": { body: { ok: true, compatibility: 1, mail: "smtp" } },
+      "POST /auth/request": { status: 202, body: { mailEnabled: true } },
+    });
+    const fetchApi = globalThis.fetch;
+    let release!: () => void;
+    const checking = new Promise<void>((resolve) => { release = resolve; });
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.origin === custom && url.pathname === "/api/health") await checking;
+      return fetchApi(input, init);
+    };
+    await renderRouter(routes, { initialUrl: "/login" });
+    await fireEvent.changeText(await screen.findByLabelText("Email address"), "parent@example.org");
+    await fireEvent.press(screen.getByText("Use your own server"));
+    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+    await fireEvent.press(screen.getByText("Connect"));
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    await fireEvent(screen.getByTestId("login-email"), "submitEditing");
+    expect(api.calls.filter((call) => call.path === "/auth/request")).toHaveLength(0);
+    await act(async () => release());
+    expect(await screen.findByText(`This app talks to ${custom}.`)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("Check your mail")).toBeTruthy();
+    expect(api.calls.filter((call) => call.path === "/auth/request")).toEqual([
+      expect.objectContaining({ origin: custom }),
+    ]);
   });
 
   it("opens the login link, keeps the session in the keychain and shows the phones", async () => {
@@ -254,6 +318,37 @@ describe("signed in", () => {
     await waitFor(() => expect(screen).toHavePathname("/login"));
     expect(api.calls.find((c) => c.path === "/auth/logout")!.auth).toBe("Bearer pp_s_saved");
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("pp.session");
+  });
+
+  it("keeps login disabled when a switch from settings is still being saved", async () => {
+    const custom = "https://plainphone.example.org";
+    const api = fakeApi({
+      "GET /me": { body: ME },
+      "GET /health": { body: { ok: true, compatibility: 1, mail: "smtp" } },
+      "POST /auth/request": { status: 202, body: { mailEnabled: true } },
+    });
+    await renderRouter(routes, { initialUrl: "/settings" });
+    await fireEvent.press(await screen.findByText("Use your own server"));
+    await fireEvent.changeText(screen.getByLabelText("Server address"), custom);
+
+    const forget = jest.mocked(SecureStore.deleteItemAsync).getMockImplementation()!;
+    let release!: () => void;
+    const saving = new Promise<void>((resolve) => { release = resolve; });
+    jest.mocked(SecureStore.deleteItemAsync).mockImplementationOnce(async (key) => {
+      await saving;
+      await forget(key);
+    });
+    await fireEvent.press(screen.getByText("Connect"));
+    await fireEvent.changeText(await screen.findByLabelText("Email address"), "parent@example.org");
+    await fireEvent(screen.getByTestId("login-email"), "submitEditing");
+    expect(api.calls.filter((call) => call.path === "/auth/request")).toHaveLength(0);
+    await act(async () => release());
+    expect(await screen.findByText(`This app talks to ${custom}.`)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-submit"));
+    expect(await screen.findByText("Check your mail")).toBeTruthy();
+    expect(api.calls.filter((call) => call.path === "/auth/request")).toEqual([
+      expect.objectContaining({ origin: custom }),
+    ]);
   });
 
   it("switches the language and saves it on the account", async () => {
