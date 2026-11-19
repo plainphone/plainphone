@@ -209,7 +209,8 @@ for (const file of html) {
           errors.push(`${name}: missing Open Graph alternate for ${lang}`);
         }
         const switches = [...src.matchAll(new RegExp(`<a href="([^"]+)" hreflang="${lang}" lang="${lang}">`, "g"))];
-        if (switches.length !== 1 || switches[0][1] !== path) {
+        // The header, the small-screen menu and the footer each list the languages.
+        if (!switches.length || switches.some((s) => s[1] !== path)) {
           errors.push(`${name}: expected ${lang} language switch to ${path}`);
         }
       }
