@@ -21,7 +21,7 @@ for strong mode and on the phone for light mode.
 | Light mode and Android prompts | Phone, messages and the web filter explain why Android asks. Each required permission has one primary action. Plainphone rechecks after the system screen closes. |
 | Light mode and restricted settings | On Android 13+, the default phone app, SMS app and guard steps link to Plainphone’s App info when Android did not grant access. Use **⋮ → Allow restricted settings**, then return and retry. |
 | Background operation, location and always-on filter | Put these after the required permissions, with a single action to continue without extras. Battery exemption uses the Android prompt. OnePlus and Xiaomi point to their battery controls in App info. Samsung opens Never sleeping apps when its settings app supports that link. |
-| Handoff, weak Wi-Fi and an expired link | The dashboard waits for the phone. In light mode the phone offers a retry if enrollment or the first rules fetch fails, or asks for a new link when the server rejects an unused token. It shows the finish screen after storing the first rules. The dashboard checks expiry locally, including when offline, and can issue a new link. A new link replaces the pending token and PIN after confirmation on a phone that has not paired. |
+| Handoff, weak Wi-Fi and an expired link | The dashboard waits for the phone. In light mode the phone offers a retry if enrollment or the first rules fetch fails, or asks for a new link when the server rejects an unused token. It shows the finish screen after storing the first rules. The dashboard checks expiry locally, including when offline, and shows the first instruction above the code and offers a visible link or copy action where a link exists. When the code runs out, one button makes a new code in place for the same phone (strong mode reuses the PIN already entered). A new link replaces the pending token and PIN after confirmation on a phone that has not paired. |
 | After connecting | Offer three direct links for contacts, catalog apps and school hours. |
 
 ## When setup settings change
@@ -73,6 +73,8 @@ has installation permission and whether Android asks for restricted settings, si
 several taps. Repeat with TalkBack and large text on real Android hardware.
 
 ## Screenshots and release checks
+
+Before/after captures of the label, first-instruction and expiry changes (390 px, light and dark, synthetic fixtures) are in [screenshots/ux-setup-handoff](screenshots/ux-setup-handoff/); `capture.mjs` there regenerates them.
 
 [Web screenshots](img/setup/) use a local frontend with synthetic responses. QR codes are covered, and the light-mode screenshots predate the move to on-phone PIN entry. The examples cover the
 mode choice, name, PIN, each QR handoff, Wi-Fi, install help, the connected page, and the guides in
