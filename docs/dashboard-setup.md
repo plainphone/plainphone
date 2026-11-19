@@ -125,3 +125,31 @@ to allow background activity for Plainphone on [OnePlus](https://dontkillmyapp.c
 [Oppo](https://dontkillmyapp.com/oppo), or [Xiaomi](https://dontkillmyapp.com/xiaomi).
 On [Samsung](https://dontkillmyapp.com/samsung), check whether Plainphone is on a sleeping
 or deep sleeping apps list. The exact settings vary by model and Android version.
+
+## Rule confirmations and phone health
+
+Open a phone to see **Current rules**. The confirmation time comes from the phone
+when it has applied the rules that match the dashboard. The web rule screens also
+show this confirmation. A phone that has been silent for longer than its offline
+alert time (24 hours by default) appears offline. A phone seen since then
+without a confirmation still shows that it is waiting. Changes saved between syncs can be applied together and share a time.
+An edit that undoes an earlier change still gets a fresh confirmation. A web
+filter change waits for the resolver too. The filter screen shows whether its
+settings reached the resolver.
+Only the current rules have a confirmation. The dashboard keeps Self changes
+waiting for approval visible in their own list.
+
+**Phone health** shows the lock, web filter, default phone app, last contact,
+app version and individual Light mode checks. The web filter row distinguishes
+server setup from what the phone observed about its own network routing. That
+observation cannot confirm which websites are blocked. If the phone has not
+reported a check recently, the dashboard says the current state is unknown.
+When a problem is confirmed, follow the instructions on the card.
+
+Both features start on. In **What to show for this phone**, switch either one
+off in the web dashboard or parent app. The phone picks up the preferences on
+its next sync. The rule confirmation switch stops acknowledgment of applied
+rules. The health switch hides the additional checks and stops reporting the
+extra filter and usage access observations. Phone updates and existing alerts
+are still available under **Phone status**. Update the phone app for the new
+checks and for the phone to honor the reporting switches.

@@ -82,10 +82,14 @@ describe("Deciding a request is idempotent and says what happened", () => {
     expect((await me.get(`/api/phones/${phoneId}`)).json.rulesCurrent).toBeNull();
     const status = {
       appVersion: "0.1.12", batteryPct: 80, charging: false, deviceOwner: false, lockIntact: true, maintenance: false,
-      failedPolicies: [], rulesEtag: rules.headers.get("etag"), rulesAppliedAt: h.clock.now.toISOString(), dnsHost: null,
+      failedPolicies: [], rulesEtag: rules.headers.get("etag"), rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true, dnsHost: null,
     };
     expect((await device.put("/api/device/status", status)).status).toBeLessThan(300);
     expect((await me.get(`/api/phones/${phoneId}`)).json.rulesCurrent).toBe(true);
+    // An unconfirmed acknowledgment (e.g. a waiting ETag) must not read as current while the receipt says otherwise.
+    expect((await device.put("/api/device/status", { ...status, rulesReceiptConfirmed: false })).status).toBeLessThan(300);
+    expect((await me.get(`/api/phones/${phoneId}`)).json.rulesCurrent).toBe(false);
+    expect((await device.put("/api/device/status", status)).status).toBeLessThan(300);
     await me.put(`/api/phones/${phoneId}/apps/com.instagram.android`, { allowed: true });
     expect((await me.get(`/api/phones/${phoneId}`)).json.rulesCurrent).toBe(false);
   });

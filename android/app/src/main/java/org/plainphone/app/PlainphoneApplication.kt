@@ -117,9 +117,13 @@ class PlainphoneApplication : Application() {
                 IntentFilter(Intent.ACTION_SCREEN_OFF),
             )
             TimeTicker.register(this)
-            // The filter went down (revoked or stopped): the parent hears it with this sync, not 15 minutes later.
+            // On startup or a host switch the lock can confirm the VPN step on the next sync.
             org.plainphone.app.light.vpn.VpnEvents.listener = { event ->
-                if (event == org.plainphone.app.light.vpn.VpnEvent.Stopped) SyncScheduler.now(this, "DNS filter stopped")
+                when (event) {
+                    org.plainphone.app.light.vpn.VpnEvent.Started -> SyncScheduler.vpnReady(this, "DNS filter started")
+                    org.plainphone.app.light.vpn.VpnEvent.HostChanged -> SyncScheduler.vpnReady(this, "DNS resolver changed")
+                    org.plainphone.app.light.vpn.VpnEvent.Stopped -> SyncScheduler.now(this, "DNS filter stopped")
+                }
             }
             val dnsObserver = object : android.database.ContentObserver(android.os.Handler(mainLooper)) {
                 override fun onChange(selfChange: Boolean) {

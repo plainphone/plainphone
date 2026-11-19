@@ -5,7 +5,7 @@ import { z } from "zod";
 import { contactSuggestions, contacts, phones } from "../db/schema.js";
 import { phoneNumber } from "../lib/validation.js";
 import type { Ctx } from "./context.js";
-import { wakePhone } from "./phones.js";
+import { nextRulesRevision, wakePhone } from "./phones.js";
 
 const contactName = z.string().trim().min(1).max(60);
 export const selfFavouriteInput = z.strictObject({ name: contactName, number: phoneNumber, favourite: z.boolean() });
@@ -47,7 +47,7 @@ export async function updateChildContactSettings(ctx: Ctx, phoneId: string, inpu
     };
     const [before] = await tx.select(columns).from(phones).where(eq(phones.id, phoneId)).for("update");
     if (!before) return null;
-    const [after] = await tx.update(phones).set(input).where(eq(phones.id, phoneId)).returning(columns);
+    const [after] = await tx.update(phones).set({ ...input, ...nextRulesRevision() }).where(eq(phones.id, phoneId)).returning(columns);
     if (input.suggestDeviceContacts === false) {
       await tx.delete(contactSuggestions).where(and(eq(contactSuggestions.phoneId, phoneId), isNotNull(contactSuggestions.name)));
     }
@@ -138,6 +138,7 @@ export async function reviewContactSuggestions(
       await tx.update(contactSuggestions).set({ name: null }).where(selected);
       changed = true;
     }
+    if (changed) await tx.update(phones).set(nextRulesRevision()).where(eq(phones.id, phoneId));
     return changed;
   });
   if (approved) await wakePhone(ctx, phoneId, "rules");

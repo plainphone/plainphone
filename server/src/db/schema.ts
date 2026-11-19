@@ -140,6 +140,9 @@ export interface DeviceStatus {
   failedPolicies: string[];
   /** ETag of the rules the phone last applied. */
   rulesEtag: string | null;
+  rulesReceiptConfirmed?: boolean;
+  rulesReceiptReceivedAt?: string;
+  webFilterActive?: boolean | null;
   rulesAppliedAt: string | null;
   /** The private DNS host the phone actually uses. */
   dnsHost: string | null;
@@ -174,6 +177,7 @@ export const PROTECTIONS = [
   "deviceAdmin",
   "accessibility",
   "usageAccess",
+  "usageAccessGranted",
   "vpn",
   "alwaysOnVpn",
   "phoneRole",
@@ -275,6 +279,10 @@ export const phones = pgTable(
     offlineAlertedAt: timestamp("offline_alerted_at", { withTimezone: true }),
     /** Hours of silence before the parents are told; null = the server default, 0 = never. */
     offlineAlertHours: integer("offline_alert_hours"),
+    changeReceiptsEnabled: boolean("change_receipts_enabled").notNull().default(true),
+    healthBoardEnabled: boolean("health_board_enabled").notNull().default(true),
+    rulesRevision: integer("rules_revision").notNull().default(0),
+    rulesAwaitDns: boolean("rules_await_dns").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [index("phones_household_idx").on(t.householdId)],

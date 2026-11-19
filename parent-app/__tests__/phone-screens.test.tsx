@@ -25,7 +25,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi<T extends Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; status?: Partial<NonNullable<Phone["status"]>> }>(phone: T | typeof PHONE = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi<T extends Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; healthBoardEnabled?: boolean; status?: Partial<NonNullable<Phone["status"]>> }>(phone: T | typeof PHONE = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -116,6 +116,27 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("updates the phone health preference independently of rule confirmations", async () => {
+    const phone = {
+      ...PHONE, changeReceiptsEnabled: true, healthBoardEnabled: true,
+      status: { appVersion: "1.0", appVersionCode: 11, lockIntact: true, failedPolicies: [], lateGoogleAccount: true, callRoleActionNeeded: true },
+    };
+    const path = `/phones/${PHONE.id}`;
+    const api = phoneApi(phone, {
+      [`PATCH ${path}`]: { body: { ...phone, healthBoardEnabled: false } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("Last contact")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name: "Phone health" }));
+    await waitFor(() => expect(screen.queryByText("Last contact")).toBeNull());
+    expect(screen.getByRole("switch", { name: "Rule confirmations", checked: true })).toBeTruthy();
+    expect(screen.getByText("An unexpected account change was detected during or after app installation")).toBeTruthy();
+    expect(screen.getByText("Update now")).toBeTruthy();
+    expect(api.calls).toContainEqual(expect.objectContaining({
+      method: "PATCH", path, body: { healthBoardEnabled: false },
+    }));
+  });
+
   it("shows the recovery guide when a pending release targets an old app", async () => {
     phoneApi({
       ...PHONE,
@@ -505,8 +526,17 @@ describe("web filter", () => {
   });
 
   it("shows the Private DNS host repair on the phone overview", async () => {
-    phoneApi({ ...PHONE, mode: "light", status: { lockIntact: false, failedPolicies: [],
+    const now = new Date().toISOString();
+    phoneApi({ ...PHONE, mode: "light", lastSeenAt: now, status: { reportedAt: now, lockIntact: false, failedPolicies: [],
       filterMethod: "privateDns", filterWorking: false, filterIssue: "wrongHost" } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/different Private DNS host/)).toBeTruthy();
+  });
+
+  it("shows the Private DNS host repair when the health card is off", async () => {
+    const now = new Date().toISOString();
+    phoneApi({ ...PHONE, mode: "light", healthBoardEnabled: false, lastSeenAt: now, status: { reportedAt: now, lockIntact: false,
+      failedPolicies: [], filterMethod: "privateDns", filterWorking: false, filterIssue: "wrongHost" } });
     await renderRouter(routes, { initialUrl: at(PHONE) });
     expect(await screen.findByText(/different Private DNS host/)).toBeTruthy();
   });

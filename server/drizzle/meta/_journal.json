@@ -197,6 +197,13 @@
       "when": 1795109559369,
       "tag": "0039_keep_sage_for_existing_phones",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795114311905,
+      "tag": "0040_receipts_health",
+      "breakpoints": true
     }
   ]
 }

@@ -136,7 +136,7 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
                 .putBoolean(KEY_REMOVED, false)
                 .remove(KEY_RELEASED).remove(KEY_SETUP_UNDO_PENDING)
                 // A new pairing starts from a clean slate on the server side; force a full fetch and fresh reports.
-                .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT)
+                .remove(KEY_ETAG).remove(KEY_APPS_HASH).remove(KEY_STATUS_HASH).remove(KEY_STATUS_AT).remove(KEY_FILTER_METHOD_SEEN).remove(KEY_FILTER_VERIFIED)
                 .remove(KEY_FIND_ATTEMPT_REQUEST).remove(KEY_FIND_ATTEMPT_AT)
                 .remove(KEY_CHECKIN_ATTEMPT_ID).remove(KEY_CHECKIN_ATTEMPT_AT)
                 .remove(KEY_PENDING_LOCATION).remove(KEY_PENDING_CHECKIN_LOCATION)
@@ -336,6 +336,18 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         get() = prefs.getLong(KEY_STATUS_AT, 0L)
         set(v) { prefs.edit().putLong(KEY_STATUS_AT, v).apply() }
 
+    /**
+     * The filter method the last status report was judged against, and whether the phone has seen that
+     * method work since the parent chose it. A rule receipt for a new Private DNS filter waits for it.
+     */
+    var filterMethodSeen: String?
+        get() = prefs.getString(KEY_FILTER_METHOD_SEEN, null)
+        set(v) { prefs.edit().putString(KEY_FILTER_METHOD_SEEN, v).apply() }
+
+    var filterVerified: Boolean
+        get() = prefs.getBoolean(KEY_FILTER_VERIFIED, false)
+        set(v) { prefs.edit().putBoolean(KEY_FILTER_VERIFIED, v).apply() }
+
     /** The "Find" request (its requestedAt) the phone already answered. */
     var answeredLocateMs: Long
         get() = prefs.getLong(KEY_LOCATE_ANSWERED, 0L)
@@ -474,6 +486,8 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private const val KEY_APPS_SCANNED_GENERATION = "apps_scanned_generation"
         private const val KEY_STATUS_HASH = "status_hash"
         private const val KEY_STATUS_AT = "status_at"
+        private const val KEY_FILTER_METHOD_SEEN = "filter_method_seen"
+        private const val KEY_FILTER_VERIFIED = "filter_verified"
         private const val KEY_LOCATE_ANSWERED = "locate_answered"
         private const val KEY_LOCATE_SHOWN = "locate_shown"
         private const val KEY_LOCATION_AT = "location_at"

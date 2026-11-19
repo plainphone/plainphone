@@ -11,6 +11,8 @@ import org.junit.runner.RunWith
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.StepResult
+import org.plainphone.app.light.FilterHealth
+import org.plainphone.app.light.FilterMethod
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.contacts.SyncedContactPolicySource
 import org.robolectric.RobolectricTestRunner
@@ -562,9 +564,78 @@ class SyncRunnerTest {
     }
 
     @Test
+    fun `receipts are only sent for applied rules and can be turned off with the filter check`() {
+        pair()
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        device.lock = device.lock.copy(webFilterActive = true, protections = mapOf(
+            "usageAccess" to true, "usageAccessGranted" to false,
+        ))
+        runner.run("fetched without applying")
+        assertThat(api.statuses.last().rulesEtag).isNull()
+        assertThat(api.statuses.last().webFilterActive).isTrue()
+        assertThat(api.statuses.last().protections).containsEntry("usageAccessGranted", false)
+
+        device.lock = device.lock.copy(receipt = AppliedRulesReceipt("\"e1\"", device.now))
+        api.rules = RulesResult.Unchanged
+        runner.run("applied")
+        assertThat(api.statuses.last().rulesEtag).isEqualTo("\"e1\"")
+        assertThat(api.statuses.last().rulesAppliedAtMs).isEqualTo(device.now)
+
+        val disabled = org.json.JSONObject(rulesJson())
+            .put("changeReceiptsEnabled", false).put("healthBoardEnabled", false)
+        api.rules = RulesResult.Changed("\"e2\"", disabled.toString())
+        device.lock = device.lock.copy(receipt = AppliedRulesReceipt("\"e2\"", device.now))
+        runner.run("disabled")
+        assertThat(api.statuses.last().rulesEtag).isNull()
+        assertThat(api.statuses.last().rulesAppliedAtMs).isNull()
+        assertThat(api.statuses.last().webFilterActive).isNull()
+        assertThat(api.statuses.last().protections).containsExactly("usageAccess", true)
+        assertThat(api.statuses.last().lockIntact).isTrue()
+    }
+
+    @Test
+    fun `a new Private DNS filter is only confirmed once the phone has verified it`() {
+        pair()
+        device.lock = device.lock.copy(mode = "light")
+        api.rules = RulesResult.Changed("\"e1\"", rulesJson(filterMethod = "privateDns"))
+        device.lock = device.lock.copy(
+            receipt = AppliedRulesReceipt("\"e1\"", device.now),
+            filter = FilterHealth(FilterMethod.PRIVATE_DNS, false, "unverified"),
+        )
+        runner.run("applied, not verified")
+        assertThat(api.statuses.last().rulesEtag).isNull()
+        assertThat(api.statuses.last().rulesReceiptConfirmed).isFalse()
+
+        device.lock = device.lock.copy(filter = FilterHealth(FilterMethod.PRIVATE_DNS, true))
+        api.rules = RulesResult.Unchanged
+        runner.run("verified")
+        assertThat(api.statuses.last().rulesEtag).isEqualTo("\"e1\"")
+
+        // A later rule change is confirmed even while the filter has a problem: the phone applied it.
+        api.rules = RulesResult.Changed("\"e2\"", rulesJson(filterMethod = "privateDns", locationEnabled = false))
+        device.lock = device.lock.copy(
+            receipt = AppliedRulesReceipt("\"e2\"", device.now),
+            filter = FilterHealth(FilterMethod.PRIVATE_DNS, false, "unverified"),
+        )
+        runner.run("unrelated change")
+        assertThat(api.statuses.last().rulesEtag).isEqualTo("\"e2\"")
+    }
+
+    @Test
+    fun `rules from an older server keep the legacy protection report`() {
+        pair()
+        val legacy = org.json.JSONObject(rulesJson()).apply { remove("healthBoardEnabled") }
+        api.rules = RulesResult.Changed("\"old\"", legacy.toString())
+        device.lock = device.lock.copy(protections = mapOf("usageAccess" to true, "usageAccessGranted" to false))
+        runner.run("legacy server")
+        assertThat(api.statuses.last().protections).containsExactly("usageAccess", true)
+    }
+
+    @Test
     fun `status goes out at once when the lock changes, otherwise every 15 minutes`() {
         pair()
         api.rules = RulesResult.Changed("\"e1\"", rulesJson())
+        device.lock = device.lock.copy(receipt = AppliedRulesReceipt("\"e1\"", device.now))
         runner.run("1")
         assertThat(api.statuses).hasSize(1)
         assertThat(api.statuses[0].lockIntact).isTrue()

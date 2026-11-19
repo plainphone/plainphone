@@ -18,6 +18,7 @@ import org.plainphone.app.sync.SyncStore
  * protection is a step, so a missing one shows up in the parent's status as a failed policy.
  */
 object LightLock {
+    internal const val DNS_STEP = "DNS filter (VPN)"
     private const val PREFS = "plainphone_light"
 
     fun apply(context: Context, config: PolicyConfig): List<StepResult> {
@@ -86,17 +87,23 @@ object LightLock {
 
     private fun vpnStep(context: Context, host: String): StepResult {
         // Consent is given once in the setup screen; without it the VPN cannot start in the background.
-        if (VpnService.prepare(context) != null) return StepResult("DNS filter (VPN)", false, "not allowed yet")
+        if (VpnService.prepare(context) != null) return StepResult(DNS_STEP, false, "not allowed yet")
         return try {
-            if (PlainphoneVpnService.start(context, host) || PlainphoneVpnService.isRunning()) {
-                StepResult("DNS filter (VPN)", true, host)
-            } else {
-                StepResult("DNS filter (VPN)", false, "Android did not start it (Plainphone in the background?)")
+            if (vpnUses(host)) return StepResult(DNS_STEP, true, host)
+            val started = PlainphoneVpnService.start(context, host)
+            when {
+                vpnUses(host) -> StepResult(DNS_STEP, true, host)
+                // A start Android accepted is not a lost protection: no failure, no alarm, but no receipt yet.
+                started -> StepResult(DNS_STEP, true, "waiting for the VPN to use the requested resolver", waiting = true)
+                else -> StepResult(DNS_STEP, false, "Android did not start it (Plainphone in the background?)")
             }
         } catch (e: Exception) {
-            StepResult("DNS filter (VPN)", false, "${e.javaClass.simpleName}: ${e.message}")
+            StepResult(DNS_STEP, false, "${e.javaClass.simpleName}: ${e.message}")
         }
     }
+
+    internal fun vpnUses(host: String): Boolean =
+        PlainphoneVpnService.activeHost().equals(host, ignoreCase = true)
 
     fun plan(context: Context): LightPlan {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

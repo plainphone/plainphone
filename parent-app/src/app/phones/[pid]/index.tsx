@@ -8,6 +8,7 @@ import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, Home, PendingChange, Phone } from "../../../api/models";
 import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
+import { PhoneDisplayPreferences } from "../../../components/PhoneDisplayPreferences";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
@@ -21,6 +22,7 @@ import { BATTERY_EXEMPTION_POLICY, updateBatteryExemptionMessage } from "../../.
 import { lockStepLabel } from "../../../shared/lib/lock-steps";
 import { HOME_PALETTES } from "../../../shared/lib/settings";
 import { describeOp } from "../../../shared/lib/ops";
+import { healthRows, receiptText } from "../../../shared/lib/phone-health";
 import { fetchLatestPhoneVersion, hasPhoneSigningKeyChange, usesProductionKey, type LatestVersion } from "../../../shared/lib/phoneUpdate";
 
 function PendingList() {
@@ -490,6 +492,7 @@ function Overview() {
   ];
 
   const state = phoneStateText(phone, now, t, locale);
+  const showHealth = phone.healthBoardEnabled !== false;
   const filterStatus = filterStatusKey(phone.status);
   const overrun = phone.status?.failedPolicies.map(installWindowOverrunSeconds).find((seconds) => seconds !== undefined);
   const status = [
@@ -510,10 +513,20 @@ function Overview() {
       {phone.profile === "child" && <SosPanel key={phone.id} pid={phone.id} />}
       <Notice tone={state.attention ? "warn" : "info"} text={state.hint} />
       {phone.awaitingServerMove ? <Notice tone="info" text={t("move.waiting")} /> : null}
-      {filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
+      {showHealth ? (
+        <Card>
+          <Text variant="heading">{t("health.title")}</Text>
+          {healthRows(phone, now, locale, t).map(({ key, label, detail, action }) => (
+            <VStack key={key} gap={space.xs}>
+              <Text variant="label">{label}</Text>
+              <Text variant={action ? "error" : "muted"}>{detail}</Text>
+            </VStack>
+          ))}
+        </Card>
+      ) : filterStatus ? <Notice tone={phone.status?.filterWorking ? "info" : "warn"} text={t(filterStatus)} /> : null}
       {phone.mode === "light" ? <Notice tone="info" text={t("mode.lightNote")} /> : null}
       {phone.status?.lateGoogleAccount ? <Notice tone="warn" text={t("phone.lateGoogleAccount")} /> : null}
-      {phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
+      {!showHealth && phone.status?.callRoleActionNeeded ? <Notice tone="warn" text={t("phone.callRoleActionNeeded")} /> : null}
       {phone.status?.parallelAppsRemoved ? <Notice tone="info" text={t("phone.parallelAppsRemoved")} /> : null}
       {technicalSteps.length > 0 ? (
         <Notice tone="warn" text={t("phone.lockFailed", { steps: formatList([...new Set(technicalSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })} />
@@ -559,6 +572,12 @@ function Overview() {
 
       <VStack>
         <Text variant="heading">{t("phone.rules")}</Text>
+        {phone.changeReceiptsEnabled !== false && phone.ruleReceipt && (
+          <Card>
+            <Text variant="label">{t("receipt.title")}</Text>
+            <Text accessibilityLiveRegion="polite">{receiptText(phone.ruleReceipt, phone, now, locale, t)}</Text>
+          </Card>
+        )}
         {groups.map((g) => (
           <VStack key={g.title} gap={space.sm}>
             <Text variant="label">{g.title}</Text>
@@ -581,6 +600,7 @@ function Overview() {
         <PushPreferences />
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />
+        <PhoneDisplayPreferences />
         <RenamePhone />
         <PhoneLanguageSettings />
         <RemovePhone />

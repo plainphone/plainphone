@@ -29,10 +29,12 @@ import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { ServerMoveToggle } from "../components/ServerMoveToggle";
 import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
+import { healthRows, receiptText } from "../lib/phone-health";
 
 interface PhoneCtx {
   phone: Phone;
   setPhone: (p: Phone) => void;
+  refreshRuleReceipt: () => void;
   pending: PendingChange[];
   reloadPending: (beforeUpdate?: (changes: PendingChange[]) => void) => Promise<void>;
   appLabel: (pkg: string) => string;
@@ -75,7 +77,37 @@ export function PhoneLayout() {
   const { pid = "" } = useParams();
   const { t } = useI18n();
   const loc = useLocation();
+  const navigate = useNavigate();
   const phoneRes = useLoad(() => api.get<Phone>(`/phones/${pid}`), [pid]);
+  const { reload: reloadPhone, setData: setPhoneData } = phoneRes;
+  const refreshRuleReceipt = useCallback(() => {
+    setPhoneData((phone) => phone?.ruleReceipt
+      ? { ...phone, ruleReceipt: { appliedAt: null, confirmedAt: null } }
+      : phone);
+    void reloadPhone();
+  }, [reloadPhone, setPhoneData]);
+  const releasing = Boolean(phoneRes.data?.releaseRequestedAt);
+  const releasedText = t("support.phoneUnavailable");
+  const atOverview = loc.pathname.replace(/\/$/, "") === `/phones/${pid}`;
+  // The overview refreshes itself; the other pages poll here so the rule receipt stays current.
+  useEffect(() => {
+    if (atOverview) return;
+    let active = true;
+    const refresh = () => {
+      void api.get<Phone>(`/phones/${pid}`).then((phone) => {
+        if (active) setPhoneData(() => phone);
+      }).catch((err) => {
+        if (active && err instanceof ApiError && err.status === 404) {
+          navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
+        }
+      });
+    };
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [pid, atOverview, releasing, releasedText, navigate, setPhoneData]);
   const [pending, setPending] = useState<PendingChange[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -121,6 +153,7 @@ export function PhoneLayout() {
         const r = await fn();
         if (r.status === "applied") {
           setBanner(null);
+          refreshRuleReceipt();
           setNotice({ tone: "success", text: appliedText ?? t("pending.applied") });
         } else {
           setBanner(r.change);
@@ -133,7 +166,7 @@ export function PhoneLayout() {
         return null;
       }
     },
-    [reloadPending, t],
+    [reloadPending, refreshRuleReceipt, t],
   );
 
   const appLabel = useCallback((pkg: string) => labels.get(pkg) ?? pkg, [labels]);
@@ -144,6 +177,7 @@ export function PhoneLayout() {
         ? {
             phone: phoneRes.data,
             setPhone: (p) => phoneRes.setData(() => p),
+            refreshRuleReceipt,
             pending,
             reloadPending,
             appLabel,
@@ -152,7 +186,7 @@ export function PhoneLayout() {
             notify: setNotice,
           }
         : null,
-    [phoneRes, pending, reloadPending, appLabel, setApps, run],
+    [phoneRes, pending, reloadPending, refreshRuleReceipt, appLabel, setApps, run],
   );
 
   if (!value) {
@@ -160,12 +194,12 @@ export function PhoneLayout() {
     return <Loading />;
   }
 
-  const atOverview = loc.pathname.replace(/\/$/, "") === `/phones/${pid}`;
   return (
     <Ctx.Provider value={value}>
       <p className="back">
         {atOverview ? <Link to="/">{t("nav.phones")}</Link> : <Link to={`/phones/${pid}`}>{value.phone.name}</Link>}
       </p>
+      {!atOverview && <RuleReceipt phone={value.phone} />}
       {atOverview && value.phone.profile === "child" && <SosPanel key={value.phone.id} pid={value.phone.id} />}
       <Outlet />
       <ChangeBar
@@ -325,7 +359,19 @@ const RESET_PROTECTION_TEXT = {
   failed: "phone.frpFailed",
 } as const;
 
-/** What the phone reported about its battery, app and lock, and whether the web filter is live. */
+function RuleReceipt({ phone }: { phone: Phone }) {
+  const { t, locale } = useI18n();
+  const now = useNow(30_000);
+  if (phone.changeReceiptsEnabled === false || !phone.ruleReceipt) return null;
+  return (
+    <p className="rule-receipt" role="status" aria-atomic="true">
+      <strong>{t("receipt.title")}</strong>
+      <span>{receiptText(phone.ruleReceipt, phone, now, locale, t)}</span>
+    </p>
+  );
+}
+
+/** Existing device details and the optional health checks. */
 export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) {
   const { t, locale } = useI18n();
   const s = phone.status;
@@ -336,29 +382,43 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
   const failedSteps = failures.filter((policy) => installWindowOverrunSeconds(policy) === undefined);
   const technicalSteps = failedSteps.filter((step) => step !== BATTERY_EXEMPTION_POLICY);
   const when = (iso: string) => formatRelative(iso, now, locale);
+  const showHealth = phone.healthBoardEnabled !== false;
+  const rows = showHealth ? healthRows(phone, now, locale, t) : [];
+  const lockNeedsAction = showHealth
+    ? rows.find((row) => row.key === "lock")?.action
+    : s?.lockIntact === false && !s.maintenance;
   return (
-    <section className="section" aria-labelledby="status-h">
-      <h2 id="status-h">{t("phone.status")}</h2>
+    <section className={showHealth ? "section panel phone-health" : "section panel"} aria-labelledby="status-h">
+      <h2 id="status-h">{t(showHealth ? "health.title" : "phone.status")}</h2>
       <PhoneStateHint phone={phone} now={now} />
-      {filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
-      {s && !s.lockIntact && (
+      {showHealth && (
+        <dl className="health-rows">
+          {rows.map(({ key, label, detail, action }) => (
+            <div key={key} className={action ? "health-action" : undefined}>
+              <dt>{label}</dt>
+              <dd>{detail}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {!showHealth && filterStatus && <p className={s?.filterWorking ? "help" : "notice notice-warn"}>{t(filterStatus)}</p>}
+      {lockNeedsAction && (!showHealth || failedSteps.length > 0) && (
         <div className="notice notice-error" role="status">
           <div>
-            <p className="row-title">{t("phone.lockBroken")}</p>
+            {!showHealth && <p className="row-title">{t("phone.lockBroken")}</p>}
             {failedSteps.length > 0 && (
               <p>{t("phone.lockFailed", { steps: formatList([...new Set(failedSteps.map((step) => lockStepLabel(step, t, locale)))], locale) })}</p>
             )}
           </div>
         </div>
       )}
-      {s?.callRoleActionNeeded && <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>}
+      {!showHealth && s?.callRoleActionNeeded && (
+        <p className="notice notice-warn" role="status">{t("phone.callRoleActionNeeded")}</p>
+      )}
+      {!showHealth && s?.maintenance && <p className="notice notice-warn" role="status">{t("phone.maintenance")}</p>}
+      {!showHealth && s?.lockIntact && !s.maintenance && <p className="row-title">{t("phone.lockIntact")}</p>}
       {s?.parallelAppsRemoved && <p className="notice notice-info" role="status">{t("phone.parallelAppsRemoved")}</p>}
       {s?.lateGoogleAccount && <p className="notice notice-warn" role="status">{t("phone.lateGoogleAccount")}</p>}
-      {s?.maintenance && (
-        <p className="notice notice-warn" role="status">
-          {t("phone.maintenance")}
-        </p>
-      )}
       {phone.attestation && phone.attestation.state !== "verified" && phone.attestation.state !== "unverifiable" && (
         <p className="notice notice-error" role="status">
           {t(ATTESTATION_TEXT[phone.attestation.state])}
@@ -381,7 +441,6 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
             </details>
           )}
           <ul className="list status-list">
-            {s.lockIntact && <li className="row-title">{t("phone.lockIntact")}</li>}
             {s.batteryPct !== null && (
               <li>
                 {t("phone.battery", { pct: s.batteryPct })}
@@ -408,13 +467,15 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
           )}
         </>
       )}
+      {!showHealth && !phone.dnsReady && (
+        <p className="notice notice-info status-dns">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "phone.dnsWaiting")}</p>
+      )}
       {phone.attestation?.lastFailedAt && (
         <p className="help status-updated">{t("phone.attLastFailedAt", { when: when(phone.attestation.lastFailedAt) })}</p>
       )}
       {phone.attestation?.checkedAt && (
         <p className="help status-updated">{t(phone.attestation.lastFailedAt ? "phone.attFindingAt" : "phone.attCheckedAt", { when: when(phone.attestation.checkedAt) })}</p>
       )}
-      {!phone.dnsReady && <p className="notice notice-info status-dns">{t(phone.dnsConfigured === false ? "filter.noDnsService" : "phone.dnsWaiting")}</p>}
     </section>
   );
 }
@@ -527,6 +588,7 @@ export function PhoneOverview() {
 
       <section className="section rules-section" aria-labelledby="rules-h">
         <h2 id="rules-h" ref={rulesHeading} tabIndex={-1}>{t("phone.rules")}</h2>
+        <RuleReceipt phone={phone} />
         <div className="stack">
           {groups.map(({ title, items }) => (
             <div key={title} className="stack-sm">
@@ -551,6 +613,7 @@ export function PhoneOverview() {
 
       {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
+      <PhoneDisplayPreferences />
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
@@ -845,4 +908,49 @@ function ManagePhone() {
 export function usePendingWhere(pred: (c: PendingChange) => boolean): PendingChange[] {
   const { pending } = usePhone();
   return pending.filter(pred);
+}
+
+const displayPreferences = [
+  { key: "changeReceiptsEnabled", label: "health.receiptsToggle", help: "health.receiptsHelp" },
+  { key: "healthBoardEnabled", label: "health.boardToggle", help: "health.boardHelp" },
+] as const;
+
+function PhoneDisplayPreferences() {
+  const { t } = useI18n();
+  const { phone, setPhone, notify } = usePhone();
+  const [saving, setSaving] = useState(false);
+  if (phone.changeReceiptsEnabled === undefined && phone.healthBoardEnabled === undefined) return null;
+
+  async function save(key: typeof displayPreferences[number]["key"], enabled: boolean) {
+    setSaving(true);
+    try {
+      setPhone(await api.patch<Phone>(`/phones/${phone.id}`, { [key]: enabled }));
+    } catch (err) {
+      notify({ tone: "error", text: errorMessage(err, t) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="section" aria-labelledby="phone-display-h">
+      <h2 id="phone-display-h">{t("health.preferences")}</h2>
+      <div className="stack-sm">
+        {displayPreferences.map(({ key, label, help }) => (
+          <label className="health-preference" key={key}>
+            <input
+              type="checkbox"
+              checked={phone[key] !== false}
+              disabled={saving}
+              aria-labelledby={`phone-${key}-label`}
+              aria-describedby={`phone-${key}-help`}
+              onChange={(event) => void save(key, event.target.checked)}
+            />
+            <span id={`phone-${key}-label`}>{t(label)}</span>
+            <span className="help" id={`phone-${key}-help`}>{t(help)}</span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
 }

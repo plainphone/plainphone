@@ -123,6 +123,8 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val rulesReceiptConfirmed: Boolean? = null,
+    val webFilterActive: Boolean? = null,
     val androidVersion: String? = null,
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
@@ -143,6 +145,8 @@ data class DeviceStatus(
         .put("mode", mode)
         .apply {
             // Optional fields (docs/sync-api.md): only sent when known.
+            rulesReceiptConfirmed?.let { put("rulesReceiptConfirmed", it) }
+            webFilterActive?.let { put("webFilterActive", it) }
             filter?.let {
                 put("filterMethod", it.method.wire)
                 put("filterWorking", it.working)
