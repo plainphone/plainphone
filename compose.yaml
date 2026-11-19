@@ -25,6 +25,17 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://plainphone:${POSTGRES_PASSWORD}@db:5432/plainphone
+      PUSH_PROVIDER: ${PUSH_PROVIDER:-none}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      APNS_KEY_P8: ${APNS_KEY_P8:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_BUNDLE_ID: ${APNS_BUNDLE_ID:-}
+      APNS_SANDBOX: ${APNS_SANDBOX:-false}
+      PUSH_EXTRA_HOSTS: ${PUSH_EXTRA_HOSTS:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
       MAIL_PROVIDER: ${MAIL_PROVIDER:-none}
       MAIL_FROM: ${MAIL_FROM:-Plainphone <no-reply@example.org>}

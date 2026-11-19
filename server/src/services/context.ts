@@ -13,7 +13,7 @@ export interface Ctx {
   mail: MailProvider;
   dns: DnsProvider;
   push: PushProvider;
-  /** Notifications to parents (Web Push). */
+  /** Notifications to parents (Web Push, FCM and APNs). */
   parentPush: ParentPushProvider;
   now: () => Date;
   /** Tests only: a fixed attestation challenge and revocation list. */

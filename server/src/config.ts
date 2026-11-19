@@ -22,8 +22,15 @@ const schema = z.object({
   DNS_API_TOKEN: z.string().optional(),
   /** Hostname suffix for per-phone DNS-over-TLS, e.g. dns.plainphone.org */
   DNS_HOST_SUFFIX: z.string().default("dns.plainphone.org"),
-  /** Only "none" today: phones poll. FCM is the planned next layer (docs/sync-api.md). */
-  PUSH_PROVIDER: z.enum(["none"]).default("none"),
+  /** Default wakeup transport policy, subject to each phone's opt-in. */
+  PUSH_PROVIDER: unsetIfEmpty(z.enum(["none", "fcm", "unifiedpush"]).default("none")),
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
+  APNS_KEY_P8: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  APNS_TEAM_ID: z.string().optional(),
+  APNS_BUNDLE_ID: z.string().optional(),
+  APNS_SANDBOX: unsetIfEmpty(z.enum(["true", "false"]).default("false")),
   /**
    * Native parent apps that may open this server's links (universal links / app links),
    * served at /.well-known/apple-app-site-association and /.well-known/assetlinks.json.

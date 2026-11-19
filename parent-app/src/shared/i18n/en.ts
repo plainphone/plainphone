@@ -889,6 +889,16 @@ export const en = {
   "setup.showQr": "Show the setup QR code",
   "phones.notSetUp": "Not set up",
   "nav.settings": "Settings",
+  "phone.pushWakeups": "Faster rule updates",
+  "phone.pushWakeupsHelp": "Allow push to wake this phone when there are updates to fetch.",
+  "phone.pushGoogleFree": "Wakeups without Google",
+  "phone.pushGoogleFreeHelp": "Use UnifiedPush on this phone. Without a compatible distributor, it checks for updates on its usual schedule.",
+  "phone.pushPolling": "Syncs on a schedule",
+  "phone.pushFcm": "Uses Firebase Cloud Messaging",
+  "phone.pushUnified": "Uses UnifiedPush",
+  "phone.pushWaiting": "Waiting for the phone to report",
+  "phone.pushAlerts": "Alerts about this phone",
+  "phone.pushAlertsHelp": "Get notifications about this phone on your registered devices.",
   "phone.manage": "This phone",
   "phone.name": "Name",
   "phone.rename": "Rename",
@@ -956,7 +966,7 @@ export const en = {
   "phones.requestCount": "1 request",
   "phones.requestCountMany": "{n} requests",
 
-  "notif.serverOff": "Push notifications are not set up on this server. Alerts still come by email.",
+  "notif.serverOff": "Browser notifications are not set up on this server.",
   "notif.neverDefault": "Never (standard)",
 } as const;
 

@@ -573,7 +573,7 @@ export async function submitChange(
   const { notify, ...pending } = result;
   if (notify) {
     await mailTrustedPerson(ctx, notify, phone.name);
-    await notifyUsers(ctx, [notify], { type: "approval", phoneName: phone.name });
+    await notifyUsers(ctx, [notify], { type: "approval", phoneName: phone.name }, { respectMuteFor: phone.id });
   }
   return pending;
 }

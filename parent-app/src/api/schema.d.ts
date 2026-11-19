@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Liveness, database and DNS service check
-         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server.
+         * @description `dns` is `mock` (no DNS service configured), `ok` or `down`. `ok` only reflects the database, so a DNS outage does not restart the server. `push` contains configuration booleans for `web`, `fcm`, `apns` and `unifiedpush`.
          */
         get: operations["getHealth"];
         put?: never;
@@ -469,7 +469,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Register the FCM token (phone, optional) */
+        /** Register or clear the phone wakeup transport */
         put: operations["putDevicePushToken"];
         post?: never;
         delete?: never;
@@ -592,8 +592,8 @@ export interface paths {
         /**
          * Register this browser or app install
          * @description `web`: the PushSubscription from the browser. Only the browsers' push services are
-         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app; stored
-         *     now, sending to them comes with the native apps. Registering an endpoint that belongs
+         *     accepted as endpoint. `apns`/`fcm`: a device token from a native parent app.
+         *     Registering an endpoint that belongs
          *     to someone else moves it to you (another person signed in on the same device).
          */
         post: operations["postNotificationSubscription"];
@@ -2363,6 +2363,15 @@ export interface components {
              */
             release: boolean;
             /**
+             * @description Preferred wakeup transport, subject to device availability
+             * @enum {unknown}
+             */
+            pushProvider?: "none" | "fcm" | "unifiedpush";
+            /** @description FCM registration cache key that changes with the configured Firebase project or validation version */
+            fcmValidationKey?: string;
+            /** @description Whether the device can fall back to UnifiedPush */
+            unifiedPushAvailable?: boolean;
+            /**
              * @description Poll interval for GET /device/rules. 10 while a ring or a check-in is open, else 60.
              * @example 60
              */
@@ -2475,6 +2484,8 @@ export interface components {
             openRequests?: number;
             /** @description Hours of silence before the parents are told. Null means the server default, 0 never. */
             offlineAlertHours?: number | null;
+            pushWakeups?: boolean;
+            preferUnifiedPush?: boolean;
             offlineAlertHoursDefault?: number;
             /** @description The phone's last report from `PUT /device/status`; null when it has never reported. */
             status?: components["schemas"]["PhoneStatus"] | null;
@@ -2524,6 +2535,8 @@ export interface components {
             lockIntact: boolean;
             /** @description A PIN maintenance unlock is running on the phone. */
             maintenance: boolean;
+            /** @enum {unknown} */
+            pushProvider?: "none" | "fcm" | "unifiedpush";
             /** @description Names of the lock steps that failed. */
             failedPolicies: string[];
             /** @description Phone-local incident sequence sent with an install-window overrun so retries retain its original expiry. */
@@ -3708,12 +3721,34 @@ export interface operations {
             content: {
                 "application/json": {
                     fcmToken?: string | null;
+                    unifiedPushEndpoint?: string | null;
                 };
             };
         };
         responses: {
             /** @description Stored */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wakeup settings changed or the transport is unavailable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Firebase rejected the registration token */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Firebase token validation is temporarily unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3961,6 +3996,16 @@ export interface operations {
                     /** @enum {unknown} */
                     platform: "apns" | "fcm";
                     token: string;
+                    replaces?: string;
+                    /**
+                     * Format: uuid
+                     * @description Existing native subscription to refresh
+                     */
+                    subscriptionId?: string;
+                    /** @description Opaque installation key persisted before first registration and across token rotations and logins */
+                    installationKey?: string;
+                    /** @description True when the parent explicitly enables native notifications */
+                    optIn?: boolean;
                     label?: string;
                 };
             };
@@ -3982,7 +4027,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Notifications are not set up on this server */
+            /** @description The native subscription was removed or its token is no longer valid */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Notifications are not set up on this server or the registration changed concurrently */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4550,6 +4602,8 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     locationEnabled?: boolean;
+                    pushWakeups?: boolean;
+                    preferUnifiedPush?: boolean;
                     /** @description Hours of silence before the parents get a push and a mail. Null = server default, 0 = never. */
                     offlineAlertHours?: number | null;
                 };

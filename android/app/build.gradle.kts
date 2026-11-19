@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 The Plainphone authors
+import groovy.json.JsonSlurper
 import java.util.Properties
 
 plugins {
@@ -15,6 +16,8 @@ val signingProps: Properties? = System.getenv("PLAINPHONE_SIGNING")
     ?.takeIf { it.isFile }
     ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
 
+val fcmEnabled = providers.gradleProperty("plainphoneFcm").orNull == "true"
+
 android {
     namespace = "org.plainphone.app"
     compileSdk = 37
@@ -25,6 +28,23 @@ android {
         targetSdk = 37
         versionCode = 12
         versionName = "0.1.11"
+        if (fcmEnabled) {
+            val config = providers.environmentVariable("PLAINPHONE_GOOGLE_SERVICES_FILE").orNull
+                ?.let { file(it) } ?: file("google-services.json")
+            require(config.isFile) { "FCM requires the child app's google-services.json" }
+            val json = JsonSlurper().parse(config) as Map<*, *>
+            val project = json["project_info"] as Map<*, *>
+            val client = (json["client"] as List<*>).filterIsInstance<Map<*, *>>().first {
+                val info = it["client_info"] as Map<*, *>
+                (info["android_client_info"] as Map<*, *>)["package_name"] == applicationId
+            }
+            val info = client["client_info"] as Map<*, *>
+            val key = (client["api_key"] as List<*>).first() as Map<*, *>
+            resValue("string", "google_app_id", info.get("mobilesdk_app_id") as String)
+            resValue("string", "gcm_defaultSenderId", project.get("project_number") as String)
+            resValue("string", "project_id", project.get("project_id") as String)
+            resValue("string", "google_api_key", key.get("current_key") as String)
+        }
     }
 
     signingConfigs {
@@ -57,6 +77,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    sourceSets["main"].kotlin.directories.add(if (fcmEnabled) "src/fcm/java" else "src/noFcm/java")
+    if (fcmEnabled) {
+        sourceSets["debug"].manifest.srcFile("src/fcm/AndroidManifest.xml")
+        sourceSets["release"].manifest.srcFile("src/fcm/AndroidManifest.xml")
+    }
     sourceSets["main"].assets.directories.add(rootProject.file("../server/catalog/helplines").absolutePath)
 
     androidResources {
@@ -70,6 +95,7 @@ android {
 
     buildFeatures {
         compose = true
+        resValues = fcmEnabled
     }
 
     sourceSets.named("test") {
@@ -93,6 +119,7 @@ android {
 }
 
 dependencies {
+    if (fcmEnabled) implementation("com.google.firebase:firebase-messaging:25.0.1")
     // Phone and messages UI (phase 2).
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.material3:material3")

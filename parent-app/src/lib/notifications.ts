@@ -1,34 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
-//
-// Push notifications, prepared but not yet delivered by the server:
-// - "approval": a change waits for your approval (trusted person) or a delay ended,
-// - "location": the position you asked for with Find is ready.
-//
-// The server will send these straight through APNs and FCM (no Expo push service),
-// with `data: { type: "approval" | "location", phoneId?: string }`. The app asks for
-// permission, creates the Android channels and reads the native device token. Until
-// the server has APNs/FCM keys and an endpoint to register the token, nothing is sent.
-// On Android, FCM also needs google-services.json at build time; without it the
-// token call fails and the app carries on without push.
 import * as Notifications from "expo-notifications";
-import { AndroidImportance } from "expo-notifications";
+import { AndroidImportance, IosAuthorizationStatus } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
+import { getSessionToken } from "../api/client";
+import { registerNativeToken } from "./push-registration";
 
-export type PushKind = "approval" | "location";
-
-export const CHANNELS: { id: PushKind; name: { en: string; da: string } }[] = [
-  { id: "approval", name: { en: "Changes waiting for approval", da: "Ændringer der venter på godkendelse" } },
-  { id: "location", name: { en: "Location ready", da: "Placering klar" } },
+export const CHANNELS = [
+  { id: "normal", name: { en: "Notifications", da: "Notifikationer" }, importance: AndroidImportance.DEFAULT },
+  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS" }, importance: AndroidImportance.HIGH },
 ];
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
+    handleNotification: async (notification) => ({
       shouldShowBanner: true,
       shouldShowList: true,
-      shouldPlaySound: false,
+      shouldPlaySound: notification.request.content.data?.urgent === "true",
       shouldSetBadge: false,
     }),
   });
@@ -36,7 +25,12 @@ if (Platform.OS !== "web") {
 
 /** Where a tapped notification leads. Unknown payloads open the start screen. */
 export function routeForPush(data: unknown): Href {
-  const d = (data ?? {}) as { type?: unknown; phoneId?: unknown };
+  const d = (data ?? {}) as { type?: unknown; phoneId?: unknown; url?: unknown };
+  if (d.url === "/settings" || d.url === "/approvals") return d.url;
+  const path = typeof d.url === "string" ? /^\/phones\/([0-9a-f-]{36})(\/location)?$/i.exec(d.url) : null;
+  if (path) return path[2]
+    ? { pathname: "/phones/[pid]/location", params: { pid: path[1]! } }
+    : { pathname: "/phones/[pid]", params: { pid: path[1]! } };
   const pid = typeof d.phoneId === "string" && /^[0-9a-f-]{36}$/i.test(d.phoneId) ? d.phoneId : null;
   if (d.type === "approval") return pid ? { pathname: "/phones/[pid]", params: { pid } } : "/approvals";
   if (d.type === "location" && pid) return { pathname: "/phones/[pid]/location", params: { pid } };
@@ -48,34 +42,52 @@ async function ensureChannels(locale: "en" | "da") {
   for (const ch of CHANNELS) {
     await Notifications.setNotificationChannelAsync(ch.id, {
       name: ch.name[locale],
-      importance: AndroidImportance.DEFAULT,
+      importance: ch.importance,
     });
   }
 }
 
-export type PushState = "unsupported" | "granted" | "denied" | "undetermined";
+export type PushState = "unavailable" | "unsupported" | "granted" | "denied" | "undetermined";
 
-export async function pushState(): Promise<PushState> {
-  if (Platform.OS === "web") return "unsupported";
-  const p = await Notifications.getPermissionsAsync();
-  return p.granted ? "granted" : p.canAskAgain ? "undetermined" : "denied";
+function permissionGranted(p: Notifications.NotificationPermissionsStatus) {
+  return p.granted || p.ios?.status === IosAuthorizationStatus.PROVISIONAL;
 }
 
-/**
- * Asks for permission and returns the native push token (APNs or FCM), or null when
- * push is not available in this build. The token is not sent anywhere yet.
- */
-export async function enablePush(locale: "en" | "da"): Promise<{ state: PushState; token: string | null }> {
-  if (Platform.OS === "web") return { state: "unsupported", token: null };
-  await ensureChannels(locale);
-  const p = await Notifications.requestPermissionsAsync();
-  if (!p.granted) return { state: p.canAskAgain ? "undetermined" : "denied", token: null };
-  try {
-    const t = await Notifications.getDevicePushTokenAsync();
-    return { state: "granted", token: typeof t.data === "string" ? t.data : null };
-  } catch {
-    return { state: "granted", token: null };
+async function sendNativeToken(token: Notifications.DevicePushToken, session: string, optIn = false) {
+  if (typeof token.data === "string" && (token.type === "ios" || token.type === "android")) {
+    return registerNativeToken(token.type === "ios" ? "apns" : "fcm", token.data, session, optIn);
   }
+}
+
+export async function syncNativePush(locale: "en" | "da", requestPermission = false): Promise<PushState> {
+  const session = getSessionToken();
+  if (!session || Platform.OS === "web") return "unsupported";
+  try {
+    await ensureChannels(locale);
+    const p = requestPermission ? await Notifications.requestPermissionsAsync() : await Notifications.getPermissionsAsync();
+    if (!permissionGranted(p)) {
+      // A missing OS permission is not a dashboard removal: only skip registering, never tombstone.
+      return p.canAskAgain ? "undetermined" : "denied";
+    }
+    const registered = await sendNativeToken(await Notifications.getDevicePushTokenAsync(), session, requestPermission);
+    return registered === false ? "undetermined" : registered ? "granted" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+export function watchNativePush(locale: "en" | "da") {
+  if (Platform.OS === "web") return () => {};
+  const token = Notifications.addPushTokenListener((value) => {
+    const session = getSessionToken();
+    if (session) void Notifications.getPermissionsAsync().then((p) => {
+      if (permissionGranted(p)) return sendNativeToken(value, session);
+    }).catch(() => undefined);
+  });
+  const foreground = AppState.addEventListener("change", (state) => {
+    if (state === "active") void syncNativePush(locale);
+  });
+  return () => { token.remove(); foreground.remove(); };
 }
 
 /** Opens the right screen when the user taps a notification. */
