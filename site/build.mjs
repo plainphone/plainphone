@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 import en from "./content/en.mjs";
 import da from "./content/da.mjs";
 import { help } from "./content/help.mjs";
+import sv from "./content/sv.mjs";
+import nb from "./content/nb.mjs";
+import de from "./content/de.mjs";
 import { figures } from "./figures.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -14,7 +17,9 @@ const src = join(root, "src");
 const dist = join(root, "dist");
 const ORIGIN = "https://plainphone.org";
 const GITHUB = "https://github.com/plainphone/plainphone";
-const pages = [en, da];
+const pages = [en, da, sv, nb, de];
+const languageNames = { en: "English", da: "Dansk", sv: "Svenska", nb: "Norsk bokmål", de: "Deutsch" };
+const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 
 const css = readFileSync(join(src, "style.css"), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -47,6 +52,10 @@ function head(
   const alt = alternates
     .map((a) => `<link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${a.path}">`)
     .join("");
+  const ogAlternates = alternates
+    .filter((a) => a.lang !== t.lang)
+    .map((a) => `<meta property="og:locale:alternate" content="${ogLocales[a.lang]}">`)
+    .join("\n");
   return `<!doctype html>
 <html lang="${t.lang}">
 <head>
@@ -71,20 +80,26 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="${esc(t.ogAlt)}">
-<meta property="og:locale" content="${t.lang === "da" ? "da_DK" : "en_GB"}">
-<meta property="og:locale:alternate" content="${t.lang === "da" ? "en_GB" : "da_DK"}">
+<meta property="og:locale" content="${ogLocales[t.lang]}">
+${ogAlternates}
 <meta name="twitter:card" content="summary_large_image">
 <style>${css}</style>
 </head>`;
 }
 
-function header(t, switchHref) {
-  const other = pages.find((p) => p.lang === t.nav.switchLang);
+function header(t, route = (p) => p.path) {
+  const languages = pages
+    .filter((p) => p.lang !== t.lang)
+    .map((p) => `<li><a href="${route(p)}" hreflang="${p.lang}" lang="${p.lang}">${languageNames[p.lang]}</a></li>`)
+    .join("");
   return `<a class="skip" href="#main">${t.skip}</a>
 <header class="top">
 <a class="brand" href="${t.path}">${wordmark}<span class="sr">Plainphone</span></a>
 <nav aria-label="${t.nav.label}">
-<a href="${switchHref ?? other.path}" hreflang="${other.lang}" lang="${other.lang}">${t.nav.switchLabel}</a>
+<details class="languages">
+<summary>${t.nav.language}</summary>
+<ul>${languages}</ul>
+</details>
 <a href="${GITHUB}">${t.nav.source}</a>
 </nav>
 </header>`;
@@ -106,6 +121,10 @@ function page(t) {
   const section = (id, title, body, cls = "") =>
     `<section class="block ${cls}" aria-labelledby="${id}"><h2 id="${id}">${title}</h2>${body}</section>`;
 
+  const questions = (items) => items
+    .map((it) => `<details id="${slug(it.q)}"><summary>${it.q}</summary><p>${it.a}</p></details>`)
+    .join("");
+
   const hero = `<section class="hero" aria-labelledby="hero-title">
 <p class="status"><span>${t.status}</span></p>
 <h1 id="hero-title">${h.title}</h1>
@@ -119,7 +138,7 @@ function page(t) {
   const who = section(
     "who",
     t.who.title,
-    `<p class="intro">${t.who.lead}</p><div class="paths">${t.who.paths
+    `<div class="paths">${t.who.paths
       .map((p) => `<article class="path" id="${p.id}"><h3>${p.title}</h3><p>${p.body}</p></article>`)
       .join("")}</div>`,
   );
@@ -127,27 +146,11 @@ function page(t) {
   const how = section(
     "how",
     t.how.title,
-    `<ol class="steps">${t.how.steps
+    `<p>${t.how.lead}</p><ul class="modes" role="list">${t.how.steps
       .map((s) => `<li><h3>${s.title}</h3><p>${s.body}</p></li>`)
-      .join("")}</ol><p>${t.how.guide}</p><p class="note">${t.how.note}</p>
+      .join("")}</ul><p><a class="button" href="${t.setup.path}">${t.how.guide}</a></p>
+<p>${t.how.available}</p><p class="note">${t.how.note}</p>
 <p><a href="${t.why.path}">${t.why.h1}</a></p>`,
-  );
-
-  const c = t.compare;
-  const compare = section(
-    "compare",
-    c.title,
-    `<p class="intro">${c.lead}</p><div class="table-wrap" role="region" aria-labelledby="compare" tabindex="0"><table>
-<caption class="sr">${c.caption}</caption>
-<thead><tr><td></td>${c.cols.map((col, i) => `<th scope="col"${i === c.cols.length - 1 ? ' class="us"' : ""}>${col}</th>`).join("")}</tr></thead>
-<tbody>${c.rows
-      .map(
-        ([label, ...cells]) =>
-          `<tr><th scope="row">${label}</th>${cells
-            .map((v, i) => `<td${i === cells.length - 1 ? ' class="us"' : ""}>${v}</td>`)
-            .join("")}</tr>`,
-      )
-      .join("")}</tbody></table></div>`,
   );
 
   const phones = section("phones", t.phones.title, `<p>${t.phones.body}</p>`);
@@ -156,18 +159,26 @@ function page(t) {
   const open = section(
     "open",
     o.title,
-    `${o.body.map((p) => `<p>${p}</p>`).join("")}<p>${o.follow}</p>
-<p><a class="button" href="${GITHUB}">${o.github}</a></p>
-<p class="note">${o.donate}</p>`,
+    `<p>${o.body}</p>
+<ul>
+<li><a href="${GITHUB}">${o.github}</a></li>
+<li><a href="${GITHUB}/issues">${o.issues}</a></li>
+<li><a href="${GITHUB}/blob/main/SECURITY.md">${o.privateReport}</a></li>
+<li><a href="${GITHUB}/blob/main/CONTRIBUTING.md">${o.contribute}</a></li>
+</ul>`,
   );
 
-  const faq = section(
-    "faq",
-    t.faq.title,
-    t.faq.items
-      .map((it) => `<details id="${slug(it.q)}"><summary>${it.q}</summary><p>${it.a}</p></details>`)
-      .join(""),
-  );
+  const host = t.hosting;
+  const hosting = section("self-hosting", host.title,
+    `<p>${host.body}</p><p><a href="${GITHUB}/blob/main/docs/self-hosting.md">${host.guide}</a></p>`);
+
+  const price = section("price", t.price.title, `<p>${t.price.body}</p>${questions(t.price.items)}`);
+
+  const privacy = t.privacySummary;
+  const privacySummary = section("privacy", privacy.title,
+    `<p>${privacy.body}</p><p><a href="${t.privacy.path}">${privacy.link}</a></p>`);
+
+  const faq = section("faq", t.faq.title, questions(t.faq.items));
 
   return `${head(t, { path: t.path })}
 <body>
@@ -176,9 +187,11 @@ ${header(t)}
 ${hero}
 ${who}
 ${how}
-${compare}
-${phones}
 ${open}
+${hosting}
+${price}
+${privacySummary}
+${phones}
 ${faq}
 </main>
 ${footer(t)}
@@ -206,7 +219,6 @@ ${footer(t)}
 
 function whyPage(t) {
   const p = t.why;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   return `${head(t, {
     path: p.path,
     title: p.h1,
@@ -216,7 +228,7 @@ function whyPage(t) {
     xDefault: pages[0].why.path,
   })}
 <body>
-${header(t, other.why.path)}
+${header(t, (p) => p.why.path)}
 <main id="main" class="doc">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
@@ -246,7 +258,7 @@ ${body.map((block) => typeof block === "string"
     alternates: alternatives, xDefault: help.en.path,
   })}
 <body>
-${header(t, help[t.nav.switchLang].path)}
+${header(t, ({ lang }) => help[lang].path)}
 <main id="main" class="doc">
 <h1>${esc(p.title)}</h1>
 <p class="lead">${esc(p.lead)}</p>
@@ -270,7 +282,6 @@ ${footer(t)}
 // A block is a string (paragraph), { list: [...] } or { table: { caption, cols, rows } }.
 function privacyPage(t) {
   const p = t.privacy;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   const block = (b) => {
     if (typeof b === "string") return `<p>${b}</p>`;
     if (b.list) return `<ul>${b.list.map((li) => `<li>${li}</li>`).join("")}</ul>`;
@@ -291,7 +302,7 @@ function privacyPage(t) {
     xDefault: pages[0].privacy.path,
   })}
 <body>
-${header(t, other.privacy.path)}
+${header(t, (p) => p.privacy.path)}
 <main id="main" class="doc">
 <h1>${p.h1}</h1>
 <p class="updated">${p.updated}</p>
@@ -309,7 +320,6 @@ ${footer(t)}
 
 function setupPage(t) {
   const p = t.setup;
-  const other = pages.find((x) => x.lang === t.nav.switchLang);
   const drawings = figures({ ...p.drawing, alt: p.figs });
   const figure = (key) => drawings[key] ? `<figure class="shot">${drawings[key]}</figure>` : "";
   const tb = p.tested;
@@ -322,7 +332,7 @@ function setupPage(t) {
     xDefault: pages[0].setup.path,
   })}
 <body>
-${header(t, other.setup.path)}
+${header(t, (p) => p.setup.path)}
 <main id="main" class="doc setup">
 <h1>${p.h1}</h1>
 <p class="lead">${p.lead}</p>
@@ -364,12 +374,11 @@ ${footer(t)}
 }
 
 rmSync(dist, { recursive: true, force: true });
-mkdirSync(join(dist, "da"), { recursive: true });
-writeFileSync(join(dist, "index.html"), page(en));
-writeFileSync(join(dist, "da", "index.html"), page(da));
 for (const t of pages) {
   mkdirSync(join(dist, help[t.lang].path), { recursive: true });
   writeFileSync(join(dist, help[t.lang].path, "index.html"), helpPage(t));
+  mkdirSync(join(dist, t.path), { recursive: true });
+  writeFileSync(join(dist, t.path, "index.html"), page(t));
   mkdirSync(join(dist, t.why.path), { recursive: true });
   writeFileSync(join(dist, t.why.path, "index.html"), whyPage(t));
   mkdirSync(join(dist, t.privacy.path), { recursive: true });
@@ -381,7 +390,7 @@ writeFileSync(join(dist, "404.html"), notFound());
 cpSync(join(src, "fonts"), join(dist, "fonts"), { recursive: true });
 // Mail logos, linked from the parent app's mails (server/src/lib/mail-templates.ts).
 cpSync(join(src, "mail"), join(dist, "mail"), { recursive: true });
-for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", "og-en.png", "og-da.png"]) {
+for (const f of ["favicon.svg", "favicon-32.png", "apple-touch-icon.png", ...pages.map((t) => `og-${t.lang}.png`)]) {
   cpSync(join(src, f), join(dist, f));
 }
 writeFileSync(join(dist, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
@@ -395,7 +404,7 @@ ${[(p) => p.path, (p) => p.setup.path, (p) => p.privacy.path, (p) => p.why.path,
       (p) =>
         `<url><loc>${ORIGIN}${route(p)}</loc>${pages
           .map((a) => `<xhtml:link rel="alternate" hreflang="${a.lang}" href="${ORIGIN}${route(a)}"/>`)
-          .join("")}</url>`,
+          .join("")}<xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}${route(en)}"/></url>`,
     ),
   )
   .join("\n")}

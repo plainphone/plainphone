@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import en from "../content/en.mjs";
 import da from "../content/da.mjs";
+import sv from "../content/sv.mjs";
+import nb from "../content/nb.mjs";
+import de from "../content/de.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -24,8 +27,8 @@ function og(t) {
   return `<!doctype html><html><head><style>${base}
 .c{width:1200px;height:630px;padding:72px 84px;display:flex;flex-direction:column;justify-content:space-between}
 .w svg{height:44px;width:auto;display:block}
-h1{font-size:104px;line-height:.98;letter-spacing:-.035em;font-weight:700;max-width:900px}
-ul{list-style:none;padding:0;display:flex;gap:34px;font-size:34px;font-weight:600}
+h1{font-size:104px;line-height:.98;letter-spacing:-.035em;font-weight:700;max-width:1032px}
+ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:12px 34px;font-size:30px;font-weight:600}
 .g{color:#4c5a60;font-weight:400;text-decoration:line-through;text-decoration-thickness:.1em;text-decoration-color:#1d2a30}
 </style></head><body><div class="c"><div class="w">${wordmark}</div>
 <h1>${t.hero.title}</h1>
@@ -40,12 +43,15 @@ const icon = (size, pad) =>
 div{width:${size}px;height:${size}px;padding:${pad}px}svg{width:100%;height:100%;display:block}</style></head>
 <body><div>${favicon}</div></body></html>`;
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ chromiumSandbox: true });
 const page = await browser.newPage({ deviceScaleFactor: 1, colorScheme: "light" });
-for (const t of [en, da]) {
+for (const t of [en, da, sv, nb, de]) {
   await page.setViewportSize({ width: 1200, height: 630 });
   await page.setContent(og(t));
   await page.evaluate(() => document.fonts.ready);
+  if (await page.evaluate(() => document.documentElement.scrollHeight > 630 || document.documentElement.scrollWidth > 1200)) {
+    throw new Error(`OG image for ${t.lang} overflows`);
+  }
   writeFileSync(join(src, `og-${t.lang}.png`), await page.screenshot({ type: "png" }));
 }
 for (const [name, size, pad] of [["favicon-32.png", 32, 0], ["apple-touch-icon.png", 180, 22]]) {
@@ -54,4 +60,4 @@ for (const [name, size, pad] of [["favicon-32.png", 32, 0], ["apple-touch-icon.p
   writeFileSync(join(src, name), await page.screenshot({ type: "png", omitBackground: name === "favicon-32.png" }));
 }
 await browser.close();
-console.log("Wrote og-en.png, og-da.png, favicon-32.png, apple-touch-icon.png");
+console.log("Wrote five OG images and two icons");

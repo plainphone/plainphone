@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import { translations } from "./help-translations.mjs";
+
 export const help = {
+  ...translations,
   en: {
     path: "/help/",
     title: "Help and support",

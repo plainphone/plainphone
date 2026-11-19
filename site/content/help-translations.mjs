@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: Apache-2.0
+export const translations = {
+  sv: {
+    path: "/sv/help/",
+    title: "Hjälp och support",
+    topics: "Hjälpavsnitt",
+    lead: "Få hjälp med att installera Plainphone, frigöra en telefon eller återställa den.",
+    sections: [
+      {
+        id: "recovery",
+        title: "Jag kan inte frigöra eller fabriksåterställa telefonen",
+        body: [
+          "Om du kan öppna Underhåll med förälderns PIN-kod, försök frigöra telefonen i starkt läge eller stänga av Plainphone i lätt läge. Om det misslyckas eller Android blockerar återställning från Inställningar kan du prova återställningsläget.",
+          "<strong>En fabriksåterställning raderar data på telefonen.</strong> Säkerhetskopiera det du kan och kontrollera att du kan låsa upp skärmen och logga in på ett Google-konto som tidigare synkroniserats med telefonen. Android kan fråga efter dem under konfigurationen.",
+          "Om du har lagt till en förälders Google-konto under Hushåll → Skydda mot återställning kan Android kräva det kontot, även om det aldrig använts på telefonen. Kontrollera att du kan logga in, vänta till tidpunkten då kontot är redo och kontrollera på telefonens sida i kontrollpanelen att telefonen rapporterar att återställningsskyddet är på. Kontakta supporten före återställningen om du är osäker på om du har tillgång till ett konto som kan låsa upp telefonen.",
+          { steps: [
+            "Stäng av telefonen. Sök på tillverkarens supportsida efter hur du öppnar återställningsläget på just din modell. Knapparna varierar mellan modeller.",
+            "Välj <strong>Wipe data/factory reset</strong> eller motsvarande i återställningsmenyn och bekräfta raderingen. Följ instruktionerna på skärmen.",
+            "Välj <strong>Reboot system now</strong> eller motsvarande. Följ Androids konfigurationssteg. Ta bort den gamla telefonen från kontrollpanelen om den fortfarande visas. Installera den aktuella versionen och parkoppla telefonen igen om du vill fortsätta använda Plainphone.",
+          ] },
+          '<a href="https://support.google.com/android/answer/6088915?hl=sv">Googles guide till att förbereda en fabriksåterställning</a>',
+        ],
+      },
+      {
+        id: "play-protect",
+        title: "Play Protect blockerar installationen",
+        body: [
+          'Följ <a href="/sv/setup/">Plainphones officiella installationsguide</a> och ladda ner appen på nytt via länken där. Om Play Protect erbjuder sig att genomsöka appen, låt kontrollen gå klart.',
+          "Om Android fortfarande blockerar appen eller markerar den som skadlig, låt Play Protect vara på och kontakta supporten från en annan enhet. Skriv vad det står på telefonen och utelämna kontouppgifter.",
+        ],
+      },
+      {
+        id: "restricted-settings",
+        title: "Android 13 eller senare säger att en inställning är begränsad",
+        body: [
+          "Öppna Inställningar, välj Appar och sedan Plainphone. Öppna menyn med tre punkter i appinformationen och välj Tillåt begränsade inställningar. Bekräfta om Android frågar, gå tillbaka till Plainphone och försök igen.",
+          "Tillåt bara begränsade inställningar för appar du litar på. Kontakta supporten om alternativet saknas.",
+        ],
+      },
+      {
+        id: "vpn",
+        title: "Webbfiltret slutar fungera med en annan VPN",
+        body: [
+          "I lätt läge använder Plainphone Androids VPN-anslutning för webbfiltret. Android tillåter en aktiv VPN per profil. Koppla från den andra VPN-anslutningen, stäng av Alltid aktiv VPN för den om det är aktiverat och slå sedan på webbfiltret igen i Plainphone.",
+          "I starkt läge använder Plainphone Androids privata DNS. En VPN kan använda sin egen DNS. Koppla från den och kontrollera om filtret fungerar igen.",
+        ],
+      },
+    ],
+    contact: "Kontakta supporten",
+    contactText: "Beskriv vad du provade och vad som hände. Du kan klistra in diagnostik från Underhåll eller kontrollpanelen. Utelämna namn, kontouppgifter och andra personuppgifter.",
+  },
+  nb: {
+    path: "/nb/help/",
+    title: "Hjelp og brukerstøtte",
+    topics: "Hjelpeemner",
+    lead: "Få hjelp til å installere Plainphone, frigjøre en telefon eller tilbakestille den.",
+    sections: [
+      {
+        id: "recovery",
+        title: "Jeg kan ikke frigjøre eller tilbakestille telefonen",
+        body: [
+          "Hvis du kan åpne Vedlikehold med foreldrenes PIN-kode, kan du prøve å frigjøre telefonen i sterk modus eller slå av Plainphone i lett modus. Hvis det mislykkes eller Android blokkerer tilbakestilling fra Innstillinger, kan du prøve gjenopprettingsmodus.",
+          "<strong>En tilbakestilling til fabrikkinnstillinger sletter dataene på telefonen.</strong> Sikkerhetskopier det du kan, og sjekk at du kan låse opp skjermen og logge på en Google-konto som tidligere ble synkronisert med telefonen. Android kan be om dette under oppsettet.",
+          "Hvis du har lagt til en forelders Google-konto under Husstand → Beskytt mot tilbakestilling, kan Android kreve den, selv om kontoen aldri har vært brukt på telefonen. Sjekk at du kan logge på, vent til tidspunktet kontoen er klar, og sjekk på telefonens side i kontrollpanelet at telefonen rapporterer at tilbakestillingsbeskyttelsen er på. Kontakt brukerstøtte før du tilbakestiller telefonen hvis du er usikker på om du har tilgang til en konto som kan låse den opp.",
+          { steps: [
+            "Slå av telefonen. Se produsentens brukerstøtte for hvordan du starter gjenopprettingsmodus på akkurat din modell. Knappene varierer fra modell til modell.",
+            "Velg <strong>Wipe data/factory reset</strong> eller tilsvarende i gjenopprettingsmenyen, og bekreft slettingen. Følg instruksjonene på skjermen.",
+            "Velg <strong>Reboot system now</strong> eller tilsvarende. Følg oppsettet i Android. Fjern den gamle telefonen fra kontrollpanelet hvis den fortsatt vises. Hvis du vil bruke Plainphone igjen, installer den nyeste versjonen og koble til telefonen på nytt.",
+          ] },
+          '<a href="https://support.google.com/android/answer/6088915?hl=no">Googles veiledning til å forberede en tilbakestilling</a>',
+        ],
+      },
+      {
+        id: "play-protect",
+        title: "Play Protect blokkerer installasjonen",
+        body: [
+          'Bruk <a href="/nb/setup/">den offisielle oppsettsveiledningen for Plainphone</a> og last ned appen på nytt via lenken der. La Play Protect fullføre skanningen hvis du får tilbud om det.',
+          "Hvis Android fremdeles blokkerer appen eller merker den som skadelig, la Play Protect være på og kontakt brukerstøtte fra en annen enhet. Skriv hva som står på telefonen, og utelat kontoopplysninger.",
+        ],
+      },
+      {
+        id: "restricted-settings",
+        title: "Android 13 eller nyere sier at en innstilling er begrenset",
+        body: [
+          "Åpne Innstillinger, velg Apper og deretter Plainphone. Åpne menyen med tre prikker i appinformasjonen og velg Tillat begrensede innstillinger. Bekreft hvis Android spør. Gå tilbake til Plainphone og prøv igjen.",
+          "Tillat begrensede innstillinger bare for apper du stoler på. Kontakt brukerstøtte hvis menypunktet mangler.",
+        ],
+      },
+      {
+        id: "vpn",
+        title: "Nettfilteret slutter å virke med et annet VPN",
+        body: [
+          "I lett modus bruker Plainphone Androids VPN-tilkobling til nettfilteret. Android tillater én aktiv VPN-tilkobling per profil. Koble fra den andre VPN-tilkoblingen, slå av Alltid aktivt VPN for den hvis det er på, og slå på nettfilteret igjen i Plainphone.",
+          "I sterk modus bruker Plainphone Androids private DNS. En VPN-tjeneste kan bruke sin egen DNS. Koble fra VPN-tjenesten for å se om filteret fungerer igjen.",
+        ],
+      },
+    ],
+    contact: "Kontakt brukerstøtte",
+    contactText: "Beskriv hva du prøvde og hva som skjedde. Du kan lime inn diagnostikk fra Vedlikehold eller kontrollpanelet. Utelat navn, kontoopplysninger og andre personopplysninger.",
+  },
+  de: {
+    path: "/de/help/",
+    title: "Hilfe und Support",
+    topics: "Hilfethemen",
+    lead: "Hier findest du Hilfe beim Installieren von Plainphone sowie beim Freigeben oder Zurücksetzen eines Handys.",
+    sections: [
+      {
+        id: "recovery",
+        title: "Ich kann das Handy nicht freigeben oder auf Werkseinstellungen zurücksetzen",
+        body: [
+          "Wenn du die Wartung mit der Eltern-PIN öffnen kannst, versuche im starken Modus, das Handy freizugeben, oder schalte Plainphone im leichten Modus aus. Falls das fehlschlägt oder Android das Zurücksetzen über die Einstellungen blockiert, kannst du den Wiederherstellungsmodus versuchen.",
+          "<strong>Beim Zurücksetzen auf Werkseinstellungen werden die Daten auf dem Handy gelöscht.</strong> Sichere, was du kannst, und prüfe, ob du den Bildschirm entsperren und dich bei einem Google-Konto anmelden kannst, das zuvor mit dem Handy synchronisiert wurde. Android kann bei der Einrichtung danach fragen.",
+          "Wenn du unter Haushalt → Vor dem Zurücksetzen schützen ein Google-Konto eines Elternteils hinterlegt hast, kann Android dieses Konto verlangen, auch wenn es auf dem Handy nie verwendet wurde. Prüfe, ob du dich anmelden kannst, warte bis zum angezeigten Zeitpunkt und sieh auf der Geräteseite im Dashboard nach, ob das Handy meldet, dass der Schutz vor dem Zurücksetzen aktiv ist. Wende dich vor dem Zurücksetzen an den Support, wenn du dir beim Zugriff auf ein zum Entsperren geeignetes Konto unsicher bist.",
+          { steps: [
+            "Schalte das Handy aus. Sieh auf der Supportseite des Herstellers nach, wie du den Wiederherstellungsmodus für dein Modell startest. Die Tasten hängen vom Modell ab.",
+            "Wähle im Wiederherstellungsmenü <strong>Wipe data/factory reset</strong> oder die entsprechende Option und bestätige das Löschen. Folge den Anweisungen auf dem Bildschirm.",
+            "Wähle <strong>Reboot system now</strong> oder die entsprechende Option. Folge der Android-Einrichtung. Entferne das alte Handy aus dem Dashboard, falls es dort noch angezeigt wird. Wenn du Plainphone wieder verwenden möchtest, installiere die aktuelle Version und kopple das Handy erneut.",
+          ] },
+          '<a href="https://support.google.com/android/answer/6088915?hl=de">Googles Anleitung zur Vorbereitung auf das Zurücksetzen</a>',
+        ],
+      },
+      {
+        id: "play-protect",
+        title: "Play Protect blockiert die Installation",
+        body: [
+          'Verwende die <a href="/de/setup/">offizielle Einrichtungsanleitung für Plainphone</a> und lade die App über den dortigen Link erneut herunter. Wenn Play Protect anbietet, die App zu prüfen, warte den Abschluss der Prüfung ab.',
+          "Wenn Android die App weiterhin blockiert oder als schädlich einstuft, lass Play Protect eingeschaltet und kontaktiere den Support von einem anderen Gerät. Gib den Wortlaut der Meldung wieder und lass Kontodaten weg.",
+        ],
+      },
+      {
+        id: "restricted-settings",
+        title: "Android 13 oder neuer meldet, dass eine Einstellung eingeschränkt ist",
+        body: [
+          "Öffne die Einstellungen, wähle Apps und dann Plainphone. Öffne in der App-Info das Dreipunkt-Menü und wähle Eingeschränkte Einstellungen zulassen. Bestätige die Rückfrage von Android, falls sie erscheint. Kehre zu Plainphone zurück und versuche es erneut.",
+          "Erlaube eingeschränkte Einstellungen nur für Apps, denen du vertraust. Wenn der Menüpunkt fehlt, wende dich an den Support.",
+        ],
+      },
+      {
+        id: "vpn",
+        title: "Der Webfilter funktioniert mit einem anderen VPN nicht mehr",
+        body: [
+          "Im leichten Modus nutzt der Webfilter die VPN-Verbindung von Android. Android erlaubt ein aktives VPN pro Profil. Trenne das andere VPN, deaktiviere dafür die Option Durchgehend aktives VPN, falls sie eingeschaltet ist, und schalte den Webfilter in Plainphone wieder ein.",
+          "Im starken Modus verwendet Plainphone die Funktion Privates DNS von Android. Ein VPN kann einen eigenen DNS-Dienst verwenden. Trenne es, um zu prüfen, ob der Filter wieder funktioniert.",
+        ],
+      },
+    ],
+    contact: "Support kontaktieren",
+    contactText: "Beschreibe, was du versucht hast und was passiert ist. Du kannst Diagnosedaten aus der Wartung oder dem Dashboard einfügen. Lass Namen, Kontodaten und andere personenbezogene Daten weg.",
+  },
+};
