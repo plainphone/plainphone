@@ -18,8 +18,8 @@ export default {
     project: "Prosjekt",
     languages: "Språk",
     day: ["Den første dagen med Plainphone", "Velg sterk eller lett modus i foreldrepanelet.", "Velg hvem som skal bruke telefonen.", "Følg veiledningen og koble til telefonen.", "Bli enige om reglene og prøv en samtale og appene dere trenger."],
-    child: ["Dette ser barnet ditt", "På telefonen kan barnet se hvilke apper som er tilgjengelige, og hvor mye tid som er igjen for apper med en tidsgrense. Telefonen sier fra når tiden er ute og viser et varsel når den sender posisjonen sin."],
-    visual: ["Oppsettet i Plainphone med valg mellom sterk og lett modus", "Oppsettet i foreldrepanelet (vist på dansk).", "Dette nettstedet bruker ingen informasjonskapsler, besøksmåling, sporing eller forespørsler til tredjeparter."],
+    childSees: "På telefonen kan barnet se hvilke apper som er tilgjengelige, og hvor mye tid som er igjen for apper med en tidsgrense. Telefonen sier fra når tiden er ute og viser et varsel når den sender posisjonen sin.",
+    privacyNote: "Dette nettstedet bruker ingen informasjonskapsler, besøksmåling, sporing eller forespørsler til tredjeparter.",
     groups: {
       gettingStarted: "Kom i gang",
       safety: "Sikkerhet",

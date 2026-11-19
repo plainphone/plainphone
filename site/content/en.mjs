@@ -18,8 +18,8 @@ export default {
     project: "Project",
     languages: "Languages",
     day: ["Day one with Plainphone", "Pick Strong or Light mode in the parent dashboard.", "Choose who will use the phone.", "Follow the setup guide and connect the phone.", "Agree on the rules together and try a call and the apps you need."],
-    child: ["What your child sees", "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location."],
-    visual: ["Plainphone setup screen for choosing between Strong and Light mode", "Setup in the parent dashboard (shown in Danish).", "No cookies, analytics, tracking or third-party requests on this website."],
+    childSees: "The phone shows which apps are available and how much time is left for apps with a limit. It tells your child when time is up and shows a notification when it sends its location.",
+    privacyNote: "No cookies, analytics, tracking or third-party requests on this website.",
     groups: {
       gettingStarted: "Getting started",
       safety: "Safety",

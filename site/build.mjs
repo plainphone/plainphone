@@ -156,7 +156,7 @@ function footer(t, route = (p) => p.path) {
   const l = t.landing;
   return `<footer class="foot"><div class="wrap">
 <div class="foot-grid">
-<div><span class="brand">${lockup}</span><p>${l.visual[2]}</p></div>
+<div><span class="brand">${lockup}</span><p>${l.privacyNote}</p></div>
 <section aria-labelledby="foot-help"><h2 id="foot-help">${l.help}</h2><ul>
 <li><a href="${t.setup.path}">${l.guide}</a></li>
 <li><a href="${t.compatibility.path}">${t.compatibility.title}</a></li>
@@ -252,7 +252,7 @@ function page(t) {
   const l = t.landing;
   const hm = home[t.lang];
   const [dayTitle, ...daySteps] = l.day;
-  const [, childBody] = l.child;
+  const childBody = l.childSees;
   const faqItems = [
     ...t.faq.items,
     ...l.questions.map(([group, q, a]) => ({ group, q, a })),

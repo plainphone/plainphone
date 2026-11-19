@@ -18,8 +18,8 @@ export default {
     project: "Projekt",
     languages: "Språk",
     day: ["Första dagen med Plainphone", "Välj starkt eller lätt läge i föräldrapanelen.", "Välj vem som ska använda telefonen.", "Följ guiden och anslut telefonen.", "Kom överens om reglerna och testa samtal och de appar ni behöver."],
-    child: ["Det här ser ditt barn", "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats."],
-    visual: ["Plainphones installationsskärm med val av starkt eller lätt läge", "Installationen i föräldrapanelen (visas på danska).", "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part."],
+    childSees: "På telefonen kan barnet se vilka appar som är tillgängliga och hur mycket tid som finns kvar för appar med en tidsgräns. Telefonen säger till när tiden är slut och visar ett meddelande när den skickar sin plats.",
+    privacyNote: "Den här webbplatsen använder inga kakor, ingen besöksstatistik, ingen spårning och inga anrop till tredje part.",
     groups: {
       gettingStarted: "Kom igång",
       safety: "Säkerhet",

@@ -18,8 +18,8 @@ export default {
     project: "Projekt",
     languages: "Sprachen",
     day: ["Der erste Tag mit Plainphone", "Wählen Sie im Elternbereich den starken oder den leichten Modus.", "Wählen Sie, wer das Handy benutzt.", "Folgen Sie der Anleitung und verbinden Sie das Handy.", "Vereinbaren Sie die Regeln gemeinsam und probieren Sie einen Anruf und die Apps aus, die Sie brauchen."],
-    child: ["Das sieht Ihr Kind", "Auf dem Handy sieht Ihr Kind, welche Apps verfügbar sind und wie viel Zeit für Apps mit einem Zeitlimit übrig ist. Das Handy meldet, wenn die Zeit abgelaufen ist, und zeigt eine Benachrichtigung an, wenn es seinen Standort sendet."],
-    visual: ["Plainphone-Einrichtung mit der Wahl zwischen starkem und leichtem Modus", "Einrichtung im Elternbereich (auf Dänisch).", "Diese Website verwendet keine Cookies, keine Besuchsstatistik, kein Tracking und keine Anfragen an Drittanbieter."],
+    childSees: "Auf dem Handy sieht Ihr Kind, welche Apps verfügbar sind und wie viel Zeit für Apps mit einem Zeitlimit übrig ist. Das Handy meldet, wenn die Zeit abgelaufen ist, und zeigt eine Benachrichtigung an, wenn es seinen Standort sendet.",
+    privacyNote: "Diese Website verwendet keine Cookies, keine Besuchsstatistik, kein Tracking und keine Anfragen an Drittanbieter.",
     groups: {
       gettingStarted: "Einstieg",
       safety: "Sicherheit",

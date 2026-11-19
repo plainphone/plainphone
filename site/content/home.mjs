@@ -61,7 +61,7 @@ export const home = {
       extra: "On the phone, “What can my parents see?” explains the current rules and lists each time the location was sent.",
       mock: {
         caption: "The child’s home screen (illustration).",
-        time: "14:32",
+        time: "10:32",
         date: "Thursday 19 November",
         notice: "School time until 14:00. Calls and texts work.",
         calls: ["Call Mum", "Call Dad"],
@@ -141,7 +141,7 @@ export const home = {
       extra: "På telefonen forklarer „Hvad kan mine forældre se?“ de regler, der gælder, og viser hver gang, placeringen er blevet sendt.",
       mock: {
         caption: "Barnets startskærm (illustration).",
-        time: "14.32",
+        time: "10.32",
         date: "Torsdag 19. november",
         notice: "Skoletid til 14.00. Opkald og sms virker.",
         calls: ["Ring til mor", "Ring til far"],
@@ -221,7 +221,7 @@ export const home = {
       extra: "På telefonen förklarar ”Vad kan mina föräldrar se?” vilka regler som gäller och visar varje gång platsen har skickats.",
       mock: {
         caption: "Barnets hemskärm (illustration).",
-        time: "14.32",
+        time: "10.32",
         date: "Torsdag 19 november",
         notice: "Skoltid till 14.00. Samtal och sms fungerar.",
         calls: ["Ring mamma", "Ring pappa"],
@@ -301,7 +301,7 @@ export const home = {
       extra: "På telefonen forklarer «Hva kan foreldrene mine se?» reglene som gjelder, og viser hver gang posisjonen er sendt.",
       mock: {
         caption: "Barnets startskjerm (illustrasjon).",
-        time: "14.32",
+        time: "10.32",
         date: "Torsdag 19. november",
         notice: "Skoletid til 14.00. Samtaler og SMS virker.",
         calls: ["Ring mamma", "Ring pappa"],
@@ -381,7 +381,7 @@ export const home = {
       extra: "Auf dem Handy erklärt „Was können meine Eltern sehen?“ die geltenden Regeln und listet jedes Mal auf, wenn der Standort gesendet wurde.",
       mock: {
         caption: "Der Startbildschirm des Kindes (Illustration).",
-        time: "14:32",
+        time: "10:32",
         date: "Donnerstag, 19. November",
         notice: "Schulzeit bis 14:00. Anrufe und SMS funktionieren.",
         calls: ["Mama anrufen", "Papa anrufen"],

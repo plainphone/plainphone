@@ -54,7 +54,7 @@ const icon = (svg, size) =>
   `<!doctype html><html><head><style>html,body{margin:0;background:transparent}
 svg{width:${size}px;height:${size}px;display:block}</style></head><body>${svg}</body></html>`;
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ chromiumSandbox: true });
 const page = await browser.newPage({ deviceScaleFactor: 1, colorScheme: "light" });
 for (const t of [en, da, sv, nb, de]) {
   await page.setViewportSize({ width: 1200, height: 630 });
