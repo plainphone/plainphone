@@ -1,32 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Renders the PWA icons and the mail logo from SVG. Run: pnpm --filter @plainphone/web icons
+// Renders the PWA icons, the favicons and the mail logo from brand direction C
+// (docs/brand/directions/c/*.svg). Run: pnpm --filter @plainphone/web icons
 // The PNGs are committed, so a normal build does not need this script.
-// The mail logo text uses DejaVu Sans Bold (fonts-dejavu on Debian/Ubuntu).
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..", "public");
-const ACCENT = "#24604a";
-const INK = "#1c2321";
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..", "public");
+const brand = join(here, "..", "..", "docs", "brand", "directions", "c");
+const svg = (name) => readFileSync(join(brand, name), "utf8");
 
-/** The mark on a 64 unit grid. `pad` shrinks it inside the canvas (maskable safe zone). */
-function mark({ size, rounded = true, pad = 0 }) {
-  const s = 64 - pad * 2;
-  const k = s / 64;
-  const g = `<g transform="translate(${pad} ${pad}) scale(${k})">
-    <rect x="19" y="10" width="26" height="44" rx="7" fill="none" stroke="#fff" stroke-width="4"/>
-    <path d="M24.5 33c2.5-2.6 5-2.6 7.5 0s5 2.6 7.5 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
-  </g>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
-    <rect width="64" height="64" rx="${rounded ? 16 : 0}" fill="${ACCENT}"/>${g}</svg>`;
-}
-
-function png(svg, opts = {}) {
-  return new Resvg(svg, { background: "rgba(0,0,0,0)", ...opts }).render().asPng();
+/** Renders an SVG so that its width is `width` px. */
+function png(source, width) {
+  return new Resvg(source, { background: "rgba(0,0,0,0)", fitTo: { mode: "width", value: width } }).render().asPng();
 }
 
 function write(rel, data) {
@@ -36,25 +26,23 @@ function write(rel, data) {
   console.log(`wrote ${rel} (${data.length} bytes)`);
 }
 
-for (const size of [192, 512]) {
-  write(`icons/icon-${size}.png`, png(mark({ size })));
-  // Maskable: full-bleed background, artwork inside the 80 % safe zone.
-  write(`icons/maskable-${size}.png`, png(mark({ size, rounded: false, pad: 7 })));
-}
-write("icons/apple-touch-icon.png", png(mark({ size: 180, rounded: false, pad: 4 })));
+// The SVG favicon is the 32 px and up drawing; the 16 px PNG uses the simplified drawing.
+copyFileSync(join(brand, "favicon.svg"), join(root, "icon.svg"));
+console.log("wrote icon.svg");
+write("icons/favicon-16.png", png(svg("favicon-16.svg"), 16));
+write("icons/favicon-32.png", png(svg("favicon.svg"), 32));
 
-// Mail logo: 264x64 (shown at 132x32), mark plus the word in ink on transparent.
-const font = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
-if (!existsSync(font)) throw new Error(`missing font ${font}`);
-// Two variants: ink text for light mail clients, light text for dark mode.
-const logo = (text) => `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="64" viewBox="0 0 264 64">
-  <g transform="translate(4 4) scale(0.875)">
-    <rect width="64" height="64" rx="16" fill="${ACCENT}"/>
-    <rect x="19" y="10" width="26" height="44" rx="7" fill="none" stroke="#fff" stroke-width="4"/>
-    <path d="M24.5 33c2.5-2.6 5-2.6 7.5 0s5 2.6 7.5 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
-  </g>
-  <text x="72" y="43" font-family="DejaVu Sans" font-weight="700" font-size="29" letter-spacing="-0.6" fill="${text}">Plainphone</text>
-</svg>`;
-const fontOpts = { font: { fontFiles: [font], loadSystemFonts: false, defaultFontFamily: "DejaVu Sans" } };
-write("mail/logo@2x.png", png(logo(INK), fontOpts));
-write("mail/logo-dark@2x.png", png(logo("#e8ece9"), fontOpts));
+for (const size of [192, 512]) {
+  // "any": full-bleed graphite square, the system or browser rounds it.
+  write(`icons/icon-${size}.png`, png(svg("app-icon.svg"), size));
+  // Maskable: artwork inside the 80 % safe zone.
+  write(`icons/maskable-${size}.png`, png(svg("maskable.svg"), size));
+}
+write("icons/apple-touch-icon.png", png(svg("app-icon.svg"), 180));
+// Web push badge: Android only reads the alpha, so it is the white status-bar icon.
+write("icons/badge-96.png", png(svg("notification.svg"), 96));
+
+// Mail logo: the outlined lockup, shown at 130 x 32 in the mail, so 2x is 519 x 128.
+// One for light mail clients (switch with an ink edge, ink word) and one for dark (light word).
+write("mail/lockup@2x.png", png(svg("lockup.svg"), 519));
+write("mail/lockup-dark@2x.png", png(svg("lockup-dark.svg"), 519));

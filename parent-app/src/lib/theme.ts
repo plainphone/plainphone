@@ -1,48 +1,63 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// The same calm palette as the PWA (web/src/styles.css) and plainphone.org:
-// one green accent, light and dark, AA contrast on every text pair.
+// Brand direction C, Switch (docs/brand/README.md), the same palette as the PWA
+// (web/src/styles.css) and the phone: graphite and white with one signal green, light and dark,
+// AA contrast on every text pair. `brand` only means "on" (switches, the mark, active states),
+// always with `onBrand` on it and `brandEdge` around it; never decoration or a call button.
 import { useColorScheme } from "react-native";
 
 export const light = {
-  bg: "#f2f3ef",
+  bg: "#f5f5f3",
   surface: "#ffffff",
-  ink: "#1c2321",
-  muted: "#4d5753",
-  line: "#dfe3df",
-  borderStrong: "#7a8580",
-  accent: "#24604a",
+  ink: "#141414",
+  muted: "#525252",
+  line: "#e3e3e0",
+  borderStrong: "#767676",
+  accent: "#141414",
   onAccent: "#ffffff",
-  tint: "#e3efe8",
-  warnBg: "#fbf1d9",
+  tint: "#eef8cf",
+  warnBg: "#fff2c2",
   warnLine: "#a57a10",
-  danger: "#a3261d",
+  danger: "#b3261e",
   onDanger: "#ffffff",
-  dangerBg: "#fbe9e7",
+  dangerBg: "#fde8e6",
+  brand: "#c5f04a",
+  onBrand: "#141414",
+  brandEdge: "#141414",
 };
 
 export type Colors = typeof light;
 
 export const dark: Colors = {
-  bg: "#121816",
-  surface: "#1b2320",
-  ink: "#e8ece9",
-  muted: "#a9b3ae",
-  line: "#2c3833",
-  borderStrong: "#6b7873",
-  accent: "#7fc4a2",
-  onAccent: "#0d1a14",
-  tint: "#22322b",
-  warnBg: "#33301f",
+  bg: "#0f0f0f",
+  surface: "#1b1b1b",
+  ink: "#f2f2ef",
+  muted: "#b3b3ae",
+  line: "#2d2d2b",
+  borderStrong: "#7c7c78",
+  accent: "#c5f04a",
+  onAccent: "#141414",
+  tint: "#27301a",
+  warnBg: "#393217",
   warnLine: "#d6b45a",
-  danger: "#f08a80",
+  danger: "#ff8a80",
   onDanger: "#1b0d0b",
-  dangerBg: "#3a2321",
+  dangerBg: "#3e1f1d",
+  brand: "#c5f04a",
+  onBrand: "#141414",
+  brandEdge: "#c5f04a",
 };
 
-/** Grouped surfaces (cards, rows) use 12, controls (buttons, inputs, segments) 10. */
-export const radius = 12;
-export const radiusControl = 10;
+/**
+ * Schibsted Grotesk 400/700 and IBM Plex Mono 500, built into the app by the expo-font plugin
+ * (app.config.ts). Where the font is missing (Expo Go, tests) the system font is used.
+ */
+export const fonts = { text: "Schibsted Grotesk", mono: "IBMPlexMono-Medium" };
+
+/** Grouped surfaces (cards, rows) and controls use 6; buttons are pills. */
+export const radius = 6;
+export const radiusControl = 6;
+export const radiusPill = 999;
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 /** Minimum touch target (Apple 44 pt, Material 48 dp). */
 export const touch = 48;

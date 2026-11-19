@@ -3,7 +3,7 @@
 // Plainphone service worker. Caches the app shell only, so the app opens without a
 // network. Never touches /api: rules and positions must always be live.
 
-const VERSION = "pp-shell-v2";
+const VERSION = "pp-shell-v3";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -101,7 +101,8 @@ self.addEventListener("push", (event) => {
       renotify: Boolean(msg.tag),
       requireInteraction: msg.data?.type === "sos-urgent",
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      // Android only reads the alpha of the badge: a white switch outline on transparent.
+      badge: "/icons/badge-96.png",
       data: { url: typeof msg.url === "string" && msg.url.startsWith("/") ? msg.url : "/" },
     }),
   );

@@ -36,9 +36,11 @@ class TokensContrastTest {
             atLeast(4.5, "$name ink on attention", t.ink, t.attention)
             atLeast(4.5, "$name danger on danger fill", t.danger, t.dangerFill)
             atLeast(4.5, "$name white glyph on danger button", Color.White, t.dangerSolid)
-            atLeast(4.5, "$name white glyph on answer button", Color.White, t.answerSolid)
+            atLeast(4.5, "$name glyph on answer button", t.onAnswerSolid, t.answerSolid)
+            atLeast(4.5, "$name ink on signal green", t.onBrand, t.brand)
             atLeast(3.0, "$name danger button on paper", t.dangerSolid, t.paper)
             atLeast(3.0, "$name answer button on paper", t.answerSolid, t.paper)
+            assertWithMessage("$name: signal green is never a call button").that(t.answerSolid).isNotEqualTo(t.brand)
         }
     }
 
