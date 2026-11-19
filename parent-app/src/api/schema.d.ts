@@ -5921,7 +5921,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MoreTimeRequest"] & {
-                        /** @description True when this call decided it */
+                        /** @description True when this call decided it. False when it was already answered, or closed as expired because the limit was removed or the phone is no longer a child's */
                         won: boolean;
                         answeredByYou: boolean;
                     };
@@ -5929,13 +5929,6 @@ export interface operations {
             };
             /** @description No such request */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The time limit was removed, so there is nothing to extend */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
