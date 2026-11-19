@@ -332,4 +332,5 @@
     <string name="light_private_dns_vpn_settings">Open VPN settings</string>
     <string name="light_private_dns_vpn_handoff">In Android’s VPN settings, open Plainphone and turn off Block connections without VPN and Always-on VPN. Then return here to set up Private DNS.</string>
     <string name="light_vpn_restore_dns">In Network &amp; internet, set Private DNS to Automatic or Off. Then return here to reconnect Plainphone VPN.</string>
+    <string name="free_promise">Plainphone is free today. Running it on your own server and keeping one fully protected phone on our hosted service will always be free. Later we’ll charge for additional phones on our service. We’ll tell early users well in advance.</string>
 </resources>

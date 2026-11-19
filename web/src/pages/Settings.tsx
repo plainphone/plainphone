@@ -13,6 +13,10 @@ export function SettingsPage() {
     <>
       <PageTitle>{t("settings.title")}</PageTitle>
       <NotificationsSection />
+      <section className="section" aria-labelledby="free-promise-h">
+        <h2 id="free-promise-h">{t("settings.freeTitle")}</h2>
+        <p>{t("settings.freePromise")}</p>
+      </section>
       <AccountSection />
     </>
   );

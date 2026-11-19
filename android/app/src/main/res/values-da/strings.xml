@@ -328,4 +328,5 @@
     <string name="light_private_dns_vpn_settings">Åbn VPN-indstillinger</string>
     <string name="light_private_dns_vpn_handoff">Åbn Plainphone under VPN i Androids indstillinger. Slå Bloker forbindelser uden VPN og Altid aktiv VPN fra. Gå derefter tilbage hertil for at indstille Privat DNS.</string>
     <string name="light_vpn_restore_dns">Vælg Automatisk eller Fra under Privat DNS i Netværk og internet. Gå derefter tilbage hertil for at tilslutte Plainphone VPN igen.</string>
+    <string name="free_promise">Plainphone er gratis nu. Det vil altid være gratis at køre Plainphone på egen server eller have én telefon med fuld beskyttelse på vores server. Senere tager vi betaling for ekstra telefoner på vores server. De første brugere får besked i god tid.</string>
 </resources>

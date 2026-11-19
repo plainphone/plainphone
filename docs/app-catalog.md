@@ -14,6 +14,15 @@ install window is still active.
 Apps marked `"starter": true` form the starter pack: they are allowed from the start when a
 phone reports them.
 
+## Public lookup
+
+The [app and website lookup](https://plainphone.org/apps/) is available without an
+account. The site builds the catalog entries from the same country files the server
+uses. A separate list of known websites shows the default for child and self-managed
+phones. It covers selected domains only, and neither a catalog match nor a website
+result tells you whether every network service an app needs will work. Families can
+change the filter categories and domain rules for each phone as before.
+
 ## Files
 
 One JSON file per country in [`server/catalog/`](../server/catalog), named after the country

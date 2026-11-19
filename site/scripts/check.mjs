@@ -11,6 +11,16 @@ const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 const external = process.argv.includes("--external");
 const errors = [];
 const externalLinks = new Set();
+const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
+const locales = Object.keys(ogLocales);
+const lookupRoute = "apps/";
+const routes = ["", "setup/", "privacy/", "why/", lookupRoute];
+const pagePaths = routes.map((page) =>
+  Object.fromEntries(locales.map((lang) => [
+    lang,
+    `/${lang === "en" ? "" : `${lang}/`}${lang === "da" && page === "why/" ? "hvorfor/" : page}`,
+  ])),
+);
 
 const files = (dir) =>
   readdirSync(dir).flatMap((f) => {
@@ -18,6 +28,7 @@ const files = (dir) =>
     return statSync(p).isDirectory() ? files(p) : [p];
   });
 const html = files(dist).filter((f) => f.endsWith(".html"));
+if (html.length !== locales.length * pagePaths.length + 1) errors.push("Expected every localized page and one 404 page");
 const headers = readFileSync(join(dist, "_headers"), "utf8");
 const cspHashes = new Set([...headers.matchAll(/'sha256-([^']+)'/g)].map((m) => m[1]));
 
@@ -39,7 +50,20 @@ for (const file of html) {
   if (!/<title>[^<]{10,}<\/title>/.test(src)) errors.push(`${name}: missing <title>`);
   if (!/<meta name="description" content="[^"]{50,}">/.test(src)) errors.push(`${name}: missing description`);
   if ((src.match(/<h1[\s>]/g) || []).length !== 1) errors.push(`${name}: needs exactly one <h1>`);
-  if (/<script[\s>]/.test(src)) errors.push(`${name}: contains a <script>`);
+  const compatibilityPage = Object.values(pagePaths[routes.indexOf(lookupRoute)]).some((path) => target(path) === file);
+  const scripts = [...src.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)];
+  if (scripts.length !== Number(compatibilityPage)) errors.push(`${name}: unexpected number of scripts`);
+  for (const [tag] of scripts) {
+    const search = /^<script type="module" src="\/app-search\.mjs" integrity="sha256-([^"]+)"><\/script>$/.exec(tag);
+    if (!compatibilityPage || !search) {
+      errors.push(`${name}: unexpected script`);
+      continue;
+    }
+    const hash = createHash("sha256").update(readFileSync(target("/app-search.mjs"))).digest("base64");
+    if (search[1] !== hash || !headers.includes(`script-src 'sha256-${hash}'`)) {
+      errors.push(`${name}: search script hash does not match the CSP and integrity attribute`);
+    }
+  }
   // Every inline <style> must be allowed by a hash in the CSP, or the page renders unstyled.
   for (const [, css] of src.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
     const h = createHash("sha256").update(css).digest("base64");
@@ -66,6 +90,35 @@ for (const file of html) {
     if (u.hash) {
       const tIds = t === file ? ids : new Set([...readFileSync(t, "utf8").matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
       if (!tIds.has(u.hash.slice(1))) errors.push(`${name}: missing anchor ${url}`);
+    }
+  }
+  if (name !== "404.html") {
+    const ownLang = src.match(/<html lang="([a-z]{2})">/)?.[1];
+    const counterparts = pagePaths.find((paths) => target(paths[ownLang] ?? "/") === file);
+    if (!locales.includes(ownLang) || !counterparts) {
+      errors.push(`${name}: unexpected page for language ${ownLang}`);
+      continue;
+    }
+    const expectedOg = ownLang && `<meta property="og:locale" content="${ogLocales[ownLang]}">`;
+    if (!expectedOg || !src.includes(expectedOg)) errors.push(`${name}: missing Open Graph locale`);
+    if (!src.includes(`<meta property="og:image" content="https://plainphone.org/og-${ownLang}.png">`)) {
+      errors.push(`${name}: missing localized Open Graph image`);
+    }
+    for (const lang of locales) {
+      const path = counterparts[lang];
+      const alternates = [...src.matchAll(new RegExp(`<link rel="alternate" hreflang="${lang}" href="([^"]+)"`, "g"))];
+      if (alternates.length !== 1 || alternates[0][1] !== `https://plainphone.org${path}`) {
+        errors.push(`${name}: expected ${lang} alternate to ${path}`);
+      }
+      if (lang !== ownLang) {
+        if (!src.includes(`<meta property="og:locale:alternate" content="${ogLocales[lang]}">`)) {
+          errors.push(`${name}: missing Open Graph alternate for ${lang}`);
+        }
+        const switches = [...src.matchAll(new RegExp(`<a href="([^"]+)" hreflang="${lang}" lang="${lang}">`, "g"))];
+        if (switches.length !== 1 || switches[0][1] !== path) {
+          errors.push(`${name}: expected ${lang} language switch to ${path}`);
+        }
+      }
     }
   }
   // Every <link rel=canonical/alternate> must point at a page that exists.
