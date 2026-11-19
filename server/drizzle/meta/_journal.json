@@ -215,8 +215,15 @@
     {
       "idx": 42,
       "version": "7",
-      "when": 1795119219643,
-      "tag": "0042_weekly_summary",
+      "when": 1795121377162,
+      "tag": "0042_bedtime_pin_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795125408538,
+      "tag": "0043_weekly_summary",
       "breakpoints": true
     }
   ]

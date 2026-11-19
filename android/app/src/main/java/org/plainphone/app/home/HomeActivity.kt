@@ -121,6 +121,7 @@ class HomeActivity : ComponentActivity() {
                         sos = { showSos = true },
                         help = { startActivity(Intent(this@HomeActivity, HelpActivity::class.java)) },
                         makeDefault = ::askToBeHome,
+                        requests = { startActivity(org.plainphone.app.requests.RequestsActivity.intent(this@HomeActivity)) },
                         selfTools = if (org.plainphone.app.light.LightSetup.profile(this@HomeActivity) == "self") {
                             { startActivity(Intent(this@HomeActivity, org.plainphone.app.light.HomeActivity::class.java)) }
                         } else null,
@@ -255,6 +256,8 @@ class HomeActivity : ComponentActivity() {
                 date = dateText(at, context.resources.configuration.locales[0]),
                 noticeUntil = state.notice?.let { timeText(context, it.until) },
                 offerDefaultHome = !isOwner && !isHome,
+                // The parent can switch approval on the phone off; then there is nothing to open.
+                openRequests = if (rules?.pinApproval == true) SyncStore(context).openRequests else 0,
                 limitWarning = runCatching { HomeTimeLimits.warning(context) }.getOrNull(),
             )
         }

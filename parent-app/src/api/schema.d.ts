@@ -560,6 +560,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/requests/{rid}/approve-on-phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report that a parent approved a request on the phone with the parent PIN (phone)
+         * @description The phone checked the parent PIN itself and is the authority for what it did, so this is a
+         *     report, not a question. The first answer wins and a repeat changes nothing: if a parent
+         *     already answered in the dashboard or the parent app, `won` is false and the body shows
+         *     what was decided. The approval is applied like a parent's (the app is shown, the contact
+         *     is added) and the parents are told it happened on the phone. Only child phones.
+         *     The id may also be a request for more time (`/device/more-time-requests`): then 15 minutes
+         *     are granted, `decidedVia` is `phone` and the body is that request (no `kind`).
+         */
+        post: operations["approveDeviceRequestOnPhone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/attestation/challenge": {
         parameters: {
             query?: never;
@@ -2397,6 +2423,16 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             decidedAt?: string | null;
+            /**
+             * @description Where the answer came from. `phone` means a parent approved it on the phone with the parent PIN.
+             * @enum {unknown}
+             */
+            decidedVia?: "parent" | "phone" | null;
+        };
+        RequestOutcomeError: {
+            error: string;
+            /** @enum {unknown} */
+            outcome?: "approvedByYou" | "approvedByOther" | "approvedOnPhone" | "declinedByYou" | "declinedByOther";
         };
         /** @description A request for more time on one app or on the daily cap (docs/more-time.md). */
         MoreTimeRequest: {
@@ -2426,6 +2462,11 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             decidedAt?: string | null;
+            /**
+             * @description `phone` when a parent approved it on the phone with the parent PIN
+             * @enum {unknown}
+             */
+            decidedVia?: "parent" | "phone" | null;
         };
         PushSubscription: {
             /** Format: uuid */
@@ -2874,6 +2915,15 @@ export interface components {
              * @default true
              */
             weeklySummaryEnabled: boolean;
+             * @description During bedtime the phone is silent except calls from parents, 112 and help lines. Missing means on.
+             * @default true
+             */
+            silentBedtime: boolean;
+            /**
+             * @description A parent may approve a request on the phone with the parent PIN. Always false on a Self phone. Missing means on.
+             * @default true
+             */
+            pinApprovalEnabled: boolean;
             /** @description Enforce the approved list on a light Child phone. Missing means off in light mode. */
             lightContactRestriction?: boolean;
             /** @description True limits calls and texts to favourites during schedules, false leaves them unrestricted, and null preserves the previous always-on restriction on a Strong Self phone. */
@@ -3166,6 +3216,8 @@ export interface components {
             changeReceiptsEnabled?: boolean;
             healthBoardEnabled?: boolean;
             weeklySummaryEnabled?: boolean;
+            silentBedtime?: boolean;
+            pinApprovalEnabled?: boolean;
             /** @description Confirmation for the current rules document. Null if disabled or unpaired. */
             ruleReceipt?: {
                 /** @description The phone still reports a fetched ETag without confirming successful application. */
@@ -4643,6 +4695,44 @@ export interface operations {
             };
         };
     };
+    approveDeviceRequestOnPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request as it stands now, and whether this report decided it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        won: boolean;
+                    } & (components["schemas"]["PhoneRequest"] | components["schemas"]["MoreTimeRequest"]);
+                };
+            };
+            /** @description No such request on this phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A Self phone has no parent PIN, or the change could not be applied (the request stays open) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     postDeviceAttestationChallenge: {
         parameters: {
             query?: never;
@@ -5730,6 +5820,8 @@ export interface operations {
                     healthBoardEnabled?: boolean;
                     /** @description Include this phone in the weekly summary (default on). */
                     weeklySummaryEnabled?: boolean;
+                    silentBedtime?: boolean;
+                    pinApprovalEnabled?: boolean;
                     pushWakeups?: boolean;
                     preferUnifiedPush?: boolean;
                     language?: components["schemas"]["PhoneLanguage"];
@@ -7089,6 +7181,12 @@ export interface operations {
                             phoneId?: string;
                             appLabel?: string | null;
                         })[];
+                        /** @description The last few answered requests (3 days), newest first, with where the answer came from. */
+                        recent?: (components["schemas"]["PhoneRequest"] & {
+                            /** Format: uuid */
+                            phoneId?: string;
+                            appLabel?: string | null;
+                        })[];
                     };
                 };
             };
@@ -7114,12 +7212,14 @@ export interface operations {
         responses: {
             200: components["responses"]["Change"];
             202: components["responses"]["ChangePending"];
-            /** @description No longer open */
+            /** @description No longer open. `outcome` says who answered first. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RequestOutcomeError"];
+                };
             };
         };
     };
@@ -7142,12 +7242,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description No longer open */
+            /** @description No longer open. `outcome` says who answered first. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RequestOutcomeError"];
+                };
             };
         };
     };

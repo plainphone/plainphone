@@ -49,6 +49,17 @@ object CallManager {
         override fun onDetailsChanged(call: Call, details: Call.Details) = publish()
     }
 
+    /** Incoming calls that must not ring or light the screen: silent bedtime (docs/bedtime.md). */
+    private val quietCalls = mutableSetOf<Call>()
+
+    @Synchronized
+    fun markQuiet(call: Call) {
+        quietCalls += call
+    }
+
+    @Synchronized
+    fun isQuiet(call: Call): Boolean = call in quietCalls
+
     @Synchronized
     fun add(call: Call, displayName: String?) {
         calls += call
@@ -62,6 +73,7 @@ object CallManager {
         call.unregisterCallback(callback)
         calls -= call
         names -= call
+        quietCalls -= call
         publish()
     }
 

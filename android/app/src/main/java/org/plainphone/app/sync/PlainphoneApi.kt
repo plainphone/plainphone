@@ -22,6 +22,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.DeviceContact
+import org.plainphone.app.requests.PhoneRequest
 
 /** The phone's side of the sync API (server/openapi.yaml, tag "device"). Faked in unit tests. */
 interface SyncApi {
@@ -52,6 +53,16 @@ interface SyncApi {
      * False when the server no longer knows the request (404) or refuses the event (400): drop it.
      */
     fun reportSafety(token: String, requestId: String, event: String): Boolean
+    /** The phone's own requests: open ones and answers from the last 30 days (`GET /device/requests`). */
+    fun phoneRequests(token: String): List<PhoneRequest> = emptyList()
+    /**
+     * Tells the server that a parent approved [requestId] on the phone with the PIN
+     * (`POST /device/requests/{id}/approve-on-phone`). The request as it stands now, or null when there
+     * is nothing to report any more (the server does not know it, or this is not a child phone).
+     * Idempotent: the first answer wins and a repeat changes nothing. Throws on network errors, so the
+     * phone tries again.
+     */
+    fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? = null
     /**
      * Asks the parents for more time on an app or the daily cap ([TimeLimits.TOTAL]). Returns the new
      * request (201) or today's open one for the same target (200). Other answers throw [HttpError]:
@@ -590,6 +601,47 @@ class PlainphoneApi private constructor(
         val response = call("GET", "/device/sos/$id", token, readTimeoutMs = 8_000)
         if (response.status != 200) throw HttpError(response.status, response.body)
         return JSONObject(response.body)
+    }
+
+    override fun phoneRequests(token: String): List<PhoneRequest> {
+        val r = call("GET", "/device/requests", token, readTimeoutMs = 15_000)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        val list = try {
+            PhoneRequest.parseList(r.body)
+        } catch (e: JSONException) {
+            throw IOException("Invalid requests response", e)
+        } catch (e: IllegalArgumentException) {
+            throw IOException("Invalid requests response", e)
+        }
+        // Asks for more time are in their own list on the server; they are requests too.
+        val moreTime = try {
+            moreTimeRequests(token).mapNotNull(PhoneRequest::fromMoreTime)
+        } catch (_: IOException) {
+            emptyList()
+        }
+        return moreTime + list
+    }
+
+    override fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? {
+        require(requestId.matches(Regex("[0-9a-fA-F-]{36}"))) { "bad request id" }
+        val r = call("POST", "/device/requests/$requestId/approve-on-phone", token, JSONObject(), replayable = true)
+        return when (r.status) {
+            200 -> try {
+                val body = JSONObject(r.body)
+                // A request for more time has no "kind".
+                if (body.has("kind")) PhoneRequest.parse(body) else PhoneRequest.fromMoreTime(MoreTimeRequest.parse(body))
+            } catch (e: JSONException) {
+                throw IOException("Invalid approval response", e)
+            } catch (e: RuntimeException) {
+                throw IOException("Invalid approval response", e)
+            }
+            // Gone, a Self phone (no parent PIN) or a change that could not be applied: the
+            // server did not take the approval, and asking again will not change that.
+            404, 409 -> null
+            // Any other answer that a retry cannot change (a revoked token, a bad id): drop it.
+            // Only a busy or unreachable server is worth another try.
+            else -> if (r.status in 400..499 && r.status != 408 && r.status != 429) null else throw HttpError(r.status, r.body)
+        }
     }
 
     override fun reportSafety(token: String, requestId: String, event: String): Boolean {

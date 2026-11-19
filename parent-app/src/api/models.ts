@@ -73,6 +73,8 @@ export interface Phone {
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
   weeklySummaryEnabled?: boolean;
+  silentBedtime?: boolean;
+  pinApprovalEnabled?: boolean;
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {

@@ -65,6 +65,13 @@ it("treats an opposite answer as a conflict and a repeat as the same result", ()
   expect(decisionOutcome("reject")).toBe("declinedByYou");
 });
 
+it("says an approval on the phone with the PIN was approved on the phone, whatever you ask for", () => {
+  expect(outcomeOf({ outcome: "approvedOnPhone" })).toBe("approvedOnPhone");
+  expect(isFinal("approvedOnPhone")).toBe(true);
+  expect(outcomeKey("approvedOnPhone", "approve")).toBe("status.outcome.approvedOnPhone");
+  expect(outcomeKey("approvedOnPhone", "reject")).toBe("status.outcome.approvedOnPhone");
+});
+
 it("leaves the request open when only the preview or code is stale", () => {
   expect(isFinal("changed")).toBe(false);
   expect(isFinal("codeExpired")).toBe(false);

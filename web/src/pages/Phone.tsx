@@ -4,6 +4,8 @@ import { createContext, type FormEvent, useCallback, useContext, useEffect, useM
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { ErrorState, errorMessage, Field, Loading, type Notice, PageTitle, Switch, useLoad, useNow } from "../components/ui";
 import { SosPanel } from "../components/SosPanel";
+import { PhoneSwitch } from "../components/BedtimeSettings";
+import { type Decision, outcomeKey, outcomeOf } from "../lib/approval-state";
 import { useI18n } from "../i18n/I18n";
 import type { MessageKey, T } from "../i18n/translate";
 import {
@@ -576,7 +578,7 @@ export function PhoneOverview() {
       )}
 
       {phone.pairedAt && <ServerMoveToggle />}
-      {phone.openRequests > 0 && <RequestsSection />}
+      {phone.pairedAt && <RequestsSection />}
       {phone.pairedAt && phone.profile === "child" && <MoreTimeSection phone={phone} setPhone={setPhone} notify={notify} />}
 
       {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
@@ -616,6 +618,11 @@ export function PhoneOverview() {
       {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
       <PhoneDisplayPreferences />
+      {phone.profile === "child" && phone.pairedAt && (
+        <section className="section" aria-label={t("pin.toggle")}>
+          <PhoneSwitch phone={phone} field="pinApprovalEnabled" label={t("pin.toggle")} help={t("pin.help")} setPhone={setPhone} notify={notify} />
+        </section>
+      )}
       {phone.mode === "light" && <LightModeSection phone={phone} />}
       <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
@@ -627,14 +634,27 @@ export function PhoneOverview() {
 function RequestsSection() {
   const { t } = useI18n();
   const { phone, setPhone, run, notify } = usePhone();
-  const res = useLoad(() => api.get<{ requests: PhoneRequest[] }>(`/phones/${phone.id}/requests`), [phone.id]);
+  const res = useLoad(
+    () => api.get<{ requests: PhoneRequest[]; recent?: PhoneRequest[] }>(`/phones/${phone.id}/requests`),
+    [phone.id, phone.openRequests],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
   const requests = res.data?.requests ?? [];
+  const recent = res.data?.recent ?? [];
 
   async function done() {
     await res.reload();
     setPhone(await api.get<Phone>(`/phones/${phone.id}`));
+  }
+
+  /** Someone answered first: say what was decided, in the words every screen shares. */
+  function alreadyAnswered(err: unknown, decision: Decision): boolean {
+    if (!(err instanceof ApiError) || err.status !== 409) return false;
+    const outcome = outcomeOf(err.data);
+    if (!outcome) return false;
+    notify({ tone: "success", text: t(outcomeKey(outcome, decision)) });
+    return true;
   }
 
   async function approve(r: PhoneRequest) {
@@ -644,7 +664,7 @@ function RequestsSection() {
     try {
       await run(() => api.post<ChangeResult>(`/phones/${phone.id}/requests/${r.id}/approve`, body), t("requests.approved"));
     } catch (err) {
-      notify({ tone: "error", text: errorMessage(err, t) });
+      if (!alreadyAnswered(err, "approve")) notify({ tone: "error", text: errorMessage(err, t) });
     } finally {
       setBusy(null);
     }
@@ -657,50 +677,75 @@ function RequestsSection() {
       await api.post(`/phones/${phone.id}/requests/${r.id}/reject`, {});
       notify({ tone: "success", text: t("requests.rejected") });
     } catch (err) {
-      notify({ tone: "error", text: errorMessage(err, t) });
+      if (!alreadyAnswered(err, "reject")) notify({ tone: "error", text: errorMessage(err, t) });
     }
     setBusy(null);
     await done().catch(() => undefined);
   }
 
-  if (requests.length === 0) return null;
+  if (requests.length === 0 && recent.length === 0) return null;
   return (
-    <section className="section" aria-labelledby="requests-h">
-      <h2 id="requests-h">{t("requests.title", { name: phone.name })}</h2>
-      <ul className="list item-list">
-        {requests.map((r) => (
-          <li key={r.id} className="item item-stack request">
-            {r.kind === "app" ? (
-              <div>
-                <p className="row-title">{r.appLabel ?? r.packageName}</p>
-                <p className="row-meta">{t("requests.app")}</p>
-              </div>
-            ) : (
-              <Field label={t("requests.contactName", { number: r.number ?? "" })}>
-                {(p) => (
-                  <input
-                    {...p}
-                    type="text"
-                    maxLength={60}
-                    autoComplete="off"
-                    value={names[r.id] ?? r.name ?? ""}
-                    onChange={(e) => setNames((n) => ({ ...n, [r.id]: e.target.value }))}
-                  />
+    <>
+      {requests.length > 0 && (
+        <section className="section" aria-labelledby="requests-h">
+          <h2 id="requests-h">{t("requests.title", { name: phone.name })}</h2>
+          <ul className="list item-list">
+            {requests.map((r) => (
+              <li key={r.id} className="item item-stack request">
+                {r.kind === "app" ? (
+                  <div>
+                    <p className="row-title">{r.appLabel ?? r.packageName}</p>
+                    <p className="row-meta">{t("requests.app")}</p>
+                  </div>
+                ) : (
+                  <Field label={t("requests.contactName", { number: r.number ?? "" })}>
+                    {(p) => (
+                      <input
+                        {...p}
+                        type="text"
+                        maxLength={60}
+                        autoComplete="off"
+                        value={names[r.id] ?? r.name ?? ""}
+                        onChange={(e) => setNames((n) => ({ ...n, [r.id]: e.target.value }))}
+                      />
+                    )}
+                  </Field>
                 )}
-              </Field>
-            )}
-            <div className="actions">
-              <button type="button" className="btn btn-primary btn-small" onClick={() => void approve(r)} disabled={busy !== null}>
-                {t("requests.approve")}
-              </button>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => void reject(r)} disabled={busy !== null}>
-                {t("requests.reject")}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+                <div className="actions">
+                  <button type="button" className="btn btn-primary btn-small" onClick={() => void approve(r)} disabled={busy !== null}>
+                    {t("requests.approve")}
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => void reject(r)} disabled={busy !== null}>
+                    {t("requests.reject")}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {recent.length > 0 && (
+        <section className="section" aria-labelledby="requests-recent-h">
+          <h2 id="requests-recent-h">{t("requests.recentTitle")}</h2>
+          <ul className="list item-list">
+            {recent.map((r) => (
+              <li key={r.id} className="item">
+                <div>
+                  <p className="row-title">{r.kind === "app" ? (r.appLabel ?? r.packageName) : (r.name ?? r.number)}</p>
+                  <p className="row-meta">
+                    {r.status === "rejected"
+                      ? t("requests.tagRejected")
+                      : r.decidedVia === "phone"
+                        ? t("requests.tagOnPhone")
+                        : t("requests.tagApproved")}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
 

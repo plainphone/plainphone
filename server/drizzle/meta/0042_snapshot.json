@@ -1,5 +1,5 @@
 {
-  "id": "59158171-481a-4fd3-957b-8fbe4e1f1812",
+  "id": "ae3b4d60-9dde-4589-9cb8-74cd2e6d1a82",
   "prevId": "df2a6831-9b5f-4498-aa7e-2e2395f85993",
   "version": "7",
   "dialect": "postgresql",
@@ -674,105 +674,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.household_summaries": {
-      "name": "household_summaries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "household_id": {
-          "name": "household_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "week_end": {
-          "name": "week_end",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data": {
-          "name": "data",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "household_summaries_week_idx": {
-          "name": "household_summaries_week_idx",
-          "columns": [
-            {
-              "expression": "household_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "week_end",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "household_summaries_household_id_households_id_fk": {
-          "name": "household_summaries_household_id_households_id_fk",
-          "tableFrom": "household_summaries",
-          "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.households": {
       "name": "households",
       "schema": "",
@@ -789,62 +690,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "summary_enabled": {
-          "name": "summary_enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "summary_by_mail": {
-          "name": "summary_by_mail",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "summary_by_push": {
-          "name": "summary_by_push",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "act_now_only": {
-          "name": "act_now_only",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "summary_day": {
-          "name": "summary_day",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "summary_hour": {
-          "name": "summary_hour",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 18
-        },
-        "summary_minute": {
-          "name": "summary_minute",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "time_zone": {
-          "name": "time_zone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Europe/Copenhagen'"
         },
         "created_at": {
           "name": "created_at",
@@ -1058,6 +903,12 @@
         "decided_by": {
           "name": "decided_by",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_via": {
+          "name": "decided_via",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1903,6 +1754,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "decided_via": {
+          "name": "decided_via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "decided_at": {
           "name": "decided_at",
           "type": "timestamp with time zone",
@@ -2029,66 +1886,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.phone_usage_days": {
-      "name": "phone_usage_days",
-      "schema": "",
-      "columns": {
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "package_name": {
-          "name": "package_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "minutes": {
-          "name": "minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "phone_usage_days_phone_id_phones_id_fk": {
-          "name": "phone_usage_days_phone_id_phones_id_fk",
-          "tableFrom": "phone_usage_days",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "phone_usage_days_phone_id_day_package_name_pk": {
-          "name": "phone_usage_days_phone_id_day_package_name_pk",
-          "columns": [
-            "phone_id",
-            "day",
-            "package_name"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -2433,8 +2230,15 @@
           "notNull": true,
           "default": true
         },
-        "weekly_summary_enabled": {
-          "name": "weekly_summary_enabled",
+        "silent_bedtime": {
+          "name": "silent_bedtime",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "pin_approval_enabled": {
+          "name": "pin_approval_enabled",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -3538,86 +3342,6 @@
           ]
         }
       },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.summary_events": {
-      "name": "summary_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "phone_id": {
-          "name": "phone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "detail": {
-          "name": "detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "at": {
-          "name": "at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "summary_events_phone_at_idx": {
-          "name": "summary_events_phone_at_idx",
-          "columns": [
-            {
-              "expression": "phone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "summary_events_phone_id_phones_id_fk": {
-          "name": "summary_events_phone_id_phones_id_fk",
-          "tableFrom": "summary_events",
-          "tableTo": "phones",
-          "columnsFrom": [
-            "phone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

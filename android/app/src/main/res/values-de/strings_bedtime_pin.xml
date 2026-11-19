@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Stille Schlafenszeit (docs/bedtime.md) -->
+    <string name="channel_quiet">Stille Schlafenszeit</string>
+    <string name="home_bedtime_silent">Das Telefon ist still. Nur Eltern und Hilfetelefone klingeln.</string>
+    <string name="home_bedtime_silent_why">Alle schlafen besser, wenn das Telefon nachts still ist.</string>
+    <string name="maintenance_silent_bedtime_missing">Die stille Schlafenszeit ist an, aber Android hat Plainphone keinen Zugriff auf „Nicht stören“ gegeben. Anrufe und die Nachrichten von Plainphone sind still. Andere Apps können weiterhin Töne abspielen.</string>
+    <string name="maintenance_silent_bedtime_access">„Nicht stören“ erlauben</string>
+
+    <!-- Wünsche und Bestätigung mit der Eltern-PIN -->
+    <string name="requests_title">Meine Wünsche</string>
+    <string name="requests_empty">Nichts wartet. Wenn du um eine App oder einen Kontakt bittest, siehst du es hier.</string>
+    <string name="requests_load_failed">Deine Wünsche konnten nicht geladen werden. Prüfe die Verbindung und versuche es erneut.</string>
+    <string name="requests_retry">Erneut versuchen</string>
+    <string name="requests_back">Zurück</string>
+    <string name="requests_kind_app">App</string>
+    <string name="requests_kind_contact">Kontakt</string>
+    <string name="requests_status_waiting">Wartet auf ein Elternteil</string>
+    <string name="requests_status_approved">Bestätigt</string>
+    <string name="requests_status_approved_phone">Auf diesem Telefon bestätigt</string>
+    <string name="requests_status_approved_phone_sending">Auf diesem Telefon bestätigt. Deine Eltern erfahren es, sobald das Telefon online ist.</string>
+    <string name="requests_status_declined">Abgelehnt</string>
+    <string name="requests_status_waiting_key">Bestätigt. Es gilt nach der Wartezeit.</string>
+    <string name="requests_parent_here">Ein Elternteil ist hier: mit PIN bestätigen</string>
+    <string name="requests_pin_title">Eltern-PIN</string>
+    <string name="requests_pin_help">Nur ein Elternteil kennt diese PIN.</string>
+    <string name="requests_pin_hint">Eltern-PIN</string>
+    <string name="requests_pin_approve">Bestätigen</string>
+    <string name="requests_pin_cancel">Abbrechen</string>
+    <string name="requests_pin_wrong">Diese PIN stimmt nicht.</string>
+    <string name="requests_pin_none">Dieses Telefon hat noch keine Eltern-PIN. Bitte ein Elternteil, stattdessen in der App zu antworten.</string>
+    <plurals name="requests_pin_wait">
+        <item quantity="one">Zu viele Versuche. Versuche es in %1$d Sekunde erneut.</item>
+        <item quantity="other">Zu viele Versuche. Versuche es in %1$d Sekunden erneut.</item>
+    </plurals>
+    <string name="requests_already_answered">Ein Elternteil hat diesen Wunsch schon beantwortet. Die Antwort steht hier.</string>
+    <string name="requests_approved_now">Bestätigt. Es gilt innerhalb einer Minute.</string>
+    <plurals name="home_requests_waiting">
+        <item quantity="one">1 Wunsch wartet auf eine Antwort</item>
+        <item quantity="other">%d Wünsche warten auf eine Antwort</item>
+    </plurals>
+    <string name="requests_kind_more_time">Mehr Zeit</string>
+    <string name="requests_more_time_total">Bildschirmzeit heute</string>
+    <string name="requests_approved_now_more_time">Genehmigt: 15 Minuten mehr. Das gilt innerhalb einer Minute.</string>
+    <string name="requests_approve_failed">Das ließ sich am Telefon nicht genehmigen. Ein Elternteil kann in der App antworten.</string>
+</resources>

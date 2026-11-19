@@ -18,6 +18,7 @@ export const statusEn = {
 
   "status.outcome.approvedByYou": "Approved. Takes effect the next time the phone is online (usually within a minute).",
   "status.outcome.approvedByOther": "Someone else already approved this request.",
+  "status.outcome.approvedOnPhone": "This was already approved on the phone with the PIN.",
   "status.outcome.declinedByYou": "Declined. The phone keeps its current rule.",
   "status.outcome.declinedByOther": "Someone else already declined this request.",
   "status.outcome.cancelled": "The request was withdrawn. Nothing changed.",
@@ -46,6 +47,7 @@ export const statusDa: Record<keyof typeof statusEn, string> = {
 
   "status.outcome.approvedByYou": "Godkendt. Gælder, næste gang telefonen er online (normalt inden for et minut).",
   "status.outcome.approvedByOther": "En anden har allerede godkendt anmodningen.",
+  "status.outcome.approvedOnPhone": "Det blev allerede godkendt på telefonen med pinkoden.",
   "status.outcome.declinedByYou": "Afvist. Telefonen beholder sin nuværende regel.",
   "status.outcome.declinedByOther": "En anden har allerede afvist anmodningen.",
   "status.outcome.cancelled": "Anmodningen blev trukket tilbage. Intet er ændret.",

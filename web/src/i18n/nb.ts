@@ -5,6 +5,7 @@ import { statusEn } from "./status";
 
 export const nb: Messages = {
   ...statusEn, // English until translated
+  "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
   "status.stale.title": "Sist online {when}",
   "app.name": "Plainphone",
@@ -163,6 +164,18 @@ export const nb: Messages = {
   "health.receiptsHelp": "Be telefonen bekrefte når den har tatt i bruk de gjeldende reglene.",
   "health.boardToggle": "Telefonens status",
   "health.boardHelp": "Vis telefonens sjekker her og be den sjekke nettfilteret sitt.",
+  "bedtime.silent": "Stille leggetid",
+  "bedtime.silentHelp": "Når det er leggetid, lager telefonen ingen lyd og viser ingen varsler. Anrop fra foreldre, 112 og hjelpelinjer ringer fortsatt.",
+  "bedtime.tipTitle": "La telefonen sove utenfor soverommet",
+  "bedtime.tipBody": "Telefoner på soverommet henger sammen med kortere og dårligere søvn. Den danske Sundhedsstyrelsen anbefaler å holde dem utenfor.",
+  "bedtime.tipSource": "Les anbefalingen",
+  "bedtime.tipDismiss": "Greit",
+  "pin.toggle": "Godkjenn på telefonen med PIN-koden",
+  "pin.help": "Når en forelder står ved siden av barnet, kan en forespørsel godkjennes på selve telefonen med foreldrenes PIN-kode.",
+  "requests.recentTitle": "Besvart nylig",
+  "requests.tagApproved": "Godkjent",
+  "requests.tagRejected": "Avslått",
+  "requests.tagOnPhone": "Godkjent på telefonen",
   "phone.status": "Telefonstatus",
   "phone.attCheckedAt": "System sjekket {when}",
   "phone.attLastFailedAt": "Den siste systemsjekken kunne ikke bekrefte telefonen ({when}).",

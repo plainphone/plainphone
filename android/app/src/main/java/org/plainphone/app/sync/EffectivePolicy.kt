@@ -6,6 +6,7 @@ import java.security.MessageDigest
 import java.time.Instant
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.ServerOverlay
+import org.plainphone.app.quiet.BedtimeQuiet
 
 /**
  * Merges the parent's rules from the server into the lock config from the QR code.
@@ -50,6 +51,7 @@ object EffectivePolicy {
                 windowActive = windows.isNotEmpty(),
                 locationRequired = rules.locationEnabled,
                 settings = rules.settings,
+                quietBedtime = BedtimeQuiet.silent(rules, windows),
             ),
             lockSystemLanguage = rules.profile == "child" && rules.lockSystemLanguage,
             timeBlocked = timeBlocked,
@@ -66,6 +68,7 @@ object EffectivePolicy {
             config.filterMethod.wire,
             config.allowedPackages.sorted().joinToString(","),
             config.server?.windowActive.toString(),
+            config.server?.quietBedtime.toString(),
             config.server?.locationRequired.toString(),
             config.frpAccountIds.sorted().joinToString(","),
             config.server?.settings?.canonical().orEmpty(),
