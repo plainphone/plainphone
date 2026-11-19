@@ -19,9 +19,11 @@ export function buildOptionalProviders(cfg: Config): Pick<Ctx, "mail" | "push" |
     list.push(reason);
     console.error(`integration disabled: ${reason}`);
   };
+  for (const r of cfg.configWarnings.push) fail(degraded.push, r);
+  for (const r of cfg.configWarnings.other) fail(degraded.other, r);
 
   const { fcm, apns, errors } = configureNativePush(cfg);
-  degraded.push.push(...errors);
+  for (const r of errors) fail(degraded.push, r);
 
   let vapid: { publicKey: string; privateKey: string } | null = null;
   if (cfg.VAPID_PUBLIC_KEY || cfg.VAPID_PRIVATE_KEY) {
@@ -47,13 +49,7 @@ export function buildOptionalProviders(cfg: Config): Pick<Ctx, "mail" | "push" |
     mail = cfg.MAIL_PROVIDER === "log" ? new LogMailProvider() : new NoMailProvider();
   }
 
-  let parentWeb;
-  try {
-    parentWeb = vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider();
-  } catch {
-    fail(degraded.push, "web: invalid VAPID settings");
-    parentWeb = new NoParentPushProvider();
-  }
+  const parentWeb = vapid ? new WebPushProvider(vapid, cfg.VAPID_SUBJECT) : new NoParentPushProvider();
 
   return {
     mail,

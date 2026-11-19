@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { parentPushEnabled } from "../src/providers/parent-push.js";
+import { generateVapidKeys } from "../src/lib/webpush.js";
 import { normalizeApnsKey, normalizeServiceAccount } from "../src/providers/native-push.js";
 import { buildOptionalProviders } from "../src/services/providers.js";
 import { PUBLIC_URL, useHarness } from "./harness.js";
@@ -72,8 +73,9 @@ describe("FCM service account formats", () => {
 
   it("keeps web push working when FCM is invalid", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const { json } = await health({ FCM_SERVICE_ACCOUNT_JSON: "garbage" });
-    expect(json.push).toMatchObject({ web: false, fcm: false });
+    const { publicKey, privateKey } = generateVapidKeys();
+    const { json } = await health({ FCM_SERVICE_ACCOUNT_JSON: "garbage", VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey });
+    expect(json.push).toMatchObject({ web: true, fcm: false });
   });
 });
 
@@ -113,7 +115,7 @@ describe("other optional integrations", () => {
     expect(missing.status).toBe(200);
     expect(missing.json).toMatchObject({ mail: "none", errors: ["smtp: invalid or missing SMTP_URL"] });
     const bad = await health({ MAIL_PROVIDER: "smtp", SMTP_URL: "not a url ://user:hunter2@" });
-    expect(bad.json.errors.length).toBeLessThanOrEqual(1);
+    expect(bad.json).toMatchObject({ mail: "none", errors: ["smtp: invalid or missing SMTP_URL"] });
     expect(JSON.stringify(bad.json)).not.toContain("hunter2");
   });
 
@@ -122,6 +124,17 @@ describe("other optional integrations", () => {
     expect(build({ VAPID_PUBLIC_KEY: "abc" }).degraded?.push).toEqual(["web: needs both VAPID keys"]);
     expect(build({ VAPID_PUBLIC_KEY: "abc", VAPID_PRIVATE_KEY: "def" }).degraded?.push).toEqual(["web: invalid VAPID key pair"]);
     expect(parentPushEnabled(build().parentPush, "web")).toBe(false);
+  });
+
+  it("degrades invalid switches to their defaults instead of crashing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(build({ APNS_SANDBOX: "TRUE" }).degraded).toEqual({ push: [], other: [] });
+    expect(build({ APNS_SANDBOX: "1" }).degraded?.push).toEqual(["apns: invalid APNS_SANDBOX"]);
+    expect(build({ PUSH_PROVIDER: "FCM" }).degraded?.push).toEqual([]);
+    expect(build({ PUSH_PROVIDER: "gcm" }).degraded?.push).toEqual(["push: invalid PUSH_PROVIDER"]);
+    expect(build({ MAIL_PROVIDER: "sendgrid" }).degraded?.other).toEqual(["mail: invalid MAIL_PROVIDER"]);
+    const prod = await health({ NODE_ENV: "production", MAIL_PROVIDER: "log" });
+    expect(prod).toMatchObject({ status: 200, json: { mail: "none" } });
   });
 
   it("stays quiet with no optional settings", () => {

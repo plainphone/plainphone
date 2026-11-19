@@ -100,16 +100,42 @@ const schema = z.object({
     .transform((v) => v === "true"),
 });
 
-export type Config = z.infer<typeof schema>;
+export type Config = z.infer<typeof schema> & {
+  /** Optional settings that were invalid and fell back to their default: "<area>: <reason>". */
+  configWarnings: { push: string[]; other: string[] };
+};
+
+/**
+ * Optional switches that must never stop the server. Values are matched case-insensitively
+ * ("TRUE", "FCM"); anything else falls back to the default and is reported, never echoed.
+ */
+const LENIENT: { key: string; values: string[]; area: "push" | "other"; label: string }[] = [
+  { key: "PUSH_PROVIDER", values: ["none", "fcm", "unifiedpush"], area: "push", label: "push" },
+  { key: "APNS_SANDBOX", values: ["true", "false"], area: "push", label: "apns" },
+  { key: "MAIL_PROVIDER", values: ["none", "log", "smtp"], area: "other", label: "mail" },
+];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = schema.safeParse(env);
+  const warnings = { push: [] as string[], other: [] as string[] };
+  const sane: NodeJS.ProcessEnv = { ...env };
+  for (const { key, values, area, label } of LENIENT) {
+    const raw = sane[key]?.trim().toLowerCase();
+    if (raw === undefined || raw === "") continue;
+    if (values.includes(raw)) sane[key] = raw;
+    else {
+      delete sane[key];
+      warnings[area].push(`${label}: invalid ${key}`);
+    }
+  }
+  const parsed = schema.safeParse(sane);
   if (!parsed.success) {
     throw new Error(`Invalid configuration: ${z.prettifyError(parsed.error)}`);
   }
-  const cfg = parsed.data;
+  const cfg: Config = { ...parsed.data, configWarnings: warnings };
   if (cfg.MAIL_PROVIDER === "log" && cfg.NODE_ENV === "production") {
-    throw new Error("MAIL_PROVIDER=log prints login links and is not allowed in production");
+    // Optional: degrade to no mail rather than print login links or crash.
+    cfg.MAIL_PROVIDER = "none";
+    warnings.other.push("mail: MAIL_PROVIDER=log is not allowed in production");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");

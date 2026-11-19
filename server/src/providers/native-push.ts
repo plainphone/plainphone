@@ -153,7 +153,6 @@ export function configureNativePush(cfg: Config) {
   const errors: string[] = [];
   const fail = (reason: string) => {
     errors.push(reason);
-    console.error(`push provider disabled: ${reason}`);
   };
   let fcm: Fcm | undefined;
   let apns: Apns | undefined;

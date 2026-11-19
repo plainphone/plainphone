@@ -41,4 +41,4 @@ FCM, APNs, Web Push (VAPID) and SMTP are optional. If one of them is misconfigur
 { "ok": true, "push": { "web": true, "fcm": false, "apns": true, "unifiedpush": false, "errors": ["fcm: invalid service account"] }, "errors": [] }
 ```
 
-`push.errors` lists push problems (`fcm: invalid service account`, `fcm: service account file unreadable`, `apns: invalid key`, `apns: incomplete configuration`, `web: needs both VAPID keys`, `web: invalid VAPID key pair`). Top-level `errors` lists other optional integrations (`smtp: invalid or missing SMTP_URL`). Both are empty when all is well. Check them after every deploy.
+`push.errors` lists push problems (`fcm: invalid service account`, `fcm: service account file unreadable`, `apns: invalid key`, `apns: incomplete configuration`, `web: needs both VAPID keys`, `web: invalid VAPID key pair`, `push: invalid PUSH_PROVIDER`, `apns: invalid APNS_SANDBOX`). Top-level `errors` lists other optional integrations (`smtp: invalid or missing SMTP_URL`, `mail: invalid MAIL_PROVIDER`). Both are empty when all is well. Check them after every deploy.
