@@ -103,7 +103,7 @@ export default {
     ],
     guide: "Åpne oppsettveiledningen",
     available: "Du kan allerede velge godkjente kontakter, filtrere nettsteder etter kategori og slå på historikk for SMS, samtaler og kontakter. Telefonens filteradresse kan også brukes på en ruter eller med en VPN. Telefonen kan oppdatere seg selv, og serveren kan ta sikkerhetskopier.",
-    note: "Kommer snart: SOS.",
+    note: "SOS: barnet ditt kan holde inne en knapp for å sende et hastende SOS eller en hjelpeforespørsel. Foreldrene får posisjonen hvis posisjonsdeling er på, og er telefonen frakoblet, kan en SMS sendes i stedet. 112 ligger på samme skjerm.",
   },
   open: {
     title: "Åpen kildekode",

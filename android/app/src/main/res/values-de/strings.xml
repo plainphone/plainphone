@@ -12,7 +12,7 @@
     <string name="version_line">Version %1$s</string>
     <string name="maintenance_title">Wartung</string>
     <string name="maintenance_pin_hint">Eltern-PIN</string>
-    <string name="maintenance_unlock">Offen</string>
+    <string name="maintenance_unlock">Öffnen</string>
     <string name="maintenance_wrong_pin">Die PIN stimmt nicht. Versuch es noch einmal.</string>
     <string name="maintenance_install_limit">Heute sind keine weiteren Installationen möglich. Versuch es morgen noch einmal.</string>
     <string name="maintenance_install_unavailable">Diese App wartet nicht mehr auf die Installation.</string>
@@ -57,7 +57,7 @@
     <string name="phone_app_name">Telefon</string>
     <string name="messages_app_name">Nachrichten</string>
     <string name="tab_contacts">Kontakte</string>
-    <string name="tab_recents">Jüngste</string>
+    <string name="tab_recents">Zuletzt</string>
     <string name="tab_messages">Nachrichten</string>
     <string name="tab_keypad">Tastenfeld</string>
     <string name="action_call">%1$s anrufen</string>
@@ -109,11 +109,11 @@
     <string name="call_failed">Der Anruf konnte nicht gestartet werden.</string>
     <string name="call_unknown">Unbekannt</string>
     <string name="call_incoming">Eingehender Anruf</string>
-    <string name="call_dialing">Berufung…</string>
+    <string name="call_dialing">Anruf wird aufgebaut…</string>
     <string name="call_on_hold">In der Warteschleife</string>
     <string name="call_ended">Anruf beendet</string>
-    <string name="call_answer">Antwort</string>
-    <string name="call_decline">Abfall</string>
+    <string name="call_answer">Annehmen</string>
+    <string name="call_decline">Ablehnen</string>
     <string name="call_hang_up">Auflegen</string>
     <string name="call_ongoing">Anruf läuft</string>
     <string name="call_mute">Stumm</string>
@@ -192,7 +192,7 @@
     <string name="light_step_pin_title">PIN wählen</string>
     <string name="light_step_pin_body">Mit dieser PIN kannst du Plainphone später auf diesem Telefon ändern. Wähle mindestens 6 Ziffern und behalte sie für dich.</string>
     <string name="light_step_pin_action">PIN speichern</string>
-    <string name="light_pin_label">STIFT</string>
+    <string name="light_pin_label">PIN</string>
     <string name="light_pin_again">Wieder die gleiche PIN</string>
     <string name="light_pin_too_short">Gib mindestens 6 Ziffern ein.</string>
     <string name="light_pin_mismatch">Die beiden PINs sind nicht identisch.</string>
@@ -280,7 +280,7 @@
     <string name="setup_pair_account">Dieses Telefon mit %1$s verbinden?</string>
     <string name="setup_pair_household">Haushalt: %1$s</string>
     <string name="setup_connect">Telefon anschließen</string>
-    <string name="setup_not_you">Nicht du? Stornieren</string>
+    <string name="setup_not_you">Nicht du? Abbrechen</string>
     <string name="setup_pair_self">Öffne app.plainphone.org und wähle im Dashboard „Für mich“. Prüfe dann das Konto auf diesem Telefon.</string>
     <string name="setup_profile_mismatch">Dieser Link gehört zu einem anderen Profil. Geh zurück, um deine Auswahl zu ändern, oder brich ab und verwende einen anderen Link.</string>
     <string name="setup_connected_account">Verbunden mit %1$s</string>
@@ -367,7 +367,7 @@
     <string name="setup_summary_undo_off">Rückgängig nach der Einrichtung ist aus. Zum Entfernen von Plainphone brauchst du deinen Schlüssel.</string>
     <string name="setup_summary_wait">Lockerere Regeln und das Entfernen von Plainphone warten %1$d Std.</string>
     <string name="support_open_help">Hilfe öffnen</string>
-    <string name="support_help_fallback">Öffnen Sie %1$s auf einem anderen Gerät.</string>
+    <string name="support_help_fallback">Öffne %1$s auf einem anderen Gerät.</string>
     <string name="support_copy_diagnostics">Technische Angaben kopieren</string>
     <string name="support_copied">Technische Angaben kopiert.</string>
     <string name="self_approval_waiting">Warte auf deine Vertrauensperson.</string>
