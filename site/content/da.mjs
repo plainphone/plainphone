@@ -103,7 +103,7 @@ export default {
     ],
     guide: "Åbn opsætningsvejledningen",
     available: "Du kan allerede vælge godkendte kontakter, filtrere hjemmesider efter kategori og slå historik for sms, opkald og kontakter til. Telefonens filteradresse kan også bruges på en router eller med en VPN. Telefonen kan opdatere sig selv, og serveren kan tage sikkerhedskopier.",
-    note: "SOS: dit barn kan holde en knap inde for at sende en hastende SOS eller en anmodning om hjælp. Forældrene får positionen, hvis deling af placering er slået til, og er telefonen offline, sendes en sms i stedet. 112 ligger på samme skærm.",
+    note: "SOS: dit barn kan holde en knap inde for at sende en hastende SOS eller en anmodning om hjælp. Forældrene får positionen, hvis deling af placering er slået til, og er telefonen offline, kan der sendes en sms i stedet. 112 ligger på samme skærm.",
   },
   open: {
     title: "Åben kildekode",

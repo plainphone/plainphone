@@ -103,7 +103,7 @@ export default {
     ],
     guide: "Einrichtungsanleitung öffnen",
     available: "Sie können bereits erlaubte Kontakte auswählen, Websites nach Kategorien filtern und den Verlauf für SMS, Anrufe und Kontakte aktivieren. Die Filteradresse des Handys lässt sich auch auf einem Router oder mit einem VPN nutzen. Das Handy kann sich selbst aktualisieren und der Server kann Sicherungskopien erstellen.",
-    note: "SOS: Ihr Kind kann eine Taste gedrückt halten, um einen dringenden SOS-Ruf oder eine Hilfeanfrage zu senden. Die Eltern erhalten den Standort, wenn die Standortfreigabe aktiviert ist. Ist das Handy offline, wird stattdessen eine SMS gesendet. Die 112 ist auf demselben Bildschirm.",
+    note: "SOS: Ihr Kind kann eine Taste gedrückt halten, um einen dringenden SOS-Ruf oder eine Hilfeanfrage zu senden. Die Eltern erhalten den Standort, wenn die Standortfreigabe aktiviert ist. Ist das Handy offline, kann stattdessen eine SMS gesendet werden. Die 112 ist auf demselben Bildschirm.",
   },
   open: {
     title: "Offener Quellcode",
@@ -491,7 +491,7 @@ export default {
       {
         title: "Nur Android 10 bis 13: Legen Sie die Standard-Telefon-App fest",
         body: [
-          "Nachdem Sie das Dashboard-Konto bestätigt haben, fragt das Telefon: <em>Plainphone als Standard-Telefon-App festlegen?</em> Tippen Sie auf <strong>Als Standard festlegen</strong>. Hast du es verpasst? Öffnen Sie die Plainphone-App und Sie werden erneut gefragt.",
+          "Nachdem Sie das Dashboard-Konto bestätigt haben, fragt das Telefon: <em>Plainphone als Standard-Telefon-App festlegen?</em> Tippen Sie auf <strong>Als Standard festlegen</strong>. Haben Sie es verpasst? Öffnen Sie die Plainphone-App und Sie werden erneut gefragt.",
           "Unter Android 14 und neuer geschieht dies von selbst.",
         ],
         fig: "dialog",
