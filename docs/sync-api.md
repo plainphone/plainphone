@@ -201,6 +201,7 @@ releases signed with the same key.
 | Field | What the phone does |
 |---|---|
 | `apps.allowed` / `apps.hidden` | `setApplicationHidden` for hidden; unknown apps stay hidden |
+| `apps.open` / `apps.blocked` | Open mode ([open-mode.md](open-mode.md)). With `open: true`, allow every app that is not in `blocked`, also apps installed after the last sync. `blocked` includes the known apps of blocked categories that are not installed yet. A school time or bedtime window wins. Missing from older servers: the allow-list applies |
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
