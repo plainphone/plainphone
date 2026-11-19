@@ -123,6 +123,7 @@ data class DeviceStatus(
     val callRoleActionNeeded: Boolean = false,
     val parallelAppsRemovedId: String? = null,
     val lateGoogleAccountId: String? = null,
+    val androidVersion: String? = null,
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
 ) {
@@ -158,6 +159,7 @@ data class DeviceStatus(
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }
+            androidVersion?.let { put("androidVersion", it) }
             update?.let { put("update", it.toJson()) }
         }
 }

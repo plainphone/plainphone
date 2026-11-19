@@ -4,9 +4,10 @@
 // approvals) through the real router, against a fake API.
 import * as SecureStore from "expo-secure-store";
 import * as Linking from "expo-linking";
-import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
-import { Linking as NativeLinking, Share } from "react-native";
+import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import { AccessibilityInfo, Linking as NativeLinking, Share } from "react-native";
 import { clearPendingInvite } from "../src/lib/pendingInvite";
+import type { Phone } from "../src/api/models";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -24,7 +25,7 @@ const APPS = [
 const FUTURE = new Date(Date.now() + 3 * 3_600_000).toISOString();
 
 /** The routes every phone screen loads first. */
-function phoneApi(phone: Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; status?: { appVersion?: string; appVersionCode?: number; deviceOwner?: boolean; lockIntact: boolean; failedPolicies: string[]; lateGoogleAccount?: boolean; filterMethod?: "privateDns"; filterWorking?: boolean; filterIssue?: "wrongHost" } } = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
+function phoneApi<T extends Omit<typeof PHONE, "lastSeenAt" | "pairedAt"> & { pairedAt: string | null; lastSeenAt: string | null; attestation?: unknown; status?: Partial<NonNullable<Phone["status"]>> }>(phone: T | typeof PHONE = PHONE, extra: Parameters<typeof fakeApi>[0] = {}) {
   return fakeApi({
     "GET /me": { body: ME },
     [`GET /phones/${phone.id}`]: { body: phone },
@@ -115,6 +116,64 @@ describe("pairing", () => {
 });
 
 describe("overview", () => {
+  it("shows the recovery guide when a pending release targets an old app", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      status: {
+        appVersion: "0.1.3", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/^The last reported app version is too old/)).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+    expect(screen.getByText("Open the recovery reset guide")).toBeTruthy();
+  });
+
+  it("shows the last report after three pending release syncs", async () => {
+    phoneApi({
+      ...PHONE,
+      releaseRequestedAt: "2026-11-18T19:26:00Z",
+      releaseSyncCount: 3,
+      status: {
+        appVersion: "0.1.8", deviceOwner: true, lockIntact: true, failedPolicies: [],
+        reportedAt: "2026-11-18T19:27:00Z",
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText("The phone has not confirmed the release.")).toBeTruthy();
+    expect(screen.getByText(/^Last phone report:/)).toBeTruthy();
+  });
+
+  it.each([false, true])("shows the notice when the pending phone disappears (opened from list: %s)", async (fromList) => {
+    jest.useFakeTimers();
+    const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+    try {
+      let removed = false;
+      phoneApi(PHONE, {
+        [`GET /phones/${PHONE.id}`]: () => removed
+          ? { status: 404, body: { error: "phone not found" } }
+          : { body: { ...PHONE, releaseRequestedAt: "2026-11-18T19:26:00Z" } },
+        "GET /phones": () => ({ body: { phones: removed ? [] : [PHONE] } }),
+      });
+      await renderRouter(routes, { initialUrl: fromList ? "/" : at(PHONE) });
+      if (fromList) await fireEvent.press(await screen.findByTestId(`phone-${PHONE.id}`));
+      await screen.findByTestId("section-apps");
+      removed = true;
+      await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+      expect(screen).toHavePathname("/");
+      const notice = "This phone is no longer in your list. Check on the phone whether Plainphone is still on.";
+      expect(screen.getByText(notice)).toBeVisible();
+      expect(announce).toHaveBeenCalledWith(notice);
+      await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByText(notice)).toBeNull();
+    } finally {
+      announce.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
   it("saves and shows the selected Plainphone language", async () => {
     const api = phoneApi(PHONE, {
       [`PATCH /phones/${PHONE.id}`]: { body: { ...PHONE, language: "de" } },

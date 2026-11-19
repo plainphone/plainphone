@@ -98,6 +98,10 @@ export interface Phone {
   awaitingServerMove?: boolean;
   /** Set while the parents have released the phone and it has not switched Plainphone off yet. */
   releaseRequestedAt: string | null;
+  supportEnabled?: boolean;
+  releaseWarningsEnabled?: boolean;
+  releaseSyncCount?: number;
+  androidVersion?: string | null;
   lastSeenAt: string | null;
   /** Only on a single phone: whether it has confirmed the rules the server holds now. Null while it has confirmed none. */
   rulesCurrent?: boolean | null;

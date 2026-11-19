@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AccessibilityInfo, Linking, Switch as NativeSwitch } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
 import type { ChangeResult, PendingChange, Phone } from "../../../api/models";
+import { PhoneSupport, ReleaseNotice } from "../../../components/PhoneSupport";
 import { PhoneLanguagePicker } from "../../../components/PhoneLanguagePicker";
 import { Disclosure, ItemRow } from "../../../components/parts";
 import { PhoneGate, pendingWhen, usePhone } from "../../../components/PhoneContext";
@@ -398,7 +399,7 @@ function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNull
 function Overview() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const { phone, pending, reloadPhone, reloadPending } = usePhone();
+  const { phone, pending, reloadPhone, reloadPending, setPhone } = usePhone();
   const now = useNow(60_000);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -408,6 +409,22 @@ function Overview() {
       void reloadPending();
     }, [reloadPending]),
   );
+
+  const releasing = Boolean(phone.releaseRequestedAt);
+  useFocusEffect(useCallback(() => {
+    if (!phone.pairedAt) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void unwrap<Phone>(client.GET("/phones/{pid}", { params: { path: { pid: phone.id } } }))
+        .then((latest) => { if (active) setPhone(latest); })
+        .catch((error) => {
+          if (active && releasing && error instanceof ApiError && error.status === 404) {
+            router.dismissTo({ pathname: "/", params: { notice: "phone-unavailable" } });
+          }
+        });
+    }, 60_000);
+    return () => { active = false; clearInterval(timer); };
+  }, [phone.id, phone.pairedAt, releasing, router, setPhone]));
 
   async function refresh() {
     setRefreshing(true);
@@ -478,6 +495,7 @@ function Overview() {
           ) : null}
         </VStack>
       ) : null}
+      <ReleaseNotice />
       {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
       {overrun !== undefined || technicalSteps.length > 0 ? (
@@ -511,6 +529,7 @@ function Overview() {
 
       <VStack>
         <Text variant="heading">{t("native.manage")}</Text>
+        <PhoneSupport />
         <PushPreferences />
         {phone.pairedAt ? <ServerMoveToggle /> : null}
         <FreePromiseSetting key={phone.id} />

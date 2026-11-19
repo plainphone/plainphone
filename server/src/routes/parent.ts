@@ -683,6 +683,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       z.object({
         name: z.string().trim().min(1).max(40).optional(),
         locationEnabled: z.boolean().optional(),
+        supportEnabled: z.boolean().optional(),
+        releaseWarningsEnabled: z.boolean().optional(),
         pushWakeups: z.boolean().optional(),
         preferUnifiedPush: z.boolean().optional(),
         language: v.phoneLanguage.optional(),
@@ -697,6 +699,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
     }
     const fields = {
       ...(input.name ? { name: input.name } : {}),
+      ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
+      ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
       ...(input.pushWakeups === undefined ? {} : { pushWakeups: input.pushWakeups }),
       ...(input.preferUnifiedPush === undefined ? {} : { preferUnifiedPush: input.preferUnifiedPush }),
       ...(input.preferUnifiedPush === true ? { fcmToken: null, fcmValidationKey: null } : {}),
