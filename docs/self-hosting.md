@@ -28,7 +28,7 @@ pairing QR code.
 | `DATABASE_URL` | (set by compose) | PostgreSQL connection string |
 | `PUBLIC_URL` | | Public address of the parent app |
 | `MAIL_PROVIDER` | `none` | `none` sends nothing (nobody can sign in until you configure mail), `smtp` uses `SMTP_URL`. `log` prints mails to stdout and is refused in production |
-| `SMTP_URL` | | e.g. `smtps://user:pass@smtp.example.org:465` |
+| `SMTP_URL` | | e.g. `smtps://user:pass@smtp.example.org:465`. Missing or invalid: mail is switched off and `/api/health` says so |
 | `MAIL_FROM` | `Plainphone <no-reply@plainphone.org>` | Sender |
 | `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`) |
 | `DNS_HOST_SUFFIX` | `dns.plainphone.org` | Phones use `<clientId>.<suffix>` as private DNS |
@@ -99,3 +99,7 @@ Follow [push setup](push-setup.md) for Firebase and Apple credentials. Configure
 4. Keep endpoint URLs private. They are capabilities. The example stack permits anonymous access for the distributor-generated topics and should run as a dedicated instance with normal proxy and ntfy rate limits. For the child wake channel, only a short reason goes through ntfy. Plainphone does not send names, rules or locations.
 
 See [ntfy configuration](https://docs.ntfy.sh/config/) and the [UnifiedPush Android protocol](https://unifiedpush.org/developers/spec/android/).
+
+## Optional settings degrade, they do not crash
+
+Only required settings (such as `DATABASE_URL`, and `DNS_API_URL` and `DNS_API_TOKEN` when `DNS_PROVIDER=http`) stop the server at startup. Invalid settings for FCM, APNs, Web Push (VAPID) or SMTP switch that integration off, log one line without the secret, and show up in `GET /api/health` as `push.errors` and `errors`. See [push setup](push-setup.md#invalid-settings-switch-a-provider-off-they-do-not-stop-the-server) for the accepted formats and messages.

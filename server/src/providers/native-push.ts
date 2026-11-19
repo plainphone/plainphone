@@ -118,22 +118,72 @@ export class Apns {
   }
 }
 
+const base64 = /^[A-Za-z0-9+/_-]+={0,2}$/;
+
+/** Decodes a strict base64 (or base64url) string, or returns undefined when it is not one. */
+function decodeBase64(value: string) {
+  const compact = value.replace(/\s+/g, "");
+  return base64.test(compact) ? Buffer.from(compact, "base64").toString("utf8") : undefined;
+}
+
+/** Service-account JSON as raw JSON or base64 of it. Throws a message-free Error when it is neither. */
+export function normalizeServiceAccount(value: string) {
+  const trimmed = value.trim();
+  const json = trimmed.startsWith("{") ? trimmed : decodeBase64(trimmed)?.trim();
+  if (!json?.startsWith("{")) throw new Error("not JSON");
+  return json;
+}
+
+/** An APNs `.p8` key as PEM text, PEM with literal `\n` escapes, or base64 of the PEM. */
+export function normalizeApnsKey(value: string) {
+  let pem = value.trim();
+  if (!pem.includes("-----BEGIN")) pem = decodeBase64(pem)?.trim() ?? "";
+  pem = pem.replace(/\\n/g, "\n");
+  if (!pem.includes("-----BEGIN")) throw new Error("not PEM");
+  return pem;
+}
+
+/**
+ * FCM and APNs are optional: invalid settings switch that provider off and are reported as short
+ * reasons in `errors`, never with the secret or the underlying error text.
+ */
 export function configureNativePush(cfg: Config) {
   const { FCM_SERVICE_ACCOUNT_JSON: inline, FCM_SERVICE_ACCOUNT_FILE: file, APNS_KEY_P8: p8,
     APNS_KEY_ID: kid, APNS_TEAM_ID: team, APNS_BUNDLE_ID: bundle, APNS_SANDBOX: sandbox } = cfg;
+  const errors: string[] = [];
+  const fail = (reason: string) => {
+    errors.push(reason);
+    console.error(`push provider disabled: ${reason}`);
+  };
   let fcm: Fcm | undefined;
   let apns: Apns | undefined;
-  try {
-    if (inline || file) fcm = new Fcm(inline || readFileSync(file!, "utf8"));
-  } catch {
-    throw new Error("Invalid FCM service account configuration");
+  if (inline || file) {
+    let raw: string | undefined;
+    try {
+      raw = inline || readFileSync(file!, "utf8");
+    } catch {
+      fail("fcm: service account file unreadable");
+    }
+    if (raw !== undefined) {
+      try {
+        fcm = new Fcm(normalizeServiceAccount(raw));
+      } catch {
+        fail("fcm: invalid service account");
+      }
+    }
   }
-  try {
-    if (p8 && kid && team && bundle) apns = new Apns(p8.replace(/\\n/g, "\n"), kid, team, bundle, sandbox === "true");
-  } catch {
-    throw new Error("Invalid APNs key configuration");
+  if (p8 || kid || team || bundle) {
+    if (!(p8 && kid && team && bundle)) {
+      fail("apns: incomplete configuration");
+    } else {
+      try {
+        apns = new Apns(normalizeApnsKey(p8), kid, team, bundle, sandbox === "true");
+      } catch {
+        fail("apns: invalid key");
+      }
+    }
   }
-  return { fcm, apns };
+  return { fcm, apns, errors };
 }
 
 export class NativeParentPush implements ParentPushProvider {

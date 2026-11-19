@@ -23,6 +23,12 @@ It serves the API for phones and parent apps, and the parent PWA from `web/dist`
 
 ## Design notes
 
+- **Optional config degrades, it does not crash.** Required settings (database, `DNS_PROVIDER=http`
+  without its URL and token) fail fast in `loadConfig`. FCM, APNs, Web Push and SMTP are built in
+  `src/services/providers.ts`: an invalid value switches that integration off, logs one line with
+  the name and reason (never the value or the underlying error), and appears in `/api/health` as
+  `push.errors` and `errors`. A new optional integration must follow the same rule.
+
 - **Self key (D12).** Every change is an `Op`. On a Self phone, an op that loosens the rules is
   stored as a pending change: with the delay key it applies at `effectiveAt` (by the sweeper,
   or earlier when the phone polls), with the trusted-person key when that person approves.

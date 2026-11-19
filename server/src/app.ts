@@ -108,7 +108,8 @@ export function createApp(ctx: Ctx) {
         fcm: parentPushEnabled(ctx.parentPush, "fcm"),
         apns: parentPushEnabled(ctx.parentPush, "apns"),
         unifiedpush: Boolean(ctx.push.unifiedPushAvailable),
-      } });
+        errors: ctx.degraded?.push ?? [],
+      }, errors: ctx.degraded?.other ?? [] });
     } catch {
       return c.json({ ok: false, db: "down" }, 503);
     }

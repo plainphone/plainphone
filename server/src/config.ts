@@ -108,14 +108,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid configuration: ${z.prettifyError(parsed.error)}`);
   }
   const cfg = parsed.data;
-  if (cfg.MAIL_PROVIDER === "smtp" && !cfg.SMTP_URL) {
-    throw new Error("MAIL_PROVIDER=smtp needs SMTP_URL");
-  }
   if (cfg.MAIL_PROVIDER === "log" && cfg.NODE_ENV === "production") {
     throw new Error("MAIL_PROVIDER=log prints login links and is not allowed in production");
-  }
-  if (Boolean(cfg.VAPID_PUBLIC_KEY) !== Boolean(cfg.VAPID_PRIVATE_KEY)) {
-    throw new Error("set both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, or neither");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");
