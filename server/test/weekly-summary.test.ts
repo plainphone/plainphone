@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { householdMembers, householdSummaries, households, phoneRequests, phones, phoneUsageDays } from "../src/db/schema.js";
+import { householdMembers, householdSummaries, households, moreTimeRequests, phoneRequests, phones, phoneUsageDays } from "../src/db/schema.js";
 import { weeklySummaryMail } from "../src/lib/summary-mail.js";
 import { toSummaryLocale } from "../src/lib/summary-text.js";
 import { alertClass, batchedIntoSummary } from "../src/services/alert-policy.js";
@@ -105,6 +105,23 @@ describe("summary numbers", () => {
     await sweepSummaries(h.ctx);
     const data = (await summariesOf(householdId))[0]!.data as SummaryData;
     expect(data.phones[0]!.requests).toEqual({ asked: 3, approved: 2, rejected: 1, byKind: { app: 2, contact: 1 } });
+  });
+
+  it("counts asks for more time with the other requests", async () => {
+    const { phoneId, householdId } = await setup();
+    const day = (d: string) => new Date(`2026-11-${d}Z`);
+    await h.ctx.db.insert(moreTimeRequests).values([
+      { phoneId, packageName: "*", day: "2026-11-17", createdAt: day("17T16:00:00"), status: "approved", answer: "15", grantedMinutes: 15, decidedAt: day("17T16:05:00") },
+      { phoneId, packageName: "com.example.game", day: "2026-11-18", createdAt: day("18T16:00:00"), status: "declined", answer: "no", decidedAt: day("18T16:02:00") },
+      // Expired unanswered: asked, but not answered.
+      { phoneId, packageName: "*", day: "2026-11-19", createdAt: day("19T16:00:00"), status: "expired" },
+      // Before the week.
+      { phoneId, packageName: "*", day: "2026-11-10", createdAt: day("10T16:00:00"), status: "approved", answer: "60", decidedAt: day("10T16:01:00") },
+    ]);
+    at(SUNDAY_1800_CET);
+    await sweepSummaries(h.ctx);
+    const data = (await summariesOf(householdId))[0]!.data as SummaryData;
+    expect(data.phones[0]!.requests).toEqual({ asked: 3, approved: 1, rejected: 1, byKind: { time: 3 } });
   });
 
   it("counts rule changes by category, whether applied at once or after a wait", async () => {

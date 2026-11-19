@@ -41,6 +41,8 @@ import org.plainphone.app.provisioning.EnrollmentAccountNotice
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.TimeLimits
+import org.plainphone.app.light.BlockedActivity
+import org.plainphone.app.time.LimitWarningNotifier
 import org.plainphone.app.time.TimeGuard
 
 /**
@@ -168,6 +170,11 @@ class HomeActivity : ComponentActivity() {
     }
 
     private fun openApp(app: HomeApp) {
+        // A used-up app gets Plainphone's own stop screen (with "Ask for more time"), not Android's "app paused".
+        if ((app.minutesLeft ?: 1) <= 0) {
+            runCatching { startActivity(BlockedActivity.intent(this, app.packageName, BlockedActivity.Reason.TIME_USED_UP)) }
+            return
+        }
         val component = ComponentName.unflattenFromString(app.component) ?: return
         val intent = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
@@ -248,6 +255,7 @@ class HomeActivity : ComponentActivity() {
                 date = dateText(at, context.resources.configuration.locales[0]),
                 noticeUntil = state.notice?.let { timeText(context, it.until) },
                 offerDefaultHome = !isOwner && !isHome,
+                limitWarning = runCatching { HomeTimeLimits.warning(context) }.getOrNull(),
             )
         }
 
@@ -285,6 +293,13 @@ object HomeTimeLimits {
         // Without usage access no use is counted, and every cap would look untouched all day.
         if (!TimeGuard.hasUsageAccess(context)) emptyMap()
         else TimeGuard.snapshot(context)?.let { minutesLeft(it.evaluation, it.exempt, packages) }.orEmpty()
+    }
+
+    /** The 5-minute warning line while a limit is about to run out (time/LimitWarning.kt), or null. */
+    @Volatile
+    var warning: (Context) -> String? = { context ->
+        if (!TimeGuard.hasUsageAccess(context)) null
+        else TimeGuard.snapshot(context)?.let { LimitWarningNotifier.banner(context, it) }
     }
 
     /**

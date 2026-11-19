@@ -62,6 +62,8 @@ data class HomeUi(
     val noticeUntil: String? = null,
     /** Light mode: Plainphone is not the home screen yet, offer to pick it. */
     val offerDefaultHome: Boolean = false,
+    /** The 5-minute warning, already worded (time/LimitWarning.kt). */
+    val limitWarning: String? = null,
 )
 
 class HomeActions(
@@ -107,7 +109,11 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp),
         ) {
-            Spacer(Modifier.height(56.dp))
+            ui.limitWarning?.let {
+                Spacer(Modifier.height(16.dp))
+                LimitWarningNotice(it)
+            }
+            Spacer(Modifier.height(if (ui.limitWarning != null) 24.dp else 56.dp))
             Clock(ui.time, ui.date)
             ui.noticeUntil?.let { until ->
                 Spacer(Modifier.height(20.dp))

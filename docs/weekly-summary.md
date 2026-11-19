@@ -24,7 +24,7 @@ the limit). A phone without limits shows "No screen time reported". Use is kept 
 for 8 weeks.
 
 "Ask for more time" requests have their own table (docs/more-time.md) and are counted in the
-requests line once that feature is on the server.
+requests line (as kind `time`).
 
 ## When it is sent
 

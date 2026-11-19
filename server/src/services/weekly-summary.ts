@@ -11,6 +11,7 @@ import {
   householdSummaries,
   households,
   phoneApps,
+  moreTimeRequests,
   phoneRequests,
   phones,
   phoneUsageDays,
@@ -92,6 +93,17 @@ export async function buildSummary(
     .from(phoneRequests)
     .where(and(inArray(phoneRequests.phoneId, ids), inArray(phoneRequests.status, ["approved", "rejected"]), inPeriod(phoneRequests.decidedAt)))
     .groupBy(phoneRequests.phoneId, phoneRequests.status);
+  // "Ask for more time" (docs/more-time.md) has its own table: asked by when it was made, answered by when it was decided.
+  const moreAsked = await db
+    .select({ phoneId: moreTimeRequests.phoneId, n: sql<number>`count(*)::int` })
+    .from(moreTimeRequests)
+    .where(and(inArray(moreTimeRequests.phoneId, ids), inPeriod(moreTimeRequests.createdAt)))
+    .groupBy(moreTimeRequests.phoneId);
+  const moreAnswered = await db
+    .select({ phoneId: moreTimeRequests.phoneId, status: moreTimeRequests.status, n: sql<number>`count(*)::int` })
+    .from(moreTimeRequests)
+    .where(and(inArray(moreTimeRequests.phoneId, ids), inArray(moreTimeRequests.status, ["approved", "declined"]), inPeriod(moreTimeRequests.decidedAt)))
+    .groupBy(moreTimeRequests.phoneId, moreTimeRequests.status);
   const events = await db
     .select({ phoneId: summaryEvents.phoneId, kind: summaryEvents.kind, detail: summaryEvents.detail, n: sql<number>`count(*)::int` })
     .from(summaryEvents)
@@ -123,7 +135,10 @@ export async function buildSummary(
       const sum = days.reduce((a, d) => a + d.minutes, 0);
       const byKind: Record<string, number> = {};
       for (const a of asked.filter((r) => r.phoneId === p.id)) byKind[a.kind] = a.n;
+      const moreTime = moreAsked.find((r) => r.phoneId === p.id)?.n ?? 0;
+      if (moreTime > 0) byKind.time = moreTime;
       const count = (status: string) => answered.find((r) => r.phoneId === p.id && r.status === status)?.n ?? 0;
+      const moreCount = (status: string) => moreAnswered.find((r) => r.phoneId === p.id && r.status === status)?.n ?? 0;
       const mine = events.filter((e) => e.phoneId === p.id);
       const total = (kind: string) => mine.filter((e) => e.kind === kind).reduce((a, e) => a + e.n, 0);
       const byCategory: Partial<Record<ChangeCategory, number>> = {};
@@ -135,7 +150,7 @@ export async function buildSummary(
         phoneId: p.id,
         name: p.name,
         usage: days.length === 0 ? null : { days, averageMinutes: Math.round(sum / days.length), topApps },
-        requests: { asked: Object.values(byKind).reduce((a, n) => a + n, 0), approved: count("approved"), rejected: count("rejected"), byKind },
+        requests: { asked: Object.values(byKind).reduce((a, n) => a + n, 0), approved: count("approved") + moreCount("approved"), rejected: count("rejected") + moreCount("declined"), byKind },
         changes: { total: total("change"), byCategory },
         events: { protection: total("protection"), offline: total("offline"), checkin: total("checkin") },
       };

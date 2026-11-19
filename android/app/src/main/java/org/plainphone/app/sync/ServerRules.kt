@@ -62,6 +62,10 @@ data class ServerRules(
     val release: Boolean = false,
     val supportEnabled: Boolean = true,
     val releaseWarningsEnabled: Boolean = true,
+    /** The stop screen offers "Ask for more time" (docs/time-limits.md). Missing from older servers: true. */
+    val askMoreTimeEnabled: Boolean = true,
+    /** A quiet notice 5 minutes before a time limit runs out. Missing from older servers: true. */
+    val limitWarningEnabled: Boolean = true,
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
@@ -167,6 +171,8 @@ data class ServerRules(
                 release = j.optBoolean("release", false),
                 supportEnabled = j.optBoolean("supportEnabled", true),
                 releaseWarningsEnabled = j.optBoolean("releaseWarningsEnabled", true),
+                askMoreTimeEnabled = j.optBoolean("askMoreTimeEnabled", true),
+                limitWarningEnabled = j.optBoolean("limitWarningEnabled", true),
                 locationMode = locationMode(location),
                 sos = j.optJSONObject("sos")?.let { sos ->
                     val parents = sos.getJSONArray("parents")

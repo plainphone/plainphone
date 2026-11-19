@@ -194,15 +194,31 @@ export class NativeParentPush implements ParentPushProvider {
     return Boolean(platform === "web" ? this.webPublicKey : platform === "fcm" ? this.fcm : this.apns);
   }
 
-  async send(target: PushTarget, { title, body, url, tag, data: extra }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
-    if (target.platform === "web") return this.web.send(target, { title, body, url, tag }, opts);
+  async send(target: PushTarget, { title, body, url, tag, data: extra, actions }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
+    if (target.platform === "web") return this.web.send(target, { title, body, url, tag, actions, data: extra }, opts);
     const urgent = Boolean(opts?.urgent);
-    const data = { url, urgent: String(urgent), type: extra?.type ?? (url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone") };
+    const data = {
+      url, urgent: String(urgent),
+      type: extra?.type ?? (url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone"),
+      ...(extra?.phoneId && { phoneId: extra.phoneId }),
+      ...(extra?.requestId && { requestId: extra.requestId }),
+    };
+    // The parent app registers a notification category with this id, so the buttons exist without opening the app.
+    const category = actions?.length ? extra?.type : undefined;
     if (target.platform === "apns") {
       return this.apns?.send(target.endpoint, {
-        aps: { alert: { title, body }, sound: "default", ...(urgent && { "interruption-level": "time-sensitive" }) },
+        aps: { alert: { title, body }, sound: "default", ...(category && { category }), ...(urgent && { "interruption-level": "time-sensitive" }) },
         ...data,
       }, urgent) ?? "unsupported";
+    }
+    // FCM "notification" messages are drawn by Android itself, without buttons. Messages with buttons are
+    // data-only, so expo-notifications in the parent app draws them with the category's actions.
+    if (category) {
+      return this.fcm?.send({
+        token: target.endpoint,
+        data: { ...data, title, message: body, body: JSON.stringify(data), categoryId: category, channelId: "normal", tag },
+        android: { priority: "HIGH" }, // an answer someone waits for; normal priority can sit in Doze
+      }) ?? "unsupported";
     }
     return this.fcm?.send({
       token: target.endpoint, notification: { title, body }, data,

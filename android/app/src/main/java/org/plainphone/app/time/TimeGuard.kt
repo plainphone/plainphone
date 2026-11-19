@@ -30,6 +30,8 @@ object TimeGuard {
         /** Apps blocked for the rest of the day. */
         val blocked: Set<String>,
         val exempt: Set<String>,
+        /** The app in front according to the usage events, if any (for the 5-minute warning). */
+        val foreground: String? = null,
     )
 
     @Volatile private var exemptCache: Pair<Long, Set<String>>? = null
@@ -50,14 +52,15 @@ object TimeGuard {
         if (limits.isEmpty) return null
         val exempt = exempt(context)
         val zone = rules.timezone
-        val used = if (hasUsageAccess(context)) foregroundToday(context, now, zone) else emptyMap()
+        val events = if (hasUsageAccess(context)) eventsToday(context, now, zone) else emptyList()
+        val used = UsageCounter.foregroundMs(events, UsageCounter.dayStartMs(now, zone), now.toEpochMilli())
         val evaluation = limits.evaluate(used, now.atZone(zone).toLocalDate(), exempt)
         val blocked = if (evaluation.totalUsedUp) {
             AndroidDeviceControls(context).launchablePackages() + evaluation.usedUpApps - exempt
         } else {
             evaluation.usedUpApps - exempt
         }
-        return Snapshot(limits, evaluation, blocked, exempt)
+        return Snapshot(limits, evaluation, blocked, exempt, UsageCounter.foreground(events))
     }
 
     /** Apps blocked by time right now; empty without limits. */
@@ -77,11 +80,11 @@ object TimeGuard {
         return set
     }
 
-    private fun foregroundToday(context: Context, now: Instant, zone: ZoneId): Map<String, Long> {
-        val usm = context.getSystemService(UsageStatsManager::class.java) ?: return emptyMap()
+    private fun eventsToday(context: Context, now: Instant, zone: ZoneId): List<UsageCounter.Event> {
+        val usm = context.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
         val dayStart = UsageCounter.dayStartMs(now, zone)
         // Start a little before midnight so an app that was open then is counted from midnight.
-        val events = usm.queryEvents(dayStart - 3 * 3_600_000L, now.toEpochMilli()) ?: return emptyMap()
+        val events = usm.queryEvents(dayStart - 3 * 3_600_000L, now.toEpochMilli()) ?: return emptyList()
         val out = ArrayList<UsageCounter.Event>()
         val e = UsageEvents.Event()
         while (events.hasNextEvent()) {
@@ -97,6 +100,6 @@ object TimeGuard {
             } ?: continue
             out += UsageCounter.Event(e.packageName ?: "", kind, e.timeStamp)
         }
-        return UsageCounter.foregroundMs(out, dayStart, now.toEpochMilli())
+        return out
     }
 }

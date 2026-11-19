@@ -23,6 +23,7 @@ export function alertClass(e: NotifyEvent): AlertClass {
       return "can-wait";
     case "protection":
     case "approval":
+    case "moreTime":
     case "request":
     case "safety":
     case "sos":

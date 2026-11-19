@@ -7,8 +7,8 @@
 
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
-import { type Locale, phoneAlertMail, toLocale } from "../lib/mail-templates.js";
-import { summaryWords, toSummaryLocale } from "../lib/summary-text.js";
+import { type Locale, phoneAlertMail, type PushLocale, toLocale, toPushLocale } from "../lib/mail-templates.js";
+import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
@@ -24,6 +24,8 @@ export type NotifyEvent =
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
+  /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
+  | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }
   | { type: "sos"; id: string; phoneId: string; phoneName: string; kind: "urgent" | "help" }
   | { type: "test" }
   /** The weekly summary is ready (docs/weekly-summary.md). */
@@ -87,6 +89,11 @@ const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">
           title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
           body: `${e.what}. Open the app to approve or decline.`,
         };
+      case "moreTime":
+        return {
+          title: `${e.phoneName} asks for more time`,
+          body: `${e.what ?? "The daily limit"} is used up.${e.reason ? ` "${e.reason}"` : ""} Answer here or open the app.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: "I'm here"`, body: "The button on the phone was pressed." },
@@ -127,6 +134,11 @@ const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">
           title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
           body: `${e.what}. Åbn appen for at godkende eller afvise.`,
         };
+      case "moreTime":
+        return {
+          title: `${e.phoneName} beder om mere tid`,
+          body: `${e.what ?? "Den daglige grænse"} er brugt op.${e.reason ? ` ”${e.reason}”` : ""} Svar her eller åbn appen.`,
+        };
       case "safety":
         return {
           here: { title: `${e.phoneName}: ”Jeg er her”`, body: "Der blev trykket på knappen på telefonen." },
@@ -145,13 +157,63 @@ const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">
   },
 };
 
-/** The summary is written in all five languages; the alerts only in en and da. */
-export function pushMessage(e: NotifyEvent, locale: Locale, language: string = locale): PushMessage {
+/** The buttons on a "more time" notification. The ids are the answers the API takes. */
+const MORE_TIME_ACTIONS: Record<Locale, { id: string; title: string }[]> = {
+  en: [{ id: "15", title: "15 min" }, { id: "60", title: "1 hour" }, { id: "day", title: "Rest of the day" }, { id: "no", title: "No" }],
+  da: [{ id: "15", title: "15 min" }, { id: "60", title: "1 time" }, { id: "day", title: "Resten af dagen" }, { id: "no", title: "Nej" }],
+};
+
+/** "More time" in the languages the other push strings are not translated into yet; they fall back to English. */
+const MORE_TIME_TEXT: Record<
+  Exclude<PushLocale, Locale>,
+  {
+    title: (phone: string) => string;
+    total: string;
+    app: (app: string) => string;
+    quote: (reason: string) => string;
+    tail: string;
+    actions: { id: string; title: string }[];
+  }
+> = {
+  sv: {
+    title: (phone) => `${phone} ber om mer tid`,
+    total: "Den dagliga gränsen är slut.",
+    app: (app) => `Tiden för ${app} är slut.`,
+    quote: (reason) => `”${reason}”`,
+    tail: "Svara här eller öppna appen.",
+    actions: [{ id: "15", title: "15 min" }, { id: "60", title: "1 timme" }, { id: "day", title: "Resten av dagen" }, { id: "no", title: "Nej" }],
+  },
+  nb: {
+    title: (phone) => `${phone} ber om mer tid`,
+    total: "Den daglige grensen er brukt opp.",
+    app: (app) => `Tiden for ${app} er brukt opp.`,
+    quote: (reason) => `«${reason}»`,
+    tail: "Svar her eller åpne appen.",
+    actions: [{ id: "15", title: "15 min" }, { id: "60", title: "1 time" }, { id: "day", title: "Resten av dagen" }, { id: "no", title: "Nei" }],
+  },
+  de: {
+    title: (phone) => `${phone} bittet um mehr Zeit`,
+    total: "Das Tageslimit ist aufgebraucht.",
+    app: (app) => `Die Zeit für ${app} ist aufgebraucht.`,
+    quote: (reason) => `„${reason}“`,
+    tail: "Antworten Sie hier oder öffnen Sie die App.",
+    actions: [{ id: "15", title: "15 Min." }, { id: "60", title: "1 Stunde" }, { id: "day", title: "Rest des Tages" }, { id: "no", title: "Nein" }],
+  },
+};
+
+export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
   if (e.type === "summary") {
-    const w = summaryWords(toSummaryLocale(language));
+    const w = summaryWords(locale);
     return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
   }
-  const t = text[locale](e);
+  const more = locale === "sv" || locale === "nb" || locale === "de" ? MORE_TIME_TEXT[locale] : null;
+  const t =
+    more && e.type === "moreTime"
+      ? {
+          title: more.title(e.phoneName),
+          body: `${e.what === null ? more.total : more.app(e.what)}${e.reason ? ` ${more.quote(e.reason)}` : ""} ${more.tail}`,
+        }
+      : text[locale === "da" ? "da" : "en"](e);
   switch (e.type) {
     case "protection":
       return { ...t, url: e.trusted ? "/approvals" : e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
@@ -161,6 +223,9 @@ export function pushMessage(e: NotifyEvent, locale: Locale, language: string = l
       return { ...t, url: "/approvals", tag: "approvals" };
     case "request":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+    case "moreTime":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `moretime-${e.requestId.replaceAll("-", "")}`,
+        data: { type: "more-time", phoneId: e.phoneId, requestId: e.requestId }, actions: more?.actions ?? MORE_TIME_ACTIONS[locale as Locale] };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
     case "sos":
@@ -199,8 +264,8 @@ export async function notifyUsers(
         const sameRegistration = samePushRegistration(sub);
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
-          const language = toLocale(locale);
-          const message = pushMessage(e, language, locale);
+          const language = toPushLocale(locale);
+          const message = pushMessage(e, language);
           outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
           console.error(`push send failed: ${(err as Error).message}`);

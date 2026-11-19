@@ -27,6 +27,7 @@ import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
 import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
 import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { ServerMoveToggle } from "../components/ServerMoveToggle";
+import { MoreTimeSection } from "../components/MoreTimeSection";
 import { PhoneStateHint, PhoneStateTitle } from "../components/PhoneState";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 import { healthRows, receiptText } from "../lib/phone-health";
@@ -576,6 +577,7 @@ export function PhoneOverview() {
 
       {phone.pairedAt && <ServerMoveToggle />}
       {phone.openRequests > 0 && <RequestsSection />}
+      {phone.pairedAt && phone.profile === "child" && <MoreTimeSection phone={phone} setPhone={setPhone} notify={notify} />}
 
       {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}
 
