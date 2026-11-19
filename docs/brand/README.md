@@ -9,10 +9,10 @@ One logo, one favicon and one look on every surface: the site, the web dashboard
 | Overview | [![A](directions/a/overview.png)](directions/a/overview.png) | [![B](directions/b/overview.png)](directions/b/overview.png) | [![C](directions/c/overview.png)](directions/c/overview.png) |
 | Idea | Today's paper, ink and quiet green, made consistent. Mark: a phone outline with one level line. | The phone follows the family's day. Night blue and a warm sun. Mark: a sun coming up over water inside a phone. | Everything is a choice you can switch on or off. Graphite, white and one signal green. Mark: an upright switch that is also a phone. |
 | Strengths | Already in use on the site and dashboard, so rollout is cheap. Calm and readable. Tokens (#143) and Atkinson Hyperlegible Next carry over unchanged. | Warmest and most child-friendly. The day strip explains schedules and quiet nights in one picture. Clear dark-mode story. | Most distinctive and most legible at 16 px. Says the core product rule out loud ("everything can be switched off"). Minimal and modern. |
-| Risks | Least memorable. The green tile looks like many productivity apps. Not much of a redesign. | Most colour to maintain. At small sizes the sun and lines can look like a burger. Blue and yellow carry Swedish-flag/IKEA associations in the Nordics. Bricolage Grotesque is a trend font in 2025–26. | Lime can feel like fintech or sportswear. Graphite can feel cold for young children. A switch could be read as "control", so copy must keep saying who decides and that the child can see it. |
+| Risks | Least memorable. The green tile looks like many productivity apps. Not much of a redesign. | Most colour to maintain. At small sizes the sun and lines can look like a burger. Blue and yellow carry Swedish-flag/IKEA associations in the Nordics. Bricolage Grotesque is a trend font in 2025–26. | Lime can feel like fintech or sportswear. Graphite can feel cold for young children. A switch could be read as "control", so copy must keep saying who decides and that the child can see it. The knob sits at the bottom (the phone's button), and on a vertical switch down can read as "off" while the fill says "on"; test this with parents before the rollout, or move the knob up. |
 | Fit with the [design principles](../design-principles.md) | Neutral language (7) and honesty (10): nothing promises more than it does. | Quiet at night (9) and growing independence (6) are built into the picture. Risk of feeling playful where calm is better. | Visible rules (1, 2) and the toggle rule are the brand itself. The "on" colour is only used for state, never decoration, which keeps it neutral (7). |
 
-**Recommendation: C, Switch.** Mads asked for a full redesign that is simple, minimalist and modern, and the product rule from 19/11-26 is that everything can be switched on and off. C is the only direction where the logo itself says that, and it gives the strongest favicon at 16 and 32 px. Its palette passes WCAG 2.2 AA with the widest margins (body text 16.9:1 light, 17.1:1 dark). The cost: the action colour changes from green to graphite in light mode, so every surface needs its tokens changed. That work is needed for any new direction anyway (see [inventory](#asset-inventory)). Keep the copy warm to offset the cool palette, and always show the switch with the person who decides ("Du bestemmer", "Sam kan se det"). If the redesign should be as low-risk as possible, choose A: it costs the least, but it is an evolution, not a new look.
+**Recommendation: C, Switch.** Mads asked for a full redesign that is simple, minimalist and modern, and the product rule from 19/11-26 is that everything can be switched on and off. C is the only direction where the logo itself says that, and it gives the strongest favicon at 16 and 32 px. Its palette has the highest body-text contrast of the three (16.9:1 light, 17.1:1 dark); its danger pairs are a little tighter than A and B but still pass AA. The cost: the action colour changes from green to graphite in light mode, so every surface needs its tokens changed. That work is needed for any new direction anyway (see [inventory](#asset-inventory)). Keep the copy warm to offset the cool palette, and always show the switch with the person who decides ("Du bestemmer", "Sam kan se det"). If the redesign should be as low-risk as possible, choose A: it costs the least, but it is an evolution, not a new look.
 
 ## Brand core
 
@@ -77,7 +77,7 @@ Every place a logo, icon, favicon or brand colour lives today. Today there are *
 | README | `README.md` | Shield badge in `24604a`; hero image is `site/src/og-en.png` |
 | Store listing | none in the repo | No Play Store graphics yet (feature graphic 1024×500, icon 512) |
 
-Rollout per surface after the choice: replace the marks above with the chosen direction's files, add a real adaptive icon (`mipmap-anydpi-v26` with foreground, background and monochrome) and a separate white notification icon on Android, use one mail logo generated from the outlined wordmark, and move every palette to the token table in `docs/design-tokens.md`.
+Rollout per surface after the choice: replace the marks above with the chosen direction's files, add a real adaptive icon (`mipmap-anydpi-v26` with foreground, background and monochrome) and a separate white notification icon on Android, use one mail logo generated from the outlined wordmark, and move every palette to the token table in `docs/design-tokens.md` (PR #143).
 
 ## Shared rules
 
@@ -115,7 +115,7 @@ Use motion only to show that something changed: 120–180 ms opacity or colour, 
 
 ### Token roles
 
-Every direction fills the same roles as [`docs/design-tokens.md`](../design-tokens.md) (PR #143), plus two brand roles:
+Every direction fills the same roles as `docs/design-tokens.md` (added by PR #143, not yet on `main`; until then see the `feat/ux-common-tokens` branch), plus two brand roles:
 
 | Role | Use |
 | --- | --- |
@@ -249,7 +249,7 @@ Everything on a Plainphone is a choice someone can switch on or off, and only 11
 
 - **Type:** Schibsted Grotesk 400/700 for headings and body (Schibsted Media, Norway, OFL); IBM Plex Mono 500 for times, codes and the phone clock (IBM, OFL).
 - **Shape:** 6 px surfaces with a 1.5 px ink border, pill-shaped buttons and switches, no shadows.
-- **Colour rule:** signal green (`brand`) is a fill for "on" states and the mark, always with ink on it and an ink edge on light backgrounds (it is 1.2:1 against paper). It is never used for decoration, warnings or call buttons. In dark mode it is also the action colour.
+- **Colour rule:** signal green (`brand`) is a fill for "on" states and the mark, always with ink on it and an ink edge on light backgrounds (it is 1.2:1 against paper). It is never used for decoration, highlights, warnings or call buttons: call buttons on the phone are ink with paper text in both modes. In dark mode it is also the action colour for links, the focus ring and primary buttons.
 - **Files:** [`directions/c/`](directions/c/), same set as A. Mocks in [`mocks-light.png`](directions/c/preview/mocks-light.png) and [`mocks-dark.png`](directions/c/preview/mocks-dark.png).
 
 <!-- palette:c -->
@@ -296,7 +296,7 @@ Measured contrast:
 
 ## Regenerating the previews
 
-The SVGs are written by hand; everything else is generated and committed. The script fetches the fonts from `google/fonts` at a pinned commit into `docs/brand/.cache/` (git-ignored).
+The marks, icons and favicons (`mark*.svg`, `favicon*.svg`, `app-icon.svg`, `maskable.svg`, `adaptive-*.svg`, `notification.svg`) are written by hand. Everything else is generated and committed, so do not edit it by hand: `wordmark.svg` and `glyph-check.json` come from `tools/wordmarks.py`, and `lockup.svg`, `lockup-dark.svg`, the PNGs and the contrast tables come from `render.mjs`. The script fetches the fonts from `google/fonts` at a pinned commit into `docs/brand/.cache/` (git-ignored).
 
 ```sh
 node docs/brand/render.mjs --fonts        # fetch the fonts

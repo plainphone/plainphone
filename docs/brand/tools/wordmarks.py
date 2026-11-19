@@ -30,7 +30,7 @@ WORDMARKS = {
 FONTS_TO_CHECK = {
     "a": ["AtkinsonHyperlegibleNext[wght].ttf", "AtkinsonHyperlegibleMono[wght].ttf"],
     "b": ["BricolageGrotesque[opsz,wdth,wght].ttf", "Figtree[wght].ttf"],
-    "c": ["SchibstedGrotesk[wght].ttf", "IBMPlexMono-Regular.ttf"],
+    "c": ["SchibstedGrotesk[wght].ttf", "IBMPlexMono-Medium.ttf"],
 }
 REQUIRED = "æøåÆØÅäöüÄÖÜßéèêÉ0123456789–—’“”„«»·€:"
 

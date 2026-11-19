@@ -24,7 +24,6 @@ const FONT_FILES = {
   "Figtree[wght].ttf": "figtree",
   "BricolageGrotesque[opsz,wdth,wght].ttf": "bricolagegrotesque",
   "SchibstedGrotesk[wght].ttf": "schibstedgrotesk",
-  "IBMPlexMono-Regular.ttf": "ibmplexmono",
   "IBMPlexMono-Medium.ttf": "ibmplexmono",
 };
 
@@ -87,7 +86,7 @@ const directions = {
     shape: { surface: 6, control: 999, track: "-0.03em", border: "1.5px" },
     light: { paper: "#f5f5f3", sheet: "#ffffff", ink: "#141414", pencil: "#525252", divider: "#e3e3e0", outline: "#767676", action: "#141414", onAction: "#ffffff", tint: "#eef8cf", attention: "#fff2c2", danger: "#b3261e", dangerFill: "#fde8e6", brand: "#c5f04a", onBrand: "#141414" },
     dark: { paper: "#0f0f0f", sheet: "#1b1b1b", ink: "#f2f2ef", pencil: "#b3b3ae", divider: "#2d2d2b", outline: "#7c7c78", action: "#c5f04a", onAction: "#141414", tint: "#27301a", attention: "#393217", danger: "#ff8a80", dangerFill: "#3e1f1d", brand: "#c5f04a", onBrand: "#141414" },
-    brandNote: "Brand colour is the signal green. It is a fill for \"on\" states and the mark, with ink on top; in dark mode it is also the action colour.",
+    brandNote: "Brand colour is the signal green. It is a fill for \"on\" states and the mark, with ink on top; never decoration or call buttons. In dark mode it is also the action colour.",
   },
 };
 
@@ -312,7 +311,7 @@ ${key === "b" ? `.hero{gap:44px}.hero .hl{color:var(--action)}
 .art-b .now{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--action);border-radius:2px}
 .art-b .ticks{display:flex;justify-content:space-between;font-size:13px;color:var(--pencil);margin-top:6px}
 .art-b .cap{font-size:16px;line-height:1.45;margin-top:14px}` : ""}
-${key === "c" ? `.hero .hl{box-shadow:inset 0 -0.22em 0 var(--brand)}${mode === "dark" ? ".hero .hl{box-shadow:none;color:var(--brand)}" : ""}
+${key === "c" ? `.hero .hl{text-decoration:underline;text-decoration-thickness:0.07em;text-underline-offset:0.14em}
 .art-c{flex:1;background:var(--sheet);border:var(--bw) solid var(--ink);border-radius:var(--r);padding:8px 22px 18px}
 .art-c ul{list-style:none}
 .art-c li{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--divider);font-size:17px;font-weight:500}
@@ -377,7 +376,7 @@ ${key === "b" ? `.phone .call{border-radius:18px}.phone .rule{background:var(--a
 .phone .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 6px;align-content:start;padding-top:4px}
 .phone .apps li{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600}
 .phone .apps .ic{box-sizing:content-box;padding:13px;border-radius:18px;background:var(--sheet);color:var(--action)}` : ""}
-${key === "c" ? `.phone .call{border-radius:999px}
+${key === "c" ? `.phone .call{border-radius:999px;background:var(--ink);color:var(--paper)}
 .phone .rule{background:var(--sheet);border:1.5px solid var(--ink);border-radius:6px;font-family:var(--mono);font-size:13px}
 .phone .apps li{display:flex;align-items:center;gap:14px;font-size:17px;font-weight:500;padding:8px 0;border-bottom:1.5px solid var(--divider)}` : ""}
 </style>`;
@@ -407,33 +406,33 @@ function overview(key, svgs) {
   const img = (svg, size, extra = "") => `<span class="ico" style="width:${size}px;height:${size}px;${extra}">${svg.replace("<svg ", `<svg width="${size}" height="${size}" `)}</span>`;
   const fonts = d.fonts;
   const body = `<div class="ov">
-  <header><p class="tag">Retning ${d.letter}</p><h1>${d.name}</h1><p class="idea">${d.idea}</p></header>
+  <header><p class="tag">Direction ${d.letter}</p><h1>${d.name}</h1><p class="idea">${d.idea}</p></header>
   <div class="r1">
-    <div class="pan" style="background:${L.paper}"><p class="cap" style="color:${L.pencil}">Logo, lys</p><div class="lockbig">${lockup(key, "light")}</div><div class="marks">${img(svgs.mark, 96)}${img(svgs.mark, 48)}${img(svgs.mark, 24)}</div></div>
-    <div class="pan" style="background:${D.paper}"><p class="cap" style="color:${D.pencil}">Logo, mørk</p><div class="lockbig">${lockup(key, "dark")}</div><div class="marks">${img(svgs.markDark, 96)}${img(svgs.markDark, 48)}${img(svgs.markDark, 24)}</div></div>
+    <div class="pan" style="background:${L.paper}"><p class="cap" style="color:${L.pencil}">Logo, light</p><div class="lockbig">${lockup(key, "light")}</div><div class="marks">${img(svgs.mark, 96)}${img(svgs.mark, 48)}${img(svgs.mark, 24)}</div></div>
+    <div class="pan" style="background:${D.paper}"><p class="cap" style="color:${D.pencil}">Logo, dark</p><div class="lockbig">${lockup(key, "dark")}</div><div class="marks">${img(svgs.markDark, 96)}${img(svgs.markDark, 48)}${img(svgs.markDark, 24)}</div></div>
     <div class="pan icons" style="background:#ffffff">
-      <p class="cap">Ikoner i faktisk størrelse</p>
+      <p class="cap">Icons at real size</p>
       <div class="tabs"><div class="tab lt">${img(svgs.fav16, 16)}<span>Plainphone</span></div><div class="tab dk">${img(svgs.fav16, 16)}<span>Plainphone</span></div><div class="tab lt">${img(svgs.fav, 32)}<span>32 px</span></div></div>
       <div class="big">
         <figure>${img(svgs.app, 180, "border-radius:40px;overflow:hidden")}<figcaption>180 · apple-touch</figcaption></figure>
-        <figure>${img(svgs.maskable, 180, "border-radius:50%;overflow:hidden")}<figcaption>512 maskable, rund maske</figcaption></figure>
-        <figure><span class="ico adapt" style="width:180px;height:180px">${svgs.adaptBg.replace("<svg ", '<svg width="180" height="180" ')}${svgs.adaptFg.replace("<svg ", '<svg width="180" height="180" ')}</span><figcaption>Android adaptiv</figcaption></figure>
-        <figure><span class="ico mono" style="width:180px;height:180px">${svgs.adaptMono.replace("<svg ", '<svg width="180" height="180" ')}</span><figcaption>Android tema-ikon</figcaption></figure>
+        <figure>${img(svgs.maskable, 180, "border-radius:50%;overflow:hidden")}<figcaption>512 maskable, round mask</figcaption></figure>
+        <figure><span class="ico adapt" style="width:180px;height:180px">${svgs.adaptBg.replace("<svg ", '<svg width="180" height="180" ')}${svgs.adaptFg.replace("<svg ", '<svg width="180" height="180" ')}</span><figcaption>Android adaptive</figcaption></figure>
+        <figure><span class="ico mono" style="width:180px;height:180px">${svgs.adaptMono.replace("<svg ", '<svg width="180" height="180" ')}</span><figcaption>Android themed icon</figcaption></figure>
       </div>
-      <div class="notif"><span class="bar">${img(svgs.notif, 24)}<span>14.32</span></span>${img(svgs.notif, 72, "background:#3c4043;border-radius:12px;padding:10px;box-sizing:content-box")}<figcaption>Notifikationsikon, 24 dp og forstørret</figcaption></div>
+      <div class="notif"><span class="bar">${img(svgs.notif, 24)}<span>14.32</span></span>${img(svgs.notif, 72, "background:#3c4043;border-radius:12px;padding:10px;box-sizing:content-box")}<figcaption>Notification icon, 24 dp and enlarged</figcaption></div>
     </div>
   </div>
   <div class="r2">
-    <div class="pan pal" style="background:#ffffff"><p class="cap">Farver, lys og mørk (kontrast mod paper)</p><div class="sws">${swatches("light")}</div><div class="sws">${swatches("dark")}</div><p class="foot">${d.brandNote}</p></div>
+    <div class="pan pal" style="background:#ffffff"><p class="cap">Colours, light and dark (contrast against paper)</p><div class="sws">${swatches("light")}</div><div class="sws">${swatches("dark")}</div><p class="foot">${d.brandNote}</p></div>
     <div class="pan type" style="background:${L.sheet};color:${L.ink}">
-      <p class="cap" style="color:${L.pencil}">Skrift</p>
+      <p class="cap" style="color:${L.pencil}">Type</p>
       <p class="t-display">Din telefon, uden støjen.</p>
       <p class="t-body">Sam kan ringe til mor og far hele tiden. Skoletid gælder på hverdage, og Sam kan se reglerne på sin egen telefon. Æble, øre, ål. Größe, Bläck, Søknad.</p>
       <p class="t-mono num">08.00–14.00 · Kode 482 913 · 112</p>
-      <p class="t-meta" style="color:${L.pencil}">${fonts.display.family} ${fonts.display.weight} til overskrifter · ${fonts.body.family} ${fonts.body.weight} til brødtekst · ${fonts.mono.family}${fonts.mono.tabular ? " med tabeltal" : ""} til tider og koder. Alle SIL OFL 1.1.</p>
+      <p class="t-meta" style="color:${L.pencil}">${fonts.display.family} ${fonts.display.weight} for headings · ${fonts.body.family} ${fonts.body.weight} for body · ${fonts.mono.family}${fonts.mono.tabular ? " with tabular figures" : ""} for times and codes. All SIL OFL 1.1.</p>
     </div>
   </div>
-  <div class="r3"><p class="cap">Mock: forside, kort i dashboardet (lys og mørk) og telefonens startskærm</p>
+  <div class="r3"><p class="cap">Mocks: site hero, dashboard card (light and dark) and phone home screen</p>
     <div class="mocks">
       <div class="m-hero">${hero(key, "light")}</div>
       <div class="m-cards"><div class="theme-l">${card(key, "light")}</div><div class="theme-d">${card(key, "dark")}</div></div>
