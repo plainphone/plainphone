@@ -2521,7 +2521,7 @@ export interface components {
              */
             theme: "system" | "light" | "dark";
             /**
-             * @default sage
+             * @default grey
              * @enum {unknown}
              */
             palette: "grey" | "sage" | "sand";

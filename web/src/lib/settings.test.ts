@@ -189,7 +189,7 @@ describe("home screen helpers", () => {
   });
 
   it("knows the defaults and the limit of the contract", () => {
-    expect(DEFAULT_HOME).toEqual({ layout: "list", theme: "system", palette: "sage", apps: [] });
+    expect(DEFAULT_HOME).toEqual({ layout: "list", theme: "system", palette: "grey", apps: [] });
     expect(HOME_MAX_APPS).toBe(8);
   });
 

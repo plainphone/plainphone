@@ -188,7 +188,7 @@ const homeWithPromise = homeInput.extend(homePromiseInput.shape);
 export type Home = z.infer<typeof homeWithPromise>;
 export type HomeUpdate = z.infer<typeof homeUpdateInput>;
 
-export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "sage", apps: [], showFreePromise: true };
+export const DEFAULT_HOME: Home = { layout: "list", theme: "system", palette: "grey", apps: [], showFreePromise: true };
 
 /** The stored home choices with the defaults filled in. Anything unreadable falls back to the default. */
 export function fullHome(stored: unknown): Home {
