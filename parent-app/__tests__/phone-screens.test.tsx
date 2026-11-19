@@ -84,6 +84,19 @@ describe("overview", () => {
     expect(await screen.findByText("System checked 1 hour ago")).toBeTruthy();
   });
 
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const reported = { lockIntact: true, failedPolicies: [], rulesAppliedAt: ago(60) };
+  it.each([
+    ["never connected", { lastSeenAt: null }, "Finish setting up the phone, and it will show here when it connects."],
+    ["online with no report", { lastSeenAt: ago(2) }, "The phone has been online. It has not yet confirmed which rules apply."],
+    ["waiting for the phone", { lastSeenAt: ago(2), rulesCurrent: false, status: reported }, "Your latest change has not reached the phone yet. It applies the next time the phone is online."],
+    ["confirmed", { lastSeenAt: ago(2), rulesCurrent: true, status: reported }, "The phone confirmed the current rules 1 hour ago."],
+  ])("says whether the phone has the rules: %s", async (_name, patch, sentence) => {
+    phoneApi({ ...PHONE, ...patch } as Parameters<typeof phoneApi>[0]);
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(sentence)).toBeTruthy();
+  });
+
   it("shows the sections, with the key only on Self phones", async () => {
     phoneApi();
     await renderRouter(routes, { initialUrl: at(PHONE) });
@@ -464,6 +477,40 @@ describe("approvals", () => {
     expect(await screen.findByText("Approved. Takes effect the next time the phone is online (usually within a minute).")).toBeTruthy();
     expect(api.calls.find((c) => c.path === "/changes/a1/approve")?.body)
       .toEqual({ revision: "30".padStart(64, "0") });
+    // The answered request stays in place without buttons, and cannot be answered again.
+    expect(screen.queryByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeNull();
+    expect(screen.getByTestId("answered-a1")).toBeTruthy();
+    expect(screen.getByText("1 request waits for you")).toBeTruthy();
+  });
+
+  it("says plainly when the request was already answered the other way", async () => {
+    const approval = {
+      id: "a1", phoneName: "Mine", requestedBy: null, createdAt: new Date().toISOString(),
+      summary: { en: "Instagram: 15 → 30 min a day", da: "Instagram: 15 → 30 min om dagen" }, revision: "0".repeat(64),
+    };
+    phoneApi(PHONE, {
+      "GET /approvals": { body: { approvals: [approval] } },
+      "POST /changes/a1/approve": { status: 409, body: { error: "no longer valid", outcome: "declinedByYou" } },
+    });
+    await renderRouter(routes, { initialUrl: "/approvals" });
+    await fireEvent.press(await screen.findByLabelText("Approve: Instagram: 15 → 30 min a day"));
+    expect(await screen.findByText("You already declined this request, so it stays declined.")).toBeTruthy();
+    expect(screen.queryByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeNull();
+  });
+
+  it("keeps an expired code open for a fresh one", async () => {
+    const approval = {
+      id: "a1", phoneName: "Mine", requestedBy: null, createdAt: new Date().toISOString(),
+      summary: { en: "Instagram: 15 → 30 min a day", da: "Instagram: 15 → 30 min om dagen" }, revision: "0".repeat(64),
+    };
+    phoneApi(PHONE, {
+      "GET /approvals": { body: { approvals: [approval] } },
+      "POST /changes/a1/approve": { status: 409, body: { error: "expired", outcome: "codeExpired" } },
+    });
+    await renderRouter(routes, { initialUrl: "/approvals" });
+    await fireEvent.press(await screen.findByLabelText("Approve: Instagram: 15 → 30 min a day"));
+    expect(await screen.findByText("This code has expired. Ask the phone for a new one.")).toBeTruthy();
+    expect(screen.getByLabelText("Approve: Instagram: 15 → 30 min a day")).toBeTruthy();
   });
 });
 

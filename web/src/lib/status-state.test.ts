@@ -9,9 +9,9 @@ import { approvalFixtures, FIXTURE_NOW, phoneFixtures } from "./status-fixtures"
 it("gives every phone fixture one state, and the states differ", () => {
   const states = Object.fromEntries(phoneFixtures.map((p) => [p.id, phoneState(p, FIXTURE_NOW)]));
   expect(Object.values(states).map((s) => s.state)).toEqual(["neverConnected", "stale", "noReport", "waiting", "applied"]);
-  expect(states.stale.attention).toBe(true);
-  expect(states.applied.at).toBe(phoneFixtures[4].status?.rulesAppliedAt);
-  expect(states.never.at).toBeNull();
+  expect(states.stale!.attention).toBe(true);
+  expect(states.applied!.at).toBe(phoneFixtures[4]!.status?.rulesAppliedAt);
+  expect(states.never!.at).toBeNull();
 });
 
 it("never says a phone was online and has no status in the same breath", () => {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Messages } from "./en";
+import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
 const filterSummary = "Webfilteret gør det mindre sandsynligt, at du møder hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
@@ -8,6 +9,7 @@ const nextOnline = "næste gang telefonen er online (normalt inden for et minut)
 const changeTiming = `Gælder, ${nextOnline}`;
 
 export const da: Messages = {
+  ...statusDa,
   "app.name": "Plainphone",
   "app.skip": "Gå til indholdet",
   "app.loading": "Henter…",
@@ -80,8 +82,6 @@ export const da: Messages = {
   "phones.add": "Tilføj telefon",
   "phones.emptyTitle": "Ingen telefoner endnu",
   "phones.emptyBody": "Vælg Tilføj telefon. Du får en QR-kode, som telefonen scanner, når den bliver sat op.",
-  "phones.lastSeen": "Sidst set {when}",
-  "phones.neverSeen": "Ikke set endnu",
   "phones.lockBroken": "Låsen er ikke intakt",
   "phones.pendingCount": "{n} ændring venter",
   "phones.pendingCountMany": "{n} ændringer venter",
@@ -133,10 +133,7 @@ export const da: Messages = {
   "phone.householdHint": "Forældre, der styrer telefonen",
   "phone.pendingTitle": "Ændringer, der venter",
   "phone.pendingNone": "Ingen ændringer venter.",
-  "phone.lastSeen": "Sidst online {when}",
-  "phone.neverOnline": "Har ikke været online endnu",
   "phone.status": "Telefonens status",
-  "phone.statusNone": "Ingen status fra telefonen endnu",
   "phone.attCheckedAt": "Systemet blev tjekket {when}",
   "phone.attLastFailedAt": "Det seneste systemtjek kunne ikke verificere telefonen ({when}).",
   "phone.attFindingAt": "Fundet blev gjort {when}",

@@ -35,6 +35,10 @@ export interface Phone {
   allowServerMove?: boolean;
   awaitingServerMove?: boolean;
   lastSeenAt: string | null;
+  /** Only on a single phone: whether it has confirmed the rules the server holds now. */
+  rulesCurrent?: boolean | null;
+  offlineAlertHours?: number | null;
+  offlineAlertHoursDefault?: number;
   dnsHost: string;
   dnsSynced: boolean;
   hasLocation: boolean;

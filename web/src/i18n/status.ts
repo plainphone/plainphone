@@ -16,7 +16,7 @@ export const statusEn = {
   "status.applied.title": "Rules confirmed",
   "status.applied.hint": "The phone confirmed the current rules {when}.",
 
-  "status.outcome.approvedByYou": "Approved. The phone applies it the next time it is online.",
+  "status.outcome.approvedByYou": "Approved. Takes effect the next time the phone is online (usually within a minute).",
   "status.outcome.approvedByOther": "Someone else already approved this request.",
   "status.outcome.declinedByYou": "Declined. The phone keeps its current rule.",
   "status.outcome.declinedByOther": "Someone else already declined this request.",
@@ -44,7 +44,7 @@ export const statusDa: Record<keyof typeof statusEn, string> = {
   "status.applied.title": "Regler bekræftet",
   "status.applied.hint": "Telefonen bekræftede de nuværende regler {when}.",
 
-  "status.outcome.approvedByYou": "Godkendt. Telefonen bruger den, næste gang den er online.",
+  "status.outcome.approvedByYou": "Godkendt. Gælder, næste gang telefonen er online (normalt inden for et minut).",
   "status.outcome.approvedByOther": "En anden har allerede godkendt anmodningen.",
   "status.outcome.declinedByYou": "Afvist. Telefonen beholder sin nuværende regel.",
   "status.outcome.declinedByOther": "En anden har allerede afvist anmodningen.",

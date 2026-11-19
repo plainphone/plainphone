@@ -7,7 +7,7 @@ import type { PendingChange, Phone } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, LinkRow, LoadGate, PageTitle, Screen, Stack as VStack, Text, useLoad, useNow } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
-import { formatRelative } from "../shared/lib/format";
+import { phoneStateText } from "../lib/phoneStateText";
 import { space } from "../lib/theme";
 
 interface Row {
@@ -74,9 +74,7 @@ function PhonesList() {
                   meta={[
                     t(phone.profile === "child" ? "profile.child" : "profile.self"),
                     phone.mode === "light" ? t("mode.light") : null,
-                    phone.lastSeenAt
-                      ? t("phones.lastSeen", { when: formatRelative(phone.lastSeenAt, now, locale) })
-                      : t("phones.neverSeen"),
+                    phone.pairedAt ? phoneStateText(phone, now, t, locale).title : null,
                   ]
                     .filter(Boolean)
                     .join(", ")}

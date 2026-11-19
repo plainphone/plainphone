@@ -27,7 +27,7 @@ function render(lang: "en" | "da", busy: string | null = null) {
 it("shows what is still waiting and the result of every answered request in place", () => {
   const html = render("en");
   expect(html).toContain("1 request waits for you");
-  expect(html).toContain("Approved. The phone applies it the next time it is online.");
+  expect(html).toContain("Approved. Takes effect the next time the phone is online (usually within a minute).");
   expect(html).toContain("Declined. The phone keeps its current rule.");
   expect(html).toContain("This code has expired. Ask the phone for a new one.");
   expect(html).toContain("You already declined this request, so it stays declined.");
@@ -46,6 +46,6 @@ it("has no live region of its own: the page announces each result once", () => {
 it("turns the buttons off while an answer is on its way, in Danish too", () => {
   const html = render("da", "a1");
   expect(html).toContain("1 anmodning venter på dig");
-  expect(html).toContain("Godkendt. Telefonen bruger den, næste gang den er online.");
+  expect(html).toContain("Godkendt. Gælder, næste gang telefonen er online (normalt inden for et minut).");
   expect(html.match(/disabled=""/g)).toHaveLength(2);
 });

@@ -5,17 +5,19 @@
 // share a sentence: "Last online just now" next to "No status yet" read like a contradiction.
 import type { MessageKey } from "../i18n/en";
 
+const DEFAULT_OFFLINE_HOURS = 24;
+
 export type PhoneState = "neverConnected" | "stale" | "noReport" | "waiting" | "applied";
 
 export interface PhoneStateInput {
   lastSeenAt: string | null;
   /** Null until the phone has reported once. */
-  status: { rulesAppliedAt?: string | null } | null;
+  status?: { rulesAppliedAt?: string | null } | null;
   /** Only known for a single phone: whether the phone confirmed the rules the server holds now. */
   rulesCurrent?: boolean | null;
   /** Hours of silence before the phone counts as offline; null = the server default. */
-  offlineAlertHours: number | null;
-  offlineAlertHoursDefault: number;
+  offlineAlertHours?: number | null;
+  offlineAlertHoursDefault?: number;
 }
 
 export interface PhoneStateSummary {
@@ -37,7 +39,7 @@ const COPY: Record<PhoneState, { title: MessageKey; hint: MessageKey; attention:
 };
 
 export function phoneState(p: PhoneStateInput, now: number): PhoneStateSummary {
-  const hours = p.offlineAlertHours ?? p.offlineAlertHoursDefault;
+  const hours = p.offlineAlertHours ?? p.offlineAlertHoursDefault ?? DEFAULT_OFFLINE_HOURS;
   let state: PhoneState;
   let at: string | null = p.lastSeenAt;
   if (!p.lastSeenAt) state = "neverConnected";
