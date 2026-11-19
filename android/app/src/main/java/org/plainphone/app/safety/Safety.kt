@@ -88,7 +88,7 @@ object Safety {
         )
         val first = !store.checkInShown(c.id)
         val n = Notification.Builder(context, CHANNEL_CHECKIN)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.checkin_title))
             .setContentText(context.getString(R.string.checkin_notice, time(context, c.deadline.toEpochMilli())))
             .setCategory(Notification.CATEGORY_MESSAGE)
@@ -145,7 +145,7 @@ object Safety {
             time(context, nowMs),
         )
         val n = Notification.Builder(context, CHANNEL_LOCATION)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.location_sent_title))
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
@@ -175,7 +175,7 @@ object Safety {
             active.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() == body
         ) return
         val n = Notification.Builder(context, CHANNEL_LOCATION)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(Notification.BigTextStyle().bigText(body))

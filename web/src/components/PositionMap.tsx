@@ -18,7 +18,7 @@ interface Props {
 }
 
 const prefersDark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-const accent = (dark: boolean) => (dark ? "#7fc4a2" : "#24604a");
+const accent = (dark: boolean) => (dark ? "#c5f04a" : "#141414");
 
 function circle(lat: number, lon: number, accuracyM: number | null) {
   return {

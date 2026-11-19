@@ -50,7 +50,7 @@ internal object UpdateBatteryExemption {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = Notification.Builder(context, channel)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.update_battery_required))
             .setContentText(context.getString(R.string.update_battery_reason))
             .setStyle(Notification.BigTextStyle().bigText(context.getString(R.string.update_battery_reason)))

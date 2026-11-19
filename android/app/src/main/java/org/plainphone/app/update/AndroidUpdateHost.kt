@@ -151,7 +151,7 @@ class AndroidUpdateHost(context: Context) : UpdateHost {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_plainphone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.update_prompt_title))
             .setContentText(context.getString(R.string.update_prompt_text, latest.versionName))
             .setContentIntent(open)

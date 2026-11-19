@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar and notification icon: a white switch outline on transparent; Android only reads
+     the alpha. docs/brand/directions/c/notification.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M12,2a4.5,4.5 0,0 1,4.5 4.5v11a4.5,4.5 0,0 1,-9 0v-11a4.5,4.5 0,0 1,4.5 -4.5z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9.5,16.5a2.5,2.5 0,1 0,5 0a2.5,2.5 0,1 0,-5 0z" />
+</vector>

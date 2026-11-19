@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <issue id="ObsoleteSdkInt">
+        <!-- The adaptive launcher icon must stay in mipmap-anydpi-v26: without the version
+             qualifier the density PNGs in mipmap-*dpi win, and the themed icon is lost
+             (BrandIconsScreenshotTest checks this). -->
+        <ignore regexp="mipmap-anydpi-v26" />
+    </issue>
+</lint>

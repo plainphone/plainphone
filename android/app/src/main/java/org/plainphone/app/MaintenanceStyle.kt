@@ -18,8 +18,8 @@ import androidx.compose.ui.graphics.toArgb
 import org.plainphone.app.ui.PlainTokens
 
 /**
- * The common tokens (ui/Tokens.kt) applied to the Maintenance screen's plain views: system font
- * with its own fallback, sp text that wraps at large sizes, 48 dp targets, a visible focus ring
+ * The common tokens (ui/Tokens.kt) applied to the Maintenance screen's plain views: the brand fonts
+ * (system font if they cannot load), sp text that wraps at large sizes, 48 dp targets, a visible focus ring
  * and AA contrast in light and dark. Nothing here changes what the screen does.
  */
 class MaintenanceStyle(private val context: Context) {
@@ -37,6 +37,14 @@ class MaintenanceStyle(private val context: Context) {
     private val danger get() = tokens.danger.toArgb()
     private val outline get() = tokens.outline.toArgb()
 
+    // Schibsted Grotesk and IBM Plex Mono (res/font). This screen must work when nothing else
+    // does, so a font that cannot load falls back to the system font.
+    private fun font(id: Int, fallback: Typeface) =
+        runCatching { context.resources.getFont(id) }.getOrNull() ?: fallback
+    private val sans = font(R.font.schibsted_grotesk_regular, Typeface.DEFAULT)
+    private val sansBold = font(R.font.schibsted_grotesk_bold, Typeface.DEFAULT_BOLD)
+    private val mono = font(R.font.ibm_plex_mono_medium, Typeface.MONOSPACE)
+
     /** 16 dp inset, 32 dp from the top so the title clears the status bar. */
     fun screen(column: LinearLayout) {
         column.setBackgroundColor(paper)
@@ -45,13 +53,14 @@ class MaintenanceStyle(private val context: Context) {
 
     fun title(view: TextView) = view.apply {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-        setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = sansBold
         setTextColor(ink)
         setPadding(0, 0, 0, dp(12))
         isAccessibilityHeading = true
     }
 
     fun body(view: TextView) = view.apply {
+        typeface = sans
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         setLineSpacing(0f, 1.25f)
         setTextColor(ink)
@@ -68,13 +77,14 @@ class MaintenanceStyle(private val context: Context) {
     val actionColor get() = action
 
     fun log(view: TextView) = view.apply {
-        typeface = Typeface.MONOSPACE
+        typeface = mono
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setTextColor(pencil)
         setPadding(0, dp(16), 0, dp(16))
     }
 
     fun field(view: EditText) = view.apply {
+        typeface = sans
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
         setTextColor(ink)
         setHintTextColor(pencil)
@@ -88,10 +98,15 @@ class MaintenanceStyle(private val context: Context) {
 
     enum class Kind { PRIMARY, SECONDARY, DANGER }
 
+    private companion object {
+        /** Buttons are pills. */
+        const val PILL = 24
+    }
+
     fun button(view: Button, kind: Kind = Kind.SECONDARY) = view.apply {
         isAllCaps = false
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-        setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+        typeface = sansBold
         minHeight = dp(48)
         minimumHeight = dp(48)
         gravity = Gravity.CENTER
@@ -107,18 +122,26 @@ class MaintenanceStyle(private val context: Context) {
             Kind.SECONDARY -> ink
             Kind.DANGER -> danger
         }
+        // Focus and press show as a thick ink outline on the sheet, so they read on every fill: the
+        // primary button is ink (light) or signal green (dark), where an ink ring would disappear.
+        val sheet = tokens.sheet.toArgb()
+        val activeText = if (kind == Kind.PRIMARY) ink else text
         setTextColor(
             ColorStateList(
-                arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-                intArrayOf(pencil, text),
+                arrayOf(
+                    intArrayOf(-android.R.attr.state_enabled),
+                    intArrayOf(android.R.attr.state_focused),
+                    intArrayOf(android.R.attr.state_pressed),
+                    intArrayOf(),
+                ),
+                intArrayOf(pencil, activeText, activeText, text),
             ),
         )
-        // Focus and press show as a thick ink outline, so they read against both fills.
         background = StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), shape(fill, ink, 3))
-            addState(intArrayOf(android.R.attr.state_pressed), shape(fill, ink, 3))
-            addState(intArrayOf(-android.R.attr.state_enabled), shape(tokens.divider.toArgb(), tokens.divider.toArgb(), 1))
-            addState(intArrayOf(), shape(fill, border, 1))
+            addState(intArrayOf(android.R.attr.state_focused), shape(sheet, ink, 3, PILL))
+            addState(intArrayOf(android.R.attr.state_pressed), shape(sheet, ink, 3, PILL))
+            addState(intArrayOf(-android.R.attr.state_enabled), shape(tokens.divider.toArgb(), tokens.divider.toArgb(), 1, PILL))
+            addState(intArrayOf(), shape(fill, border, 1, PILL))
         }
         stateListAnimator = null
         layoutParams = LinearLayout.LayoutParams(
@@ -126,8 +149,8 @@ class MaintenanceStyle(private val context: Context) {
         ).apply { topMargin = dp(12) }
     }
 
-    private fun shape(fill: Int, stroke: Int, strokeDp: Int) = GradientDrawable().apply {
-        cornerRadius = dp(10).toFloat()
+    private fun shape(fill: Int, stroke: Int, strokeDp: Int, radiusDp: Int = 6) = GradientDrawable().apply {
+        cornerRadius = dp(radiusDp).toFloat()
         setColor(fill)
         setStroke(dp(strokeDp), stroke)
     }
