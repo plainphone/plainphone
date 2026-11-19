@@ -127,7 +127,8 @@ A phone may also offer the previous screen-lock PIN. Check R5 on the exact model
   Android FRP can apply. Permanent release explicitly disables the legacy configuration.
 - **72 hours:** Google says newly created accounts may not work for FRP for 72 hours. The dashboard and parent app show
   "Ready from" for the time the account was linked plus 72 hours. Wait until that time and check
-  the phone has saved the protection settings before resetting it.
+  that the latest report under Phone status in the web dashboard shows reset protection is on
+  before resetting the phone.
 - **Without Google Play services** nothing enforces FRP, and the dashboard says the phone cannot be protected.
 - **OEM unlocking** switches FRP off. It is greyed out by `DISALLOW_FACTORY_RESET` and developer options are
   blocked, but a phone that arrives with an unlocked bootloader has no FRP.

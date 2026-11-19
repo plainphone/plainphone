@@ -24,6 +24,8 @@ import { filterStatusKey } from "../lib/filter-status";
 import { describeOp } from "../lib/ops";
 import { Chevron } from "./Phones";
 import { BATTERY_EXEMPTION_POLICY } from "../lib/failedPolicies";
+import { isRemoteReleaseTooOld } from "../lib/phoneSupport";
+import { PhoneSupport, ReleaseNotice } from "./PhoneSupport";
 import { ServerMoveToggle } from "../components/ServerMoveToggle";
 import { PhoneAppVersion } from "./PhoneAppVersion";
 
@@ -418,7 +420,7 @@ export function PhoneStatusBlock({ phone, now }: { phone: Phone; now: number }) 
 
 export function PhoneOverview() {
   const { t, locale } = useI18n();
-  const { phone, pending, setPhone } = usePhone();
+  const { phone, pending, setPhone, notify } = usePhone();
   const navigate = useNavigate();
   const now = useNow(60_000);
   const base = `/phones/${phone.id}`;
@@ -428,9 +430,8 @@ export function PhoneOverview() {
   // battery and the lock state are not as old as the moment the parent opened the app.
   const setPhoneRef = useRef(setPhone);
   setPhoneRef.current = setPhone;
-  // A released phone is deleted once it has switched Plainphone off: the page then says so and leaves.
   const releasing = Boolean(phone.releaseRequestedAt);
-  const releasedText = t("phone.released");
+  const unavailableText = t("support.phoneUnavailable");
   useEffect(() => {
     let active = true;
     const refresh = () =>
@@ -441,7 +442,7 @@ export function PhoneOverview() {
         })
         .catch((err) => {
           if (active && err instanceof ApiError && err.status === 404) {
-            navigate("/", { replace: true, state: releasing ? { notice: releasedText } : null });
+            navigate("/", { replace: true, state: releasing ? { notice: unavailableText } : null });
           }
         });
     void refresh();
@@ -450,7 +451,7 @@ export function PhoneOverview() {
       active = false;
       window.clearInterval(id);
     };
-  }, [phone.id, releasing, releasedText, navigate]);
+  }, [phone.id, releasing, unavailableText, navigate]);
   const groups = [
     {
       title: t("phone.rulesPeople"),
@@ -499,7 +500,7 @@ export function PhoneOverview() {
       >
         {phone.name}
       </PageTitle>
-      {releasing && <p className="notice notice-info status-release">{t("phone.releasing")}</p>}
+      <ReleaseNotice phone={phone} />
       {phone.awaitingServerMove && <p className="notice notice-info">{t("move.waiting")}</p>}
       {!phone.pairedAt && !phone.awaitingServerMove && (
         <section className="section panel" aria-labelledby="setup-h">
@@ -554,6 +555,7 @@ export function PhoneOverview() {
       {phone.status?.lockIntact !== false && <PhoneStatusBlock phone={phone} now={now} />}
 
       {phone.mode === "light" && <LightModeSection phone={phone} />}
+      <PhoneSupport phone={phone} setPhone={setPhone} notify={notify} />
       <ManagePhone />
     </>
   );
@@ -756,12 +758,11 @@ function ManagePhone() {
     const r = await run(() => api.post<ChangeResult>(`/phones/${phone.id}/release`), t("phone.releaseDone"));
     setConfirming(null);
     if (r?.status === "applied") {
-      // The phone stays in the list until it has switched Plainphone off.
       try {
         setPhone(await api.get<Phone>(`/phones/${phone.id}`));
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) {
-          navigate("/", { replace: true, state: { notice: t("phone.released") } });
+          navigate("/", { replace: true, state: { notice: t("support.phoneUnavailable") } });
         }
         // Other failures are retried by the overview refresh.
       }
@@ -806,7 +807,7 @@ function ManagePhone() {
                 confirming === "release"
                   ? self
                     ? "phone.releaseSelfConfirm"
-                    : "phone.releaseConfirm"
+                    : isRemoteReleaseTooOld(phone) ? "support.releaseOld" : "phone.releaseConfirm"
                   : self
                     ? "phone.removeSelfConfirm"
                     : "phone.removeConfirm",

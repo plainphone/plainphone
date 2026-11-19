@@ -183,6 +183,13 @@
       "when": 1795093993019,
       "tag": "0037_open_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795097786050,
+      "tag": "0038_launch_support",
+      "breakpoints": true
     }
   ]
 }
