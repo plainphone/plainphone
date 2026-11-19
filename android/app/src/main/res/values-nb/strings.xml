@@ -345,4 +345,8 @@
     <string name="server_connect">Koble til</string>
     <string name="server_move_allowed">Flytting til en annen server er tillatt i kontrollpanelet.</string>
     <string name="server_move_blocked">Flytting til en annen server er slått av i kontrollpanelet.</string>
+    <string name="support_open_help">Åpne hjelp</string>
+    <string name="support_help_fallback">Åpne %1$s på en annen enhet.</string>
+    <string name="support_copy_diagnostics">Kopier tekniske opplysninger</string>
+    <string name="support_copied">Tekniske opplysninger kopiert.</string>
 </resources>

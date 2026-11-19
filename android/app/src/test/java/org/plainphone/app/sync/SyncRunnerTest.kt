@@ -794,7 +794,7 @@ class SyncRunnerTest {
         assertThat(store.released).isFalse()
         assertThat(store.removed).isFalse()
         assertThat(device.applies).isEmpty()
-        assertThat(api.statuses).isEmpty()
+        assertThat(api.statuses.single().failedPolicies).contains("remote release")
 
         // Unchanged rules still say release: it is tried again at the next sync.
         api.rules = RulesResult.Unchanged
@@ -812,6 +812,18 @@ class SyncRunnerTest {
         assertThat(runner.run("now it holds")).isEqualTo(SyncRunner.Outcome.Removed)
         assertThat(api.acks).hasSize(1)
         assertThat(store.released).isTrue()
+    }
+
+    @Test
+    fun `disabling release warnings skips the failure report without stopping release`() {
+        pair()
+        val rules = org.json.JSONObject(rulesJson(release = true)).put("releaseWarningsEnabled", false)
+        api.rules = RulesResult.Changed("\"e1\"", rules.toString())
+        device.releaseResults = listOf(StepResult("give up Device Owner", false))
+        assertThat(runner.run("release")).isInstanceOf(SyncRunner.Outcome.Failed::class.java)
+        assertThat(device.releases).isEqualTo(1)
+        assertThat(api.statuses).isEmpty()
+        assertThat(api.acks).isEmpty()
     }
 
     @Test

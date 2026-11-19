@@ -13,8 +13,15 @@ const errors = [];
 const externalLinks = new Set();
 const ogLocales = { en: "en_GB", da: "da_DK", sv: "sv_SE", nb: "nb_NO", de: "de_DE" };
 const locales = Object.keys(ogLocales);
+const recoveryStatus = {
+  en: "<strong>Phone status</strong> shows reset protection is on",
+  da: "<strong>Telefonens status</strong>, at den seneste rapport viser, at beskyttelse mod nulstilling er slået til",
+  sv: "att telefonens senaste rapport visar att återställningsskyddet är på",
+  nb: "at den siste rapporten fra telefonen viser at tilbakestillingsbeskyttelsen er på",
+  de: "ob der letzte Bericht des Handys zeigt, dass der Schutz vor dem Zurücksetzen aktiv ist",
+};
 const lookupRoute = "apps/";
-const routes = ["", "setup/", "privacy/", "why/", lookupRoute];
+const routes = ["", "setup/", "privacy/", "why/", "help/", lookupRoute];
 const pagePaths = routes.map((page) =>
   Object.fromEntries(locales.map((lang) => [
     lang,
@@ -178,6 +185,14 @@ for (const file of html) {
       errors.push(`${name}: unexpected page for language ${ownLang}`);
       continue;
     }
+    if (counterparts[ownLang].endsWith("/help/") && recoveryStatus[ownLang]) {
+      const recovery = src.match(/<section id="recovery"[\s\S]*?<\/section>/)?.[0];
+      if (!recovery?.includes(recoveryStatus[ownLang])) {
+        errors.push(`${name}: recovery instructions must point to the phone's reported reset-protection status`);
+      }
+    }
+    const xDefault = `<link rel="alternate" hreflang="x-default" href="https://plainphone.org${counterparts.en}">`;
+    if (!src.includes(xDefault)) errors.push(`${name}: missing English x-default alternate`);
     const expectedOg = ownLang && `<meta property="og:locale" content="${ogLocales[ownLang]}">`;
     if (!expectedOg || !src.includes(expectedOg)) errors.push(`${name}: missing Open Graph locale`);
     if (!src.includes(`<meta property="og:image" content="https://plainphone.org/og-${ownLang}.png">`)) {
@@ -215,7 +230,7 @@ if (external) {
   for (const url of externalLinks) {
     try {
       let res = await fetch(url, { method: "HEAD", redirect: "follow" });
-      if (res.status === 405 || res.status === 403) res = await fetch(url, { redirect: "follow" });
+      if ([403, 404, 405].includes(res.status)) res = await fetch(url, { redirect: "follow" });
       if (!res.ok) errors.push(`external ${url}: ${res.status}`);
     } catch (e) {
       errors.push(`external ${url}: ${e.message}`);

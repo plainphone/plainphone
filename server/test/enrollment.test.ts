@@ -229,7 +229,8 @@ describe("setup from the dashboard (enrollment)", () => {
         const [row] = await h.ctx.db.execute<{ count: number }>(sql`
           select count(*)::int as count from pg_stat_activity
           where datname = current_database() and wait_event_type = 'Lock'
-            and query like 'select %from "phones"%for update'
+            -- pg_stat_activity truncates query text at 1024 bytes, which the phones column list now exceeds
+            and query like 'select %'
         `);
         return row?.count;
       }).toBe(count);

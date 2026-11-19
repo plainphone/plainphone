@@ -41,6 +41,39 @@ describe("release on a Child phone", () => {
     expect(after.json.phones[0].releaseRequestedAt).toBe(h.clock.now.toISOString());
   });
 
+  it("counts three release rule fetches, including cached rules and concurrent fetches", async () => {
+    const { parent, phoneId, device } = await setup("child");
+    const detail = `/api/phones/${phoneId}`;
+    await device.get("/api/device/rules");
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(0);
+    await parent.post(`${detail}/release`);
+
+    const first = await device.get("/api/device/rules");
+    expect(first.json.release).toBe(true);
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(1);
+
+    const headers = { "if-none-match": first.headers.get("etag")! };
+    const responses = await Promise.all([device.get("/api/device/rules", headers), device.get("/api/device/rules", headers)]);
+    expect(responses.map((r) => r.status)).toEqual([304, 304]);
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(3);
+    expect((await device.get("/api/device/rules", headers)).status).toBe(304);
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(3);
+  });
+
+  it("syncs support settings without cancelling a pending release", async () => {
+    const { parent, phoneId, device } = await setup("child");
+    const detail = `/api/phones/${phoneId}`;
+    expect((await device.get("/api/device/rules")).json.supportEnabled).toBe(true);
+    await parent.post(`${detail}/release`);
+    expect((await parent.patch(detail, { supportEnabled: false, releaseWarningsEnabled: false })).json)
+      .toMatchObject({ supportEnabled: false, releaseWarningsEnabled: false });
+    expect((await device.get("/api/device/rules")).json).toMatchObject({
+      supportEnabled: false, releaseWarningsEnabled: false, release: true,
+    });
+    expect((await parent.get(detail)).json.releaseSyncCount).toBe(0);
+    expect((await device.post("/api/device/released")).status).toBe(204);
+  });
+
   it("wakes the phone, so it does not wait for the next poll", async () => {
     const { parent, phoneId, device } = await setup("child");
     expect((await parent.patch(`/api/phones/${phoneId}`, { pushWakeups: true })).status).toBe(200);

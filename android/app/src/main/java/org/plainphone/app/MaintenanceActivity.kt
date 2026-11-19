@@ -5,6 +5,8 @@ package org.plainphone.app
 import android.accounts.AccountManager
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import androidx.compose.ui.graphics.toArgb
 import android.net.Uri
@@ -25,6 +27,7 @@ import org.plainphone.app.catalog.CatalogAccounts
 import org.plainphone.app.catalog.InstallWindow
 import org.plainphone.app.update.InstallLease
 import org.plainphone.app.light.Mode
+import org.plainphone.app.sync.AndroidSyncDevice
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.ui.ApprovedContactsActivity
@@ -335,7 +338,41 @@ class MaintenanceActivity : Activity() {
             val current = resources.configuration.locales[0]
             text = getString(R.string.maintenance_language, current.getDisplayName(current))
         })
+        showSupport()
+        output.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         column.addView(output)
+    }
+
+    private fun showSupport() {
+        val store = SyncStore(this)
+        if (store.rules()?.supportEnabled == false) return
+        val language = resources.configuration.locales[0].language
+        val url = if (language == "da") "https://plainphone.org/da/help/" else "https://plainphone.org/help/"
+        column.addView(Button(this).apply {
+            setText(R.string.support_open_help)
+            setOnClickListener {
+                if (store.rules()?.supportEnabled == false) return@setOnClickListener
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    .onFailure {
+                        output.setTextIsSelectable(true)
+                        output.text = getString(R.string.support_help_fallback, url)
+                    }
+            }
+        })
+        column.addView(Button(this).apply {
+            setText(R.string.support_copy_diagnostics)
+            setOnClickListener {
+                if (store.rules()?.supportEnabled == false) return@setOnClickListener
+                val device = AndroidSyncDevice(this@MaintenanceActivity)
+                val lock = device.lockState()
+                val diagnostics = SupportDiagnostics.format(
+                    device.appVersion(), Build.VERSION.RELEASE, lock.mode == "light", lock.failedPolicies,
+                )
+                getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText(getString(R.string.support_copy_diagnostics), diagnostics))
+                output.setText(R.string.support_copied)
+            }
+        })
     }
 
     companion object {

@@ -60,6 +60,8 @@ data class ServerRules(
      * server (docs/sync-api.md, "Releasing the phone"). Missing from older servers: false.
      */
     val release: Boolean = false,
+    val supportEnabled: Boolean = true,
+    val releaseWarningsEnabled: Boolean = true,
     /** When to send a position: off, find, checkin or always (docs/location.md). */
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
@@ -158,6 +160,8 @@ data class ServerRules(
                 },
                 timeLimits = j.optJSONObject("timeLimits")?.let(TimeLimits::parse) ?: TimeLimits.NONE,
                 release = j.optBoolean("release", false),
+                supportEnabled = j.optBoolean("supportEnabled", true),
+                releaseWarningsEnabled = j.optBoolean("releaseWarningsEnabled", true),
                 locationMode = locationMode(location),
                 sos = j.optJSONObject("sos")?.let { sos ->
                     val parents = sos.getJSONArray("parents")

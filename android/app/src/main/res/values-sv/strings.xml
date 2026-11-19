@@ -345,4 +345,8 @@
     <string name="server_connect">Anslut</string>
     <string name="server_move_allowed">Flytt till en annan server är tillåten i kontrollpanelen.</string>
     <string name="server_move_blocked">Flytt till en annan server är avstängd i kontrollpanelen.</string>
+    <string name="support_open_help">Öppna hjälp</string>
+    <string name="support_help_fallback">Öppna %1$s på en annan enhet.</string>
+    <string name="support_copy_diagnostics">Kopiera tekniska uppgifter</string>
+    <string name="support_copied">Tekniska uppgifter kopierade.</string>
 </resources>

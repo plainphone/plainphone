@@ -180,7 +180,7 @@ details p { padding-bottom: 0.5rem; }
 .doc .updated { color: var(--pencil); font-weight: 600; margin-bottom: 1.75rem; }
 .doc section { margin-top: clamp(2rem, 5vw, 3.25rem); scroll-margin-top: 1rem; }
 .doc h2 { font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem); margin-bottom: 0.75rem; }
-.doc ul { margin: 0 0 1rem; padding-left: 1.25rem; max-width: var(--measure); }
+.doc :is(ul, ol) { margin: 0 0 1rem; padding-left: 1.25rem; max-width: var(--measure); }
 .doc li { margin-bottom: 0.5rem; padding-left: 0.15rem; }
 .doc li::marker { color: var(--pencil); }
 .doc .toc { margin-top: 2rem; padding-block: 1rem; border-block: 1px solid var(--rule); font-size: 0.95em; }
