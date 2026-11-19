@@ -7,6 +7,7 @@ import android.content.Context
 import android.telephony.TelephonyManager
 import android.util.Log
 import java.time.Instant
+import org.plainphone.app.quiet.BedtimeQuiet
 import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.LightSetup
 import org.plainphone.app.light.Mode
@@ -192,6 +193,8 @@ class SyncedContactPolicySource(
             contacts = fromServer,
             childProfile = server?.profile == "child",
             suggestDeviceContacts = server?.profile == "child" && server.suggestDeviceContacts,
+            silentBedtime = BedtimeQuiet.silentNow(server, Instant.now()),
+            bedtimeRingers = server?.let(BedtimeQuiet::ringers).orEmpty(),
         )
         return if (server?.profile == "self") {
             val restriction = server.selfScheduleContacts

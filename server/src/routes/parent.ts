@@ -31,7 +31,7 @@ import { DEFAULT_PUSH_HOSTS, parentPushEnabled, pushHostAllowed } from "../provi
 import { registerNativeSubscription, removePushSubscription } from "../services/push-subscriptions.js";
 import { notifyUsers } from "../services/notifications.js";
 import { explainDecision } from "../services/approval-outcome.js";
-import { approveRequest, openRequests, rejectRequest, RequestError } from "../services/requests.js";
+import { approveRequest, openRequests, recentAnswers, rejectRequest, RequestError } from "../services/requests.js";
 import { normalizePairingCode, randomToken, sha256 } from "../lib/crypto.js";
 import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import { inviteMail, toLocale } from "../lib/mail-templates.js";
@@ -697,16 +697,22 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
         changeReceiptsEnabled: z.boolean().optional(),
         healthBoardEnabled: z.boolean().optional(),
+        silentBedtime: z.boolean().optional(),
+        pinApprovalEnabled: z.boolean().optional(),
       }),
     );
-    const { changeReceiptsEnabled, healthBoardEnabled } = input;
+    const { changeReceiptsEnabled, healthBoardEnabled, silentBedtime, pinApprovalEnabled } = input;
+    const rulesField = changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined
+      || silentBedtime !== undefined || pinApprovalEnabled !== undefined;
     if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
-      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined ? nextRulesRevision() : {}),
+      ...(rulesField ? nextRulesRevision() : {}),
       ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
       ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
+      ...(silentBedtime !== undefined ? { silentBedtime } : {}),
+      ...(pinApprovalEnabled !== undefined ? { pinApprovalEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),
       ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
       ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
@@ -746,7 +752,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
     }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
-    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined) {
+    if (rulesField) {
       await wakePhone(ctx, phone.id, "rules");
     }
     return c.json(await phoneSummary(ctx, updated!));
@@ -770,7 +776,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // Requests from the phone: an app from its list, or a contact.
   app.get("/phones/:pid/requests", async (c) => {
     const phone = await requirePhone(c);
-    return c.json({ requests: await openRequests(ctx, [phone.id]) });
+    return c.json({ requests: await openRequests(ctx, [phone.id]), recent: await recentAnswers(ctx, phone.id) });
   });
 
   app.post("/phones/:pid/requests/:rid/approve", async (c) => {
@@ -780,7 +786,8 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       const r = await approveRequest(ctx, phone, param(c, "rid"), c.get("user").id, input);
       return c.json(changeJson(r), r.status === "applied" ? 200 : 202);
     } catch (err) {
-      if (err instanceof RequestError || err instanceof ChangeError) return c.json({ error: err.message }, err.status);
+      if (err instanceof RequestError) return c.json({ error: err.message, ...(err.outcome && { outcome: err.outcome }) }, err.status);
+      if (err instanceof ChangeError) return c.json({ error: err.message }, err.status);
       throw err;
     }
   });
@@ -791,7 +798,7 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await rejectRequest(ctx, phone, param(c, "rid"), c.get("user").id);
       return c.body(null, 204);
     } catch (err) {
-      if (err instanceof RequestError) return c.json({ error: err.message }, err.status);
+      if (err instanceof RequestError) return c.json({ error: err.message, ...(err.outcome && { outcome: err.outcome }) }, err.status);
       throw err;
     }
   });

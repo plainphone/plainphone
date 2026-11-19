@@ -129,6 +129,10 @@ export interface Phone {
   offlineAlertHoursDefault: number;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
+  /** Bedtime is silent except parents, 112 and help lines. Missing on old servers (treated as on). */
+  silentBedtime?: boolean;
+  /** A parent may approve a request on the phone with the parent PIN. Missing on old servers (treated as on). */
+  pinApprovalEnabled?: boolean;
   ruleReceipt?: import("./phone-health").RuleReceipt | null;
 }
 
@@ -160,6 +164,9 @@ export interface PhoneRequest {
   number: string | null;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+  decidedAt?: string | null;
+  /** Where the answer came from: a parent in the app, or on the phone itself with the parent PIN. */
+  decidedVia?: "parent" | "phone" | null;
 }
 export interface PhoneAttestation {
   state: "verified" | "unlocked" | "custom-os" | "failed-boot" | "unverifiable" | "revoked";

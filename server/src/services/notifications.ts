@@ -20,6 +20,7 @@ export type NotifyEvent =
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
+  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" | "more-time" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
   | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null }
@@ -82,6 +83,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
           title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
           body: `${e.what}. Open the app to approve or decline.`,
         };
+      case "request-on-phone":
+        return {
+          title: `Approved on ${e.phoneName}`,
+          body: `${e.what}. A parent approved it on the phone with the PIN. Nothing more to do.`,
+        };
       case "moreTime":
         return {
           title: `${e.phoneName} asks for more time`,
@@ -126,6 +132,11 @@ const text: Record<Locale, (e: NotifyEvent) => Pick<PushMessage, "title" | "body
         return {
           title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
           body: `${e.what}. Åbn appen for at godkende eller afvise.`,
+        };
+      case "request-on-phone":
+        return {
+          title: `Godkendt på ${e.phoneName}`,
+          body: `${e.what}. En forælder godkendte det på telefonen med pinkoden. Du skal ikke gøre mere.`,
         };
       case "moreTime":
         return {
@@ -211,6 +222,8 @@ export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
     case "approval":
       return { ...t, url: "/approvals", tag: "approvals" };
     case "request":
+      return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
+    case "request-on-phone":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `request-${e.phoneId}` };
     case "moreTime":
       return { ...t, url: `/phones/${e.phoneId}`, tag: `moretime-${e.requestId.replaceAll("-", "")}`,

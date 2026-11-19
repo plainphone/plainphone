@@ -22,6 +22,8 @@ data class MoreTimeRequest(
     val grantedMinutes: Int?,
     val createdAt: Instant,
     val decidedAt: Instant?,
+    /** "phone" when a parent approved it on the phone itself with the parent PIN. */
+    val decidedVia: String? = null,
 ) {
     enum class Status(val wire: String) {
         PENDING("pending"), APPROVED("approved"), DECLINED("declined"), EXPIRED("expired");
@@ -44,6 +46,7 @@ data class MoreTimeRequest(
             grantedMinutes = if (j.isNull("grantedMinutes")) null else j.getInt("grantedMinutes"),
             createdAt = Instant.parse(j.getString("createdAt")),
             decidedAt = if (j.isNull("decidedAt")) null else Instant.parse(j.getString("decidedAt")),
+            decidedVia = if (j.isNull("decidedVia") || !j.has("decidedVia")) null else j.getString("decidedVia"),
         )
 
         fun parseList(body: String): List<MoreTimeRequest> =

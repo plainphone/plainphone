@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <!-- Stille leggetid (docs/bedtime.md) -->
+    <string name="channel_quiet">Stille leggetid</string>
+    <string name="home_bedtime_silent">Telefonen er stille. Bare foreldre og hjelpelinjer ringer.</string>
+    <string name="home_bedtime_silent_why">Alle sover bedre når telefonen er stille om natten.</string>
+    <string name="maintenance_silent_bedtime_missing">Stille leggetid er på, men Android har ikke gitt Plainphone tilgang til Ikke forstyrr. Anrop og Plainphones meldinger er stille. Andre apper kan fortsatt lage lyd.</string>
+    <string name="maintenance_silent_bedtime_access">Tillat Ikke forstyrr</string>
+
+    <!-- Ønsker og godkjenning med foreldrekoden -->
+    <string name="requests_title">Mine ønsker</string>
+    <string name="requests_empty">Ingenting venter. Når du ber om en app eller en kontakt, vises det her.</string>
+    <string name="requests_load_failed">Kunne ikke hente ønskene dine. Sjekk tilkoblingen og prøv igjen.</string>
+    <string name="requests_retry">Prøv igjen</string>
+    <string name="requests_back">Tilbake</string>
+    <string name="requests_kind_app">App</string>
+    <string name="requests_kind_contact">Kontakt</string>
+    <string name="requests_status_waiting">Venter på en forelder</string>
+    <string name="requests_status_approved">Godkjent</string>
+    <string name="requests_status_approved_phone">Godkjent på denne telefonen</string>
+    <string name="requests_status_approved_phone_sending">Godkjent på denne telefonen. Det når foreldrene dine når telefonen er på nett.</string>
+    <string name="requests_status_declined">Avslått</string>
+    <string name="requests_status_waiting_key">Godkjent. Det trer i kraft etter ventetiden.</string>
+    <string name="requests_parent_here">En forelder er her: godkjenn med PIN-kode</string>
+    <string name="requests_pin_title">Foreldrekode</string>
+    <string name="requests_pin_help">Bare en forelder kjenner denne koden.</string>
+    <string name="requests_pin_hint">Foreldrekode</string>
+    <string name="requests_pin_approve">Godkjenn</string>
+    <string name="requests_pin_cancel">Avbryt</string>
+    <string name="requests_pin_wrong">Koden stemmer ikke.</string>
+    <string name="requests_pin_none">Denne telefonen har ingen foreldrekode ennå. Be en forelder svare i appen i stedet.</string>
+    <plurals name="requests_pin_wait">
+        <item quantity="one">For mange forsøk. Prøv igjen om %1$d sekund.</item>
+        <item quantity="other">For mange forsøk. Prøv igjen om %1$d sekunder.</item>
+    </plurals>
+    <string name="requests_already_answered">En forelder har allerede svart på dette ønsket. Svaret vises her.</string>
+    <string name="requests_approved_now">Godkjent. Det trer i kraft i løpet av et minutt.</string>
+    <plurals name="home_requests_waiting">
+        <item quantity="one">1 ønske venter på svar</item>
+        <item quantity="other">%d ønsker venter på svar</item>
+    </plurals>
+    <string name="requests_kind_more_time">Mer tid</string>
+    <string name="requests_more_time_total">Skjermtid i dag</string>
+    <string name="requests_approved_now_more_time">Godkjent: 15 minutter til. Det gjelder innen et minutt.</string>
+    <string name="requests_approve_failed">Dette kunne ikke godkjennes på telefonen. En forelder kan svare i appen.</string>
+</resources>

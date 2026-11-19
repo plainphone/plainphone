@@ -62,6 +62,8 @@ data class HomeUi(
     val noticeUntil: String? = null,
     /** Light mode: Plainphone is not the home screen yet, offer to pick it. */
     val offerDefaultHome: Boolean = false,
+    /** Requests the parents have not answered yet, when approval on the phone with the PIN is on. */
+    val openRequests: Int = 0,
     /** The 5-minute warning, already worded (time/LimitWarning.kt). */
     val limitWarning: String? = null,
 )
@@ -74,6 +76,7 @@ class HomeActions(
     val makeDefault: () -> Unit = {},
     val help: () -> Unit = {},
     val selfTools: (() -> Unit)? = null,
+    val requests: () -> Unit = {},
 )
 
 @Composable
@@ -123,6 +126,14 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
                         else -> stringResource(R.string.home_school_until, until)
                     },
                 )
+                if (ui.state.notice?.silent == true) {
+                    Spacer(Modifier.height(10.dp))
+                    SilentBedtime()
+                }
+            }
+            if (ui.openRequests > 0) {
+                Spacer(Modifier.height(20.dp))
+                RequestsLink(ui.openRequests, actions.requests)
             }
             if (ui.offerDefaultHome) {
                 Spacer(Modifier.height(28.dp))
@@ -184,6 +195,34 @@ private fun Notice(text: String) {
         Box(Modifier.width(3.dp).height(20.dp).clip(RoundedCornerShape(2.dp)).background(c.accent))
         Spacer(Modifier.width(12.dp))
         Text(text, color = c.ink, fontSize = 17.sp)
+    }
+}
+
+/** Tells the child that bedtime is silent, and why. Plain words, no judgement (design principle 7). */
+@Composable
+private fun SilentBedtime() {
+    val c = LocalHomeColors.current
+    Column(Modifier.padding(start = 15.dp)) {
+        Text(stringResource(R.string.home_bedtime_silent), color = c.ink, fontSize = 15.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(stringResource(R.string.home_bedtime_silent_why), color = c.muted, fontSize = 15.sp)
+    }
+}
+
+/** A quiet link to the requests the parents have not answered yet. */
+@Composable
+private fun RequestsLink(count: Int, open: () -> Unit) {
+    val c = LocalHomeColors.current
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = open)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(3.dp).height(20.dp).clip(RoundedCornerShape(2.dp)).background(c.accent))
+        Spacer(Modifier.width(12.dp))
+        Text(pluralStringResource(R.plurals.home_requests_waiting, count, count), color = c.ink, fontSize = 17.sp)
     }
 }
 

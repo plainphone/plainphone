@@ -43,6 +43,11 @@ touches them.
 3. The parents get a push notification with the choices **15 min**, **1 hour**, **Rest of the
    day** and **No**. The same request is in the dashboard (the phone's page) and in the parent
    app, so it can be answered from any of them.
+3b. A parent standing next to the child can approve it on the phone itself: **My requests** lists
+   the ask, and **A parent is here: approve with PIN** (the same PIN box as for apps and contacts,
+   [bedtime.md](bedtime.md)) gives **15 minutes**. It shows as "approved on the phone" in the
+   dashboard and the parents are told. It follows the per-phone switch **Allow approval with PIN on
+   the phone**; more than 15 minutes is a choice for the dashboard or the parent app.
 4. The first answer wins. A second parent, or a second tap, sees what was decided and changes
    nothing (`won: false`).
 5. The phone shows the state: sent, waiting, approved (with the new end time, or "the rest of

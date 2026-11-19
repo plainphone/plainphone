@@ -583,7 +583,7 @@ async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
 
 /** Applies or queues one change. */
 export async function submitChange(
-  ctx: Ctx, phone: Phone, userId: string, op: Op, deviceFavourite = false,
+  ctx: Ctx, phone: Phone, userId: string | null, op: Op, deviceFavourite = false,
 ): Promise<ChangeResult> {
   const result = await ctx.db.transaction(async (tx) => {
     // Serialise changes per phone, so loosening checks see a stable state.

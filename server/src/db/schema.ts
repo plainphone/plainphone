@@ -285,6 +285,10 @@ export const phones = pgTable(
     offlineAlertHours: integer("offline_alert_hours"),
     changeReceiptsEnabled: boolean("change_receipts_enabled").notNull().default(true),
     healthBoardEnabled: boolean("health_board_enabled").notNull().default(true),
+    /** Bedtime is silent: only parents, 112 and help lines get through (docs/bedtime.md). */
+    silentBedtime: boolean("silent_bedtime").notNull().default(true),
+    /** A parent next to the child may approve a request on the phone with the parent PIN. */
+    pinApprovalEnabled: boolean("pin_approval_enabled").notNull().default(true),
     rulesRevision: integer("rules_revision").notNull().default(0),
     rulesAwaitDns: boolean("rules_await_dns").notNull().default(false),
     createdAt: createdAt(),
@@ -653,6 +657,8 @@ export const phoneRequests = pgTable(
     /** On a Self phone an approval becomes a change that waits for the key. */
     changeId: uuid("change_id").references(() => pendingChanges.id, { onDelete: "set null" }),
     decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    /** Where the answer came from. Null on old rows and while open: treated as a parent's answer. */
+    decidedVia: text("decided_via", { enum: ["parent", "phone"] }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -682,6 +688,8 @@ export const moreTimeRequests = pgTable(
     answer: text("answer", { enum: ["15", "60", "day", "no"] }),
     grantedMinutes: integer("granted_minutes"),
     decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    /** Where the answer came from. Null on old rows and while open: treated as a parent's answer. */
+    decidedVia: text("decided_via", { enum: ["parent", "phone"] }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
   },

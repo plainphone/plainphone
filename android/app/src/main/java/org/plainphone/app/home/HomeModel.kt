@@ -6,6 +6,7 @@ import java.text.Collator
 import java.time.Instant
 import java.time.LocalTime
 import java.util.Locale
+import org.plainphone.app.quiet.BedtimeQuiet
 import org.plainphone.app.sync.Schedules
 import org.plainphone.app.sync.ServerRules
 
@@ -15,8 +16,11 @@ data class LaunchableApp(val packageName: String, val label: String, val compone
 /** An app as the home screen shows it. [minutesLeft] is null when the app has no time limit today. */
 data class HomeApp(val packageName: String, val label: String, val component: String, val minutesLeft: Int? = null)
 
-/** School time or bedtime, shown quietly under the date. */
-data class WindowNotice(val kind: Kind, val until: LocalTime) {
+/**
+ * School time or bedtime, shown quietly under the date. [silent] is set during bedtime when "Silent bedtime"
+ * is on: the child is told that the phone is silent, and why.
+ */
+data class WindowNotice(val kind: Kind, val until: LocalTime, val silent: Boolean = false) {
     enum class Kind { SCHOOL, BEDTIME }
 }
 
@@ -75,15 +79,16 @@ object HomeModel {
         // Nothing chosen: the front page is the clock, phone and messages (docs/phone-settings.md).
         // A package can have several launcher entries; the front page shows the first by name.
         val favourites = prefs.apps.mapNotNull { byPackage[it]?.first() }
-        return HomeState(prefs, favourites, visible, notice(windows))
+        val silent = rules != null && BedtimeQuiet.silent(rules, windows)
+        return HomeState(prefs, favourites, visible, notice(windows, silent))
     }
 
     /** The window that ends last decides the "until" time; bedtime wins over school time. */
-    private fun notice(windows: List<org.plainphone.app.sync.Schedule>): WindowNotice? {
+    private fun notice(windows: List<org.plainphone.app.sync.Schedule>, silent: Boolean): WindowNotice? {
         if (windows.isEmpty()) return null
         val bedtime = windows.filter { it.kind == "bedtime" }
         val pick = (bedtime.ifEmpty { windows }).maxBy { it.end }
         val kind = if (pick.kind == "bedtime") WindowNotice.Kind.BEDTIME else WindowNotice.Kind.SCHOOL
-        return WindowNotice(kind, pick.end)
+        return WindowNotice(kind, pick.end, silent = silent && kind == WindowNotice.Kind.BEDTIME)
     }
 }

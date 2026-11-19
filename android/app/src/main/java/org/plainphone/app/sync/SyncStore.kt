@@ -292,6 +292,29 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         prefs.edit().putLong(KEY_SYNC_AT, nowMs).apply()
     }
 
+    // --- Requests and approval on the phone with the parent PIN ---------------------
+
+    /** Requests no parent has answered yet, as of the last sync. The home screen shows a link while it is above 0. */
+    var openRequests: Int
+        get() = prefs.getInt(KEY_OPEN_REQUESTS, 0)
+        set(value) { prefs.edit().putInt(KEY_OPEN_REQUESTS, value).apply() }
+
+    /**
+     * Requests a parent approved on this phone with the PIN, that the server has not heard about yet.
+     * The phone is the authority for what it did: an approval entered offline is kept and reported when
+     * the phone is online again, and the server never refuses it.
+     */
+    fun pendingPhoneApprovals(): Set<String> = prefs.getStringSet(KEY_PHONE_APPROVALS, null)?.toSet().orEmpty()
+
+    @SuppressLint("ApplySharedPref") // The PIN was entered: the approval must survive process death.
+    fun queuePhoneApproval(requestId: String) = synchronized(approvalLock) {
+        prefs.edit().putStringSet(KEY_PHONE_APPROVALS, pendingPhoneApprovals() + requestId).commit()
+    }
+
+    fun phoneApprovalReported(requestId: String) = synchronized(approvalLock) {
+        prefs.edit().putStringSet(KEY_PHONE_APPROVALS, pendingPhoneApprovals() - requestId).apply()
+    }
+
     /** When the server last answered a rules request (200 or 304). */
     val lastSyncAtMs: Long? get() = prefs.getLong(KEY_SYNC_AT, 0L).takeIf { it > 0 }
 
@@ -458,6 +481,9 @@ class SyncStore(context: Context, private val box: SecretBox = DEVICE_BOX) {
         private val DEVICE_BOX = KeystoreSecretBox()
         private val tokenLock = Any()
         private val appReportLock = Any()
+        private val approvalLock = Any()
+        private const val KEY_OPEN_REQUESTS = "open_requests"
+        private const val KEY_PHONE_APPROVALS = "phone_approvals"
         @Volatile private var tokenCache: CachedToken? = null
         @Volatile private var rulesCache: Pair<String, ServerRules>? = null
         private const val APP_SCAN_INTERVAL_MS = 24 * 60 * 60_000L

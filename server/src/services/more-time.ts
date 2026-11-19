@@ -66,6 +66,8 @@ export function moreTimeJson(r: Row) {
     grantedMinutes: r.grantedMinutes,
     createdAt: r.createdAt.toISOString(),
     decidedAt: r.decidedAt?.toISOString() ?? null,
+    /** "phone" when a parent answered on the phone itself with the parent PIN, else "parent" (or null while open). */
+    decidedVia: r.decidedAt ? (r.decidedVia ?? "parent") : null,
   };
 }
 
@@ -160,8 +162,10 @@ export async function answerMoreTimeRequest(
   ctx: Ctx,
   phone: Phone,
   requestId: string,
-  userId: string,
+  /** Null when a parent answered on the phone itself ([via] "phone"). */
+  userId: string | null,
   answer: MoreTimeAnswer,
+  via: "parent" | "phone" = "parent",
 ): Promise<{ request: Row; won: boolean }> {
   const out = await ctx.db.transaction(async (tx) => {
     const [fresh] = await tx.select().from(phones).where(eq(phones.id, phone.id)).for("update");
@@ -196,6 +200,7 @@ export async function answerMoreTimeRequest(
         answer,
         grantedMinutes: minutes,
         decidedBy: userId,
+        decidedVia: via,
         decidedAt: now,
       })
       .where(eq(moreTimeRequests.id, row.id))
@@ -204,6 +209,30 @@ export async function answerMoreTimeRequest(
   });
   // The phone shows the answer and applies the bonus: let it sync now.
   if (out.won) await wakePhone(ctx, phone.id, "rules");
+  return out;
+}
+
+/** What a parent next to the child approves on the phone with the PIN: a quarter of an hour. More can be given from the dashboard or the parent app. */
+export const PHONE_APPROVAL_ANSWER: MoreTimeAnswer = "15";
+
+/**
+ * A parent next to the child approved the request on the phone with the parent PIN. The phone
+ * checked the PIN and is the authority for what it did, so this is a report: the first answer wins
+ * and a repeat changes nothing. Null when there is no such request.
+ */
+export async function approveMoreTimeOnPhone(ctx: Ctx, phone: Phone, requestId: string): Promise<{ request: Row; won: boolean } | null> {
+  if (phone.profile !== "child") throw new MoreTimeError(409, "approval on the phone is only for child phones");
+  let out;
+  try {
+    out = await answerMoreTimeRequest(ctx, phone, requestId, null, PHONE_APPROVAL_ANSWER, "phone");
+  } catch (err) {
+    if (err instanceof MoreTimeError && err.status === 404) return null;
+    throw err;
+  }
+  if (out.won && out.request.status === "approved") {
+    const what = (await targetLabel(ctx, phone.id, out.request.packageName)) ?? "The daily limit";
+    await notifyHousehold(ctx, phone.id, { type: "request-on-phone", phoneId: phone.id, phoneName: phone.name, kind: "more-time", what });
+  }
   return out;
 }
 

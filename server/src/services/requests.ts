@@ -21,13 +21,33 @@ export const REQUEST_HISTORY_DAYS = 30;
 
 export type NewRequest = { kind: "app"; packageName: string } | { kind: "contact"; name: string; number: string };
 
+/** What happened to a request that was already answered, in the vocabulary all screens share. */
+export type RequestOutcome = "approvedByYou" | "approvedByOther" | "approvedOnPhone" | "declinedByYou" | "declinedByOther";
+
 export class RequestError extends Error {
   constructor(
     readonly status: 404 | 409 | 429,
     message: string,
+    readonly outcome?: RequestOutcome,
   ) {
     super(message);
   }
+}
+
+/** Who answered first, seen from [userId]. Undefined while the request is still open. */
+export function outcomeOf(r: Pick<Request, "status" | "decidedBy" | "decidedVia">, userId: string | null): RequestOutcome | undefined {
+  const mine = userId !== null && r.decidedBy === userId;
+  if (r.status === "approved") return r.decidedVia === "phone" ? "approvedOnPhone" : mine ? "approvedByYou" : "approvedByOther";
+  if (r.status === "rejected") return mine ? "declinedByYou" : "declinedByOther";
+  return undefined;
+}
+
+async function alreadyAnswered(ctx: Ctx, phoneId: string, requestId: string, userId: string): Promise<RequestError> {
+  const [row] = await ctx.db
+    .select()
+    .from(phoneRequests)
+    .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phoneId)));
+  return new RequestError(409, "this request is no longer open", row && outcomeOf(row, userId));
 }
 
 /** Creates a request from the phone, or returns the open one that asks for the same thing. */
@@ -123,6 +143,8 @@ export function requestJson(r: Request) {
     status: r.status,
     createdAt: r.createdAt.toISOString(),
     decidedAt: r.decidedAt?.toISOString() ?? null,
+    /** "phone" when a parent answered on the phone itself with the parent PIN, else "parent" (or null while open). */
+    decidedVia: r.decidedAt ? (r.decidedVia ?? "parent") : null,
   };
 }
 
@@ -141,6 +163,24 @@ export async function openRequests(ctx: Ctx, phoneIds: string[]) {
   return rows.map(({ r, appLabel }) => ({ ...requestJson(r), phoneId: r.phoneId, appLabel }));
 }
 
+/** Requests answered in the last [RECENT_ANSWER_DAYS] days, newest first, so a parent sees what happened while away. */
+export const RECENT_ANSWER_DAYS = 3;
+
+export async function recentAnswers(ctx: Ctx, phoneId: string) {
+  const since = new Date(ctx.now().getTime() - RECENT_ANSWER_DAYS * 86_400_000);
+  const rows = await ctx.db
+    .select({ r: phoneRequests, appLabel: phoneApps.label })
+    .from(phoneRequests)
+    .leftJoin(
+      phoneApps,
+      and(eq(phoneApps.phoneId, phoneRequests.phoneId), eq(phoneApps.packageName, phoneRequests.packageName)),
+    )
+    .where(and(eq(phoneRequests.phoneId, phoneId), inArray(phoneRequests.status, ["approved", "rejected"]), gte(phoneRequests.decidedAt, since)))
+    .orderBy(desc(phoneRequests.decidedAt))
+    .limit(5);
+  return rows.map(({ r, appLabel }) => ({ ...requestJson(r), phoneId: r.phoneId, appLabel }));
+}
+
 /**
  * Approves a request: applies it as a rule change (through the key on a Self phone).
  * The parent may correct a contact's name. A failed change leaves the request open.
@@ -154,10 +194,10 @@ export async function approveRequest(
 ): Promise<ChangeResult> {
   const [claimed] = await ctx.db
     .update(phoneRequests)
-    .set({ status: "approved", decidedBy: userId, decidedAt: ctx.now() })
+    .set({ status: "approved", decidedBy: userId, decidedVia: "parent", decidedAt: ctx.now() })
     .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")))
     .returning();
-  if (!claimed) throw new RequestError(409, "this request is no longer open");
+  if (!claimed) throw await alreadyAnswered(ctx, phone.id, requestId, userId);
   const op: Op =
     claimed.kind === "app"
       ? { type: "app.set", packageName: claimed.packageName!, allowed: true }
@@ -171,19 +211,72 @@ export async function approveRequest(
   } catch (err) {
     await ctx.db
       .update(phoneRequests)
-      .set({ status: "pending", decidedBy: null, decidedAt: null })
+      .set({ status: "pending", decidedBy: null, decidedVia: null, decidedAt: null })
       .where(eq(phoneRequests.id, claimed.id));
     throw err;
   }
 }
 
+/**
+ * A parent next to the child approved the request on the phone with the parent PIN. The phone
+ * checked the PIN and is the authority for what it did, so this is a report, not a question:
+ * it never fails because someone answered first. The first answer wins and a repeat changes
+ * nothing, so the phone can retry safely. Only child phones have a parent PIN.
+ */
+export async function approveRequestOnPhone(
+  ctx: Ctx,
+  phone: Phone,
+  requestId: string,
+): Promise<{ request: Request; won: boolean }> {
+  if (phone.profile !== "child") throw new RequestError(409, "approval on the phone is only for child phones");
+  const [claimed] = await ctx.db
+    .update(phoneRequests)
+    .set({ status: "approved", decidedBy: null, decidedVia: "phone", decidedAt: ctx.now() })
+    .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")))
+    .returning();
+  if (!claimed) {
+    const [row] = await ctx.db
+      .select()
+      .from(phoneRequests)
+      .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phone.id)));
+    if (!row) throw new RequestError(404, "request not found");
+    return { request: row, won: false };
+  }
+  const op: Op =
+    claimed.kind === "app"
+      ? { type: "app.set", packageName: claimed.packageName!, allowed: true }
+      : { type: "contact.add", name: claimed.contactName!, number: claimed.contactNumber! };
+  try {
+    const result = await submitChange(ctx, phone, null, op);
+    if (result.status === "pending") {
+      await ctx.db.update(phoneRequests).set({ changeId: result.change.id }).where(eq(phoneRequests.id, claimed.id));
+    }
+  } catch (err) {
+    await ctx.db
+      .update(phoneRequests)
+      .set({ status: "pending", decidedBy: null, decidedVia: null, decidedAt: null })
+      .where(eq(phoneRequests.id, claimed.id));
+    throw err;
+  }
+  let what = claimed.contactName ? `${claimed.contactName} (${claimed.contactNumber})` : (claimed.packageName ?? "");
+  if (claimed.kind === "app") {
+    const [app] = await ctx.db
+      .select({ label: phoneApps.label })
+      .from(phoneApps)
+      .where(and(eq(phoneApps.phoneId, phone.id), eq(phoneApps.packageName, claimed.packageName!)));
+    what = app?.label ?? what;
+  }
+  await notifyHousehold(ctx, phone.id, { type: "request-on-phone", phoneId: phone.id, phoneName: phone.name, kind: claimed.kind, what });
+  return { request: claimed, won: true };
+}
+
 export async function rejectRequest(ctx: Ctx, phone: Phone, requestId: string, userId: string) {
   const [row] = await ctx.db
     .update(phoneRequests)
-    .set({ status: "rejected", decidedBy: userId, decidedAt: ctx.now() })
+    .set({ status: "rejected", decidedBy: userId, decidedVia: "parent", decidedAt: ctx.now() })
     .where(and(eq(phoneRequests.id, requestId), eq(phoneRequests.phoneId, phone.id), eq(phoneRequests.status, "pending")))
     .returning();
-  if (!row) throw new RequestError(409, "this request is no longer open");
+  if (!row) throw await alreadyAnswered(ctx, phone.id, requestId, userId);
   // The phone shows the answer; let it know now.
   await wakePhone(ctx, phone.id, "rules");
 }

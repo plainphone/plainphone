@@ -211,6 +211,13 @@
       "when": 1795116849587,
       "tag": "0041_more_time",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795121377162,
+      "tag": "0042_bedtime_pin_approval",
+      "breakpoints": true
     }
   ]
 }

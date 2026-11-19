@@ -21,7 +21,15 @@ data class ContactRules(
     val selfProfile: Boolean = false,
     val childProfile: Boolean = false,
     val suggestDeviceContacts: Boolean = false,
+    /** Silent bedtime is on right now: only [bedtimeRingers], help lines and an emergency call-back ring. */
+    val silentBedtime: Boolean = false,
+    val bedtimeRingers: List<ApprovedContact> = emptyList(),
 ) {
+    fun isBedtimeRinger(number: String?): Boolean {
+        val key = PhoneNumbers.normalize(number, country) ?: return false
+        return bedtimeRingers.any { PhoneNumbers.normalize(it.number, country) == key }
+    }
+
     fun helpContact(number: String?, channel: Channel): ApprovedContact? =
         help.contactFor(number, Helplines.country(country), channel)
 
@@ -97,6 +105,18 @@ class ContactPolicy(
         if (PhoneNumbers.normalize(number, rules.country) == null) return Decision.Block("not a phone number")
         val contact = rules.contactFor(number) ?: return Decision.Block("not an approved contact")
         return Decision.Allow("approved contact ${contact.name}")
+    }
+
+    /**
+     * Whether an incoming call that [decide] allowed may also make the phone ring. Always true unless
+     * silent bedtime is on. Then only parents, help lines and the call-back after an emergency call ring.
+     */
+    fun ringsAtBedtime(rules: ContactRules, number: String?): Boolean {
+        if (!rules.silentBedtime) return true
+        if (rules.incomingHelpContact(number, Channel.CALL) != null) return true
+        val since = sinceLastEmergencyMs()
+        if (since != null && since in 0..EMERGENCY_CALLBACK_WINDOW_MS) return true
+        return rules.isBedtimeRinger(number)
     }
 
     companion object {

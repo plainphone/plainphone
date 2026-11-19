@@ -21,6 +21,8 @@ object CallNotifications {
     const val CHANNEL_CALLS = "calls"
     const val CHANNEL_MESSAGES = "messages"
     const val CHANNEL_BLOCKED = "blocked"
+    /** Silent bedtime: the same notifications without sound, vibration or heads-up (docs/bedtime.md). */
+    const val CHANNEL_QUIET = "quiet"
     private const val ID_CALL = 1
     private const val ID_BLOCKED = 2
     private const val ID_MESSAGE_BASE = 1000
@@ -33,6 +35,8 @@ object CallNotifications {
                     .apply { setSound(null, null) }, // Telecom plays the ringtone.
                 NotificationChannel(CHANNEL_MESSAGES, context.getString(R.string.channel_messages), NotificationManager.IMPORTANCE_HIGH),
                 NotificationChannel(CHANNEL_BLOCKED, context.getString(R.string.channel_blocked), NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(CHANNEL_QUIET, context.getString(R.string.channel_quiet), NotificationManager.IMPORTANCE_LOW)
+                    .apply { setSound(null, null); enableVibration(false) },
             ),
         )
     }
@@ -54,18 +58,21 @@ object CallNotifications {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val person = Person.Builder().setName(title).setImportant(true).build()
-        val builder = Notification.Builder(context, CHANNEL_CALLS)
+        val quiet = callState(call) == Call.STATE_RINGING && CallManager.isQuiet(call)
+        val builder = Notification.Builder(context, if (quiet) CHANNEL_QUIET else CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(screen)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_CALL)
             .setOnlyAlertOnce(true)
         if (callState(call) == Call.STATE_RINGING) {
-            builder.setFullScreenIntent(screen, true)
-            if (Build.VERSION.SDK_INT >= 31) {
+            if (!quiet) builder.setFullScreenIntent(screen, true)
+            // A quiet call is a plain notification: Android 12+ refuses a call style without a
+            // full-screen intent or a foreground service, and the call would then not show at all.
+            if (Build.VERSION.SDK_INT >= 31 && !quiet) {
                 builder.setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))
             } else {
-                // Android 10 and 11 have no call style: the same two buttons as plain actions.
+                // Android 10 and 11 (and quiet calls) have no call style: the same two buttons as plain actions.
                 builder.setContentTitle(title)
                     .setContentText(context.getString(R.string.call_incoming))
                     .addPerson(person)
@@ -96,7 +103,7 @@ object CallNotifications {
 
     fun showMessage(
         context: Context, name: String, number: String, body: String, privateOnLockScreen: Boolean = false,
-        helpReply: Boolean = false,
+        helpReply: Boolean = false, quiet: Boolean = false,
     ) {
         createChannels(context)
         val thread = SmsThread(number, if (helpReply) SmsThreadKind.HELP else SmsThreadKind.CONTACT)
@@ -105,7 +112,7 @@ object CallNotifications {
             PhoneActivity.conversationIntent(context, thread).setIdentifier("${thread.kind}:$number"),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val n = Notification.Builder(context, CHANNEL_MESSAGES)
+        val n = Notification.Builder(context, if (quiet) CHANNEL_QUIET else CHANNEL_MESSAGES)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(name)
             .setContentText(body)

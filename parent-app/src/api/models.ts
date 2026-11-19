@@ -72,6 +72,8 @@ export interface Phone {
   dnsReady?: boolean;
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
+  silentBedtime?: boolean;
+  pinApprovalEnabled?: boolean;
   ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { type FormEvent, useId, useRef, useState } from "react";
+import { PhoneSwitch, SleepOutsideTip } from "../components/BedtimeSettings";
 import { Field, LoadGate, PageTitle, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type App, type ChangeResult, type Schedule, type ScheduleInput, type ScheduleKind } from "../lib/api";
@@ -14,7 +15,7 @@ interface Data {
 
 export function SchedulesPage() {
   const { t, locale } = useI18n();
-  const { phone, run, appLabel } = usePhone();
+  const { phone, setPhone, notify, run, appLabel } = usePhone();
   const res = useLoad(async (): Promise<Data> => {
     const [s, a] = await Promise.all([
       api.get<{ schedules: Schedule[] }>(`/phones/${phone.id}/schedules`),
@@ -38,6 +39,10 @@ export function SchedulesPage() {
   return (
     <>
       <PageTitle sub={t("sched.intro")}>{t("sched.title")}</PageTitle>
+      <SleepOutsideTip />
+      <section className="section" aria-label={t("bedtime.silent")}>
+        <PhoneSwitch phone={phone} field="silentBedtime" label={t("bedtime.silent")} help={t("bedtime.silentHelp")} setPhone={setPhone} notify={notify} />
+      </section>
       <LoadGate res={res}>
         {({ schedules, apps }) => (
           <>

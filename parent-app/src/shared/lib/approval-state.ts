@@ -8,6 +8,7 @@ import type { MessageKey } from "../i18n/en";
 export type ApprovalOutcome =
   | "approvedByYou"
   | "approvedByOther"
+  | "approvedOnPhone"
   | "declinedByYou"
   | "declinedByOther"
   | "cancelled"
@@ -18,7 +19,7 @@ export type ApprovalOutcome =
 export type Decision = "approve" | "reject";
 
 const OUTCOMES: readonly string[] = [
-  "approvedByYou", "approvedByOther", "declinedByYou", "declinedByOther", "cancelled", "failed", "changed", "codeExpired",
+  "approvedByYou", "approvedByOther", "approvedOnPhone", "declinedByYou", "declinedByOther", "cancelled", "failed", "changed", "codeExpired",
 ];
 
 /** The outcome a 409 explained, or null when the server did not say (an older server). */

@@ -17,6 +17,7 @@ it("says who answered, and nothing for open or expired requests", () => {
   expect(byKey(req({ status: "approved", answeredByYou: true }))).toBe("moreTime.byYou");
   expect(byKey(req({ status: "declined", answeredByYou: false }))).toBe("moreTime.byOther");
   expect(byKey(req({ status: "approved", answeredByYou: null }))).toBeNull();
+  expect(byKey(req({ status: "approved", answeredByYou: null, decidedVia: "phone" }))).toBe("requests.tagOnPhone");
   expect(byKey(req({ status: "expired", answeredByYou: null }))).toBeNull();
   expect(byKey(req())).toBeNull();
 });

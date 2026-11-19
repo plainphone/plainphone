@@ -137,6 +137,23 @@ describe("overview", () => {
     }));
   });
 
+  it("switches approval on the phone with the PIN off for a child phone", async () => {
+    const path = `/phones/${PHONE.id}`;
+    const api = phoneApi(PHONE, { [`PATCH ${path}`]: { body: { ...PHONE, pinApprovalEnabled: false } } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByRole("switch", { name: "Approve on the phone with the PIN", checked: true })).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name: "Approve on the phone with the PIN" }));
+    await waitFor(() => expect(api.calls).toContainEqual(expect.objectContaining({ method: "PATCH", path, body: { pinApprovalEnabled: false } })));
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Approve on the phone with the PIN", checked: false })).toBeTruthy());
+  });
+
+  it("offers no approval on the phone for a Self phone, which has no parent PIN", async () => {
+    phoneApi(SELF);
+    await renderRouter(routes, { initialUrl: at(SELF) });
+    expect(await screen.findByText("Phone health")).toBeTruthy();
+    expect(screen.queryByRole("switch", { name: "Approve on the phone with the PIN" })).toBeNull();
+  });
+
   it("shows the recovery guide when a pending release targets an old app", async () => {
     phoneApi({
       ...PHONE,
@@ -577,6 +594,33 @@ describe("web filter", () => {
 });
 
 describe("school time and bedtime", () => {
+  it("recommends sleeping outside the bedroom once, and switches the silent bedtime on and off", async () => {
+    const path = `/phones/${PHONE.id}`;
+    const api = phoneApi(PHONE, {
+      [`GET ${path}/schedules`]: { body: { schedules: [] } },
+      [`PATCH ${path}`]: { body: { ...PHONE, silentBedtime: false } },
+    });
+    await renderRouter(routes, { initialUrl: at(PHONE, "schedules") });
+    expect(await screen.findByText("Let the phone sleep outside the bedroom")).toBeTruthy();
+    // On by default: a missing value from the server means on.
+    expect(screen.getByRole("switch", { name: "Silent bedtime", checked: true })).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name: "Silent bedtime" }));
+    await waitFor(() => expect(api.calls).toContainEqual(expect.objectContaining({ method: "PATCH", path, body: { silentBedtime: false } })));
+    await fireEvent.press(screen.getByText("Read the recommendation"));
+    expect(NativeLinking.openURL).toHaveBeenCalledWith(expect.stringContaining("sst.dk"));
+    await fireEvent.press(screen.getByText("Got it"));
+    await waitFor(() => expect(screen.queryByTestId("sleep-tip")).toBeNull());
+    expect(await SecureStore.getItemAsync("pp.tip.sleepOutside")).toBe("1");
+  });
+
+  it("does not show the recommendation again after it was dismissed", async () => {
+    await SecureStore.setItemAsync("pp.tip.sleepOutside", "1");
+    phoneApi(PHONE, { [`GET /phones/${PHONE.id}/schedules`]: { body: { schedules: [] } } });
+    await renderRouter(routes, { initialUrl: at(PHONE, "schedules") });
+    expect(await screen.findByRole("switch", { name: "Silent bedtime" })).toBeTruthy();
+    expect(screen.queryByTestId("sleep-tip")).toBeNull();
+  });
+
   it("validates the times and saves a schedule", async () => {
     const api = phoneApi(PHONE, {
       [`GET /phones/${PHONE.id}/schedules`]: { body: { schedules: [] } },

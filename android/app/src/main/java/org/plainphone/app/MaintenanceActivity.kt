@@ -300,6 +300,7 @@ class MaintenanceActivity : Activity() {
                 }
             })
         }
+        showSilentBedtimeAccess()
         val light = org.plainphone.app.light.Mode.isLight(this)
         if (!light && !InstallWatchdogService.hasBatteryExemption(this)) {
             column.addView(action {
@@ -352,6 +353,25 @@ class MaintenanceActivity : Activity() {
         showSupport()
         output.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         column.addView(output)
+    }
+
+    /**
+     * Silent bedtime works without Android's Do Not Disturb access for calls and Plainphone's own messages,
+     * but other apps keep their sounds. Android lets only a person grant the access, so say so plainly
+     * and offer the way to it (docs/bedtime.md).
+     */
+    private fun showSilentBedtimeAccess() {
+        val rules = SyncStore(this).rules() ?: return
+        if (!rules.silentBedtime || rules.schedules.none { it.kind == "bedtime" }) return
+        if (org.plainphone.app.quiet.BedtimeDnd.hasAccess(this)) return
+        column.addView(style.body(TextView(this).apply { text = getString(R.string.maintenance_silent_bedtime_missing) }))
+        column.addView(action {
+            text = getString(R.string.maintenance_silent_bedtime_access)
+            setOnClickListener {
+                runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                    .onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+            }
+        })
     }
 
     private fun showSupport() {
