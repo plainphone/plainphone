@@ -24,6 +24,148 @@ const report = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+describe("rule confirmations", () => {
+  it("only confirms the current ETag, including edits to the filter's domain list", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const initial = await device.get("/api/device/rules");
+    const firstEtag = initial.headers.get("etag");
+    const appliedAt = h.clock.now.toISOString();
+    expect(initial.json).toMatchObject({ changeReceiptsEnabled: true, healthBoardEnabled: true });
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBeNull();
+    await device.put("/api/device/status", report({ rulesEtag: firstEtag, rulesAppliedAt: appliedAt }));
+    expect((await parent.get(path)).json.ruleReceipt).toMatchObject({ appliedAt: null, needsUpdate: true });
+    await device.put("/api/device/status", report({
+      rulesEtag: firstEtag, rulesAppliedAt: appliedAt, rulesReceiptConfirmed: true,
+    }));
+    expect((await parent.get(path)).json.ruleReceipt).toMatchObject({ appliedAt, needsUpdate: false });
+
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBeNull();
+    const updated = await device.get("/api/device/rules", { "if-none-match": firstEtag! });
+    expect(updated.status).toBe(200);
+    const confirmedAt = h.clock.now.toISOString();
+    const skewedTime = new Date(h.clock.now.getTime() + 10 * 60_000).toISOString();
+    const secondEtag = updated.headers.get("etag");
+    expect(secondEtag).not.toBe(firstEtag);
+
+    await device.put("/api/device/status", report({
+      rulesEtag: secondEtag, rulesAppliedAt: appliedAt, rulesReceiptConfirmed: false,
+    }));
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBeNull();
+    await device.put("/api/device/status", report({
+      rulesEtag: secondEtag, rulesAppliedAt: skewedTime, rulesReceiptConfirmed: true, webFilterActive: false,
+    }));
+    h.clock.now = new Date(h.clock.now.getTime() + 15 * 60_000);
+    await device.put("/api/device/status", report({
+      rulesEtag: secondEtag, rulesAppliedAt: skewedTime, rulesReceiptConfirmed: true, webFilterActive: false,
+    }));
+    expect((await parent.get(path)).json).toMatchObject({
+      ruleReceipt: { appliedAt: skewedTime, confirmedAt },
+      status: { webFilterActive: false },
+    });
+  });
+
+  it("requires a fresh receipt after a domain edit is undone offline", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const firstEtag = (await device.get("/api/device/rules")).headers.get("etag")!;
+    const acknowledge = (etag: string) => device.put("/api/device/status", report({
+      rulesEtag: etag, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    await acknowledge(firstEtag);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+
+    h.clock.now = new Date(h.clock.now.getTime() + 60 * 60_000);
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    expect((await parent.del(`${path}/dns/block/example.org`)).status).toBe(200);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBeNull();
+
+    const changed = await device.get("/api/device/rules", { "if-none-match": firstEtag });
+    expect(changed.status).toBe(200);
+    await acknowledge(changed.headers.get("etag")!);
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+  });
+
+  it("waits for the resolver on DNS edits and confirms a later bedtime during the outage", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    const acknowledgeCurrent = async () => {
+      const rules = await device.get("/api/device/rules");
+      await device.put("/api/device/status", report({
+        rulesEtag: rules.headers.get("etag"), rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+      }));
+    };
+    h.dns.failNext = 1;
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    await acknowledgeCurrent();
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: false, ruleReceipt: { appliedAt: null } });
+
+    expect((await parent.post(`${path}/schedules`, {
+      kind: "bedtime", days: [1, 2, 3, 4, 5, 6, 7], startMinute: 1260, endMinute: 420, allowedPackages: [],
+    })).status).toBe(200);
+    await acknowledgeCurrent();
+    const receipt = { appliedAt: h.clock.now.toISOString() };
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: false, ruleReceipt: receipt });
+    await sweep(h.ctx);
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: true, ruleReceipt: receipt });
+  });
+
+  it("wakes a phone that confirmed the waiting state when the resolver retry succeeds", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    expect((await parent.patch(path, { pushWakeups: true })).status).toBe(200);
+    await device.put("/api/device/push-token", { fcmToken: "dns-wake" });
+    h.dns.failNext = 1;
+    expect((await parent.post(`${path}/dns/block`, { domain: "example.org" })).status).toBe(200);
+    const waiting = (await device.get("/api/device/rules")).headers.get("etag")!;
+    await device.put("/api/device/status", report({
+      rulesEtag: waiting, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    h.push.sent.length = 0;
+    await sweep(h.ctx);
+    expect(h.push.sent).toEqual([{ token: "dns-wake", reason: "rules" }]);
+    // The retry changed the ETag, and the phone has not confirmed the new one yet.
+    expect((await parent.get(path)).json).toMatchObject({ dnsSynced: true, ruleReceipt: { appliedAt: null } });
+    const final = (await device.get("/api/device/rules", { "if-none-match": waiting })).headers.get("etag")!;
+    expect(final).not.toBe(waiting);
+    await device.put("/api/device/status", report({
+      rulesEtag: final, rulesAppliedAt: h.clock.now.toISOString(), rulesReceiptConfirmed: true,
+    }));
+    expect((await parent.get(path)).json.ruleReceipt.appliedAt).toBe(h.clock.now.toISOString());
+  });
+
+  it("syncs both per-phone preferences without changing the other phone", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId, device } = await pairPhone(h, parent);
+    const second = await pairPhone(h, parent);
+    const path = `/api/phones/${phoneId}`;
+    expect((await parent.patch(path, { pushWakeups: true })).status).toBe(200);
+    await device.put("/api/device/push-token", { fcmToken: "pref-test" });
+    h.push.sent.length = 0;
+    expect((await parent.patch(path, { changeReceiptsEnabled: false })).json).toMatchObject({
+      changeReceiptsEnabled: false, healthBoardEnabled: true, ruleReceipt: null,
+    });
+    expect((await parent.patch(path, { healthBoardEnabled: false })).json).toMatchObject({
+      changeReceiptsEnabled: false, healthBoardEnabled: false,
+    });
+    expect(h.push.sent).toEqual([{ token: "pref-test", reason: "rules" }, { token: "pref-test", reason: "rules" }]);
+    expect((await device.get("/api/device/rules")).json).toMatchObject({
+      changeReceiptsEnabled: false, healthBoardEnabled: false,
+    });
+    expect((await second.device.get("/api/device/rules")).json).toMatchObject({
+      changeReceiptsEnabled: true, healthBoardEnabled: true,
+    });
+    expect((await parent.patch(path, { changeReceiptsEnabled: true, healthBoardEnabled: true })).json).toMatchObject({
+      changeReceiptsEnabled: true, healthBoardEnabled: true,
+    });
+  });
+});
+
 describe("phone update requests", () => {
   it("delivers a parent request in the rules and returns the phone's outcome", async () => {
     const parent = await signIn(h, "parent@example.org");
@@ -406,7 +548,6 @@ describe("PUT /device/status", () => {
       ["app version over 40", report({ appVersion: "v".repeat(41) })],
       ["etag over 100", report({ rulesEtag: "e".repeat(101) })],
       ["dns host over 253", report({ dnsHost: "h".repeat(254) })],
-      ["applied 10 minutes ahead", report({ rulesAppliedAt: new Date(h.clock.now.getTime() + 10 * 60_000).toISOString() })],
       ["applied time without a zone", report({ rulesAppliedAt: "2026-11-16T11:59:00" })],
       ["lockIntact as text", report({ lockIntact: "yes" })],
     ];
@@ -475,8 +616,8 @@ describe("PUT /device/status", () => {
     });
     expect(status).not.toHaveProperty("extra");
 
-    // A time a few minutes ahead is clock skew, not an error.
-    const skew = new Date(h.clock.now.getTime() + 4 * 60_000).toISOString();
+    // Clock skew must not discard the phone's report.
+    const skew = new Date(h.clock.now.getTime() + 10 * 60_000).toISOString();
     expect((await device.put("/api/device/status", report({ rulesAppliedAt: skew }))).status).toBe(204);
   });
 

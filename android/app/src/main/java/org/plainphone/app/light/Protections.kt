@@ -31,12 +31,14 @@ data class Protections(
     val batteryUnrestricted: Boolean,
     /** False when the user set Private DNS to another resolver, which would go around the filter. */
     val privateDnsOk: Boolean,
+    val usageAccessGranted: Boolean = usageAccess,
 ) {
     fun toMap(): Map<String, Boolean> = mapOf(
         "deviceOwner" to deviceOwner,
         "deviceAdmin" to deviceAdmin,
         "accessibility" to accessibility,
         "usageAccess" to usageAccess,
+        "usageAccessGranted" to usageAccessGranted,
         "vpn" to vpn,
         "alwaysOnVpn" to alwaysOnVpn,
         "phoneRole" to phoneRole,
@@ -68,12 +70,14 @@ data class Protections(
         fun read(context: Context, filterHost: String?, needsUsageAccess: Boolean): Protections {
             val dpm = context.getSystemService(DevicePolicyManager::class.java)
             val roles = context.getSystemService(RoleManager::class.java)
+            val usageAccessGranted = TimeGuard.hasUsageAccess(context)
             return Protections(
                 deviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true,
                 deviceAdmin = dpm?.isAdminActive(LightAdminReceiver.component(context)) == true ||
                     dpm?.isDeviceOwnerApp(context.packageName) == true,
                 accessibility = isGuardEnabled(context),
-                usageAccess = !needsUsageAccess || TimeGuard.hasUsageAccess(context),
+                usageAccess = !needsUsageAccess || usageAccessGranted,
+                usageAccessGranted = usageAccessGranted,
                 vpn = PlainphoneVpnService.isRunning(),
                 alwaysOnVpn = PlainphoneVpnService.isAlwaysOn(context),
                 phoneRole = roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true,
@@ -93,6 +97,15 @@ data class Protections(
         /** Strong mode expects its own strict Private DNS hostname. */
         fun privateDnsOk(serverName: String?, filterHost: String?): Boolean =
             serverName.isNullOrBlank() || serverName.equals(filterHost, ignoreCase = true)
+
+        /** An observation of Android routing, not a test of what the resolver blocks. */
+        fun webFilterActive(context: Context, host: String, owner: Boolean): Boolean? = runCatching {
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            val link = cm.getLinkProperties(cm.activeNetwork) ?: return null
+            val server = link.privateDnsServerName.takeIf { link.isPrivateDnsActive }
+            if (owner) server.equals(host, ignoreCase = true)
+            else PlainphoneVpnService.activeHost().equals(host, ignoreCase = true) && privateDnsOk(server, host)
+        }.getOrNull()
 
         private fun privateDnsServer(context: Context): String? = runCatching {
             val cm = context.getSystemService(ConnectivityManager::class.java)

@@ -79,6 +79,9 @@ data class ServerRules(
     val suggestDeviceContacts: Boolean = false,
     val lightContactRestriction: Boolean = false,
     val selfScheduleContacts: Boolean? = null,
+    val changeReceiptsEnabled: Boolean = true,
+    // Old servers reject unknown protection keys and do not advertise this feature.
+    val healthBoardEnabled: Boolean = false,
     val allowServerMove: Boolean = false,
     val serverMove: ServerMoveInstruction? = null,
     /**
@@ -123,6 +126,8 @@ data class ServerRules(
                 fallbackDnsHost = j.optString("fallbackDnsHost", "").trim().lowercase().takeIf { PolicyConfig.isValidHost(it) },
                 profile = j.getString("profile").also { require(it == "child" || it == "self") { "unknown profile $it" } },
                 timezone = ZoneId.of(j.getString("timezone")),
+                changeReceiptsEnabled = j.optBoolean("changeReceiptsEnabled", true),
+                healthBoardEnabled = j.optBoolean("healthBoardEnabled", false),
                 suggestDeviceContacts = j.optBoolean("suggestDeviceContacts", false),
                 lightContactRestriction = j.optBoolean("lightContactRestriction", false),
                 pushProvider = j.optString("pushProvider", "none"),

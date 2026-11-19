@@ -49,7 +49,16 @@ export async function sweep(ctx: Ctx): Promise<SweepResult> {
   await ctx.db.delete(phoneMoves).where(lt(phoneMoves.expiresAt, now));
   await ctx.db.delete(moveImports).where(lt(moveImports.expiresAt, now));
   const applied = await applyDueChanges(ctx);
+  // A resolver retry that succeeds changes the rules' ETag for phones that confirmed the
+  // "waiting" state: wake them so they fetch and confirm the final one.
+  const waitingForDns = (await ctx.db.select({ id: phones.id }).from(phones)
+    .where(and(eq(phones.dnsDirty, true), eq(phones.rulesAwaitDns, true)))).map((p) => p.id);
   const dns = await syncDirtyDns(ctx);
+  if (waitingForDns.length > 0) {
+    const synced = await ctx.db.select({ id: phones.id }).from(phones)
+      .where(and(inArray(phones.id, waitingForDns), eq(phones.dnsDirty, false)));
+    for (const { id } of synced) await wakePhone(ctx, id, "rules");
+  }
   const dnsDeleted = await retryDnsDeletions(ctx);
   const offlineAlerts = (await alertOfflinePhones(ctx)) + (await alertUnansweredCheckins(ctx));
   const ended = await expireAlwaysLocation(ctx);

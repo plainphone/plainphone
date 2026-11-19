@@ -18,7 +18,7 @@ import org.plainphone.app.light.LightFilter
 import org.plainphone.app.light.LightRelease
 
 /** What the VPN tells the rest of the app about itself. */
-enum class VpnEvent { Started, Stopped }
+enum class VpnEvent { Started, HostChanged, Stopped }
 
 /** One hook for status reporting: set [listener] once (for example in Application.onCreate). Called on whatever thread the event happens on. */
 object VpnEvents {
@@ -80,7 +80,10 @@ class PlainphoneVpnService : VpnService() {
     private fun startTunnel(host: String): Boolean {
         val current = tunnel
         if (current != null && current.alive) {
-            current.useHost(host)
+            if (current.activeHost != host) {
+                current.useHost(host)
+                VpnEvents.emit(VpnEvent.HostChanged)
+            }
             return true
         }
         current?.stop()
@@ -168,6 +171,7 @@ class PlainphoneVpnService : VpnService() {
         }, "plainphone-vpn")
 
         val alive: Boolean get() = !stopped && thread.isAlive
+        val activeHost: String? get() = upstream.host.takeIf { alive }
 
         fun start() = thread.start()
 
@@ -269,6 +273,8 @@ class PlainphoneVpnService : VpnService() {
 
         /** True while the interface is up. */
         fun isRunning(): Boolean = running
+
+        fun activeHost(): String? = instance?.tunnel?.activeHost
 
         /**
          * True when Android has this app as the always-on VPN. Asks the running service, because Android only

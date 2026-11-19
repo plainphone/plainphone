@@ -395,7 +395,8 @@ components:
         deviceOwner: { type: boolean }
         deviceAdmin: { type: boolean }
         accessibility: { type: boolean }
-        usageAccess: { type: boolean }
+        usageAccess: { type: boolean, description: Whether usage access is granted or time limits do not need it. }
+        usageAccessGranted: { type: boolean, description: Whether Android actually grants access to usage data. }
         vpn: { type: boolean }
         alwaysOnVpn: { type: boolean }
         phoneRole: { type: boolean }
@@ -666,6 +667,20 @@ components:
         suggestDeviceContacts:
           type: boolean
           description: Parent opt-in to send names and numbers from a Child phone.
+        rulesRevision:
+          type: integer
+          description: Advances on rule edits so restoring an earlier configuration still requires a new confirmation.
+        dnsRevision:
+          type: string
+          description: Opaque revision of domain lists and whether the latest rule edit is waiting for the resolver.
+        changeReceiptsEnabled:
+          type: boolean
+          default: true
+          description: Send confirmations when a rules document is applied.
+        healthBoardEnabled:
+          type: boolean
+          default: true
+          description: Include live web filter checks and the observed usage access permission in phone status.
         lightContactRestriction:
           type: boolean
           description: Enforce the approved list on a light Child phone. Missing means off in light mode.
@@ -929,6 +944,18 @@ components:
         pushWakeups: { type: boolean }
         preferUnifiedPush: { type: boolean }
         offlineAlertHoursDefault: { type: integer }
+        changeReceiptsEnabled: { type: boolean }
+        healthBoardEnabled: { type: boolean }
+        ruleReceipt:
+          type: [object, "null"]
+          description: Confirmation for the current rules document. Null if disabled or unpaired.
+          required: [appliedAt, confirmedAt]
+          properties:
+            needsUpdate:
+              type: boolean
+              description: The phone still reports a fetched ETag without confirming successful application.
+            appliedAt: { type: [string, "null"], format: date-time }
+            confirmedAt: { type: [string, "null"], format: date-time }
         status:
           description: The phone's last report from `PUT /device/status`; null when it has never reported.
           oneOf:
@@ -990,14 +1017,20 @@ components:
           type: [string, "null"]
           maxLength: 100
           description: ETag of the rules the phone last applied.
+        rulesReceiptConfirmed:
+          type: boolean
+          description: The ETag and time refer to a successful rules application; missing on older phones.
+        webFilterActive:
+          type: [boolean, "null"]
+          description: Whether the phone observed the configured filter in use. Null if it could not tell.
         rulesAppliedAt:
           type: [string, "null"]
           format: date-time
-          description: When the phone applied those rules. Must carry a time zone and may be at most 5 minutes ahead of the server.
+          description: When the phone applied those rules. Must carry a time zone. Clock skew does not invalidate the report.
         dnsHost:
           type: [string, "null"]
           maxLength: 253
-          description: The private DNS host the phone actually uses.
+          description: The last private DNS host applied by the phone. Web filter observations use webFilterActive.
         resetProtection:
           type: [string, "null"]
           enum: ["on", "off", "no-play-services", "failed", null]
@@ -1536,7 +1569,7 @@ paths:
         - { name: If-None-Match, in: header, schema: { type: string } }
       responses:
         "200":
-          description: Rules changed (or first fetch). Apply them, then store the ETag.
+          description: Rules changed (or first fetch). Cache the document and ETag, and confirm the ETag in status after a successful application.
           headers:
             ETag: { schema: { type: string } }
           content:
@@ -2564,7 +2597,7 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
     patch:
       operationId: updatePhone
-      summary: Update a phone
+      summary: Update a phone’s name or preferences
       tags: [phones]
       description: Turning location off deletes the stored position. Changing the language or time zone invalidates outstanding setup QR codes and links.
       security: [{ session: [] }, { cookie: [] }]
@@ -2580,6 +2613,8 @@ paths:
                 askMoreTimeEnabled: { type: boolean }
                 limitWarningEnabled: { type: boolean }
                 locationEnabled: { type: boolean }
+                changeReceiptsEnabled: { type: boolean }
+                healthBoardEnabled: { type: boolean }
                 pushWakeups: { type: boolean }
                 preferUnifiedPush: { type: boolean }
                 language: { $ref: "#/components/schemas/PhoneLanguage" }
@@ -2593,7 +2628,11 @@ paths:
                   maximum: 168
                   description: Hours of silence before the parents get a push and a mail. Null = server default, 0 = never.
       responses:
-        "200": { description: "Updated phone" }
+        "200":
+          description: Updated phone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PhoneSummary" }
         "400": { description: Invalid time zone }
         "409": { description: Time zone can only be set before strong setup }
     delete:

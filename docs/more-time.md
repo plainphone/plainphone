@@ -107,7 +107,7 @@ Parents (session or cookie):
   has both and `openMoreTimeRequests`.
 
 Contract: [`server/openapi.yaml`](../server/openapi.yaml). Server code: `services/more-time.ts`,
-`routes/more-time.ts`. Table: `more_time_requests` (migration `0040_more_time.sql`).
+`routes/more-time.ts`. Table: `more_time_requests` (migration `0041_more_time.sql`).
 
 ## Notes for self-hosters
 

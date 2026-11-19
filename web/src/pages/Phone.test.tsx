@@ -20,7 +20,7 @@ const phone: Phone & { status: NonNullable<Phone["status"]> } = {
   locationEnabled: false,
   pairedAt: null,
   releaseRequestedAt: null,
-  lastSeenAt: null,
+  lastSeenAt: new Date().toISOString(),
   dnsHost: "",
   dnsSynced: true,
   dnsReady: true,
@@ -36,7 +36,7 @@ const phone: Phone & { status: NonNullable<Phone["status"]> } = {
     rulesEtag: null,
     rulesAppliedAt: null,
     dnsHost: null,
-    reportedAt: "2026-11-18T00:00:00Z",
+    reportedAt: new Date().toISOString(),
   },
   openRequests: 0,
   offlineAlertHours: null,
@@ -243,4 +243,16 @@ it("keeps an independent update error visible alongside the battery fix", () => 
   expect(html).toContain(t("phone.updateBatteryExemptionMissing"));
   expect(html).toContain(t("phone.updateNetwork"));
   expect(html).toContain(detail);
+});
+
+it("keeps device notices and app updates available with the health board off", () => {
+  const t = makeT("en");
+  const html = renderPhone({
+    ...phone, healthBoardEnabled: false, pairedAt: phone.lastSeenAt,
+    status: { ...phone.status, appVersionCode: 11, lateGoogleAccount: true, callRoleActionNeeded: true },
+  });
+  expect(html).toContain(t("phone.lateGoogleAccount"));
+  expect(html).toContain(t("phone.callRoleActionNeeded"));
+  expect(html).toContain(t("phone.updateNow"));
+  expect(html).not.toContain(t("health.lastSeen"));
 });

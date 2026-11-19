@@ -173,7 +173,11 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       .where(eq(schedules.phoneId, phone.id))
       .orderBy(schedules.createdAt, schedules.id),
     ctx.db
-      .select({ blockedCategories: dnsSettings.blockedCategories })
+      .select({
+        blockedCategories: dnsSettings.blockedCategories,
+        allowDomains: dnsSettings.allowDomains,
+        blockDomains: dnsSettings.blockDomains,
+      })
       .from(dnsSettings)
       .where(eq(dnsSettings.phoneId, phone.id)),
     ctx.db
@@ -209,12 +213,16 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
       openMode: phone.openMode,
       blockedAppCategories: phone.blockedAppCategories,
       timezone: phone.timezone,
+      changeReceiptsEnabled: phone.changeReceiptsEnabled,
+      healthBoardEnabled: phone.healthBoardEnabled,
       language: phone.language,
       lockSystemLanguage: phone.lockSystemLanguage,
       dnsHost: `${phone.dnsClientId}.${ctx.cfg.DNS_HOST_SUFFIX}`,
       dnsReady: isRulesDnsReady(ctx, phone),
       privateDnsReady: isDnsReady(ctx, phone),
       filterMethod: phone.filterMethod,
+      rulesRevision: phone.rulesRevision,
+      rulesWaitingForDns: phone.rulesAwaitDns && phone.dnsDirty,
       locationEnabled: phone.locationEnabled,
       locationMode: phone.locationMode,
       locationAlwaysUntil: phone.locationAlwaysUntil,
@@ -240,6 +248,15 @@ async function loadRulesInputs(ctx: Ctx, phone: Phone) {
 }
 
 type RulesInputs = Awaited<ReturnType<typeof loadRulesInputs>>;
+
+/** Advance in the same transaction as the edit, even if it restores an earlier rules document. */
+export function nextRulesRevision(dns = false) {
+  return {
+    rulesRevision: sql`${phones.rulesRevision} + 1`,
+    rulesAwaitDns: dns,
+    ...(dns ? { dnsDirty: true, dnsVersion: sql`${phones.dnsVersion} + 1` } : {}),
+  };
+}
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
 function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
@@ -269,6 +286,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     selfScheduleContacts: phone.selfScheduleContacts,
     mode: phone.mode,
     timezone: phone.timezone,
+    changeReceiptsEnabled: phone.changeReceiptsEnabled,
+    healthBoardEnabled: phone.healthBoardEnabled,
     language: phone.language,
     lockSystemLanguage: phone.mode === "strong" && phone.profile === "child" && phone.lockSystemLanguage,
     apps: {
@@ -302,6 +321,12 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
       filterMethod: phone.filterMethod,
       blockedCategories: sorted(dnsRow[0]?.blockedCategories ?? []),
     },
+    rulesRevision: phone.rulesRevision,
+    // A DNS edit needs a new acknowledgment once the resolver has accepted it.
+    // A resolver retry must not invalidate an acknowledgment of a later phone-side edit.
+    dnsRevision: createHash("sha256").update(JSON.stringify([
+      sorted(dnsRow[0]?.allowDomains ?? []), sorted(dnsRow[0]?.blockDomains ?? []), phone.rulesWaitingForDns,
+    ])).digest("base64url"),
     location: {
       enabled: phone.locationEnabled,
       mode: phone.locationMode,
@@ -386,10 +411,24 @@ export async function phoneSummary(ctx: Ctx, phone: Phone) {
     respondWithRules(ctx, phone, []),
   ]);
   const summary = summaryJson(ctx, row?.phone ?? phone, row?.hasLocation ?? false, row?.openRequests ?? 0, row?.hasCodeClaim ?? false, row?.openMoreTimeRequests ?? 0);
+  const status = phone.deviceStatus;
+  const confirmed = phone.changeReceiptsEnabled && phone.pairedAt && !(phone.rulesAwaitDns && phone.dnsDirty) &&
+    status?.rulesEtag === current.etag && status.rulesAppliedAt &&
+    status.rulesReceiptConfirmed === true;
+  const ruleReceipt = phone.changeReceiptsEnabled && phone.pairedAt ? {
+    needsUpdate: status?.rulesReceiptConfirmed === undefined && status?.rulesEtag != null,
+    appliedAt: confirmed ? status.rulesAppliedAt : null,
+    // A clock ahead can still carry a valid acknowledgment. Display the server's receipt time separately.
+    confirmedAt: confirmed ? status.rulesReceiptReceivedAt ?? phone.statusReportedAt?.toISOString() ?? null : null,
+  } : null;
   return {
     ...summary,
+    ruleReceipt,
     /** Whether the phone has confirmed the rules the server holds now; null while it has confirmed none. */
-    rulesCurrent: phone.deviceStatus?.rulesEtag ? phone.deviceStatus.rulesEtag === current.etag : null,
+    rulesCurrent: !phone.deviceStatus?.rulesEtag ? null
+      // With receipts on, "current" needs the same proof as the receipt, so header and receipt agree.
+      : phone.changeReceiptsEnabled && phone.pairedAt ? !!confirmed
+      : phone.deviceStatus.rulesEtag === current.etag,
     setupEnrollmentId: summary.setupQrAvailable && row?.setupEnrollment && enrollmentMatches(ctx, row.setupEnrollment, row.phone)
       ? row.setupEnrollment.id
       : null,
@@ -427,7 +466,8 @@ function visibleNotice(notice: StatusNotice | undefined, now: Date): true | unde
 function summaryStatus(phone: Phone, now: Date) {
   if (!phone.deviceStatus || !phone.statusReportedAt) return null;
   const { installOverrun: _storedOverrun, parallelAppsRemovedNotice: _storedRemoval,
-    lateGoogleAccountNotice, lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
+    lateGoogleAccountNotice, rulesReceiptReceivedAt: _receiptReceivedAt,
+    lastConfirmedFilterWorking: _filterBaseline, lockIntactWithoutFilter: _lockBaseline, ...status } = phone.deviceStatus;
   const overrun = installOverrunFromStatus(phone.deviceStatus, phone.statusReportedAt);
   const showOverrun = overrun && now.getTime() - Date.parse(overrun.receivedAt) < STATUS_NOTICE_TTL_MS;
   const failedPolicies = status.failedPolicies.filter((policy) => !isInstallOverrun(policy));
@@ -489,6 +529,8 @@ function summaryJson(ctx: Ctx, phone: Phone, hasLocation: boolean, openRequests:
     /** Null means the server default (`offlineAlertHoursDefault`). */
     offlineAlertHours: phone.offlineAlertHours,
     offlineAlertHoursDefault: ctx.cfg.OFFLINE_ALERT_HOURS,
+    changeReceiptsEnabled: phone.changeReceiptsEnabled,
+    healthBoardEnabled: phone.healthBoardEnabled,
     status: summaryStatus(phone, ctx.now()),
   };
 }

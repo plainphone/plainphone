@@ -185,7 +185,9 @@ fun rulesJson(
     locationMode: String? = null,
     ring: String? = null,
     checkIn: String? = null,
+    filterMethod: String? = null,
 ): String {
+    val method = filterMethod?.let { ""","filterMethod":"$it"""" } ?: ""
     val mode = locationMode?.let { ""","mode":"$it"""" } ?: ""
     val safety = (ring?.let { ""","ring":$it""" } ?: "") + (checkIn?.let { ""","checkIn":$it""" } ?: "")
     val install = toInstall?.let { ""","toInstall":$it""" } ?: ""
@@ -194,11 +196,11 @@ fun rulesJson(
     val ready = dnsReady?.let { ""","ready":$it""" } ?: ""
     val req = requestedAt?.let { "\"$it\"" } ?: "null"
     return """
-    {"phoneId":"7f1c2b9e-0000-4000-8000-000000000001","profile":"child","mode":"strong","timezone":"$timezone",
+    {"phoneId":"7f1c2b9e-0000-4000-8000-000000000001","profile":"child","mode":"strong","timezone":"$timezone","healthBoardEnabled":true,
      "apps":{"allowed":${allowed.joinToString(",", "[", "]") { "\"$it\"" }},"hidden":${hidden.joinToString(",", "[", "]") { "\"$it\"" }}$install},
      "contacts":$contacts,
      "schedules":$schedules,
-     "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready,"blockedCategories":["adult"]},
+     "dns":{"host":"abcdefghijklmnopqrst.dns.plainphone.org"$ready$method,"blockedCategories":["adult"]},
      "location":{"enabled":$locationEnabled$mode,"intervalMinutes":5,"requestedAt":$req}$safety,
      "pendingChanges":[]$rel,
      "pollSeconds":60$limits}

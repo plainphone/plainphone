@@ -68,6 +68,11 @@ export interface Phone {
   hasLocation: boolean;
   status?: components["schemas"]["PhoneStatus"] | null;
   attestation?: components["schemas"]["Attestation"] | null;
+  dnsConfigured?: boolean;
+  dnsReady?: boolean;
+  changeReceiptsEnabled?: boolean;
+  healthBoardEnabled?: boolean;
+  ruleReceipt?: components["schemas"]["PhoneSummary"]["ruleReceipt"];
 }
 export interface App {
   packageName: string;

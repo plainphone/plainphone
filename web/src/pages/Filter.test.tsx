@@ -110,9 +110,28 @@ it.each([
   const html = renderToStaticMarkup(
     <I18nProvider>
       <MemoryRouter>
-        <PhoneStatusBlock phone={{ ...phone, status }} now={Date.parse(status.reportedAt)} />
+        <PhoneStatusBlock phone={{ ...phone, lastSeenAt: status.reportedAt, status }} now={Date.parse(status.reportedAt)} />
       </MemoryRouter>
     </I18nProvider>,
   );
-  expect(html).toContain(`<p class="notice notice-warn">${makeT("en")(key)}</p>`);
+  // The health card shows the filter row; only waiting and unverified are inconclusive, not an action.
+  const inconclusive = filterIssue === "waiting" || filterIssue === "unverified";
+  expect(html).toContain(`<div${inconclusive ? "" : ' class="health-action"'}><dt>Web filter</dt><dd>${makeT("en")(key)}</dd></div>`);
+});
+
+it("shows the Private DNS repair notice when the health card is off", () => {
+  const status: PhoneStatus = {
+    filterMethod: "privateDns", filterIssue: "unverified", filterWorking: false, lockIntact: false, maintenance: false,
+    failedPolicies: [], appVersion: "0.1.0", batteryPct: null, charging: null, deviceOwner: false,
+    rulesEtag: null, rulesAppliedAt: null, dnsHost: null, reportedAt: "2026-11-19T12:00:00Z",
+  };
+  const html = renderToStaticMarkup(
+    <I18nProvider>
+      <MemoryRouter>
+        <PhoneStatusBlock phone={{ ...phone, healthBoardEnabled: false, lastSeenAt: status.reportedAt, status }} now={Date.parse(status.reportedAt)} />
+      </MemoryRouter>
+    </I18nProvider>,
+  );
+  expect(html).toContain(makeT("en")("filter.privateUnverified"));
+  expect(html).not.toContain("<dt>Web filter</dt>");
 });

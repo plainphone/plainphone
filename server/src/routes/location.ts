@@ -10,7 +10,7 @@ import { z } from "zod";
 import { contacts, LOCATION_MODES, locations, type phones, phones as phonesTable, safetyRequests } from "../db/schema.js";
 import { body, RateLimiter } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
-import { wakePhone } from "../services/phones.js";
+import { nextRulesRevision, wakePhone } from "../services/phones.js";
 import {
   ALWAYS_FOR,
   type AlwaysFor,
@@ -157,6 +157,7 @@ export async function setLocationMode(
   const until = mode === "always" ? alwaysUntil(alwaysFor ?? "hour", phone.timezone, ctx.now()) : null;
   await ctx.db.transaction(async (tx) => {
     await tx.update(phonesTable).set({
+      ...nextRulesRevision(),
       locationMode: mode,
       locationEnabled: mode !== "off",
       locationAlwaysUntil: until,

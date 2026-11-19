@@ -498,6 +498,7 @@ internal fun isInteractive(context: Context) = context.getSystemService(PowerMan
 object SyncScheduler {
     private const val PERIODIC = "plainphone-sync-periodic"
     private const val NOW = "plainphone-sync-now"
+    private const val VPN_READY = "plainphone-sync-vpn-ready"
     private const val SOON = "plainphone-sync-soon"
     private const val LOCAL_UNDO = "plainphone-local-setup-undo"
     private const val FINISH_UNDO = "plainphone-sync-finish-undo"
@@ -521,6 +522,9 @@ object SyncScheduler {
     }
 
     fun now(context: Context, reason: String) = enqueueNow(context, reason, NOW)
+
+    // Use a separate slot: the worker that asked Android to start the VPN may still be running.
+    fun vpnReady(context: Context, reason: String) = enqueueNow(context, reason, VPN_READY)
 
     fun pushWake(context: Context, reason: String) =
         enqueueNow(context, "push: $reason", "plainphone-push-wake", ExistingWorkPolicy.APPEND_OR_REPLACE)

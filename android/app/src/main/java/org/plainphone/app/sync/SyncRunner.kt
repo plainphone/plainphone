@@ -8,6 +8,8 @@ import java.security.MessageDigest
 import org.plainphone.app.StepResult
 import org.plainphone.app.contacts.DeviceContact
 import org.plainphone.app.contacts.DeviceContacts
+import org.plainphone.app.light.FilterHealth
+import org.plainphone.app.light.FilterMethod
 import org.plainphone.app.update.UpdateBatteryExemption
 
 internal const val LOCATION_LOOKUP_BUDGET_MS = 30_000L
@@ -75,6 +77,8 @@ data class SafetyEvent(val requestId: String, val event: String)
 
 data class SetupCompletion(val elapsedMs: Long?, val undoMinutes: Int)
 
+data class AppliedRulesReceipt(val etag: String, val atMs: Long)
+
 data class LockState(
     /** "strong" (Device Owner) or "light" (an ordinary app with the guard and the VPN). */
     val mode: String = "strong",
@@ -90,7 +94,9 @@ data class LockState(
     /** Account types on the phone ("com.google"), no names. */
     val accountTypes: List<String>? = null,
     val callRoleActionNeeded: Boolean = false,
-    val filter: org.plainphone.app.light.FilterHealth? = null,
+    val receipt: AppliedRulesReceipt? = null,
+    val webFilterActive: Boolean? = null,
+    val filter: FilterHealth? = null,
 ) {
     /**
      * Every lock policy held and no maintenance unlock is running. In light mode every protection
@@ -200,7 +206,7 @@ class SyncRunner(
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
-        guarded("report status") { reportStatus(token, reason) }
+        guarded("report status") { reportStatus(token, rules, reason) }
         if (rules?.profile == "child" && rules.suggestDeviceContacts) {
             guarded("report contact suggestions") { reportContactSuggestions(token) }
         } else {
@@ -269,7 +275,7 @@ class SyncRunner(
         if (failed.isNotEmpty()) {
             Log.w(TAG, "release did not hold, trying again at the next sync: ${failed.joinToString()}")
             if (store.releaseAsked && store.rules()?.releaseWarningsEnabled != false) {
-                guarded("report release failure") { reportStatus(token, "release", releaseFailed = true) }
+                guarded("report release failure") { reportStatus(token, null, "release", releaseFailed = true) }
             }
             return Outcome.Failed("release did not hold: ${failed.joinToString { it.name }}")
         }
@@ -499,8 +505,27 @@ class SyncRunner(
         return true
     }
 
-    private fun reportStatus(token: String, reason: String, releaseFailed: Boolean = false) {
+    /**
+     * A new Private DNS filter is only confirmed once the phone has seen it work: applying the
+     * rules is not enough, because Android keeps the old DNS when the new host does not answer.
+     * Other rule changes are not held back by a filter that broke later; the health card shows that.
+     */
+    private fun filterVerified(rules: ServerRules, filter: FilterHealth?): Boolean {
+        val method = rules.filterMethod
+        if (store.filterMethodSeen != method.wire) {
+            store.filterMethodSeen = method.wire
+            store.filterVerified = false
+        }
+        if (filter?.working == true && filter.method == method && !store.filterVerified) store.filterVerified = true
+        return method != FilterMethod.PRIVATE_DNS || store.filterVerified
+    }
+
+    private fun reportStatus(token: String, rules: ServerRules?, reason: String, releaseFailed: Boolean = false) {
         val lock = device.lockState()
+        val awaitingFilter = rules != null && lock.mode == "light" && !filterVerified(rules, lock.filter)
+        val receipt = lock.receipt?.takeIf {
+            rules?.changeReceiptsEnabled == true && it.etag == store.etag && !awaitingFilter
+        }
         val now = device.nowMs()
         val overrun = if (lock.mode == "strong") store.installWindowOverrun(now) else null
         val failedPolicies = buildList {
@@ -521,8 +546,10 @@ class SyncRunner(
             lockIntact = lock.intact,
             maintenance = lock.maintenance,
             failedPolicies = failedPolicies,
-            rulesEtag = store.etag,
-            rulesAppliedAtMs = lock.appliedAtMs,
+            rulesEtag = receipt?.etag,
+            rulesAppliedAtMs = receipt?.atMs,
+            rulesReceiptConfirmed = (receipt != null).takeIf { rules?.changeReceiptsEnabled == true },
+            webFilterActive = lock.webFilterActive.takeIf { rules?.healthBoardEnabled == true },
             dnsHost = lock.dnsHost,
             resetProtection = lock.resetProtection,
             accountTypes = lock.accountTypes,
@@ -532,7 +559,9 @@ class SyncRunner(
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
             mode = lock.mode,
-            protections = lock.protections,
+            protections = lock.protections?.let {
+                if (rules?.healthBoardEnabled == true) it else it - "usageAccessGranted"
+            },
             filter = lock.filter,
             timeUsed = device.timeUsed(),
             installOverrunSequence = overrun?.sequence,
@@ -540,7 +569,7 @@ class SyncRunner(
         )
         // Battery changes all the time: send at once when something about the lock changed, else every 15 min.
         // Minutes used change every minute too: they ride along, but do not force a report.
-        val comparable = status.copy(batteryPct = null, charging = null, rulesAppliedAtMs = null, timeUsed = null)
+        val comparable = status.copy(batteryPct = null, charging = null, timeUsed = null)
         val hash = sha256(comparable.toString())
         if (hash == store.statusHash && now - store.statusAtMs < STATUS_EVERY_MS) return
         // A local undo can switch protection off while this sync is collecting status.

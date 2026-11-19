@@ -58,7 +58,7 @@ import type { Ctx } from "../services/context.js";
 import type { UpdateWake } from "../services/update-wake.js";
 import { isDnsReady, syncDns } from "../services/dns.js";
 import { invalidateEnrollments, issueEnrollment } from "../services/enrollment.js";
-import { createPhone, loadPhoneSettings, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
+import { createPhone, loadPhoneSettings, nextRulesRevision, phoneSummaries, phoneSummary, wakePhone } from "../services/phones.js";
 import { mountServerMoveRoutes } from "./server-move.js";
 import { phoneCatalogRoutes } from "./catalog.js";
 import { DEVICE_PREFIX } from "./device.js";
@@ -695,12 +695,18 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
         timezone: z.string().min(1).max(64).optional(),
         /** Hours of silence before the parents are told; null = server default, 0 = never. */
         offlineAlertHours: z.number().int().min(0).max(168).nullable().optional(),
+        changeReceiptsEnabled: z.boolean().optional(),
+        healthBoardEnabled: z.boolean().optional(),
       }),
     );
+    const { changeReceiptsEnabled, healthBoardEnabled } = input;
     if (input.timezone !== undefined && input.timezone !== "UTC" && !Intl.supportedValuesOf("timeZone").includes(input.timezone)) {
       return c.json({ error: "unknown time zone" }, 400);
     }
     const fields = {
+      ...(changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined ? nextRulesRevision() : {}),
+      ...(changeReceiptsEnabled !== undefined ? { changeReceiptsEnabled } : {}),
+      ...(healthBoardEnabled !== undefined ? { healthBoardEnabled } : {}),
       ...(input.name ? { name: input.name } : {}),
       ...(input.supportEnabled !== undefined ? { supportEnabled: input.supportEnabled } : {}),
       ...(input.releaseWarningsEnabled !== undefined ? { releaseWarningsEnabled: input.releaseWarningsEnabled } : {}),
@@ -740,6 +746,9 @@ export function parentRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       await setLocationMode(ctx, phone, input.locationEnabled ? "checkin" : "off");
     }
     const [updated] = await ctx.db.select().from(phones).where(eq(phones.id, phone.id));
+    if (changeReceiptsEnabled !== undefined || healthBoardEnabled !== undefined) {
+      await wakePhone(ctx, phone.id, "rules");
+    }
     return c.json(await phoneSummary(ctx, updated!));
   });
 

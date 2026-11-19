@@ -72,7 +72,7 @@ export async function syncDns(ctx: Ctx, phoneId: string): Promise<boolean> {
       .where(and(eq(phones.id, phoneId), needsDnsConfirmation(tag)));
     const [still] = await ctx.db
       .update(phones)
-      .set({ dnsDirty: false })
+      .set({ dnsDirty: false, rulesAwaitDns: false })
       .where(and(eq(phones.id, phoneId), eq(phones.dnsVersion, bumped.version)))
       .returning({ id: phones.id });
     if (!still) {
