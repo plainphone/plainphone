@@ -1,5 +1,5 @@
 {
-  "id": "e3ba741c-6340-4bcf-b38c-1ea82d0bd91d",
+  "id": "ae3b4d60-9dde-4589-9cb8-74cd2e6d1a82",
   "prevId": "df2a6831-9b5f-4498-aa7e-2e2395f85993",
   "version": "7",
   "dialect": "postgresql",
@@ -903,6 +903,12 @@
         "decided_by": {
           "name": "decided_by",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_via": {
+          "name": "decided_via",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

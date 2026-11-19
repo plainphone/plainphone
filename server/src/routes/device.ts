@@ -35,6 +35,7 @@ import { checkinLocationDue, FIND_WINDOW_MS, legacyUntaggedTargets, notifySafety
 import { approveRequestOnPhone, createRequest, phoneRequestList, RequestError, requestJson } from "../services/requests.js";
 
 import type { UpdateWake } from "../services/update-wake.js";
+import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson } from "../services/more-time.js";
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
 
@@ -877,10 +878,21 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
   // A parent next to the child approved a request on the phone with the parent PIN. The phone
   // checked the PIN; this is its report. The first answer wins, a repeat changes nothing.
   app.post("/requests/:rid/approve-on-phone", async (c) => {
+    const rid = param(c, "rid");
     try {
-      const { request, won } = await approveRequestOnPhone(ctx, c.get("phone"), param(c, "rid"));
+      const { request, won } = await approveRequestOnPhone(ctx, c.get("phone"), rid);
       return c.json({ ...requestJson(request), won });
     } catch (err) {
+      // Not an app or contact request: it may be a request for more time (docs/more-time.md).
+      if (err instanceof RequestError && err.status === 404) {
+        try {
+          const more = await approveMoreTimeOnPhone(ctx, c.get("phone"), rid);
+          if (more) return c.json({ ...moreTimeJson(more.request), won: more.won });
+        } catch (moreErr) {
+          if (moreErr instanceof MoreTimeError) return c.json({ error: moreErr.message }, moreErr.status);
+          throw moreErr;
+        }
+      }
       if (err instanceof RequestError || err instanceof ChangeError) return c.json({ error: err.message }, err.status);
       throw err;
     }

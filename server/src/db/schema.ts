@@ -688,6 +688,8 @@ export const moreTimeRequests = pgTable(
     answer: text("answer", { enum: ["15", "60", "day", "no"] }),
     grantedMinutes: integer("granted_minutes"),
     decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    /** Where the answer came from. Null on old rows and while open: treated as a parent's answer. */
+    decidedVia: text("decided_via", { enum: ["parent", "phone"] }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
   },

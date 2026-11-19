@@ -14,6 +14,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.plainphone.app.requests.PhoneRequest
 import org.plainphone.app.PolicyConfig
 import org.plainphone.app.contacts.ApprovedContact
 import org.plainphone.app.contacts.SyncedContactPolicySource
@@ -362,6 +363,22 @@ class PhoneSyncContractTest {
 
         // An approval for a request the server does not have is dropped, not retried for ever.
         assertThat(api.reportApprovedOnPhone(token, "00000000-0000-4000-8000-000000000000")).isNull()
+
+        // A request for more time is approved the same way and is listed with the other requests.
+        assertThat(parent("PUT", "/phones/$phoneId/time-limits/apps/com.example.game", JSONObject().put("minutes", 30)).first).isEqualTo(200)
+        val askMore = URL("$url/api/device/more-time-requests").openConnection() as HttpURLConnection
+        askMore.requestMethod = "POST"
+        askMore.setRequestProperty("Authorization", "Bearer $token")
+        askMore.setRequestProperty("Content-Type", "application/json")
+        askMore.doOutput = true
+        askMore.outputStream.use { it.write(JSONObject().put("packageName", "com.example.game").toString().toByteArray()) }
+        assertThat(askMore.responseCode).isEqualTo(201)
+        askMore.disconnect()
+        val more = api.phoneRequests(token).single { it.kind == PhoneRequest.Kind.MORE_TIME }
+        assertThat(more.pending).isTrue()
+        val approvedMore = api.reportApprovedOnPhone(token, more.id)!!
+        assertThat(approvedMore.kind).isEqualTo(PhoneRequest.Kind.MORE_TIME)
+        assertThat(approvedMore.approvedOnPhone).isTrue()
     }
 
     @Test

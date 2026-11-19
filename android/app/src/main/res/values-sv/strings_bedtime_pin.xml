@@ -40,4 +40,8 @@
         <item quantity="one">1 önskemål väntar på svar</item>
         <item quantity="other">%d önskemål väntar på svar</item>
     </plurals>
+    <string name="requests_kind_more_time">Mer tid</string>
+    <string name="requests_more_time_total">Skärmtid idag</string>
+    <string name="requests_approved_now_more_time">Godkänt: 15 minuter till. Det gäller inom en minut.</string>
+    <string name="requests_approve_failed">Det gick inte att godkänna på telefonen. En förälder kan svara i appen.</string>
 </resources>

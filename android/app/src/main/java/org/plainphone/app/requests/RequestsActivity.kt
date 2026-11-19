@@ -100,8 +100,16 @@ class RequestsActivity : ComponentActivity() {
                                     }
                                     is PinApproval.Outcome.Reported -> {
                                         pin = null
-                                        val won = outcome.request?.approvedOnPhone != false
-                                        notice = getString(if (won) R.string.requests_approved_now else R.string.requests_already_answered)
+                                        val request = outcome.request
+                                        notice = getString(
+                                            when {
+                                                // The server did not take it: never say "approved" for that.
+                                                request == null -> R.string.requests_approve_failed
+                                                !request.approvedOnPhone -> R.string.requests_already_answered
+                                                request.kind == PhoneRequest.Kind.MORE_TIME -> R.string.requests_approved_now_more_time
+                                                else -> R.string.requests_approved_now
+                                            },
+                                        )
                                         attempt++
                                     }
                                 }
@@ -121,6 +129,9 @@ class RequestsActivity : ComponentActivity() {
                 pm.getApplicationLabel(Compat.applicationInfo(pm, pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES)).toString()
             }.getOrNull() ?: pkg
         } ?: ""
+        PhoneRequest.Kind.MORE_TIME ->
+            r.packageName?.let { pkg -> label(context, r.copy(kind = PhoneRequest.Kind.APP, packageName = pkg)) }
+                ?: context.getString(R.string.requests_more_time_total)
         PhoneRequest.Kind.CONTACT -> listOfNotNull(r.name, r.number?.let { if (r.name == null) it else "($it)" }).joinToString(" ")
     }
 

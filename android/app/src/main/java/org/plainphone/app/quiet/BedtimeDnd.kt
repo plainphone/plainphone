@@ -85,12 +85,21 @@ class BedtimeDnd(private val zen: ZenControls, private val store: DndStore) {
     }
 
     companion object {
-        /** Alarms and calls may break through; messages, reminders, events and media may not. */
+        /**
+         * Alarms and calls may break through; messages, reminders, events and media may not. What
+         * Do Not Disturb holds back also stays off the screen: no peek, no light, no wake-up and
+         * nothing in the shade, so the promise "no sound and no notifications" holds.
+         */
         val BEDTIME_POLICY = ZenPolicy(
             categories = NotificationManager.Policy.PRIORITY_CATEGORY_CALLS or NotificationManager.Policy.PRIORITY_CATEGORY_ALARMS,
             callSenders = NotificationManager.Policy.PRIORITY_SENDERS_ANY,
             messageSenders = NotificationManager.Policy.PRIORITY_SENDERS_ANY,
-            visualEffects = 0,
+            visualEffects = NotificationManager.Policy.SUPPRESSED_EFFECT_PEEK or
+                NotificationManager.Policy.SUPPRESSED_EFFECT_LIGHTS or
+                NotificationManager.Policy.SUPPRESSED_EFFECT_FULL_SCREEN_INTENT or
+                NotificationManager.Policy.SUPPRESSED_EFFECT_AMBIENT or
+                NotificationManager.Policy.SUPPRESSED_EFFECT_SCREEN_ON or
+                NotificationManager.Policy.SUPPRESSED_EFFECT_NOTIFICATION_LIST,
         )
 
         fun forContext(context: Context): BedtimeDnd {

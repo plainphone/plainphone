@@ -578,7 +578,7 @@ export function PhoneOverview() {
       )}
 
       {phone.pairedAt && <ServerMoveToggle />}
-      <RequestsSection />
+      {phone.pairedAt && <RequestsSection />}
       {phone.pairedAt && phone.profile === "child" && <MoreTimeSection phone={phone} setPhone={setPhone} notify={notify} />}
 
       {phone.status?.lockIntact === false && <PhoneStatusBlock phone={phone} now={now} />}

@@ -40,4 +40,8 @@
         <item quantity="one">1 ønske venter på svar</item>
         <item quantity="other">%d ønsker venter på svar</item>
     </plurals>
+    <string name="requests_kind_more_time">Mere tid</string>
+    <string name="requests_more_time_total">Skærmtid i dag</string>
+    <string name="requests_approved_now_more_time">Godkendt: 15 minutter mere. Det virker inden for et minut.</string>
+    <string name="requests_approve_failed">Det kunne ikke godkendes på telefonen. En forælder kan svare i appen.</string>
 </resources>

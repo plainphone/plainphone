@@ -3,9 +3,11 @@
 package org.plainphone.app.requests
 
 import org.json.JSONObject
+import org.plainphone.app.sync.MoreTimeRequest
+import org.plainphone.app.sync.TimeLimits
 
 /**
- * Something the person with the phone asked for (an app or a contact), as `GET /device/requests`
+ * Something the person with the phone asked for (an app, a contact or more time), as `GET /device/requests`
  * lists it (docs/sync-api.md). Every screen shows the same states, whoever answered.
  */
 data class PhoneRequest(
@@ -20,13 +22,34 @@ data class PhoneRequest(
     /** Approved on a Self phone, but the change still waits for the key. */
     val waitingForKey: Boolean,
 ) {
-    enum class Kind { APP, CONTACT }
+    enum class Kind { APP, CONTACT, MORE_TIME }
     enum class Status { PENDING, APPROVED, REJECTED }
 
     val pending: Boolean get() = status == Status.PENDING
     val approvedOnPhone: Boolean get() = status == Status.APPROVED && decidedVia == "phone"
 
     companion object {
+        /**
+         * A request for more time, shown with the others. Null for one nobody answered in time:
+         * it can no longer be answered, so the screen has nothing to offer for it.
+         * [packageName] is "*" for the daily cap.
+         */
+        fun fromMoreTime(r: MoreTimeRequest): PhoneRequest? = PhoneRequest(
+            id = r.id,
+            kind = Kind.MORE_TIME,
+            packageName = r.packageName.takeIf { it != TimeLimits.TOTAL },
+            name = null,
+            number = null,
+            status = when (r.status) {
+                MoreTimeRequest.Status.PENDING -> Status.PENDING
+                MoreTimeRequest.Status.APPROVED -> Status.APPROVED
+                MoreTimeRequest.Status.DECLINED -> Status.REJECTED
+                MoreTimeRequest.Status.EXPIRED -> return null
+            },
+            decidedVia = r.decidedVia,
+            waitingForKey = false,
+        )
+
         /** Throws on anything malformed, so a broken answer is never shown as an empty list. */
         fun parse(o: JSONObject): PhoneRequest = PhoneRequest(
             id = o.getString("id"),

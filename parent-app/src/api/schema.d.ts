@@ -576,6 +576,8 @@ export interface paths {
          *     already answered in the dashboard or the parent app, `won` is false and the body shows
          *     what was decided. The approval is applied like a parent's (the app is shown, the contact
          *     is added) and the parents are told it happened on the phone. Only child phones.
+         *     The id may also be a request for more time (`/device/more-time-requests`): then 15 minutes
+         *     are granted, `decidedVia` is `phone` and the body is that request (no `kind`).
          */
         post: operations["approveDeviceRequestOnPhone"];
         delete?: never;
@@ -2348,6 +2350,11 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             decidedAt?: string | null;
+            /**
+             * @description `phone` when a parent approved it on the phone with the parent PIN
+             * @enum {unknown}
+             */
+            decidedVia?: "parent" | "phone" | null;
         };
         PushSubscription: {
             /** Format: uuid */
@@ -4588,9 +4595,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PhoneRequest"] & {
+                    "application/json": {
                         won: boolean;
-                    };
+                    } & (components["schemas"]["PhoneRequest"] | components["schemas"]["MoreTimeRequest"]);
                 };
             };
             /** @description No such request on this phone */

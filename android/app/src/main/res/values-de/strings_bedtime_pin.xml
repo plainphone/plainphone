@@ -40,4 +40,8 @@
         <item quantity="one">1 Wunsch wartet auf eine Antwort</item>
         <item quantity="other">%d Wünsche warten auf eine Antwort</item>
     </plurals>
+    <string name="requests_kind_more_time">Mehr Zeit</string>
+    <string name="requests_more_time_total">Bildschirmzeit heute</string>
+    <string name="requests_approved_now_more_time">Genehmigt: 15 Minuten mehr. Das gilt innerhalb einer Minute.</string>
+    <string name="requests_approve_failed">Das ließ sich am Telefon nicht genehmigen. Ein Elternteil kann in der App antworten.</string>
 </resources>

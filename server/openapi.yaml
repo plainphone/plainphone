@@ -175,6 +175,7 @@ components:
         grantedMinutes: { type: [integer, "null"], description: "Minutes added. For `day` it is the time left until local midnight when it was answered." }
         createdAt: { type: string, format: date-time }
         decidedAt: { type: [string, "null"], format: date-time }
+        decidedVia: { enum: [parent, phone, null], description: "`phone` when a parent approved it on the phone with the parent PIN" }
     PushSubscription:
       type: object
       properties:
@@ -2020,6 +2021,8 @@ paths:
         already answered in the dashboard or the parent app, `won` is false and the body shows
         what was decided. The approval is applied like a parent's (the app is shown, the contact
         is added) and the parents are told it happened on the phone. Only child phones.
+        The id may also be a request for more time (`/device/more-time-requests`): then 15 minutes
+        are granted, `decidedVia` is `phone` and the body is that request (no `kind`).
       security: [{ device: [] }]
       parameters:
         - { name: rid, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2030,11 +2033,13 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: "#/components/schemas/PhoneRequest"
                   - type: object
                     required: [won]
                     properties:
                       won: { type: boolean }
+                  - oneOf:
+                      - $ref: "#/components/schemas/PhoneRequest"
+                      - $ref: "#/components/schemas/MoreTimeRequest"
         "404": { description: "No such request on this phone" }
         "409": { description: "A Self phone has no parent PIN, or the change could not be applied (the request stays open)" }
   /device/attestation/challenge:

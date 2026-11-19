@@ -40,4 +40,8 @@
         <item quantity="one">1 request is waiting for an answer</item>
         <item quantity="other">%d requests are waiting for an answer</item>
     </plurals>
+    <string name="requests_kind_more_time">More time</string>
+    <string name="requests_more_time_total">Screen time today</string>
+    <string name="requests_approved_now_more_time">Approved: 15 more minutes. It takes effect within a minute.</string>
+    <string name="requests_approve_failed">This could not be approved on the phone. A parent can answer it in the app.</string>
 </resources>

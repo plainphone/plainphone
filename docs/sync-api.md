@@ -314,7 +314,8 @@ parent PIN ([bedtime.md](bedtime.md)); asking from the phone is not built yet, t
   added), the parents are told it happened on the phone, and it is recorded even if the parent switched
   `pinApprovalEnabled` off a moment ago. First answer wins and a repeat changes nothing: the answer is
   `200` with the request as it stands and `won: false` if someone else answered first (for example a
-  parent in the dashboard). `404` for a request the phone does not have, `409` on a Self phone (no
+  parent in the dashboard). The id can also be a request for more time (below): then 15 minutes are
+  granted for that app or the daily cap, `decidedVia` is `"phone"`, and the body is the more-time request. `404` for a request the phone does not have, `409` on a Self phone (no
   parent PIN) or when the change could not be applied (the request stays open). Offline, the phone
   keeps the approval and reports it with the next sync.
 - A parent who answers a request that was already answered gets `409` with `outcome`
@@ -333,7 +334,7 @@ Full description: [more-time.md](more-time.md).
   phone or when the target has no limit, `429` after 6 new requests in an hour.
 - `GET /api/device/more-time-requests` returns the last 24 hours, newest first: `{ id, packageName,
   reason, day, status: pending|approved|declined|expired, answer: "15"|"60"|"day"|"no"|null,
-  grantedMinutes, createdAt, decidedAt }`. An unanswered request expires at the phone's local
+  grantedMinutes, createdAt, decidedAt, decidedVia }`. `decidedVia` is `"phone"` for an approval on the phone with the PIN. An unanswered request expires at the phone's local
   midnight.
 - An approval is also a bonus in `timeLimits.bonuses` for the day of the request, so the phone
   applies it from the next rules sync (the server wakes the phone when it is answered) even if the

@@ -67,10 +67,12 @@ object CallNotifications {
             .setOnlyAlertOnce(true)
         if (callState(call) == Call.STATE_RINGING) {
             if (!quiet) builder.setFullScreenIntent(screen, true)
-            if (Build.VERSION.SDK_INT >= 31) {
+            // A quiet call is a plain notification: Android 12+ refuses a call style without a
+            // full-screen intent or a foreground service, and the call would then not show at all.
+            if (Build.VERSION.SDK_INT >= 31 && !quiet) {
                 builder.setStyle(Notification.CallStyle.forIncomingCall(person, action(context, ACTION_DECLINE), answerIntent(context)))
             } else {
-                // Android 10 and 11 have no call style: the same two buttons as plain actions.
+                // Android 10 and 11 (and quiet calls) have no call style: the same two buttons as plain actions.
                 builder.setContentTitle(title)
                     .setContentText(context.getString(R.string.call_incoming))
                     .addPerson(person)

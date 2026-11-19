@@ -142,3 +142,35 @@ describe("approving a request on the phone with the parent PIN", () => {
     expect((await device.post("/api/device/requests/00000000-0000-4000-8000-000000000000/approve-on-phone", {})).status).toBe(404);
   });
 });
+
+describe("approving a request for more time on the phone with the parent PIN", () => {
+  async function askForMoreTime() {
+    const s = await setup();
+    await s.mum.put(`/api/phones/${s.phoneId}/time-limits/apps/com.example.game`, { minutes: 30 });
+    const r = await s.device.post("/api/device/more-time-requests", { packageName: "com.example.game" });
+    h.parentPush.sent.length = 0;
+    return { ...s, id: r.json.id as string };
+  }
+
+  it("grants 15 minutes, tells the parents and shows as approved on the phone", async () => {
+    const { mum, phoneId, device, id } = await askForMoreTime();
+    const done = await device.post(`/api/device/requests/${id}/approve-on-phone`, {});
+    expect(done.status).toBe(200);
+    expect(done.json).toMatchObject({ id, status: "approved", answer: "15", grantedMinutes: 15, decidedVia: "phone", won: true });
+    const bonuses = (await device.get("/api/device/rules")).json.timeLimits.bonuses as { packageName: string; minutes: number }[];
+    expect(bonuses).toEqual([expect.objectContaining({ packageName: "com.example.game", minutes: 15 })]);
+    expect(h.parentPush.sent.map((s) => s.msg)).toEqual([expect.objectContaining({ title: "Approved on Alma", url: `/phones/${phoneId}` })]);
+    expect((await mum.get(`/api/phones/${phoneId}/more-time-requests`)).json.requests[0]).toMatchObject({ status: "approved", decidedVia: "phone" });
+  });
+
+  it("is idempotent, and a parent who answered first keeps the answer", async () => {
+    const { mum, phoneId, device, id } = await askForMoreTime();
+    await mum.post(`/api/phones/${phoneId}/more-time-requests/${id}/answer`, { answer: "no" });
+    h.parentPush.sent.length = 0;
+    const late = await device.post(`/api/device/requests/${id}/approve-on-phone`, {});
+    expect(late.status).toBe(200);
+    expect(late.json).toMatchObject({ status: "declined", decidedVia: "parent", won: false });
+    expect(h.parentPush.sent).toEqual([]);
+    expect(((await device.get("/api/device/rules")).json.timeLimits.bonuses as unknown[]).length).toBe(0);
+  });
+});

@@ -606,13 +606,20 @@ class PlainphoneApi private constructor(
     override fun phoneRequests(token: String): List<PhoneRequest> {
         val r = call("GET", "/device/requests", token, readTimeoutMs = 15_000)
         if (r.status != 200) throw HttpError(r.status, r.body)
-        return try {
+        val list = try {
             PhoneRequest.parseList(r.body)
         } catch (e: JSONException) {
             throw IOException("Invalid requests response", e)
         } catch (e: IllegalArgumentException) {
             throw IOException("Invalid requests response", e)
         }
+        // Asks for more time are in their own list on the server; they are requests too.
+        val moreTime = try {
+            moreTimeRequests(token).mapNotNull(PhoneRequest::fromMoreTime)
+        } catch (_: IOException) {
+            emptyList()
+        }
+        return moreTime + list
     }
 
     override fun reportApprovedOnPhone(token: String, requestId: String): PhoneRequest? {
@@ -620,13 +627,20 @@ class PlainphoneApi private constructor(
         val r = call("POST", "/device/requests/$requestId/approve-on-phone", token, JSONObject(), replayable = true)
         return when (r.status) {
             200 -> try {
-                PhoneRequest.parse(JSONObject(r.body))
+                val body = JSONObject(r.body)
+                // A request for more time has no "kind".
+                if (body.has("kind")) PhoneRequest.parse(body) else PhoneRequest.fromMoreTime(MoreTimeRequest.parse(body))
             } catch (e: JSONException) {
                 throw IOException("Invalid approval response", e)
+            } catch (e: RuntimeException) {
+                throw IOException("Invalid approval response", e)
             }
-            // Gone, or a Self phone, which has no parent PIN: nothing left to report.
+            // Gone, a Self phone (no parent PIN) or a change that could not be applied: the
+            // server did not take the approval, and asking again will not change that.
             404, 409 -> null
-            else -> throw HttpError(r.status, r.body)
+            // Any other answer that a retry cannot change (a revoked token, a bad id): drop it.
+            // Only a busy or unreachable server is worth another try.
+            else -> if (r.status in 400..499 && r.status != 408 && r.status != 429) null else throw HttpError(r.status, r.body)
         }
     }
 

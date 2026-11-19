@@ -101,7 +101,13 @@ private fun RequestCard(row: RequestRow, pinApproval: Boolean, actions: Requests
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                stringResource(if (row.kind == PhoneRequest.Kind.APP) R.string.requests_kind_app else R.string.requests_kind_contact),
+                stringResource(
+                    when (row.kind) {
+                        PhoneRequest.Kind.APP -> R.string.requests_kind_app
+                        PhoneRequest.Kind.CONTACT -> R.string.requests_kind_contact
+                        PhoneRequest.Kind.MORE_TIME -> R.string.requests_kind_more_time
+                    },
+                ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -61,7 +61,10 @@ class PlainphoneInCallService : InCallService() {
         }
 
         // Silent bedtime: no ring screen, no heads-up. The call stays in the shade without a sound.
-        if (!outgoing && rules != null && !contactPolicy().ringsAtBedtime(rules, number)) CallManager.markQuiet(call)
+        // A bug here must never make a parent's call silent, so a failure counts as "rings".
+        if (!outgoing && rules != null && !runCatching { contactPolicy().ringsAtBedtime(rules, number) }.getOrDefault(true)) {
+            CallManager.markQuiet(call)
+        }
 
         val opensWindow = outgoing && number != null && EmergencyNumbers.forContext(this).opensCallBackWindow(number)
         CallManager.add(call, rules?.contactFor(number)?.name)

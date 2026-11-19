@@ -50,7 +50,8 @@ complete.
   notifications use a silent channel at bedtime. In strong mode, apps outside the window's list are also
   hidden by the lock, so they cannot make a sound.
 - **Do Not Disturb.** Both modes also switch Android's Do Not Disturb on for the window (only alarms and
-  calls may break through) and put the phone's own setting back when bedtime ends. Android lets only a
+  calls may break through; what it holds back is also kept off the screen: no peek, no light, no
+  wake-up and nothing in the shade) and put the phone's own setting back when bedtime ends. Android lets only a
   person give an app access to Do Not Disturb, also on a Device Owner phone, so Plainphone cannot grant
   it to itself. Until it is granted, calls and Plainphone's own messages are silent, and other apps can
   still make sounds. The maintenance screen (behind the parent PIN) says so in plain words and has one
@@ -123,12 +124,12 @@ the parent turned it off is still recorded, because the phone has already done i
 |---|---|
 | `GET /device/rules` → `silentBedtime`, `pinApprovalEnabled` | The two switches. `pinApprovalEnabled` is always false on a Self phone |
 | `PATCH /api/phones/{pid}` with `{ "silentBedtime": false }` or `{ "pinApprovalEnabled": false }` | Parents change a switch. Advances the rules revision and wakes the phone |
-| `POST /device/requests/{id}/approve-on-phone` | The phone reports an approval with the PIN. `200` with the request and `won`; `404` unknown request; `409` Self phone |
+| `POST /device/requests/{id}/approve-on-phone` | The phone reports an approval with the PIN, for an app, contact or more-time request (more time grants 15 minutes). `200` with the request and `won`; `404` unknown request; `409` Self phone |
 | `GET /api/phones/{pid}/requests` | Now also returns `recent`: the answers from the last 3 days with `decidedVia` |
 | `POST /api/phones/{pid}/requests/{rid}/approve` and `/reject` | A late answer gets `409` with `outcome`: `approvedByYou`, `approvedByOther`, `approvedOnPhone`, `declinedByYou` or `declinedByOther` |
 
 Migration `0042_bedtime_pin_approval` adds `phones.silent_bedtime`, `phones.pin_approval_enabled` (both
-default true) and `phone_requests.decided_via`.
+default true) and `decided_via` on `phone_requests` and `more_time_requests`.
 
 ## Not covered
 
@@ -136,4 +137,3 @@ default true) and `phone_requests.decided_via`.
 - The phone cannot know that it is in the bedroom. The recommendation is advice.
 - Creating app and contact requests from the phone is not part of this change. The API exists
   ([sync-api.md](sync-api.md)); the requests screen lists what exists and offers the PIN approval.
-  Asking for more time (#36) will plug into the same PIN box.

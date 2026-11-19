@@ -23,6 +23,8 @@ export interface MoreTimeRequest {
   decidedAt: string | null;
   /** Null while open, expired, or from an older server. */
   answeredByYou: boolean | null;
+  /** "phone" when a parent approved it on the phone with the parent PIN. */
+  decidedVia?: "parent" | "phone" | null;
 }
 
 /** The answer call returns the decided request; `won: false` means someone else (or an earlier tap) decided first. */
@@ -46,7 +48,9 @@ export function resultOf(r: MoreTimeRequest): { key: MessageKey; minutes?: numbe
 
 /** Who answered. Expired and open requests were answered by nobody. */
 export function byKey(r: MoreTimeRequest): MessageKey | null {
-  if (r.status === "pending" || r.status === "expired" || r.answeredByYou === null) return null;
+  if (r.status === "pending" || r.status === "expired") return null;
+  if (r.decidedVia === "phone") return "requests.tagOnPhone";
+  if (r.answeredByYou === null) return null;
   return r.answeredByYou ? "moreTime.byYou" : "moreTime.byOther";
 }
 
