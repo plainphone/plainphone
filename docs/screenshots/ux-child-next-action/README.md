@@ -20,10 +20,10 @@ Maintenance is drawn without the system status bar, so its title is partly clipp
 
 ## TalkBack, reduced motion, haptics (to check on a real phone)
 
-1. Launcher: swipe to Phone, Messages, Help and Emergency call; each is one stop.
+1. Launcher: swipe to Phone, Messages, Help and SOS; each is one stop.
 2. Open a time-limited app after its time is used up: the title is announced as a heading, then the
    sentence, then Call or message a parent, then Back to start.
-3. Keypad: Call a parent and Emergency call come first. Each digit is announced as it is pressed,
+3. Keypad: Call a parent and Call 112 (hold to open the emergency dialer, as on the SOS screen) come first. Each digit is announced as it is pressed,
    the number display is not read, the call button says only "Call", delete says "Delete last digit".
 4. Messages: a failed message shows "Not sent" with "Write it again"; the error line is announced
    once and never repeats the message text.
