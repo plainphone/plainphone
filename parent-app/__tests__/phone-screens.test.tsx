@@ -354,6 +354,36 @@ describe("overview", () => {
     expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
   });
 
+  it("keeps Update now off on a 0.1.9 phone when the release metadata cannot be checked", async () => {
+    const api = phoneApi({
+      ...PHONE,
+      status: { appVersion: "0.1.9", appVersionCode: 9, deviceOwner: true, lockIntact: true, failedPolicies: [] },
+    }, { "GET /download/android/latest.json": { status: 503 }, [`POST /phones/${PHONE.id}/update`]: { status: 202 } });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    expect(await screen.findByText(/Couldn’t check whether this update needs a new setup/)).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Update now" });
+    expect(button.props.accessibilityState?.disabled ?? button.props["aria-disabled"]).toBe(true);
+    await fireEvent.press(button);
+    expect(api.calls.some((c) => c.method === "POST" && c.path.endsWith("/update"))).toBe(false);
+  });
+
+  it("checks the release metadata again on pull-to-refresh, so a stale result cannot keep Update now active", async () => {
+    let metadata: { status?: number; body?: unknown } = { body: { versionName: "0.1.9", versionCode: 9 } };
+    phoneApi({
+      ...PHONE,
+      status: { appVersion: "0.1.9", appVersionCode: 9, deviceOwner: true, lockIntact: true, failedPolicies: [] },
+    }, { "GET /download/android/latest.json": () => metadata });
+    await renderRouter(routes, { initialUrl: at(PHONE) });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Update now" })).toBeTruthy());
+    expect(screen.queryByText(/uses a new signing key/)).toBeNull();
+
+    metadata = { body: { versionName: "0.1.11", versionCode: 11 } };
+    const scroll = screen.getByTestId("phone-overview");
+    await act(async () => { await scroll.props.refreshControl.props.onRefresh(); });
+    expect(await screen.findByText(/uses a new signing key/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
+  });
+
   it("shows the installation warning even when the lock is intact", async () => {
     phoneApi({ ...PHONE, status: { lockIntact: true, failedPolicies: ["install window overran: 42s"] } });
     await renderRouter(routes, { initialUrl: at(PHONE) });

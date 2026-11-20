@@ -242,6 +242,7 @@ export const sv: Messages = {
   "phone.updateNow": "Uppdatera nu",
   "phone.updateRequested": "Telefonen kommer att kontrollera nästa gång den är online.",
   "phone.updateSigningKeyLight": "Den här uppdateringen behöver en ny installation. Ange föräldra-PIN-koden i telefonens underhållsmeny och välj Stäng av Plainphone. Om du istället använder Släpp telefonen i instrumentpanelen, skriv ner telefonens regler först. Om du släpper den där raderas dess sparade regler, inklusive godkända kontakter och webbfilterinställningar. För en självtelefon väntar frisläppningen på den konfigurerade fördröjningen (24 timmar som standard utan nyckel) eller godkännande från den betrodda personen. Om du släpper från instrumentpanelen, vänta tills telefonen har synkroniserats och stäng av Plainphone. När den är avstängd, avinstallera Plainphone, installera den aktuella versionen och para ihop den igen.",
+  "phone.updateCheckFailed": "Det gick inte att kontrollera om den här uppdateringen kräver en ny installation, så Uppdatera nu är avstängt. Dra nedåt för att försöka igen.",
   "phone.updateSigningKeyStrong": "Den här uppdateringen använder en ny signeringsnyckel. Säkerhetskopiera dina data, släpp enhetsägaren från den överordnade PIN-skärmen, återställ sedan telefonen till fabriksinställningarna och ställ in den med en ny QR-kod.",
   "phone.updateFailed": "Uppdateringen misslyckades",
   "phone.updateDetails": "Visa tekniska detaljer",

@@ -242,6 +242,7 @@ export const nb: Messages = {
   "phone.updateNow": "Oppdater nå",
   "phone.updateRequested": "Telefonen vil sjekke neste gang den er online.",
   "phone.updateSigningKeyLight": "Denne oppdateringen trenger et nytt oppsett. Skriv inn foreldre-PIN-en i telefonens vedlikeholdsmeny og velg Slå av Plainphone. Hvis du bruker Slipp telefonen i dashbordet i stedet, skriv ned telefonens regler først. Hvis du slipper den der, slettes de lagrede reglene, inkludert godkjente kontakter og nettfilterinnstillinger. For en egentelefon venter utgivelsen på den konfigurerte forsinkelsen (24 timer som standard uten nøkkel) eller godkjenning fra den betrodde personen. Hvis du slipper fra dashbordet, vent til telefonen skal synkroniseres og slå av Plainphone. Når den er slått av, avinstaller Plainphone, installer gjeldende utgivelse og par den på nytt.",
+  "phone.updateCheckFailed": "Kunne ikke sjekke om denne oppdateringen trenger et nytt oppsett, så Oppdater nå er slått av. Dra ned for å prøve igjen.",
   "phone.updateSigningKeyStrong": "Denne oppdateringen bruker en ny signeringsnøkkel. Sikkerhetskopier dataene dine, slipp enhetseier fra den overordnede PIN-skjermen, tilbakestill deretter telefonen og sett den opp med en ny QR-kode.",
   "phone.updateFailed": "Oppdatering mislyktes",
   "phone.updateDetails": "Vis tekniske detaljer",

@@ -385,24 +385,32 @@ const systemStatus = {
   unverifiable: "phone.attUnverifiable",
 } as const;
 
-function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNullable<Phone["status"]> }) {
+/** What the release metadata said: still asking, could not be read, or the latest version. */
+type LatestCheck = { state: "checking" } | { state: "failed" } | { state: "done"; latest: LatestVersion };
+
+/** `refreshKey` changes on pull-to-refresh: the metadata is asked again, as it is whenever the screen gets focus. */
+function PhoneAppVersion({ phoneId, status, refreshKey }: { phoneId: string; status: NonNullable<Phone["status"]>; refreshKey: number }) {
   const { t } = useI18n();
   const { notify } = usePhone();
   const [busy, setBusy] = useState(false);
   const batteryMessage = updateBatteryExemptionMessage(status);
   const supported = status.appVersionCode !== undefined;
   const checkSigningKey = supported && usesProductionKey(status.appVersion) === false;
-  const [latest, setLatest] = useState<LatestVersion | null>();
-  const signingKeyChange = hasPhoneSigningKeyChange(status, latest ?? undefined);
+  const [check, setCheck] = useState<LatestCheck>({ state: "checking" });
+  const signingKeyChange = hasPhoneSigningKeyChange(status, check.state === "done" ? check.latest : undefined);
+  // A phone on the old signing key must not be asked to update before we know the next version
+  // is signed the same way (an update it would refuse), so a failed check keeps the button off.
+  const unchecked = checkSigningKey && check.state !== "done";
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (!checkSigningKey) return;
     let active = true;
+    setCheck({ state: "checking" });
     void fetchLatestPhoneVersion(`${SERVER_URL}/download/android/latest.json`)
       .catch(() => undefined)
-      .then((version) => { if (active) setLatest(version ?? null); });
+      .then((latest) => { if (active) setCheck(latest ? { state: "done", latest } : { state: "failed" }); });
     return () => { active = false; };
-  }, [checkSigningKey]);
+  }, [checkSigningKey, refreshKey]));
 
   async function requestUpdate() {
     setBusy(true);
@@ -421,9 +429,11 @@ function PhoneAppVersion({ phoneId, status }: { phoneId: string; status: NonNull
       <Row>
         <Text>{t("phone.appVersion", { version: status.appVersion })}</Text>
         {supported && !signingKeyChange ? (
-          <Button kind="secondary" title={t("phone.updateNow")} busy={busy || (checkSigningKey && latest === undefined)} onPress={() => void requestUpdate()} />
+          <Button kind="secondary" title={t("phone.updateNow")} busy={busy || (unchecked && check.state === "checking")}
+            disabled={unchecked && check.state === "failed"} onPress={() => void requestUpdate()} />
         ) : null}
       </Row>
+      {supported && !signingKeyChange && unchecked && check.state === "failed" ? <Notice tone="info" text={t("phone.updateCheckFailed")} /> : null}
       {signingKeyChange ? <Notice tone="warn" text={t(status.deviceOwner ? "phone.updateSigningKeyStrong" : "phone.updateSigningKeyLight")} /> : null}
       {batteryMessage ? <Notice tone="warn" text={t(batteryMessage)} /> : null}
     </VStack>
@@ -436,6 +446,7 @@ function Overview() {
   const { phone, pending, reloadPhone, reloadPending, setPhone } = usePhone();
   const now = useNow(60_000);
   const [refreshing, setRefreshing] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState(0);
 
   // Coming back from a rule screen, or from the background: the waiting list may have changed.
   useFocusEffect(
@@ -462,6 +473,7 @@ function Overview() {
 
   async function refresh() {
     setRefreshing(true);
+    setUpdateCheck((n) => n + 1);
     await Promise.all([reloadPhone(), reloadPending()]);
     setRefreshing(false);
   }
@@ -562,7 +574,7 @@ function Overview() {
         </VStack>
       ) : null}
       <ReleaseNotice />
-      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} /> : null}
+      {phone.status?.appVersion ? <PhoneAppVersion key={phone.id} phoneId={phone.id} status={phone.status} refreshKey={updateCheck} /> : null}
       {overrun !== undefined ? <Notice tone="warn" text={t("phone.installWindowOverrun")} /> : null}
       {overrun !== undefined || technicalSteps.length > 0 ? (
         <Disclosure title={t("phone.lockDetails")}>

@@ -244,6 +244,7 @@ export const da: Messages = {
   "phone.updateNow": "Opdatér nu",
   "phone.updateRequested": "Telefonen tjekker, næste gang den er online.",
   "phone.updateSigningKeyLight": "Denne opdatering kræver en ny opsætning. Indtast forældre-PIN i telefonens vedligeholdelsesmenu, og vælg Slå Plainphone fra. Hvis du bruger Frigiv telefonen i dashboardet i stedet, så skriv telefonens regler ned først. Frigivelse derfra sletter de gemte regler, bl.a. godkendte kontakter og webfilterets indstillinger. For en telefon med profilen Mig selv afventer frigivelsen den valgte ventetid (som standard 24 timer uden en nøgle) eller godkendelse fra den betroede person. Ved frigivelse fra dashboardet skal du vente på, at telefonen synkroniserer og slår Plainphone fra. Afinstaller derefter Plainphone, installer den nyeste version, og par telefonen igen.",
+  "phone.updateCheckFailed": "Kunne ikke tjekke, om denne opdatering kræver en ny opsætning, så Opdatér nu er slået fra. Træk ned for at prøve igen.",
   "phone.updateSigningKeyStrong": "Opdateringen bruger en ny signeringsnøgle. Tag en sikkerhedskopi. Vælg Frigiv Device Owner (testtelefoner) på skærmen med forældre-PIN. Nulstil så telefonen, og sæt den op igen med en ny QR-kode.",
   "phone.updateFailed": "Opdatering fejlede",
   "phone.updateDetails": "Vis tekniske detaljer",

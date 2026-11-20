@@ -246,6 +246,7 @@ export const en = {
   "phone.updateNow": "Update now",
   "phone.updateRequested": "The phone will check the next time it is online.",
   "phone.updateSigningKeyLight": "This update needs a fresh setup. Enter the parent PIN in the phone’s maintenance menu and choose Switch off Plainphone. If you use Release the phone in the dashboard instead, write down the phone’s rules first. Releasing it there deletes its saved rules, including approved contacts and web filter settings. For a Self phone, release waits for the configured delay (24 hours by default without a key) or approval from the trusted person. If you release from the dashboard, wait for the phone to sync and switch Plainphone off. Once it’s off, uninstall Plainphone, install the current release and pair it again.",
+  "phone.updateCheckFailed": "Couldn’t check whether this update needs a new setup, so Update now is off. Pull down to try again.",
   "phone.updateSigningKeyStrong": "This update uses a new signing key. Back up your data, release Device Owner from the parent PIN screen, then factory reset the phone and set it up with a new QR code.",
   "phone.updateFailed": "Update failed",
   "phone.updateDetails": "Show technical details",

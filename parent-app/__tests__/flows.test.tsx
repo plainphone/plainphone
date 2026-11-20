@@ -46,7 +46,7 @@ describe("logging in", () => {
       "POST /auth/request": { status: 202, body: { mailEnabled: true } },
     });
     await renderRouter(routes, { initialUrl: "/login" });
-    await fireEvent.press(await screen.findByText("Do you run your own server?"));
+    await fireEvent.press(await screen.findByText("Use your own server"));
     await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
     await fireEvent.press(screen.getByText("Connect"));
     await screen.findByText(`This app talks to ${custom}.`);
@@ -102,7 +102,7 @@ describe("logging in", () => {
 
   it("shows the self-hosting guide as a link in the accent colour in dark mode", async () => {
     const scheme = jest.spyOn(require("react-native/Libraries/Utilities/useColorScheme"), "default").mockReturnValue("dark");
-    const open = jest.spyOn(RNLinking, "openURL").mockResolvedValue(true);
+    const open = jest.spyOn(RNLinking, "openURL").mockResolvedValue(undefined);
     try {
       await SecureStore.setItemAsync("pp.server", "https://plainphone.example.org");
       fakeApi({
@@ -333,7 +333,7 @@ describe("signed in", () => {
       "POST /auth/request": { status: 202, body: { mailEnabled: true } },
     });
     await renderRouter(routes, { initialUrl: "/settings" });
-    await fireEvent.press(await screen.findByText("Do you run your own server?"));
+    await fireEvent.press(await screen.findByText("Use your own server"));
     await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
 
     const forget = jest.mocked(SecureStore.deleteItemAsync).getMockImplementation()!;
