@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it } from "vitest";
-import { platformLine } from "./platform";
+import { platformLine, ruleRowUnavailable, unsupportedOnIphone } from "./platform";
 
 it("gives an iPhone a line for each rule its map does not fully support", () => {
   const phone = { platform: "ios" as const, capabilities: { contacts: "partial" as const, calmHome: "no" as const, apps: "yes" as const } };
@@ -22,4 +22,23 @@ it("explains the partial more-time and ring support on an iPhone", () => {
   expect(platformLine(phone, "time")).toBe("platform.ios.moreTime");
   expect(platformLine(phone, "location")).toBe("platform.ios.ring");
   expect(platformLine(phone, "schedules")).toBeNull();
+});
+
+it("turns a rule an iPhone cannot do at all into text, and only on an iPhone", () => {
+  const iphone = { platform: "ios" as const, capabilities: { calmHome: "no" as const, contacts: "partial" as const, phoneSettings: "no" as const } };
+  expect(ruleRowUnavailable(iphone, "home")).toBe(true);
+  expect(ruleRowUnavailable(iphone, "settings")).toBe(true);
+  // Partial support keeps the link and its line.
+  expect(ruleRowUnavailable(iphone, "contacts")).toBe(false);
+  // Unknown rows and missing map entries keep the link.
+  expect(ruleRowUnavailable(iphone, "time")).toBe(false);
+  expect(ruleRowUnavailable({ platform: "android", capabilities: { calmHome: "no" } }, "home")).toBe(false);
+  expect(ruleRowUnavailable({}, "home")).toBe(false);
+});
+
+it("reads unsupported features from the map", () => {
+  const iphone = { platform: "ios" as const, capabilities: { systemLanguage: "no" as const, sos: "yes" as const } };
+  expect(unsupportedOnIphone(iphone, "systemLanguage")).toBe(true);
+  expect(unsupportedOnIphone(iphone, "sos")).toBe(false);
+  expect(unsupportedOnIphone({ platform: "android", capabilities: { systemLanguage: "no" } }, "systemLanguage")).toBe(false);
 });

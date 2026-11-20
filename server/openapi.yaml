@@ -1217,7 +1217,7 @@ components:
     Capabilities:
       type: object
       description: "What the phone can do, derived from `platform` and `tier` (docs/ios/architecture.md, Capability map). Clients show a short line for features that are not `yes` on an iPhone."
-      required: [apps, appNames, installBlock, uninstallProtection, factoryResetBlock, resetProtection, accountLock, usbBlock, vpnBlock, webFilter, adultFilter, safeSearch, systemLanguage, openMode, schoolTime, bedtimeApps, bedtimeSilence, timeLimits, limitWarning, moreTime, contacts, callScreening, callLog, helpLines, sos, location, ring, checkin, pinApproval, receipts, health, updateAlarm, weeklySummary, calmHome, release, maintenance, selfKeys, phoneSettings]
+      required: [apps, appNames, installBlock, uninstallProtection, factoryResetBlock, resetProtection, accountLock, usbBlock, vpnBlock, webFilter, adultFilter, safeSearch, systemLanguage, openMode, schoolTime, bedtimeApps, bedtimeSilence, timeLimits, limitWarning, moreTime, contacts, callScreening, callLog, helpLines, sos, location, ring, checkin, pinApproval, receipts, health, updateAlarm, weeklySummary, calmHome, release, maintenance, selfKeys, phoneSettings, pickAppsOnParent, pickAppsOnPhone]
       additionalProperties: false
       properties:
         apps: { $ref: "#/components/schemas/Support" }
@@ -1258,6 +1258,12 @@ components:
         maintenance: { $ref: "#/components/schemas/Support" }
         selfKeys: { $ref: "#/components/schemas/Support" }
         phoneSettings: { $ref: "#/components/schemas/Support" }
+        pickAppsOnParent:
+          $ref: "#/components/schemas/Support"
+          description: "iPhone apps can be picked on the parent's own iPhone (`PUT /phones/{pid}/ios-selection`). `no` on Android."
+        pickAppsOnPhone:
+          $ref: "#/components/schemas/Support"
+          description: "iPhone apps can be picked on the phone after the parent PIN (`PUT /device/ios-selection`). `no` on Android."
 
     PhoneSummary:
       type: object
@@ -1478,6 +1484,7 @@ components:
         filterIssue: { type: string, enum: ["off", automatic, wrongHost, waiting, unverified, alwaysOn, strictDns] }
         protections: { $ref: "#/components/schemas/Protections" }
         timeUsed: { $ref: "#/components/schemas/TimeUsed" }
+        ios: { $ref: "#/components/schemas/IosStatus" }
         appUpdates:
           type: object
           description: The last app update window in strong mode. The server records it and turns `caught` into app requests once per `id`.
@@ -1494,6 +1501,95 @@ components:
               description: New apps installed during the window. The phone hid them at once.
               items: { $ref: "#/components/schemas/PackageName" }
             error: { type: string, enum: [batteryExemption, failed], description: "Why the window could not open." }
+
+    IosNotYet:
+      type: object
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { const: ios_pairing_not_yet }
+
+    IosStatus:
+      type: object
+      description: >
+        iPhones only. The lock counts as intact only while `authorizationStatus` is `approved`,
+        no policy failed and no maintenance runs; Android's light-mode protections do not apply.
+        Unknown fields are ignored, so a newer app can report more. A value outside the listed
+        cases (a newer iOS) is recorded, not refused, and only `approved` counts as intact.
+      required: [iosVersion, authorizationStatus]
+      properties:
+        iosVersion: { type: string, examples: ["26.1"] }
+        authorizationStatus: { enum: [notDetermined, denied, approved], description: Family Controls authorization. }
+        communicationLimits: { type: [boolean, "null"], description: "Apple's Communication Limits, through Declared Age Range; null when unknown." }
+        dnsEnabled: { type: [boolean, "null"], description: The per-phone DNS settings are enabled (phase 4). }
+        locationAuth: { enum: [notDetermined, denied, whenInUse, always] }
+        effectiveStores:
+          type: array
+          maxItems: 20
+          description: Named ManagedSettings stores in effect (base, school, bedtime, limits, maintenance).
+          items: { type: string, maxLength: 40 }
+
+    IosSelection:
+      type: object
+      required: [selection]
+      properties:
+        selection:
+          type: string
+          maxLength: 174764
+          contentEncoding: base64
+          description: Apple's encoded FamilyActivitySelection, base64 with padding, at most 128 KiB decoded. Opaque to the server.
+
+    IosSelectionState:
+      type: object
+      required: [selection, source, updatedAt]
+      properties:
+        selection: { type: [string, "null"], contentEncoding: base64 }
+        source: { enum: [parent, phone, null] }
+        updatedAt: { type: [string, "null"], format: date-time }
+
+    IosSelectionSaved:
+      type: object
+      required: [source, updatedAt]
+      properties:
+        source: { enum: [parent, phone] }
+        updatedAt: { type: string, format: date-time }
+
+    IosRules:
+      type: object
+      description: >
+        The rules document of an iPhone: only keys an iPhone can act on, each left out when the
+        phone's tier cannot do that feature at all (see `capabilities`). No package names, Android
+        settings, home screen, push transport or Google accounts. Schedules have no app lists,
+        time limits only the whole-phone limit, and apps come as `iosApps`. See
+        docs/ios/architecture.md, "iOS rules document".
+      required: [phoneId, platform, tier, capabilities, profile, timezone, rulesRevision, pollSeconds, iosApps, release]
+      properties:
+        phoneId: { type: string, format: uuid }
+        platform: { const: ios }
+        tier: { enum: [family_controls, supervised] }
+        capabilities: { $ref: "#/components/schemas/Capabilities" }
+        profile: { enum: [child, self] }
+        timezone: { type: string }
+        language: { type: [string, "null"] }
+        rulesRevision: { type: integer }
+        pollSeconds: { type: integer }
+        release: { type: boolean }
+        iosApps:
+          type: object
+          required: [open, selection]
+          properties:
+            open: { type: boolean, description: "True: the selection is the block list. False: the apps allowed besides Apple's own." }
+            selection:
+              description: Fetch the bytes from `GET /device/ios-selection` when `revision` changes. Null until someone picks apps.
+              oneOf:
+                - type: object
+                  required: [revision, source, updatedAt]
+                  properties:
+                    revision: { type: string }
+                    source: { enum: [parent, phone] }
+                    updatedAt: { type: string, format: date-time }
+                - type: "null"
+      additionalProperties: true
 
     PhoneStatus:
       description: What the phone reported, plus when the server received it. `rulesAppliedAt` is returned in UTC.
@@ -2170,7 +2266,11 @@ paths:
             schema:
               type: object
               properties:
-                mode: { enum: [strong, light], default: strong }
+                mode: { enum: [strong, light], default: strong, description: "Ignored for an iPhone, which always pairs as light." }
+                platform:
+                  enum: [android, ios]
+                  default: android
+                  description: "`ios` needs IOS_PAIRING_ENABLED on the server; otherwise 403 with code `ios_pairing_not_yet`."
                 profile: { enum: [child, self] }
                 confirmOnPhone: { type: boolean, default: false }
                 deviceInfo:
@@ -2187,11 +2287,17 @@ paths:
                 type: object
                 properties:
                   confirmOnPhone: { type: boolean }
+                  platform: { enum: [android, ios] }
                   pairingId: { type: string, format: uuid }
                   code: { type: string, examples: ["K7MP-4QXR"] }
                   pollSecret: { type: string }
                   expiresAt: { type: string, format: date-time }
                   qrUrl: { type: string, format: uri }
+        "403":
+          description: "iPhone pairing is not available on this server yet (`code: ios_pairing_not_yet`). Show it as \"not yet\", not as an error."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IosNotYet" }
         "429": { $ref: "#/components/responses/Error" }
 
   /device/pairings/{id}:
@@ -2468,9 +2574,49 @@ paths:
             ETag: { schema: { type: string } }
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Rules" }
+              schema:
+                description: Android phones get `Rules`; iPhones get `IosRules` (docs/ios/architecture.md).
+                oneOf:
+                  - $ref: "#/components/schemas/Rules"
+                  - $ref: "#/components/schemas/IosRules"
         "304": { description: "Unchanged" }
         "401": { description: "Token unknown (phone removed by a parent). Keep the last rules and show \"pair again\"." }
+
+  /device/ios-selection:
+    get:
+      operationId: getDeviceIosSelection
+      tags: [device]
+      summary: Fetch this iPhone's app selection (iPhone)
+      security: [{ device: [] }]
+      responses:
+        "200":
+          description: The selection, or nulls when none was picked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IosSelectionState" }
+        "404": { description: "Not an iPhone" }
+    put:
+      operationId: putDeviceIosSelection
+      tags: [device]
+      summary: Report apps picked on the iPhone after the parent PIN (iPhone)
+      description: >
+        The phone already applies the pick; the server records it. Allowed while the capability
+        `pickAppsOnPhone` is not `no` (spike (a), docs/ios/spikes.md).
+      security: [{ device: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IosSelection" }
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IosSelectionSaved" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { description: "This phone cannot pick its own apps (`code: not_supported`, e.g. Android)" }
+        "413": { description: "Selection too large" }
 
   /device/self/favourites:
     post:
@@ -3094,7 +3240,7 @@ paths:
       tags: [auth]
       security: [{ session: [] }, { cookie: [] }]
       responses:
-        "200": { description: "User, households and `mailEnabled`" }
+        "200": { description: "User, households, `mailEnabled` and `iosPairing` (true when this server pairs iPhones: show \"Add an iPhone\")" }
     patch:
       operationId: patchMe
       summary: Change my language
@@ -3517,6 +3663,7 @@ paths:
                 properties:
                   profile: { enum: [child, self, null] }
                   mode: { enum: [strong, light] }
+                  platform: { enum: [android, ios] }
         "404": { description: "Code not found or expired" }
         "429": { $ref: "#/components/responses/Error" }
 
@@ -3550,6 +3697,8 @@ paths:
               schema: { $ref: "#/components/schemas/PhoneSummary" }
         "404": { description: "Code not found or expired" }
         "409": { description: "Profile differs from the choice on the phone" }
+        "403": { description: "iPhone pairing was switched off after the iPhone started (`code: ios_pairing_not_yet`)" }
+
   /phones/enroll:
     post:
       operationId: postPhonesEnroll
@@ -3688,6 +3837,47 @@ paths:
         "200": { $ref: "#/components/responses/Change" }
         "202": { $ref: "#/components/responses/ChangePending" }
         "400": { $ref: "#/components/responses/Error" }
+
+  /phones/{pid}/ios-selection:
+    get:
+      operationId: getPhoneIosSelection
+      tags: [phones]
+      summary: Read an iPhone's app selection
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The selection, or nulls when none was picked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IosSelectionState" }
+        "404": { description: "Not found, or not an iPhone" }
+    put:
+      operationId: putPhoneIosSelection
+      tags: [phones]
+      summary: Send apps picked on the parent's iPhone
+      description: >
+        A rule change: the iPhone gets a new rules revision and a wake-up. Allowed while the
+        capability `pickAppsOnParent` is not `no` (spike (a), docs/ios/spikes.md).
+      security: [{ session: [] }, { cookie: [] }]
+      parameters:
+        - { name: pid, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IosSelection" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IosSelectionSaved" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { description: "Phone not found in your households" }
+        "409": { description: "Apps for this phone cannot be picked on another device (`code: not_supported`)" }
+        "413": { description: "Selection too large" }
 
   /phones/{pid}/apps:
     parameters: [{ $ref: "#/components/parameters/phoneId" }]

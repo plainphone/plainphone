@@ -186,6 +186,12 @@
   min-height: 3rem;
 }
 
+/* "An iPhone" goes to its own page, so it is a link styled like the buttons. */
+.setup-options a.choice {
+  color: var(--ink);
+  text-decoration: none;
+}
+
 .setup-links {
   list-style: none;
   padding: 0;
