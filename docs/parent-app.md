@@ -11,8 +11,10 @@ The native parent app lives in [`parent-app/`](../parent-app). This page covers 
 | Minimum OS | Expo SDK 58 default | Expo SDK 58 default |
 
 The same app will also be the iPhone app for a child's phone and an adult's own phone (roles
-Parent, Child and Myself, `src/lib/roles.ts`). Only Parent is switched on today. See
-[ios/architecture.md](ios/architecture.md).
+Parent, Child and Myself, `src/lib/roles.ts`). Only Parent is switched on today. While the
+server pairs iPhones (`iosPairing` in `GET /me`), the phone list offers "Add an iPhone"
+(`src/app/add-iphone.tsx`), which asks whose phone it is, lists Apple's prerequisites and goes on to
+the pairing code. See [ios/architecture.md](ios/architecture.md).
 
 ## Login and other links
 

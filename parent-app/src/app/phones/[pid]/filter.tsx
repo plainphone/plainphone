@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { isIphone } from "../../../shared/lib/platform";
 import { useState } from "react";
 import { ApiError, client, unwrap } from "../../../api/client";
 import { type ChangeResult, DNS_CATEGORIES, type DnsCategory, type DnsState } from "../../../api/models";
@@ -71,7 +72,7 @@ function FilterScreenBody() {
         {(dns) => (
           <>
             {!dns.synced ? <Notice tone="info" text={t("filter.notSynced")} /> : null}
-            {phone.mode === "light" ? (
+            {phone.mode === "light" && !isIphone(phone) ? (
               <Switch testID="filter-method" label={t("filter.privateDns")} value={dns.filterMethod === "privateDns"}
                 disabled={busy === "method" || methodPending}
                 help={methodPending ? t("pending.waitingTag") : t("filter.methodHelp")}

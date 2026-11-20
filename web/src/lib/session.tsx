@@ -172,3 +172,9 @@ export function useMe(): Me {
   if (state.status !== "in") throw new Error("not signed in");
   return state.me;
 }
+
+/** True when this server pairs iPhones (`iosPairing` in /me). False outside a session. */
+export function useIosPairing(): boolean {
+  const v = useContext(SessionContext);
+  return v?.state.status === "in" && v.state.me.iosPairing === true;
+}

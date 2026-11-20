@@ -55,3 +55,22 @@ export function platformLine(phone: PlatformInfo, row: string): MessageKey | nul
   const support = phone.capabilities?.[feature];
   return support === "partial" || support === "no" ? IOS_LINES[feature] : null;
 }
+
+/** Apple's own page on Screen Time for a child (Family Sharing, child account, Screen Time). */
+export const APPLE_SCREEN_TIME_HELP = "https://support.apple.com/en-us/108806";
+
+/**
+ * True when the phone is an iPhone that cannot do `feature` at all. The page then shows the
+ * honest line instead of a switch that would do nothing.
+ */
+export function unsupportedOnIphone(phone: PlatformInfo, feature: string): boolean {
+  return isIphone(phone) && phone.capabilities?.[feature] === "no";
+}
+
+/** A rule row an iPhone cannot do at all: shown as text, not as a link to dead switches. */
+export function ruleRowUnavailable(phone: PlatformInfo, row: string): boolean {
+  return row in RULE_FEATURES && unsupportedOnIphone(phone, RULE_FEATURES[row as RuleRow]);
+}
+
+/** The iPhone pairing error the server sends while IOS_PAIRING_ENABLED is off. */
+export const IOS_PAIRING_NOT_YET = "ios_pairing_not_yet";

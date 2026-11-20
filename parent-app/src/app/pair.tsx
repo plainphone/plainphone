@@ -14,18 +14,19 @@ import { DEFAULT_AGE_CHOICES, saveSetupChoices, type AgeChoices } from "../lib/s
 import { fonts } from "../lib/theme";
 import { type AgePreset, parseLines } from "../shared/lib/age";
 import { normaliseCode } from "../shared/lib/format";
+import { IOS_PAIRING_NOT_YET } from "../shared/lib/platform";
 
 function PairForm() {
   const { t } = useI18n();
   // The household the app shows; without it the server picks any of the parent's households.
   const householdId = useMe().households[0]?.id;
   const router = useRouter();
-  const params = useLocalSearchParams<{ code?: string }>();
+  const params = useLocalSearchParams<{ code?: string; profile?: string }>();
   const [code, setCode] = useState(() => normaliseCode(params.code ?? ""));
   const [name, setName] = useState("");
-  const [profile, setProfile] = useState<Profile>("child");
+  const [profile, setProfile] = useState<Profile>(() => params.profile === "self" ? "self" : "child");
   const [privateDns, setPrivateDns] = useState(false);
-  const [lookup, setLookup] = useState<{ code: string; profile?: Profile; light?: boolean; done: boolean }>({ code, done: false });
+  const [lookup, setLookup] = useState<{ code: string; profile?: Profile; light?: boolean; iphone?: boolean; done: boolean }>({ code, done: false });
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ code?: string; name?: string }>({});
@@ -54,16 +55,18 @@ function PairForm() {
     async function lookupProfile() {
       let found: Profile | undefined;
       let light = false;
+      let iphone = false;
       try {
         const { data } = await client.POST("/phones/pairing-profile", { body: { code } });
         found = data?.profile ?? undefined;
         light = data?.mode === "light";
+        iphone = data?.platform === "ios";
       } catch {
         // The claim endpoint checks the profile again.
       }
       if (!current) return;
       if (found) setProfile(found);
-      setLookup({ code, profile: found, light, done: true });
+      setLookup({ code, profile: found, light, iphone, done: true });
     }
     void lookupProfile();
     return () => { current = false; };
@@ -89,15 +92,16 @@ function PairForm() {
       } catch {
         timezone = undefined;
       }
-      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, householdId, ...(lookup.light && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
+      const phone = await unwrap<Phone>(client.POST("/phones/claim", { body: { code, name: name.trim(), profile, timezone, householdId, ...(lookup.light && !lookup.iphone && profile === "self" && privateDns ? { filterMethod: "privateDns" as const } : {}) } }));
       // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the phone.
       const failed = profile === "child" && await saveSetupChoices(phone.id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement);
       if (failed) setNotice({ tone: "warn", text: t("age.setupSaveFailed") });
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else router.replace({ pathname: "/phones/[pid]", params: { pid: phone.id } });
     } catch (err) {
-      if (err instanceof ApiError && [400, 404, 409].includes(err.status)) setStage("form");
-      if (err instanceof ApiError && err.status === 409) setNotice({ tone: "error", text: t("pair.profileMismatch") });
+      if (err instanceof ApiError && [400, 403, 404, 409].includes(err.status)) setStage("form");
+      if (err instanceof ApiError && err.data.code === IOS_PAIRING_NOT_YET) setNotice({ tone: "error", text: t("platform.iphone.notYet") });
+      else if (err instanceof ApiError && err.status === 409) setNotice({ tone: "error", text: t("pair.profileMismatch") });
       else if (err instanceof ApiError && err.status === 404) setErrors({ code: t("pair.codeNotFound") });
       else if (err instanceof ApiError && err.status === 400 && err.issues.length) {
         const f = err.fields();
@@ -216,7 +220,8 @@ function PairForm() {
         />
       </Stack>
       <Button kind="secondary" title={t("phoneLanguage.strong")} onPress={() => router.push("/strong-setup")} />
-      {lookup.light && profile === "self" ? (
+      {lookup.iphone && lookup.code === code ? <Text variant="muted">{t("platform.iphone.pairNote")}</Text> : null}
+      {lookup.light && !lookup.iphone && profile === "self" ? (
         <Switch label={t("filter.otherVpn")} value={privateDns} onValueChange={setPrivateDns}
           help={privateDns ? t("filter.tailscaleTip") : t("filter.methodHelp")} />
       ) : null}
