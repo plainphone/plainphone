@@ -4,6 +4,7 @@
 // change that tightens the rules, it applies at once. On a Self phone a change
 // that loosens the rules waits for the key: a delay, or a trusted person (D12).
 
+import { errorSummary } from "../lib/log.js";
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
   contacts,
@@ -599,7 +600,7 @@ async function afterApply(ctx: Ctx, op: Op, requestedBy: string | null) {
       ),
     );
   } catch (err) {
-    console.error(`could not mail the trusted person: ${(err as Error).message}`);
+    console.error(`could not mail the trusted person: ${errorSummary(err)}`);
   }
 }
 
@@ -680,7 +681,7 @@ async function mailTrustedPerson(ctx: Ctx, trustedUserId: string, phoneName: str
     if (!person) return;
     await ctx.mail.send(approvalRequestMail(person.email, toLocale(person.locale), ctx.cfg.PUBLIC_URL, phoneName));
   } catch (err) {
-    console.error(`could not mail the trusted person about a request: ${(err as Error).message}`);
+    console.error(`could not mail the trusted person about a request: ${errorSummary(err)}`);
   }
 }
 
@@ -759,7 +760,7 @@ export async function applyPending(
         return applied.dns;
       });
     } catch (err) {
-      console.error(`pending change ${change.id} could not be applied`, err);
+      console.error(`pending change ${change.id} could not be applied: ${errorSummary(err)}`);
       status = "failed";
     }
     await tx

@@ -24,7 +24,10 @@ Configured with `DNS_API_URL` (e.g. `http://<private-ip>:8053/`, see `PPDNS_API_
 Both calls are idempotent. If a call fails, the API request that caused it still succeeds: the
 phone is marked `dns_dirty`, the PWA shows "not synced yet", and the server's sweeper retries
 every minute. A version counter makes sure an older, slower attempt cannot mark a newer change
-as synced.
+as synced. When an older attempt finishes after a newer one, it may have overwritten the newer
+rules, so the phone is marked dirty again and the sweeper sends the current rules. After three
+failed calls in a row the sweeper leaves the remaining phones (taken in random order) for the
+next minute, so a DNS outage does not hold up its other work, such as SOS retries.
 
 ## Mapping
 
