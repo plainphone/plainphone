@@ -110,6 +110,18 @@ class PlainphoneApiReleaseTest {
     private fun api() = PlainphoneApi("http://localhost:${server.address.port}")
 
     @Test
+    fun `only the server's unknown-device answer unpairs the phone`() {
+        answer = 401
+        // A proxy or login wall in front of a self-hosted server.
+        responseBody = "Unauthorized"
+        assertThrows(HttpError::class.java) { api().fetchRules("pp_d_test", null) }
+        responseBody = """{"error":"device token required"}"""
+        assertThrows(HttpError::class.java) { api().fetchRules("pp_d_test", null) }
+        responseBody = """{"error":"unknown device; pair again"}"""
+        assertThat(api().fetchRules("pp_d_test", null)).isEqualTo(RulesResult.Unpaired)
+    }
+
+    @Test
     fun `an invalid setup key is distinct from a rejected enrollment token`() {
         answer = 400
         responseBody = """{"error":"invalid setup key"}"""

@@ -161,8 +161,10 @@ phone                                      server                         parent
    outage. The filter screen still shows the resolver's sync status.
    In Light mode a VPN start request is provisional until the tunnel is running
    with the requested resolver.
-6. **Removed.** `401` on rules means the phone was removed (on a Self phone only after the key
+6. **Removed.** `401` with `{"error":"unknown device; pair again"}` on rules means the phone was removed (on a Self phone only after the key
    allowed it). Keep enforcing the last rules and show "pair again"; never loosen on an error.
+   Any other `401` (a proxy or login wall in front of a self-hosted server) is an ordinary
+   error that is retried, so it cannot unpair every phone.
    A paired phone must not start a new pairing on its own, or a Self user could pair it again
    as a Child phone and leave the key behind.
 
