@@ -41,6 +41,8 @@ import { openingReport, recordOpening } from "../services/emergency-openings.js"
 import { approveMoreTimeOnPhone, MoreTimeError, moreTimeJson, sendMoreTimeReceipts } from "../services/more-time.js";
 import { deviceMoreTimeRoutes } from "./more-time.js";
 import { deviceSosRoutes } from "./sos.js";
+import { deviceBillingRoutes } from "./billing.js";
+import { isAllowed, planLimitBody } from "../services/billing.js";
 
 export const PAIRING_MINUTES = 15;
 
@@ -286,6 +288,7 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   // Routes that live in their own files but need the device token check above.
   extra?.(app);
+  deviceBillingRoutes(app, ctx);
   deviceSosRoutes(app, ctx);
   deviceMoreTimeRoutes(app, ctx);
 
@@ -443,6 +446,8 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
 
   app.post("/trusted-invite", async (c) => {
     const phone = c.get("phone");
+    const allowed = await isAllowed(ctx, phone.householdId, "trusted.add", { phoneId: phone.id });
+    if (!allowed.ok) return c.json(planLimitBody(allowed), 402);
     const invite = await issueTrustedInvite(ctx, phone.id, { deviceHash: phone.deviceTokenHash });
     if (!invite) return c.json({ error: "this phone cannot invite a helper right now" }, 409);
     c.header("Cache-Control", "no-store");

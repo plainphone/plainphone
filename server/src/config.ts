@@ -86,6 +86,37 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true"),
   /**
+   * Billing on the hosted service (docs/billing.md). Off by default: with it off every household
+   * keeps an unlimited plan, no billing UI is shown and no payment provider is called.
+   */
+  BILLING_ENABLED: unsetIfEmpty(z.enum(["true", "false"]).default("false")).transform((v) => v === "true"),
+  /**
+   * Households created before this instant keep an unlimited plan ("grandfathered"). Required
+   * when BILLING_ENABLED is true; without it billing stays off and /api/health reports why.
+   */
+  BILLING_GRANDFATHER_BEFORE: unsetIfEmpty(z.iso.datetime({ offset: true }).optional()),
+  /** Free plan limits per household (only enforced with BILLING_ENABLED). */
+  BILLING_FREE_PHONES: unsetIfEmpty(z.coerce.number().int().min(1).max(100).default(1)),
+  BILLING_FREE_TRUSTED: unsetIfEmpty(z.coerce.number().int().min(0).max(100).default(1)),
+  /** Shown prices in minor units (øre/cents) and their currency. Working values, not final prices. */
+  BILLING_CURRENCY: unsetIfEmpty(z.string().regex(/^[A-Z]{3}$/).default("DKK")),
+  BILLING_PLUS_PRICE_MINOR: unsetIfEmpty(z.coerce.number().int().min(0).default(2900)),
+  BILLING_EARLY_UNLOCK_PRICE_MINOR: unsetIfEmpty(z.coerce.number().int().min(0).default(1000)),
+  /** Stripe (dashboard checkout for sideloaded phones). Keys come from the environment only. */
+  STRIPE_SECRET_KEY: unsetIfEmpty(z.string().optional()),
+  STRIPE_WEBHOOK_SECRET: unsetIfEmpty(z.string().optional()),
+  /** The recurring Price for the paid household plan (price_...). */
+  STRIPE_PRICE_PLUS: unsetIfEmpty(z.string().optional()),
+  /** Google Play Billing (Play builds). The service account needs the Play Developer API. */
+  PLAY_PACKAGE_NAME: unsetIfEmpty(z.string().default("org.plainphone.app")),
+  PLAY_SERVICE_ACCOUNT_JSON: unsetIfEmpty(z.string().optional()),
+  PLAY_SERVICE_ACCOUNT_FILE: unsetIfEmpty(z.string().optional()),
+  /** Product ids in Play Console: the household subscription and the one-time early unlock. */
+  PLAY_PRODUCT_PLUS: unsetIfEmpty(z.string().default("plus_household")),
+  PLAY_PRODUCT_EARLY_UNLOCK: unsetIfEmpty(z.string().default("early_unlock")),
+  /** Shared secret in the Pub/Sub push URL for real-time developer notifications (?token=...). */
+  PLAY_RTDN_TOKEN: unsetIfEmpty(z.string().min(24).optional()),
+  /**
    * Trust X-Forwarded-For from a reverse proxy (Traefik, Caddy, nginx) for rate limits.
    * Leave false when the server is reachable directly, or clients can fake their address.
    */
@@ -113,6 +144,7 @@ const LENIENT: { key: string; values: string[]; area: "push" | "other"; label: s
   { key: "PUSH_PROVIDER", values: ["none", "fcm", "unifiedpush"], area: "push", label: "push" },
   { key: "APNS_SANDBOX", values: ["true", "false"], area: "push", label: "apns" },
   { key: "MAIL_PROVIDER", values: ["none", "log", "smtp"], area: "other", label: "mail" },
+  { key: "BILLING_ENABLED", values: ["true", "false"], area: "other", label: "billing" },
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -136,6 +168,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Optional: degrade to no mail rather than print login links or crash.
     cfg.MAIL_PROVIDER = "none";
     warnings.other.push("mail: MAIL_PROVIDER=log is not allowed in production");
+  }
+  if (cfg.BILLING_ENABLED && !cfg.BILLING_GRANDFATHER_BEFORE) {
+    // Optional: without a cutoff nobody could be grandfathered, so billing stays off.
+    cfg.BILLING_ENABLED = false;
+    warnings.other.push("billing: BILLING_ENABLED needs BILLING_GRANDFATHER_BEFORE");
   }
   if (cfg.DNS_PROVIDER === "http" && (!cfg.DNS_API_URL || !cfg.DNS_API_TOKEN)) {
     throw new Error("DNS_PROVIDER=http needs DNS_API_URL and DNS_API_TOKEN");

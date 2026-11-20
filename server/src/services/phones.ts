@@ -39,6 +39,7 @@ import { agreementRules } from "./age-review.js";
 import { inboxRules } from "./family-inbox.js";
 import { effectiveGroup, loadModes, modesForRules } from "./modes.js";
 import { emergencyRules } from "./emergency-openings.js";
+import { billingOn } from "./billing.js";
 
 type Phone = typeof phones.$inferSelect;
 type Tx = Parameters<Parameters<Ctx["db"]["transaction"]>[0]>[0];
@@ -282,7 +283,7 @@ export function nextRulesRevision(dns = false) {
 }
 
 /** The rules document the phone fetches. Its ETag is a hash of the content. */
-function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined) {
+function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pending, limits, safety, own, accountIds, sosExtras, inbox, modeRows, emergency }: RulesInputs, move: Awaited<ReturnType<typeof moveInstruction>>, fallbackDnsHost: string | undefined, earlyUnlock: EarlyUnlockRules | null = null) {
   const apps = allApps.filter((a) => a.installed);
   // Open mode: everything is allowed except the block list (apps blocked one by one plus the
   // known apps of the blocked categories, also when they are not installed yet).
@@ -342,6 +343,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
     // Limited emergency openings, Self phones only (docs/emergency-openings.md). `used` is the
     // server's count for this month in the phone's time zone; the phone counts for itself too.
     ...(emergency ? { selfEmergency: emergency } : {}),
+    // Paid early unlock (docs/billing.md): only while billing is on and the phone's switch is on.
+    ...(earlyUnlock ? { earlyUnlock } : {}),
     schedules: modes ? modes.schedules : scheduleRows.map((s) => ({
       id: s.id,
       kind: s.kind,
@@ -411,8 +414,8 @@ function rulesDocument({ phone, allApps, contactRows, scheduleRows, dnsRow, pend
 }
 
 export async function respondWithRules(ctx: Ctx, phone: Phone, candidates: string[]) {
-  const [inputs, move] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone)]);
-  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST);
+  const [inputs, move, earlyUnlock] = await Promise.all([loadRulesInputs(ctx, phone), moveInstruction(ctx, phone), earlyUnlockRules(ctx, phone)]);
+  const { body, etag } = rulesDocument(inputs, move, ctx.cfg.PROVISIONING_DNS_HOST, earlyUnlock);
   return { etag, body: candidates.includes(etag) ? null : body, hasMove: move !== null };
 }
 
@@ -618,4 +621,14 @@ export function withAttestation(status: DeviceStatus, attestation: PhoneAttestat
     lockIntact: false,
     failedPolicies: [...status.failedPolicies, `hardware attestation: ${attestation.state}`],
   };
+}
+
+type EarlyUnlockRules = { enabled: true; price: number; currency: string };
+
+/** The phone shows the early unlock offer (Play builds) only when this is in its rules. */
+async function earlyUnlockRules(ctx: Ctx, phone: Phone): Promise<EarlyUnlockRules | null> {
+  if (!billingOn(ctx) || phone.profile !== "self") return null;
+  const [key] = await ctx.db.select().from(selfKeys).where(eq(selfKeys.phoneId, phone.id));
+  if (key?.keyType !== "delay" || !key.payUnlockEnabled) return null;
+  return { enabled: true, price: ctx.cfg.BILLING_EARLY_UNLOCK_PRICE_MINOR, currency: ctx.cfg.BILLING_CURRENCY };
 }
