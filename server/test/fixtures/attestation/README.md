@@ -9,3 +9,9 @@ Copied unchanged from [android/keyattestation](https://github.com/android/keyatt
 | `frankel-TEE_EC_2026.pem` | `testdata/frankel/sdk37/TEE_EC_2026.pem` | TEE, locked, verified boot, 2026 EC root |
 | `akita-TEE_EC_NONE.pem` | `testdata/akita/sdk34/TEE_EC_NONE.pem` | TEE, unlocked bootloader |
 | `marlin-TEE_EC_NONE.pem` | `testdata/marlin/sdk29/TEE_EC_NONE.pem` | Software keystore |
+
+Made here, not recorded from a phone:
+
+| File | Source | What it shows |
+|---|---|---|
+| `forged-leaf.pem` | `make-forged-leaf.sh` (self-made keys and root) | A certificate appended below an attested key, carrying a second, forged record |

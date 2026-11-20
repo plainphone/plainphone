@@ -10,6 +10,7 @@ import { PAIRING_RECOVERY_MS } from "./pairing-account.js";
 import { retryDnsDeletions, syncDirtyDns } from "./dns.js";
 import { alertOfflinePhones } from "./notifications.js";
 import { deliverSetupUndoNotices } from "./setup-undo-notices.js";
+import { errorFrames, errorSummary } from "../lib/log.js";
 import { sweepMoreTime } from "./more-time.js";
 import { sweepSos } from "./sos.js";
 import { sweepQuickMessages } from "./quick-messages.js";
@@ -159,7 +160,7 @@ export function startSweeper(ctx: Ctx, everyMs = 60_000): () => void {
       logSweep(await sweep(ctx), first);
       first = false;
     } catch (err) {
-      console.error("sweeper failed", err);
+      console.error(`sweeper failed: ${errorSummary(err)}\n${errorFrames(err)}`);
     } finally {
       running = false;
     }

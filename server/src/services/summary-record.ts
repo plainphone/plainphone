@@ -2,6 +2,7 @@
 //
 // What the weekly summary is built from, written as it happens (docs/weekly-summary.md).
 
+import { errorSummary } from "../lib/log.js";
 import { sql } from "drizzle-orm";
 import { phoneUsageDays, summaryEvents } from "../db/schema.js";
 import type { ChangeCategory } from "../lib/summary-text.js";
@@ -53,6 +54,6 @@ export async function recordSummaryEvent(
   try {
     await db.transaction((sp) => sp.insert(summaryEvents).values({ phoneId, kind, at, detail: detail ?? null }));
   } catch (err) {
-    console.error(`summary event not recorded: ${(err as Error).message}`);
+    console.error(`summary event not recorded: ${errorSummary(err)}`);
   }
 }
