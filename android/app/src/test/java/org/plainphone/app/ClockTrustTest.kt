@@ -39,8 +39,17 @@ class ClockTrustTest {
     }
 
     @Test
-    fun `setting the clock back does not stretch a PIN lockout past an hour`() {
+    fun `setting the clock back does not stretch a PIN lockout`() {
         repeat(5) { throttle().onFailure() }
+        wall -= 365L * 86_400_000
+        assertThat(throttle().remainingMs()).isEqualTo(60_000)
+    }
+
+    @Test
+    fun `after a reboot a clock set back stretches a PIN lockout to an hour at most`() {
+        repeat(5) { throttle().onFailure() }
+        boot++
+        elapsed = 1_000
         wall -= 365L * 86_400_000
         assertThat(throttle().remainingMs()).isEqualTo(3_600_000)
     }

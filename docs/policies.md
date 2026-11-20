@@ -201,7 +201,7 @@ Things to know:
 
 ## Maintenance screen
 
-Tap "Version" seven times on the Plainphone status screen and enter the parent PIN. From the fifth wrong PIN in a row, each wrong PIN locks the screen for 1, 2, 4 ... minutes (at most an hour). The count survives app restarts and reboots. The lockout also runs on the time since boot, so setting the clock forward does not shorten it (light mode cannot force automatic time), and it is never longer than an hour, also when the clock is set back.
+Tap "Version" seven times on the Plainphone status screen and enter the parent PIN. From the fifth wrong PIN in a row, each wrong PIN locks the screen for 1, 2, 4 ... minutes (at most an hour). The count survives app restarts and reboots. Until the next reboot the lockout runs on the time since boot, so changing the clock neither shortens nor stretches it (light mode cannot force automatic time). After a reboot it runs on the clock, and is never longer than an hour, also when the clock is set back.
 
 - **Lift the lock for N minutes** (default 30) clears every restriction, shows hidden apps and sets private DNS back to automatic. The lock returns by alarm after N minutes or at the next reboot, whichever comes first. Opening Plainphone does not end the unlock; use "Apply the lock now" for that.
 - **Apply the lock now** re-applies everything.

@@ -31,10 +31,11 @@ class PinThrottle(
 
     /** Milliseconds left before the next attempt is allowed. */
     fun remainingMs(): Long {
-        val wall = store.lockedUntil - now()
-        val boot = bootClock?.takeIf { store.lockedBoot == it.boot() }?.let { store.lockedUntilElapsed - it.elapsedMs() } ?: 0
-        // Capped: a wall clock set back must not stretch a lockout beyond the longest one.
-        return maxOf(wall, boot).coerceIn(0, MAX_MS)
+        // Within the boot the lockout was set in, the boot clock is exact whatever the wall clock says.
+        val boot = bootClock?.takeIf { store.lockedBoot == it.boot() }?.let { store.lockedUntilElapsed - it.elapsedMs() }
+        // After a reboot only the wall clock is left. Capped: set back, it must not stretch a lockout
+        // beyond the longest one.
+        return (boot ?: (store.lockedUntil - now())).coerceIn(0, MAX_MS)
     }
 
     fun onSuccess() {
