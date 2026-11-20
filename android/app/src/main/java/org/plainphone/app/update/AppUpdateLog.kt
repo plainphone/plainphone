@@ -51,7 +51,7 @@ class AppUpdateLog(private val store: Store) {
         companion object {
             fun parse(text: String): Window {
                 val j = JSONObject(text)
-                fun set(key: String) = j.optJSONArray(key)?.let { a -> List(a.length()) { a.getString(it) }.toSet() }.orEmpty()
+                fun strings(key: String) = j.optJSONArray(key)?.let { a -> List(a.length()) { a.getString(it) }.toSet() }.orEmpty()
                 fun long(key: String) = if (j.isNull(key)) null else j.getLong(key)
                 return Window(
                     id = j.getString("id"),
@@ -59,9 +59,9 @@ class AppUpdateLog(private val store: Store) {
                     openedAtMs = long("openedAtMs"),
                     untilMs = j.getLong("untilMs"),
                     closedAtMs = long("closedAtMs"),
-                    snapshot = set("snapshot"),
-                    updated = set("updated"),
-                    caught = set("caught"),
+                    snapshot = strings("snapshot"),
+                    updated = strings("updated"),
+                    caught = strings("caught"),
                     error = if (j.isNull("error")) null else j.getString("error"),
                 )
             }
