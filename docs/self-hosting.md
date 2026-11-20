@@ -102,7 +102,7 @@ To relocate a self-hosted instance while keeping its existing URL, use a full
 | `MAIL_PROVIDER` | `none` | `none` sends nothing (nobody can sign in until you configure mail), `smtp` uses `SMTP_URL`. `log` prints mails to stdout and is refused in production |
 | `SMTP_URL` | | e.g. `smtps://user:pass@smtp.example.org:465`. Missing or invalid: mail is switched off and `/api/health` says so |
 | `MAIL_FROM` | `Plainphone <no-reply@plainphone.org>` | Sender |
-| `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`) |
+| `DNS_PROVIDER` | `mock` | `http` talks to the DNS service (`DNS_API_URL`, `DNS_API_TOKEN`). `deploy/dokploy-compose.yaml` has no default and refuses to start without it, so a missing value cannot switch a running service back to `mock` |
 | `DNS_HOST_SUFFIX` | `dns.plainphone.org` | Phones use `<clientId>.<suffix>` as private DNS |
 | `APK_DOWNLOAD_URL` | | Where `/download/android` (the APK address in setup QR codes) redirects. Unset: the newest APK released in `APK_RELEASES_REPO` on GitHub |
 | `APK_METADATA_URL` | | HTTPS URL for the metadata JSON matching `APK_DOWNLOAD_URL`. Optional, but enables a version check before download and update notifications in light mode. |

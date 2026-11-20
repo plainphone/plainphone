@@ -281,6 +281,20 @@ describe("DNS readiness", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps the phone's ClientID out of the server log when the DNS service fails", async () => {
+    const parent = await signIn(h, "parent@example.org");
+    const { phoneId } = await pairPhone(h, parent);
+    const [row] = await h.ctx.db.select({ clientId: phones.dnsClientId }).from(phones).where(eq(phones.id, phoneId));
+    const request = useHttpDns();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    request.mockResolvedValue(new Response(null, { status: 503 }));
+    await sweep(h.ctx);
+    expect(log.mock.calls.length).toBeGreaterThan(0);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(row!.clientId);
+    // The status code stays: it is what makes the line useful.
+    expect(JSON.stringify(log.mock.calls)).toContain("503");
+  });
+
   it("provisions a clean mock-confirmed phone after switching to HTTP", async () => {
     const parent = await signIn(h, "parent@example.org");
     const { phoneId, device } = await pairPhone(h, parent);

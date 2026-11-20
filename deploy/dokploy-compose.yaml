@@ -2,7 +2,8 @@
 # The hosted service (app.plainphone.org) on Dokploy. Dokploy adds the Traefik
 # route for the domain set in its UI and backs up the db service to object storage.
 # Environment (set in Dokploy, never in git): POSTGRES_PASSWORD, PUBLIC_URL,
-# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER, DNS_API_URL, DNS_API_TOKEN,
+# MAIL_PROVIDER, SMTP_URL, MAIL_FROM, DNS_PROVIDER (required, no default: an unset value
+# would fall back to mock and re-tag every phone), DNS_API_URL, DNS_API_TOKEN,
 # GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET.
 # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (Web Push; generate with
 # `pnpm --filter @plainphone/server exec tsx src/lib/webpush.ts`), and optionally
@@ -49,7 +50,7 @@ services:
       MAIL_PROVIDER: ${MAIL_PROVIDER:-none}
       MAIL_FROM: ${MAIL_FROM:-Plainphone <no-reply@plainphone.org>}
       SMTP_URL: ${SMTP_URL:-}
-      DNS_PROVIDER: ${DNS_PROVIDER:-mock}
+      DNS_PROVIDER: ${DNS_PROVIDER:?set DNS_PROVIDER to http (or mock) explicitly; a missing value must not fall back to mock}
       DNS_API_URL: ${DNS_API_URL:-}
       DNS_API_TOKEN: ${DNS_API_TOKEN:-}
       DNS_HOST_SUFFIX: dns.plainphone.org
