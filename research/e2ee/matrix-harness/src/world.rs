@@ -25,7 +25,7 @@ pub const PICKLE_KEY: [u8; 32] = [7u8; 32];
 
 #[derive(Clone)]
 pub struct Event {
-    pub seq: u64,
+    pub _seq: u64,
     pub sender: String,
     pub session_id: String,
     pub body: Vec<u8>,
@@ -33,7 +33,7 @@ pub struct Event {
 
 #[derive(Clone)]
 pub struct ToDevice {
-    pub seq: u64,
+    pub _seq: u64,
     pub from: String,
     pub sender_key: Curve25519PublicKey,
     pub msg_type: usize,
@@ -86,7 +86,7 @@ impl Server {
         let (msg_type, body) = m.to_parts();
         let held = self.withhold_from.iter().any(|w| w == to);
         self.to_device.entry(to.to_string()).or_default().push(ToDevice {
-            seq: self.seq,
+            _seq: self.seq,
             from: from.to_string(),
             sender_key,
             msg_type,
@@ -98,7 +98,7 @@ impl Server {
 
     pub fn post_event(&mut self, sender: &str, session_id: String, m: &MegolmMessage) {
         self.seq += 1;
-        self.timeline.push(Event { seq: self.seq, sender: sender.to_string(), session_id, body: m.to_bytes() });
+        self.timeline.push(Event { _seq: self.seq, sender: sender.to_string(), session_id, body: m.to_bytes() });
         self.pushes.push(format!("{{\"c\":\"fam1\",\"cursor\":{}}}", self.seq).into_bytes());
     }
 

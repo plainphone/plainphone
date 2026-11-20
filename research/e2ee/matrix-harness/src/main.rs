@@ -5,7 +5,7 @@
 //! Olm + Megolm the way matrix-sdk-crypto does, through an in-process fake
 //! homeserver. No network, no real accounts, invented text only.
 
-mod world;
+use matrix_harness::world;
 
 use vodozemac::megolm::MegolmMessage;
 use world::*;

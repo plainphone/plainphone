@@ -9,10 +9,8 @@
 //! docs/research/e2ee-recommendation.md. A failed expectation aborts with a
 //! non-zero exit code.
 
-mod cross;
-mod world;
+use mls_harness::{cross, world};
 
-use openmls::prelude::*;
 use world::*;
 
 type Res = Result<Vec<String>, String>;
@@ -30,7 +28,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("cross") {
         // Cross-runtime steps, one process per step: see cross.rs.
-        if let Err(e) = cross::run(&args[2..]) {
+        if let Err(e) = cross::run_dir(&args[2..]) {
             eprintln!("cross step failed: {e}");
             std::process::exit(1);
         }

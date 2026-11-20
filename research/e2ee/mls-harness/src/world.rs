@@ -508,9 +508,38 @@ impl Device {
     }
 
     pub fn restore(from: &Device, bytes: &[u8]) -> Result<Device, String> {
+        let gid = from.group.as_ref().map(|g| g.group_id().clone());
+        let mut d = Device::from_parts(&from.id, from.roster.clone(), bytes, from.signer.public(), gid.as_ref())?;
+        d.honest = from.honest;
+        Ok(d)
+    }
+
+    /// Persist as `<id>.store` and `<id>.meta` (signature public key, group
+    /// ID) for the cross-runtime steps.
+    pub fn save(&self, files: &mut crate::cross::Files) {
+        let (bytes, _) = self.snapshot();
+        files.insert(format!("{}.store", self.id), bytes);
+        let gid = self.group.as_ref().map_or("-".to_string(), |g| crate::cross::hex(g.group_id().as_slice()));
+        let meta = format!("{}\n{}\n", crate::cross::hex(self.signer.public()), gid);
+        files.insert(format!("{}.meta", self.id), meta.into_bytes());
+    }
+
+    pub fn load(files: &crate::cross::Files, id: &str, roster: &Roster) -> Result<Device, String> {
+        let bytes = files.get(&format!("{id}.store")).ok_or(format!("no store for {id}"))?;
+        let meta = String::from_utf8_lossy(files.get(&format!("{id}.meta")).ok_or("no meta")?).to_string();
+        let mut lines = meta.lines();
+        let sig = crate::cross::unhex(lines.next().ok_or("meta")?);
+        let gid = match lines.next().ok_or("meta")? {
+            "-" => None,
+            h => Some(GroupId::from_slice(&crate::cross::unhex(h))),
+        };
+        Device::from_parts(id, roster.clone(), bytes, &sig, gid.as_ref())
+    }
+
+    fn from_parts(id: &str, roster: Roster, bytes: &[u8], sig_pub: &[u8], gid: Option<&GroupId>) -> Result<Device, String> {
         let mut map = HashMap::new();
         let mut i = 0;
-        let mut take = |i: &mut usize| -> Vec<u8> {
+        let take = |i: &mut usize| -> Vec<u8> {
             let n = u32::from_be_bytes(bytes[*i..*i + 4].try_into().expect("len")) as usize;
             let v = bytes[*i + 4..*i + 4 + n].to_vec();
             *i += 4 + n;
@@ -523,22 +552,21 @@ impl Device {
         }
         let storage = MemoryStorage { values: std::sync::RwLock::new(map) };
         let prov = Prov { crypto: RustCrypto::default(), storage };
-        let signer = SignatureKeyPair::read(prov.storage(), from.signer.public(), from.signer.signature_scheme())
+        let signer = SignatureKeyPair::read(prov.storage(), sig_pub, CIPHERSUITE.signature_algorithm())
             .ok_or("signer not in store")?;
-        let group = match &from.group {
-            Some(g) => MlsGroup::load(prov.storage(), g.group_id()).map_err(err)?,
+        let group = match gid {
+            Some(g) => MlsGroup::load(prov.storage(), g).map_err(err)?,
             None => None,
         };
-        Ok(Device {
-            id: from.id.clone(),
-            honest: from.honest,
-            prov,
-            signer,
-            cred: from.cred.clone(),
-            group,
-            roster: from.roster.clone(),
-            last_errors: vec![],
-        })
+        let cred = CredentialWithKey {
+            credential: BasicCredential::new(id.as_bytes().to_vec()).into(),
+            signature_key: sig_pub.to_vec().into(),
+        };
+        Ok(Device { id: id.to_string(), honest: true, prov, signer, cred, group, roster, last_errors: vec![] })
+    }
+
+    pub fn signature_public(&self) -> Vec<u8> {
+        self.signer.to_public_vec()
     }
 
     pub fn clone_for_experiment(&self) -> Result<Device, String> {
