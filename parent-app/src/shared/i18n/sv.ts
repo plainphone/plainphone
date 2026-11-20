@@ -2,11 +2,13 @@
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
 import { appUpdatesSv } from "./app-updates";
+import { platformSv } from "./platform";
 import { statusEn } from "./status";
 
 export const sv: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesSv,
+  ...platformSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",
   "status.stale.title": "Senast online {when}",
