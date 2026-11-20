@@ -18,6 +18,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -105,6 +106,41 @@ class SmsHistoryTest {
         val second = SmsStore.threadPage(context, first.next, 1)
         assertEquals("87654321", second.threads.keys.single().number)
         assertNull(second.next)
+    }
+
+    @Test
+    fun restrictedProviderWithThousandsOfThreadsReturnsACappedFirstPageInOrder() {
+        provider.restricted = true
+        val now = 1_800_000_000_000L
+        val hour = 60 * 60 * 1000L
+        provider.db.execSQL("""
+            WITH RECURSIVE ids(id) AS (VALUES(1000) UNION ALL SELECT id + 1 FROM ids WHERE id < 4999)
+            INSERT INTO threads SELECT id, $now - (id - 1000) * $hour, '1', 1, 1, 'hi', 0 FROM ids
+        """.trimIndent())
+        val history = SmsHistory(context, nowMs = { now })
+
+        val first = history.threads(null, 20)
+        assertEquals((1000L..1019L).toList(), first.threads.keys.map { it.systemId })
+        assertNotNull(first.next)
+        // 4,000 conversations exist; the provider only had to build the recent window.
+        assertTrue("built ${provider.threadCount}", provider.threadCount in 21..1000)
+
+        val second = history.threads(first.next, 20)
+        assertEquals((1020L..1039L).toList(), second.threads.keys.map { it.systemId })
+        assertTrue("built ${provider.threadCount}", provider.threadCount in 21..1000)
+    }
+
+    @Test
+    fun restrictedProviderWidensTheWindowUntilAPageIsFull() {
+        provider.restricted = true
+        val now = 1_800_000_000_000L
+        val day = 24 * 60 * 60 * 1000L
+        // Two conversations a year ago: the 30 and 120 day windows hold fewer than a page.
+        provider.db.execSQL("UPDATE threads SET date = ${now - 365 * day} WHERE _id IN (7, 8)")
+        provider.db.execSQL("DELETE FROM threads WHERE _id = 9")
+        val page = SmsHistory(context, nowMs = { now }).threads(null, 1)
+        assertEquals(listOf(7L), page.threads.keys.map { it.systemId })
+        assertNotNull(page.next)
     }
 
     @Test

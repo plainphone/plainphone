@@ -23,7 +23,11 @@ messages first. Refreshing an open conversation keeps the pages already loaded
 and preserves the scroll position. If another app adds older messages while the
 conversation is open, returning to Plainphone makes more history available.
 Android may provide read access after a change of default SMS app. A restricted
-provider can evaluate more rows than fit on the requested page.
+provider can evaluate more rows than fit on the requested page. When Plainphone is
+not the default SMS app, Android rejects the paged conversation query. The list
+is then loaded on a background thread (with a loading state), first for the last
+30 days and then for wider windows only until a page is full, so a phone with
+thousands of conversations does not wait for all of them.
 An MMS in a one-to-one conversation appears as a placeholder
 alongside the SMS messages from that conversation. Group MMS conversations are
 read-only, with placeholders for the attachments.
@@ -33,8 +37,9 @@ including private RCS conversations, cannot be imported.
 
 ## Child contact suggestions
 
-In the web dashboard, open the Child phone's **Contacts** and turn on **Suggest
-contacts from the phone**. It starts off for all phones, including new light
+In the web dashboard or the parent app, open the Child phone's **Contacts** and turn on **Suggest
+contacts from the phone**. On a light phone, **Only approved contacts can call and
+text** is on the same screen. It starts off for all phones, including new light
 phones. When turned on and Android grants contacts access, the phone sends only
 names and international phone numbers to the parents in the household. The child
 can see whether suggestions are on in the phone's Contacts tab. After a save, the
@@ -43,7 +48,9 @@ setting was already saved in another tab.
 
 The phone reads the address book at most once every six hours while enabled and
 sends up to 2,000 of the most recently updated contacts. If the upload fails,
-the app can retry from memory on the next sync. The dashboard and
+the app can retry from memory on the next sync. If the server rejects the
+upload for good (a 4xx other than 429), the app drops it and waits for the next
+read; 429 and server errors keep it for the next try. The dashboard and
 parent app offer **Approve**, **Dismiss** and **Approve all**. If a suggestion
 changes before review, its replacement stays pending. Reviewed numbers stay
 excluded from later suggestions. Turning suggestions off stops uploads and

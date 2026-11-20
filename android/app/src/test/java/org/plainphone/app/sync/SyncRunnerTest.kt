@@ -171,6 +171,33 @@ class SyncRunnerTest {
         assertThat(api.contactSnapshots).containsExactly(snapshot)
     }
 
+    /** Uploads once with [status] as the answer, syncs again, and returns the uploads that went through. */
+    private fun uploadsAfterRejection(status: Int): List<List<DeviceContact>> {
+        pair()
+        val snapshot = listOf(DeviceContact("Alex", listOf("+4512345678")))
+        val source = object : SyncDevice by device {
+            override fun contactSuggestions() = snapshot
+        }
+        api.rules = RulesResult.Changed("on", org.json.JSONObject(rulesJson())
+            .put("suggestDeviceContacts", true).toString())
+        api.contactSuggestionsFailure = HttpError(status, "rejected")
+        SyncRunner(store, api, source).run("upload rejected")
+        api.rules = RulesResult.Unchanged
+        api.contactSuggestionsFailure = null
+        SyncRunner(store, api, source).run("next sync")
+        return api.contactSnapshots.toList()
+    }
+
+    @Test
+    fun `a permanent rejection of the suggestion upload is not resent`() {
+        assertThat(uploadsAfterRejection(400)).isEmpty()
+    }
+
+    @Test
+    fun `a rate limited suggestion upload is kept and resent`() {
+        assertThat(uploadsAfterRejection(429)).containsExactly(listOf(DeviceContact("Alex", listOf("+4512345678"))))
+    }
+
     @Test
     fun `turning off suggestions discards a failed upload`() {
         pair()

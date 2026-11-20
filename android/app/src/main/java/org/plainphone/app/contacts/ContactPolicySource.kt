@@ -59,8 +59,15 @@ object ContactCodec {
         contacts.joinToString(ENTRY_SEPARATOR.toString()) { "${cleanName(it.name)}$FIELD_SEPARATOR${it.number.trim()}" }
 
     /** Names must not contain the separators; everything else is kept. */
-    fun cleanName(name: String): String =
-        name.replace(Regex("[;=\\n\\r\\t]"), " ").replace(Regex(" +"), " ").trim().take(60)
+    fun cleanName(name: String): String {
+        val clean = name.replace(Regex("[;=\\n\\r\\t]"), " ").replace(Regex(" +"), " ").trim()
+        if (clean.length <= NAME_LIMIT) return clean
+        // Never cut inside a surrogate pair (an emoji).
+        val end = if (Character.isHighSurrogate(clean[NAME_LIMIT - 1])) NAME_LIMIT - 1 else NAME_LIMIT
+        return clean.substring(0, end).trim()
+    }
+
+    private const val NAME_LIMIT = 60
 }
 
 /** Pure list operations, kept apart from storage so they are unit-tested. */

@@ -27,6 +27,16 @@ class ContactListTest {
     }
 
     @Test
+    fun `a long name is never cut inside an emoji`() {
+        val emoji = "😀"
+        // The emoji starts at UTF-16 index 59, so a plain take(60) would keep half of it.
+        val cut = ContactCodec.cleanName("a".repeat(59) + emoji + "tail")
+        assertThat(cut).isEqualTo("a".repeat(59))
+        // One more letter in front moves the whole emoji inside the limit.
+        assertThat(ContactCodec.cleanName("a".repeat(58) + emoji + "tail")).isEqualTo("a".repeat(58) + emoji)
+    }
+
+    @Test
     fun `names cannot break the format`() {
         val tricky = ApprovedContact("A;B=C\nD", "+4512345678")
         val decoded = ContactCodec.decode(ContactCodec.encode(listOf(tricky)))

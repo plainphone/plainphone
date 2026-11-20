@@ -537,6 +537,29 @@ describe("contacts", () => {
     ]);
   });
 
+  it("turns contact suggestions and the light restriction on and off", async () => {
+    const light = { ...PHONE, mode: "light" as const };
+    let settings = { suggestDeviceContacts: false, lightContactRestriction: true };
+    const api = phoneApi(light, {
+      [`GET /phones/${light.id}/contacts`]: () => ({ body: { contacts: [], ...settings } }),
+      [`GET /phones/${light.id}/contact-suggestions`]: { body: { suggestions: [] } },
+      [`PATCH /phones/${light.id}/contacts`]: ({ body }) => {
+        const before = settings;
+        settings = { ...settings, ...(body as object) };
+        return { body: { before, after: settings } };
+      },
+    });
+    await renderRouter(routes, { initialUrl: at(light, "contacts") });
+    await fireEvent.press(await screen.findByRole("switch", { name: "Suggest contacts from the phone" }));
+    expect(await screen.findByText("Suggest contacts from the phone: Off → On")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("switch", { name: "Only approved contacts can call and text" }));
+    expect(await screen.findByText("Only approved contacts can call and text: On → Off")).toBeTruthy();
+    expect(api.calls.filter((call) => call.method === "PATCH").map((call) => call.body)).toEqual([
+      { suggestDeviceContacts: true },
+      { lightContactRestriction: false },
+    ]);
+  });
+
   it("checks the number, then adds the contact", async () => {
     const api = phoneApi(PHONE, {
       [`GET /phones/${PHONE.id}/contacts`]: { body: { contacts: [{ id: "k1", name: "Mum", number: "+4512345678" }] } },
