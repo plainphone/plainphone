@@ -238,6 +238,7 @@ releases signed with the same key.
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `askMoreTimeEnabled`, `limitWarningEnabled` | Per-phone switches for the stop screen's "Ask for more time" button and the 5-minute warning. Missing means `true`. See [more-time.md](more-time.md) |
 | `sos.hidden`, `sos.quickMessages` | Child phones only. Hidden SOS switches (`power`, `presses`, `clock`, `feedback`) and the quick messages (`enabled`, `suggest`, `items` with `meansSos` for a code word). Missing means off and no messages. See [sos.md](sos.md) |
+| `inbox` | Child phones only, and only while the [family inbox](family-inbox.md) is on: `enabled`, `quickMessages`, `checkIns` and `latest` (the newest parent reply; when it changes the phone fetches `GET /device/inbox` and sends its receipt). Missing means off |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |

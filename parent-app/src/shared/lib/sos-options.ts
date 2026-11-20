@@ -11,6 +11,9 @@ export interface SosSettings {
   hiddenFeedback: "vibrate" | "none";
   quickMessagesEnabled: boolean;
   quickSuggestionsEnabled: boolean;
+  /** The family inbox and its check-in (docs/family-inbox.md). */
+  familyInbox: boolean;
+  checkIns: boolean;
 }
 
 /** What the server answers for a phone that never saved a choice. An older server sends no settings at all. */
@@ -19,8 +22,10 @@ export const DEFAULT_SOS_SETTINGS: SosSettings = {
   hiddenPresses: 4,
   hiddenClock: false,
   hiddenFeedback: "vibrate",
-  quickMessagesEnabled: true,
+  quickMessagesEnabled: false,
   quickSuggestionsEnabled: true,
+  familyInbox: false,
+  checkIns: false,
 };
 
 export const PRESS_CHOICES = [3, 4, 5, 6] as const;
@@ -54,4 +59,37 @@ export function triggerLabel(trigger: SosTrigger, message?: string | null): { ke
   if (trigger === "clock") return { key: "sos.triggerClock" };
   if (trigger === "code") return { key: "sos.triggerCode", values: { text: message ?? "" } };
   return null;
+}
+
+// --- The family inbox (docs/family-inbox.md) ---------------------------------------
+
+/** A parent's reply is as short as a quick message. */
+export const REPLY_LENGTH = 60;
+
+export interface FamilyMessage {
+  id: string;
+  from: "child" | "parent";
+  kind: "quick" | "checkin" | "reply";
+  text: string;
+  sentAt: string;
+  /** Child messages: parent devices that got a push; 0 means the phone sent an SMS. */
+  delivered?: number | null;
+  /** Parent replies: the name the parent signed with, and when the phone got it. */
+  author?: string | null;
+  receivedAt?: string | null;
+}
+
+export interface FamilyInboxThread {
+  familyInbox: boolean;
+  quickMessages: boolean;
+  checkIns: boolean;
+  recipients: string[];
+  messages: FamilyMessage[];
+}
+
+/** Where a message is, as a parent sees it: a key, and the time for "On the phone {time}". */
+export function familyState(m: FamilyMessage): { key: MessageKey; at?: string } {
+  if (m.from === "parent") return m.receivedAt ? { key: "inbox.received", at: m.receivedAt } : { key: "inbox.waiting" };
+  if (m.delivered === 0) return { key: "inbox.sms" };
+  return { key: m.delivered ? "inbox.delivered" : "inbox.sent" };
 }

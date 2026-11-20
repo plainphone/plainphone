@@ -419,4 +419,60 @@ class PhoneSyncContractTest {
         // The token is unknown now: the server answers 401, which the API reads as "already done".
         assertThat(api.fetchRules(store.deviceToken() ?: "pp_d_gone", null)).isEqualTo(RulesResult.Unpaired)
     }
+
+    @Test
+    fun `the family inbox switches through the rules, a reply reaches the phone with its receipt, and check-ins join the thread`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val store = SyncStore(context, FakeSecretBox())
+        val api = PlainphoneApi(url)
+        val pairing = PairingController(store, api, mapOf("model" to "Contract test"))
+        val code = pairing.start().code
+        val (claimStatus, claimed) = parent(
+            "POST", "/phones/claim", JSONObject().put("code", code).put("name", "Sam").put("profile", "child").put("timezone", "Europe/Copenhagen"),
+        )
+        assertThat(claimStatus).isEqualTo(201)
+        val phoneId = claimed!!.getString("id")
+        assertThat(pairing.poll()).isInstanceOf(PairPoll.Paired::class.java)
+        val token = store.deviceToken()!!
+        val device = FakeSyncDevice().apply {
+            now = System.currentTimeMillis()
+            lock = lock.copy(appliedAtMs = now)
+        }
+        val runner = SyncRunner(store, api, device)
+
+        // Off for a new phone: no inbox block at all.
+        runner.run("first")
+        assertThat(store.rules()!!.inbox).isEqualTo(InboxRules.OFF)
+        assertThat(parent("POST", "/phones/$phoneId/inbox", JSONObject().put("text", "Hi")).first).isEqualTo(403)
+
+        assertThat(parent("PUT", "/phones/$phoneId/sos", JSONObject().put("familyInbox", true).put("checkIns", true)).first).isEqualTo(204)
+        runner.run("inbox on")
+        assertThat(store.rules()!!.inbox).isEqualTo(InboxRules(enabled = true, quickMessages = false, checkIns = true, latest = null))
+
+        // A parent replies: the rules point at it, the phone fetches it and sends its device receipt.
+        val (replyStatus, reply) = parent("POST", "/phones/$phoneId/inbox", JSONObject().put("text", "Dinner at 18").put("name", "Alex"))
+        assertThat(replyStatus).isEqualTo(201)
+        runner.run("reply")
+        val rules = store.rules()!!
+        assertThat(rules.inbox.latest).isEqualTo(reply!!.getString("id"))
+        org.plainphone.app.inbox.FamilyInbox.refresh(context, api, token, rules)
+        assertThat(org.plainphone.app.inbox.FamilyInbox.entries(context).map { it.text }).containsExactly("Dinner at 18")
+        val (_, afterReceipt) = parent("GET", "/phones/$phoneId/inbox")
+        assertThat(afterReceipt!!.getJSONArray("messages").getJSONObject(0).isNull("receivedAt")).isFalse()
+
+        // "I'm home" online, and a quick message reported late after an offline SMS: both join the thread, the late one at its own time.
+        val now = System.currentTimeMillis()
+        assertThat(api.sendQuickMessage(token, java.util.UUID.randomUUID().toString(), "I'm home", InboxSend(InboxSend.CHECK_IN, now)).notified).isEqualTo(0)
+        val late = java.util.UUID.randomUUID().toString()
+        assertThat(api.sendQuickMessage(token, late, "Pick me up", InboxSend(InboxSend.QUICK, now - 60_000, smsSent = true)).notified).isEqualTo(0)
+        val thread = api.fetchInbox(token)
+        assertThat(thread.messages.map { it.kind }).containsExactly("reply", "quick", "checkin")
+        assertThat(thread.messages.first { it.id == late }.delivered).isEqualTo(0)
+        assertThat(thread.messages.first { it.id == late }.sentAtMs).isEqualTo(now - 60_000)
+
+        // Switched off again: the rules drop the block and the phone stops offering it.
+        assertThat(parent("PUT", "/phones/$phoneId/sos", JSONObject().put("familyInbox", false)).first).isEqualTo(204)
+        runner.run("inbox off")
+        assertThat(store.rules()!!.inbox.enabled).isFalse()
+    }
 }

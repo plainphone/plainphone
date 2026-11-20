@@ -98,7 +98,6 @@
     <string name="history_unknown">Ukendt nummer</string>
     <string name="history_mms">Billed- eller gruppesamtale</string>
     <string name="history_mms_placeholder">Billed- eller gruppebesked. Indholdet kan ikke vises.</string>
-    <string name="message_hint">Besked</string>
     <string name="message_failed">Ikke sendt</string>
     <string name="message_send_failed">Beskeden kunne ikke sendes. Din tekst står stadig her.</string>
     <string name="message_not_approved">%1$s er ikke en godkendt kontakt, så der kan ikke sendes beskeder.</string>

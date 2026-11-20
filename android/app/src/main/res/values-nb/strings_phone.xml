@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="when_today">I dag</string>
+    <string name="when_yesterday">I går</string>
+
+    <string name="reach_title">Kan alltid nås</string>
+    <string name="reach_help">Hjelpetelefoner</string>
+    <string name="reach_footnote">Du kan alltid ringe foreldrene dine og 112. Plainphone viser ikke foreldrene dine at du har brukt en hjelpetelefon.</string>
+    <string name="missed_notice">Du har et tapt anrop fra %1$s kl. %2$s.</string>
+    <string name="missed_call_back">Ring tilbake</string>
+
+    <string name="contacts_parent">Forelder</string>
+    <string name="contacts_approved">Godkjente kontakter</string>
+    <string name="contacts_all">Kontakter</string>
+    <string name="contacts_empty_title">Ingen kontakter ennå</string>
+    <string name="contacts_not_now">Kan ikke nås akkurat nå på grunn av en regel.</string>
+
+    <string name="history_loading">Henter …</string>
+    <string name="recents_empty_hint">Anrop du ringer og får, vises her.</string>
+    <string name="recent_declined">Avvist</string>
+    <string name="recent_blocked">Blokkert</string>
+    <string name="recent_not_approved">Ikke en godkjent kontakt</string>
+    <string name="action_call_back">Ring %1$s tilbake</string>
+
+    <string name="messages_empty_hint">Meldinger fra de godkjente kontaktene dine vises her.</string>
+    <string name="messages_new">Ny melding</string>
+    <string name="message_hint_to">Melding til %1$s</string>
+    <string name="message_sending">Sender …</string>
+    <string name="message_sent_at">Sendt %1$s</string>
+    <string name="conversation_read_only_unknown">Du kan lese den, men ikke svare. Bare personer foreldrene dine har godkjent, kan skrive til deg.</string>
+    <string name="conversation_read_only_help">Samtalen kan bare leses her. Åpne Hjelpetelefoner for å kontakte dem.</string>
+    <string name="conversation_read_only_mms">Bilder og gruppemeldinger kan ikke vises eller besvares her.</string>
+
+    <string name="inbox_title">Familie</string>
+    <string name="inbox_row_hint">Send en hurtigmelding til foreldrene dine</string>
+    <string name="inbox_to">Til %1$s</string>
+    <string name="inbox_to_parents">Til foreldrene dine</string>
+    <string name="inbox_empty_title">Her er det ingenting ennå</string>
+    <string name="inbox_empty">Meldingene dine til foreldrene dine vises her. De kan også svare her.</string>
+    <string name="inbox_who_reads">Foreldrene dine kan lese samtalen. Plainphone-serveren kan også lese den og sletter den etter 30 dager.</string>
+    <string name="inbox_check_in">Jeg er hjemme</string>
+    <string name="inbox_check_in_text">Jeg er hjemme</string>
+    <string name="inbox_nothing_to_send">Foreldrene dine har ikke lagt til noen hurtigmeldinger ennå.</string>
+    <string name="inbox_state_sent">Sendt %1$s</string>
+    <string name="inbox_state_delivered">Levert %1$s</string>
+    <string name="inbox_state_sms">Sendt som SMS %1$s</string>
+    <string name="inbox_notification_from">%1$s i Familie</string>
+
+    <string name="sharing_inbox">Familieinnboksen er på. Foreldrene dine ser meldingene du sender der, og Plainphone-serveren lagrer dem i 30 dager.</string>
+    <string name="sharing_inbox_check_in">«Jeg er hjemme» sender ikke hvor du er.</string>
+</resources>

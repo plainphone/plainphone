@@ -42,12 +42,12 @@ internal class SmsHistory(
             after?.let {
                 " AND (date < ${it.date} OR (date = ${it.date} AND _id NOT IN (${it.seenAtDate.joinToString()})))"
             }.orEmpty()
-        val columns = arrayOf("_id", "date", "recipient_ids", "read")
+        val columns = arrayOf("_id", "date", "recipient_ids", "read", "snippet")
         val order = "date DESC, _id ASC"
         // AOSP's simple conversation endpoint ignores sortOrder, including LIMIT.
         val bounded = "_id IN (SELECT _id FROM threads WHERE $selection ORDER BY $order LIMIT ${size + 1})"
         fun read(cursor: Cursor) = page(cursor, size + 1) {
-            ConversationRow(cursor.getLong(0), cursor.getLong(1), cursor.getString(2).orEmpty(), cursor.getInt(3) != 0)
+            ConversationRow(cursor.getLong(0), cursor.getLong(1), cursor.getString(2).orEmpty(), cursor.getInt(3) != 0, cursor.getString(4))
         }.sortedWith(compareByDescending<ConversationRow> { it.date }.thenBy { it.id })
         val rows = resolver.query(conversations, columns, bounded, null, null)
             ?.use(::read)
@@ -100,6 +100,7 @@ internal class SmsHistory(
                     if (includeBodies) cursor.getString(5).orEmpty() else "", cursor.getLong(2),
                     type != Telephony.Sms.MESSAGE_TYPE_INBOX, type == Telephony.Sms.MESSAGE_TYPE_FAILED,
                     cursor.getInt(4) != 0,
+                    pending = type == Telephony.Sms.MESSAGE_TYPE_OUTBOX || type == Telephony.Sms.MESSAGE_TYPE_QUEUED,
                 )
             }
         }
@@ -160,8 +161,9 @@ internal class SmsHistory(
         while (this.size < size && cursor.moveToNext()) add(row())
     }
 
-    private data class ConversationRow(val id: Long, val date: Long, val recipientIds: String, val read: Boolean) {
-        fun preview(number: String) = SmsMessage(0, number, "", date, outgoing = false, failed = false, read = read)
+    /** [snippet] is the provider's preview of the newest message; the conversation list shows it. */
+    private data class ConversationRow(val id: Long, val date: Long, val recipientIds: String, val read: Boolean, val snippet: String?) {
+        fun preview(number: String) = SmsMessage(0, number, snippet.orEmpty(), date, outgoing = false, failed = false, read = read)
     }
 
     private companion object {

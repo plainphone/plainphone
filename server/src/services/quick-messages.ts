@@ -3,6 +3,7 @@
 import { and, asc, count, eq, gt, lt } from "drizzle-orm";
 import { householdMembers, phones, quickMessageSends, quickMessages } from "../db/schema.js";
 import type { Ctx } from "./context.js";
+import { markDelivered, recordChildMessage, sweepFamilyMessages } from "./family-inbox.js";
 import { notifyUsers } from "./notifications.js";
 
 type Phone = typeof phones.$inferSelect;
@@ -26,6 +27,8 @@ export function sosSettingsJson(phone: Phone) {
     hiddenFeedback: phone.hiddenSosFeedback,
     quickMessagesEnabled: phone.quickMessagesEnabled,
     quickSuggestionsEnabled: phone.quickSuggestionsEnabled,
+    familyInbox: phone.familyInboxEnabled,
+    checkIns: phone.checkInsEnabled,
   };
 }
 
@@ -95,17 +98,30 @@ function sendAnswer(notified: number): SendAnswer {
  * `pending` (a repeat while the first call is still notifying: ask again). A repeated id
  * returns the first answer without notifying again.
  */
-export async function sendQuickMessage(ctx: Ctx, phone: Phone, input: { id: string; text: string }): Promise<SendAnswer> {
+export async function sendQuickMessage(
+  ctx: Ctx, phone: Phone,
+  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean },
+): Promise<SendAnswer> {
   const now = ctx.now();
+  // Sent from the family inbox (a check-in always is): it joins the thread, even if the inbox was
+  // switched off after the phone sent it (docs/family-inbox.md).
+  const kind = input.kind ?? "quick";
+  const inThread = input.inbox === true || kind === "checkin";
+  if (inThread) await recordChildMessage(ctx, phone, { id: input.id, kind, text: input.text, sentAt: input.sentAt });
   const row = and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id));
   const [claimed] = await ctx.db.insert(quickMessageSends)
-    .values({ phoneId: phone.id, id: input.id, createdAt: now, notified: NOTIFY_PENDING })
+    .values({ phoneId: phone.id, id: input.id, createdAt: now, notified: input.smsSent ? 0 : NOTIFY_PENDING })
     .onConflictDoNothing().returning();
   if (!claimed) {
     const [first] = await ctx.db.select().from(quickMessageSends).where(row);
     if (!first) return { notified: 0 };
     if (first.notified === NOTIFY_PENDING && now.getTime() - first.createdAt.getTime() > PENDING_MS) return { notified: 0 };
     return sendAnswer(first.notified);
+  }
+  // The phone was offline and sent an SMS: the parents have it, so the late report only fills in the thread.
+  if (input.smsSent) {
+    if (inThread) await markDelivered(ctx, phone.id, input.id, 0);
+    return { notified: 0 };
   }
   const [recent] = await ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
     eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),
@@ -114,11 +130,14 @@ export async function sendQuickMessage(ctx: Ctx, phone: Phone, input: { id: stri
   if ((recent?.total ?? 0) > SEND_LIMIT) notified = NOTIFY_LIMITED;
   else if (phone.releaseRequestedAt) notified = 0;
   else {
-    notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), {
-      type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text,
-    }).catch(() => 0);
+    // Never urgent, also in the child's quiet hours: only a code word (through SOS) is.
+    notified = await notifyUsers(ctx, await parentIds(ctx, phone.householdId), kind === "checkin"
+      ? { type: "checkIn", id: input.id, phoneId: phone.id, phoneName: phone.name }
+      : { type: "quickMessage", id: input.id, phoneId: phone.id, phoneName: phone.name, text: input.text },
+    ).catch(() => 0);
   }
   await ctx.db.update(quickMessageSends).set({ notified }).where(row);
+  if (inThread && notified !== NOTIFY_LIMITED) await markDelivered(ctx, phone.id, input.id, notified);
   return sendAnswer(notified);
 }
 
@@ -175,4 +194,5 @@ export async function approveSuggestion(ctx: Ctx, phoneId: string, id: string, m
 
 export async function sweepQuickMessages(ctx: Ctx) {
   await ctx.db.delete(quickMessageSends).where(lt(quickMessageSends.createdAt, new Date(ctx.now().getTime() - DAY)));
+  await sweepFamilyMessages(ctx);
 }

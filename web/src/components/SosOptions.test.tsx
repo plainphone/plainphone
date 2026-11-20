@@ -70,13 +70,15 @@ async function mount() {
 const empty = (): Server => ({ settings: {}, messages: [], suggestions: [] });
 const puts = () => calls.filter((c) => c.method === "PUT");
 
-it("shows the defaults: hidden options off, quick messages on, and the child-sees-it sentence", async () => {
+it("shows the defaults: hidden options, quick messages and the family inbox off, and the child-sees-it sentence", async () => {
   serve(empty());
   const m = await mount();
   expect(m.sw(t("hidden.power"))!.getAttribute("aria-checked")).toBe("false");
   expect(m.sw(t("hidden.clock"))!.getAttribute("aria-checked")).toBe("false");
-  expect(m.sw(t("qm.enabled"))!.getAttribute("aria-checked")).toBe("true");
+  expect(m.sw(t("qm.enabled"))!.getAttribute("aria-checked")).toBe("false");
   expect(m.sw(t("qm.suggest"))!.getAttribute("aria-checked")).toBe("true");
+  expect(m.sw(t("inbox.enabled"))!.getAttribute("aria-checked")).toBe("false");
+  expect(m.sw(t("inbox.checkIns"))!.getAttribute("aria-checked")).toBe("false");
   expect(m.container.textContent).toContain(t("hidden.powerHelp"));
   expect(m.container.textContent).toContain(t("hidden.visible"));
   // Choices that only matter once a hidden option is on stay out of sight.
@@ -91,11 +93,13 @@ it("saves each switch with the right PUT body", async () => {
   await m.click(m.sw(t("hidden.clock")));
   await m.click(m.sw(t("qm.enabled")));
   await m.click(m.sw(t("qm.suggest")));
+  await m.click(m.sw(t("inbox.checkIns")));
   expect(puts().map((c) => c.body)).toEqual([
-    { hiddenPower: true }, { hiddenClock: true }, { quickMessagesEnabled: false }, { quickSuggestionsEnabled: false },
+    { hiddenPower: true }, { hiddenClock: true }, { quickMessagesEnabled: true }, { quickSuggestionsEnabled: false }, { checkIns: true },
   ]);
   expect(m.sw(t("hidden.power"))!.getAttribute("aria-checked")).toBe("true");
-  expect(m.sw(t("qm.enabled"))!.getAttribute("aria-checked")).toBe("false");
+  expect(m.sw(t("qm.enabled"))!.getAttribute("aria-checked")).toBe("true");
+  expect(m.sw(t("inbox.checkIns"))!.getAttribute("aria-checked")).toBe("true");
   await m.unmount();
 });
 
