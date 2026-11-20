@@ -66,7 +66,7 @@ class InstallLease(
 
     private fun allowsInstallLocked(catalogApproved: Boolean): Boolean {
         val open = valid(loadLocked())
-        return SELF_UPDATE in open || (catalogApproved && CATALOG in open)
+        return SELF_UPDATE in open || APP_UPDATES in open || (catalogApproved && CATALOG in open)
     }
 
     /** Keeps the durable marker until Android has finished the restriction clear. */
@@ -154,7 +154,7 @@ class InstallLease(
         holder: String, durationMs: Long, id: String = UUID.randomUUID().toString(),
         deadlineMs: Long = Long.MAX_VALUE, catalogId: String? = null,
     ): Lease {
-        val duration = durationMs.coerceIn(1L, MAX_MS)
+        val duration = durationMs.coerceIn(1L, maxMs(holder))
         val now = env.nowMs()
         val until = minOf(now + duration, deadlineMs)
         val wallDeadline = env.wallNowMs() + (until - now)
@@ -218,7 +218,7 @@ class InstallLease(
         catalogChanged?.let(onRecovered)
     }
 
-    /** Returns whether catalog policy needs refreshing, or null when nothing changed. */
+    /** Returns whether the full policy needs refreshing (catalog or app update window closed), or null when nothing changed. */
     private fun recoverLocked(
         reason: String,
         force: Boolean = false,
@@ -287,7 +287,8 @@ class InstallLease(
             pendingClosures.remove(closureKey(holder, lease))
             env.cancelExpiry(holder)
         }
-        return CATALOG in closing
+        // A closed app update window hides Play again, which needs the full policy too.
+        return CATALOG in closing || APP_UPDATES in closing
     }
 
     private fun closingLease(lease: Lease, track: Boolean, wasLifted: Boolean): Lease {
@@ -364,8 +365,8 @@ class InstallLease(
         if (leases.isEmpty()) return leases
         val now = env.nowMs()
         val process = env.processId()
-        val open = leases.filterValues { lease ->
-            !lease.invalidated && lease.untilMs > now && lease.untilMs - now <= MAX_MS && lease.process == process &&
+        val open = leases.filter { (holder, lease) ->
+            !lease.invalidated && lease.untilMs > now && lease.untilMs - now <= maxMs(holder) && lease.process == process &&
                 lease.bootCount == env.bootCount() && lease.versionCode == env.versionCode()
         }
         return if (CATALOG in open) open else open - CATALOG_ACCOUNTS
@@ -376,6 +377,13 @@ class InstallLease(
         const val CATALOG = "catalog"
         internal const val CATALOG_ACCOUNTS = "catalog-accounts"
         const val MAX_MS = 15 * 60_000L
+        /** Updates of approved apps (AppUpdateWindow): Play needs longer than for one install. */
+        const val APP_UPDATES = "app-updates"
+        const val APP_UPDATES_MAX_MS = 45 * 60_000L
+        /** The longest any lease can stay open, for the watchdog's wake lock. */
+        const val LONGEST_MS = APP_UPDATES_MAX_MS
+
+        fun maxMs(holder: String) = if (holder == APP_UPDATES) APP_UPDATES_MAX_MS else MAX_MS
         private const val OVERRUN_GRACE_MS = 30_000L
         private val LOCK = Any()
         private var clearsInFlight = 0

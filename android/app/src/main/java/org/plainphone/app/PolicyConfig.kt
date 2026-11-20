@@ -52,6 +52,10 @@ data class PolicyConfig(
      * the app is installed or the install window ends (docs/app-catalog.md, R2).
      */
     val installing: String? = null,
+    /** An app update window is open (update/AppUpdateWindow.kt): Play stays visible to update approved apps. */
+    val updatingApps: Boolean = false,
+    /** New apps caught during an app update window: hidden until the server has made them a request. */
+    val heldBack: Set<String> = emptySet(),
     /** Strong Child phones keep the system language chosen during provisioning. */
     val lockSystemLanguage: Boolean = true,
     /**

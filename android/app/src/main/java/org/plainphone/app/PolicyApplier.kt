@@ -228,7 +228,8 @@ class PolicyApplier(
         // list; core apps (phone, messages, camera, clock, contacts, Settings, launcher, keyboard) stay.
         val launchable = device.launchablePackages() + previously
         val keep = protectedCallPackages() + device.corePackages() + config.visibleAmong(launchable) - telephony +
-            listOfNotNull(config.installing?.let { PolicyConfig.PLAY_STORE })
+            listOfNotNull(PolicyConfig.PLAY_STORE.takeIf { config.installing != null || config.updatingApps }) -
+            (config.heldBack - device.corePackages())
         val plan = LockPolicy.hidePlan(launchable, keep, previously)
         val nowHidden = previously.toMutableSet()
         val failed = mutableListOf<String>()

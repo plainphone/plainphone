@@ -148,6 +148,7 @@ data class DeviceStatus(
     val androidVersion: String? = null,
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
+    val appUpdates: org.plainphone.app.update.AppUpdateLog.Report? = null,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -185,6 +186,16 @@ data class DeviceStatus(
             appVersionCode?.let { put("appVersionCode", it) }
             androidVersion?.let { put("androidVersion", it) }
             update?.let { put("update", it.toJson()) }
+            appUpdates?.let { r ->
+                put("appUpdates", JSONObject()
+                    .put("id", r.id.take(64))
+                    .put("trigger", r.trigger.wire)
+                    .put("openedAt", r.openedAtMs?.let(::iso) ?: JSONObject.NULL)
+                    .put("closedAt", r.closedAtMs?.let(::iso) ?: JSONObject.NULL)
+                    .put("updated", r.updated.coerceIn(0, 1000))
+                    .put("caught", JSONArray(r.caught.take(20)))
+                    .apply { r.error?.let { put("error", it) } })
+            }
         }
 }
 

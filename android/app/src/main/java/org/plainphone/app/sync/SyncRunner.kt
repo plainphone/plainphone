@@ -53,6 +53,9 @@ interface SyncDevice {
     fun updateReport(): org.plainphone.app.update.UpdateReport? = null
     /** The parent pressed "Update now" at [requestedAtMs]; starts a check once per press. */
     fun requestUpdate(requestedAtMs: Long) = Unit
+    /** App update windows (update/AppUpdateWindow.kt): held-back apps, the toggle and "Update apps now". */
+    fun onAppUpdateRules() = Unit
+    fun appUpdatesReport(): org.plainphone.app.update.AppUpdateLog.Report? = null
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
     fun timeUsed(): Map<String, Int>? = null
 
@@ -206,6 +209,7 @@ class SyncRunner(
         if (rules != null) guarded("ring and check-in") { device.onSafetyRules(rules) }
         if (rules != null) guarded("report location") { reportLocation(token, rules) }
         rules?.updateRequestedAt?.let { at -> guarded("update request") { device.requestUpdate(at.toEpochMilli()) } }
+        if (rules != null) guarded("app updates") { device.onAppUpdateRules() }
         guarded("report status") { reportStatus(token, rules, reason) }
         // Before the list is read: an approval entered on the phone must not show as waiting.
         guarded("report approvals on the phone") { reportPhoneApprovals(token) }
@@ -579,6 +583,7 @@ class SyncRunner(
             lateGoogleAccountId = lateGoogleAccount,
             appVersionCode = device.appVersionCode(),
             update = device.updateReport(),
+            appUpdates = device.appUpdatesReport(),
             mode = lock.mode,
             protections = lock.protections?.let {
                 if (rules?.healthBoardEnabled == true) it else it - "usageAccessGranted"

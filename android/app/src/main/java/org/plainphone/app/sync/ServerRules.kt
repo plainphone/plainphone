@@ -108,6 +108,7 @@ data class ServerRules(
      * The phone only tells the child so on "What can my parents see?". Old servers send nothing: off.
      */
     val weeklySummaryEnabled: Boolean = false,
+    val appUpdates: AppUpdateRules = AppUpdateRules(),
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -136,6 +137,7 @@ data class ServerRules(
                 silentBedtime = j.optBoolean("silentBedtime", true),
                 pinApproval = j.optBoolean("pinApprovalEnabled", false),
                 weeklySummaryEnabled = j.optBoolean("weeklySummaryEnabled", false),
+                appUpdates = AppUpdateRules.parse(j.optJSONObject("appUpdates")),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))
@@ -285,3 +287,24 @@ data class CheckInRequest(
 )
 
 data class SosRules(val name: String, val parents: List<ApprovedContact>)
+
+/**
+ * App updates in strong mode (docs/policies.md, "App updates"). Old servers send nothing: the
+ * nightly window stays on, which keeps approved apps patched.
+ */
+data class AppUpdateRules(
+    /** "Update approved apps automatically": the nightly window. */
+    val automatic: Boolean = true,
+    /** Set when a parent pressed "Update apps now". */
+    val requestedAt: Instant? = null,
+    /** The last window the server recorded; from then on its rules decide about held-back apps. */
+    val reportedWindow: String? = null,
+) {
+    companion object {
+        fun parse(j: JSONObject?): AppUpdateRules = if (j == null) AppUpdateRules() else AppUpdateRules(
+            automatic = j.optBoolean("automatic", true),
+            requestedAt = j.optString("requestedAt", "").takeIf { it.isNotEmpty() && it != "null" }?.let(Instant::parse),
+            reportedWindow = j.optString("reportedWindow", "").takeIf { it.isNotEmpty() && it != "null" },
+        )
+    }
+}

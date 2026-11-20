@@ -18,6 +18,8 @@ import org.plainphone.app.safety.Safety
 import org.plainphone.app.sync.SyncScheduler
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.time.TimeTicker
+import org.plainphone.app.update.AppUpdateWindow
+import org.plainphone.app.update.AppUpdateWorker
 import org.plainphone.app.update.SelfUpdate
 
 /**
@@ -57,9 +59,10 @@ class PlainphoneApplication : Application() {
                     override fun onReceive(context: Context, intent: Intent) {
                         val pkg = intent.data?.schemeSpecificPart ?: return
                         SyncStore(context).markAppsDirty()
-                        if (intent.action != Intent.ACTION_PACKAGE_ADDED ||
-                            intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
-                        ) return
+                        val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
+                        // App update window: updates are counted, a new app is hidden at once.
+                        if (intent.action == Intent.ACTION_PACKAGE_ADDED) AppUpdateWindow.onPackageAddedAsync(context, pkg, replacing)
+                        if (intent.action != Intent.ACTION_PACKAGE_ADDED || replacing) return
                         InstallWindow.onPackageAdded(context, pkg)
                         SyncScheduler.now(context, "app installed")
                     }
@@ -95,6 +98,8 @@ class PlainphoneApplication : Application() {
                 .onFailure { Log.e("Plainphone", "could not set up periodic sync", it) }
             runCatching { SelfUpdate.onStart(this) }
                 .onFailure { Log.e("Plainphone", "could not set up self-updates", it) }
+            runCatching { AppUpdateWorker.schedule(this) }
+                .onFailure { Log.e("Plainphone", "could not set up nightly app updates", it) }
         }, "plainphone-sync-startup").start()
         try {
             HomeGuard.onAppStart(this)

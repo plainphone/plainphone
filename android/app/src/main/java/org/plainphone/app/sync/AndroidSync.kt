@@ -155,6 +155,10 @@ class AndroidSyncDevice(private val context: Context) : SyncDevice {
 
     override fun requestUpdate(requestedAtMs: Long) = SelfUpdate.request(context, requestedAtMs)
 
+    override fun onAppUpdateRules() = org.plainphone.app.update.AppUpdateWindow.onRules(context)
+
+    override fun appUpdatesReport() = org.plainphone.app.update.AppUpdateWindow.report(context)
+
     override fun refreshPhoneLanguage() {
         (context.applicationContext as? org.plainphone.app.PlainphoneApplication)?.refreshPhoneLanguage()
     }

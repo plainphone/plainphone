@@ -436,6 +436,19 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:taskAffinity="org.plainphone.app.safety" />
+        <!-- Play links while Play is hidden in strong mode (update/PlayExplanation.kt switches it on and off). -->
+        <activity
+            android:name=".update.PlayExplanationActivity"
+            android:enabled="false"
+            android:excludeFromRecents="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="market" />
+            </intent-filter>
+        </activity>
         <!-- "What can my parents see?" -->
         <activity
             android:name=".safety.SharingActivity"

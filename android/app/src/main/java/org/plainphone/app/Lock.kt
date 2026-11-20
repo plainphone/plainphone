@@ -31,7 +31,9 @@ import org.plainphone.app.light.LightRelease
 import org.plainphone.app.light.Mode
 import org.plainphone.app.light.Protections
 import org.plainphone.app.time.TimeGuard
+import org.plainphone.app.update.AppUpdateWindow
 import org.plainphone.app.update.InstallLease
+import org.plainphone.app.update.PlayExplanation
 import org.plainphone.app.update.UpdateBatteryExemption
 
 /** Glue between Android entry points and [PolicyApplier]. */
@@ -91,6 +93,32 @@ object Lock {
         check(result?.ok != false) { result?.detail ?: "Android could not apply the install restriction" }
     }
 
+    /** Applies the open app update window: Play shown, installs allowed (update/AppUpdateWindow.kt). */
+    fun applyForAppUpdates(context: Context, reason: String) = synchronized(APPLY_LOCK) {
+        check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
+        val sync = SyncStore(context)
+        check(!sync.released && !sync.releaseAsked) { "Phone release is active" }
+        check(effectiveConfig(context).updatingApps) { "App update window is no longer open" }
+        val result = applyNow(context, reason).firstOrNull {
+            it.name == PolicyApplier.INSTALL_RESTRICTION_STEP || it.name == "device owner"
+        }
+        check(result?.ok != false) { result?.detail ?: "Android could not lift the install restriction" }
+    }
+
+    /**
+     * The app update guard: hides a new app at once, under the policy lock so the hidden list stays
+     * right. Only apps with an icon: a library Play installs alongside an update must keep working.
+     */
+    fun hideNewApp(context: Context, pkg: String): Boolean = synchronized(APPLY_LOCK) {
+        val device = AndroidDeviceControls(context)
+        if (!device.isDeviceOwner() || pkg !in device.launchablePackages() || pkg in device.corePackages()) {
+            return false
+        }
+        val hidden = runCatching { device.setHidden(pkg, true) || device.isHidden(pkg) }.getOrDefault(false)
+        if (hidden) PrefsHiddenAppsStore(context).let { it.save(it.load() + pkg) }
+        hidden
+    }
+
     fun <T> createUpdateSession(context: Context, create: () -> T): T = synchronized(APPLY_LOCK) {
         check(!isInMaintenanceWindow(context)) { "Maintenance unlock is active" }
         // Android checks DISALLOW_INSTALL_APPS when creating the session. Keep the
@@ -138,7 +166,7 @@ object Lock {
             removed = sync.removed,
             timeBlocked = TimeGuard.blockedNow(context, now),
             installing = install,
-        )
+        ).copy(updatingApps = AppUpdateWindow.isOpen(context), heldBack = AppUpdateWindow.heldBack(context))
     }
 
     /** Blocking. Never call on the main thread. */
@@ -176,6 +204,7 @@ object Lock {
         saveReport(context, "apply ($reason)", results)
         saveApplied(context, config, results, receiptEtag = receiptEtag?.takeIf { it == sync.etag })
         scheduleNextWindowChange(context)
+        syncPlayExplanation(context)
         return results
     }
 
@@ -382,7 +411,10 @@ object Lock {
                     } else {
                         applier(app).lift()
                     }
-                    lifted.also { saveReport(app, "maintenance unlock for $minutes min", it) }
+                    lifted.also {
+                        saveReport(app, "maintenance unlock for $minutes min", it)
+                        syncPlayExplanation(app)
+                    }
                 }
             }
             done(results)
@@ -411,10 +443,18 @@ object Lock {
             if (!ownerReleaseStarted && !state.edit().putBoolean("owner_release_started", true).commit()) {
                 return listOf(StepResult("release", false, "could not save release progress"))
             }
-            applier(context).release().also { saveReport(context, "released Device Owner", it) }
+            applier(context).release().also {
+                saveReport(context, "released Device Owner", it)
+                syncPlayExplanation(context)
+            }
         } else {
             LightRelease.release(context).also { saveReport(context, "light mode switched off", it) }
         }
+    }
+
+    /** Play links explain app updates while Play is hidden (update/PlayExplanation.kt). */
+    private fun syncPlayExplanation(context: Context) {
+        runCatching { PlayExplanation.sync(context) }.onFailure { Log.w(TAG, "could not update the Play explanation", it) }
     }
 
     private inline fun guarded(name: String, block: () -> List<StepResult>): List<StepResult> = try {

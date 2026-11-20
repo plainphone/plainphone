@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="install_watchdog_app_updates">Godkendte apps bliver opdateret</string>
+    <string name="play_explain_title">Apps opdaterer sig selv</string>
+    <string name="play_explain_automatic">Om natten, mens telefonen lader på wifi, bliver de apps, du har, opdateret. Du skal ikke gøre noget.</string>
+    <string name="play_explain_manual">Dine forældre opdaterer apps på telefonen. Spørg dem, hvis en app siger, at den skal opdateres.</string>
+    <string name="play_explain_new_app">Vil du have en ny app? Spørg en forælder. De kan tilføje den til din telefon.</string>
+    <string name="sharing_app_updates">Om natten, mens telefonen lader på wifi, eller når en forælder beder om det, kan dine apps blive opdateret. En ny app, der bliver installeret imens, er skjult, indtil dine forældre siger ja. Dine forældre kan se, hvornår det skete, og hvor mange apps der blev opdateret.</string>
+</resources>

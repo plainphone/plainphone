@@ -45,6 +45,8 @@ class SharingActivity : ComponentActivity() {
                 SharingScreen(
                     mode = store.locationMode ?: ServerRules.LOCATION_OFF,
                     weeklySummary = rules?.profile == "child" && rules.weeklySummaryEnabled,
+                    appUpdates = org.plainphone.app.light.Mode.isStrong(this) &&
+                        org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -66,6 +68,7 @@ fun SharingScreen(
     log: List<SharingEntry>,
     format: (Long) -> String,
     weeklySummary: Boolean = false,
+    appUpdates: Boolean = false,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -91,6 +94,9 @@ fun SharingScreen(
         // Principle 1: the child is told what else the parents see, in plain words.
         if (weeklySummary) {
             Text(stringResource(R.string.sharing_weekly_summary), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (appUpdates) {
+            Text(stringResource(R.string.sharing_app_updates), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.sharing_latest), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
