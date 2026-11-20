@@ -41,7 +41,7 @@ quick messages are code words (design principle 1).
 | **Power button** (`hiddenPower`, `hiddenPresses`) | off, 4 presses | Pressing the power button 3–6 times (the parents choose) within about three seconds sends a silent urgent SOS, also with the screen off and the phone in a pocket |
 | **Hold the clock** (`hiddenClock`) | off | Holding the clock on the home screen for 1.5 seconds sends a silent urgent SOS |
 | **Quiet confirmation** (`hiddenFeedback`) | short vibration | One 60 ms vibration after a hidden SOS, or nothing |
-| **Quick messages** (`quickMessagesEnabled`) | on | Up to six short messages the parents write, sent with one tap from the SOS screen and the Messages tab |
+| **Quick messages** (`quickMessagesEnabled`) | off (on for phones paired before the [family inbox](family-inbox.md)) | Up to six short messages the parents write, sent with one tap from the SOS screen and from Messages (in the [family inbox](family-inbox.md) when it is on) |
 | **Child can suggest messages** (`quickSuggestionsEnabled`) | on | The child suggests a new quick message; a parent approves or declines it |
 
 A silent SOS is an urgent SOS with a position when location sharing allows it, as
@@ -81,7 +81,7 @@ looks ordinary too, and the report follows online as soon as possible.
 suggestion as an ordinary message or as a code word, or decline it. A declined
 suggestion is deleted.
 
-Privacy: quick messages themselves are not stored as history. The server keeps only
+Privacy: quick messages sent from the SOS screen are not stored as history (in the [family inbox](family-inbox.md) they are, for at most 30 days). The server keeps only
 the id of an online quick message for a day, to recognise a retry. A hidden SOS is
 an SOS event like the others (30 days), with how it was sent and a code word's text.
 
