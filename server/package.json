@@ -13,6 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm run typecheck",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate"
   },
