@@ -7,6 +7,7 @@ import { contacts, phones, sosEvents } from "../db/schema.js";
 import { phoneNumber } from "../lib/validation.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
+import { publishLive } from "../services/live-events.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
@@ -47,7 +48,7 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
     const now = ctx.now();
     const at = input.sentAt ? new Date(input.sentAt) : now;
     if (at < sosCutoff(now)) throw new HTTPException(410, { message: "SOS expired" });
-    const { event, fresh } = await ctx.db.transaction(async (tx) => {
+    const { event, fresh, change } = await ctx.db.transaction(async (tx) => {
       const [phone] = await tx.select().from(phones).where(eq(phones.id, phoneId)).for("update");
       if (!phone) throw new HTTPException(404, { message: "phone not found" });
       // The phone is the authority for what it has already done: an SMS that was sent is always
@@ -60,9 +61,9 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
       if (existing) {
         if (input.smsSubmitted && existing.deliveredVia == null) {
           const [updated] = await tx.update(sosEvents).set({ deliveredVia: "sms" }).where(key).returning();
-          return { event: updated!, fresh: false };
+          return { event: updated!, fresh: false, change: "sos.updated" as const };
         }
-        return { event: existing, fresh: false };
+        return { event: existing, fresh: false, change: null };
       }
       const [recent] = await tx.select({ total: count() }).from(sosEvents).where(and(
         eq(sosEvents.phoneId, phoneId),
@@ -77,8 +78,10 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
         deliveredVia: input.smsSubmitted ? "sms" : null, trigger: input.trigger, message: input.message,
         notificationClaimedAt: limited ? now : null,
       }).returning();
-      return { event: row!, fresh: !limited };
+      return { event: row!, fresh: !limited, change: "sos.created" as const };
     });
+    // The open dashboards first: they show it at once, the push follows.
+    if (change) publishLive(ctx, { type: change, householdId: c.get("phone").householdId, phoneId, id: event.id });
     if (fresh) void deliverSos(ctx, event.id, phoneId).catch(() => console.error("SOS notification dispatch failed"));
     return c.json(sosJson(event));
   });
@@ -139,7 +142,10 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       : {};
     const [changed] = await ctx.db.update(sosEvents).set({ seenBy: c.get("user").id, seenByName: name, seenAt: ctx.now() })
       .where(and(key, isNull(sosEvents.seenAt))).returning();
-    if (changed) return c.json(sosJson(changed));
+    if (changed) {
+      publishLive(ctx, { type: "sos.updated", householdId: phone.householdId, phoneId: phone.id, id: changed.id });
+      return c.json(sosJson(changed));
+    }
     const [event] = await ctx.db.select().from(sosEvents).where(key);
     if (!event) throw new HTTPException(404, { message: "SOS not found" });
     return c.json(sosJson(event));

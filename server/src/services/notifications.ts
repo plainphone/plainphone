@@ -6,6 +6,7 @@
 // that caused it.
 
 import { errorSummary } from "../lib/log.js";
+import { publishForPhone } from "./live-events.js";
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
 import { type Locale, toLocale } from "../lib/locale.js";
@@ -319,6 +320,8 @@ export async function alertOfflinePhones(ctx: Ctx): Promise<number> {
 
 /** The phones are already claimed: one phone's failed alert must not cost the others theirs. */
 async function notifyClaimed(ctx: Ctx, phoneId: string, e: NotifyEvent) {
+  // Open dashboards show the phone as quiet now, also for parents who muted it.
+  await publishForPhone(ctx, phoneId, "phone.status");
   try {
     await notifyHousehold(ctx, phoneId, e);
   } catch (err) {
