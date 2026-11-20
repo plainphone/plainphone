@@ -100,7 +100,7 @@ function sendAnswer(notified: number): SendAnswer {
  */
 export async function sendQuickMessage(
   ctx: Ctx, phone: Phone,
-  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date },
+  input: { id: string; text: string; kind?: "quick" | "checkin"; inbox?: boolean; sentAt?: Date; smsSent?: boolean },
 ): Promise<SendAnswer> {
   const now = ctx.now();
   // Sent from the family inbox (a check-in always is): it joins the thread, even if the inbox was
@@ -110,13 +110,18 @@ export async function sendQuickMessage(
   if (inThread) await recordChildMessage(ctx, phone, { id: input.id, kind, text: input.text, sentAt: input.sentAt });
   const row = and(eq(quickMessageSends.phoneId, phone.id), eq(quickMessageSends.id, input.id));
   const [claimed] = await ctx.db.insert(quickMessageSends)
-    .values({ phoneId: phone.id, id: input.id, createdAt: now, notified: NOTIFY_PENDING })
+    .values({ phoneId: phone.id, id: input.id, createdAt: now, notified: input.smsSent ? 0 : NOTIFY_PENDING })
     .onConflictDoNothing().returning();
   if (!claimed) {
     const [first] = await ctx.db.select().from(quickMessageSends).where(row);
     if (!first) return { notified: 0 };
     if (first.notified === NOTIFY_PENDING && now.getTime() - first.createdAt.getTime() > PENDING_MS) return { notified: 0 };
     return sendAnswer(first.notified);
+  }
+  // The phone was offline and sent an SMS: the parents have it, so the late report only fills in the thread.
+  if (input.smsSent) {
+    if (inThread) await markDelivered(ctx, phone.id, input.id, 0);
+    return { notified: 0 };
   }
   const [recent] = await ctx.db.select({ total: count() }).from(quickMessageSends).where(and(
     eq(quickMessageSends.phoneId, phone.id), gt(quickMessageSends.createdAt, new Date(now.getTime() - 600_000)),

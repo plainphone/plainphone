@@ -3,8 +3,11 @@
 package org.plainphone.app.sos
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -14,12 +17,16 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.plainphone.app.sync.HttpError
+import org.plainphone.app.sync.InboxSend
 import org.plainphone.app.sync.QuickMessage
 import org.plainphone.app.sync.QuickSendAnswer
 import org.plainphone.app.sync.SyncStore
 
 /** What happens after the online attempt for an ordinary quick message. */
 internal enum class QuickFallback { DONE, SMS, RETRY, GIVE_UP }
+
+/** Where a sent quick message is, as the family inbox shows it. */
+enum class SendState { SENDING, SENT, DELIVERED, SMS, FAILED }
 
 /**
  * The contract (docs/sos.md): no parent device got a push ([QuickSendAnswer.notified] 0), the server
@@ -50,7 +57,8 @@ internal object QuickMessageDelivery {
     /**
      * Queues the message and returns a key for [failed], or null when it could not be queued.
      */
-    fun send(context: Context, message: QuickMessage): String? {
+    fun send(context: Context, message: QuickMessage, inbox: InboxSend? = null): String? {
+        // A code word goes through SOS, also from the family inbox: it never joins the thread (docs/family-inbox.md).
         if (message.meansSos) return SilentSos.queue(context, "code", message.text)?.let { "sos:$it" }
         val sync = SyncStore(context)
         val phoneId = sync.phoneId ?: return null
@@ -62,10 +70,42 @@ internal object QuickMessageDelivery {
         prune.apply()
         val id = UUID.randomUUID().toString()
         val request = OneTimeWorkRequestBuilder<QuickMessageWorker>()
-            .setInputData(workDataOf("id" to id, "phone" to phoneId, "text" to message.text, "at" to now))
+            .setInputData(workDataOf("id" to id, "phone" to phoneId, "text" to message.text, "at" to now, "inbox" to inbox?.kind))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork("quick-$id", ExistingWorkPolicy.KEEP, request)
         return "quick:$id"
+    }
+
+    /** After an offline SMS from the family inbox: report it once there is a network, for the thread. */
+    fun recordLater(context: Context, input: Data) {
+        val request = OneTimeWorkRequestBuilder<QuickMessageWorker>()
+            .setInputData(Data.Builder().putAll(input).putBoolean("record", true).build())
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork("quick-record-${input.getString("id")}", ExistingWorkPolicy.KEEP, request)
+    }
+
+    /** How a message behind [key] (from [send]) is doing, for the family inbox. */
+    fun state(context: Context, key: String): SendState = when {
+        key.startsWith("quick:") -> {
+            val id = key.removePrefix("quick:")
+            val p = prefs(context)
+            when {
+                p.contains("failed:$id") -> SendState.FAILED
+                p.contains("sms:$id") -> SendState.SMS
+                p.contains("online:$id") -> SendState.DELIVERED
+                p.contains("sent:$id") -> SendState.SENT
+                else -> SendState.SENDING
+            }
+        }
+        // A code word answers exactly like an ordinary message (docs/sos.md).
+        key.startsWith("sos:") -> when (SosDelivery.status(context, key.removePrefix("sos:"))) {
+            "failed" -> SendState.FAILED
+            "sms" -> SendState.SMS
+            "online" -> SendState.DELIVERED
+            else -> SendState.SENDING
+        }
+        else -> SendState.SENT
     }
 
     /** True once the message behind [key] (from [send]) is known not to reach the parents. */
@@ -90,6 +130,8 @@ class QuickMessageWorker(context: Context, params: WorkerParameters) : Coroutine
         val sos = SilentSos.childSos(sync.rules())
         val token = sync.deviceToken()
         val prefs = QuickMessageDelivery.prefs(context)
+        val inbox = inputData.getString("inbox")
+        if (inputData.getBoolean("record", false)) return@withContext recordAfterSms(context, id, text, at, inbox)
         // The child is told when a message does not reach the parents. A Long, so the daily prune clears it.
         fun failure(): Result {
             prefs.edit().putLong("failed:$id", System.currentTimeMillis()).apply()
@@ -101,12 +143,16 @@ class QuickMessageWorker(context: Context, params: WorkerParameters) : Coroutine
         var answer: QuickSendAnswer? = null
         var error: Throwable? = null
         try {
-            answer = SosDelivery.api(context).sendQuickMessage(token, id, text)
+            answer = SosDelivery.api(context).sendQuickMessage(token, id, text, inbox?.let { InboxSend(it, at) })
         } catch (e: IOException) {
             error = e
         }
         when (quickMessageFallback(answer, error)) {
-            QuickFallback.DONE -> Result.success()
+            QuickFallback.DONE -> {
+                // For the family inbox's "delivered" or "sent": a parent device got it, or it was over the limit.
+                prefs.edit().putLong(if (answer?.limited == true) "sent:$id" else "online:$id", System.currentTimeMillis()).apply()
+                Result.success()
+            }
             QuickFallback.RETRY -> Result.retry()
             QuickFallback.GIVE_UP -> failure()
             QuickFallback.SMS -> {
@@ -114,12 +160,39 @@ class QuickMessageWorker(context: Context, params: WorkerParameters) : Coroutine
                     submitSosFallback(prefs, id, at, sos.parents) { number -> submitSosSms(context, number, text) }
                 } else emptyList()
                 when {
-                    submitted.isNotEmpty() -> Result.success()
+                    submitted.isNotEmpty() -> {
+                        prefs.edit().putLong("sms:$id", System.currentTimeMillis()).apply()
+                        // The family inbox still gets it, with its own time, once the phone is online again.
+                        if (inbox != null && answer == null) QuickMessageDelivery.recordLater(context, inputData)
+                        Result.success()
+                    }
                     // The server answered, so trying again online would only get the same answer.
                     answer != null -> failure()
                     else -> Result.retry()
                 }
             }
         }
+    }
+
+    /** After an offline SMS: tell the server, so the thread has it. Nobody is notified again. */
+    private fun recordAfterSms(context: Context, id: String, text: String, at: Long, inbox: String?): Result {
+        val sync = SyncStore(context)
+        val token = sync.deviceToken() ?: return Result.failure()
+        if (inbox == null || inputData.getString("phone") != sync.phoneId || System.currentTimeMillis() - at > RECORD_GIVE_UP_MS) {
+            return Result.failure()
+        }
+        return try {
+            SosDelivery.api(context).sendQuickMessage(token, id, text, InboxSend(inbox, at, smsSent = true))
+            Result.success()
+        } catch (e: HttpError) {
+            if (e.status >= 500) Result.retry() else Result.failure()
+        } catch (_: IOException) {
+            Result.retry()
+        }
+    }
+
+    private companion object {
+        /** A late report for the thread is not worth sending after a day: the thread keeps 30 days, but the message was an SMS by then. */
+        const val RECORD_GIVE_UP_MS = 86_400_000L
     }
 }

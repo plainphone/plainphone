@@ -32,6 +32,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.plainphone.app.PlainphoneAdminReceiver
+import org.plainphone.app.inbox.FamilyThread
+import org.plainphone.app.inbox.InboxEntry
+import org.plainphone.app.inbox.InboxOffer
+import org.plainphone.app.sos.SendState
+import org.plainphone.app.sync.InboxMessage
+import org.plainphone.app.sync.QuickMessage
 import org.plainphone.app.sync.SyncStore
 import org.plainphone.app.sync.rulesJson
 import org.plainphone.app.telephony.CallManager
@@ -81,7 +87,7 @@ class PhoneMessagesScreenshotTest(private val screen: String, private val varian
     }
 
     /** A strong-mode Child phone: Device Owner, Plainphone holds the phone and SMS roles, synced rules. */
-    private fun childPhone() {
+    private fun childPhone(inbox: Boolean = false) {
         val app = RuntimeEnvironment.getApplication()
         for (authority in listOf("sms", "mms", "mms-sms", "call_log")) {
             ShadowContentResolver.registerProviderInternal(authority, provider)
@@ -98,17 +104,48 @@ class PhoneMessagesScreenshotTest(private val screen: String, private val varian
         val rules = JSONObject(rulesJson(contacts = people.toString()))
         val parents = JSONArray().put(people.get(0)).put(people.get(1))
         rules.put("sos", JSONObject().put("name", "Sam").put("parents", parents))
+        if (inbox) {
+            rules.put("inbox", JSONObject().put("enabled", true).put("quickMessages", true).put("checkIns", true).put("latest", "r2"))
+            val thread = JSONObject().put("recipients", JSONArray().put("Alex").put("Robin")).put(
+                "messages",
+                JSONArray().put(
+                    InboxMessage("c1", true, "quick", "Pick me up", NOW - 5_400_000, delivered = 2).toJson(),
+                ).put(InboxMessage("r2", false, "reply", "On my way", NOW - 5_100_000, author = "Robin").toJson()),
+            )
+            app.getSharedPreferences("plainphone_family_inbox", android.content.Context.MODE_PRIVATE).edit()
+                .putString("thread", thread.toString()).putString("latest", "r2").commit()
+        }
         SyncStore(app).saveRules("test", rules.toString(), 1_800_000_000_000L)
     }
 
+    private val quick = listOf(
+        QuickMessage("a", "Pick me up", meansSos = false),
+        QuickMessage("b", "I'm okay", meansSos = false),
+        QuickMessage("c", "Call me", meansSos = false),
+    )
+
+    /** Every state a message can be in; synthetic fixtures. */
+    private val familyEntries = listOf(
+        InboxEntry("1", true, "Pick me up", NOW - 7_200_000, "quick", SendState.DELIVERED),
+        InboxEntry("2", false, "On my way", NOW - 7_000_000, "reply", author = "Robin"),
+        InboxEntry("3", true, "I'm home", NOW - 3_600_000, "checkin", SendState.SMS),
+        InboxEntry("4", true, "Call me", NOW - 600_000, "quick", SendState.FAILED),
+        InboxEntry("5", true, "I'm okay", NOW - 60_000, "quick", SendState.SENDING),
+    )
+
     @Test
     fun capture() {
-        childPhone()
+        childPhone(inbox = screen == "messages-family")
         when (screen) {
-            "contacts" -> show("Kim") { PhoneApp(Route(Tab.CONTACTS), 0) }
+            "contacts" -> show("Alex") { PhoneApp(Route(Tab.CONTACTS), 0) }
             "recents" -> show("Robin") { PhoneApp(Route(Tab.RECENTS), 0) }
             "keypad" -> show { PhoneApp(Route(Tab.KEYPAD), 0) }
             "messages" -> show("Robin") { PhoneApp(Route(Tab.MESSAGES), 0) }
+            "messages-family" -> show("On my way") { PhoneApp(Route(Tab.MESSAGES), 0) }
+            "family" -> show {
+                FamilyThread(familyEntries, InboxOffer(quick, checkIns = true), listOf("Alex", "Robin"), {}, { true }, { true })
+            }
+            "family-empty" -> show { FamilyThread(emptyList(), InboxOffer(emptyList(), checkIns = true), emptyList(), {}, { true }, { true }) }
             "conversation" -> show("see you") { PhoneApp(Route(Tab.MESSAGES, "+4520000001"), 0) }
             "conversation-unknown" -> show("prize") { PhoneApp(Route(Tab.MESSAGES, "+4529999999"), 0) }
             "incoming" -> show { InCallScreen(CallUi(1, "Alex", "+4520000001", Call.STATE_RINGING, true, null), CallManager.Audio()) }
@@ -136,10 +173,10 @@ class PhoneMessagesScreenshotTest(private val screen: String, private val varian
                     "(6, 9, '+4529999999', ${NOW - 86_400_000}, 1, 1, 'You have won a prize, click here')",
             )
             execSQL("CREATE TABLE mms (_id INTEGER PRIMARY KEY, thread_id INTEGER, date INTEGER, msg_box INTEGER)")
-            execSQL("CREATE TABLE calls (_id INTEGER PRIMARY KEY, number TEXT, type INTEGER, date INTEGER, duration INTEGER)")
+            execSQL("CREATE TABLE calls (_id INTEGER PRIMARY KEY, number TEXT, type INTEGER, date INTEGER, duration INTEGER, new INTEGER DEFAULT 0)")
             execSQL(
-                "INSERT INTO calls VALUES (1, '+4520000002', 3, ${NOW - 1_200_000}, 0), (2, '+4520000001', 2, ${NOW - 7_200_000}, 95), " +
-                    "(3, '+4520000001', 1, ${NOW - 90_000_000}, 320), (4, '+4529999999', 3, ${NOW - 100_000_000}, 0)",
+                "INSERT INTO calls VALUES (1, '+4520000002', 3, ${NOW - 1_200_000}, 0, 1), (2, '+4520000001', 2, ${NOW - 7_200_000}, 95, 0), " +
+                    "(3, '+4520000001', 1, ${NOW - 90_000_000}, 320, 0), (4, '+4529999999', 3, ${NOW - 100_000_000}, 0, 0)",
             )
         }
 
@@ -190,7 +227,8 @@ class PhoneMessagesScreenshotTest(private val screen: String, private val varian
         )
 
         val SCREENS = listOf(
-            "contacts", "recents", "keypad", "messages", "conversation", "conversation-unknown", "incoming", "in-call",
+            "contacts", "recents", "keypad", "messages", "messages-family", "conversation", "conversation-unknown",
+            "family", "family-empty", "incoming", "in-call",
         )
 
         @JvmStatic

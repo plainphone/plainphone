@@ -1362,6 +1362,7 @@ paths:
                 inbox: { type: boolean, description: Sent from the family inbox; the message joins the thread (docs/family-inbox.md) }
                 kind: { enum: [quick, checkin], default: quick, description: "checkin is \"I'm home\" without a position; it always joins the thread" }
                 sentAt: { type: string, format: date-time, description: When the child pressed send; a later time is taken as the server's }
+                smsSent: { type: boolean, description: "The phone was offline and sent the message by SMS: it joins the thread, nobody is notified again" }
       responses:
         "200":
           description: Sent

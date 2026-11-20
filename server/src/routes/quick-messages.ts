@@ -29,7 +29,7 @@ export function deviceQuickMessageRoutes<E extends { Variables: { phone: Phone }
     // `inbox`, `kind` and `sentAt` come from the family inbox (docs/family-inbox.md).
     const input = await body(c, z.strictObject({
       id: z.uuid(), text, kind: z.enum(["quick", "checkin"]).optional(), inbox: z.boolean().optional(),
-      sentAt: z.iso.datetime().optional(),
+      sentAt: z.iso.datetime().optional(), smsSent: z.boolean().optional(),
     }));
     const [phone] = await ctx.db.select().from(phones).where(eq(phones.id, c.get("phone").id));
     if (!phone || phone.profile !== "child") throw new HTTPException(404, { message: "not found" });

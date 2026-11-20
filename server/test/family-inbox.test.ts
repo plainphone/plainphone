@@ -93,6 +93,20 @@ describe("child to parent", () => {
     expect(thread[0].delivered).toBe(0);
   });
 
+  it("fills in the thread after an offline SMS without notifying again", async () => {
+    const { parent, phoneId, device, userId } = await setup();
+    await parent.put(switches(phoneId), { familyInbox: true, quickMessagesEnabled: true });
+    await subscribe(userId);
+    const offline = send({ sentAt: new Date(h.clock.now.getTime() - 600_000).toISOString(), smsSent: true });
+    h.clock.advance(3_600_000);
+    expect((await device.post("/api/device/quick-messages/send", offline)).json).toEqual({ notified: 0 });
+    // A replay of the late report changes nothing either.
+    expect((await device.post("/api/device/quick-messages/send", offline)).json).toEqual({ notified: 0 });
+    expect(h.parentPush.sent).toEqual([]);
+    const [message] = (await parent.get(`/api/phones/${phoneId}/inbox`)).json.messages;
+    expect(message).toMatchObject({ id: offline.id, sentAt: offline.sentAt, delivered: 0 });
+  });
+
   it("records what the phone sent after the inbox was switched off in transit", async () => {
     const { parent, phoneId, device } = await setup();
     await parent.put(switches(phoneId), { familyInbox: true, checkIns: true });

@@ -70,6 +70,8 @@ data class ServerRules(
     val locationMode: String = if (locationEnabled) LOCATION_ALWAYS else LOCATION_OFF,
     /** When "always" ends by itself (the server falls back to "checkin"); null otherwise. */
     val sos: SosRules? = null,
+    /** The family inbox (InboxRules.kt); off when missing. */
+    val inbox: InboxRules = InboxRules.OFF,
     val locationAlwaysUntil: Instant? = null,
     /** An open "Ring the phone"; null means stop. */
     val ring: RingRequest? = null,
@@ -198,6 +200,7 @@ data class ServerRules(
                         ApprovedContact(contact.getString("name"), contact.getString("number"))
                     }, HiddenSos.parse(sos.optJSONObject("hidden")), QuickMessages.parse(sos.optJSONObject("quickMessages")))
                 },
+                inbox = InboxRules.parse(j.optJSONObject("inbox")),
                 locationAlwaysUntil = location.optString("alwaysUntil", "")
                     .takeIf { it.isNotEmpty() && it != "null" }
                     ?.let { runCatching { Instant.parse(it) }.getOrNull() },

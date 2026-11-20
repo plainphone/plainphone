@@ -9,6 +9,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,10 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,6 +93,11 @@ class InCallActivity : ComponentActivity() {
     }
 }
 
+/**
+ * The call screen: who, where the call is, and only the controls that matter now. Answer and call
+ * are ink, decline and hang up red (brand C); mute, keypad and speaker show their state with a fill
+ * and a word, never colour alone.
+ */
 @Composable
 internal fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
     var showKeypad by remember { mutableStateOf(false) }
@@ -95,16 +106,16 @@ internal fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
             Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(48.dp))
-            val title = call?.name ?: call?.number ?: stringResource(R.string.call_unknown)
-            Initial(title, 96.dp)
-            Spacer(Modifier.height(20.dp))
-            Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            if (call?.name != null && call.number != null) {
-                Text(call.number, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(32.dp))
             CallStatus(call)
+            Spacer(Modifier.height(20.dp))
+            val title = call?.name ?: call?.number ?: stringResource(R.string.call_unknown)
+            Avatar(title, size = 96.dp)
+            Spacer(Modifier.height(20.dp))
+            Text(title, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            if (call?.name != null && call.number != null) {
+                Text(call.number, style = MonoSmall.copy(fontSize = 16.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Spacer(Modifier.weight(1f))
 
             when {
@@ -119,20 +130,22 @@ internal fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
                 else -> {
                     if (showKeypad) {
                         Keypad(onKey = { CallManager.playDtmf(it) }, modifier = Modifier.widthIn(max = 300.dp))
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(20.dp))
                     }
                     val muted = audio.muted
                     val speaker = audio.onSpeaker
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        Toggle(stringResource(R.string.call_mute), muted) { CallManager.setMuted(!muted) }
-                        Toggle(stringResource(R.string.call_keypad), showKeypad) { showKeypad = !showKeypad }
-                        Toggle(stringResource(R.string.call_speaker), speaker) { CallManager.setSpeaker(!speaker) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
+                        StateToggle(stringResource(R.string.call_mute), PlainIcons.MicOff, muted) { CallManager.setMuted(!muted) }
+                        StateToggle(stringResource(R.string.call_keypad), PlainIcons.Keypad, showKeypad) { showKeypad = !showKeypad }
+                        StateToggle(stringResource(R.string.call_speaker), PlainIcons.Speaker, speaker) { CallManager.setSpeaker(!speaker) }
                     }
                     Spacer(Modifier.height(28.dp))
                     if (org.plainphone.app.sos.SosCalls.callId == call.id) {
-                        androidx.compose.material3.Button(onClick = org.plainphone.app.sos.SosCalls::stop) {
-                            Text(stringResource(R.string.sos_stop_call))
-                        }
+                        androidx.compose.material3.Button(
+                            onClick = org.plainphone.app.sos.SosCalls::stop,
+                            modifier = Modifier.heightIn(min = 56.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = EndCallRed, contentColor = Color.White),
+                        ) { Text(stringResource(R.string.sos_stop_call), style = MaterialTheme.typography.titleMedium) }
                     } else {
                         RoundAction(stringResource(R.string.call_hang_up), EndCallRed, rotate = true) { CallManager.hangUp() }
                     }
@@ -141,6 +154,15 @@ internal fun InCallScreen(call: CallUi?, audio: CallManager.Audio) {
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+/** A toggle that says its state to the screen reader too ("Mute, on"). */
+@Composable
+private fun StateToggle(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, on: Boolean, onClick: () -> Unit) {
+    Box(Modifier.semantics(mergeDescendants = true) {
+        role = Role.Switch
+        toggleableState = if (on) ToggleableState.On else ToggleableState.Off
+    }) { RoundToggle(label, icon, on, onClick) }
 }
 
 @Composable
@@ -152,15 +174,21 @@ private fun CallStatus(call: CallUi?) {
             delay(1000)
         }
     }
+    val active = call?.state == Call.STATE_ACTIVE
     val text = when (call?.state) {
         null, Call.STATE_DISCONNECTED -> stringResource(R.string.call_ended)
         Call.STATE_RINGING -> stringResource(R.string.call_incoming)
         Call.STATE_DIALING, Call.STATE_CONNECTING, Call.STATE_NEW, Call.STATE_PULLING_CALL -> stringResource(R.string.call_dialing)
         Call.STATE_HOLDING -> stringResource(R.string.call_on_hold)
-        Call.STATE_ACTIVE -> call.connectedAtMs?.let { formatDuration(now - it) } ?: ""
+        Call.STATE_ACTIVE -> call.connectedAtMs?.let { formatDuration(now - it) } ?: stringResource(R.string.call_ongoing)
         else -> ""
     }
-    Text(text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+        text,
+        style = if (active) MonoSmall.copy(fontSize = 18.sp) else MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 internal fun formatDuration(ms: Long): String {
@@ -180,27 +208,12 @@ private fun RoundAction(label: String, color: Color, glyph: Color = Color.White,
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = color, contentColor = glyph),
         ) {
             Icon(
-                Icons.Filled.Call,
+                PlainIcons.Phone,
                 contentDescription = label,
-                modifier = Modifier.size(34.dp).graphicsLayer { rotationZ = if (rotate) 135f else 0f },
+                modifier = Modifier.size(32.dp).graphicsLayer { rotationZ = if (rotate) 135f else 0f },
             )
         }
         Spacer(Modifier.height(8.dp))
         Text(label, style = MaterialTheme.typography.labelLarge)
     }
-}
-
-@Composable
-private fun Toggle(label: String, on: Boolean, onClick: () -> Unit) {
-    FilledTonalButton(
-        onClick = onClick,
-        colors = if (on) {
-            androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            )
-        } else {
-            androidx.compose.material3.ButtonDefaults.filledTonalButtonColors()
-        },
-    ) { Text(label) }
 }

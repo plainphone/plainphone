@@ -608,8 +608,13 @@ class PlainphoneApi private constructor(
      * An ordinary quick message (docs/sos.md). Safe to repeat: the server answers a repeated [id]
      * with the first answer.
      */
-    fun sendQuickMessage(token: String, id: String, text: String): QuickSendAnswer {
+    fun sendQuickMessage(token: String, id: String, text: String, inbox: InboxSend? = null): QuickSendAnswer {
         val body = JSONObject().put("id", id).put("text", text)
+        // From the family inbox (docs/family-inbox.md): it joins the thread with its original time.
+        inbox?.let {
+            body.put("inbox", true).put("kind", it.kind).put("sentAt", java.time.Instant.ofEpochMilli(it.sentAtMs).toString())
+            if (it.smsSent) body.put("smsSent", true)
+        }
         val r = call("POST", "/device/quick-messages/send", token, body, readTimeoutMs = 8_000, replayable = true)
         if (r.status != 200) throw HttpError(r.status, r.body)
         return try {
@@ -625,6 +630,25 @@ class PlainphoneApi private constructor(
         // Not replayed: a repeat would add the suggestion twice.
         val r = call("POST", "/device/quick-messages/suggest", token, JSONObject().put("text", text), readTimeoutMs = 10_000)
         if (r.status != 201) throw HttpError(r.status, r.body)
+    }
+
+    /** The family inbox thread (docs/family-inbox.md). */
+    fun fetchInbox(token: String): InboxThread {
+        val r = call("GET", "/device/inbox", token, readTimeoutMs = 10_000)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return try {
+            InboxThread.parse(JSONObject(r.body))
+        } catch (err: JSONException) {
+            throw IOException("Invalid inbox response", err)
+        }
+    }
+
+    /** The device receipt for parent replies this phone has. Safe to repeat. */
+    fun inboxReceived(token: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val body = JSONObject().put("ids", org.json.JSONArray(ids))
+        val r = call("POST", "/device/inbox/received", token, body, readTimeoutMs = 8_000, replayable = true)
+        if (r.status != 204) throw HttpError(r.status, r.body)
     }
 
     fun sosStatus(token: String, id: String): JSONObject {
