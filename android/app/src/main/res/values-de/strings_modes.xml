@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_preset_school">Schule</string>
+    <string name="mode_preset_homework">Hausaufgaben</string>
+    <string name="mode_preset_free">Freizeit</string>
+    <string name="mode_preset_night">Nacht</string>
+    <string name="mode_preset_custom">Eigener Modus</string>
+    <string name="home_mode_until">%1$s bis %2$s</string>
+    <string name="group_family">Familie</string>
+    <string name="group_friends">Freunde</string>
+    <string name="group_others">Andere</string>
+    <string name="sharing_mode_now">Modus jetzt: %1$s. Deine Eltern wählen die Modi und wann sie gelten.</string>
+    <string name="sharing_mode_groups">Wer jetzt anrufen und schreiben kann: %1$s. Deine Eltern, 112 und Hilfetelefone können es immer.</string>
+    <string name="sharing_mode_only_parents">Nur deine Eltern, 112 und Hilfetelefone können jetzt anrufen und schreiben.</string>
+    <string name="sharing_mode_everyone">Alle auf deiner Liste können jetzt anrufen und schreiben.</string>
+    <string name="status_mode">Modus jetzt: %1$s.</string>
+    <string name="status_mode_until">Modus jetzt: %1$s, bis %2$s.</string>
+    <plurals name="status_mode_contacts">
+        <item quantity="one">In diesem Modus kann %1$d davon anrufen und schreiben. Eltern, 112 und Hilfetelefone immer.</item>
+        <item quantity="other">In diesem Modus können %1$d davon anrufen und schreiben. Eltern, 112 und Hilfetelefone immer.</item>
+    </plurals>
+</resources>

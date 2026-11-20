@@ -339,6 +339,8 @@ export const phones = pgTable(
     silentBedtime: boolean("silent_bedtime").notNull().default(true),
     /** A parent next to the child may approve a request on the phone with the parent PIN. */
     pinApprovalEnabled: boolean("pin_approval_enabled").notNull().default(true),
+    /** Modes on one weekly schedule replace school time and bedtime (docs/modes.md). */
+    modesEnabled: boolean("modes_enabled").notNull().default(false),
     /** Strong mode: a nightly window in which Play may update approved apps (docs/policies.md, "App updates"). */
     appUpdatesEnabled: boolean("app_updates_enabled").notNull().default(true),
     /** Set when a parent pressed "Update apps now". */
@@ -431,6 +433,9 @@ export const timeBonuses = pgTable(
   (t) => [index("time_bonuses_phone_day_idx").on(t.phoneId, t.day)],
 );
 
+export const CONTACT_GROUPS = ["family", "friends", "others"] as const;
+export type ContactGroup = (typeof CONTACT_GROUPS)[number];
+
 export const contacts = pgTable(
   "contacts",
   {
@@ -442,6 +447,8 @@ export const contacts = pgTable(
     /** E.164, e.g. +4512345678. */
     number: text("number").notNull(),
     sosParent: boolean("sos_parent").notNull().default(false),
+    /** Family, Friends or Others (docs/modes.md). A parent is always Family. */
+    contactGroup: text("contact_group", { enum: CONTACT_GROUPS }).notNull().default("others"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("contacts_phone_number_uq").on(t.phoneId, t.number)],
@@ -982,3 +989,34 @@ export const householdSummaries = pgTable("household_summaries", {
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("household_summaries_week_idx").on(t.householdId, t.weekEnd)]);
+
+export const MODE_PRESETS = ["school", "homework", "free", "night", "custom"] as const;
+export type ModePreset = (typeof MODE_PRESETS)[number];
+
+/** A named pack of apps and contact groups (docs/modes.md). One per phone is the default. */
+export const modes = pgTable("modes", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  preset: text("preset", { enum: MODE_PRESETS }).notNull(),
+  /** Null shows the preset's translated name. */
+  name: text("name"),
+  allApps: boolean("all_apps").notNull().default(true),
+  allowedPackages: text("allowed_packages").array().notNull().default(sql`'{}'::text[]`),
+  contactGroups: text("contact_groups", { enum: CONTACT_GROUPS }).array().notNull()
+    .default(sql`'{family,friends,others}'::text[]`),
+  quiet: boolean("quiet").notNull().default(false),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: createdAt(),
+}, (t) => [index("modes_phone_idx").on(t.phoneId)]);
+
+/** The weekly schedule of modes, in the phone's local time, shaped like `schedules`. */
+export const modeSlots = pgTable("mode_slots", {
+  id: id(),
+  phoneId: uuid("phone_id").notNull().references(() => phones.id, { onDelete: "cascade" }),
+  modeId: uuid("mode_id").notNull().references(() => modes.id, { onDelete: "cascade" }),
+  /** ISO weekdays, 1 = Monday ... 7 = Sunday. */
+  days: smallint("days").array().notNull(),
+  startMinute: integer("start_minute").notNull(),
+  endMinute: integer("end_minute").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("mode_slots_phone_idx").on(t.phoneId)]);

@@ -3,12 +3,14 @@
 import type { Messages } from "./en";
 import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
+import { modesNb } from "./modes";
 import { statusEn } from "./status";
 
 export const nb: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesNb,
   ...platformNb,
+  ...modesNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",
   "status.stale.title": "Sist online {when}",

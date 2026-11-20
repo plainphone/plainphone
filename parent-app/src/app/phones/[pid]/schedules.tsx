@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { ApiError, client, unwrap } from "../../../api/client";
@@ -6,7 +7,7 @@ import type { App, ChangeResult, Schedule, ScheduleInput, ScheduleKind } from ".
 import { PhoneSwitch, SleepOutsideTip } from "../../../components/BedtimeSettings";
 import { Chip, CheckRow } from "../../../components/parts";
 import { PhoneGate, usePhone } from "../../../components/PhoneContext";
-import { Button, Card, Choice, errorMessage, Field, LoadGate, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
+import { Button, Card, Choice, errorMessage, Field, LoadGate, Notice, PageTitle, Row, Screen, Stack as VStack, Text, useLoad } from "../../../components/ui";
 import { useI18n } from "../../../i18n/I18n";
 import { space } from "../../../lib/theme";
 import { crossesMidnight, hhmmToMinutes, minutesToHHMM, weekdayName } from "../../../shared/lib/format";
@@ -20,6 +21,7 @@ interface Data {
 function SchedulesList() {
   const { t, locale } = useI18n();
   const { phone, run, appLabel, notify } = usePhone();
+  const router = useRouter();
   const res = useLoad(async (): Promise<Data> => {
     const [s, a] = await Promise.all([
       unwrap<{ schedules: Schedule[] }>(client.GET("/phones/{pid}/schedules", { params: { path: { pid: phone.id } } })),
@@ -50,6 +52,16 @@ function SchedulesList() {
   return (
     <Screen testID="phone-schedules" onRefresh={() => void res.reload()} refreshing={res.loading && res.data !== undefined}>
       <PageTitle sub={t("sched.intro")}>{t("sched.title")}</PageTitle>
+      {phone.modesEnabled ? (
+        <Notice tone="info" text={t("modes.schedNote")}>
+          <Button
+            testID="sched-to-modes"
+            kind="secondary"
+            title={t("modes.title")}
+            onPress={() => router.push({ pathname: "/phones/[pid]/modes", params: { pid: phone.id } })}
+          />
+        </Notice>
+      ) : null}
       <SleepOutsideTip />
       <Card>
         <PhoneSwitch field="silentBedtime" label={t("bedtime.silent")} help={t("bedtime.silentHelp")} />

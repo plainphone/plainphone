@@ -14,6 +14,7 @@ import org.plainphone.app.light.Mode
 import org.plainphone.app.ConfigStore
 import org.plainphone.app.Lock
 import org.plainphone.app.sync.SyncStore
+import org.plainphone.app.sync.Modes
 
 /**
  * Where the approved-contacts list comes from. Before pairing it lives on the phone
@@ -197,7 +198,8 @@ class SyncedContactPolicySource(
             !LightRelease.isReleased(app) && !Lock.isInMaintenanceWindow(app))
         val synced = base.copy(
             enforced = controlled,
-            contacts = fromServer,
+            // A mode can narrow calls and texts to some contact groups; parents always stay (docs/modes.md).
+            contacts = Modes.allowedContacts(server, fromServer, Instant.now()),
             childProfile = server?.profile == "child",
             suggestDeviceContacts = server?.profile == "child" && server.suggestDeviceContacts,
             silentBedtime = BedtimeQuiet.silentNow(server, Instant.now()),

@@ -5,6 +5,7 @@
 
 import { appUpdatesEn } from "./app-updates";
 import { platformEn } from "./platform";
+import { modesEn } from "./modes";
 import { statusEn } from "./status";
 
 const filterSummary = "The web filter makes it less likely that the phone shows websites in the categories you choose, but some can still get through.";
@@ -16,6 +17,7 @@ export const en = {
   ...statusEn,
   ...appUpdatesEn,
   ...platformEn,
+  ...modesEn,
   "app.name": "Plainphone",
   "app.skip": "Skip to content",
   "app.loading": "Loading…",

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mode_preset_school">Skola</string>
+    <string name="mode_preset_homework">Läxor</string>
+    <string name="mode_preset_free">Fritid</string>
+    <string name="mode_preset_night">Natt</string>
+    <string name="mode_preset_custom">Eget läge</string>
+    <string name="home_mode_until">%1$s till %2$s</string>
+    <string name="group_family">Familj</string>
+    <string name="group_friends">Vänner</string>
+    <string name="group_others">Andra</string>
+    <string name="sharing_mode_now">Läge nu: %1$s. Dina föräldrar väljer lägena och när de gäller.</string>
+    <string name="sharing_mode_groups">Vem kan ringa och skriva nu: %1$s. Dina föräldrar, 112 och hjälplinjer kan alltid.</string>
+    <string name="sharing_mode_only_parents">Bara dina föräldrar, 112 och hjälplinjer kan ringa och skriva nu.</string>
+    <string name="sharing_mode_everyone">Alla på din lista kan ringa och skriva nu.</string>
+    <string name="status_mode">Läge nu: %1$s.</string>
+    <string name="status_mode_until">Läge nu: %1$s, till %2$s.</string>
+    <plurals name="status_mode_contacts">
+        <item quantity="one">I det här läget kan %1$d av dem ringa och skriva. Föräldrar, 112 och stödlinjer kan alltid.</item>
+        <item quantity="other">I det här läget kan %1$d av dem ringa och skriva. Föräldrar, 112 och stödlinjer kan alltid.</item>
+    </plurals>
+</resources>

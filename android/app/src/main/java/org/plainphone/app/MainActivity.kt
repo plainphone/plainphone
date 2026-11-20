@@ -283,7 +283,21 @@ class MainActivity : Activity() {
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_DIALER) == true) R.string.status_phone_role_ok else R.string.status_phone_role_missing))
             appendLine(getString(if (roles?.isRoleHeld(RoleManager.ROLE_SMS) == true) R.string.status_sms_role_ok else R.string.status_sms_role_missing))
             val contacts = ContactPolicySources.get(this@MainActivity).rules()
-            appendLine(resources.getQuantityString(R.plurals.status_contacts, contacts.contacts.size, contacts.contacts.size))
+            // The mode on now (docs/modes.md). Its groups narrow the list, so count the whole list first.
+            val mode = org.plainphone.app.sync.Modes.shown(rules, contacts.enforced, java.time.Instant.now())
+            mode?.let {
+                val name = org.plainphone.app.home.modeLabel(this@MainActivity, it.mode)
+                appendLine(
+                    it.until?.let { until ->
+                        getString(R.string.status_mode_until, name, org.plainphone.app.home.HomeActivity.timeText(this@MainActivity, until))
+                    } ?: getString(R.string.status_mode, name),
+                )
+            }
+            val listed = if (mode?.contactGroups != null) rules!!.contacts.size else contacts.contacts.size
+            appendLine(resources.getQuantityString(R.plurals.status_contacts, listed, listed))
+            if (mode?.contactGroups != null) {
+                appendLine(resources.getQuantityString(R.plurals.status_mode_contacts, contacts.contacts.size, contacts.contacts.size))
+            }
             if (!contacts.enforced && !contacts.selfProfile) appendLine(getString(R.string.status_contacts_not_enforced))
             val pending = LocalContactPolicySource(this@MainActivity).pending().size
             if (pending > 0) appendLine(resources.getQuantityString(R.plurals.status_contacts_pending, pending, pending))

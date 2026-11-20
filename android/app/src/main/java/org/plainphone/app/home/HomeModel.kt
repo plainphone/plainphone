@@ -8,6 +8,8 @@ import java.time.LocalTime
 import java.util.Locale
 import org.plainphone.app.quiet.BedtimeQuiet
 import org.plainphone.app.sync.Schedules
+import org.plainphone.app.sync.ModeRule
+import org.plainphone.app.sync.Modes
 import org.plainphone.app.sync.ServerRules
 
 /** One launcher entry on the phone. [component] is a flattened ComponentName. */
@@ -20,7 +22,8 @@ data class HomeApp(val packageName: String, val label: String, val component: St
  * School time or bedtime, shown quietly under the date. [silent] is set during bedtime when "Silent bedtime"
  * is on: the child is told that the phone is silent, and why.
  */
-data class WindowNotice(val kind: Kind, val until: LocalTime, val silent: Boolean = false) {
+/** With modes on, [mode] is the mode on now (docs/modes.md) and the home screen shows its name. */
+data class WindowNotice(val kind: Kind, val until: LocalTime, val silent: Boolean = false, val mode: ModeRule? = null) {
     enum class Kind { SCHOOL, BEDTIME }
 }
 
@@ -80,7 +83,17 @@ object HomeModel {
         // A package can have several launcher entries; the front page shows the first by name.
         val favourites = prefs.apps.mapNotNull { byPackage[it]?.first() }
         val silent = rules != null && BedtimeQuiet.silent(rules, windows)
-        return HomeState(prefs, favourites, visible, notice(windows, silent))
+        // Modes: the mode on now names the notice; the default mode shows nothing, like no window.
+        val mode = Modes.current(rules, now)
+        val notice = if (mode == null) {
+            notice(windows, silent)
+        } else {
+            mode.until?.let { until ->
+                val kind = if (mode.quiet) WindowNotice.Kind.BEDTIME else WindowNotice.Kind.SCHOOL
+                WindowNotice(kind, until, silent = silent && mode.quiet, mode = mode.mode)
+            }
+        }
+        return HomeState(prefs, favourites, visible, notice)
     }
 
     /** The window that ends last decides the "until" time; bedtime wins over school time. */

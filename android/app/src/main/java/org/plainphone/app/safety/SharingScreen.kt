@@ -51,6 +51,12 @@ class SharingActivity : ComponentActivity() {
                     appUpdatesNightly = org.plainphone.app.update.AppUpdateWindow.automatic(this),
                     hiddenSos = org.plainphone.app.sos.SosSharing.from(rules),
                     inbox = rules?.takeIf { it.profile == "child" && !it.release }?.inbox ?: org.plainphone.app.sync.InboxRules.OFF,
+                    // Groups only narrow calls on an enforced list with a parent marked (docs/modes.md).
+                    activeMode = org.plainphone.app.sync.Modes.shown(
+                        rules,
+                        org.plainphone.app.contacts.ContactPolicySources.get(this).rules().enforced,
+                        java.time.Instant.now(),
+                    ),
                     alwaysUntilMs = store.alwaysUntilMs,
                     log = store.sharingLog(),
                     format = { Safety.dateTime(this, it) },
@@ -76,6 +82,7 @@ fun SharingScreen(
     appUpdatesNightly: Boolean = true,
     hiddenSos: org.plainphone.app.sos.SosSharing = org.plainphone.app.sos.SosSharing.NONE,
     inbox: org.plainphone.app.sync.InboxRules = org.plainphone.app.sync.InboxRules.OFF,
+    activeMode: org.plainphone.app.sync.ActiveMode? = null,
     onClose: () -> Unit,
 ) {
     val modeText = when (mode) {
@@ -106,6 +113,7 @@ fun SharingScreen(
             val text = if (appUpdatesNightly) R.string.sharing_app_updates else R.string.sharing_app_updates_manual
             Text(stringResource(text), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        activeMode?.let { org.plainphone.app.home.ModeLines(it) }
         // The hidden SOS is hidden from others, never from the child.
         hiddenSos.powerPresses?.let { presses ->
             val text = if (hiddenSos.withPosition) R.plurals.sharing_hidden_power_position else R.plurals.sharing_hidden_power

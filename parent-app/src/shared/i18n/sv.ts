@@ -3,12 +3,14 @@
 import type { Messages } from "./en";
 import { appUpdatesSv } from "./app-updates";
 import { platformSv } from "./platform";
+import { modesSv } from "./modes";
 import { statusEn } from "./status";
 
 export const sv: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesSv,
   ...platformSv,
+  ...modesSv,
   "status.outcome.approvedOnPhone": "Det här godkändes redan på telefonen med PIN-koden.",
   "status.never.title": "Ännu inte ansluten",
   "status.stale.title": "Senast online {when}",

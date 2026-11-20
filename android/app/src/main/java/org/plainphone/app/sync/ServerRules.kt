@@ -113,6 +113,8 @@ data class ServerRules(
      */
     val weeklySummaryEnabled: Boolean = false,
     val appUpdates: AppUpdateRules = AppUpdateRules(),
+    /** Modes on one weekly schedule (docs/modes.md); null while they are off or from older servers. */
+    val modes: ModesRules? = null,
     /** Limited emergency openings for a Self phone in light mode. Off when missing (older servers). */
     val selfEmergency: org.plainphone.app.light.EmergencyRules = org.plainphone.app.light.EmergencyRules.OFF,
 ) {
@@ -144,6 +146,7 @@ data class ServerRules(
                 pinApproval = j.optBoolean("pinApprovalEnabled", false),
                 weeklySummaryEnabled = j.optBoolean("weeklySummaryEnabled", false),
                 appUpdates = AppUpdateRules.parse(j.optJSONObject("appUpdates")),
+                modes = ModesRules.parse(j),
                 selfEmergency = org.plainphone.app.light.EmergencyRules.parse(j.optJSONObject("selfEmergency")),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {

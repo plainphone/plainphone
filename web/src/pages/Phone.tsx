@@ -538,6 +538,7 @@ export function PhoneOverview() {
       items: [
         { to: "time", label: t("phone.time"), hint: t("phone.timeHint") },
         { to: "schedules", label: t("phone.schedules"), hint: t("phone.schedulesHint") },
+        ...(phone.profile === "child" ? [{ to: "modes", label: t("modes.title"), hint: t("modes.switchHelp") }] : []),
       ],
     },
     {

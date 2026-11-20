@@ -2384,6 +2384,23 @@ main {
   gap: 0.25rem;
 }
 
+.week-plan .item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.week-plan .row-title {
+  min-width: 3rem;
+}
+
+.week-blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
 /* Emergency openings and key levels ----------------------------------------- */
 
 .emergency-list {

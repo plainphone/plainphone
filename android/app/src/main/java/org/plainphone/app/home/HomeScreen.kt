@@ -128,9 +128,11 @@ private fun FrontPage(ui: HomeUi, onShowAll: () -> Unit, actions: HomeActions) {
             Clock(ui.time, ui.date, onHeld = actions.clockHeld.takeIf { ui.hiddenClock })
             ui.noticeUntil?.let { until ->
                 Spacer(Modifier.height(20.dp))
+                val mode = ui.state.notice?.mode
                 Notice(
-                    when (ui.state.notice?.kind) {
-                        WindowNotice.Kind.BEDTIME -> stringResource(R.string.home_bedtime_until, until)
+                    when {
+                        mode != null -> stringResource(R.string.home_mode_until, modeLabel(mode), until)
+                        ui.state.notice?.kind == WindowNotice.Kind.BEDTIME -> stringResource(R.string.home_bedtime_until, until)
                         else -> stringResource(R.string.home_school_until, until)
                     },
                 )
