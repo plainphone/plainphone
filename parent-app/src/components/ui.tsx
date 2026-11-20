@@ -239,18 +239,21 @@ export function Button({
 export function LinkRow({
   title,
   meta,
+  note,
   badge,
   onPress,
   testID,
 }: {
   title: string;
   meta?: string;
+  /** A second line under meta, e.g. what an iPhone cannot do. */
+  note?: string;
   badge?: string;
   onPress: () => void;
   testID?: string;
 }) {
   const c = useColors();
-  const label = [title, meta, badge].filter(Boolean).join(". ");
+  const label = [title, meta, note, badge].filter(Boolean).join(". ");
   return (
     <Pressable
       testID={testID}
@@ -265,6 +268,7 @@ export function LinkRow({
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="label">{title}</Text>
         {meta ? <Text variant="small">{meta}</Text> : null}
+        {note ? <Text variant="small">{note}</Text> : null}
         {badge ? <Text style={{ color: c.accent, fontWeight: "700" }}>{badge}</Text> : null}
       </View>
       <RNText style={{ color: c.muted, fontSize: 22 }} importantForAccessibility="no" accessibilityElementsHidden>
