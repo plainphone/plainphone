@@ -74,6 +74,15 @@ export interface Phone {
   changeReceiptsEnabled?: boolean;
   healthBoardEnabled?: boolean;
   weeklySummaryEnabled?: boolean;
+  /** Age presets, the review reminder and the family agreement (Child phones). Missing on old servers. */
+  agePreset?: import("../shared/lib/age").AgePresetId | null;
+  reviewEnabled?: boolean;
+  reviewIntervalMonths?: number;
+  reviewDueAt?: string | null;
+  reviewDue?: boolean;
+  agreementEnabled?: boolean;
+  agreementOnHome?: boolean;
+  agreementHasText?: boolean;
   silentBedtime?: boolean;
   pinApprovalEnabled?: boolean;
   /** Strong mode: the nightly app update window. Missing on old servers (treated as on). */

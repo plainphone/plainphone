@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Machine translation. See docs/translations.md for native review status.
 import type { Messages } from "./en";
+import { ageNb } from "./age";
 import { appUpdatesNb } from "./app-updates";
 import { platformNb } from "./platform";
 import { statusEn } from "./status";
@@ -8,6 +9,7 @@ import { statusEn } from "./status";
 export const nb: Messages = {
   ...statusEn, // English until translated
   ...appUpdatesNb,
+  ...ageNb,
   ...platformNb,
   "status.outcome.approvedOnPhone": "Dette ble allerede godkjent på telefonen med PIN-koden.",
   "status.never.title": "Ikke tilkoblet ennå",

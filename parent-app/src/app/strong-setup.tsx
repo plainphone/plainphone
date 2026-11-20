@@ -4,29 +4,64 @@ import { useState } from "react";
 import { Linking } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { Phone, Profile } from "../api/models";
+import { AgePicker, AgreementFields, type AgreementDraft, agreementProblems, ReviewPicker } from "../components/AgeControls";
 import { PhoneLanguagePicker } from "../components/PhoneLanguagePicker";
 import { RequireAuth } from "../components/RequireAuth";
-import { Button, Choice, errorMessage, Field, LiveStatus, type NoticeValue, PageTitle, Screen, Stack } from "../components/ui";
+import { Button, Choice, errorMessage, Field, LiveStatus, LoadGate, type NoticeValue, PageTitle, Screen, Stack, Text, useLoad } from "../components/ui";
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
+import { type AgePreset, type AgePresetId, parseLines } from "../shared/lib/age";
 import type { PhoneLanguage } from "../shared/lib/phone-language";
+
+type Stage = "who" | "age" | "agreement";
+
+/** Saves the setup choices on the new phone. True when something could not be saved. */
+async function saveChoices(pid: string, age: { preset: AgePresetId | null; review: boolean; months: number }, agreement: AgreementDraft): Promise<boolean> {
+  let failed = false;
+  const attempt = async (call: () => Promise<unknown>) => {
+    try {
+      await call();
+    } catch {
+      failed = true;
+    }
+  };
+  const params = { params: { path: { pid } } };
+  if (age.preset) await attempt(() => unwrap(client.POST("/phones/{pid}/age-preset", { ...params, body: { preset: age.preset! } })));
+  if (age.review) await attempt(() => unwrap(client.PUT("/phones/{pid}/review", { ...params, body: { enabled: true, intervalMonths: age.months } as never })));
+  const lines = parseLines(agreement.lines);
+  const adultLines = parseLines(agreement.adultLines);
+  if (lines.length > 0 || adultLines.length > 0) {
+    await attempt(() => unwrap(client.PUT("/phones/{pid}/agreement", { ...params, body: { lines, adultLines } as never })));
+  }
+  return failed;
+}
 
 function StrongSetup() {
   const { t } = useI18n();
   const router = useRouter();
+  const [stage, setStage] = useState<Stage>("who");
   const [name, setName] = useState("");
   const [profile, setProfile] = useState<Profile>("child");
   const [language, setLanguage] = useState<PhoneLanguage>(null);
+  const [age, setAge] = useState<{ preset: AgePresetId | null; review: boolean; months: number }>({ preset: null, review: true, months: 3 });
+  const [agreement, setAgreement] = useState<AgreementDraft>({ lines: "", adultLines: "" });
   const [phoneId, setPhoneId] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<NoticeValue | null>(null);
+  const presets = useLoad(async () => (await unwrap<{ presets: AgePreset[] }>(client.GET("/age-presets"))).presets, []);
 
-  async function continueSetup() {
+  function next() {
     if (!name.trim()) {
       setError(t("pair.nameRequired"));
       return;
     }
+    // A Child phone has two optional steps before the browser: where the rules start, and the agreement.
+    if (profile === "child" && !phoneId) setStage("age");
+    else void continueSetup();
+  }
+
+  async function continueSetup(skipAgreement = false) {
     setBusy(true);
     setNotice(null);
     try {
@@ -37,6 +72,10 @@ function StrongSetup() {
         }));
         id = phone.id;
         setPhoneId(id);
+        // The phone exists now: what was chosen on the way is saved on it. A failure here never loses the setup.
+        if (profile === "child" && await saveChoices(id, age, skipAgreement ? { lines: "", adultLines: "" } : agreement)) {
+          setNotice({ tone: "warn", text: t("age.setupSaveFailed") });
+        }
       }
       // Reopening the browser after an error reuses the phone that was already saved.
       await Linking.openURL(`${SERVER_URL}/phones/${id}/setup`);
@@ -46,6 +85,48 @@ function StrongSetup() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (stage === "age") {
+    return (
+      <Screen testID="setup-age">
+        <PageTitle sub={t("age.setupIntro")}>{t("age.setupTitle", { name: name.trim() })}</PageTitle>
+        <Stack>
+          <LoadGate res={presets}>
+            {(list) => <AgePicker presets={list} value={age.preset} onChange={(preset) => setAge({ ...age, preset })} />}
+          </LoadGate>
+          <ReviewPicker enabled={age.review} months={age.months} onEnabled={(review) => setAge({ ...age, review })} onMonths={(months) => setAge({ ...age, months })} />
+          <Button testID="setup-age-next" title={t("age.continue")} onPress={() => setStage("agreement")} />
+          <Button kind="secondary" title={t("app.back")} onPress={() => setStage("who")} />
+        </Stack>
+      </Screen>
+    );
+  }
+
+  if (stage === "agreement") {
+    const problems = agreementProblems(agreement);
+    const empty = parseLines(agreement.lines).length === 0 && parseLines(agreement.adultLines).length === 0;
+    return (
+      <Screen testID="setup-agreement">
+        <PageTitle sub={t("age.agreement.intro")}>{t("age.agreement.title")}</PageTitle>
+        <Stack>
+          <Text variant="small">{t("age.agreement.optional")}</Text>
+          <AgreementFields draft={agreement} onChange={setAgreement} disabled={busy} />
+          <LiveStatus notice={notice} />
+          <Button
+            testID="setup-agreement-next"
+            title={t("phoneLanguage.browser")}
+            busy={busy}
+            disabled={problems.lines !== null || problems.adultLines !== null}
+            onPress={() => void continueSetup()}
+          />
+          {!empty ? (
+            <Button kind="secondary" title={t("age.skip")} disabled={busy} onPress={() => { setAgreement({ lines: "", adultLines: "" }); void continueSetup(true); }} />
+          ) : null}
+          <Button kind="secondary" title={t("app.back")} disabled={busy} onPress={() => setStage("age")} />
+        </Stack>
+      </Screen>
+    );
   }
 
   return (
@@ -68,7 +149,7 @@ function StrongSetup() {
         />
         <PhoneLanguagePicker value={language} onChange={setLanguage} setup={profile === "child"} disabled={busy || !!phoneId} />
         <LiveStatus notice={notice} />
-        <Button title={t("phoneLanguage.browser")} busy={busy} onPress={() => void continueSetup()} />
+        <Button title={t(profile === "child" && !phoneId ? "age.continue" : "phoneLanguage.browser")} busy={busy} onPress={next} />
       </Stack>
     </Screen>
   );

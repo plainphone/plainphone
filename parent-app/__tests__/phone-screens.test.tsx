@@ -72,11 +72,18 @@ describe("pairing", () => {
   it("saves the strong setup language before opening the QR flow in the browser", async () => {
     const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);
     try {
-      const api = phoneApi(PHONE, { "POST /phones/enroll": { status: 201, body: { phone: PHONE } } });
+      const api = phoneApi(PHONE, {
+        "POST /phones/enroll": { status: 201, body: { phone: PHONE } },
+        "GET /age-presets": { body: { presets: [] } },
+      });
       await renderRouter(routes, { initialUrl: "/strong-setup" });
       await fireEvent.changeText(await screen.findByLabelText("Name"), "Test phone");
       await fireEvent.press(screen.getByRole("radio", { name: "Svenska" }));
-      await fireEvent.press(screen.getByRole("button", { name: "Continue in the browser" }));
+      // A Child phone has two optional steps first; skipped here, with the review reminder switched off.
+      await fireEvent.press(screen.getByRole("button", { name: "Continue" }));
+      await fireEvent.press(await screen.findByTestId("review-switch"));
+      await fireEvent.press(screen.getByTestId("setup-age-next"));
+      await fireEvent.press(await screen.findByRole("button", { name: "Continue in the browser" }));
       await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringMatching(`/phones/${PHONE.id}/setup$`)));
       expect(api.calls.find((c) => c.path === "/phones/enroll")?.body).toEqual({ mode: "strong", language: "sv", name: "Test phone", profile: "child" });
     } finally {
