@@ -52,8 +52,10 @@ could pair the phone to an account of their own and open everything.
 So a parent's change, "Find", a ring or an "Are you okay?" reaches a phone that is in use within
 about a minute, and a phone lying in a pocket within about 2 minutes while Android is not in deep
 sleep. In deep Doze (screen off and still for a long time) Android stretches idle alarms to
-about every 9 to 15 minutes, and WorkManager to 15 minutes or more. Push via FCM is the planned
-way to close that gap; polling stays the guarantee, so phones without Google Play services work.
+about every 9 to 15 minutes, and WorkManager to 15 minutes or more. Push wake-ups (FCM or UnifiedPush,
+**Faster rule updates**, on by default for new phones when the server can wake them) close that gap;
+polling stays the guarantee, so phones without Google Play services work. Expected and measured
+times per path are in [latency.md](latency.md).
 
 One sync: report the installed apps if they changed, fetch the rules with `If-None-Match`, store
 them, re-apply the lock if the merged result changed (or every 15 minutes anyway, which heals
@@ -131,7 +133,6 @@ raw step names and app installation overruns under **Show technical details**.
 
 ## Not done yet
 
-- Push (FCM). Polling covers it, more slowly with the screen off.
 - The phone does not yet show pending Self-profile changes with a countdown, or let the child
   ask for a new app or contact.
 - Nothing here has run on a real phone yet. The chain is tested end to end against the real

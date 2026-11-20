@@ -1725,6 +1725,12 @@ paths:
       summary: Report a child SOS once per client ID
       tags: [device]
       security: [{ device: [] }]
+      parameters:
+        - name: X-Plainphone-Elapsed-Ms
+          in: header
+          required: false
+          description: Milliseconds since the press on the phone's monotonic clock, for the delivery timing (docs/latency.md). A header, so older servers ignore it. Also accepted on `POST /device/quick-messages/send`.
+          schema: { type: string, pattern: "^[0-9]{1,10}$" }
       requestBody:
         required: true
         content:
