@@ -297,9 +297,9 @@ it("writes the iPhone line in the parent's language", () => {
 });
 
 it.each([
-  { when: "open", until: "2026-11-16T12:03:00Z", line: "phone.liftedOpen", notice: "notice-info", time: "12:03" },
-  { when: "past and silent", until: "2026-11-16T11:40:00Z", line: "phone.liftedOverdue", notice: "notice-warn", time: "11:40" },
-] as const)("shows the lifted account window as a calm line or a warning when $when", ({ until, line, notice, time }) => {
+  { when: "open", until: "2026-11-16T12:03:00Z", reportedAt: "2026-11-16T11:59:00Z", line: "phone.liftedOpen", notice: "notice-info", time: "12:03" },
+  { when: "past and silent", until: "2026-11-16T11:50:00Z", reportedAt: "2026-11-16T11:49:00Z", line: "phone.liftedOverdue", notice: "notice-warn", time: "11:50" },
+] as const)("shows the lifted account window as a calm line or a warning when $when", ({ until, reportedAt, line, notice, time }) => {
   const zone = process.env.TZ;
   process.env.TZ = "UTC";
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -307,7 +307,7 @@ it.each([
   try {
     const html = renderPhone({
       ...phone,
-      status: { ...phone.status, failedPolicies: [], liftedPolicies: [{ name: "restriction no_modify_accounts", until }] },
+      status: { ...phone.status, failedPolicies: [], liftedPolicies: [{ name: "restriction no_modify_accounts", until }], reportedAt },
     });
     const t = makeT("en");
     expect(html).toContain(`<p class="notice ${notice}" role="status">${t(line, { time })}</p>`);
