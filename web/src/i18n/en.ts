@@ -6,7 +6,7 @@
 import { appUpdatesEn } from "./app-updates";
 import { statusEn } from "./status";
 
-const filterSummary = "The web filter makes you less likely to encounter websites in the categories you choose, but some can still get through.";
+const filterSummary = "The web filter makes it less likely that the phone shows websites in the categories you choose, but some can still get through.";
 const filterLimits = "Useful sites can also be blocked. Helplines and selected health information sites are always available.";
 const nextOnline = "the next time the phone is online (usually within a minute).";
 const changeTiming = `Takes effect ${nextOnline}`;
@@ -557,7 +557,7 @@ export const en = {
   "checkin.noReplyLocated": "No answer in time. The phone sent its position at {time}.",
 
   "key.title": "Key",
-  "key.intro": "Stricter rules take effect the next time the phone is online. Looser rules wait for your key.",
+  "key.intro": `Stricter rules take effect ${nextOnline} Looser rules wait for your key.`,
   "key.type": "What it takes to loosen a rule",
   "key.delay": "A delay",
   "key.delayHelp": "Loosening waits the number of hours you choose. You can cancel while it waits.",

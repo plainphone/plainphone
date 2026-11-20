@@ -4,7 +4,7 @@ import { appUpdatesDa } from "./app-updates";
 import { statusDa } from "./status";
 
 // Typed as Messages: a missing or extra key is a type error.
-const filterSummary = "Webfilteret gør det mindre sandsynligt, at du møder hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
+const filterSummary = "Webfilteret gør det mindre sandsynligt, at telefonen viser hjemmesider i de kategorier, du vælger, men noget kan stadig slippe igennem.";
 const filterLimits = "Nyttige sider kan også blive blokeret. Hjælpelinjer og udvalgte sider med sundhedsinfo er altid åbne.";
 const nextOnline = "næste gang telefonen er online (normalt inden for et minut).";
 const changeTiming = `Gælder, ${nextOnline}`;
@@ -555,7 +555,7 @@ export const da: Messages = {
   "checkin.noReplyLocated": "Intet svar i tide. Telefonen sendte sin placering kl. {time}.",
 
   "key.title": "Nøgle",
-  "key.intro": "Strammere regler gælder, næste gang telefonen er online. Løsere regler venter på nøglen.",
+  "key.intro": `Strammere regler gælder, ${nextOnline} Løsere regler venter på nøglen.`,
   "key.type": "Hvad der skal til for at løsne en regel",
   "key.delay": "En ventetid",
   "key.delayHelp": "En løsere regel venter det antal timer, du vælger. Du kan annullere, mens den venter.",

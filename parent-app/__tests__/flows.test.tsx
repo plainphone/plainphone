@@ -5,8 +5,10 @@ import * as SecureStore from "expo-secure-store";
 import * as Notifications from "expo-notifications";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
+import { Linking as RNLinking, StyleSheet } from "react-native";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { getSessionToken } from "../src/api/client";
+import { dark } from "../src/lib/theme";
 import { fakeApi, ME, PHONE } from "../test/fakeApi";
 
 jest.mock("expo-linking", () => {
@@ -44,7 +46,7 @@ describe("logging in", () => {
       "POST /auth/request": { status: 202, body: { mailEnabled: true } },
     });
     await renderRouter(routes, { initialUrl: "/login" });
-    await fireEvent.press(await screen.findByText("Use your own server"));
+    await fireEvent.press(await screen.findByText("Do you run your own server?"));
     await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
     await fireEvent.press(screen.getByText("Connect"));
     await screen.findByText(`This app talks to ${custom}.`);
@@ -96,6 +98,26 @@ describe("logging in", () => {
     await fireEvent.press(screen.getByText("Use your own server"));
     await fireEvent.press(screen.getByText("Use plainphone.org"));
     expect(await screen.findByText("This app talks to https://app.plainphone.org.")).toBeTruthy();
+  });
+
+  it("shows the self-hosting guide as a link in the accent colour in dark mode", async () => {
+    const scheme = jest.spyOn(require("react-native/Libraries/Utilities/useColorScheme"), "default").mockReturnValue("dark");
+    const open = jest.spyOn(RNLinking, "openURL").mockResolvedValue(true);
+    try {
+      await SecureStore.setItemAsync("pp.server", "https://plainphone.example.org");
+      fakeApi({
+        "GET /health": ({ origin }) => ({ body: { ok: true, mail: origin.includes("example.org") ? "none" : "smtp" } }),
+      });
+      await renderRouter(routes, { initialUrl: "/login" });
+      await fireEvent.press(await screen.findByText("Do you run your own server?"));
+      const link = screen.getByRole("link", { name: /self-hosting/i });
+      expect(StyleSheet.flatten(screen.getByText(/self-hosting/i).props.style).color).toBe(dark.accent);
+      await fireEvent.press(link);
+      expect(open).toHaveBeenCalledWith("https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md");
+    } finally {
+      scheme.mockRestore();
+      open.mockRestore();
+    }
   });
 
   it("holds login submissions until server validation finishes", async () => {
@@ -311,7 +333,7 @@ describe("signed in", () => {
       "POST /auth/request": { status: 202, body: { mailEnabled: true } },
     });
     await renderRouter(routes, { initialUrl: "/settings" });
-    await fireEvent.press(await screen.findByText("Use your own server"));
+    await fireEvent.press(await screen.findByText("Do you run your own server?"));
     await fireEvent.changeText(await screen.findByLabelText("Server address"), custom);
 
     const forget = jest.mocked(SecureStore.deleteItemAsync).getMockImplementation()!;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Link, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Linking, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, client, unwrap } from "../api/client";
 import { ServerChoice } from "../components/ServerChoice";
@@ -11,13 +11,16 @@ import { Button, errorMessage, Field, Loading, LiveStatus, Notice, PageTitle, Sc
 import { useI18n } from "../i18n/I18n";
 import { SERVER_URL } from "../lib/config";
 import { useSession } from "../lib/session";
-import { space } from "../lib/theme";
+import { space, touch, useColors } from "../lib/theme";
 import { EMAIL_RE } from "../lib/validate";
 
 export { EMAIL_RE };
 
+const SELF_HOSTING_GUIDE = "https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md";
+
 export default function LoginScreen() {
   const { t, locale } = useI18n();
+  const colors = useColors();
   const { state, next, takeNext, serverUrl, serverChanging, changeServer } = useSession();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -122,9 +125,13 @@ export default function LoginScreen() {
                 <Notice tone="warn" text={t("login.noMail")} />
                 <Disclosure title={t("login.selfHost")}>
                   <Text>{t("login.selfHostHelp")}</Text>
-                  <Link href="https://github.com/plainphone/plainphone/blob/main/docs/self-hosting.md">
-                    {t("login.selfHostGuide")}
-                  </Link>
+                  <Pressable
+                    onPress={() => void Linking.openURL(SELF_HOSTING_GUIDE).catch(() => undefined)}
+                    accessibilityRole="link"
+                    style={{ minHeight: touch, justifyContent: "center" }}
+                  >
+                    <Text style={{ color: colors.accent, textDecorationLine: "underline" }}>{t("login.selfHostGuide")}</Text>
+                  </Pressable>
                 </Disclosure>
               </>
             ) : null}
