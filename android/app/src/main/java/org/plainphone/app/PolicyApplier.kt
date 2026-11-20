@@ -10,8 +10,11 @@ import org.plainphone.app.settings.SettingsApplier
 data class StepResult(val name: String, val ok: Boolean, val detail: String = "", val profilesRemoved: Boolean = false,
     /** Not a failure, but not in force yet either: no acknowledgment until a later run succeeds. */
     val waiting: Boolean = false,
+    /** Deliberately lifted for an approved window until this wall-clock time: not a failure, not in force either. */
+    val liftedUntilMs: Long? = null,
 ) {
-    override fun toString() = (if (ok) "OK   " else "FAIL ") + name + if (detail.isEmpty()) "" else ": $detail"
+    override fun toString() = (if (liftedUntilMs != null) "LIFT " else if (ok) "OK   " else "FAIL ") + name +
+        if (detail.isEmpty()) "" else ": $detail"
 }
 
 /** Remembers which apps we hid, so they can be shown again. */
@@ -37,7 +40,8 @@ class PolicyApplier(
     private val settings: SettingsApplier? = null,
     private val onInstallsAllowed: () -> Unit = {},
     private val clearInstallsIfAllowed: ((PolicyConfig, () -> Unit) -> Boolean)? = null,
-    private val enforceAccountRestriction: (() -> Unit) -> Unit = { it() },
+    /** Adds the account restriction, or returns the deadline of the approved window that has it lifted. */
+    private val enforceAccountRestriction: (() -> Unit) -> Long? = { it(); null },
     /** True while an install lease is open (update/InstallLease.kt): installs must get through. */
     private val installsAllowed: (PolicyConfig) -> Boolean = { it.installing != null },
 ) {
@@ -79,12 +83,14 @@ class PolicyApplier(
             }
         }
         for (key in LockPolicy.restrictions(sdkInt, config.lockSystemLanguage)) {
+            var liftedUntil: Long? = null
             results += if (key == INSTALL_APPS) applyInstallRestriction(config)
             else step("restriction $key") {
                 if (key == UserManager.DISALLOW_MODIFY_ACCOUNTS) {
-                    enforceAccountRestriction { device.addRestriction(key) }
+                    liftedUntil = enforceAccountRestriction { device.addRestriction(key) }
+                    if (liftedUntil != null) "lifted for an approved sign-in" else null
                 } else device.addRestriction(key)
-            }
+            }.copy(liftedUntilMs = liftedUntil)
         }
         results += step("block uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, true) }
         results += step("automatic date and time") { device.requireAutoTime(true) }
@@ -130,6 +136,10 @@ class PolicyApplier(
         }
         results += step("allow uninstall of Plainphone") { device.setUninstallBlocked(device.ownPackage, false) }
         results += step("clear Chrome managed config") { device.setAppRestrictions(LockPolicy.CHROME_PACKAGE, null) }
+        // The Android 10 force stop guard of an install window (update/ForceStopGuard.kt).
+        if (sdkInt < 30) results += step("clear ${UserManager.DISALLOW_APPS_CONTROL}") {
+            device.clearRestriction(UserManager.DISALLOW_APPS_CONTROL)
+        }
         hardening?.let { results += it.release() }
         if (results.any { it.name == "clear FRP policy" && !it.ok } && device.isDeviceOwner()) return results
         results += step("give phone and SMS roles back") { giveRolesBack() }

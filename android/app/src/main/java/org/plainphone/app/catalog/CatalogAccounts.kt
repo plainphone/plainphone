@@ -4,6 +4,7 @@ package org.plainphone.app.catalog
 
 import android.accounts.Account
 import android.accounts.AccountManager
+import android.accounts.AccountManagerFuture
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.SystemClock
@@ -83,6 +84,8 @@ internal object CatalogAccounts {
                     AndroidDeviceControls(context).clearRestriction(RESTRICTION)
                 })
                 check(!context.getSystemService(UserManager::class.java).hasUserRestriction(RESTRICTION))
+                // The dashboard shows the restriction as lifted until the fallback's deadline.
+                SyncScheduler.now(context, "Accounts allowed briefly")
             }
             // A new approved request must not end the tracking of an expired fallback: its login can still
             // finish. Check for additions already present in case the account listener has not run yet,
@@ -122,6 +125,34 @@ internal object CatalogAccounts {
         return added
     }
 
+    private val pendingSignIns = mutableMapOf<String, Pair<Request, AccountManagerFuture<*>>>()
+
+    /** Remembers the authenticator request, so that it is cancelled when its window closes. */
+    fun trackSignIn(context: Context, request: Request, future: AccountManagerFuture<*>) {
+        synchronized(pendingSignIns) { pendingSignIns[request.id] = request to future }
+        cancelClosedSignIns(context)
+    }
+
+    fun signInFinished(request: Request) {
+        synchronized(pendingSignIns) { pendingSignIns.remove(request.id) }
+    }
+
+    /**
+     * Cancels the account request of a closed window. The authenticator's own screen can stay open;
+     * an account it adds later is outside the approved set and is reported ([ApprovedAccounts]).
+     * Called outside the lease lock.
+     */
+    fun cancelClosedSignIns(context: Context) {
+        val lease = InstallLease.android(context)
+        val closed = synchronized(pendingSignIns) {
+            pendingSignIns.values.filter { (request, _) ->
+                if (request.fallback) !lease.allowsCatalogAccountChanges(request.id)
+                else lease.catalogId() != request.leaseId
+            }.onEach { pendingSignIns.remove(it.first.id) }
+        }
+        closed.forEach { it.second.cancel(true) }
+    }
+
     // Called under the lease lock after relock. Taking the listener lock here would invert lock order.
     @SuppressLint("ApplySharedPref")
     fun recordFallbackOutcome(context: Context, id: String, allowSuccess: Boolean) {
@@ -139,10 +170,26 @@ internal object CatalogAccounts {
     }
 
     @Synchronized
-    private fun accountsUpdated(context: Context) = reconcile(context)
+    private fun accountsUpdated(context: Context) {
+        // Decide before reconciling, which ends a fallback as soon as its account arrives.
+        val signInOpen = approvedOpen(context, trackedMarkers(context))
+        try {
+            reconcile(context)
+        } finally {
+            ApprovedAccounts.onAccountsChanged(context, signInOpen)
+        }
+    }
+
+    private fun trackedMarkers(context: Context) =
+        recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
+
+    // An open approved sign-in or an open fallback (no outcome yet) expects its own new account.
+    private fun approvedOpen(context: Context, markers: Map<String, JSONArray>) = markers.any { (_, m) ->
+        if (m.optBoolean(5)) !m.hasOutcome() else isOpen(context, m.getString(2), m.getString(0))
+    }
 
     private fun reconcile(context: Context) {
-        val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
+        val markers = trackedMarkers(context)
         if (markers.isEmpty()) return
         val current = fingerprints(context, allTypes = markers.values.any { it.optBoolean(5) })
         if (Lock.isInMaintenanceWindow(context)) {
@@ -152,10 +199,7 @@ internal object CatalogAccounts {
         }
         val google = current.filterValues { it == GOOGLE }
         val lease = InstallLease.android(context)
-        // An open approved sign-in or an open fallback (no outcome yet) expects its own new account.
-        val approvedOpen = markers.any { (_, m) ->
-            if (m.optBoolean(5)) !m.hasOutcome() else isOpen(context, m.getString(2), m.getString(0))
-        }
+        val approvedOpen = approvedOpen(context, markers)
         markers.forEach { (id, marker) ->
             val baseline = baseline(marker)
             if (marker.optBoolean(5)) {
@@ -179,7 +223,8 @@ internal object CatalogAccounts {
     /** The maintenance unlock ended: accounts the parents added meanwhile are not late ones. */
     @Synchronized
     fun maintenanceEnded(context: Context) {
-        val markers = recentMarkers(context).filterValues { !it.hasOutcome() || it.optBoolean(5) }
+        ApprovedAccounts.approveCurrent(context)
+        val markers = trackedMarkers(context)
         if (markers.isEmpty()) return
         absorb(context, markers, fingerprints(context, allTypes = true))
     }

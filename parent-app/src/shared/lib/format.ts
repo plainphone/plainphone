@@ -48,6 +48,11 @@ export function formatDateTime(iso: string, locale: Locale): string {
   }).format(new Date(iso));
 }
 
+/** A time of day in the user's format: 14:05 in English, 14.05 in Danish. */
+export function formatTimeOfDay(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
+}
+
 /** Android key attestation reports the OS security update as YYYYMM. */
 export function formatPatchMonth(level: number | null | undefined, locale: Locale): string | null {
   if (!level || !Number.isInteger(level)) return null;

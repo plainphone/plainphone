@@ -300,6 +300,79 @@ describe("protection removed", () => {
   });
 });
 
+describe("lifted lock step (#75)", () => {
+  const NAME = "restriction no_modify_accounts";
+  const lifted = (afterMs: number) => [{ name: NAME, until: new Date(h.clock.now.getTime() + afterMs).toISOString() }];
+
+  it("keeps the lock intact and quiet while the window is open, and shows the deadline to the parents", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    const { device, phoneId } = await pairPhone(h, mum);
+    await device.put("/api/device/status", status());
+    const liftedPolicies = lifted(3 * 60_000);
+    expect((await device.put("/api/device/status", status({ liftedPolicies }))).status).toBe(204);
+    // Two minutes past the deadline is still within the grace for clock skew.
+    h.clock.advance(5 * 60_000 - 1000);
+    expect((await device.put("/api/device/status", status({ liftedPolicies }))).status).toBe(204);
+    expect(h.parentPush.sent).toHaveLength(0);
+    const seen = (await mum.get(`/api/phones/${phoneId}`)).json.status;
+    expect(seen).toMatchObject({ lockIntact: true, failedPolicies: [], liftedPolicies });
+    expect(seen).not.toHaveProperty("liftedOverdueAlertedAt");
+  });
+
+  it("counts a window that is still open after its deadline as a failed step, and alerts once", async () => {
+    const mum = await signIn(h, "mum@example.org", "da");
+    await subscribe(mum, "mum");
+    const { device, phoneId } = await pairPhone(h, mum, { name: "Alma" });
+    await device.put("/api/device/status", status());
+    const liftedPolicies = lifted(3 * 60_000);
+    h.clock.advance(6 * 60_000);
+    await device.put("/api/device/status", status({ liftedPolicies, failedPolicies: ["dialer role"] }));
+    await device.put("/api/device/status", status({ liftedPolicies }));
+    expect(h.parentPush.sent).toHaveLength(1);
+    expect(h.parentPush.sent[0]).toMatchObject({ urgent: true, msg: { title: "Beskyttelsen er fjernet på Alma" } });
+    const seen = (await mum.get(`/api/phones/${phoneId}`)).json.status;
+    expect(seen.lockIntact).toBe(false);
+    expect(seen.failedPolicies).toEqual([NAME]);
+  });
+
+  it("tells the parents once when the phone stays silent after the deadline, and clears on the next report", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    const { device } = await pairPhone(h, mum, { name: "Alma" });
+    await withoutSummary();
+    await device.put("/api/device/status", status({ liftedPolicies: lifted(3 * 60_000) }));
+    h.clock.advance(3 * 60_000 + 9 * 60_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    h.clock.advance(2 * 60_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(1);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    expect(h.parentPush.sent.map((s) => s.msg.title)).toEqual(["Alma: account changes may still be allowed"]);
+    expect(h.parentPush.sent[0]).toMatchObject({ urgent: true, msg: { url: expect.stringContaining("/phones/") } });
+    expect(h.mail.outbox.at(-1)!.subject).toBe("Alma: account changes may still be allowed");
+    // The phone is back: the marker goes with the replaced status, and a later lifted window can alert again.
+    await device.put("/api/device/status", status());
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    await device.put("/api/device/status", status({ liftedPolicies: lifted(3 * 60_000) }));
+    h.clock.advance(14 * 60_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(1);
+  });
+
+  it("leaves a phone alone that reported after the deadline", async () => {
+    const mum = await signIn(h, "mum@example.org");
+    await subscribe(mum, "mum");
+    const { device } = await pairPhone(h, mum, { name: "Alma" });
+    await withoutSummary();
+    await device.put("/api/device/status", status({ liftedPolicies: lifted(60_000) }));
+    h.clock.advance(5 * 60_000);
+    await device.put("/api/device/status", status({ liftedPolicies: lifted(-4 * 60_000) }));
+    const pushes = h.parentPush.sent.length;
+    h.clock.advance(30 * 60_000);
+    expect((await sweep(h.ctx)).offlineAlerts).toBe(0);
+    expect(h.parentPush.sent).toHaveLength(pushes);
+  });
+});
+
 describe("offline (#22)", () => {
   it("notifies once after 12 hours without contact, and again only after the phone was back", async () => {
     const mum = await signIn(h, "mum@example.org");

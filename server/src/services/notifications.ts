@@ -16,13 +16,14 @@ import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
 import { batchedIntoSummary } from "./alert-policy.js";
 import type { Ctx } from "./context.js";
+import { LIFTED_SILENT_MS } from "../lib/lifted-policies.js";
 import { recordSummaryEvent } from "./summary-record.js";
 
 /** After this many failed sends in a row (not 404/410), a subscription is dropped. */
 const MAX_FAILURES = 20;
 
 export type NotifyEvent =
-  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo"; reportedLate?: boolean; trusted?: boolean }
+  | { type: "protection"; phoneId: string; phoneName: string; reason: "lock" | "owner" | "setup-undo" | "lifted"; reportedLate?: boolean; trusted?: boolean }
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   /** A light phone confirmed its set-up but never connected: the parent is asked to open the app on it or remove it. */
   | { type: "neverConnected"; phoneId: string; phoneName: string }
@@ -344,5 +345,35 @@ async function alertNeverConnectedPhones(ctx: Ctx, hours: ReturnType<typeof sql>
     )
     .returning({ id: phones.id, name: phones.name });
   for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "neverConnected", phoneId: p.id, phoneName: p.name });
+  return claimed.length;
+}
+
+/**
+ * A phone lifted a lock step for an approved window (docs/policies.md) and has been silent since the
+ * deadline, for example because Plainphone was force-stopped before it could put the step back. A phone
+ * that does report is judged by the status route instead. Tells the parents once; the next status report
+ * replaces the stored status and so clears the marker. Called by the sweeper.
+ */
+export async function alertLiftedOverdue(ctx: Ctx): Promise<number> {
+  const now = ctx.now();
+  const lifted = sql`case when jsonb_typeof(${phones.deviceStatus}->'liftedPolicies') = 'array'
+    then ${phones.deviceStatus}->'liftedPolicies' else '[]'::jsonb end`;
+  // Claim the alert first, so two sweeps (or two servers) cannot both send it.
+  const claimed = await ctx.db
+    .update(phones)
+    .set({ deviceStatus: sql`jsonb_set(${phones.deviceStatus}, '{liftedOverdueAlertedAt}', to_jsonb(${now.toISOString()}::text))` })
+    .where(
+      and(
+        isNotNull(phones.statusReportedAt),
+        sql`${phones.deviceStatus}->>'liftedOverdueAlertedAt' is null`,
+        sql`exists (
+          select 1 from jsonb_array_elements(${lifted}) as e
+          where (e->>'until')::timestamptz < ${now.toISOString()}::timestamptz - make_interval(secs => ${LIFTED_SILENT_MS / 1000})
+            and ${phones.statusReportedAt} <= (e->>'until')::timestamptz
+        )`,
+      ),
+    )
+    .returning({ id: phones.id, name: phones.name });
+  for (const p of claimed) await notifyHousehold(ctx, p.id, { type: "protection", phoneId: p.id, phoneName: p.name, reason: "lifted" });
   return claimed.length;
 }

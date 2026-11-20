@@ -164,6 +164,7 @@ data class DeviceStatus(
     val pushProvider: String? = null,
     val filter: org.plainphone.app.light.FilterHealth? = null,
     val appUpdates: org.plainphone.app.update.AppUpdateLog.Report? = null,
+    val liftedPolicies: List<LiftedPolicy> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("appVersion", appVersion.take(40))
@@ -196,6 +197,9 @@ data class DeviceStatus(
                 put("parallelAppsRemovedId", it)
             }
             lateGoogleAccountId?.let { put("lateGoogleAccountId", it) }
+            if (liftedPolicies.isNotEmpty()) put("liftedPolicies", JSONArray(liftedPolicies.take(10).map {
+                JSONObject().put("name", it.name.take(200)).put("until", iso(it.untilMs))
+            }))
             installOverrunSequence?.let { put("installOverrunSequence", it) }
             pushProvider?.let { put("pushProvider", it) }
             appVersionCode?.let { put("appVersionCode", it) }

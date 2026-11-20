@@ -605,6 +605,8 @@ export const sv: Messages = {
   "phone.callRoleActionNeeded": "Öppna Plainphone på telefonen och tryck på Tillåt",
   "phone.parallelAppsRemoved": "Parallella appar har tagits bort.",
   "phone.lateGoogleAccount": "En oväntad kontoändring upptäcktes under eller efter appinstallationen",
+  "phone.liftedOpen": "Kontoändringar är tillåtna för en godkänd inloggning till kl. {time}.",
+  "phone.liftedOverdue": "Kontoändringar var tillåtna för en inloggning till kl. {time}. Telefonen har inte hört av sig sedan dess.",
   "phone.accountTypes": "Konton på telefonen: {types}",
   "phone.attVerified": "System oförändrat (kontrolleras av telefonens säkerhetschip)",
   "phone.attUnlocked": "Ett annat operativsystem kan installeras på den här telefonen. Plainphone kan inte garantera låset eller skydda telefonen efter en återställning.",

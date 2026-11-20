@@ -25,6 +25,8 @@ class InstallLease(
     private val onRecovered: (Boolean) -> Unit = {},
     private val relockCatalogAccounts: () -> Unit = {},
     private val onCatalogAccountsClosed: (String, Boolean) -> Unit = { _, _ -> },
+    /** Android 10: takes Force stop away while a lease is open, so the watchdog survives (ForceStopGuard). */
+    private val guardWindow: (open: Boolean) -> Unit = {},
     /** Opens the restriction through the normal policy path. */
     private val applyLock: (reason: String, catalogChanged: Boolean) -> Unit,
 ) {
@@ -100,8 +102,16 @@ class InstallLease(
     internal fun allowsCatalogAccountChanges(requestId: String): Boolean =
         isOpen(CATALOG_ACCOUNTS, requestId)
 
-    internal fun enforceAccountRestriction(addRestriction: () -> Unit) = synchronized(LOCK) {
-        if (!isOpen(CATALOG_ACCOUNTS)) addRestriction()
+    /** Adds the account restriction unless an approved fallback has it lifted; then returns its wall-clock deadline. */
+    internal fun enforceAccountRestriction(addRestriction: () -> Unit): Long? = synchronized(LOCK) {
+        accountsLiftedUntilLocked().also { if (it == null) addRestriction() }
+    }
+
+    /** The wall-clock deadline of the open account fallback, or null when none is open. */
+    internal fun accountsLiftedUntil(): Long? = synchronized(LOCK) { accountsLiftedUntilLocked() }
+
+    private fun accountsLiftedUntilLocked(): Long? = valid(loadLocked())[CATALOG_ACCOUNTS]?.let {
+        it.wallDeadlineMs ?: (env.wallNowMs() + it.untilMs - env.nowMs())
     }
 
     private fun clearWhileAllowed(allowed: () -> Boolean, clear: () -> Unit): Boolean {
@@ -192,6 +202,7 @@ class InstallLease(
                         val lease = Lease(until, env.bootCount(), env.versionCode(), env.processId(),
                             wallDeadlineMs = wallDeadline, id = id)
                         env.scheduleExpiry(holder, until)
+                        guardWindow(true)
                         store.save(current + (holder to lease))
                         started = lease
                     }
@@ -232,7 +243,11 @@ class InstallLease(
             it != closingHolder && !(closingHolder == CATALOG && it == CATALOG_ACCOUNTS)
         }
         val closing = current - open.keys
-        if (closing.isEmpty() && (open.isNotEmpty() || !restrictionLifted())) return null
+        if (closing.isEmpty() && (open.isNotEmpty() || !restrictionLifted())) {
+            // A guard left behind by a process that died after the last lease was retired.
+            if (durable.isEmpty() && clearsInFlight == 0) guardWindow(false)
+            return null
+        }
 
         // Capture the overrun before relocking, which may change Android's state and then throw.
         val wasLifted = closing.isNotEmpty() && open.isEmpty() &&
@@ -264,6 +279,8 @@ class InstallLease(
         } finally {
             if (CATALOG in closing || CATALOG_ACCOUNTS in closing) relockCatalogAccounts()
         }
+        // The restrictions are back. Keep the guard while another clear can still lift one.
+        if (open.isEmpty() && clearsInFlight - (if (finishingClear) 1 else 0) == 0) guardWindow(false)
 
         if (closing.isEmpty()) return false
         // Include time spent in the policy write. A clear can take effect again
@@ -420,7 +437,11 @@ class InstallLease(
                     if (!lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
                         canRestoreRestrictions()
                     ) {
-                        device.addRestriction(android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                        val accounts = android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS
+                        val wasLifted = !app.getSystemService(android.os.UserManager::class.java).hasUserRestriction(accounts)
+                        device.addRestriction(accounts)
+                        // The dashboard showed "lifted until": tell it the restriction is back before the deadline alert.
+                        if (wasLifted) org.plainphone.app.sync.SyncScheduler.now(app, "account restriction back")
                     } else if (sync.releaseAsked && !sync.released) {
                         // A withdrawn release must not leave accounts unlocked until something else applies.
                         lock.accountRelockSkippedForRelease(app)
@@ -429,6 +450,7 @@ class InstallLease(
                 onCatalogAccountsClosed = { id, allowSuccess ->
                     CatalogAccounts.recordFallbackOutcome(app, id, allowSuccess)
                 },
+                guardWindow = { open -> ForceStopGuard.set(app, open) },
                 restrictionLifted = {
                     val sync = org.plainphone.app.sync.SyncStore(app)
                     !lock.isInMaintenanceWindow(app) && !sync.released && !sync.releaseAsked &&
@@ -442,6 +464,8 @@ class InstallLease(
                 },
                 onRecovered = { catalogChanged ->
                     InstallWatchdogService.finished()
+                    // A login left open must not keep running into a closed window (ApprovedAccounts).
+                    runCatching { CatalogAccounts.cancelClosedSignIns(app) }
                     if (catalogChanged && !lock.isInMaintenanceWindow(app)) {
                         lock.applyIfNeededAsync(app, "catalog install window ended") {}
                     }
