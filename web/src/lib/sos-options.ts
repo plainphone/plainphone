@@ -14,6 +14,9 @@ export interface SosSettings {
   /** The family inbox and its check-in (docs/family-inbox.md). */
   familyInbox: boolean;
   checkIns: boolean;
+  /** Named extended family contacts, and one-time location snapshots (docs/extended-family.md). */
+  extendedFamily: boolean;
+  locationSnapshots: boolean;
 }
 
 /** What the server answers for a phone that never saved a choice. An older server sends no settings at all. */
@@ -26,6 +29,8 @@ export const DEFAULT_SOS_SETTINGS: SosSettings = {
   quickSuggestionsEnabled: true,
   familyInbox: false,
   checkIns: false,
+  extendedFamily: false,
+  locationSnapshots: false,
 };
 
 export const PRESS_CHOICES = [3, 4, 5, 6] as const;
@@ -69,7 +74,7 @@ export const REPLY_LENGTH = 60;
 export interface FamilyMessage {
   id: string;
   from: "child" | "parent";
-  kind: "quick" | "checkin" | "reply";
+  kind: "quick" | "checkin" | "reply" | "snapshot";
   text: string;
   sentAt: string;
   /** Child messages: parent devices that got a push; 0 means the phone sent an SMS. */
@@ -77,6 +82,8 @@ export interface FamilyMessage {
   /** Parent replies: the name the parent signed with, and when the phone got it. */
   author?: string | null;
   receivedAt?: string | null;
+  /** Snapshots: the position while it is live; null once it expired or was replaced. */
+  location?: import("./extended-family").LocationSnapshot | null;
 }
 
 export interface FamilyInboxThread {
