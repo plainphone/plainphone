@@ -24,6 +24,8 @@ export function Shell() {
   const signedIn = state.status === "in";
   const main = useRef<HTMLElement>(null);
   const [approvals, setApprovals] = useState(0);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutFailed, setLogoutFailed] = useState(false);
 
   // The Approvals page only shows up for someone who is a trusted person with something waiting.
   useEffect(() => {
@@ -70,7 +72,15 @@ export function Shell() {
               <button
                 type="button"
                 className="btn-link"
-                onClick={() => void logout().then(() => navigate("/login"))}
+                disabled={loggingOut}
+                onClick={() => {
+                  setLoggingOut(true);
+                  setLogoutFailed(false);
+                  logout().then(
+                    () => navigate("/login"),
+                    () => setLogoutFailed(true),
+                  ).finally(() => setLoggingOut(false));
+                }}
               >
                 {t("nav.logout")}
               </button>
@@ -104,6 +114,7 @@ export function Shell() {
       </header>
       {signedIn && <LiveSosAlert />}
       <main id="main" className="wrap" ref={main} tabIndex={-1}>
+        {signedIn && logoutFailed && <p className="notice notice-error" role="alert">{t("nav.logoutFailed")}</p>}
         <Outlet />
       </main>
       <footer className="wrap site-footer">

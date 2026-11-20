@@ -5,9 +5,11 @@ import { errorMessage, Field, LiveStatus, PageTitle, Switch } from "../component
 import { useI18n } from "../i18n/I18n";
 import { api, ApiError, type Phone, type Profile } from "../lib/api";
 import { normaliseCode } from "../lib/format";
+import { useHouseholdId } from "../lib/session";
 import { IOS_PAIRING_NOT_YET } from "../lib/platform";
 
 export function PairPage() {
+  const householdId = useHouseholdId();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -59,7 +61,7 @@ export function PairPage() {
     setBusy(true);
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone, ...(light && !iphone && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}) });
+      const phone = await api.post<Phone>("/phones/claim", { code, name: name.trim(), profile, timezone, householdId, ...(light && !iphone && profile === "self" && privateDns ? { filterMethod: "privateDns" } : {}) });
       if (phone.pairedAt === null) setAwaitingPhone(true);
       else navigate(`/phones/${phone.id}`, { replace: true });
     } catch (err) {

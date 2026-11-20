@@ -63,30 +63,35 @@ export function useLoad<D>(fn: () => Promise<D>, deps: DependencyList): Loaded<D
   useEffect(() => {
     fnRef.current = fn;
   });
-  const alive = useRef(true);
+  // Only the newest request may set the state. An older one (for the previous phone, or a poll
+  // that started before a change) can finish last and would show stale data.
+  const latest = useRef(0);
+  // A quiet load (a live update) does not show the spinner.
   const load = useCallback(async (quiet: boolean) => {
+    const id = ++latest.current;
     if (!quiet) setLoading(true);
     try {
       const d = await fnRef.current();
-      if (alive.current) {
+      if (latest.current === id) {
         setDataState(d);
         setError(null);
       }
     } catch (err) {
-      if (alive.current) setError(err);
+      if (latest.current === id) setError(err);
     } finally {
-      if (alive.current && !quiet) setLoading(false);
+      if (latest.current === id) setLoading(false);
     }
   }, []);
   const reload = useCallback(() => load(false), [load]);
   const reloadQuiet = useCallback(() => load(true), [load]);
   useEffect(() => {
-    alive.current = true;
     // Loading data is what this effect is for; the spinner state is part of it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
     return () => {
-      alive.current = false;
+      // A counter, not a DOM node: bumping it makes the answers to these deps stale.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      latest.current++;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
