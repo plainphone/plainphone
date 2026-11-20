@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
-import { AndroidImportance, IosAuthorizationStatus } from "expo-notifications";
+import { AndroidImportance, AndroidNotificationVisibility, IosAuthorizationStatus } from "expo-notifications";
 import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import type { Locale } from "../api/models";
 import { getSessionToken } from "../api/client";
+import { SERVER_URL } from "./config";
 import { makeAppT, type TFn } from "../i18n/I18n";
 import { ANSWER_KEY, MORE_TIME_ANSWERS } from "../shared/lib/more-time";
 import { answerMoreTime, followUp, isMoreTimeAnswer, moreTimeTag, moreTimeTarget } from "./moreTime";
@@ -14,11 +16,47 @@ import { registerNativeToken } from "./push-registration";
 /** The server sends this category id with a request for more time (`categoryId` in FCM, `aps.category` in APNs). */
 export const MORE_TIME_CATEGORY = "more-time";
 
-export const CHANNELS: { id: string; name: Record<Locale, string>; importance: AndroidImportance }[] = [
+type Channel = { id: string; name: Record<Locale, string>; importance: AndroidImportance } &
+  Omit<Notifications.NotificationChannelInput, "name" | "importance">;
+
+export const CHANNELS: Channel[] = [
   { id: "normal", name: { en: "Notifications", da: "Notifikationer", sv: "Aviseringar", nb: "Varsler", de: "Benachrichtigungen" }, importance: AndroidImportance.DEFAULT },
   { id: "quiet", name: { en: "Updates", da: "Opdateringer", sv: "Uppdateringar", nb: "Oppdateringer", de: "Aktualisierungen" }, importance: AndroidImportance.LOW },
-  { id: "sos", name: { en: "Urgent SOS", da: "Akut SOS", sv: "Akut SOS", nb: "Akutt SOS", de: "Dringender SOS" }, importance: AndroidImportance.HIGH },
+  // Heads-up with sound and a long vibration, readable on the lock screen. Android only lets it through
+  // Do Not Disturb after the parent allows that in the channel's settings (the button in Settings).
+  {
+    id: "sos", name: { en: "Urgent SOS", da: "Akut SOS", sv: "Akut SOS", nb: "Akutt SOS", de: "Dringender SOS" }, importance: AndroidImportance.HIGH,
+    sound: "default", enableVibrate: true, vibrationPattern: [0, 600, 300, 600, 300, 600], bypassDnd: true,
+    lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
+  },
 ];
+
+/** A notification's random receipt id (docs/latency.md); it says nothing about the message. */
+const RECEIPT = /^[A-Za-z0-9_-]{22}$/;
+
+/** Tells the server a notification arrived or was opened, for the delivery times. Best effort, no sign-in. */
+export function sendPushReceipt(data: unknown, event: "delivered" | "opened") {
+  const receipt = (data as { receipt?: unknown } | null | undefined)?.receipt;
+  if (typeof receipt !== "string" || !RECEIPT.test(receipt)) return;
+  void globalThis.fetch(`${SERVER_URL}/api/push-receipt`, {
+    method: "POST", credentials: "omit", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ receipt, event }),
+  }).catch(() => undefined);
+}
+
+/** Opens Android's settings for the Urgent SOS channel, where the parent can let it through Do Not Disturb. */
+export async function openSosChannelSettings() {
+  const pkg = Constants.expoConfig?.android?.package;
+  if (Platform.OS !== "android" || !pkg) return;
+  try {
+    await Linking.sendIntent("android.settings.CHANNEL_NOTIFICATION_SETTINGS", [
+      { key: "android.provider.extra.APP_PACKAGE", value: pkg },
+      { key: "android.provider.extra.CHANNEL_ID", value: "sos" },
+    ]);
+  } catch {
+    await Linking.openSettings().catch(() => undefined);
+  }
+}
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
@@ -54,11 +92,8 @@ export function routeForPush(data: unknown): Href {
 
 async function ensureChannels(locale: Locale) {
   if (Platform.OS !== "android") return;
-  for (const ch of CHANNELS) {
-    await Notifications.setNotificationChannelAsync(ch.id, {
-      name: ch.name[locale],
-      importance: ch.importance,
-    });
+  for (const { id, name, ...settings } of CHANNELS) {
+    await Notifications.setNotificationChannelAsync(id, { ...settings, name: name[locale] });
   }
 }
 
@@ -125,7 +160,9 @@ export function watchNativePush(locale: Locale) {
   const foreground = AppState.addEventListener("change", (state) => {
     if (state === "active") void syncNativePush(locale);
   });
-  return () => { token.remove(); foreground.remove(); };
+  // Only while the app runs: a notification shown by the system in the background confirms when it is opened.
+  const received = Notifications.addNotificationReceivedListener((n) => sendPushReceipt(n.request.content.data, "delivered"));
+  return () => { token.remove(); foreground.remove(); received.remove(); };
 }
 
 /** Removes delivered alerts (SOS included) from the shelf when the parent signs out. */
@@ -192,10 +229,12 @@ export function useNotificationRouting(status: "loading" | "anon" | "in", t: TFn
     const last = Notifications.getLastNotificationResponse();
     if (last && !handled.has(responseKey(last))) {
       handled.add(responseKey(last));
+      sendPushReceipt(last.notification.request.content.data, "opened");
       handle(last);
     }
     const sub = Notifications.addNotificationResponseReceivedListener((r) => {
       handled.add(responseKey(r));
+      sendPushReceipt(r.notification.request.content.data, "opened");
       handle(r);
     });
     return () => sub.remove();

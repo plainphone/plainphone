@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import Constants from "expo-constants";
 import { useEffect, useState } from "react";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 import type { Locale } from "../api/models";
 import { RequireAuth } from "../components/RequireAuth";
 import { Button, Card, Choice, Notice, Screen, Text } from "../components/ui";
@@ -9,7 +9,7 @@ import { languageNames, languages } from "../shared/lib/phone-language";
 import { useI18n } from "../i18n/I18n";
 import { ServerChoice } from "../components/ServerChoice";
 import { WeeklySummarySettings } from "../components/WeeklySummarySettings";
-import { syncNativePush, type PushState } from "../lib/notifications";
+import { openSosChannelSettings, syncNativePush, type PushState } from "../lib/notifications";
 import { useMe, useSession } from "../lib/session";
 
 /** The public status page, served by Uptime Kuma. */
@@ -45,7 +45,12 @@ function Settings() {
           <Text variant="muted">{t("native.notificationsHelp")}</Text>
           <Text variant="muted">{t("sos.dnd")}</Text>
           {push === "granted" ? (
-            <Notice tone="success" text={t("native.notificationsOn")} />
+            <>
+              <Notice tone="success" text={t("native.notificationsOn")} />
+              {Platform.OS === "android" ? (
+                <Button kind="secondary" title={t("native.sosChannel")} testID="sos-channel" onPress={() => void openSosChannelSettings()} />
+              ) : null}
+            </>
           ) : push === "unavailable" ? (
             <Notice tone="warn" text={t("native.notificationsUnavailable")} />
           ) : push === "denied" ? (

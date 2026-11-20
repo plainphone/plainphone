@@ -19,6 +19,7 @@ export const appEn = {
   "native.notifications": "Notifications",
   "native.notificationsHelp": "Get a notification when a change waits for your approval or a position is ready.",
   "native.notificationsOn": "Notifications are registered on this server.",
+  "native.sosChannel": "Urgent SOS sound and Do Not Disturb",
   "native.notificationsOff": "Notifications are off. You can turn them on in the phone's settings.",
   "native.pushRegistrationError": "Could not register notifications on this server.",
   "native.notificationsAsk": "Turn on notifications",
