@@ -21,6 +21,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/device/quick-messages/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send an ordinary quick message to the parents as push
+         * @description Always accepted. With `notified` 0 no parent device got a push and the phone sends an SMS instead. A repeated id is answered from the first send.
+         */
+        post: operations["sendQuickMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/device/quick-messages/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suggest a new quick message for a parent to approve */
+        post: operations["suggestQuickMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/device/sos/{id}": {
         parameters: {
             query?: never;
@@ -49,9 +86,93 @@ export interface paths {
         };
         /** Get the last 30 days of SOS events */
         get: operations["listPhoneSos"];
-        /** Set or clear the number parents can call back */
+        /**
+         * Set the callback number and the hidden SOS and quick-message switches
+         * @description Every field is optional; only the given ones change.
+         */
         put: operations["setSosCallbackNumber"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/quick-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        /** The phone's quick messages and the child's waiting suggestions */
+        get: operations["listQuickMessages"];
+        put?: never;
+        /** Add a quick message (at most six) */
+        post: operations["addQuickMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/quick-messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a quick message or a suggestion */
+        delete: operations["deleteQuickMessage"];
+        options?: never;
+        head?: never;
+        /** Change a quick message's text or code-word flag */
+        patch: operations["updateQuickMessage"];
+        trace?: never;
+    };
+    "/phones/{pid}/quick-messages/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve the child's suggestion as a quick message */
+        post: operations["approveQuickMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/phones/{pid}/quick-messages/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline the child's suggestion; nothing about it is kept */
+        post: operations["declineQuickMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2381,6 +2502,13 @@ export interface components {
             id: string;
             /** @enum {unknown} */
             kind: "urgent" | "help";
+            /**
+             * @description How a hidden SOS was sent; null is the SOS screen. See docs/sos.md.
+             * @enum {unknown}
+             */
+            trigger?: "power" | "clock" | "code" | null;
+            /** @description The quick message's text when it was a code word. */
+            message?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -2395,6 +2523,54 @@ export interface components {
             deliveryFailedAt: string | null;
             battery: number | null;
             location: components["schemas"]["SosPosition"] | null;
+        };
+        /** @description Per-phone switches for hidden SOS and quick messages (docs/sos.md). */
+        SosSettings: {
+            /**
+             * @description Pressing the power button quickly sends a silent urgent SOS
+             * @default false
+             */
+            hiddenPower: boolean;
+            /**
+             * @description How many presses within about three seconds
+             * @default 4
+             * @enum {integer}
+             */
+            hiddenPresses: 3 | 4 | 5 | 6;
+            /**
+             * @description A long press on the home screen clock sends a silent urgent SOS
+             * @default false
+             */
+            hiddenClock: boolean;
+            /**
+             * @description The quiet confirmation on the child's phone
+             * @default vibrate
+             * @enum {unknown}
+             */
+            hiddenFeedback: "vibrate" | "none";
+            /** @default true */
+            quickMessagesEnabled: boolean;
+            /**
+             * @description The child may suggest new quick messages
+             * @default true
+             */
+            quickSuggestionsEnabled: boolean;
+        };
+        QuickMessage: {
+            /** Format: uuid */
+            id: string;
+            text: string;
+            /** @description A code word. The child's phone shows an ordinary message; the parents get an urgent SOS. */
+            meansSos: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        QuickMessageSuggestion: {
+            /** Format: uuid */
+            id: string;
+            text: string;
+            /** Format: date-time */
+            createdAt: string;
         };
         ChildContactSettings: {
             suggestDeviceContacts: boolean;
@@ -2849,6 +3025,25 @@ export interface components {
                     name: string;
                     number: components["schemas"]["E164"];
                 }[];
+                hidden?: {
+                    power: boolean;
+                    /** @enum {integer} */
+                    presses: 3 | 4 | 5 | 6;
+                    clock: boolean;
+                    /** @enum {unknown} */
+                    feedback: "vibrate" | "none";
+                };
+                quickMessages?: {
+                    enabled: boolean;
+                    /** @description The child may suggest new quick messages */
+                    suggest: boolean;
+                    items: {
+                        /** Format: uuid */
+                        id: string;
+                        text: string;
+                        meansSos: boolean;
+                    }[];
+                };
             };
             allowServerMove?: boolean;
             /** @description This server's provisioning DNS host, which answers for every ClientID. After a move the phone uses it, not its per-phone host, when it is removed or its host is not ready. */
@@ -3447,6 +3642,13 @@ export interface operations {
                     smsSubmitted?: boolean;
                     /** Format: date-time */
                     sentAt?: string;
+                    /**
+                     * @description A hidden SOS or a code word. Only with kind urgent.
+                     * @enum {unknown}
+                     */
+                    trigger?: "power" | "clock" | "code";
+                    /** @description The quick message's text; required with trigger code and only then. */
+                    message?: string;
                 };
             };
         };
@@ -3469,6 +3671,89 @@ export interface operations {
             };
             /** @description SOS expired */
             410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    sendQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Parent devices that got a push */
+                        notified: number;
+                    };
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    suggestQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Waiting for a parent (or the existing message with the same text) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {unknown} */
+                        status: "active" | "suggested";
+                    };
+                };
+            };
+            /** @description Suggestions are switched off */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Three suggestions are already waiting */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3532,6 +3817,7 @@ export interface operations {
                     "application/json": {
                         events: components["schemas"]["SosEvent"][];
                         callbackNumber: string | null;
+                        settings: components["schemas"]["SosSettings"];
                     };
                 };
             };
@@ -3549,13 +3835,233 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    callbackNumber: string | null;
+                    callbackNumber?: string | null;
+                    hiddenPower?: boolean;
+                    /** @enum {integer} */
+                    hiddenPresses?: 3 | 4 | 5 | 6;
+                    hiddenClock?: boolean;
+                    /** @enum {unknown} */
+                    hiddenFeedback?: "vibrate" | "none";
+                    quickMessagesEnabled?: boolean;
+                    quickSuggestionsEnabled?: boolean;
                 };
             };
         };
         responses: {
             /** @description Saved */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listQuickMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Quick messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        messages: components["schemas"]["QuickMessage"][];
+                        suggestions: components["schemas"]["QuickMessageSuggestion"][];
+                    };
+                };
+            };
+            /** @description Not a Child phone */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    /** @default false */
+                    meansSos?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickMessage"];
+                };
+            };
+            /** @description The phone already has six quick messages */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Quick message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text?: string;
+                    meansSos?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickMessage"];
+                };
+            };
+            /** @description Quick message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    approveQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    meansSos?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Approved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickMessage"];
+                };
+            };
+            /** @description Suggestion not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The phone already has six quick messages */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    declineQuickMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: components["parameters"]["phoneId"];
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Suggestion not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
