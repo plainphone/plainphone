@@ -68,6 +68,13 @@ fn revoke(server: &mut Server, id: &str) {
     server.room_devices.retain(|d| d != id);
 }
 
+/// Turns a measured outcome the recommendation relies on into an expectation,
+/// so a library change that flips it fails the run instead of only changing
+/// the printed note.
+fn expect(ok: bool, what: impl Into<String>) -> Result<(), String> {
+    if ok { Ok(()) } else { Err(what.into()) }
+}
+
 fn encrypt_decrypt() -> Res {
     let (mut server, mut pa, mut pb, mut cp, mut tab) = family();
     pa.send(&mut server, "SYNTH-CANARY dinner at six")?;
@@ -194,6 +201,7 @@ fn revoke_then_send() -> Res {
         return Err("tablet read after B rotated".into());
     }
     let got = cp.sync(&mut server);
+    expect(got.len() == 3, format!("after B rotated the child read {} of 3 texts", got.len()))?;
     notes.push(format!("after B also rotates, the child reads all {} texts and the tablet none", got.len()));
     // The revoked tablet still sends with its old session.
     tab.send_with(&mut server, "SYNTH-CANARY from the revoked tablet", false, false, false)?;
@@ -209,6 +217,7 @@ fn revoke_then_send() -> Res {
     t2.send_with(&mut s2, "SYNTH-CANARY from the revoked tablet", false, false, false)?;
     c2.check_sender_in_roster = false;
     let got = c2.sync(&mut s2);
+    expect(got.len() == 1, format!("without the app check the child accepted {} of 1 text from the revoked tablet", got.len()))?;
     notes.push(format!("without that app check the child accepts {} text(s) from the revoked tablet (measured)", got.len()));
     Ok(notes)
 }
@@ -236,6 +245,7 @@ fn lost_device() -> Res {
     let k = pa.export_history_for(&old_sid).ok_or("no session to export")?;
     cp2.import_history("parent-a-phone", &old_sid, &k);
     let got = cp2.sync(&mut server);
+    expect(got.len() == 1, format!("after importing the old session the new phone read {} of 1 old text", got.len()))?;
     notes.push(format!(
         "if parent A forwards (or a key backup restores) the old Megolm session, the new phone also reads the old text ({} more): Matrix makes history access possible, and so a policy decision",
         got.len()
@@ -259,11 +269,14 @@ fn retry_reordering() -> Res {
             ok += 1;
         }
     }
+    expect(ok == 5, format!("reordered delivery decrypted {ok} of 5"))?;
     notes.push(format!("5 texts delivered as 3,1,5,2,4: {ok}/5 decrypted"));
     let dup = cp.decrypt_event(&ev[0]);
+    expect(dup.is_err(), "the app's (session, index) check let a duplicate through")?;
     notes.push(format!("the same event delivered twice: vodozemac decrypts it again; only the app's (session, index) check rejects it ({})", dup.err().unwrap_or_default()));
     cp.detect_replays = false;
     let dup2 = cp.decrypt_event(&ev[1]);
+    expect(dup2.is_ok(), "vodozemac itself now rejects a duplicate; re-check the replay note")?;
     notes.push(format!("with that check off the duplicate is accepted ({})", dup2.is_ok()));
     for i in 1..=12 {
         pa.send(&mut server, &format!("SYNTH-CANARY far {i}"))?;
@@ -272,6 +285,11 @@ fn retry_reordering() -> Res {
     cp.detect_replays = true;
     let late = cp.decrypt_event(&ev[11]).is_ok();
     let early = cp.decrypt_event(&ev[0]).is_ok();
+    expect(late, "the newest of 12 texts did not decrypt")?;
+    expect(
+        early,
+        "the oldest index no longer decrypts after a newer one: vodozemac now prunes indexes, re-check the forward secrecy argument",
+    )?;
     notes.push(format!(
         "12 texts, newest first then the oldest: newest {late}, oldest {early}: an inbound Megolm session keeps every earlier index decryptable (no forward secrecy inside a session until it rotates)"
     ));
@@ -301,6 +319,7 @@ fn offline_catch_up() -> Res {
     pa.send(&mut server, "SYNTH-CANARY 3")?;
     pb.send(&mut server, "SYNTH-CANARY 4")?;
     let got = cp.sync(&mut server);
+    expect(got.len() == 4, format!("child read {} of 4 after catching up", got.len()))?;
     notes.push(format!("child offline across 2 rotations and 4 texts reads {} of 4 once it syncs", got.len()));
     // Timeline arrives before the room key (separate queues).
     let (mut server, mut pa, _pb, mut cp, _tab) = family();
@@ -310,6 +329,10 @@ fn offline_catch_up() -> Res {
     let utd = cp.last_errors.clone();
     server.withhold_from.clear();
     let second = cp.sync(&mut server);
+    expect(
+        first.is_empty() && second.len() == 1,
+        format!("expected 0 then 1 text around the late key, got {} then {}", first.len(), second.len()),
+    )?;
     notes.push(format!(
         "timeline before the to-device key: {} read ({}), retried after the key arrived: {} read; the app needs an 'unable to decrypt yet' state and a retry queue",
         first.len(),
@@ -349,14 +372,14 @@ fn local_storage() -> Res {
         a.message_index()
     ));
     let got = pa.sync(&mut server);
+    let read = got.iter().filter(|t| t.contains("from the")).count();
     notes.push(format!(
-        "parent A reads {} of the 2 and rejects the second as a replay ({})",
-        got.iter().filter(|t| t.contains("from the")).count(),
+        "parent A reads {read} of the 2 and rejects the second as a replay ({})",
         pa.last_errors.join(" | ")
     ));
-    if !same_index {
-        return Err("expected index reuse after rollback".into());
-    }
+    expect(same_index, "expected index reuse after rollback")?;
+    expect(same_block, "expected an identical first AES-CBC block after rollback")?;
+    expect(read == 1, format!("parent A read {read} of the 2 rolled-back texts"))?;
     Ok(notes)
 }
 
@@ -380,6 +403,13 @@ fn server_inspection() -> Res {
     notes.push(format!("{} server-visible blobs (to-device Olm, Megolm events, push payloads): no plaintext canary", all.len()));
     let sizes = server.timeline_sizes();
     let lens: Vec<usize> = TEXTS.iter().map(|t| t.len()).collect();
+    // No padding: equal texts give equal sizes, and 15 vs 21 bytes already
+    // differ by one 16-byte AES block.
+    expect(sizes.len() == TEXTS.len(), format!("expected {} Megolm events, got {sizes:?}", TEXTS.len()))?;
+    expect(
+        sizes[0] == sizes[4] && sizes[0] != sizes[3],
+        format!("Megolm sizes {sizes:?} no longer show unpadded lengths"),
+    )?;
     notes.push(format!(
         "Megolm event sizes for texts of {lens:?} bytes: {sizes:?}: no padding, so the server learns each text's length to 16 bytes"
     ));

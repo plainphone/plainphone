@@ -8,8 +8,8 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$here/mls-harness"
 
-cargo build --release --quiet
-cargo build --release --quiet --lib --target wasm32-unknown-unknown
+cargo build --release --quiet --locked
+cargo build --release --quiet --locked --lib --target wasm32-unknown-unknown
 wasm-bindgen --target nodejs --out-dir target/wasm-node \
   target/wasm32-unknown-unknown/release/mls_harness.wasm 2>/dev/null
 

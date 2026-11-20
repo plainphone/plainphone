@@ -16,9 +16,9 @@ export AR_aarch64_linux_android="$(dirname "$clang")/llvm-ar"
 for crate in mls-harness matrix-harness matrix-sdk-probe; do
   lib="${crate//-/_}"
   (cd "$here/$crate"
-    cargo build --release --quiet --lib --target aarch64-linux-android
-    cargo build --release --quiet --lib --target wasm32-unknown-unknown
-    cargo build --release --quiet --lib
+    cargo build --release --quiet --locked --lib --target aarch64-linux-android
+    cargo build --release --quiet --locked --lib --target wasm32-unknown-unknown
+    cargo build --release --quiet --locked --lib
     so="target/aarch64-linux-android/release/lib$lib.so"
     wasm="target/wasm32-unknown-unknown/release/$lib.wasm"
     printf '%s android-arm64 .so: %s bytes (gzip %s)\n' "$crate" "$(stat -c %s "$so")" "$(gzip -9c "$so" | wc -c)"

@@ -310,6 +310,7 @@ fn lost_device() -> Res {
             readable += 1;
         }
     }
+    expect(!old_ciphertexts.is_empty(), "no ciphertext was queued for the lost phone")?;
     if readable > 0 {
         return Err("new device decrypted old ciphertext".into());
     }
@@ -337,9 +338,10 @@ fn retry_reordering() -> Res {
     for i in order {
         out.push(cp.process_raw(&msgs[i].body)?);
     }
+    let reordered = out.iter().filter(|o| o.is_some()).count();
+    expect(reordered == 5, format!("reordered delivery decrypted {reordered} of 5"))?;
     notes.push(format!(
-        "5 texts delivered as 3,1,5,2,4 inside one epoch: {}/5 decrypted (default SenderRatchetConfiguration: out_of_order_tolerance 5, maximum_forward_distance 1000)",
-        out.iter().filter(|o| o.is_some()).count()
+        "5 texts delivered as 3,1,5,2,4 inside one epoch: {reordered}/5 decrypted (default SenderRatchetConfiguration: out_of_order_tolerance 5, maximum_forward_distance 1000)"
     ));
     // Duplicate delivery of the same ciphertext.
     let dup = cp.process_raw(&msgs[0].body);
@@ -351,6 +353,7 @@ fn retry_reordering() -> Res {
     pa.send(&mut server, "SYNTH-CANARY id=42")?;
     pa.send(&mut server, "SYNTH-CANARY id=42")?;
     let got = cp.sync(&mut server)?;
+    expect(got.len() == 2, format!("a re-encrypted retry decrypted {} of 2 copies", got.len()))?;
     notes.push(format!(
         "a sender retry after a lost acknowledgement re-encrypts: the receiver decrypts both copies ({}), so the client message id must sit inside the plaintext and be deduplicated by the app",
         got.len()
@@ -362,6 +365,11 @@ fn retry_reordering() -> Res {
     msgs = server.take_queue("child-phone");
     let late = cp.process_raw(&msgs[11].body)?;
     let early = cp.process_raw(&msgs[0].body);
+    expect(late.is_some(), "the newest of 12 texts did not decrypt")?;
+    expect(
+        !matches!(early, Ok(Some(_))),
+        "the oldest text, 11 generations behind, decrypted beyond out_of_order_tolerance 5",
+    )?;
     notes.push(format!(
         "12 texts, newest first then the oldest: newest {} and oldest {} (11 generations behind with tolerance 5)",
         if late.is_some() { "decrypts" } else { "fails" },
@@ -384,12 +392,18 @@ fn concurrent_commits() -> Res {
     pa.remove(&mut server, &["parent-a-tablet"])?;
     pb.self_update(&mut server)?;
     cp.sync(&mut server)?;
+    expect(cp.group().epoch().as_u64() == e + 1, "the child did not apply the first commit")?;
+    expect(!cp.last_errors.is_empty(), "the child accepted both commits for the same epoch")?;
     notes.push(format!(
         "no ordering: A's removal and B's key update both target epoch {e}; the child applies the first and rejects the second ({})",
         cp.last_errors.join(" | ")
     ));
     pb.sync(&mut server)?;
     pa.sync(&mut server)?;
+    expect(
+        !pa.last_errors.is_empty() && !pb.last_errors.is_empty(),
+        "a parent accepted the other parent's commit for an epoch it had already left",
+    )?;
     let fork = pb.group().epoch_authenticator().as_slice() != pa.group().epoch_authenticator().as_slice();
     notes.push(format!(
         "A merged its own removal, B merged its own update; each then rejects the other's commit ({} / {}); A and B {}",
@@ -457,6 +471,7 @@ fn offline_catch_up() -> Res {
     pb.self_update(&mut server)?;
     pa.sync(&mut server)?;
     let got = cp.sync(&mut server)?;
+    expect(got.is_empty(), format!("with max_past_epochs = 0 the child read {} text(s) from a past epoch", got.len()))?;
     notes.push(format!(
         "if delivery puts the commit before an older text the child reads {} of 1 with max_past_epochs = 0: the queue must keep one total order per conversation",
         got.len()
@@ -468,6 +483,7 @@ fn offline_catch_up() -> Res {
     pb.self_update(&mut server)?;
     pa.sync(&mut server)?;
     let got = cp.sync(&mut server)?;
+    expect(got.len() == 1, format!("with max_past_epochs = 1 the child read {} of 1", got.len()))?;
     notes.push(format!(
         "with max_past_epochs = 1 the same out-of-order delivery reads {} of 1, at the cost of keeping one old epoch's keys",
         got.len()
@@ -491,9 +507,8 @@ fn local_storage() -> Res {
         "child phone state after joining a 4-member group: {} bytes in openmls_memory_storage's serialization",
         bytes.len()
     ));
-    if contains_sig_key {
-        notes.push("the serialized store contains the raw Ed25519 private signature key (measured): the app must encrypt the store at rest (Android Keystore AES-GCM, Expo SecureStore-wrapped key) exactly as docs/encryption.md requires for H/R/L keys".into());
-    }
+    expect(contains_sig_key, "the serialized store no longer contains the raw signature key; re-check the at-rest note")?;
+    notes.push("the serialized store contains the raw Ed25519 private signature key (measured): the app must encrypt the store at rest (Android Keystore AES-GCM, Expo SecureStore-wrapped key) exactly as docs/encryption.md requires for H/R/L keys".into());
     let mut restored = Device::restore(&cp, &bytes)?;
     let got = restored.sync(&mut server)?;
     if got.len() != 1 {
@@ -506,6 +521,7 @@ fn local_storage() -> Res {
     let mut rolled = Device::restore(&cp, &bytes)?;
     rolled.send(&mut server, "SYNTH-CANARY from the rolled-back copy")?;
     let read = pa.sync(&mut server)?;
+    expect(read.len() == 1, format!("parent A read {} of 2 texts from the same generation", read.len()))?;
     notes.push(format!(
         "live state and a rolled-back copy each send one text from the same sender-ratchet generation: parent A reads {} of 2 and rejects the other ({}); MLS's reuse_guard keeps the AES-GCM nonces apart, but the second text is lost",
         read.len(),
@@ -515,6 +531,7 @@ fn local_storage() -> Res {
     restored.sync(&mut server)?;
     pa.send(&mut server, "SYNTH-CANARY after the epoch moved")?;
     let r = rolled.sync(&mut server)?;
+    expect(r.is_empty(), format!("the rolled-back copy read {} text(s) after the epoch moved", r.len()))?;
     notes.push(format!(
         "once the group moves to a new epoch the rolled-back copy reads {} texts ({}): it is stuck and must be re-added; keep MLS state out of OS backups",
         r.len(),
@@ -547,6 +564,10 @@ fn server_inspection() -> Res {
         all.len()
     ));
     let (kp_leaks, msg_leaks) = server.label_visibility(b"child-phone");
+    expect(
+        kp_leaks == 1 && msg_leaks == 0,
+        format!("device label visible in {kp_leaks} key package(s) and {msg_leaks} queued items, expected 1 and 0"),
+    )?;
     notes.push(format!(
         "the device label 'child-phone' is visible in {kp_leaks} published key package(s) and {msg_leaks} queued commits/Welcomes/texts: PURE_CIPHERTEXT commits and the encrypted Welcome hide the roster, but key packages are public by design, so the MLS identity must be an opaque device ID"
     ));
@@ -554,11 +575,26 @@ fn server_inspection() -> Res {
     notes.push(format!("PrivateMessage cleartext header the server can parse: {meta}"));
     let sizes = server.text_sizes();
     let lens: Vec<usize> = TEXTS.iter().map(|t| t.len()).collect();
+    // Texts of 15 and 21 bytes must pad to the same size, and sizes may only
+    // differ in whole 64-byte steps.
+    expect(sizes.len() == TEXTS.len(), format!("expected {} text ciphertexts, got {sizes:?}", TEXTS.len()))?;
+    expect(sizes[0] == sizes[3], format!("texts of 15 and 21 bytes have different ciphertext sizes {sizes:?}"))?;
+    expect(
+        sizes.iter().all(|s| s.abs_diff(sizes[0]) % 64 == 0),
+        format!("ciphertext sizes {sizes:?} are not in 64-byte steps"),
+    )?;
     notes.push(format!(
         "ciphertext sizes for texts of {lens:?} bytes with padding_size 64: {sizes:?}; length leaks only in 64-byte steps, and the sender's leaf index is inside the encrypted sender data"
     ));
     notes.push("push payloads carry only the conversation id and queue cursor".into());
     Ok(notes)
+}
+
+/// Turns a measured outcome the recommendation relies on into an expectation,
+/// so a library change that flips it fails the run instead of only changing
+/// the printed note.
+fn expect(ok: bool, what: impl Into<String>) -> Result<(), String> {
+    if ok { Ok(()) } else { Err(what.into()) }
 }
 
 fn contains(hay: &[u8], needle: &[u8]) -> bool {

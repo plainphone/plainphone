@@ -13,9 +13,10 @@ outcome (see the [checklist](#checklist-for-the-independent-review)).
 with the Plainphone API as the delivery service and the household log from the
 [encryption specification](../encryption.md#3-membership-and-freshness) as the
 only source of device identity. Keep **matrix-sdk-crypto** as the fallback if
-the review rejects the OpenMLS integration cost. Both pass every scenario the
-issue asks for in synthetic tests, but only after Plainphone adds the same
-checks around them. The differences that decide it:
+the review rejects the OpenMLS integration cost. Both pass the issue's
+scenarios in synthetic tests, but only after Plainphone adds the same checks
+around them. Only OpenMLS was also run across runtimes (native ⇄ wasm32 in
+Node); the Matrix side ran natively only. The differences that decide it:
 
 - **Revocation.** In MLS one removal commit cuts a revoked device off for every
   sender. In Matrix every sender has its own Megolm session, so each one must
@@ -27,10 +28,12 @@ checks around them. The differences that decide it:
 - **Forward secrecy.** An MLS receiver refuses texts that are far behind its
   ratchet. An inbound Megolm session can still decrypt every earlier message
   of that session (measured).
-- **Fit.** MLS needs exactly one thing from the server that Plainphone already
-  has: an authenticated API that can accept one commit per epoch and keep one
-  order per conversation. Matrix brings its own user, device, cross-signing
-  and key-backup model, which would duplicate the household log.
+- **Fit.** MLS needs a delivery service, and Plainphone's authenticated API
+  can become one. It has to learn to publish and claim key packages, accept
+  one commit per epoch and keep one order per conversation
+  ([gap 5](#concrete-interoperability-gaps)). Matrix brings its own user,
+  device, cross-signing and key-backup model, which would duplicate the
+  household log.
 - **Size.** The OpenMLS library is 2.2 MB on Android arm64. vodozemac alone is
   0.9 MB, but the SDK that adds rotation and device tracking is 4.6 MB
   (measured, see [sizes](#sizes)).
@@ -139,9 +142,33 @@ matrix-sdk-crypto are Apache-2.0. Both trees contain MPL-2.0 crates (hpke-rs on
 the OpenMLS side; as_variant, eyeball, eyeball-im, imbl and readlock on the
 Matrix side). MPL-2.0 is compatible with distribution in an Apache-2.0 app, but
 modified MPL files must stay available as source, and the notice file must list
-them. Unicode-3.0 and Zlib (Matrix side) need notices. Synapse, Element Call
+them. Both trees also use the BSD-3-Clause dalek crates (curve25519-dalek,
+ed25519-dalek, x25519-dalek) and subtle, which need their notices. Unicode-3.0
+and Zlib (Matrix side) need notices too. Synapse, Element Call
 and libsignal are AGPL and are not used. The NOTICE audit belongs to the
 implementation PR, after the final crate set is known.
+
+## Browser key handling
+
+The issue asks for this separately. Summary of what is spread over the tables
+and gaps above:
+
+- **OpenMLS** builds for wasm32 only with its `js` feature (wasm-bindgen
+  randomness and time), and getrandom 0.2 needs the same. The wasm32 build
+  created, joined, read and answered groups with the native build in Node
+  (measured). It was not run in a browser.
+- **Matrix** ships `@matrix-org/matrix-sdk-crypto-wasm` with an IndexedDB
+  store and a store cipher, used by Element Web (read, not run).
+- **Keys.** The [spec](../encryption.md#6-library-choices-and-verification)
+  keeps browser keys non-exportable in IndexedDB. MLS state is a mutable blob,
+  so it must be encrypted under such a non-exportable WebCrypto key and
+  rewritten after every message. Neither design has been built.
+- **Rollback.** A browser profile can be copied or restored like a backup, and
+  neither library tolerates rolled-back state (measured natively).
+- **Decision.** Browser decryption waits, as
+  [family-comms](family-comms.md#family-inbox) already says. The web dashboard
+  keeps managing settings without reading text. A browser inbox needs its own
+  review of the storage design and the wasm-bindgen layer.
 
 ## Concrete interoperability gaps
 

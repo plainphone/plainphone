@@ -169,6 +169,13 @@ fn replay() -> Res {
     let same = f.hs.decrypt(&f.cp, &ev);
     let replayed = ev.replace("\"$ev1\"", "\"$ev99\"").replace("1000001", "1000099");
     let other = f.hs.decrypt(&f.cp, &replayed);
+    if same.is_err() || other.is_err() {
+        return Err(format!(
+            "expected both re-decryptions to succeed, got same id: {}, new id: {}",
+            same.is_ok(),
+            other.is_ok()
+        ));
+    }
     Ok(vec![
         format!("the same event (same event id) decrypted again: {}", if same.is_ok() { "ok, idempotent".to_string() } else { same.unwrap_err() }),
         format!(
