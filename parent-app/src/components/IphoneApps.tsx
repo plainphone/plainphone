@@ -7,7 +7,7 @@ import { client, unwrap } from "../api/client";
 import type { Phone } from "../api/models";
 import { useI18n } from "../i18n/I18n";
 import { formatRelative } from "../shared/lib/format";
-import { LoadGate, Notice, PageTitle, Screen, Text, useLoad } from "./ui";
+import { LoadGate, Notice, PageTitle, Screen, Text, useLoad, useNow } from "./ui";
 
 interface IosSelectionState {
   selection: string | null;
@@ -17,6 +17,7 @@ interface IosSelectionState {
 
 export function IphoneApps({ phone }: { phone: Phone }) {
   const { t, locale } = useI18n();
+  const now = useNow(60_000);
   const res = useLoad(
     () => unwrap<IosSelectionState>(client.GET("/phones/{pid}/ios-selection", { params: { path: { pid: phone.id } } })),
     [phone.id],
@@ -29,7 +30,7 @@ export function IphoneApps({ phone }: { phone: Phone }) {
         {(s) => (
           <Text variant="muted" testID="iphone-apps-state">
             {s.updatedAt
-              ? t("platform.iphone.appsPicked", { when: formatRelative(s.updatedAt, Date.now(), locale) })
+              ? t("platform.iphone.appsPicked", { when: formatRelative(s.updatedAt, now, locale) })
               : t("platform.iphone.appsNone")}
           </Text>
         )}
