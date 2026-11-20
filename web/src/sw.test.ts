@@ -67,30 +67,120 @@ it("shows no actions on a plain message", async () => {
   expect("actions" in shown[0]!.options).toBe(false);
 });
 
-const click = (action: string, data: Record<string, unknown> = payload.data) =>
-  run("notificationclick", { action, notification: { close: vi.fn(), data: { url: "/phones/p1", ...data } } });
+const words = {
+  done: { "15": "15 more minutes given", "60": "60 more minutes given", day: "Given the rest of the day", no: "Declined" },
+  wait: "The phone will confirm when it is active.",
+  other: "Already answered by another parent",
+  expired: "This request had expired",
+  failed: "Could not answer, open Plainphone",
+};
+const withWords = { ...payload.data, phoneName: "Alma", words };
+const click = (action: string, data: Record<string, unknown> = withWords) =>
+  run("notificationclick", { action, notification: { close: vi.fn(), tag: "more-time-r1", data: { url: "/phones/p1", ...data } } });
+const decided = (over: Record<string, unknown>) => ({
+  ok: true, status: 200,
+  json: async () => ({ id: "r1", status: "approved", answer: "15", won: true, answeredByYou: true, ...over }),
+});
 
 it.each(["15", "60", "day", "no"])("answers %s from the notification with the session cookie, then stays closed", async (action) => {
   load(4);
   await click(action);
   expect(fetchMock).toHaveBeenCalledWith("/api/phones/p1/more-time-requests/r1/answer", expect.objectContaining({
-    method: "POST", credentials: "include", body: JSON.stringify({ answer: action }),
+    method: "POST", credentials: "include", body: JSON.stringify({ answer: action, source: "notification" }),
   }));
   expect(opened).toEqual([]);
 });
 
-it("opens the phone page when the answer fails (not signed in)", async () => {
+it("carries the phone name and the follow-up lines from the push to the click", async () => {
+  load(4);
+  await push({ ...payload, data: withWords });
+  expect(shown[0]!.options.data).toMatchObject({ phoneName: "Alma", words });
+});
+
+it("follows up quietly under the same tag: what was answered, and that the phone will confirm", async () => {
+  fetchMock.mockResolvedValue(decided({}));
+  load(4);
+  await click("15");
+  expect(shown).toHaveLength(1);
+  expect(shown[0]!.title).toBe("Alma");
+  expect(shown[0]!.options).toMatchObject({
+    body: "15 more minutes given. The phone will confirm when it is active.",
+    tag: "more-time-r1", silent: true,
+    data: { url: "/phones/p1", type: "more-time-done" },
+  });
+  // The follow-up has no buttons and is not "more-time", so a tap on it cannot answer again.
+  expect("actions" in shown[0]!.options).toBe(false);
+  expect(opened).toEqual([]);
+});
+
+it("does not promise a confirmation for a decline, or when the server sent none (receipts off)", async () => {
+  load(4);
+  fetchMock.mockResolvedValue(decided({ status: "declined", answer: "no" }));
+  await click("no");
+  expect(shown[0]!.options.body).toBe("Declined");
+  fetchMock.mockResolvedValue(decided({ answer: "60" }));
+  await click("60", { ...withWords, words: { ...words, wait: undefined } });
+  expect(shown[1]!.options.body).toBe("60 more minutes given");
+});
+
+it("treats a double tap as a success, not an error", async () => {
+  fetchMock.mockResolvedValue(decided({ won: false, answeredByYou: true }));
+  load(4);
+  await click("15");
+  expect(shown[0]!.options.body).toBe("15 more minutes given. The phone will confirm when it is active.");
+});
+
+it("shows the other parent's answer when they were first, not an error", async () => {
+  fetchMock.mockResolvedValue(decided({ won: false, answeredByYou: false, answer: "60" }));
+  load(4);
+  await click("15");
+  expect(shown[0]!.options).toMatchObject({ body: "Already answered by another parent: 60 more minutes given", silent: true, tag: "more-time-r1" });
+  expect(opened).toEqual([]);
+});
+
+it("says so in plain words when the request had expired, and a tap opens the dashboard", async () => {
+  fetchMock.mockResolvedValue(decided({ status: "expired", answer: null, won: false, answeredByYou: false }));
+  load(4);
+  await click("15");
+  expect(shown[0]!.options).toMatchObject({ body: "This request had expired", data: { url: "/phones/p1", type: "more-time-failed" } });
+  expect(shown[0]!.options.silent).toBeUndefined();
+  expect(opened).toEqual([]);
+});
+
+it("says it could not answer when the session is gone, and keeps the request one tap away", async () => {
   fetchMock.mockResolvedValue({ ok: false, status: 401 });
   load(4);
   await click("15");
+  expect(shown[0]!.options).toMatchObject({ body: "Could not answer, open Plainphone", tag: "more-time-r1", renotify: true, data: { url: "/phones/p1" } });
+  expect(opened).toEqual([]);
+  // A tap on that notification opens the request.
+  await run("notificationclick", { action: "", notification: { close: vi.fn(), data: shown[0]!.options.data } });
   expect(opened).toEqual(["https://pp.example/phones/p1"]);
 });
 
-it("opens the phone page when the network is down", async () => {
+it("says it could not answer when the network is down", async () => {
   fetchMock.mockRejectedValue(new TypeError("offline"));
   load(4);
   await click("no");
+  expect(shown[0]!.options.body).toBe("Could not answer, open Plainphone");
+});
+
+it("opens the phone page when the push carried no lines (an older server)", async () => {
+  fetchMock.mockRejectedValue(new TypeError("offline"));
+  load(4);
+  await click("15", payload.data);
+  expect(shown).toEqual([]);
   expect(opened).toEqual(["https://pp.example/phones/p1"]);
+});
+
+it("shows the receipt from the phone as a silent update of the same notification", async () => {
+  load(4);
+  await push({
+    title: "Alma", body: "15 more minutes given. Active on the phone at 14:05", url: "/phones/p1", tag: "more-time-r1", silent: true,
+    data: { type: "more-time-receipt", phoneId: "p1", requestId: "r1" },
+  });
+  expect(shown[0]!.options).toMatchObject({ body: "15 more minutes given. Active on the phone at 14:05", tag: "more-time-r1", silent: true, renotify: false });
+  expect("actions" in shown[0]!.options).toBe(false);
 });
 
 it("opens the url on a click without an action, and ignores unknown actions", async () => {

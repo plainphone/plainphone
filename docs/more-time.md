@@ -79,7 +79,7 @@ request itself is only a question, so it can be refused (switched off, no such l
 
 | Where | How |
 |---|---|
-| Dashboard (Web Push) | The notification has action buttons. A tap sends the answer from the service worker with the browser's session, without opening the page. If that fails, the phone's page opens. |
+| Dashboard (Web Push) | The notification has action buttons. A tap sends the answer from the service worker with the browser's session, without opening the page. If that fails, a notification says so and opens the phone's page. |
 | Parent app, Android (FCM) | A data message that the app turns into a notification with the same four buttons. |
 | Parent app, iOS (APNs) | The push has the category `more-time`; the app registers the four actions for it. A button opens the app briefly to send the answer, as on Android. |
 
@@ -88,6 +88,30 @@ shows fewer than four keeps **15 min** and **No**; tapping the notification itse
 phone's page, where all four choices are.
 On Android and iOS the button opens the app briefly to send the answer (the app has no background task for it, and a closed iOS app would otherwise drop the answer). Action buttons on native pushes need the parent app to have been opened once since it was
 installed (it registers the notification category then).
+
+### A receipt for an answer from a notification
+
+A parent who answers with a button should not have to wonder whether it worked. Every answer path
+(Web Push in the dashboard, the parent app on Android and iOS) gives the same three things:
+
+1. **Right after the tap**, the notification is replaced by a short, silent one (same `tag`): what was
+   answered ("15 more minutes given") and "The phone will confirm when it is active."
+2. **When the phone has applied it**, the server updates that notification once more, silently and
+   under the same tag: "15 more minutes given. Active on the phone at 14:05" (the wording of the
+   dashboard's rule receipt, in the phone's time zone; "The phone confirmed the rules at …. Check the
+   time on the phone." when the phone's clock is ahead). It is sent when a status report proves the phone
+   holds the current rules, which now include the bonus. Only the parent who answered from a
+   notification gets it, only for 15 minutes, 1 hour and the rest of the day (a "No" changes nothing on
+   the phone), and not after 6 hours.
+3. **When it goes wrong**, a normal notification says so in plain words and a tap opens the phone's
+   page: "This request had expired", "Could not answer, open Plainphone" (signed out, offline, or
+   refused). If another parent was first, their answer is shown, not an error: "Already answered by
+   another parent: 60 more minutes given".
+
+It follows the switches that already exist. **Change receipts** (per phone, [sync API](sync-api.md))
+off means the follow-up promises nothing and no receipt is sent. A muted phone sends nothing. The
+dashboard's service worker sends `source: "notification"` with the answer; answering in the page or the
+parent app's request list does not, and gets no extra notification.
 
 ## API
 
@@ -105,18 +129,18 @@ Parents (session or cookie):
 
 - `GET /phones/{pid}/more-time-requests` open and the last 24 hours, with `appLabel` (null for
   the daily limit) and `answeredByYou`.
-- `POST /phones/{pid}/more-time-requests/{rid}/answer` with `{ "answer": "15"|"60"|"day"|"no" }`.
+- `POST /phones/{pid}/more-time-requests/{rid}/answer` with `{ "answer": "15"|"60"|"day"|"no", "source"?: "notification" }`.
   Always `200` with the request as it stands and `won`; `404` unknown, `409` when the limit was
   removed in the meantime.
 - `PATCH /phones/{pid}` accepts `askMoreTimeEnabled` and `limitWarningEnabled`. The phone summary
   has both and `openMoreTimeRequests`.
 
 Contract: [`server/openapi.yaml`](../server/openapi.yaml). Server code: `services/more-time.ts`,
-`routes/more-time.ts`. Table: `more_time_requests` (migration `0041_more_time.sql`).
+`routes/more-time.ts`, words in `lib/more-time-words.ts`. Table: `more_time_requests` (migration `0041_more_time.sql`; `0044_more_time_receipt.sql` adds who waits for the receipt).
 
 ## Notes for self-hosters
 
-- The new migration is additive. Nothing to configure.
+- The new migrations are additive. Nothing to configure. Android parent apps get a quiet "Updates" notification channel for the receipt.
 - The "more time" notification text and its buttons are in English, Danish, Swedish, Norwegian
   and German (the parent's language). The other alerts are still English and Danish only, and
   fall back to English for the rest. The parent app and the dashboard show all five languages

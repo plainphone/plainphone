@@ -130,6 +130,38 @@ describe("native push", () => {
     });
   });
 
+  describe("the receipt that updates a request's notification", () => {
+    const receipt = { ...notification, url: "/phones/p", tag: "moretime-1", silent: true, data: { type: "more-time-receipt", phoneId: "p", requestId: "r" } };
+
+    it("is silent on APNs (no sound) and keeps the sound on a loud message", async () => {
+      const http = vi.fn().mockResolvedValue({ status: 200, body: "" });
+      const apns = new Apns(privateKey(generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey),
+        "key-id", "team-id", "org.plainphone.parent", true, http);
+      const push = new NativeParentPush(web, undefined, apns);
+      await push.send({ ...parentTarget, platform: "apns" }, receipt);
+      await push.send({ ...parentTarget, platform: "apns" }, notification);
+      expect(JSON.parse(http.mock.calls[0]![2]).aps.sound).toBeUndefined();
+      expect(JSON.parse(http.mock.calls[1]![2]).aps.sound).toBe("default");
+    });
+
+    it("goes to the quiet channel on FCM, under the same tag, and Web Push is told it is silent", async () => {
+      const http = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ access_token: "fake-access", expires_in: 3600 }))
+        .mockResolvedValue(Response.json({ name: "message-1" }));
+      const fcm = new Fcm(JSON.stringify({
+        project_id: "demo-project", client_email: "demo@example.org",
+        private_key: privateKey(generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey),
+      }), http);
+      const sent: unknown[] = [];
+      const recording = { name: "x", webPublicKey: "k", async send(_t: unknown, m: unknown) { sent.push(m); return "sent" as const; } };
+      const push = new NativeParentPush(recording, fcm);
+      await push.send({ ...parentTarget, platform: "fcm" }, receipt);
+      expect(JSON.parse(String(http.mock.calls[1]![1]?.body)).message.android.notification).toEqual({ channel_id: "quiet", tag: "moretime-1" });
+      await push.send({ platform: "web", endpoint: "https://fcm.googleapis.com/x", p256dh: "p", auth: "a" }, receipt);
+      expect(sent[0]).toMatchObject({ silent: true, tag: "moretime-1" });
+    });
+  });
+
   it("only posts UnifiedPush wakes to trusted HTTPS endpoints, without following redirects", async () => {
     const http = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 410 }));
     const push = new PhonePushProvider(config({ PUSH_PROVIDER: "unifiedpush", PUSH_EXTRA_HOSTS: "push.example.org" }), undefined, http);

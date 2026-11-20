@@ -48,7 +48,7 @@ describe("ask for more time", () => {
         title: "Alma asks for more time",
         body: 'Spotify is used up. "one more episode" Answer here or open the app.',
         url: `/phones/${phoneId}`,
-        data: { type: "more-time", phoneId, requestId: r.json.id },
+        data: expect.objectContaining({ type: "more-time", phoneId, requestId: r.json.id, phoneName: "Alma" }),
         actions: [
           { id: "15", title: "15 min" },
           { id: "60", title: "1 hour" },

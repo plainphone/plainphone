@@ -706,6 +706,10 @@ export const moreTimeRequests = pgTable(
     /** Where the answer came from. Null on old rows and while open: treated as a parent's answer. */
     decidedVia: text("decided_via", { enum: ["parent", "phone"] }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** The parent who answered from a notification and is waiting to hear that the phone applied it. Null otherwise. */
+    receiptUserId: uuid("receipt_user_id").references(() => users.id, { onDelete: "set null" }),
+    /** When that follow-up was sent, so it goes out once. */
+    receiptSentAt: timestamp("receipt_sent_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [

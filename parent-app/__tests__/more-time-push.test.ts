@@ -8,6 +8,9 @@ import type { Locale } from "../src/api/models";
 import { ensureCategories, handleNotificationResponse, MORE_TIME_CATEGORY, routeForPush, syncNativePush, watchNativePush } from "../src/lib/notifications";
 import { moreTimeTarget } from "../src/lib/moreTime";
 import { fakeApi } from "../test/fakeApi";
+import { makeAppT } from "../src/i18n/I18n";
+
+const T = makeAppT("en");
 
 const PID = "11111111-1111-4111-8111-111111111111";
 const RID = "33333333-3333-4333-8333-333333333333";
@@ -88,44 +91,76 @@ describe("answer buttons", () => {
   it.each(["15", "60", "day", "no"])("sends %s without opening anything, then clears the notification", async (action) => {
     const api = fakeApi({ [`POST ${ANSWER_PATH}`]: { body: WON } });
     setSessionToken("pp_s_test");
-    expect(await handleNotificationResponse(response(action), true)).toBeNull();
+    expect(await handleNotificationResponse(response(action), true, T)).toBeNull();
     expect(api.calls).toHaveLength(1);
-    expect(api.calls[0]).toMatchObject({ method: "POST", path: ANSWER_PATH, auth: "Bearer pp_s_test", body: { answer: action } });
+    expect(api.calls[0]).toMatchObject({ method: "POST", path: ANSWER_PATH, auth: "Bearer pp_s_test", body: { answer: action, source: "notification" } });
     expect(Notifications.dismissNotificationAsync).toHaveBeenCalledWith("notification-1");
   });
 
-  it("is quiet when another parent answered first", async () => {
-    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: { ...WON, won: false, answeredByYou: false } } });
+  const followUpShown = () => jest.mocked(Notifications.scheduleNotificationAsync).mock.calls.map(([r]) => r);
+
+  it("follows up under the request's tag: what was answered, and that the phone will confirm", async () => {
+    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: WON } });
     setSessionToken("pp_s_test");
-    expect(await handleNotificationResponse(response("60"), true)).toBeNull();
+    await handleNotificationResponse(response("15", { ...DATA, phoneName: "Alma" }), true, T);
+    expect(followUpShown()).toEqual([expect.objectContaining({
+      identifier: "moretime-33333333333343338333333333333333",
+      trigger: null,
+      content: expect.objectContaining({ title: "Alma", body: "15 more minutes given. The phone will confirm when it is active.", data: expect.objectContaining({ type: "more-time-done" }) }),
+    })]);
+  });
+
+  it("does not promise a confirmation for a decline, or when the phone sends no receipts", async () => {
+    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: { ...WON, status: "declined", answer: "no", grantedMinutes: null } } });
+    setSessionToken("pp_s_test");
+    await handleNotificationResponse(response("no"), true, T);
+    expect(followUpShown()[0]!.content.body).toBe("Declined");
+    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: WON } });
+    await handleNotificationResponse(response("15", { ...DATA, receipts: "false" }), true, T);
+    expect(followUpShown()[1]!.content.body).toBe("15 more minutes given");
+  });
+
+  it("shows the other parent's answer, not an error, when they were first", async () => {
+    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: { ...WON, answer: "60", grantedMinutes: 60, won: false, answeredByYou: false } } });
+    setSessionToken("pp_s_test");
+    expect(await handleNotificationResponse(response("15"), true, T)).toBeNull();
+    expect(followUpShown()[0]!.content.body).toBe("Already answered by another parent: 60 more minutes given");
+  });
+
+  it("says so in plain words when the request had expired, and opens the phone", async () => {
+    fakeApi({ [`POST ${ANSWER_PATH}`]: { body: { ...WON, status: "expired", answer: null, grantedMinutes: null, won: false, answeredByYou: false } } });
+    setSessionToken("pp_s_test");
+    expect(await handleNotificationResponse(response("15"), true, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(followUpShown()[0]!.content).toMatchObject({ body: "This request had expired", data: { type: "more-time-failed" } });
   });
 
   it("ignores a button on a payload that is not a request, or has a bad id", async () => {
     const api = fakeApi({});
     setSessionToken("pp_s_test");
-    expect(await handleNotificationResponse(response("15", { type: "approval", phoneId: PID }), true)).toBeNull();
-    expect(await handleNotificationResponse(response("15", { ...DATA, requestId: "../x" }), true)).toBeNull();
-    expect(await handleNotificationResponse(response("15", { ...DATA, phoneId: "nope" }), true)).toBeNull();
-    expect(await handleNotificationResponse(response("15", {}), true)).toBeNull();
+    expect(await handleNotificationResponse(response("15", { type: "approval", phoneId: PID }), true, T)).toBeNull();
+    expect(await handleNotificationResponse(response("15", { ...DATA, requestId: "../x" }), true, T)).toBeNull();
+    expect(await handleNotificationResponse(response("15", { ...DATA, phoneId: "nope" }), true, T)).toBeNull();
+    expect(await handleNotificationResponse(response("15", {}), true, T)).toBeNull();
     expect(api.calls).toHaveLength(0);
   });
 
-  it("opens the phone when the answer fails", async () => {
+  it("says it could not answer, and opens the phone, when the answer fails", async () => {
     fakeApi({ [`POST ${ANSWER_PATH}`]: { status: 409, body: { error: "limit removed" } } });
     setSessionToken("pp_s_test");
-    expect(await handleNotificationResponse(response("15"), true)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
-    expect(Notifications.dismissNotificationAsync).not.toHaveBeenCalled();
+    expect(await handleNotificationResponse(response("15"), true, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(followUpShown()[0]!.content.body).toBe("Could not answer, open Plainphone");
   });
 
-  it("opens the phone when the network is down", async () => {
+  it("says it could not answer, and opens the phone, when the network is down", async () => {
     globalThis.fetch = (async () => { throw new TypeError("offline"); }) as typeof fetch;
     setSessionToken("pp_s_test");
-    expect(await handleNotificationResponse(response("day"), true)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(await handleNotificationResponse(response("day"), true, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(followUpShown()[0]!.content.body).toBe("Could not answer, open Plainphone");
   });
 
   it("opens the phone instead of answering when nobody is signed in", async () => {
     const api = fakeApi({});
-    expect(await handleNotificationResponse(response("15"), false)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(await handleNotificationResponse(response("15"), false, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
     expect(api.calls).toHaveLength(0);
   });
 
@@ -133,7 +168,7 @@ describe("answer buttons", () => {
     const api = fakeApi({});
     setSessionToken("pp_s_test");
     const tap = response("expo.modules.notifications.actions.DEFAULT");
-    expect(await handleNotificationResponse(tap, true)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
+    expect(await handleNotificationResponse(tap, true, T)).toEqual({ pathname: "/phones/[pid]", params: { pid: PID } });
     expect(api.calls).toHaveLength(0);
   });
 });

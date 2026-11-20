@@ -194,20 +194,23 @@ export class NativeParentPush implements ParentPushProvider {
     return Boolean(platform === "web" ? this.webPublicKey : platform === "fcm" ? this.fcm : this.apns);
   }
 
-  async send(target: PushTarget, { title, body, url, tag, data: extra, actions }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
-    if (target.platform === "web") return this.web.send(target, { title, body, url, tag, actions, data: extra }, opts);
+  async send(target: PushTarget, { title, body, url, tag, data: extra, actions, silent }: PushMessage, opts?: { urgent?: boolean }): Promise<SendOutcome> {
+    if (target.platform === "web") return this.web.send(target, { title, body, url, tag, actions, data: extra, silent }, opts);
     const urgent = Boolean(opts?.urgent);
     const data = {
       url, urgent: String(urgent),
       type: extra?.type ?? (url.endsWith("/location") ? "location" : url === "/approvals" ? "approval" : "phone"),
       ...(extra?.phoneId && { phoneId: extra.phoneId }),
       ...(extra?.requestId && { requestId: extra.requestId }),
+      ...(extra?.phoneName && { phoneName: extra.phoneName }),
+      // The parent app says "the phone will confirm" only when the phone sends receipts.
+      ...(extra?.receipts === false && { receipts: "false" }),
     };
     // The parent app registers a notification category with this id, so the buttons exist without opening the app.
     const category = actions?.length ? extra?.type : undefined;
     if (target.platform === "apns") {
       return this.apns?.send(target.endpoint, {
-        aps: { alert: { title, body }, sound: "default", ...(category && { category }), ...(urgent && { "interruption-level": "time-sensitive" }) },
+        aps: { alert: { title, body }, ...(!silent && { sound: "default" }), ...(category && { category }), ...(urgent && { "interruption-level": "time-sensitive" }) },
         ...data,
       }, urgent) ?? "unsupported";
     }
@@ -222,7 +225,7 @@ export class NativeParentPush implements ParentPushProvider {
     }
     return this.fcm?.send({
       token: target.endpoint, notification: { title, body }, data,
-      android: { priority: urgent ? "HIGH" : "NORMAL", notification: { channel_id: urgent ? "sos" : "normal", tag } },
+      android: { priority: urgent ? "HIGH" : "NORMAL", notification: { channel_id: urgent ? "sos" : silent ? "quiet" : "normal", tag } },
     }) ?? "unsupported";
   }
 }

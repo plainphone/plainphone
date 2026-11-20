@@ -13,7 +13,7 @@ function AppStack() {
   const { t } = useI18n();
   const scheme = useColorScheme();
   const { state } = useSession();
-  useNotificationRouting(state.status);
+  useNotificationRouting(state.status, t);
   return (
     <>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />

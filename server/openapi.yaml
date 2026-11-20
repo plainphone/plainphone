@@ -3174,6 +3174,9 @@ paths:
               required: [answer]
               properties:
                 answer: { enum: ["15", "60", "day", "no"] }
+                source:
+                  const: notification
+                  description: "Set when the answer is given from a push notification button. The server then sends this parent a silent follow-up when the phone has applied a bonus (`Active on the phone at 14:05`), under the notification's tag. Ignored when the phone's change receipts are off."
       responses:
         "200":
           description: The request as it stands now
