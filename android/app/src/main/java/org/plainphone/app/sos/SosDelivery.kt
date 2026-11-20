@@ -157,6 +157,21 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
                 prefs.edit().putString(key, "sms").putStringSet("sms-names:$id", submitted.map { it.name }.toSet()).commit()
             }
         }
+        // The server records an SOS it refused once it knows the SMS went out (the phone is the
+        // authority for what it has done), so tell it, or the parents' dashboard never shows it.
+        if (refused && token != null && !payload.getBoolean("smsSubmitted") && SosDelivery.status(context, id) == "sms") {
+            try {
+                SosDelivery.api(context).reportSos(token, payload.put("smsSubmitted", true))
+                prefs.edit().putString(key, "online").remove(positionKey).apply()
+                return@withContext if (urgentCallOutstanding()) Result.retry() else Result.success()
+            } catch (_: HttpError) {
+                // Refused again: the SMS and the call are all the phone can do.
+            } catch (_: java.io.IOException) {
+                // The next attempt reports with smsSubmitted and sends no second SMS.
+                urgentCallOutstanding()
+                return@withContext Result.retry()
+            }
+        }
         if (refused) {
             val calling = urgentCallOutstanding()
             if (SosDelivery.status(context, id) != "sms") prefs.edit().putString(key, "failed").apply()

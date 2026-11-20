@@ -42,7 +42,12 @@ import org.robolectric.shadows.ShadowRoleManager
 class SosRefusedTest {
     private val context = ApplicationProvider.getApplicationContext<Application>()
 
-    private fun deliver(answer: Int, kind: String, at: Long): ListenableWorker.Result = runBlocking {
+    /** The JSON bodies the server received, in order. */
+    private val reports = mutableListOf<JSONObject>()
+
+    private fun deliver(answer: Int, kind: String, at: Long): ListenableWorker.Result = deliver({ answer }, kind, at)
+
+    private fun deliver(answer: (JSONObject) -> Int, kind: String, at: Long): ListenableWorker.Result = runBlocking {
         shadowOf(context).grantPermissions(Manifest.permission.SEND_SMS)
         ShadowRoleManager.addRoleHolder(RoleManager.ROLE_SMS, context.packageName, android.os.Process.myUserHandle())
         val rules = JSONObject(rulesJson(locationEnabled = false))
@@ -50,7 +55,16 @@ class SosRefusedTest {
         SyncStore(context).saveRules("test", rules.toString(), at)
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/api/device/sos") { exchange ->
-            exchange.sendResponseHeaders(answer, -1)
+            val report = JSONObject(exchange.requestBody.readBytes().decodeToString())
+            synchronized(reports) { reports += report }
+            val status = answer(report)
+            if (status == 200) {
+                val body = """{"id":"sos","deliveredVia":"sms"}""".toByteArray()
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            } else {
+                exchange.sendResponseHeaders(status, -1)
+            }
             exchange.close()
         }
         val manager = context.getSystemService(ConnectivityManager::class.java)
@@ -84,6 +98,19 @@ class SosRefusedTest {
         assertThat(deliver(403, "help", System.currentTimeMillis())).isEqualTo(ListenableWorker.Result.failure())
         assertThat(smsTo()).isEqualTo("+4512345678")
         assertThat(SosDelivery.status(context, "sos")).isEqualTo("sms")
+        // It told the server about the SMS, which the server refused as well.
+        assertThat(reports.map { it.getBoolean("smsSubmitted") }).containsExactly(false, true).inOrder()
+    }
+
+    @Test
+    @Config(sdk = [35], shadows = [PairedStore::class, FreshNetworkShadow::class, SmsPartsShadow::class])
+    fun `a refused report is reported again once the SMS went out, and the server records it`() {
+        // A release was requested in the dashboard: the server refuses an SOS, but records one sent by SMS.
+        val result = deliver({ if (it.getBoolean("smsSubmitted")) 200 else 403 }, "help", System.currentTimeMillis())
+        assertThat(result).isEqualTo(ListenableWorker.Result.success())
+        assertThat(smsTo()).isEqualTo("+4512345678")
+        assertThat(reports.map { it.getBoolean("smsSubmitted") }).containsExactly(false, true).inOrder()
+        assertThat(SosDelivery.status(context, "sos")).isEqualTo("online")
     }
 
     @Test
