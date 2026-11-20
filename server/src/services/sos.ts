@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { householdMembers, phones, sosDeliveries, sosEvents, users } from "../db/schema.js";
-import { sosMail, toLocale } from "../lib/mail-templates.js";
+import { toLocale } from "../lib/locale.js";
+import { sosMail } from "../lib/mail-templates.js";
 import type { Ctx } from "./context.js";
 import { notifyUsers, pushMessage } from "./notifications.js";
 

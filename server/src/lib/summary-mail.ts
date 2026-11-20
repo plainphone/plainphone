@@ -2,10 +2,11 @@
 import type { Mail } from "../providers/mail.js";
 import type { PhoneSummary, SummaryData } from "../services/weekly-summary.js";
 import { build } from "./mail-templates.js";
-import { summaryWords, type ChangeCategory, type SummaryLocale } from "./summary-text.js";
+import { summaryWords, type ChangeCategory } from "./summary-text.js";
+import type { Locale } from "./locale.js";
 
 /** The short lines for one phone. Only what has something to say, so a quiet week is a short mail. */
-export function phoneLines(p: PhoneSummary, locale: SummaryLocale): string[] {
+export function phoneLines(p: PhoneSummary, locale: Locale): string[] {
   const w = summaryWords(locale);
   const duration = (minutes: number) => w.hours(Math.floor(minutes / 60), minutes % 60);
   const lines: string[] = [];
@@ -31,7 +32,7 @@ export function phoneLines(p: PhoneSummary, locale: SummaryLocale): string[] {
 
 export function weeklySummaryMail(
   to: string,
-  locale: SummaryLocale,
+  locale: Locale,
   publicUrl: string,
   summaryId: string,
   data: SummaryData,

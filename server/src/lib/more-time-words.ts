@@ -6,7 +6,7 @@
 // `receipt.*`), in the five languages. The service worker has no i18n of its own, so the server
 // sends the lines it may need along with the request.
 
-import type { PushLocale } from "./mail-templates.js";
+import type { Locale } from "./locale.js";
 
 type Answer = "15" | "60" | "day" | "no";
 
@@ -20,7 +20,7 @@ interface Words {
   clockAhead: (time: string) => string;
 }
 
-const WORDS: Record<PushLocale, Words> = {
+const WORDS: Record<Locale, Words> = {
   en: {
     done: { "15": "15 more minutes given", "60": "60 more minutes given", day: "Given the rest of the day", no: "Declined" },
     wait: "The phone will confirm when it is active.",
@@ -68,18 +68,18 @@ const WORDS: Record<PushLocale, Words> = {
   },
 };
 
-export function moreTimeWords(locale: PushLocale): Words {
+export function moreTimeWords(locale: Locale): Words {
   return WORDS[locale];
 }
 
 /** The lines the service worker needs to follow up on a tap, as plain strings it can show as they are. */
-export function followUpWords(locale: PushLocale, receipts: boolean) {
+export function followUpWords(locale: Locale, receipts: boolean) {
   const w = WORDS[locale];
   return { done: w.done, ...(receipts ? { wait: w.wait } : {}), other: w.other, expired: w.expired, failed: w.failed };
 }
 
 /** "14:05" in the phone's time zone, the clock the child holds. */
-export function clockTime(at: Date, timezone: string, locale: PushLocale): string {
+export function clockTime(at: Date, timezone: string, locale: Locale): string {
   const fmt = (tz: string) =>
     new Intl.DateTimeFormat(locale === "nb" ? "nb-NO" : locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(at);
   try {

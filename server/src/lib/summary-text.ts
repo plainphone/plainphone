@@ -3,13 +3,8 @@
 // The words of the weekly summary mail and push, in the five languages of the app. The
 // dashboard and the parent app render the same numbers with their own i18n files.
 
-export type SummaryLocale = "en" | "da" | "sv" | "nb" | "de";
+import type { Locale } from "./locale.js";
 
-export function toSummaryLocale(value: string | undefined | null): SummaryLocale {
-  const l = (value ?? "").toLowerCase().slice(0, 2);
-  if (l === "da" || l === "sv" || l === "de") return l;
-  return l === "nb" || l === "no" ? "nb" : "en";
-}
 
 export type ChangeCategory = "time" | "apps" | "contacts" | "web" | "schedules" | "other";
 
@@ -40,7 +35,7 @@ interface Words {
   pushBody: string;
 }
 
-const words: Record<SummaryLocale, Words> = {
+export const summaryTable: Record<Locale, Words> = {
   en: {
     subject: "Your week with Plainphone",
     preheader: "Screen time, requests and changes from the past week.",
@@ -183,6 +178,6 @@ const words: Record<SummaryLocale, Words> = {
   },
 };
 
-export function summaryWords(locale: SummaryLocale): Words {
-  return words[locale];
+export function summaryWords(locale: Locale): Words {
+  return summaryTable[locale];
 }

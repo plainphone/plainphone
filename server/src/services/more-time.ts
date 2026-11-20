@@ -296,7 +296,7 @@ export async function approveMoreTimeOnPhone(ctx: Ctx, phone: Phone, requestId: 
     throw err;
   }
   if (out.won && out.request.status === "approved") {
-    const what = (await targetLabel(ctx, phone.id, out.request.packageName)) ?? "The daily limit";
+    const what = await targetLabel(ctx, phone.id, out.request.packageName);
     await notifyHousehold(ctx, phone.id, { type: "request-on-phone", phoneId: phone.id, phoneName: phone.name, kind: "more-time", what });
   }
   return out;

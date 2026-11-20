@@ -54,7 +54,7 @@ at 18:00.
 - **Summary page** in the dashboard and the parent app with the last 8 weeks.
 
 The mail and the summary page are available in English, Danish, Swedish, Norwegian Bokmål and
-German. Alert pushes and mails are still English and Danish only.
+German. Alert pushes and mails are in all five languages too.
 
 ## Alert policy
 

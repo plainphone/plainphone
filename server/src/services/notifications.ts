@@ -7,8 +7,10 @@
 
 import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import { householdMembers, notificationMutes, phones, pushSubscriptions, users } from "../db/schema.js";
-import { type Locale, phoneAlertMail, type PushLocale, toLocale, toPushLocale } from "../lib/mail-templates.js";
+import { type Locale, toLocale } from "../lib/locale.js";
+import { phoneAlertMail } from "../lib/mail-templates.js";
 import { clockTime, followUpWords, moreTimeWords } from "../lib/more-time-words.js";
+import { lastSeen, moreTimeActions, pushWords, type SafetyNews } from "../lib/push-text.js";
 import { summaryWords } from "../lib/summary-text.js";
 import type { PushMessage } from "../providers/parent-push.js";
 import { deliverablePushSubscription, discardGonePushSubscription, samePushRegistration } from "./push-subscriptions.js";
@@ -24,7 +26,7 @@ export type NotifyEvent =
   | { type: "offline"; phoneId: string; phoneName: string; hours: number; lastSeenAt: Date; timezone: string }
   | { type: "approval"; phoneName: string }
   | { type: "request"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" }
-  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string; kind: "app" | "contact" | "more-time" }
+  | { type: "request-on-phone"; phoneId: string; phoneName: string; what: string | null; kind: "app" | "contact" | "more-time" }
   | { type: "safety"; phoneId: string; phoneName: string; what: SafetyNews }
   /** The phone asks for more time. `what` is the app's name, or null for the daily limit. */
   | { type: "moreTime"; requestId: string; phoneId: string; phoneName: string; what: string | null; reason: string | null; receipts?: boolean }
@@ -40,185 +42,24 @@ type TextEvent = Exclude<NotifyEvent, { type: "summary" | "moreTimeReceipt" }>;
 /** The notification's tag for one request: the buttons, the follow-up and the receipt all share it. */
 export const moreTimeTag = (requestId: string) => `moretime-${requestId.replaceAll("-", "")}`;
 
-/** What a parent hears about a ring or an "Are you okay?" (docs/location.md). */
-export type SafetyNews = "here" | "ok" | "call" | "noReplyLocating" | "noReplyNoLocation" | "located";
+export type { SafetyNews };
 
-/** "Tue 08:10" in the phone's own time zone. */
-function lastSeen(e: { lastSeenAt: Date; timezone: string }, locale: Locale): string {
-  const fmt = (tz: string) =>
-    new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: tz,
-    }).format(e.lastSeenAt);
-  try {
-    return fmt(e.timezone);
-  } catch {
-    return fmt("UTC");
+/** The title and body of an event, from the tables in lib/push-text.ts. */
+function words(e: TextEvent, locale: Locale): Pick<PushMessage, "title" | "body"> {
+  switch (e.type) {
+    case "protection": return pushWords.protection(e, locale);
+    case "offline": return pushWords.offline(e, locale);
+    case "approval": return pushWords.approval(e, locale);
+    case "request": return pushWords.request(e, locale);
+    case "request-on-phone": return pushWords.requestOnPhone(e, locale);
+    case "moreTime": return pushWords.moreTime(e, locale);
+    case "safety": return pushWords.safety(e, locale);
+    case "sos": return pushWords.sos(e, locale);
+    case "test": return pushWords.test(locale);
   }
 }
 
-/** How long a phone has been quiet: hours, or whole days from two days on. */
-function silence(hours: number, locale: Locale): string {
-  if (hours >= 48) {
-    const d = Math.floor(hours / 24);
-    return locale === "da" ? `${d} dage` : `${d} days`;
-  }
-  if (locale === "da") return hours === 1 ? "1 time" : `${hours} timer`;
-  return hours === 1 ? "1 hour" : `${hours} hours`;
-}
-
-const text: Record<Locale, (e: TextEvent) => Pick<PushMessage, "title" | "body">> = {
-  en: (e) => {
-    switch (e.type) {
-      case "protection":
-        return {
-          title: `Protection removed on ${e.phoneName}`,
-          body:
-            e.reason === "setup-undo"
-              ? (e.reportedLate ? "Set-up was undone on the phone. The report arrived late." : "Set-up was undone on the phone.")
-              : e.reason === "owner"
-                ? "Plainphone no longer controls this phone. Open the app to see what happened."
-                : "The lock on this phone is not intact. Open the app to see what happened.",
-        };
-      case "offline":
-        return {
-          title: `${e.phoneName} has not been in touch for ${silence(e.hours, "en")}`,
-          body: `Last contact ${lastSeen(e, "en")}. It may be switched off, out of battery or reset.`,
-        };
-      case "approval":
-        return { title: "A request is waiting for you", body: `Someone asks to loosen a rule on "${e.phoneName}".` };
-      case "request":
-        return {
-          title: `${e.phoneName} asks for ${e.kind === "app" ? "an app" : "a contact"}`,
-          body: `${e.what}. Open the app to approve or decline.`,
-        };
-      case "request-on-phone":
-        return {
-          title: `Approved on ${e.phoneName}`,
-          body: `${e.what}. A parent approved it on the phone with the PIN. Nothing more to do.`,
-        };
-      case "moreTime":
-        return {
-          title: `${e.phoneName} asks for more time`,
-          body: `${e.what ?? "The daily limit"} is used up.${e.reason ? ` "${e.reason}"` : ""} Answer here or open the app.`,
-        };
-      case "safety":
-        return {
-          here: { title: `${e.phoneName}: "I'm here"`, body: "The button on the phone was pressed." },
-          ok: { title: `${e.phoneName}: "Yes, I'm okay"`, body: "No position was sent." },
-          call: { title: `${e.phoneName}: "Call me"`, body: "The phone is calling you now." },
-          noReplyLocating: { title: `No answer from ${e.phoneName}`, body: "The phone is sending its position." },
-          noReplyNoLocation: { title: `No answer from ${e.phoneName}`, body: "\"Are you okay?\" was not answered in time." },
-          located: { title: `Position of ${e.phoneName}`, body: "\"Are you okay?\" was not answered. Open the app to see where the phone is." },
-        }[e.what];
-      case "sos":
-        return { title: `${e.kind === "urgent" ? "Urgent SOS" : "SOS"} from ${e.phoneName}`,
-          body: e.kind === "urgent" ? "I need help now." : "I need help." };
-      case "test":
-        return { title: "Notifications work", body: "This device will get Plainphone notifications." };
-    }
-  },
-  da: (e) => {
-    switch (e.type) {
-      case "protection":
-        return {
-          title: `Beskyttelsen er fjernet på ${e.phoneName}`,
-          body:
-            e.reason === "setup-undo"
-              ? (e.reportedLate ? "Opsætningen blev fortrudt på telefonen. Beskeden kom forsinket." : "Opsætningen blev fortrudt på telefonen.")
-              : e.reason === "owner"
-                ? "Plainphone styrer ikke længere telefonen. Åbn appen for at se, hvad der er sket."
-                : "Låsen på telefonen er ikke intakt. Åbn appen for at se, hvad der er sket.",
-        };
-      case "offline":
-        return {
-          title: `${e.phoneName} har ikke været i kontakt i ${silence(e.hours, "da")}`,
-          body: `Sidst i kontakt ${lastSeen(e, "da")}. Den kan være slukket, løbet tør for strøm eller nulstillet.`,
-        };
-      case "approval":
-        return { title: "En anmodning venter på dig", body: `Nogen beder om at løsne en regel på "${e.phoneName}".` };
-      case "request":
-        return {
-          title: `${e.phoneName} beder om ${e.kind === "app" ? "en app" : "en kontakt"}`,
-          body: `${e.what}. Åbn appen for at godkende eller afvise.`,
-        };
-      case "request-on-phone":
-        return {
-          title: `Godkendt på ${e.phoneName}`,
-          body: `${e.what}. En forælder godkendte det på telefonen med pinkoden. Du skal ikke gøre mere.`,
-        };
-      case "moreTime":
-        return {
-          title: `${e.phoneName} beder om mere tid`,
-          body: `${e.what ?? "Den daglige grænse"} er brugt op.${e.reason ? ` ”${e.reason}”` : ""} Svar her eller åbn appen.`,
-        };
-      case "safety":
-        return {
-          here: { title: `${e.phoneName}: ”Jeg er her”`, body: "Der blev trykket på knappen på telefonen." },
-          ok: { title: `${e.phoneName}: ”Ja, jeg er okay”`, body: "Der blev ikke sendt nogen placering." },
-          call: { title: `${e.phoneName}: ”Ring til mig”`, body: "Telefonen ringer til dig nu." },
-          noReplyLocating: { title: `Intet svar fra ${e.phoneName}`, body: "Telefonen sender sin placering." },
-          noReplyNoLocation: { title: `Intet svar fra ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret i tide." },
-          located: { title: `Placering af ${e.phoneName}`, body: "”Er du okay?” blev ikke besvaret. Åbn appen for at se, hvor telefonen er." },
-        }[e.what];
-      case "sos":
-        return { title: `${e.kind === "urgent" ? "Akut SOS" : "SOS"} fra ${e.phoneName}`,
-          body: e.kind === "urgent" ? "Jeg har brug for hjælp nu." : "Jeg har brug for hjælp." };
-      case "test":
-        return { title: "Notifikationer virker", body: "Denne enhed får notifikationer fra Plainphone." };
-    }
-  },
-};
-
-/** The buttons on a "more time" notification. The ids are the answers the API takes. */
-const MORE_TIME_ACTIONS: Record<Locale, { id: string; title: string }[]> = {
-  en: [{ id: "15", title: "15 min" }, { id: "60", title: "1 hour" }, { id: "day", title: "Rest of the day" }, { id: "no", title: "No" }],
-  da: [{ id: "15", title: "15 min" }, { id: "60", title: "1 time" }, { id: "day", title: "Resten af dagen" }, { id: "no", title: "Nej" }],
-};
-
-/** "More time" in the languages the other push strings are not translated into yet; they fall back to English. */
-const MORE_TIME_TEXT: Record<
-  Exclude<PushLocale, Locale>,
-  {
-    title: (phone: string) => string;
-    total: string;
-    app: (app: string) => string;
-    quote: (reason: string) => string;
-    tail: string;
-    actions: { id: string; title: string }[];
-  }
-> = {
-  sv: {
-    title: (phone) => `${phone} ber om mer tid`,
-    total: "Den dagliga gränsen är slut.",
-    app: (app) => `Tiden för ${app} är slut.`,
-    quote: (reason) => `”${reason}”`,
-    tail: "Svara här eller öppna appen.",
-    actions: [{ id: "15", title: "15 min" }, { id: "60", title: "1 timme" }, { id: "day", title: "Resten av dagen" }, { id: "no", title: "Nej" }],
-  },
-  nb: {
-    title: (phone) => `${phone} ber om mer tid`,
-    total: "Den daglige grensen er brukt opp.",
-    app: (app) => `Tiden for ${app} er brukt opp.`,
-    quote: (reason) => `«${reason}»`,
-    tail: "Svar her eller åpne appen.",
-    actions: [{ id: "15", title: "15 min" }, { id: "60", title: "1 time" }, { id: "day", title: "Resten av dagen" }, { id: "no", title: "Nei" }],
-  },
-  de: {
-    title: (phone) => `${phone} bittet um mehr Zeit`,
-    total: "Das Tageslimit ist aufgebraucht.",
-    app: (app) => `Die Zeit für ${app} ist aufgebraucht.`,
-    quote: (reason) => `„${reason}“`,
-    tail: "Antworten Sie hier oder öffnen Sie die App.",
-    actions: [{ id: "15", title: "15 Min." }, { id: "60", title: "1 Stunde" }, { id: "day", title: "Rest des Tages" }, { id: "no", title: "Nein" }],
-  },
-};
-
-export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
+export function pushMessage(e: NotifyEvent, locale: Locale): PushMessage {
   if (e.type === "summary") {
     const w = summaryWords(locale);
     return { title: w.pushTitle, body: w.pushBody, url: `/summary?week=${e.summaryId}`, tag: "weekly-summary", data: { type: "summary" } };
@@ -236,14 +77,7 @@ export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
       data: { type: "more-time-receipt", phoneId: e.phoneId, requestId: e.requestId },
     };
   }
-  const more = locale === "sv" || locale === "nb" || locale === "de" ? MORE_TIME_TEXT[locale] : null;
-  const t =
-    more && e.type === "moreTime"
-      ? {
-          title: more.title(e.phoneName),
-          body: `${e.what === null ? more.total : more.app(e.what)}${e.reason ? ` ${more.quote(e.reason)}` : ""} ${more.tail}`,
-        }
-      : text[locale === "da" ? "da" : "en"](e);
+  const t = words(e, locale);
   switch (e.type) {
     case "protection":
       return { ...t, url: e.trusted ? "/approvals" : e.reason === "setup-undo" ? "/" : `/phones/${e.phoneId}`, tag: `lock-${e.phoneId}` };
@@ -259,7 +93,7 @@ export function pushMessage(e: NotifyEvent, locale: PushLocale): PushMessage {
       return { ...t, url: `/phones/${e.phoneId}`, tag: moreTimeTag(e.requestId),
         // The lines for what a tap on a button leads to, so the service worker can say it in the parent's language.
         data: { type: "more-time", phoneId: e.phoneId, requestId: e.requestId, phoneName: e.phoneName, receipts: e.receipts !== false, words: followUpWords(locale, e.receipts !== false) },
-        actions: more?.actions ?? MORE_TIME_ACTIONS[locale as Locale] };
+        actions: moreTimeActions(locale) };
     case "safety":
       return { ...t, url: `/phones/${e.phoneId}/location`, tag: `safety-${e.phoneId}-${e.what === "here" ? "ring" : "checkin"}` };
     case "sos":
@@ -298,7 +132,7 @@ export async function notifyUsers(
         const sameRegistration = samePushRegistration(sub);
         let outcome: Awaited<ReturnType<Ctx["parentPush"]["send"]>>;
         try {
-          const language = toPushLocale(locale);
+          const language = toLocale(locale);
           const message = pushMessage(e, language);
           outcome = await ctx.parentPush.send(sub, message, { urgent });
         } catch (err) {
