@@ -74,7 +74,13 @@ import org.plainphone.app.ui.shortWhen
 private const val DOUBLE_TAP_MS = 1_500L
 
 /** What the Messages tab needs of the roster. */
-internal data class RosterView(val people: List<ExtendedContact>, val changes: List<ChangeLine>, val previews: Map<String, ConversationLine?>)
+internal data class RosterView(
+    val people: List<ExtendedContact>,
+    val changes: List<ChangeLine>,
+    val previews: Map<String, ConversationLine?>,
+    /** The parents paused extended family: the roster shows, nothing is sent, blocking still works. */
+    val paused: Boolean = false,
+)
 
 /**
  * "Family contacts" below the Family conversation, only while the rules carry `extended`: each
@@ -87,15 +93,21 @@ internal fun FamilyContactsSection(onOpen: (String) -> Unit) {
     val changes by ExtendedFamily.changes.collectAsState()
     val view by produceState<RosterView?>(null, changes) {
         value = withContext(Dispatchers.IO) {
-            if (!ExtendedFamily.rules(context).enabled) null else {
+            val rules = ExtendedFamily.rules(context)
+            if (!rules.present) null else {
                 val people = ExtendedFamily.roster(context)
-                RosterView(people, ExtendedFamily.changeLog(context), people.associate { it.id to ExtendedFamily.lines(context, it.id).lastOrNull() })
+                RosterView(
+                    people, ExtendedFamily.changeLog(context),
+                    people.associate { it.id to ExtendedFamily.lines(context, it.id).lastOrNull() },
+                    paused = !rules.enabled,
+                )
             }
         }
     }
     val v = view ?: return
     if (v.people.isEmpty() && v.changes.isEmpty()) return
     SectionLabel(stringResource(R.string.ext_section_title))
+    if (v.paused) Footnote(stringResource(R.string.ext_paused), Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
     if (v.people.isNotEmpty()) Sheet(Modifier.padding(bottom = 4.dp)) {
         v.people.forEachIndexed { i, c ->
             if (i > 0) RowDivider()
@@ -175,6 +187,8 @@ internal data class ConversationView(
     val notDuring: String?,
     val snapshot: Boolean,
     val snapshotMinutes: Int,
+    /** The parents paused extended family: nothing can be sent, blocking still works. */
+    val paused: Boolean = false,
 )
 
 /** One person's conversation, loaded from [ExtendedFamily]; [ExtendedConversation] draws it. */
@@ -196,6 +210,7 @@ internal fun ExtendedConversationScreen(contactId: String, onBack: () -> Unit) {
                 contact?.let { ExtendedFamily.blockedByMode(context, it.group) },
                 ExtendedFamily.snapshotRules(context).enabled,
                 ExtendedFamily.snapshotRules(context).minutes,
+                paused = !ExtendedFamily.rules(context).enabled,
             )
             parentNames = FamilyInbox.thread(context).recipients
             ExtendedFamily.cancelNotification(context, contactId)
@@ -278,6 +293,7 @@ internal fun ExtendedConversation(
                 when {
                     contact.status == ContactStatus.BLOCKED -> Text(stringResource(R.string.ext_blocked_note, name), style = MaterialTheme.typography.bodyMedium)
                     !active -> Text(stringResource(R.string.ext_not_active, name), style = MaterialTheme.typography.bodyMedium)
+                    view.paused -> Text(stringResource(R.string.ext_paused), style = MaterialTheme.typography.bodyMedium)
                     notDuring != null -> Text(
                         stringResource(R.string.ext_not_during, notDuring),
                         style = MaterialTheme.typography.bodyMedium,
@@ -306,7 +322,7 @@ internal fun ExtendedConversation(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (active && view.snapshot) ShareLocationButton(
+                if (active && view.snapshot && !view.paused) ShareLocationButton(
                     ShareTarget.Person(contact.id, name), parentNames, view.snapshotMinutes, enabled = notDuring == null,
                 )
                 if (contact.status != ContactStatus.BLOCKED) TextButton(

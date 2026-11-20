@@ -1,5 +1,6 @@
 <resources>
     <string name="ext_section_title">Familienkontakte</string>
+    <string name="ext_paused">Deine Eltern haben Nachrichten mit Familienkontakten pausiert. Du kannst trotzdem jemanden blockieren.</string>
     <string name="ext_invited_question">Deine Eltern haben %1$s eingeladen. Möchtest du mit %1$s Nachrichten austauschen?</string>
     <string name="ext_yes">Ja</string>
     <string name="ext_no_thanks">Nein danke</string>

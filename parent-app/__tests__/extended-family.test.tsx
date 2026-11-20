@@ -136,6 +136,17 @@ describe("extended family roster", () => {
   });
 });
 
+describe("a paused roster", () => {
+  it("stays visible with the paused line and Remove, without inviting or new links", async () => {
+    serve({ familyInbox: true, extendedFamily: false }, { [`GET ${EXT}`]: { body: { ...roster, enabled: false } } });
+    await renderRouter(routes, { initialUrl: `/phones/${PHONE.id}` });
+    expect(await screen.findByText(/^Paused\. Everyone stays on the list/)).toBeTruthy();
+    expect(screen.getByTestId(`extended-${ID(4)}-remove`)).toBeTruthy();
+    expect(screen.queryByTestId(`extended-${ID(1)}-renew`)).toBeNull();
+    expect(screen.queryByTestId("extended-name")).toBeNull();
+  });
+});
+
 describe("location snapshots in the inbox thread", () => {
   it("links a live one to OpenStreetMap and says a gone one is no longer visible", async () => {
     const open = jest.spyOn(NativeLinking, "openURL").mockResolvedValue(undefined);

@@ -97,6 +97,7 @@ export interface FamilyInboxThread {
 /** Where a message is, as a parent sees it: a key, and the time for "On the phone {time}". */
 export function familyState(m: FamilyMessage): { key: MessageKey; at?: string } {
   if (m.from === "parent") return m.receivedAt ? { key: "inbox.received", at: m.receivedAt } : { key: "inbox.waiting" };
-  if (m.delivered === 0) return { key: "inbox.sms" };
+  // Snapshots have no SMS fallback: no push only means the line waits in the inbox.
+  if (m.delivered === 0 && m.kind !== "snapshot") return { key: "inbox.sms" };
   return { key: m.delivered ? "inbox.delivered" : "inbox.sent" };
 }

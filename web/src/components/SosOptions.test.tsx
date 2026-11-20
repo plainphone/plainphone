@@ -31,6 +31,7 @@ function serve(server: Server, failWith?: ApiError) {
   vi.spyOn(api, "get").mockImplementation(async (path: string) => {
     calls.push({ method: "GET", path });
     if (path === `/phones/${PID}/sos`) return { events: [], callbackNumber: null, settings: server.settings } as never;
+    if (path === `/phones/${PID}/extended`) return { enabled: false, locationSnapshots: false, contacts: [] } as never;
     return { messages: server.messages, suggestions: server.suggestions } as never;
   });
   vi.spyOn(api, "put").mockImplementation(record("PUT") as never);

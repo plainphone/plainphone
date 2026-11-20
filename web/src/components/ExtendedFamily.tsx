@@ -17,7 +17,7 @@ import { Field, useLoad } from "./ui";
  * The extended family roster of one Child phone (docs/extended-family.md): who is invited, where
  * each person stands, and a single-use link that is shown once. Parents never see the messages.
  */
-export function ExtendedFamily({ pid }: { pid: string }) {
+export function ExtendedFamily({ pid, paused = false }: { pid: string; paused?: boolean }) {
   const { t } = useI18n();
   const path = `/phones/${pid}/extended`;
   const res = useLoad(() => api.get<ExtendedRoster>(path), [path]);
@@ -76,11 +76,13 @@ export function ExtendedFamily({ pid }: { pid: string }) {
     run(async () => void (await api.patch(`${path}/${c.id}`, { group })), "ext.groupError");
 
   if (!data) return res.error ? <p role="status">{t("ext.unavailable")}</p> : null;
+  // Paused: the roster stays visible so a parent can still remove people, but nobody new is invited.
+  if (paused && data.contacts.length === 0) return null;
   const anyRenewable = data.contacts.some((c) => canRenewLink(c.status));
   return (
     <section className="stack" aria-label={t("ext.title")}>
       <h3>{t("ext.title")}</h3>
-      <p className="help">{t("ext.intro")}</p>
+      <p className="help">{paused ? t("ext.paused") : t("ext.intro")}</p>
       {data.contacts.length === 0 ? (
         <p className="help">{t("ext.empty")}</p>
       ) : (
@@ -97,7 +99,7 @@ export function ExtendedFamily({ pid }: { pid: string }) {
                     {CONTACT_GROUPS.map((g) => <option key={g} value={g}>{t(`group.${g}` as MessageKey)}</option>)}
                   </select>
                 </label>
-                {canRenewLink(c.status) && (
+                {!paused && canRenewLink(c.status) && (
                   <button type="button" className="btn btn-secondary btn-small" disabled={busy}
                     aria-label={`${t("ext.newLink")}: ${c.name}`} onClick={() => void renew(c)}>{t("ext.newLink")}</button>
                 )}
@@ -109,9 +111,9 @@ export function ExtendedFamily({ pid }: { pid: string }) {
         </ul>
       )}
       <p className="help">{t("ext.groupHelp")}</p>
-      {anyRenewable && <p className="help">{t("ext.newLinkHelp")}</p>}
+      {!paused && anyRenewable && <p className="help">{t("ext.newLinkHelp")}</p>}
       {invite && <LinkOnce invite={invite} onDone={() => setInvite(null)} />}
-      <form className="stack" onSubmit={create}>
+      {paused ? (error && <p role="alert">{t(error)}</p>) : <form className="stack" onSubmit={create}>
         <Field label={t("ext.inviteName")} help={t("ext.inviteNameHelp")}>
           {(props) => (
             <input {...props} value={name} maxLength={EXTENDED_NAME_LENGTH} autoComplete="off"
@@ -122,7 +124,7 @@ export function ExtendedFamily({ pid }: { pid: string }) {
           <button className="btn btn-primary" disabled={busy || !name.trim()}>{t("ext.invite")}</button>
         </div>
         {error && <p role="alert">{t(error)}</p>}
-      </form>
+      </form>}
     </section>
   );
 }

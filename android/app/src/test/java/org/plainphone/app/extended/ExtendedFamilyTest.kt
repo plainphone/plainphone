@@ -45,12 +45,19 @@ class ExtendedFamilyTest {
     }
 
     @Test
-    fun `a block that is not enabled is off`() {
+    fun `a paused block keeps the roster to see and block, with nothing to send`() {
         val r = rules {
-            put("extended", JSONObject("""{"enabled":false,"quickMessages":true,"contacts":[]}"""))
+            put(
+                "extended",
+                JSONObject("""{"enabled":false,"quickMessages":true,"contacts":[
+                  {"id":"c1","name":"Grandma","status":"active","group":"family","rev":3}]}"""),
+            )
             put("locationSnapshot", JSONObject("""{"enabled":false,"minutes":60}"""))
         }
-        assertThat(r.extended).isEqualTo(ExtendedRules.OFF)
+        assertThat(r.extended.enabled).isFalse()
+        assertThat(r.extended.quickMessages).isFalse()
+        assertThat(r.extended.present).isTrue()
+        assertThat(r.extended.contacts.map { it.id }).containsExactly("c1")
         assertThat(r.locationSnapshot).isEqualTo(SnapshotRules.OFF)
     }
 
@@ -343,5 +350,17 @@ class ExtendedFamilyTest {
         val log = SnapshotLogEntry.add(listOf(mid, old), fresh, t0)
         assertThat(log).containsExactly(fresh, mid).inOrder()
         assertThat(SnapshotLogEntry.parse(JSONObject(fresh.toJson().toString()))).isEqualTo(fresh)
+    }
+
+    @Test
+    fun `a snapshot that never arrived leaves the phone's own log`() {
+        val sent = SnapshotLogEntry("Grandma", t0, t0 + 3_600_000, "s1")
+        val lost = SnapshotLogEntry("Mum, Dad", t0 - 1, t0 + 3_599_999, "s2")
+        val older = SnapshotLogEntry("Grandma", t0 - day, t0 - day + 3_600_000)
+        val outbox = listOf(
+            OutboxItem("s1", "c1", "snapshot", "Location", t0, OutboxStatus.STORED),
+            OutboxItem("s2", "parents", "snapshot", "Location", t0 - 1, OutboxStatus.FAILED),
+        )
+        assertThat(SnapshotLogEntry.dropFailed(listOf(sent, lost, older), outbox)).containsExactly(sent, older).inOrder()
     }
 }

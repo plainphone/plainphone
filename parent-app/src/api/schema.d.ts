@@ -3906,10 +3906,10 @@ export interface components {
                  */
                 latest: string | null;
             };
-            /** @description Extended family contacts (docs/extended-family.md). Left out while off. */
+            /** @description Extended family contacts (docs/extended-family.md). While paused, `enabled` is false and the roster is still sent, so the child can see it and block; left out while off with nobody on it. */
             extended?: {
-                /** @enum {boolean} */
-                enabled: true;
+                /** @description False while paused: no messages either way */
+                enabled: boolean;
                 /** @description The child can send the quick messages to an active contact */
                 quickMessages: boolean;
                 contacts: {

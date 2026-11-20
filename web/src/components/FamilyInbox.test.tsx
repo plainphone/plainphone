@@ -21,6 +21,9 @@ const thread = (): FamilyInboxThread => ({
 });
 
 const posts: unknown[] = [];
+// The thread, and an extended family roster with nobody on it (it shows only with people on it).
+const mockThread = () => vi.spyOn(api, "get").mockImplementation((async (path: string) =>
+  path.endsWith("/extended") ? { enabled: false, locationSnapshots: false, contacts: [] } : thread()) as never);
 
 beforeEach(() => {
   posts.length = 0;
@@ -55,10 +58,10 @@ async function mount(settings: Partial<SosSettings>, onSetting = vi.fn()) {
 }
 
 it("keeps the thread out of sight while the inbox is off, and says check-ins need it", async () => {
-  const get = vi.spyOn(api, "get");
+  const get = vi.spyOn(api, "get").mockResolvedValue({ enabled: false, locationSnapshots: false, contacts: [] } as never);
   const onSetting = vi.fn();
   const m = await mount({}, onSetting);
-  expect(get).not.toHaveBeenCalled();
+  expect(get).not.toHaveBeenCalledWith(`/phones/${PID}/inbox`);
   expect(m.container.querySelector("form")).toBeNull();
   expect(m.container.textContent).toContain(t("inbox.needsInbox"));
   expect(m.container.textContent).toContain(t("inbox.privacy"));
@@ -69,7 +72,7 @@ it("keeps the thread out of sight while the inbox is off, and says check-ins nee
 });
 
 it("shows each message with who sent it and where it is, in the parent's language", async () => {
-  vi.spyOn(api, "get").mockResolvedValue(thread() as never);
+  mockThread();
   const m = await mount({ familyInbox: true });
   const items = Array.from(m.container.querySelectorAll(".inbox-message")).map((li) => li.textContent);
   expect(items[0]).toContain("Pick me up");
@@ -83,7 +86,7 @@ it("shows each message with who sent it and where it is, in the parent's languag
 });
 
 it("sends a short reply with the remembered name, and explains a switched-off inbox", async () => {
-  vi.spyOn(api, "get").mockResolvedValue(thread() as never);
+  mockThread();
   const post = vi.spyOn(api, "post").mockImplementation(async (path: string, body?: unknown) => {
     posts.push({ path, body });
     return {} as never;

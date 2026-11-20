@@ -96,6 +96,11 @@ function inviteUrl(ctx: Ctx, token: string) {
   return `${ctx.cfg.PUBLIC_URL.replace(/\/$/, "")}/family#invite=${token}`;
 }
 
+/** The people that count towards the ten: everyone but declined and expired invitations. */
+function countedContacts(rows: (typeof extendedContacts.$inferSelect)[], now: Date) {
+  return rows.filter((r) => !["declinedByChild", "declinedByContact", "expired"].includes(contactStatus(r, now))).length;
+}
+
 /** A parent invites a named person. The link is shown once; only its hash is kept. */
 export async function inviteContact(ctx: Ctx, phone: Phone, userId: string, name: string) {
   if (!extendedSwitches(phone).extendedFamily) throw new ExtendedError(403, "extended family contacts are off for this phone");
@@ -103,8 +108,7 @@ export async function inviteContact(ctx: Ctx, phone: Phone, userId: string, name
     await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
     const rows = await tx.select().from(extendedContacts).where(eq(extendedContacts.phoneId, phone.id));
     const now = ctx.now();
-    const counted = rows.filter((r) => !["declinedByChild", "declinedByContact", "expired"].includes(contactStatus(r, now)));
-    if (counted.length >= CONTACTS_MAX) throw new ExtendedError(409, "a phone has at most ten extended contacts");
+    if (countedContacts(rows, now) >= CONTACTS_MAX) throw new ExtendedError(409, "a phone has at most ten extended contacts");
     const token = randomToken(INVITE_PREFIX);
     const expiresAt = new Date(now.getTime() + INVITE_MS);
     const [row] = await tx.insert(extendedContacts).values({
@@ -125,12 +129,18 @@ export async function renewLink(ctx: Ctx, phone: Phone, contactId: string) {
   const token = randomToken(INVITE_PREFIX);
   const expiresAt = new Date(now.getTime() + INVITE_MS);
   return ctx.db.transaction(async (tx) => {
+    await tx.select({ id: phones.id }).from(phones).where(eq(phones.id, phone.id)).for("update");
     const [row] = await tx.select().from(extendedContacts)
       .where(and(eq(extendedContacts.phoneId, phone.id), eq(extendedContacts.id, contactId))).for("update");
     if (!row) throw new ExtendedError(404, "contact not found");
     const status = contactStatus(row, now);
     if (status === "blocked" || status === "declinedByChild") {
       throw new ExtendedError(409, "the child said no to this person; remove them and invite again");
+    }
+    // Reviving an expired or declined invitation brings it back into the count.
+    if (status === "expired" || status === "declinedByContact") {
+      const rows = await tx.select().from(extendedContacts).where(eq(extendedContacts.phoneId, phone.id));
+      if (countedContacts(rows, now) >= CONTACTS_MAX) throw new ExtendedError(409, "a phone has at most ten extended contacts");
     }
     const [updated] = await tx.update(extendedContacts).set({
       inviteTokenHash: sha256(token), inviteExpiresAt: expiresAt, sessionTokenHash: null,
@@ -162,21 +172,20 @@ export async function removeContact(ctx: Ctx, phoneId: string, contactId: string
 const ON_ROSTER: ContactStatus[] = ["waitingForChild", "waitingForContact", "active", "blocked"];
 
 /**
- * The rules' `extended` block, left out while the feature is off. `rev` changes whenever the
- * phone should fetch that conversation again.
+ * The rules' `extended` block. `rev` changes whenever the phone should fetch that conversation
+ * again. While the feature is paused the block still carries the roster, with `enabled: false`, so
+ * the child keeps seeing who is on it and can still block someone; with nobody on it, it is left out.
  */
 export async function extendedRules(ctx: Ctx, phone: Phone) {
+  if (phone.releaseRequestedAt) return undefined;
   const sw = extendedSwitches(phone);
-  if (!sw.extendedFamily) return undefined;
   const now = ctx.now();
   const rows = await listContacts(ctx.db, phone.id);
-  return {
-    enabled: true,
-    quickMessages: sw.quickMessages,
-    contacts: rows.filter((r) => ON_ROSTER.includes(contactStatus(r, now))).map((r) => ({
-      id: r.id, name: r.name, status: contactStatus(r, now), group: r.contactGroup, rev: r.rev,
-    })),
-  };
+  const contacts = rows.filter((r) => ON_ROSTER.includes(contactStatus(r, now))).map((r) => ({
+    id: r.id, name: r.name, status: contactStatus(r, now), group: r.contactGroup, rev: r.rev,
+  }));
+  if (!sw.extendedFamily && contacts.length === 0) return undefined;
+  return { enabled: sw.extendedFamily, quickMessages: sw.extendedFamily && sw.quickMessages, contacts };
 }
 
 /** The rules' `locationSnapshot` block, left out while snapshots are off. */
@@ -452,6 +461,12 @@ export async function parentSnapshot(ctx: Ctx, phoneId: string) {
 /** Switching snapshots off deletes the stored one, as switching location off does. */
 export async function clearSnapshot(ctx: Ctx, phoneId: string) {
   await ctx.db.delete(locationSnapshots).where(eq(locationSnapshots.phoneId, phoneId));
+}
+
+/** Pausing extended family deletes the positions shared with contacts; the parents' one stays. */
+export async function clearContactSnapshots(ctx: Ctx, phoneId: string) {
+  await ctx.db.delete(locationSnapshots)
+    .where(and(eq(locationSnapshots.phoneId, phoneId), isNotNull(locationSnapshots.contactId)));
 }
 
 /** Sweeper: expired snapshots, old conversation lines, and invitations that ended long ago. */

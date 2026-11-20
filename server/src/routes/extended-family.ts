@@ -6,7 +6,7 @@ import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { householdMembers, phones } from "../db/schema.js";
-import { body, param } from "../lib/http.js";
+import { body, clientIp, param, RateLimiter } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import {
   acceptInvite, answerInvite, blockContact, childReceived, childThread, clearSnapshot, CONTACT_REPLY_MAX, contactJson,
@@ -171,6 +171,16 @@ type ContactEnv = { Variables: { contact: Awaited<ReturnType<typeof sessionConta
 export function familyContactRoutes(ctx: Ctx) {
   const app = new Hono<ContactEnv>();
   const token = z.strictObject({ token: z.string().min(10).max(200) });
+  // Like the other unauthenticated token routes (parent.ts): a link cannot be guessed, but the
+  // lookups are still capped per address.
+  const tokenLimit = new RateLimiter(30, 15 * 60_000);
+  const limited = async (c: Context<ContactEnv>, next: () => Promise<void>) => {
+    if (!tokenLimit.take(clientIp(c, ctx.cfg.TRUST_PROXY))) throw new HTTPException(429, { message: "slow down" });
+    await next();
+  };
+  app.use("/invite", limited);
+  app.use("/accept", limited);
+  app.use("/decline", limited);
 
   app.post("/invite", async (c) => {
     const input = await body(c, token);

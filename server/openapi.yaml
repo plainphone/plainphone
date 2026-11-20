@@ -910,10 +910,10 @@ components:
             latest: { type: [string, "null"], format: uuid, description: The newest parent reply; when it changes, the phone fetches GET /device/inbox }
         extended:
           type: object
-          description: Extended family contacts (docs/extended-family.md). Left out while off.
+          description: "Extended family contacts (docs/extended-family.md). While paused, `enabled` is false and the roster is still sent, so the child can see it and block; left out while off with nobody on it."
           required: [enabled, quickMessages, contacts]
           properties:
-            enabled: { type: boolean, enum: [true] }
+            enabled: { type: boolean, description: "False while paused: no messages either way" }
             quickMessages: { type: boolean, description: The child can send the quick messages to an active contact }
             contacts:
               type: array

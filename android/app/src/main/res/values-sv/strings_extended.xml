@@ -1,5 +1,6 @@
 <resources>
     <string name="ext_section_title">Familjekontakter</string>
+    <string name="ext_paused">Dina föräldrar har pausat meddelanden med familjekontakter. Du kan fortfarande blockera någon.</string>
     <string name="ext_invited_question">Dina föräldrar har bjudit in %1$s. Vill du skriva med %1$s?</string>
     <string name="ext_yes">Ja</string>
     <string name="ext_no_thanks">Nej tack</string>

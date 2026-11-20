@@ -8,7 +8,7 @@ import { phoneNumber } from "../lib/validation.js";
 import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
-import { clearSnapshot } from "../services/extended-family.js";
+import { clearContactSnapshots, clearSnapshot } from "../services/extended-family.js";
 import { wakePhone } from "../services/phones.js";
 import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
 import { deviceQuickMessageRoutes, parentQuickMessageRoutes } from "./quick-messages.js";
@@ -130,6 +130,8 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
     if (Object.keys(set).length) await ctx.db.update(phones).set(set).where(eq(phones.id, phone.id));
     // Switching snapshots or the inbox off deletes a stored snapshot, as switching location off does.
     if (input.locationSnapshots === false || input.familyInbox === false) await clearSnapshot(ctx, phone.id);
+    // Pausing extended family deletes what was shared with contacts, so a paused page shows no position.
+    else if (input.extendedFamily === false) await clearContactSnapshots(ctx, phone.id);
     // Everything but the callback number is in the rules (the sos and inbox blocks).
     if (Object.keys(set).some((k) => k !== "sosCallbackNumber")) await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 204);

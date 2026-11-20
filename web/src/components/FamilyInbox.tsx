@@ -41,7 +41,8 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
         <p className="help">{t("inbox.quickNote")}</p>
         <p className="help">{t("inbox.privacy")}</p>
         {settings.familyInbox && <Thread pid={pid} />}
-        {settings.familyInbox && settings.extendedFamily && <ExtendedFamily pid={pid} />}
+        {/* Paused (either switch off) still shows the people already on the list, so they can be removed. */}
+        <ExtendedFamily pid={pid} paused={!settings.familyInbox || !settings.extendedFamily} />
       </div>
     </details>
   );

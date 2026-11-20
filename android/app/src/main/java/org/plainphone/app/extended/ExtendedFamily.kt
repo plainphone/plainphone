@@ -165,8 +165,9 @@ object ExtendedFamily {
         return modeLabel(context, mode.mode)
     }
 
-    /** Queues a quick message to an active person. False when it cannot go (not active, too long). */
+    /** Queues a quick message to an active person. False when it cannot go (paused, not active, too long). */
     fun send(context: Context, contactId: String, message: QuickMessage, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (!rules(context).enabled) return false
         val c = contact(context, contactId)
         if (c?.status != ContactStatus.ACTIVE || message.meansSos || message.text.length > MAX_TEXT) return false
         addToOutbox(context, OutboxItem(UUID.randomUUID().toString(), contactId, "quick", message.text, nowMs))
@@ -198,6 +199,8 @@ object ExtendedFamily {
             val byId = done.associateBy { it.id }
             val merged = outbox(context).map { cur -> if (cur.status == OutboxStatus.PENDING) byId[cur.id] ?: cur else cur }
             writeList(context, "outbox", merged.map { it.toJson() })
+            // A snapshot that never arrived was not shared: it leaves the child's location log.
+            writeList(context, "snaplog", SnapshotLogEntry.dropFailed(snapshotLog(context, nowMs), merged).map { it.toJson() })
             _changes.value++
         }
     }
@@ -227,13 +230,14 @@ object ExtendedFamily {
 
     /**
      * Queues a snapshot the child confirmed, with the one position that was looked up, and adds the
-     * line to the phone's own location log. [names] are who sees it (empty: the parents).
+     * line to the phone's own location log (taken off again if it is never delivered). [names] are who sees it (empty: the parents).
      */
     fun queueSnapshot(context: Context, target: ShareTarget, fix: LocationFix, names: List<String>, nowMs: Long = System.currentTimeMillis()) {
         val minutes = snapshotRules(context).minutes
-        addToOutbox(context, OutboxItem(UUID.randomUUID().toString(), target.wire, "snapshot", SNAPSHOT_TEXT, nowMs, fix = fix))
+        val id = UUID.randomUUID().toString()
+        addToOutbox(context, OutboxItem(id, target.wire, "snapshot", SNAPSHOT_TEXT, nowMs, fix = fix))
         synchronized(this) {
-            val entry = SnapshotLogEntry(names.joinToString(", "), nowMs, nowMs + minutes * 60_000L)
+            val entry = SnapshotLogEntry(names.joinToString(", "), nowMs, nowMs + minutes * 60_000L, id)
             writeList(context, "snaplog", SnapshotLogEntry.add(snapshotLog(context), entry, nowMs).map { it.toJson() })
         }
     }
@@ -263,7 +267,8 @@ object ExtendedFamily {
     fun refresh(context: Context, api: PlainphoneApi, token: String, rules: ServerRules, nowMs: Long = System.currentTimeMillis()) {
         if (rules.profile != "child" || rules.release) return
         val ext = rules.extended
-        if (ext.enabled) {
+        // Paused still carries the roster: the change list stays current and a block still goes.
+        if (ext.present) {
             recompute(context, ext.contacts, nowMs)
             runCatching { sendActions(context, api, token) }
         }

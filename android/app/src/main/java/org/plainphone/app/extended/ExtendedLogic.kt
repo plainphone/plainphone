@@ -269,8 +269,8 @@ object ExtendedModes {
     /**
      * The mode that keeps the child from writing to a person of [group], or null when nothing does.
      * Groups only narrow when the approved list is enforced and a parent is marked (docs/modes.md),
-     * which [Modes.shown] already tells; with no modes, no narrowing, or an unknown group (others)
-     * the child can write.
+     * which [Modes.shown] already tells. With no mode on, or a mode that does not narrow groups, the
+     * child can write; otherwise only to a person whose group the mode allows, `others` included.
      */
     fun blockedBy(rules: ServerRules?, contactsEnforced: Boolean, group: String, now: Instant): ActiveMode? {
         val mode = Modes.shown(rules, contactsEnforced, now) ?: return null
@@ -320,18 +320,30 @@ sealed interface LookupOutcome {
 }
 
 /** One line of "What can my parents see?": the child shared where they are. [names] empty means the parents. */
-data class SnapshotLogEntry(val names: String, val atMs: Long, val untilMs: Long) {
-    fun toJson(): JSONObject = JSONObject().put("names", names).put("at", atMs).put("until", untilMs)
+data class SnapshotLogEntry(
+    val names: String,
+    val atMs: Long,
+    val untilMs: Long,
+    /** The snapshot's outbox id, so a snapshot that never arrived can be taken off the log. */
+    val id: String = "",
+) {
+    fun toJson(): JSONObject = JSONObject().put("names", names).put("at", atMs).put("until", untilMs).put("id", id)
 
     companion object {
         const val KEEP_MS = 30L * 86_400_000
         const val KEEP = 50
 
-        fun parse(o: JSONObject) = SnapshotLogEntry(o.optString("names"), o.optLong("at"), o.optLong("until"))
+        fun parse(o: JSONObject) = SnapshotLogEntry(o.optString("names"), o.optLong("at"), o.optLong("until"), o.optString("id"))
 
         /** Adds [entry] (newest first) and drops what is older than 30 days. */
         fun add(log: List<SnapshotLogEntry>, entry: SnapshotLogEntry, nowMs: Long): List<SnapshotLogEntry> =
             (listOf(entry) + log).filter { nowMs - it.atMs < KEEP_MS }.take(KEEP)
+
+        /** Takes off the snapshots that were never shared: given up after an hour, or refused (the person gone). */
+        fun dropFailed(log: List<SnapshotLogEntry>, outbox: List<OutboxItem>): List<SnapshotLogEntry> {
+            val failed = outbox.filter { it.kind == "snapshot" && it.status == OutboxStatus.FAILED }.map { it.id }.toSet()
+            return log.filter { it.id.isEmpty() || it.id !in failed }
+        }
     }
 }
 

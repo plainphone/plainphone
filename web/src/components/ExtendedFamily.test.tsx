@@ -70,6 +70,7 @@ async function mount(settings: Partial<SosSettings>, onSetting = vi.fn()) {
 const switches = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLButtonElement>('[role="switch"]'));
 
 it("has two switches that save through the settings patch, and says they need the inbox", async () => {
+  roster = { enabled: false, locationSnapshots: false, contacts: [] };
   const onSetting = vi.fn();
   const m = await mount({}, onSetting);
   expect(m.container.textContent).toContain(`${t("ext.switchHelp")} ${t("inbox.needsInbox")}`);
@@ -80,8 +81,23 @@ it("has two switches that save through the settings patch, and says they need th
   await act(async () => snap!.click());
   expect(onSetting).toHaveBeenNthCalledWith(1, { extendedFamily: true });
   expect(onSetting).toHaveBeenNthCalledWith(2, { locationSnapshots: true });
-  // Off: the roster is not even requested.
-  expect(api.get).not.toHaveBeenCalled();
+  // Off with nobody on the list: no roster and no invite form.
+  expect(m.container.querySelector(`section[aria-label="${t("ext.title")}"]`)).toBeNull();
+  expect(m.container.querySelector('input[maxlength="40"]')).toBeNull();
+  await m.unmount();
+});
+
+it("keeps the roster visible while paused, to remove people, without inviting or new links", async () => {
+  roster = { enabled: false, locationSnapshots: false, contacts: STATES };
+  const del = vi.spyOn(api, "del").mockResolvedValue(undefined as never);
+  vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+  const m = await mount({ familyInbox: true, extendedFamily: false });
+  expect(m.container.textContent).toContain(t("ext.paused"));
+  expect(m.container.querySelectorAll("[data-contact]")).toHaveLength(STATES.length);
+  expect(m.container.querySelector(`button[aria-label^="${t("ext.newLink")}"]`)).toBeNull();
+  expect(m.container.querySelector('input[maxlength="40"]')).toBeNull();
+  await act(async () => m.button(`${t("ext.remove")}: Neighbour`).click());
+  expect(del).toHaveBeenCalledWith(`/phones/${PID}/extended/c4`);
   await m.unmount();
 });
 

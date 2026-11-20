@@ -434,6 +434,8 @@ internal fun MessagesHeader(family: FamilyPreview?, onOpenContact: (String) -> U
         org.plainphone.app.extended.FamilyContactsSection(onOpenContact)
         return
     }
+    // With the inbox off, extended family is paused: the people on the roster still show, so the child can block.
+    org.plainphone.app.extended.FamilyContactsSection(onOpenContact)
     if (org.plainphone.app.sos.childQuickMessages(context, withSuggest = false) == null) return
     Sheet(Modifier.padding(bottom = 12.dp)) {
         org.plainphone.app.sos.ChildQuickMessages(withSuggest = false, modifier = Modifier.padding(16.dp))

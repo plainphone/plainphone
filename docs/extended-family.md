@@ -36,9 +36,13 @@ need the family inbox, sync through `/rules`, and show on the phone's **What can
 | **Extended family contacts** (`extendedFamily`) | off | Named people the child approved can swap quick messages and short replies with the child |
 | **Share a location snapshot** (`locationSnapshots`) | off | The child can send where they are once, to the people in one conversation, for one hour |
 
-Turning extended family off pauses every conversation: the roster stays, the contacts' page says
-it is paused, and their replies are refused. Turning it on again resumes them. Turning snapshots
-off deletes a stored snapshot at once, as turning location off does.
+Turning extended family off (or the family inbox it needs) pauses every conversation: the roster
+stays, the contacts' page says it is paused, their replies are refused and a position shared with a
+contact is deleted. While paused, the rules still carry the roster with `enabled: false` (left out
+only when nobody is on it), so the child keeps seeing who is on it, with a line saying it is paused,
+and can still block someone. The parents still see the roster too and can remove people, but not
+invite or send new links. Turning it on again resumes the conversations. Turning snapshots off
+deletes a stored snapshot at once, as turning location off does.
 
 ## What an extended contact is
 
@@ -79,7 +83,8 @@ Until then the contact's page says it is waiting for the child, and replies are 
 | `declinedByChild`, `declinedByContact` | One side said no | No |
 | `expired` | The link ran out before the person accepted | No |
 
-A phone has at most ten extended contacts, not counting declined and expired invitations. Those stay
+A phone has at most ten extended contacts, not counting declined and expired invitations (a new
+link for one of those counts it again, so it is refused when ten are already counted). Those stay
 on the parents' list for 30 days so they can see what happened, then the sweeper deletes them.
 
 ## Roster changes the child can see
@@ -149,14 +154,18 @@ same lookup as Find ([location](location.md#location-time-and-accuracy)), and se
   old one, whoever it went to, and the sweeper deletes it when it expires.
 - **Recipients only.** A snapshot to the parents shows in the family inbox, never to a contact. A
   snapshot to a person shows only on that person's page, never to the parents or on the location
-  page. Find and the location page are not changed by snapshots.
+  page. Find and the location page are not changed by snapshots. A snapshot has no SMS fallback,
+  so in the parents' inbox one that reached no parent device by push reads **Sent**, never
+  **Sent as SMS**.
 - **Expiry.** One hour from when the child confirmed. After that the line stays in the conversation
   ("Shared a location") without the position.
 - **The switch.** Off deletes a stored snapshot. A snapshot the phone sent before it heard the switch
   was off is still recorded as a line (the phone is the authority for what it did), but its position
   is not kept.
 - **The child sees it.** Each snapshot adds a line to the phone's own location log on **What can my
-  parents see?**: "You shared your location with Grandma at 16:40, until 17:40".
+  parents see?**: "You shared your location with Grandma at 16:40, until 17:40". A snapshot that
+  never arrives (**Not sent**, or the person was gone) is taken off the log again, as nothing was
+  shared.
 - **Retry.** The phone retries a snapshot with the same id for at most one hour, so it never sends
   a position that would already have expired. After that it shows **Not sent**.
 - **Location permission.** If the phone cannot get a position (permission denied in light mode,
@@ -187,11 +196,12 @@ calls work the same whether extended contacts are on, off, paused or blocked.
 | `POST /device/extended/{cid}/messages` `{ id, text, sentAt }` | phone | A quick message; `{ stored }` or `{ gone }` |
 | `POST /device/extended/{cid}/received` `{ ids }` | phone | The device receipt for replies |
 | `POST /device/location-snapshot` `{ id, to, lat, lon, accuracyM, recordedAt, sentAt }` | phone | A snapshot to `parents` or a contact id |
-| `POST /family-contact/invite`, `/accept`, `/decline` `{ token }` | the person | Preview, accept (returns the session) or decline |
+| `POST /family-contact/invite`, `/accept`, `/decline` `{ token }` | the person | Preview, accept (returns the session) or decline; 30 per 15 minutes per address |
 | `GET /family-contact/me`, `DELETE /family-contact/me` | the person | The conversation, or leave |
 | `POST /family-contact/me/messages` `{ text }` | the person | A short reply |
 
-The rules carry two new blocks, each left out while off:
+The rules carry two new blocks, each left out while off (`extended` comes with `enabled: false`
+and the roster while paused with people on it):
 
 ```json
 "extended": { "enabled": true, "quickMessages": true,

@@ -127,6 +127,12 @@ describe("invitations", () => {
     expect((await parent.post(`/api/phones/${phoneId}/extended/${no.id}/link`)).status).toBe(409);
   });
 
+  it("cap link lookups per address", async () => {
+    const browser = new Client(h);
+    for (let i = 0; i < 30; i++) expect((await browser.post("/api/family-contact/invite", { token: `pp_inv_unknown${i}` })).status).toBe(404);
+    expect((await browser.post("/api/family-contact/invite", { token: "pp_inv_unknown" })).status).toBe(429);
+  });
+
   it("expire after a week", async () => {
     const { parent, phoneId, device } = await setup();
     const inv = await invite(parent, phoneId);
@@ -144,6 +150,14 @@ describe("invitations", () => {
     const { parent, phoneId } = await setup();
     for (let i = 0; i < 10; i++) await invite(parent, phoneId, `Cousin ${i}`);
     expect((await parent.post(`/api/phones/${phoneId}/extended`, { name: "One more" })).status).toBe(409);
+  });
+
+  it("count a revived invitation towards the ten", async () => {
+    const { parent, phoneId } = await setup();
+    const old = await invite(parent, phoneId, "Old friend");
+    h.clock.advance(7 * 86_400_000 + 1);
+    for (let i = 0; i < 10; i++) await invite(parent, phoneId, `Cousin ${i}`);
+    expect((await parent.post(`/api/phones/${phoneId}/extended/${old.id}/link`)).status).toBe(409);
   });
 });
 
@@ -228,15 +242,18 @@ describe("conversation", () => {
     const { parent, phoneId, device } = await setup();
     const { id, contact } = await member(parent, device, phoneId);
     await parent.put(`/api/phones/${phoneId}/sos`, { extendedFamily: false });
-    expect((await roster(device))).toBeUndefined();
+    // The child still sees who is on the roster, with nothing to send.
+    expect(await roster(device)).toEqual({ enabled: false, quickMessages: false, contacts: [expect.objectContaining({ id, status: "active" })] });
     expect((await contact.get("/api/family-contact/me")).json).toMatchObject({ paused: true, canReply: false });
     expect((await contact.post("/api/family-contact/me/messages", { text: "Hi" })).status).toBe(403);
     // Sent before the phone heard about the switch: recorded.
     expect((await device.post(`/api/device/extended/${id}/messages`, { id: randomUUID(), text: "Late" })).json).toEqual({ stored: true });
     // Blocking still works while it is off.
     expect((await device.post(`/api/device/extended/${id}/block`)).status).toBe(204);
-    await parent.put(`/api/phones/${phoneId}/sos`, { extendedFamily: true });
-    expect(await status(parent, phoneId)).toEqual([["Grandma", "blocked"]]);
+    expect((await roster(device)).contacts).toMatchObject([{ id, status: "blocked" }]);
+    // The parents can still remove the person while it is paused; with nobody left, the block goes.
+    expect((await parent.del(`/api/phones/${phoneId}/extended/${id}`)).status).toBe(204);
+    expect(await roster(device)).toBeUndefined();
   });
 });
 
@@ -385,6 +402,20 @@ describe("location snapshots", () => {
     const late = fix("parents");
     expect((await device.post("/api/device/location-snapshot", late)).json).toMatchObject({ stored: true, kept: false });
     expect((await parent.get(`/api/phones/${phoneId}/inbox`)).json.messages.at(-1)).toMatchObject({ id: late.id, location: null });
+  });
+
+  it("to a contact are deleted when extended family is paused, and the parents' one stays", async () => {
+    const { parent, phoneId, device } = await setup("p@example.org", on);
+    const { id, contact } = await member(parent, device, phoneId);
+    await device.post("/api/device/location-snapshot", fix(id));
+    await parent.put(`/api/phones/${phoneId}/sos`, { extendedFamily: false });
+    expect(JSON.stringify((await contact.get("/api/family-contact/me")).json)).not.toContain("55.68");
+    expect(await h.ctx.db.select().from(locationSnapshots)).toHaveLength(0);
+
+    await parent.put(`/api/phones/${phoneId}/sos`, { extendedFamily: true });
+    await device.post("/api/device/location-snapshot", fix("parents"));
+    await parent.put(`/api/phones/${phoneId}/sos`, { extendedFamily: false });
+    expect((await parent.get(`/api/phones/${phoneId}/inbox`)).json.messages.at(-1)).toMatchObject({ location: { lat: 55.68 } });
   });
 
   it("to a removed contact are not kept", async () => {

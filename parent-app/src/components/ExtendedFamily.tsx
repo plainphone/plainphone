@@ -20,7 +20,7 @@ import { Button, Card, Field, Row, Segmented, Stack as VStack, Text, useLoad } f
 
 const GROUPS: ContactGroupId[] = ["family", "friends", "others"];
 
-export function ExtendedFamily({ pid }: { pid: string }) {
+export function ExtendedFamily({ pid, paused = false }: { pid: string; paused?: boolean }) {
   const { t } = useI18n();
   const params = { path: { pid } };
   const res = useLoad(() => unwrap<ExtendedRoster>(client.GET("/phones/{pid}/extended", { params })), [pid]);
@@ -69,10 +69,12 @@ export function ExtendedFamily({ pid }: { pid: string }) {
   }, "ext.groupError");
 
   if (!data) return res.error ? <Text variant="small">{t("ext.unavailable")}</Text> : null;
+  // Paused: the roster stays visible so a parent can still remove people, but nobody new is invited.
+  if (paused && data.contacts.length === 0) return null;
   return (
     <VStack gap={12}>
       <Text variant="label" accessibilityRole="header">{t("ext.title")}</Text>
-      <Text variant="small">{t("ext.intro")}</Text>
+      <Text variant="small">{paused ? t("ext.paused") : t("ext.intro")}</Text>
       {data.contacts.length === 0 ? <Text variant="muted">{t("ext.empty")}</Text> : null}
       {data.contacts.map((c) => (
         <Card key={c.id} testID={`extended-${c.id}`}>
@@ -83,7 +85,7 @@ export function ExtendedFamily({ pid }: { pid: string }) {
               options={GROUPS.map((g) => ({ value: g, label: t(`group.${g}` as MessageKey), testID: `extended-${c.id}-${g}` }))}
               onChange={(g) => { if (g !== c.group && !busy) void regroup(c, g); }} />
             <Row>
-              {canRenewLink(c.status) ? (
+              {!paused && canRenewLink(c.status) ? (
                 <Button testID={`extended-${c.id}-renew`} kind="secondary" title={t("ext.newLink")} disabled={busy}
                   accessibilityLabel={`${t("ext.newLink")}: ${c.name}`} onPress={() => void renew(c)} />
               ) : null}
@@ -94,11 +96,15 @@ export function ExtendedFamily({ pid }: { pid: string }) {
         </Card>
       ))}
       <Text variant="small">{t("ext.groupHelp")}</Text>
-      {data.contacts.some((c) => canRenewLink(c.status)) ? <Text variant="small">{t("ext.newLinkHelp")}</Text> : null}
+      {!paused && data.contacts.some((c) => canRenewLink(c.status)) ? <Text variant="small">{t("ext.newLinkHelp")}</Text> : null}
       {invite ? <LinkOnce invite={invite} onDone={() => setInvite(null)} /> : null}
-      <Field label={t("ext.inviteName")} help={t("ext.inviteNameHelp")} value={name} onChangeText={setName}
-        maxLength={EXTENDED_NAME_LENGTH} autoComplete="off" testID="extended-name" />
-      <Button testID="extended-invite" title={t("ext.invite")} busy={busy} disabled={!name.trim()} onPress={create} />
+      {paused ? null : (
+        <>
+          <Field label={t("ext.inviteName")} help={t("ext.inviteNameHelp")} value={name} onChangeText={setName}
+            maxLength={EXTENDED_NAME_LENGTH} autoComplete="off" testID="extended-name" />
+          <Button testID="extended-invite" title={t("ext.invite")} busy={busy} disabled={!name.trim()} onPress={create} />
+        </>
+      )}
       {error ? <Text variant="error" accessibilityRole="alert">{t(error)}</Text> : null}
     </VStack>
   );

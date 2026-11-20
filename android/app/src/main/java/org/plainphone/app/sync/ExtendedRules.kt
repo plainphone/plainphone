@@ -27,19 +27,24 @@ data class ExtendedContact(
 
 /**
  * The rules' `extended` block (docs/extended-family.md). The server leaves it out while the feature
- * is off, and older servers do not know it: both mean off. A person with a state this app does not
- * know (a newer server) is left out rather than guessed at.
+ * is off with nobody on the roster, and older servers do not know it: both mean off. While paused
+ * it comes with `enabled: false` and the roster, so the child still sees who is on it and can block
+ * ([present] is then true). A person with a state this app does not know (a newer server) is left
+ * out rather than guessed at.
  */
 data class ExtendedRules(
     val enabled: Boolean = false,
     val quickMessages: Boolean = false,
     val contacts: List<ExtendedContact> = emptyList(),
+    /** The block was in the rules: on, or paused with people on the roster. */
+    val present: Boolean = false,
 ) {
     companion object {
         val OFF = ExtendedRules()
 
         fun parse(o: JSONObject?): ExtendedRules {
-            if (o == null || !o.optBoolean("enabled", false)) return OFF
+            if (o == null) return OFF
+            val enabled = o.optBoolean("enabled", false)
             val list = o.optJSONArray("contacts")?.let(ServerRules::objects).orEmpty().mapNotNull { c ->
                 val id = c.optString("id")
                 val status = ContactStatus.fromWire(c.optString("status"))
@@ -52,7 +57,7 @@ data class ExtendedRules(
                     rev = c.optInt("rev", 0),
                 )
             }
-            return ExtendedRules(true, o.optBoolean("quickMessages", false), list)
+            return ExtendedRules(enabled, enabled && o.optBoolean("quickMessages", false), list, present = true)
         }
     }
 }

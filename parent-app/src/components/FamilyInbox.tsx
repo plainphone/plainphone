@@ -46,7 +46,8 @@ export function FamilyInbox({ pid, settings, saving, onSetting }: {
           <Text variant="small">{t("inbox.quickNote")}</Text>
           <Text variant="small">{t("inbox.privacy")}</Text>
           {settings.familyInbox ? <Thread pid={pid} /> : null}
-          {settings.familyInbox && settings.extendedFamily ? <ExtendedFamily pid={pid} /> : null}
+          {/* Paused (either switch off) still shows the people already on the list, so they can be removed. */}
+          <ExtendedFamily pid={pid} paused={!settings.familyInbox || !settings.extendedFamily} />
         </VStack>
       ) : null}
     </Card>
