@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { Linking } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Linking } from "react-native";
 import { client, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { useI18n } from "../i18n/I18n";
@@ -26,6 +26,25 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
     const timer = setInterval(() => void reload(), 10_000);
     return () => clearInterval(timer);
   }, [reload]));
+
+  // A new alert that arrives while the screen is open is read out by screen readers. The alerts
+  // the screen opened with are already on it; only later ones are news.
+  const known = useRef<{ pid: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    if (!res.data) return;
+    if (known.current?.pid !== pid) known.current = null;
+    const open = res.data.events.filter((event) => !event.seenAt);
+    const before = known.current?.ids;
+    const fresh = before ? open.filter((event) => !before.has(event.id)) : [];
+    known.current = { pid, ids: new Set([...(before ?? []), ...open.map((event) => event.id)]) };
+    for (const event of fresh) {
+      const kind = t(event.kind === "urgent" ? "sos.urgent" : "sos.help");
+      AccessibilityInfo.announceForAccessibility(phoneName !== undefined ? `${phoneName}: ${kind}` : kind);
+    }
+    // Runs on new data only: when pid changes, the old phone's data is still shown until the new
+    // one arrives, and it must not count as what the new phone opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [res.data]);
 
   async function save(action: () => Promise<void>) {
     setBusy(true);

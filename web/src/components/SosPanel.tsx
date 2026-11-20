@@ -89,17 +89,23 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
     );
   }
 
+  const active = res.data?.events.filter((event) => !event.seenAt) ?? [];
+  // A new alert that arrives while the page is open is read out by screen readers. The live region
+  // is always rendered, also on the phones list where the panel is otherwise empty: screen readers
+  // do not read a live region that is mounted together with its content.
+  const live = (
+    <p className="sr-only" aria-live="assertive" data-sos-live="">
+      {active.map((event) => `${phoneName !== undefined ? `${phoneName}: ` : ""}${t(event.kind === "urgent" ? "sos.urgent" : "sos.help")}.`).join(" ")}
+    </p>
+  );
   // A failed check is said out loud on the phones list too: silence there reads as "no SOS".
   if (!res.data) {
-    if (!res.error) return null;
-    return <p role="status" className="notice notice-error">{phoneName !== undefined && `${phoneName}: `}{t("sos.unavailable")}</p>;
+    return <>{live}{Boolean(res.error) && <p role="status" className="notice notice-error">{phoneName !== undefined && `${phoneName}: `}{t("sos.unavailable")}</p>}</>;
   }
-  const active = res.data.events.filter((event) => !event.seenAt);
-  if (phoneName !== undefined && !active.length) return null;
-  return (
+  if (phoneName !== undefined && !active.length) return <>{live}</>;
+  return <>{live}
     <section className="section stack" aria-label={t("sos.title")}>
-      {/* A new alert that arrives while the page is open is read out by screen readers. */}
-      <div className="stack" aria-live="assertive">{active.map((event) => eventRow(event, true))}</div>
+      {active.map((event) => eventRow(event, true))}
       {active.length > 0 && <details>
         <summary>{t("sos.yourName")}</summary>
         <input aria-label={t("sos.yourName")} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
@@ -117,5 +123,5 @@ export function SosPanel({ pid, phoneName }: { pid: string; phoneName?: string }
         </form>
       </details>}
     </section>
-  );
+  </>;
 }

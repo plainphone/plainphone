@@ -82,7 +82,7 @@ export const en = {
   "callback.here": "Log in here",
   "callback.confirmTitle": "Log in with this link?",
   "callback.confirmBody": "Only continue if you asked for this login link yourself. A link from someone else would log you into their account.",
-  "callback.signedInAs": "You are logged in as {email} now.",
+  "callback.signedInAs": "You are currently logged in as {email}.",
   "callback.confirm": "Log in",
 
   "invite.title": "Invitation",

@@ -78,7 +78,7 @@ export const sv: Messages = {
   "callback.here": "Logga in här",
   "callback.confirmTitle": "Logga in med den här länken?",
   "callback.confirmBody": "Fortsätt bara om du själv har bett om den här inloggningslänken. En länk från någon annan loggar in dig på deras konto.",
-  "callback.signedInAs": "Du är inloggad som {email} nu.",
+  "callback.signedInAs": "Du är för närvarande inloggad som {email}.",
   "callback.confirm": "Logga in",
 
   "invite.title": "Inbjudan",

@@ -63,8 +63,8 @@ export function linkAskedHere(): boolean {
   }
 }
 
-/** The inbox signature name (components/FamilyInbox.tsx). */
-const INBOX_NAME_KEY = "pp.inboxName";
+/** The inbox signature name (components/FamilyInbox.tsx); a display name, not a credential. */
+export const INBOX_NAME_KEY = "pp.inboxName";
 
 /** Forgets what this browser kept for the account that signs out, so the next person does not inherit it. */
 export function clearAccountState() {
@@ -118,17 +118,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const logout = useCallback(async () => {
-    // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
-    // Unsubscribe the browser even if the id was lost; the server row then goes as gone.
-    await disablePush(localStorage.getItem(PUSH_ID_KEY)).catch(() => undefined);
-    localStorage.removeItem(PUSH_ID_KEY);
     // Only the server can end the HttpOnly session cookie. If the call fails, this browser is still
-    // signed in, so the caller says so instead of showing the login page (a shared tablet).
+    // signed in, so the caller says so instead of showing the login page (a shared tablet), and
+    // notifications stay on: a parent who stays signed in here must still hear an SOS.
     try {
       await api.post("/auth/logout");
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 401)) throw err;
     }
+    // A signed-out browser (a shared tablet) must stop getting this parent's notifications.
+    // The session is gone, so only the browser unsubscribes; the server drops the row as gone
+    // the next time it sends to it.
+    await disablePush(null).catch(() => undefined);
+    localStorage.removeItem(PUSH_ID_KEY);
     clearAccountState();
     setState({ status: "anon", signedOut: true });
   }, []);

@@ -86,6 +86,6 @@ it("names the signed-in account and waits, even for a link asked for here", asyn
   localStorage.setItem(LINK_ASKED_KEY, String(Date.now()));
   session.state = { status: "in", me: { user: { id: "u1", email: "parent@example.org", locale: "en" }, households: [], mailEnabled: true } };
   await mount();
-  expect(container.textContent).toContain("You are logged in as parent@example.org now.");
+  expect(container.textContent).toContain("You are currently logged in as parent@example.org.");
   expect(verify).not.toHaveBeenCalled();
 });

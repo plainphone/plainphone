@@ -78,7 +78,7 @@ export const nb: Messages = {
   "callback.here": "Logg inn her",
   "callback.confirmTitle": "Logge inn med denne lenken?",
   "callback.confirmBody": "Fortsett bare hvis du selv har bedt om denne innloggingslenken. En lenke fra noen andre logger deg inn på kontoen deres.",
-  "callback.signedInAs": "Du er logget inn som {email} nå.",
+  "callback.signedInAs": "Du er for øyeblikket logget inn som {email}.",
   "callback.confirm": "Logg inn",
 
   "invite.title": "Invitasjon",

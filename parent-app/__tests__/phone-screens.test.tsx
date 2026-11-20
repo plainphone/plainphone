@@ -41,6 +41,30 @@ beforeEach(async () => {
   await SecureStore.setItemAsync("pp.session", "pp_s_saved");
 });
 
+it("reads out an SOS that arrives while the phones list is open, not the ones it opened with", async () => {
+  jest.useFakeTimers();
+  const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => undefined);
+  try {
+    const event = { id: "11111111-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z", seenAt: null, location: null };
+    const later = { ...event, id: "22222222-2b65-4b68-8c27-30afb2f84a0f", kind: "help", createdAt: "2026-11-19T14:40:00Z" };
+    let events = [event];
+    phoneApi(PHONE, {
+      "GET /phones": { body: { phones: [PHONE] } },
+      [`GET /phones/${PHONE.id}/sos`]: () => ({ body: { events, callbackNumber: null } }),
+    });
+    await renderRouter(routes, { initialUrl: "/" });
+    expect(await screen.findByTestId("sos-banner")).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
+    events = [event, later];
+    await act(async () => { await jest.advanceTimersByTimeAsync(10_000); });
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(`${PHONE.name}: Needs help`);
+  } finally {
+    announce.mockRestore();
+    jest.useRealTimers();
+  }
+});
+
 it("shows an urgent SOS, then moves it to history after acknowledgment", async () => {
   const event = {
     id: "3b276ba0-2b65-4b68-8c27-30afb2f84a0f", kind: "urgent", createdAt: "2026-11-19T14:32:00Z",

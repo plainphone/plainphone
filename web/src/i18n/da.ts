@@ -80,7 +80,7 @@ export const da: Messages = {
   "callback.here": "Log ind her",
   "callback.confirmTitle": "Log ind med dette link?",
   "callback.confirmBody": "Fortsæt kun, hvis du selv har bedt om dette link. Et link fra en anden logger dig ind på deres konto.",
-  "callback.signedInAs": "Du er logget ind som {email} nu.",
+  "callback.signedInAs": "Du er lige nu logget ind som {email}.",
   "callback.confirm": "Log ind",
 
   "invite.title": "Invitation",

@@ -56,7 +56,7 @@ describe("login links", () => {
       "GET /phones": { body: { phones: [PHONE] } },
     });
     await renderRouter(routes, { initialUrl: "/auth/app" });
-    expect(await screen.findByText("You are logged in as parent@example.org now.")).toBeTruthy();
+    expect(await screen.findByText("You are currently logged in as parent@example.org.")).toBeTruthy();
     expect(api.calls.some((c) => c.path === "/auth/verify")).toBe(false);
 
     await fireEvent.press(screen.getByTestId("auth-link-confirm-yes"));

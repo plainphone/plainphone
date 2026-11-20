@@ -6,7 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/I18n";
 import { INVITE_KEY, LINK_ASKED_KEY, NEXT_KEY, SessionProvider, useHouseholdId, useSession } from "./session";
 
-vi.mock("./push", () => ({ PUSH_ID_KEY: "pp_push_id", disablePush: async () => undefined }));
+const push = vi.hoisted(() => ({ disablePush: vi.fn(async (_id: string | null) => undefined) }));
+vi.mock("./push", () => ({ PUSH_ID_KEY: "pp_push_id", disablePush: push.disablePush }));
 
 const me = {
   user: { id: "u1", email: "parent@example.org", locale: "en" },
@@ -30,6 +31,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.setItem("pp.locale", "en");
   logoutStatus = 204;
+  push.disablePush.mockClear();
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     if (url === "/api/me") return Response.json(me);
     if (url === "/api/auth/logout") {
@@ -78,6 +80,16 @@ it("stays signed in and says so when the server could not end the session", asyn
     await expect(view.logout()).rejects.toThrow();
   });
   expect(view.state.status).toBe("in");
+  // A parent who stays signed in on this device must still get the next SOS.
+  expect(push.disablePush).not.toHaveBeenCalled();
+});
+
+it("turns off this browser's notifications once the session has ended", async () => {
+  await mount();
+  localStorage.setItem("pp_push_id", "sub-1");
+  await act(async () => view.logout());
+  expect(push.disablePush).toHaveBeenCalledTimes(1);
+  expect(localStorage.getItem("pp_push_id")).toBeNull();
 });
 
 it("forgets this account's destination, invitation and inbox name after logging out", async () => {
