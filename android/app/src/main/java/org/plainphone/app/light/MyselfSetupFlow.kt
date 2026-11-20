@@ -51,6 +51,7 @@ internal fun MyselfSummary(undoMinutes: Int, waitHours: Int?, trusted: Boolean, 
         if (undoMinutes == 0) stringResource(R.string.setup_summary_undo_off)
         else stringResource(R.string.setup_summary_undo, undoMinutes),
     )
+    SelfLevel.of(waitHours, trusted)?.let { Text(stringResource(R.string.setup_summary_level, selfLevelName(it))) }
     Text(
         when {
             !trusted && waitHours != null -> stringResource(R.string.setup_summary_wait, waitHours)

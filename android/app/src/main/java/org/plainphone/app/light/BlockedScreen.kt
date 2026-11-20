@@ -32,6 +32,13 @@ fun BlockedScreen(
     ask: MoreTime.Ui? = null,
     onAsk: () -> Unit = {},
     onSendAsk: (String) -> Unit = {},
+    /** Self phone, light mode, switched on: "Emergency opening" with how many are left; null shows nothing. */
+    emergency: EmergencyOffer? = null,
+    emergencyConfirming: Boolean = false,
+    emergencyMessage: Int? = null,
+    onEmergency: () -> Unit = {},
+    onEmergencyOpen: () -> Unit = {},
+    onEmergencyCancel: () -> Unit = {},
 ) {
     val title: Int
     val body: Int
@@ -52,6 +59,9 @@ fun BlockedScreen(
         onSecondary = onEnterPin,
     ) {
         if (showParent && ask != null && reason == BlockedActivity.Reason.TIME_USED_UP) AskMoreTime(ask, onAsk, onSendAsk)
+        if (!showParent && emergency != null && reason in EMERGENCY_REASONS) {
+            EmergencySection(emergency, appLabel, emergencyConfirming, emergencyMessage, onEmergency, onEmergencyOpen, onEmergencyCancel)
+        }
         // Not for the Self profile: there is no parent, and the button would open the user's own favourites.
         if (showParent) OutlinedButton(
             onClick = onReachParent,
@@ -60,3 +70,5 @@ fun BlockedScreen(
         ) { Text(stringResource(R.string.blocked_reach_parent), fontSize = 17.sp) }
     }
 }
+
+private val EMERGENCY_REASONS = setOf(BlockedActivity.Reason.NOT_ALLOWED, BlockedActivity.Reason.TIME_USED_UP)

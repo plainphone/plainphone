@@ -2398,3 +2398,30 @@ main {
   display: grid;
   gap: 0.25rem;
 }
+
+/* Emergency openings and key levels ----------------------------------------- */
+
+.emergency-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.emergency-block .emergency-list {
+  font-size: 0.9375rem;
+}
+
+details.key-advanced > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+}
+
+details.key-advanced[open] > summary {
+  margin-bottom: 0.5rem;
+}

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import java.io.File
 import org.junit.Rule
 import org.junit.Test
@@ -45,7 +46,8 @@ class RecoveryScreenshotTest {
         compose.onNodeWithText("No, use Plainphone VPN").performClick()
         capture("recovery-undo-$theme")
         compose.onNodeWithText("30 minutes").performClick()
-        compose.onNodeWithText("Wait 12 h").performClick()
+        compose.onNodeWithText("Advanced").performScrollTo().performClick()
+        compose.onNodeWithText("Wait 12 h").performScrollTo().performClick()
         capture("recovery-key-$theme")
         compose.onNodeWithText("Continue").performClick()
         capture("recovery-confirm-$theme")

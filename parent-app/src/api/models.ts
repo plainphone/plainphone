@@ -185,9 +185,32 @@ export interface KeyInput {
   payUnlockAmount: number;
   payUnlockRecipient: "plainphone";
 }
+export type KeyLevel = "mild" | "firm" | "strict" | "custom";
+/** Emergency openings of a Self phone: off by default, light mode only. */
+export interface EmergencySettings {
+  enabled: boolean;
+  /** Openings per month, 1 to 10. */
+  allowance: number;
+  minutes: number;
+  /** `month` is YYYY-MM. */
+  used: { month: string; count: number };
+}
+export interface EmergencyOpening {
+  id: string;
+  packageName: string;
+  appLabel: string | null;
+  openedAt: string;
+  minutes: number;
+}
+export interface EmergencyOpenings extends EmergencySettings {
+  openings: EmergencyOpening[];
+}
 export interface SelfKey extends KeyInput {
   trustedAccepted: boolean;
   payUnlockCurrency: string;
+  /** A name for the key, worked out by the server. Missing on older servers. */
+  level?: KeyLevel;
+  emergency?: EmergencySettings;
 }
 
 export type SettingKey =
@@ -241,6 +264,7 @@ export type Op =
   | { type: "setting.set"; key: SettingKey; setting: PhoneSetting }
   | { type: "home.set"; home: Home }
   | { type: "key.set"; key: KeyInput }
+  | { type: "emergency.set"; enabled: boolean; allowance: number }
   | { type: "phone.remove"; dnsClientId: string }
   | { type: "phone.release" }
   | { type: "move.allow"; allowed: boolean }

@@ -256,27 +256,16 @@ class LightSetupActivity : ComponentActivity() {
                         secondary = stringResource(R.string.setup_back),
                         onSecondary = back,
                     ) {
-                        ChoiceButton(stringResource(R.string.setup_key_wait), !trusted) { trusted = false }
-                        ChoiceButton(stringResource(R.string.setup_key_trusted), trusted) { trusted = true }
-                        if (trusted) {
-                            OutlinedButton(onClick = { inviteByQr = !inviteByQr }, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(if (inviteByQr) R.string.setup_key_email else R.string.setup_key_qr))
-                            }
-                            if (inviteByQr) Text(stringResource(R.string.setup_key_qr_help))
-                            else OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                label = { Text(stringResource(R.string.setup_key_email)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Text(stringResource(R.string.setup_key_trusted_preview, PENDING_KEY_FALLBACK_HOURS))
-                        } else {
-                            for (hours in listOf(1, 6, 12, 24, 48, 72)) {
-                                ChoiceButton(stringResource(R.string.setup_key_hours, hours), waitHours == hours) { waitHours = hours }
-                            }
-                            waitHours?.let { Text(stringResource(R.string.setup_key_wait_preview, it)) }
-                        }
+                        SelfKeyChoices(
+                            waitHours = waitHours,
+                            trusted = trusted,
+                            inviteByQr = inviteByQr,
+                            email = email,
+                            onWaitHours = { trusted = false; waitHours = it },
+                            onTrusted = { trusted = true },
+                            onInviteByQr = { inviteByQr = it },
+                            onEmail = { email = it },
+                        )
                     }
                     return
                 }
