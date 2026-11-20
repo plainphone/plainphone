@@ -115,6 +115,10 @@ describe("callback requests", () => {
     expect(screen.queryByTestId("callback-call")).toBeNull();
     expect(screen.queryByTestId("callback-number-line")).toBeNull();
     expect(screen.getByTestId("callback-other")).toBeTruthy();
+    // The settings link opens the callback card.
+    expect(screen.queryByTestId("callback-enabled")).toBeNull();
+    await fireEvent.press(screen.getByTestId("callback-open-settings"));
+    expect(await screen.findByTestId("callback-enabled")).toBeTruthy();
   });
 
   it("shows queued, sent and expired differently, and offers no call for an expired one", async () => {

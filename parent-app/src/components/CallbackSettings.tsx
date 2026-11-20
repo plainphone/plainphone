@@ -3,7 +3,8 @@
 // "Ask for a callback" for one Child phone (docs/sos.md#asking-a-parent-to-call): the phone's own
 // number, a parent's confirmation of it, and the switch. Same states and copy as the dashboard
 // (web/src/components/CallbackSettings). The switch needs a confirmed number.
-import { useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { Button, Card, Field, Notice, Stack as VStack, Switch, Text } from "./ui";
 
@@ -17,7 +18,10 @@ export function CallbackSettings({ number, confirmed, enabled, saving, error, on
   onSwitch: (on: boolean) => void;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
+  const { callback } = useLocalSearchParams<{ callback?: string }>();
+  const [open, setOpen] = useState(callback === "1");
+  // "Open the settings" on a callback request lands here with the card open.
+  useEffect(() => { if (callback === "1") setOpen(true); }, [callback]);
   const [draft, setDraft] = useState<string | null>(null);
   const [sure, setSure] = useState(false);
   const value = draft ?? number ?? "";

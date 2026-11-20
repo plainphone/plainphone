@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18n";
 import { Field, Switch } from "./ui";
 
@@ -17,6 +17,18 @@ export function CallbackSettings({ number, confirmed, enabled, saving, error, on
   onSwitch: (on: boolean) => void;
 }) {
   const { t } = useI18n();
+  const card = useRef<HTMLDetailsElement>(null);
+  // The "Open the settings" link on a callback request points here: open the card and scroll to it.
+  useEffect(() => {
+    const reveal = () => {
+      if (window.location.hash !== "#callback-settings" || !card.current) return;
+      card.current.open = true;
+      card.current.scrollIntoView?.({ block: "start" });
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
+  }, []);
   const [draft, setDraft] = useState<string | null>(null);
   const [sure, setSure] = useState(false);
   const value = draft ?? number ?? "";
@@ -34,7 +46,7 @@ export function CallbackSettings({ number, confirmed, enabled, saving, error, on
   }
 
   return (
-    <details className="form-card sos-options" id="callback-settings">
+    <details ref={card} className="form-card sos-options" id="callback-settings">
       <summary>{t("cb.title")}</summary>
       <div className="stack">
         <Switch label={t("cb.title")} description={t("cb.help")} checked={enabled}

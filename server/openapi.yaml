@@ -1966,7 +1966,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CallbackDeviceState" }
-        "403": { description: Asking for a callback is switched off (only for a live request without `sentAt`) }
+        "403": { description: Asking for a callback is switched off (only for a request without `sentAt`; the phone always sends it, because it is the authority for taps it has already made) }
         "404": { description: Not a Child phone }
   /device/callback-requests/{id}:
     get:

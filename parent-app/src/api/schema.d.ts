@@ -4909,7 +4909,7 @@ export interface operations {
                     "application/json": components["schemas"]["CallbackDeviceState"];
                 };
             };
-            /** @description Asking for a callback is switched off (only for a live request without `sentAt`) */
+            /** @description Asking for a callback is switched off (only for a request without `sentAt`; the phone always sends it */
             403: {
                 headers: {
                     [name: string]: unknown;

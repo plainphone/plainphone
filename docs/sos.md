@@ -134,8 +134,10 @@ records that the request was answered. An expired request has no call button.
 **The phone is the authority for what it has already done.** A report that carries the time of the tap is
 recorded even if the switch was turned off in the meantime, and the parents are told. A report older than 24
 hours is stored as `expired` without any alert, and an authenticated parent device that says it called (with
-the time it happened) is recorded even after the request expired, without alerting anyone. A live tap (no
-time) while the switch is off is refused with 403.
+the time it happened) is recorded even after the request expired, without alerting anyone. The phone always sends
+the time of the tap, so in practice the server never refuses it: a tap made before the phone has synced the
+switch is still delivered. Only a request without the time (another client) is refused with 403 while the
+switch is off, and the phone treats that as "the parents switched it off" and stops retrying.
 
 **"Call me" quick message.** While the switch is on, the dashboard no longer suggests the text-only starter
 **Call me**, so there is one action, not two. A quick message the parents wrote themselves is unaffected.

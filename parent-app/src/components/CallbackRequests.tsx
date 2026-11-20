@@ -5,7 +5,7 @@
 // button that opens the normal dialler after an explicit tap, and only once the server has accepted that
 // number. If the number is missing or changed since the request, it says so and points to the settings.
 // On the overview (`phoneName` set) only open requests show, like an SOS banner.
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Linking } from "react-native";
 import { ApiError, client, unwrap } from "../api/client";
@@ -17,6 +17,7 @@ import { Button, Card, Notice, Text, useLoad } from "./ui";
 
 export function CallbackRequests({ pid, phoneName }: { pid: string; phoneName?: string }) {
   const { locale, t } = useI18n();
+  const router = useRouter();
   const params = { path: { pid } };
   const res = useLoad(() => unwrap<CallbackList>(client.GET("/phones/{pid}/callback-requests", { params })), [pid]);
   const { reload } = res;
@@ -62,7 +63,10 @@ export function CallbackRequests({ pid, phoneName }: { pid: string; phoneName?: 
         {open && request.number !== "ok" ? (
           <>
             <Notice tone="warn" text={t(request.number === "missing" ? "cb.missing" : "cb.changed")} />
-            <Text variant="small">{t("cb.settings")}</Text>
+            <Button kind="secondary" testID="callback-open-settings" title={t("cb.settings")}
+              onPress={() => (phoneName !== undefined
+                ? router.push({ pathname: "/phones/[pid]", params: { pid, callback: "1" } })
+                : router.setParams({ callback: "1" }))} />
             <Button kind="secondary" testID="callback-other" title={t("cb.other")} disabled={busy}
               onPress={() => void answer(request, { via: "other" })} />
           </>
