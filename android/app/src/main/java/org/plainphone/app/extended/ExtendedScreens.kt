@@ -271,7 +271,7 @@ internal fun ExtendedConversation(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        if (contact != null && view != null) Surface(color = t.sheet, border = BorderStroke(1.dp, t.divider)) {
+        if (contact != null) Surface(color = t.sheet, border = BorderStroke(1.dp, t.divider)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val active = contact.status == ContactStatus.ACTIVE
                 val notDuring = view.notDuring

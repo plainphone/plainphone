@@ -169,12 +169,12 @@ object ExtendedFamily {
     fun send(context: Context, contactId: String, message: QuickMessage, nowMs: Long = System.currentTimeMillis()): Boolean {
         val c = contact(context, contactId)
         if (c?.status != ContactStatus.ACTIVE || message.meansSos || message.text.length > MAX_TEXT) return false
-        enqueue(context, OutboxItem(UUID.randomUUID().toString(), contactId, "quick", message.text, nowMs))
+        addToOutbox(context, OutboxItem(UUID.randomUUID().toString(), contactId, "quick", message.text, nowMs))
         return true
     }
 
     @Synchronized
-    private fun enqueue(context: Context, item: OutboxItem) {
+    private fun addToOutbox(context: Context, item: OutboxItem) {
         writeList(context, "outbox", Outbox.prune(outbox(context) + item, emptySet(), item.sentAtMs).map { it.toJson() })
         _changes.value++
     }
@@ -231,7 +231,7 @@ object ExtendedFamily {
      */
     fun queueSnapshot(context: Context, target: ShareTarget, fix: LocationFix, names: List<String>, nowMs: Long = System.currentTimeMillis()) {
         val minutes = snapshotRules(context).minutes
-        enqueue(context, OutboxItem(UUID.randomUUID().toString(), target.wire, "snapshot", SNAPSHOT_TEXT, nowMs, fix = fix))
+        addToOutbox(context, OutboxItem(UUID.randomUUID().toString(), target.wire, "snapshot", SNAPSHOT_TEXT, nowMs, fix = fix))
         synchronized(this) {
             val entry = SnapshotLogEntry(names.joinToString(", "), nowMs, nowMs + minutes * 60_000L)
             writeList(context, "snaplog", SnapshotLogEntry.add(snapshotLog(context), entry, nowMs).map { it.toJson() })
