@@ -56,6 +56,8 @@ interface SyncDevice {
     /** App update windows (update/AppUpdateWindow.kt): held-back apps, the toggle and "Update apps now". */
     fun onAppUpdateRules() = Unit
     fun appUpdatesReport(): org.plainphone.app.update.AppUpdateLog.Report? = null
+    /** The server accepted [report]: a window's close has reached the parents. */
+    fun appUpdatesReported(report: org.plainphone.app.update.AppUpdateLog.Report) = Unit
     /** Minutes used today per limited app ("*" = total), or null without time limits. */
     fun timeUsed(): Map<String, Int>? = null
 
@@ -602,6 +604,7 @@ class SyncRunner(
         // Its release report supplies the notice.
         if (store.setupUndoPending) return
         api.reportStatus(token, status)
+        status.appUpdates?.let { device.appUpdatesReported(it) }
         overrun?.let { store.acknowledgeInstallOverrun(it.sequence) }
         parallelAppsRemoved?.let { notices.acknowledge(StatusNotices.PARALLEL_APPS_REMOVED, it) }
         lateGoogleAccount?.let { notices.acknowledge(StatusNotices.LATE_GOOGLE_ACCOUNT, it) }

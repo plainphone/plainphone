@@ -32,6 +32,24 @@ class AppUpdateLogTest {
         assertThat(log.report(opened + 30, leaseOpen = true)!!.updated).isEqualTo(1)
     }
 
+    @Test fun `an app installed while the process was dead is found at the end of the window`() {
+        open()
+        log.packageAdded("com.tiktok", replacing = false, opened + 10, leaseOpen = true)
+        val installed = setOf("com.maps", "com.game", "com.tiktok", "com.unseen", "com.parents.approved")
+        val missed = log.missed(installed, opened + 1_000) { it == "com.parents.approved" }
+        assertThat(missed).containsExactly("com.unseen")
+        assertThat(log.report(opened + 2_000, leaseOpen = false)!!.caught).containsExactly("com.tiktok", "com.unseen")
+        // Found once.
+        assertThat(log.missed(installed, opened + 1_000) { false }).containsExactly("com.parents.approved")
+    }
+
+    @Test fun `apps installed long after the window are not missed ones`() {
+        open()
+        val installed = setOf("com.maps", "com.game", "com.later")
+        assertThat(log.missed(installed, until + AppUpdateLog.MISSED_MAX_AGE_MS + 1) { false }).isEmpty()
+        assertThat(log.report(until, leaseOpen = false)!!.caught).isEmpty()
+    }
+
     @Test fun `a new app is hidden and reported`() {
         open()
         assertThat(log.packageAdded("com.tiktok", replacing = false, opened + 10, leaseOpen = true)).isEqualTo(Verdict.HIDE)
