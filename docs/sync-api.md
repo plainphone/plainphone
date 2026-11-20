@@ -235,6 +235,7 @@ releases signed with the same key.
 | `apps.toInstall` | Apps the parent added from the [catalog](app-catalog.md) that are not installed yet (`packageName`, `label`). Treat them as allowed, so they are not hidden the moment they are installed, and offer to install them: strong mode opens Play for that one app, light mode links to Play |
 | `timeLimits` | Daily limits, always present. `total` (all non-core apps together, or `null`), `apps` (per package), `bonuses` (today and tomorrow only). See [time-limits.md](time-limits.md) |
 | `askMoreTimeEnabled`, `limitWarningEnabled` | Per-phone switches for the stop screen's "Ask for more time" button and the 5-minute warning. Missing means `true`. See [more-time.md](more-time.md) |
+| `sos.hidden`, `sos.quickMessages` | Child phones only. Hidden SOS switches (`power`, `presses`, `clock`, `feedback`) and the quick messages (`enabled`, `suggest`, `items` with `meansSos` for a code word). Missing means off and no messages. See [sos.md](sos.md) |
 | `contacts` | `CallScreeningService` and SMS filter: only these numbers, plus emergency numbers |
 | `language` | Plainphone UI language: `da`, `en`, `sv`, `nb`, `de` or `null` to follow Android. |
 | `schedules` | In a window (phone's `timezone`), only dialer, messages and the `allowedPackages` that are also in `apps.allowed` are visible (a hidden app never shows), plus the core apps. `end < start` crosses midnight; `days` are the start days (ISO, 1 = Monday) |

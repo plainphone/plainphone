@@ -27,6 +27,62 @@ every report the phone sends, including one that says an SMS was sent, even if
 the phone has since been released or is over the help limit. Over the limit
 (5 help requests in 10 minutes) the report is stored but does not notify again.
 
+## Hidden SOS and quick messages
+
+Some situations call for an alert nobody nearby notices. Parents and child agree
+on which of these to use, and each one has its own switch in the dashboard and the
+parent app (**Hidden SOS** and **Quick messages** on a Child phone's page). The
+SOS itself can be silent, but its existence is not a secret from the child: the
+phone's **What can my parents see?** page lists which hidden ways are on and which
+quick messages are code words (design principle 1).
+
+| Switch | Default | What it does |
+|---|---|---|
+| **Power button** (`hiddenPower`, `hiddenPresses`) | off, 4 presses | Pressing the power button 3–6 times (the parents choose) within about three seconds sends a silent urgent SOS, also with the screen off and the phone in a pocket |
+| **Hold the clock** (`hiddenClock`) | off | Holding the clock on the home screen for 1.5 seconds sends a silent urgent SOS |
+| **Quiet confirmation** (`hiddenFeedback`) | short vibration | One 60 ms vibration after a hidden SOS, or nothing |
+| **Quick messages** (`quickMessagesEnabled`) | on | Up to six short messages the parents write, sent with one tap from the SOS screen and the Messages tab |
+| **Child can suggest messages** (`quickSuggestionsEnabled`) | on | The child suggests a new quick message; a parent approves or declines it |
+
+A silent SOS is an urgent SOS with a position when location sharing allows it, as
+above, but the phone makes no sound, shows nothing and does not start a call. The
+parents' alert says how it was sent. It uses the same delivery, retries, SMS
+fallback and acknowledgment as any SOS. The phone is the authority: the server
+records a hidden SOS even if the parents have switched that way off since.
+
+**The power button and Android's own Emergency SOS.** Android 12 and later have
+an Emergency SOS gesture that starts a countdown, an alarm and a call to 112 after
+five presses of the power button (some manufacturers use other counts). A Device
+Owner can neither switch it off nor read whether it is on:
+`DevicePolicyManager.setSecureSetting` only accepts `DEFAULT_INPUT_METHOD`,
+`SKIP_FIRST_USE_HINTS` and `LOCATION_MODE`, and the gesture's setting is not
+readable for apps. Plainphone therefore defaults to **four** presses, so the two
+do not collide. Choosing five or six presses can start Android's emergency call as
+well. The child can still call 112 from the keypad, the SOS screen and the lock
+screen. The press count is taken from screen on/off events while the Plainphone
+process runs; a phone's camera double-press shortcut can add presses, so test the
+gesture on the child's phone together.
+
+**Quick messages.** When the list is empty, the dashboard offers three to start
+with ("Pick me up", "I'm okay", "Call me"). An ordinary quick message goes to the
+parents' devices as a normal push when the phone is online. If no parent device got
+the push, or the phone is offline, it goes as an ordinary SMS to the SOS parents.
+
+**Code words.** A parent can mark a quick message as a code word. On the child's
+phone it looks and behaves exactly like any other quick message. The parents get an
+urgent SOS alarm with the text and a position. If the phone cannot reach the server,
+the fallback SMS is only the text (plus a map link when there is a position), so it
+looks ordinary too, and the report follows online as soon as possible.
+
+**Suggestions.** At most three suggestions wait at once. A parent can approve a
+suggestion as an ordinary message or as a code word, or decline it. A declined
+suggestion is deleted.
+
+Privacy: quick messages themselves are not stored as history. The server keeps only
+the id of an online quick message for a day, to recognise a retry. A hidden SOS is
+an SOS event like the others (30 days), with how it was sent and a code word's text.
+
+
 ## Set up recipients
 
 1. In the Child phone's **Contacts**, select **Use for SOS calls and SMS** on
