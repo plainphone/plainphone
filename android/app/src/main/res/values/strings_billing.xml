@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paid early unlock (docs/billing.md). Only Play builds show these. -->
+<resources>
+    <string name="early_unlock_waiting">This change waits until %1$s.</string>
+    <string name="early_unlock_keep_waiting">Keep waiting (free)</string>
+    <string name="early_unlock_pay">Unlock in about %1$d min for %2$s</string>
+    <string name="early_unlock_title">Early unlock</string>
+    <string name="early_unlock_info_price">Price: %1$s including VAT, paid through Google Play.</string>
+    <string name="early_unlock_info_when">The change takes effect about %1$d min after you pay.</string>
+    <string name="early_unlock_info_cap">You can use an early unlock at most once every 7 days.</string>
+    <string name="early_unlock_info_withdraw">You have a 14-day right to withdraw. Until the change takes effect, you can use \"Withdraw from contract\" here on Today and get your money back.</string>
+    <string name="early_unlock_consent">I ask for the early unlock to start now, before the 14-day withdrawal period ends. I understand that I lose my right to withdraw once the early unlock has been delivered.</string>
+    <string name="early_unlock_pay_now">Pay %1$s</string>
+    <string name="early_unlock_scheduled">Your early unlock is scheduled for %1$s.</string>
+    <string name="early_unlock_withdraw">Withdraw from contract</string>
+    <string name="early_unlock_withdraw_confirm">Confirm withdrawal</string>
+    <string name="early_unlock_contract_number">Contract number: %1$s</string>
+    <string name="early_unlock_withdraw_effect">You get your money back, and the change keeps its original time.</string>
+    <string name="early_unlock_cap">You can use an early unlock again from %1$s.</string>
+    <string name="early_unlock_busy">One moment…</string>
+    <string name="early_unlock_paid">Payment received.</string>
+    <string name="early_unlock_paid_confirming">Payment received. Your phone confirms it shortly.</string>
+    <string name="early_unlock_pending">Google Play is waiting for your payment. The unlock is scheduled once it goes through.</string>
+    <string name="early_unlock_unavailable">Google Play cannot take this payment right now. Nothing was charged.</string>
+    <string name="early_unlock_failed">That did not work. Nothing was charged. Try again later.</string>
+    <string name="early_unlock_withdraw_failed">The withdrawal did not go through. Try again in a moment.</string>
+    <string name="early_unlock_withdrawn">Withdrawn. You get your money back, and the change keeps its original time.</string>
+    <string name="early_unlock_withdraw_too_late">The change has already taken effect, so the contract can no longer be withdrawn.</string>
+</resources>

@@ -80,6 +80,19 @@ interface SyncApi {
      */
     fun reportEmergencyOpening(token: String, opening: org.plainphone.app.light.EmergencyOpening): Boolean =
         throw IOException("emergency opening reports unavailable")
+    /** Paid early unlock (docs/billing.md). Each of these is 404 (an [HttpError]) while billing is off. */
+    fun deviceBilling(token: String): DeviceBilling = throw IOException("billing unavailable")
+    fun earlyUnlockOffers(token: String): List<EarlyUnlockOffer> = throw IOException("billing unavailable")
+    /** Records the user's express consent and starts a Play purchase for [changeId]. */
+    fun startEarlyUnlock(token: String, changeId: String): EarlyUnlockStart = throw IOException("billing unavailable")
+    /**
+     * Hands a finished Play purchase to the server, which verifies it at Google and acknowledges or
+     * consumes it. The phone never does that itself. [kind] is "earlyUnlock" or "plan".
+     */
+    fun reportPlayPurchase(token: String, kind: String, productId: String, purchaseToken: String): EarlyUnlockPurchase? =
+        throw IOException("billing unavailable")
+    /** "Withdraw from contract": the user confirmed it on the phone. */
+    fun withdrawEarlyUnlock(token: String, purchaseId: String): EarlyUnlockPurchase = throw IOException("billing unavailable")
 }
 
 data class Pairing(
@@ -764,6 +777,48 @@ class PlainphoneApi private constructor(
         val r = call("GET", "/device/more-time-requests", token)
         if (r.status != 200) throw HttpError(r.status, r.body)
         return readMoreTime { MoreTimeRequest.parseList(r.body) }
+    }
+
+    override fun deviceBilling(token: String): DeviceBilling {
+        val r = call("GET", "/device/billing", token)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readBilling { DeviceBilling.parse(r.body) }
+    }
+
+    override fun earlyUnlockOffers(token: String): List<EarlyUnlockOffer> {
+        val r = call("GET", "/device/early-unlocks", token)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readBilling { EarlyUnlockOffer.parseList(r.body) }
+    }
+
+    override fun startEarlyUnlock(token: String, changeId: String): EarlyUnlockStart {
+        // Safe to repeat: the server returns the same open purchase for a retry.
+        val r = call("POST", "/device/early-unlocks", token, JSONObject().put("changeId", changeId).put("consent", true), replayable = true)
+        if (r.status != 201 && r.status != 200) throw HttpError(r.status, r.body)
+        return readBilling {
+            val j = JSONObject(r.body)
+            EarlyUnlockStart(EarlyUnlockPurchase.parse(j.getJSONObject("purchase")), j.getString("productId"), j.getString("accountId"))
+        }
+    }
+
+    override fun reportPlayPurchase(token: String, kind: String, productId: String, purchaseToken: String): EarlyUnlockPurchase? {
+        val body = JSONObject().put("kind", kind).put("productId", productId).put("purchaseToken", purchaseToken)
+        // Safe to repeat: the server counts a purchase token once.
+        val r = call("POST", "/device/billing/play", token, body, replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return if (kind == "earlyUnlock") readBilling { EarlyUnlockPurchase.parse(JSONObject(r.body)) } else null
+    }
+
+    override fun withdrawEarlyUnlock(token: String, purchaseId: String): EarlyUnlockPurchase {
+        val r = call("POST", "/device/early-unlocks/$purchaseId/withdraw", token, JSONObject().put("confirm", true), replayable = true)
+        if (r.status != 200) throw HttpError(r.status, r.body)
+        return readBilling { EarlyUnlockPurchase.parse(JSONObject(r.body)) }
+    }
+
+    private fun <T> readBilling(read: () -> T): T = try {
+        read()
+    } catch (error: JSONException) {
+        throw IOException("Invalid billing response", error)
     }
 
     private fun <T> readMoreTime(read: () -> T): T = try {

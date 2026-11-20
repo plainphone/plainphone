@@ -119,6 +119,9 @@ data class ServerRules(
     val modes: ModesRules? = null,
     /** Limited emergency openings for a Self phone in light mode. Off when missing (older servers). */
     val selfEmergency: org.plainphone.app.light.EmergencyRules = org.plainphone.app.light.EmergencyRules.OFF,
+    /** Paid early unlock (EarlyUnlock.kt); null shows nothing. */
+    val earlyUnlock: EarlyUnlockRules? = null,
+    val pendingChanges: List<PendingChange> = emptyList(),
 ) {
     companion object {
         /** 10 s only while a ring or an "Are you okay?" is open; the server sends 60 otherwise. */
@@ -150,6 +153,8 @@ data class ServerRules(
                 appUpdates = AppUpdateRules.parse(j.optJSONObject("appUpdates")),
                 modes = ModesRules.parse(j),
                 selfEmergency = org.plainphone.app.light.EmergencyRules.parse(j.optJSONObject("selfEmergency")),
+                earlyUnlock = EarlyUnlockRules.parse(j.optJSONObject("earlyUnlock")),
+                pendingChanges = PendingChange.parseList(j),
                 allowServerMove = j.optBoolean("allowServerMove", false),
                 serverMove = j.optJSONObject("move")?.let {
                     ServerMoveInstruction.parse(it.optString("serverUrl"), it.optString("token"))

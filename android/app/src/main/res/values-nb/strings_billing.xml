@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="early_unlock_waiting">Endringen venter til %1$s.</string>
+    <string name="early_unlock_keep_waiting">Fortsett å vente (gratis)</string>
+    <string name="early_unlock_pay">Lås opp om ca. %1$d min for %2$s</string>
+    <string name="early_unlock_title">Tidlig opplåsing</string>
+    <string name="early_unlock_info_price">Pris: %1$s inkludert mva., betales via Google Play.</string>
+    <string name="early_unlock_info_when">Endringen trer i kraft ca. %1$d min etter at du har betalt.</string>
+    <string name="early_unlock_info_cap">Du kan bruke en tidlig opplåsing høyst én gang hver 7. dag.</string>
+    <string name="early_unlock_info_withdraw">Du har 14 dagers angrerett. Inntil endringen trer i kraft, kan du bruke \"Angre avtalen\" her under I dag og få pengene tilbake.</string>
+    <string name="early_unlock_consent">Jeg ber om at den tidlige opplåsingen starter nå, før angrefristen på 14 dager er ute. Jeg forstår at jeg mister angreretten når den tidlige opplåsingen er levert.</string>
+    <string name="early_unlock_pay_now">Betal %1$s</string>
+    <string name="early_unlock_scheduled">Den tidlige opplåsingen din er planlagt til %1$s.</string>
+    <string name="early_unlock_withdraw">Angre avtalen</string>
+    <string name="early_unlock_withdraw_confirm">Bekreft angring</string>
+    <string name="early_unlock_contract_number">Avtalenummer: %1$s</string>
+    <string name="early_unlock_withdraw_effect">Du får pengene tilbake, og endringen beholder det opprinnelige tidspunktet.</string>
+    <string name="early_unlock_cap">Du kan bruke en tidlig opplåsing igjen fra %1$s.</string>
+    <string name="early_unlock_busy">Et øyeblikk …</string>
+    <string name="early_unlock_paid">Betalingen er mottatt.</string>
+    <string name="early_unlock_paid_confirming">Betalingen er mottatt. Telefonen bekrefter den om litt.</string>
+    <string name="early_unlock_pending">Google Play venter på betalingen din. Opplåsingen blir planlagt når den har gått gjennom.</string>
+    <string name="early_unlock_unavailable">Google Play kan ikke ta imot betalingen akkurat nå. Ingenting er trukket.</string>
+    <string name="early_unlock_failed">Det fungerte ikke. Ingenting er trukket. Prøv igjen senere.</string>
+    <string name="early_unlock_withdraw_failed">Angringen gikk ikke gjennom. Prøv igjen om litt.</string>
+    <string name="early_unlock_withdrawn">Angret. Du får pengene tilbake, og endringen beholder det opprinnelige tidspunktet.</string>
+    <string name="early_unlock_withdraw_too_late">Endringen har allerede trådt i kraft, så avtalen kan ikke lenger angres.</string>
+</resources>
