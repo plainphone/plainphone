@@ -620,8 +620,10 @@ class PlainphoneApi private constructor(
         }
     }
 
-    fun reportSos(token: String, payload: JSONObject): JSONObject {
-        val response = call("POST", "/device/sos", token, payload, readTimeoutMs = 4_000, replayable = false)
+    /** [elapsedMs]: monotonic time since the press, for the server's delivery timing; a header, so older servers ignore it. */
+    fun reportSos(token: String, payload: JSONObject, elapsedMs: Long? = null): JSONObject {
+        val headers = elapsedMs?.let { mapOf("X-Plainphone-Elapsed-Ms" to it.toString()) } ?: emptyMap()
+        val response = call("POST", "/device/sos", token, payload, headers = headers, readTimeoutMs = 4_000, replayable = false)
         if (response.status != 200) throw HttpError(response.status, response.body)
         return try {
             JSONObject(response.body)

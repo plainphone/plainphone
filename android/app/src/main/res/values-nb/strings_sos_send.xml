@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="sos_channel">SOS</string>
+    <string name="sos_sending">Sender SOS-en din til foreldrene dine…</string>
+</resources>

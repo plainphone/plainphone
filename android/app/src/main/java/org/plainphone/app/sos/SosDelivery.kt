@@ -6,15 +6,25 @@ import android.app.role.RoleManager
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.Context
+import android.os.Build
+import android.os.SystemClock
+import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ForegroundInfo
+import androidx.work.ListenableWorker
+import androidx.work.ListenableWorker.Result
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.plainphone.app.ConfigStore
@@ -33,6 +43,9 @@ import org.plainphone.app.sync.SyncStore
 
 /** How long after pressing the button a call that could not start is retried before the child is told. */
 internal const val CALL_RETRY_WINDOW_MS = 10 * 60_000L
+
+/** WorkManager's shortest backoff: a failed SOS attempt is retried after 10, 20, 30 ... seconds, and at once on a new network. */
+internal const val SOS_RETRY_SECONDS = 10L
 
 internal enum class SosKind(val wire: String) { URGENT("urgent"), HELP("help") }
 
@@ -54,22 +67,49 @@ internal object SosDelivery {
                 val expired = key.removePrefix("time:")
                 prune.remove(key).remove("status:$expired").remove("position:$expired").remove("sms-claim:$expired")
                     .remove("sms-names:$expired").remove("call-claim:$expired").remove("call-missed:$expired")
+                    .remove("job:$expired")
             }
         }
         val id = UUID.randomUUID().toString()
-        prune.putLong("time:$id", System.currentTimeMillis()).apply()
+        val at = System.currentTimeMillis()
+        prune.putLong("time:$id", at).apply()
         // A silent SOS never shows on the SOS screen.
         if (trigger == null) prefs.edit().putString("last:$phoneId", id).apply()
+        val input = workDataOf(
+            "id" to id, "phone" to phoneId, "kind" to kind.wire, "at" to at,
+            "trigger" to trigger, "message" to message,
+            // The monotonic clock at the press, for the delivery timing (docs/latency.md); only valid in this boot.
+            "elapsed" to SystemClock.elapsedRealtime(), "boot" to SosSender.bootCount(context),
+        )
+        SosSender.remember(prefs, input)
+        // WorkManager keeps the report across restarts and retries it. It never waits for the normal
+        // schedule: the job is expedited, and the first attempt also starts right now (SosSender).
         val request = OneTimeWorkRequestBuilder<SosWorker>()
-            .setInputData(
-                workDataOf(
-                    "id" to id, "phone" to phoneId, "kind" to kind.wire, "at" to System.currentTimeMillis(),
-                    "trigger" to trigger, "message" to message,
-                ),
-            )
+            .setInputData(input)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, SOS_RETRY_SECONDS, TimeUnit.SECONDS)
+            .apply {
+                // Before Android 12 an expedited job shows a notification, which would give a silent SOS away.
+                if (trigger == null || Build.VERSION.SDK_INT >= 31) setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            }
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(id, ExistingWorkPolicy.KEEP, request)
+        SosSender.sendNow(context, input, visible = trigger == null)
         return id
+    }
+
+    /**
+     * One delivery attempt: report online, else hand the SMS to the carrier, then place the urgent call.
+     * Runs from the immediate send and from WorkManager; the lock makes a second runner wait and then
+     * find the work done, instead of reporting or texting twice.
+     */
+    internal suspend fun attempt(context: Context, input: Data, attempt: Int): ListenableWorker.Result {
+        val id = input.getString("id") ?: return ListenableWorker.Result.failure()
+        return SosSender.lockFor(id).withLock {
+            deliver(context, input, attempt).also { result ->
+                // Done for good either way: the network watcher has nothing left to retry.
+                if (result != ListenableWorker.Result.retry()) SosSender.forget(prefs(context), id)
+            }
+        }
     }
 
     fun prefs(context: Context) = context.getSharedPreferences("plainphone_sos", Context.MODE_PRIVATE)
@@ -81,8 +121,14 @@ internal object SosDelivery {
 }
 
 class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val context = applicationContext
+    override suspend fun doWork(): Result = SosDelivery.attempt(applicationContext, inputData, runAttemptCount)
+
+    /** Only used before Android 12, where an expedited job runs as a foreground service. */
+    override suspend fun getForegroundInfo(): ForegroundInfo = SosSender.foregroundInfo(applicationContext)
+}
+
+private suspend fun deliver(context: Context, inputData: Data, runAttemptCount: Int): ListenableWorker.Result =
+    withContext(Dispatchers.IO) {
         val id = inputData.getString("id") ?: return@withContext Result.failure()
         val phone = inputData.getString("phone")
         val kind = inputData.getString("kind") ?: return@withContext Result.failure()
@@ -101,7 +147,8 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
             prefs.edit().putString(key, "failed").remove("position:$id").apply()
             return@withContext Result.failure()
         }
-        val fix = if (runAttemptCount == 0 && System.currentTimeMillis() - at <= 120_000 &&
+        // A runner that finds the report already accepted skips the fix: the parents have the alert.
+        val fix = if (runAttemptCount == 0 && SosDelivery.status(context, id) != "online" && System.currentTimeMillis() - at <= 120_000 &&
             rules.locationEnabled && rules.locationMode != "off"
         ) {
             runCatching {
@@ -134,7 +181,9 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
 
         try {
             // A retry only to place the call must not report again.
-            if (SosDelivery.status(context, id) != "online") SosDelivery.api(context).reportSos(token, payload)
+            if (SosDelivery.status(context, id) != "online") {
+                SosDelivery.api(context).reportSos(token, payload, SosSender.elapsedMs(context, inputData))
+            }
             prefs.edit().putString(key, "online").remove(positionKey).apply()
             return@withContext if (urgentCallOutstanding()) Result.retry() else Result.success()
         } catch (e: HttpError) {
@@ -162,7 +211,6 @@ class SosWorker(context: Context, params: WorkerParameters) : CoroutineWorker(co
         }
         Result.retry()
     }
-}
 
 
 /**
