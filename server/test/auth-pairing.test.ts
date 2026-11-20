@@ -124,7 +124,8 @@ describe("pairing", () => {
     const typed = start.json.code.toLowerCase().replace("-", " ");
     const claim = await parent.post("/api/phones/claim", { code: typed, name: "Alma", profile: "child" });
     expect(claim.status).toBe(201);
-    expect(claim.json.dnsHost).toMatch(/^[a-z2-7]{20}\.dns\.plainphone\.org$/);
+    // The mock resolver never confirms an address, so the summary does not show one.
+    expect(claim.json.dnsHost).toBeNull();
 
     const got = await poll();
     expect(got.status).toBe(200);
@@ -142,7 +143,9 @@ describe("pairing", () => {
     // A device token cannot use the parent API.
     expect((await device.get("/api/phones")).status).toBe(403);
     // The phone was registered with the DNS service with every category blocked.
-    const dnsClient = h.dns.clients.get(claim.json.dnsHost.split(".")[0])!;
+    const host = (await device.get("/api/device/rules")).json.dns.host as string;
+    expect(host).toMatch(/^[a-z2-7]{20}\.dns\.plainphone\.org$/);
+    const dnsClient = h.dns.clients.get(host.split(".")[0]!)!;
     expect(dnsClient.profile).toBe("child");
     expect(dnsClient.blockedCategories).toHaveLength(6);
   });
