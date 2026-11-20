@@ -9,6 +9,8 @@ import { body, param } from "../lib/http.js";
 import type { Ctx } from "../services/context.js";
 import { deliverSos, sosCutoff, sosJson } from "../services/sos.js";
 import { wakePhone } from "../services/phones.js";
+import { HIDDEN_PRESSES, QUICK_TEXT_MAX, sosSettingsJson } from "../services/quick-messages.js";
+import { deviceQuickMessageRoutes, parentQuickMessageRoutes } from "./quick-messages.js";
 
 const report = z.strictObject({
   id: z.uuid(),
@@ -17,9 +19,24 @@ const report = z.strictObject({
   battery: z.number().int().min(0).max(100).optional(),
   smsSubmitted: z.boolean().optional(),
   sentAt: z.iso.datetime().optional(),
-});
+  /** A hidden SOS (power button, clock) or a quick message marked as a code word. Always urgent. */
+  trigger: z.enum(["power", "clock", "code"]).optional(),
+  message: z.string().trim().min(1).max(QUICK_TEXT_MAX).optional(),
+}).refine((r) => !r.trigger || r.kind === "urgent", { message: "hidden SOS is urgent" })
+  .refine((r) => (r.trigger === "code") === (r.message !== undefined), { message: "message goes with a code word" });
 
 type Phone = typeof phones.$inferSelect;
+
+/** Every field is optional: the dashboard saves one switch at a time. */
+const sosSettingsInput = z.strictObject({
+  callbackNumber: phoneNumber.nullable().optional(),
+  hiddenPower: z.boolean().optional(),
+  hiddenPresses: z.number().int().refine((n) => (HIDDEN_PRESSES as readonly number[]).includes(n), "3 to 6 presses").optional(),
+  hiddenClock: z.boolean().optional(),
+  hiddenFeedback: z.enum(["vibrate", "none"]).optional(),
+  quickMessagesEnabled: z.boolean().optional(),
+  quickSuggestionsEnabled: z.boolean().optional(),
+});
 
 export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: Hono<E>, ctx: Ctx) {
   app.post("/sos", async (c) => {
@@ -55,7 +72,7 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
       const [row] = await tx.insert(sosEvents).values({
         id: input.id, phoneId, kind: input.kind, receivedAt: now, createdAt: at > now ? now : at,
         lat: location?.lat, lon: location?.lon, battery: input.battery,
-        deliveredVia: input.smsSubmitted ? "sms" : null,
+        deliveredVia: input.smsSubmitted ? "sms" : null, trigger: input.trigger, message: input.message,
         notificationClaimedAt: limited ? now : null,
       }).returning();
       return { event: row!, fresh: !limited };
@@ -72,6 +89,8 @@ export function deviceSosRoutes<E extends { Variables: { phone: Phone } }>(app: 
     if (!event) throw new HTTPException(404, { message: "SOS not found" });
     return c.json({ seenAt: event.seenAt, seenBy: event.seenBy !== null, seenByName: event.seenByName });
   });
+
+  deviceQuickMessageRoutes(app, ctx);
 }
 
 export function parentSosRoutes<E extends { Variables: { user: { id: string } } }>(
@@ -83,16 +102,29 @@ export function parentSosRoutes<E extends { Variables: { user: { id: string } } 
       gt(sosEvents.createdAt, sosCutoff(ctx.now())),
       c.req.query("unseen") === "1" ? isNull(sosEvents.seenAt) : undefined,
     )).orderBy(desc(sosEvents.createdAt));
-    return c.json({ events: events.map(sosJson), callbackNumber: phone.sosCallbackNumber });
+    return c.json({ events: events.map(sosJson), callbackNumber: phone.sosCallbackNumber, settings: sosSettingsJson(phone) });
   });
 
   app.put("/phones/:pid/sos", async (c) => {
     const phone = await requirePhone(c);
     if (phone.profile !== "child") throw new HTTPException(404, { message: "not found" });
-    const { callbackNumber } = await body(c, z.strictObject({ callbackNumber: phoneNumber.nullable() }));
-    await ctx.db.update(phones).set({ sosCallbackNumber: callbackNumber }).where(eq(phones.id, phone.id));
+    const input = await body(c, sosSettingsInput);
+    const set = {
+      ...(input.callbackNumber !== undefined ? { sosCallbackNumber: input.callbackNumber } : {}),
+      ...(input.hiddenPower !== undefined ? { hiddenSosPower: input.hiddenPower } : {}),
+      ...(input.hiddenPresses !== undefined ? { hiddenSosPresses: input.hiddenPresses } : {}),
+      ...(input.hiddenClock !== undefined ? { hiddenSosClock: input.hiddenClock } : {}),
+      ...(input.hiddenFeedback !== undefined ? { hiddenSosFeedback: input.hiddenFeedback } : {}),
+      ...(input.quickMessagesEnabled !== undefined ? { quickMessagesEnabled: input.quickMessagesEnabled } : {}),
+      ...(input.quickSuggestionsEnabled !== undefined ? { quickSuggestionsEnabled: input.quickSuggestionsEnabled } : {}),
+    };
+    if (Object.keys(set).length) await ctx.db.update(phones).set(set).where(eq(phones.id, phone.id));
+    // Everything but the callback number is in the rules' sos block.
+    if (Object.keys(set).some((k) => k !== "sosCallbackNumber")) await wakePhone(ctx, phone.id, "rules");
     return c.body(null, 204);
   });
+
+  parentQuickMessageRoutes(app, ctx, requirePhone);
 
   app.post("/phones/:pid/sos/:id/seen", async (c) => {
     const phone = await requirePhone(c);
