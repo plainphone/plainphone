@@ -645,6 +645,9 @@ export function deviceRoutes(ctx: Ctx, updateWake: UpdateWake, extra?: (app: Hon
       if (purpose !== undefined && forCheckin && checkin && recordedAt <= checkin.createdAt) {
         return { status: 400, error: "recordedAt must be after check-in creation" } as const;
       }
+      if (purpose !== undefined && forCheckin && checkin && recordedAt < checkin.endsAt) {
+        return { status: 400, error: "recordedAt must not be before the check-in deadline" } as const;
+      }
       let staged = false;
       if (forCheckin && checkin && (purpose === undefined || recordedAt >= checkin.endsAt)) {
         // An answer or cancellation can still discard this fix before it becomes visible.

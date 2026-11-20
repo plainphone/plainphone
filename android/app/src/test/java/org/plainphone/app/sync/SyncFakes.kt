@@ -110,6 +110,15 @@ class FakeSyncApi : SyncApi {
     val acks = mutableListOf<String>()
 
     override fun startPairing(mode: String, deviceInfo: Map<String, String>) = pairing
+    /** Pairings the phone cancelled (POST /device/pairings/{id} with action cancel). */
+    val cancelledPairings = mutableListOf<String>()
+    var cancelPairingFailure: IOException? = null
+    override fun decidePairing(pairing: Pairing, confirm: Boolean): PairPoll {
+        check(!confirm) { "the fake only cancels" }
+        cancelPairingFailure?.let { throw it }
+        cancelledPairings += pairing.id
+        return PairPoll.Expired
+    }
     override fun pollPairing(pairingId: String, pollSecret: String): PairPoll {
         check(pollSecret == pairing.pollSecret) { "wrong poll secret" }
         return pollResult

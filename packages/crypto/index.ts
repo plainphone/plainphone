@@ -116,8 +116,12 @@ export class CryptoCore {
 
   async hmacVerify(key: Bytes, input: Bytes, tag: Bytes): Promise<boolean> {
     if (tag.length !== 32) return false;
-    const imported = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
-    return crypto.subtle.verify("HMAC", imported, tag, input);
+    // Compare in fixed time here instead of trusting each WebCrypto provider's verify (Expo and React
+    // Native providers may sign and then compare with an early exit).
+    const expected = await this.hmac(key, input);
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) diff |= expected[i]! ^ tag[i]!;
+    return diff === 0;
   }
 
   async hkdf(ikm: Bytes, salt: Bytes, info: Bytes, length: number): Promise<Bytes> {

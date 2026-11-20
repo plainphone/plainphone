@@ -11,7 +11,8 @@ data class RulesRevision(val version: Long, val digest: String)
 fun rulesRejection(header: JsonObject, role: String, receivedDigest: String, accepted: RulesRevision?): String? {
     if (header["table"] != JsonPrimitive("phone_state") || header["scope"] != JsonPrimitive("R")) return "wrong-scope"
     val wireVersion = header["v"] as? JsonPrimitive
-    if (wireVersion == null || !wireVersion.isNumber || wireVersion.asString != "1") return "wrong-wire-version"
+    // Numeric comparison, like `header.v !== 1` in TypeScript: 1.0 equals 1, 1.5 and "1" do not.
+    if (wireVersion == null || !wireVersion.isNumber || !isWireVersion1(wireVersion)) return "wrong-wire-version"
     val phoneId = header["phoneId"] as? JsonPrimitive
     if (phoneId == null || !phoneId.isString || header["recordId"] != phoneId) return "wrong-record-id"
     if (role != "admin") return "wrong-role"
@@ -22,6 +23,9 @@ fun rulesRejection(header: JsonObject, role: String, receivedDigest: String, acc
     if (accepted != null && revision == accepted.version && receivedDigest != accepted.digest) return "revision-conflict"
     return null
 }
+
+private fun isWireVersion1(v: JsonPrimitive): Boolean =
+    runCatching { v.asBigDecimal.compareTo(java.math.BigDecimal.ONE) == 0 }.getOrDefault(false)
 
 fun selfBaseRejection(changeId: String, expected: SelfBase, accepted: SelfBase, consumed: Set<String>): String? = when {
     changeId in consumed -> "replay"
