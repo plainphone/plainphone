@@ -96,3 +96,30 @@ describe("rule confirmations", () => {
       .toBe(t("receipt.confirmedAt", { time }));
   });
 });
+
+describe("iPhone health", () => {
+  const iphone = (authorizationStatus?: "notDetermined" | "denied" | "approved") => ({
+    mode: "light" as const, platform: "ios" as const, lastSeenAt: at(1), dnsConfigured: true, dnsReady: true,
+    status: {
+      reportedAt: at(2), lockIntact: authorizationStatus === "approved", maintenance: false, webFilterActive: null,
+      ...(authorizationStatus ? { ios: { authorizationStatus } } : {}),
+    },
+  });
+
+  it("checks Apple's Screen Time permission instead of Android's protections", () => {
+    const rows = healthRows(iphone("approved"), now, "en", t);
+    expect(rows.find((r) => r.key === "screenTime")).toMatchObject({ action: false, detail: t("health.on") });
+    expect(rows.some((r) => r.key === "dialer" || r.key === "deviceAdmin" || r.key === "accessibility")).toBe(false);
+  });
+
+  it.each([
+    ["denied", "platform.iphone.authDenied"],
+    ["notDetermined", "platform.iphone.authNotDetermined"],
+  ] as const)("asks the parent to act when the permission is %s", (status, key) => {
+    expect(healthRows(iphone(status), now, "en", t).find((r) => r.key === "screenTime")).toMatchObject({ action: true, detail: t(key) });
+  });
+
+  it("waits for a report before judging", () => {
+    expect(healthRows(iphone(), now, "en", t).find((r) => r.key === "screenTime")).toMatchObject({ action: false });
+  });
+});

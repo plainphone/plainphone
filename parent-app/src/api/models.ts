@@ -29,6 +29,8 @@ export interface Me {
   user: User;
   households: { id: string; name: string; role: "owner" | "parent" }[];
   mailEnabled: boolean;
+  /** This server pairs iPhones (IOS_PAIRING_ENABLED): offer "Add an iPhone". Missing on old servers. */
+  iosPairing?: boolean;
 }
 export interface Phone {
   /** Modes on one weekly plan (docs/modes.md). Child phones only; missing on old servers: off. */
